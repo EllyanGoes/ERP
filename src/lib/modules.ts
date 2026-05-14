@@ -23,11 +23,28 @@ export const MODULOS: ModuloDef[] = [
     ],
   },
   {
+    key: "empresa",
+    label: "Empresa",
+    group: "Empresa",
+    recursos: [
+      // Comercial
+      { key: "clientes",            label: "Clientes",            acoes: ["ver", "inserir", "editar", "excluir"] },
+      // Almoxarifado
+      { key: "produtos",            label: "Produtos",            acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "tipos-produto",       label: "Tipos de Produto",    acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "unidades",            label: "Unidades de Medida",  acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "locais-estoque",      label: "Locais de Estoque",   acoes: ["ver", "inserir", "editar", "excluir"] },
+      // Compras
+      { key: "fornecedores",        label: "Fornecedores",        acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "condicoes-pagamento", label: "Cond. de Pagamento",  acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "formas-pagamento",    label: "Formas de Pagamento", acoes: ["ver", "inserir", "editar", "excluir"] },
+    ],
+  },
+  {
     key: "comercial",
     label: "Comercial",
     group: "Comercial",
     recursos: [
-      { key: "clientes",      label: "Clientes",        acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "pedidos-venda", label: "Pedidos de Venda", acoes: ["ver", "inserir", "editar", "excluir"] },
     ],
   },
@@ -36,12 +53,8 @@ export const MODULOS: ModuloDef[] = [
     label: "Almoxarifado",
     group: "Suprimentos",
     recursos: [
-      { key: "produtos",       label: "Produtos",           acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "tipos-produto",  label: "Tipos de Produto",   acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "unidades",       label: "Unidades de Medida", acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "estoque",        label: "Posição de Estoque", acoes: ["ver"] },
-      { key: "locais-estoque", label: "Locais de Estoque",  acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "movimentacoes",  label: "Movimentações",      acoes: ["ver", "inserir"] },
+      { key: "estoque",       label: "Posição de Estoque", acoes: ["ver"] },
+      { key: "movimentacoes", label: "Movimentações",      acoes: ["ver", "inserir"] },
     ],
   },
   {
@@ -49,11 +62,9 @@ export const MODULOS: ModuloDef[] = [
     label: "Compras",
     group: "Suprimentos",
     recursos: [
-      { key: "fornecedores",         label: "Fornecedores",          acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "condicoes-pagamento",  label: "Cond. de Pagamento",    acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "cotacoes",             label: "Cotação de Compras",    acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "pedidos-compra",       label: "Pedido de Compras",     acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "conferencias",         label: "Conferência de Compra", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "cotacoes",      label: "Cotação de Compras",    acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "pedidos-compra", label: "Pedido de Compras",    acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "conferencias",  label: "Conferência de Compra", acoes: ["ver", "inserir", "editar", "excluir"] },
     ],
   },
   {

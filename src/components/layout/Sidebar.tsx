@@ -55,7 +55,7 @@ interface NavItem {
 }
 
 interface SubSection {
-  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema";
+  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras";
   items: NavItem[];
 }
 
@@ -70,11 +70,40 @@ interface Module {
 
 const mainModules: Module[] = [
   {
+    id: "empresa",
+    label: "Empresa",
+    icon: Building2,
+    sections: [
+      {
+        kind: "Comercial",
+        items: [
+          { href: "/clientes", label: "Clientes", icon: Users },
+        ],
+      },
+      {
+        kind: "Almoxarifado",
+        items: [
+          { href: "/suprimentos/produtos",       label: "Produtos",           icon: Package },
+          { href: "/suprimentos/tipos-produto",  label: "Tipos de Produto",   icon: Tag },
+          { href: "/suprimentos/unidades",       label: "Unidades de Medida", icon: Ruler },
+          { href: "/suprimentos/locais-estoque", label: "Locais de Estoque",  icon: MapPin },
+        ],
+      },
+      {
+        kind: "Compras",
+        items: [
+          { href: "/suprimentos/fornecedores",        label: "Fornecedores",        icon: Truck },
+          { href: "/suprimentos/condicoes-pagamento", label: "Cond. de Pagamento",  icon: CalendarDays },
+          { href: "/suprimentos/formas-pagamento",    label: "Formas de Pagamento", icon: CreditCard },
+        ],
+      },
+    ],
+  },
+  {
     id: "comercial",
     label: "Comercial",
     icon: ShoppingCart,
     sections: [
-      { kind: "Cadastros", items: [{ href: "/clientes", label: "Clientes", icon: Users }] },
       { kind: "Processos", items: [{ href: "/pedidos-venda", label: "Pedidos de Venda", icon: ShoppingCart }] },
     ],
   },
@@ -84,27 +113,18 @@ const mainModules: Module[] = [
     icon: Warehouse,
     sections: [
       {
-        kind: "Cadastros",
-        items: [
-          { href: "/suprimentos/produtos",      label: "Produtos",           icon: Package },
-          { href: "/suprimentos/tipos-produto", label: "Tipos de Produto",   icon: Tag },
-          { href: "/suprimentos/unidades",      label: "Unidades de Medida", icon: Ruler },
-        ],
-      },
-      {
         kind: "Estoque",
         items: [
-          { href: "/suprimentos/estoque",        label: "Posição de Estoque", icon: PackageSearch },
-          { href: "/suprimentos/locais-estoque", label: "Locais de Estoque",  icon: MapPin },
-          { href: "/suprimentos/movimentacoes",  label: "Movimentações",      icon: ArrowLeftRight },
+          { href: "/suprimentos/estoque",       label: "Posição de Estoque", icon: PackageSearch },
+          { href: "/suprimentos/movimentacoes", label: "Movimentações",      icon: ArrowLeftRight },
         ],
       },
       {
         kind: "Relatórios",
         items: [
           { href: "/suprimentos/relatorios/movimentacoes", label: "Entradas e Saídas", icon: FileBarChart2 },
-          { href: "/suprimentos/relatorios/curva-abc",     label: "Curva ABC",          icon: PieChart },
-          { href: "/suprimentos/relatorios/imd",           label: "IMD — Demandas",     icon: BarChart3 },
+          { href: "/suprimentos/relatorios/curva-abc",     label: "Curva ABC",         icon: PieChart },
+          { href: "/suprimentos/relatorios/imd",           label: "IMD — Demandas",    icon: BarChart3 },
         ],
       },
     ],
@@ -114,14 +134,6 @@ const mainModules: Module[] = [
     label: "Compras",
     icon: ShoppingBag,
     sections: [
-      {
-        kind: "Cadastros",
-        items: [
-          { href: "/suprimentos/fornecedores",        label: "Fornecedores",        icon: Truck },
-          { href: "/suprimentos/condicoes-pagamento", label: "Cond. de Pagamento",  icon: CalendarDays },
-          { href: "/suprimentos/formas-pagamento",    label: "Formas de Pagamento", icon: CreditCard },
-        ],
-      },
       {
         kind: "Fluxo de Compras",
         items: [
@@ -192,6 +204,8 @@ const kindStyle: Record<SubSection["kind"], string> = {
   Almoxarifado:       "text-emerald-500",
   Relatórios:         "text-rose-500",
   Sistema:            "text-gray-400",
+  Comercial:          "text-blue-500",
+  Compras:            "text-amber-500",
 };
 
 // ── Tooltip wrapper (portal-based) ────────────────────────────────────────────
