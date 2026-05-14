@@ -1,0 +1,54 @@
+export const dynamic = "force-dynamic";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { pagamentoSchema } from "@/lib/validations/financeiro";
+
+export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const conta = await prisma.contaPagar.findUnique({
+    where: { id: params.id },
+    include: { fornecedor: true, lancamentos: true },
+  });
+  if (!conta) return NextResponse.json({ error: "Conta não encontrada" }, { status: 404 });
+  return NextResponse.json({ data: conta });
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const body = await req.json();
+  const parsed = pagamentoSchema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
+
+  const { valorPago, dataPagamento, formaPagamento, valorMulta, valorJuros } = parsed.data;
+
+  const conta = await prisma.contaPagar.findUnique({ where: { id: params.id } });
+  if (!conta) return NextResponse.json({ error: "Conta não encontrada" }, { status: 404 });
+
+  const totalPago = parseFloat(conta.valorPago.toString()) + valorPago;
+  const totalOriginal = parseFloat(conta.valorOriginal.toString());
+  const newStatus = totalPago >= totalOriginal ? "PAGA" : "PARCIAL";
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.contaPagar.update({
+      where: { id: params.id },
+      data: {
+        valorPago: totalPago,
+        valorMulta: (parseFloat(conta.valorMulta.toString())) + valorMulta,
+        valorJuros: (parseFloat(conta.valorJuros.toString())) + valorJuros,
+        dataPagamento: newStatus === "PAGA" ? new Date(dataPagamento) : null,
+        formaPagamento: formaPagamento ?? conta.formaPagamento,
+        status: newStatus,
+      },
+    });
+    await tx.lancamentoCaixa.create({
+      data: {
+        tipo: "DESPESA",
+        descricao: `Pagamento ${conta.numero}`,
+        valor: valorPago + valorMulta + valorJuros,
+        dataLancamento: new Date(dataPagamento),
+        contaPagarId: params.id,
+      },
+    });
+    return result;
+  });
+
+  return NextResponse.json({ data: updated });
+}

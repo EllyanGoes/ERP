@@ -1,0 +1,29 @@
+export const dynamic = "force-dynamic";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { z } from "zod";
+
+const schema = z.object({ nome: z.string().min(1), descricao: z.string().optional() });
+
+export async function GET() {
+  const data = await prisma.localEstoque.findMany({
+    orderBy: { nome: "asc" },
+    include: {
+      _count: { select: { estoqueItens: true } },
+      estoqueItens: {
+        select: {
+          quantidadeAtual: true,
+          item: { select: { precoCusto: true } },
+        },
+      },
+    },
+  });
+  return NextResponse.json(data);
+}
+
+export async function POST(req: NextRequest) {
+  const body = schema.safeParse(await req.json());
+  if (!body.success) return NextResponse.json({ error: body.error.issues[0]?.message ?? "Dados inválidos" }, { status: 400 });
+  const record = await prisma.localEstoque.create({ data: body.data });
+  return NextResponse.json(record, { status: 201 });
+}

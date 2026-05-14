@@ -1,0 +1,554 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import {
+  LayoutDashboard,
+  Users,
+  ShoppingCart,
+  Package,
+  Warehouse,
+  TrendingUp,
+  TrendingDown,
+  BarChart3,
+  FileBarChart2,
+  Building2,
+  Truck,
+  ClipboardList,
+  PackageSearch,
+  ShoppingBag,
+  CreditCard,
+  Settings,
+  CircleDot,
+  FilePlus,
+  Tag,
+  Ruler,
+  MapPin,
+  ArrowLeftRight,
+  CalendarDays,
+  FileSearch,
+  PackageCheck,
+  PanelLeftClose,
+  PanelLeftOpen,
+  GripVertical,
+  PieChart,
+  UserCog,
+  LogOut,
+  ShieldCheck,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { useSession } from "@/lib/session-context";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon?: LucideIcon;
+  soon?: boolean;
+}
+
+interface SubSection {
+  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema";
+  items: NavItem[];
+}
+
+interface Module {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  sections: SubSection[];
+}
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+
+const modules: Module[] = [
+  {
+    id: "comercial",
+    label: "Comercial",
+    icon: ShoppingCart,
+    sections: [
+      { kind: "Cadastros", items: [{ href: "/clientes", label: "Clientes", icon: Users }] },
+      { kind: "Processos", items: [{ href: "/pedidos-venda", label: "Pedidos de Venda", icon: ShoppingCart }] },
+    ],
+  },
+  {
+    id: "almoxarifado",
+    label: "Almoxarifado",
+    icon: Warehouse,
+    sections: [
+      {
+        kind: "Cadastros",
+        items: [
+          { href: "/suprimentos/produtos",      label: "Produtos",           icon: Package },
+          { href: "/suprimentos/tipos-produto", label: "Tipos de Produto",   icon: Tag },
+          { href: "/suprimentos/unidades",      label: "Unidades de Medida", icon: Ruler },
+        ],
+      },
+      {
+        kind: "Estoque",
+        items: [
+          { href: "/suprimentos/estoque",        label: "Posição de Estoque", icon: PackageSearch },
+          { href: "/suprimentos/locais-estoque", label: "Locais de Estoque",  icon: MapPin },
+          { href: "/suprimentos/movimentacoes",  label: "Movimentações",      icon: ArrowLeftRight },
+        ],
+      },
+      {
+        kind: "Relatórios",
+        items: [
+          { href: "/suprimentos/relatorios/movimentacoes", label: "Entradas e Saídas", icon: FileBarChart2 },
+          { href: "/suprimentos/relatorios/curva-abc",     label: "Curva ABC",            icon: PieChart },
+          { href: "/suprimentos/relatorios/imd",           label: "IMD — Demandas",        icon: BarChart3 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "compras",
+    label: "Compras",
+    icon: ShoppingBag,
+    sections: [
+      {
+        kind: "Cadastros",
+        items: [
+          { href: "/suprimentos/fornecedores",        label: "Fornecedores",        icon: Truck },
+          { href: "/suprimentos/condicoes-pagamento", label: "Cond. de Pagamento",  icon: CalendarDays },
+          { href: "/suprimentos/formas-pagamento",    label: "Formas de Pagamento", icon: CreditCard },
+        ],
+      },
+      {
+        kind: "Fluxo de Compras",
+        items: [
+          { href: "/compras/necessidades",       label: "Necessidade de Compra", icon: ClipboardList },
+          { href: "/suprimentos/cotacoes",       label: "Cotação de Compras",    icon: FileSearch },
+          { href: "/suprimentos/pedidos-compra", label: "Pedido de Compras",     icon: FilePlus },
+          { href: "/suprimentos/conferencias",   label: "Conferência de Compra", icon: PackageCheck },
+        ],
+      },
+    ],
+  },
+  {
+    id: "financeiro",
+    label: "Financeiro",
+    icon: BarChart3,
+    sections: [
+      {
+        kind: "Processos",
+        items: [
+          { href: "/contas-receber", label: "Contas a Receber", icon: TrendingUp },
+          { href: "/contas-pagar",   label: "Contas a Pagar",   icon: TrendingDown },
+          { href: "/fluxo-caixa",    label: "Fluxo de Caixa",   icon: BarChart3 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "admin",
+    label: "Administração",
+    icon: ShieldCheck,
+    sections: [
+      {
+        kind: "Sistema",
+        items: [{ href: "/admin/usuarios", label: "Usuários", icon: UserCog }],
+      },
+    ],
+  },
+];
+
+const STRIP_W    = 64;
+const PANEL_MIN  = 160;
+const PANEL_MAX  = 400;
+const PANEL_DEFAULT = 220;
+
+function moduleIsActive(mod: Module, pathname: string) {
+  return mod.sections.some((s) =>
+    s.items.some((item) => !item.soon && pathname.startsWith(item.href))
+  );
+}
+
+function itemIsActive(item: NavItem, pathname: string) {
+  if (item.soon) return false;
+  return pathname === item.href || pathname.startsWith(item.href + "/");
+}
+
+const kindStyle: Record<SubSection["kind"], string> = {
+  Cadastros:          "text-violet-500",
+  Processos:          "text-blue-500",
+  Estoque:            "text-emerald-500",
+  "Fluxo de Compras": "text-amber-500",
+  Almoxarifado:       "text-emerald-500",
+  Relatórios:         "text-rose-500",
+  Sistema:            "text-gray-400",
+};
+
+// ── Tooltip wrapper (portal-based to escape overflow:hidden) ──────────────────
+
+function StripTooltip({ label, children }: { label: string; children: React.ReactNode }) {
+  const ref     = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [pos, setPos]         = useState({ top: 0, left: 0 });
+  const [visible, setVisible] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  function handleEnter() {
+    if (ref.current) {
+      const r = ref.current.getBoundingClientRect();
+      setPos({ top: r.top + r.height / 2, left: r.right + 8 });
+    }
+    timerRef.current = setTimeout(() => setVisible(true), 300);
+  }
+
+  function handleLeave() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setVisible(false);
+  }
+
+  return (
+    <div ref={ref} onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+      {children}
+      {mounted && visible && createPortal(
+        <div
+          className="fixed z-[9999] pointer-events-none"
+          style={{ top: pos.top, left: pos.left, transform: "translateY(-50%)" }}
+        >
+          <div className="bg-white text-gray-800 text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap shadow-[0_4px_16px_rgba(0,0,0,0.10)] border border-gray-100">
+            {label}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export default function Sidebar() {
+  const pathname = usePathname();
+  const { user, canAccess } = useSession();
+
+  // Filter modules by permission
+  const visibleModules = modules.filter((mod) => canAccess(mod.id));
+
+  const [openId, setOpenId] = useState<string | null>(() => {
+    const active = modules.find((m) => moduleIsActive(m, pathname));
+    return active?.id ?? null;
+  });
+
+  const [panelWidth, setPanelWidth] = useState<number>(() => {
+    if (typeof window === "undefined") return PANEL_DEFAULT;
+    return parseInt(localStorage.getItem("sidebar-panel-w") ?? "") || PANEL_DEFAULT;
+  });
+
+  const [stripCollapsed, setStripCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("sidebar-collapsed") === "1";
+  });
+
+  const draggingRef  = useRef(false);
+  const dragStartX   = useRef(0);
+  const dragStartW   = useRef(0);
+
+  // Auto-open active module on navigation — only when the sidebar is not collapsed
+  useEffect(() => {
+    if (stripCollapsed) return;
+    const active = modules.find((m) => moduleIsActive(m, pathname));
+    if (active) setOpenId(active.id);
+  }, [pathname, stripCollapsed]);
+
+  // Sync CSS variable
+  useEffect(() => {
+    const w = stripCollapsed ? 0 : STRIP_W + (openId ? panelWidth : 0);
+    document.documentElement.style.setProperty("--sidebar-width", `${w}px`);
+  }, [openId, panelWidth, stripCollapsed]);
+
+  // Persist settings
+  useEffect(() => {
+    localStorage.setItem("sidebar-panel-w", String(panelWidth));
+  }, [panelWidth]);
+
+  useEffect(() => {
+    localStorage.setItem("sidebar-collapsed", stripCollapsed ? "1" : "0");
+  }, [stripCollapsed]);
+
+  // ⌘B / Ctrl+B shortcut
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "b") {
+        e.preventDefault();
+        setStripCollapsed((p) => !p);
+      }
+    }
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // Resize drag
+  const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    draggingRef.current = true;
+    dragStartX.current  = e.clientX;
+    dragStartW.current  = panelWidth;
+
+    function onMove(ev: MouseEvent) {
+      if (!draggingRef.current) return;
+      const delta = ev.clientX - dragStartX.current;
+      const next  = Math.min(PANEL_MAX, Math.max(PANEL_MIN, dragStartW.current + delta));
+      setPanelWidth(next);
+    }
+    function onUp() {
+      draggingRef.current = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [panelWidth]);
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  }
+
+  const openModule = modules.find((m) => m.id === openId) ?? null;
+
+  // Show sidebar width
+  const sidebarW = stripCollapsed ? 0 : STRIP_W + (openId ? panelWidth : 0);
+
+  // User initials
+  const userInitials = user?.nome
+    ? user.nome.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
+    : "?";
+
+  return (
+    <>
+      {/* ── Floating reopen button when fully collapsed ──────────────── */}
+      {stripCollapsed && (
+        <div className="fixed left-0 top-0 h-screen w-6 z-40 group/reopen">
+          <button
+            onClick={() => setStripCollapsed(false)}
+            title="Expandir sidebar (⌘B)"
+            className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center
+              w-5 h-10 bg-gray-200 hover:bg-gray-300 text-gray-500 hover:text-gray-700
+              rounded-r-lg transition-all shadow-md
+              opacity-0 group-hover/reopen:opacity-100 -translate-x-full group-hover/reopen:translate-x-0
+              duration-150"
+          >
+            <PanelLeftOpen className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      <aside
+        className="fixed left-0 top-0 h-screen z-30 flex overflow-hidden transition-[width] duration-200"
+        style={{ width: sidebarW }}
+      >
+        {/* ── Icon strip ─────────────────────────────────────────────── */}
+        <div
+          className="flex flex-col bg-gray-900 shrink-0 overflow-hidden"
+          style={{ width: STRIP_W, minWidth: STRIP_W }}
+        >
+          {/* Logo */}
+          <div className="flex items-center justify-center h-16 border-b border-gray-800 shrink-0">
+            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+              <Building2 className="w-4 h-4 text-white" />
+            </div>
+          </div>
+
+          {/* Dashboard */}
+          <div className="flex flex-col items-center pt-3 pb-1 gap-1">
+            <StripTooltip label="Dashboard">
+              <Link
+                href="/dashboard"
+                className={cn(
+                  "flex flex-col items-center justify-center w-9 h-9 rounded-xl transition-colors",
+                  pathname === "/dashboard"
+                    ? "bg-blue-500 text-white"
+                    : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                )}
+              >
+                <LayoutDashboard className="w-4 h-4" />
+              </Link>
+            </StripTooltip>
+          </div>
+
+          <div className="mx-4 border-t border-gray-800 my-2" />
+
+          {/* Module icons */}
+          <nav className="flex flex-col items-center gap-1 px-2 flex-1">
+            {visibleModules.map((mod) => {
+              const isOpen   = openId === mod.id;
+              const isActive = moduleIsActive(mod, pathname);
+              return (
+                <StripTooltip key={mod.id} label={mod.label}>
+                  <button
+                    onClick={() => setOpenId(isOpen ? null : mod.id)}
+                    className={cn(
+                      "relative flex flex-col items-center justify-center w-9 h-9 rounded-xl transition-colors",
+                      isOpen
+                        ? "bg-gray-700 text-white"
+                        : isActive
+                        ? "text-blue-400 hover:bg-gray-800"
+                        : "text-gray-500 hover:bg-gray-800 hover:text-gray-200"
+                    )}
+                  >
+                    <mod.icon className="w-4 h-4" />
+                    {isActive && !isOpen && (
+                      <span className="absolute right-1.5 top-1.5 w-1.5 h-1.5 bg-blue-400 rounded-full" />
+                    )}
+                  </button>
+                </StripTooltip>
+              );
+            })}
+          </nav>
+
+          {/* Bottom: user info + collapse + settings */}
+          <div className="flex flex-col items-center gap-1 pb-3 pt-2 border-t border-gray-800 mt-2">
+            {/* User avatar */}
+            <StripTooltip label={user ? `${user.nome} · ${user.email}` : "Usuário"}>
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl">
+                <div className={cn(
+                  "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold",
+                  user?.perfil === "ADMIN" ? "bg-blue-500 text-white" : "bg-gray-600 text-gray-200"
+                )}>
+                  {userInitials}
+                </div>
+              </div>
+            </StripTooltip>
+
+            <StripTooltip label="Sair">
+              <button
+                onClick={handleLogout}
+                className="flex items-center justify-center w-9 h-9 rounded-xl
+                  text-gray-500 hover:bg-red-900/30 hover:text-red-400 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </StripTooltip>
+
+            <StripTooltip label="Recolher sidebar (⌘B)">
+              <button
+                onClick={() => setStripCollapsed(true)}
+                className="flex items-center justify-center w-9 h-9 rounded-xl
+                  text-gray-500 hover:bg-gray-800 hover:text-gray-200 transition-colors"
+              >
+                <PanelLeftClose className="w-4 h-4" />
+              </button>
+            </StripTooltip>
+
+            <StripTooltip label="Configurações">
+              <Link
+                href="/configuracoes"
+                className="flex items-center justify-center w-9 h-9 rounded-xl
+                  text-gray-500 hover:bg-gray-800 hover:text-gray-200 transition-colors"
+              >
+                <Settings className="w-4 h-4" />
+              </Link>
+            </StripTooltip>
+          </div>
+        </div>
+
+        {/* ── Flyout panel ───────────────────────────────────────────── */}
+        {openId && (
+          <div
+            className="h-full bg-white border-r border-gray-200 flex flex-col overflow-hidden relative"
+            style={{ width: panelWidth }}
+          >
+            {openModule && (
+              <>
+                {/* Panel header */}
+                <div className="flex items-center gap-2.5 px-4 h-16 border-b border-gray-100 shrink-0">
+                  <openModule.icon className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span className="font-semibold text-gray-900 text-sm">{openModule.label}</span>
+                </div>
+
+                {/* Nav sections */}
+                <nav className="flex-1 overflow-y-auto py-3 px-3">
+                  {openModule.sections.map((section) => (
+                    <div key={section.kind} className="mb-4">
+                      <p className={cn("text-[10px] font-bold uppercase tracking-widest px-2 mb-1", kindStyle[section.kind])}>
+                        {section.kind}
+                      </p>
+                      {section.items.map((item) => {
+                        const active = itemIsActive(item, pathname);
+                        const Icon = item.icon ?? CircleDot;
+                        if (item.soon) {
+                          return (
+                            <div
+                              key={item.href}
+                              className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-300 cursor-not-allowed"
+                              title="Em breve"
+                            >
+                              <Icon className="w-3.5 h-3.5 shrink-0 text-gray-200" />
+                              <span className="flex-1 truncate">{item.label}</span>
+                              <span className="text-[9px] font-semibold bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">breve</span>
+                            </div>
+                          );
+                        }
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className={cn(
+                              "flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors",
+                              active
+                                ? "bg-blue-50 text-blue-700 font-medium"
+                                : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                            )}
+                          >
+                            <Icon className={cn("w-3.5 h-3.5 shrink-0", active ? "text-blue-500" : "text-gray-300")} />
+                            <span className="truncate">{item.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </nav>
+
+                {/* User info footer in panel */}
+                {user && (
+                  <div className="border-t border-gray-100 p-3 space-y-1 shrink-0">
+                    <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg">
+                      <div className={cn(
+                        "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
+                        user.perfil === "ADMIN" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"
+                      )}>
+                        {userInitials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-800 truncate">{user.nome}</p>
+                        <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      Sair
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── Resize handle ───────────────────────────────────────── */}
+            <div
+              onMouseDown={onResizeMouseDown}
+              className="group absolute right-0 top-0 h-full w-3 cursor-col-resize flex items-center justify-center z-10"
+              title="Arraste para redimensionar · ⌘B para recolher"
+            >
+              <div className="w-0.5 h-8 rounded-full bg-gray-200 group-hover:bg-blue-400 transition-colors" />
+              <GripVertical className="absolute w-3 h-3 text-gray-300 group-hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100" />
+            </div>
+          </div>
+        )}
+      </aside>
+    </>
+  );
+}

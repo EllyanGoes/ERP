@@ -1,0 +1,78 @@
+export const dynamic = "force-dynamic";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { generateDocNumber } from "@/lib/utils";
+
+export async function GET() {
+  const data = await prisma.cotacaoCompra.findMany({
+    include: {
+      necessidade: { select: { id: true, numero: true } },
+      _count: { select: { fornecedores: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  return NextResponse.json({ data });
+}
+
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const { necessidadeId, observacoes, dataLimiteResposta, fornecedorIds = [], itens = [] } = body;
+
+  // Build itemId -> quantidade map
+  let qtdMap: Record<string, number> = {};
+
+  if (necessidadeId && itens.length === 0) {
+    // Pull quantities from the necessidade
+    const nc = await prisma.necessidadeCompra.findUnique({
+      where: { id: necessidadeId },
+      include: { itens: true },
+    });
+    if (nc) {
+      for (const i of nc.itens) {
+        qtdMap[i.itemId] = parseFloat(String(i.quantidadeAprovada ?? i.quantidade));
+      }
+    }
+  } else {
+    for (const i of itens) {
+      qtdMap[i.itemId] = parseFloat(String(i.quantidade)) || 1;
+    }
+  }
+
+  const produtoIds = Object.keys(qtdMap);
+
+  const cotacao = await prisma.$transaction(async (tx) => {
+    const seq = await tx.sequencia.upsert({
+      where: { prefixo: "CQ" },
+      create: { prefixo: "CQ", ultimo: 1 },
+      update: { ultimo: { increment: 1 } },
+    });
+    const numero = generateDocNumber("CQ", seq.ultimo);
+
+    const record = await tx.cotacaoCompra.create({
+      data: {
+        numero,
+        necessidadeId: necessidadeId || null,
+        observacoes: observacoes?.trim() || null,
+        dataLimiteResposta: dataLimiteResposta ? new Date(dataLimiteResposta) : null,
+        fornecedores: {
+          create: fornecedorIds.map((fornecedorId: string) => ({
+            fornecedorId,
+            itens: {
+              create: produtoIds.map((itemId) => ({
+                itemId,
+                quantidade: qtdMap[itemId] ?? 1,
+              })),
+            },
+          })),
+        },
+      },
+      include: {
+        fornecedores: { include: { itens: true } },
+      },
+    });
+
+    return record;
+  });
+
+  return NextResponse.json({ data: cotacao }, { status: 201 });
+}

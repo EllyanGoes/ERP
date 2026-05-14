@@ -1,0 +1,83 @@
+export const dynamic = "force-dynamic";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { z } from "zod";
+
+const postSchema = z.object({
+  itemId:        z.string(),
+  localEstoqueId: z.string().optional().nullable(),
+  tipo:          z.enum(["ENTRADA", "SAIDA", "AJUSTE", "TRANSFERENCIA"]),
+  quantidade:    z.coerce.number().min(0.001),
+  documento:     z.string().optional(),
+  observacoes:   z.string().optional(),
+});
+
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const parsed = postSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const { itemId, localEstoqueId, tipo, quantidade, documento, observacoes } = parsed.data;
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Find the correct EstoqueItem — prefer the requested local, fall back to any
+      let estoque = localEstoqueId
+        ? await tx.estoqueItem.findFirst({ where: { itemId, localEstoqueId } })
+        : await tx.estoqueItem.findFirst({ where: { itemId } });
+
+      // If no stock record exists yet, create one for this location
+      if (!estoque) {
+        estoque = await tx.estoqueItem.create({
+          data: {
+            itemId,
+            localEstoqueId: localEstoqueId ?? null,
+            quantidadeAtual: 0,
+            quantidadeMin:   0,
+          },
+        });
+      }
+
+      const saldoAntes  = parseFloat(estoque.quantidadeAtual.toString());
+      const delta       = tipo === "SAIDA" ? -quantidade : quantidade;
+      const saldoDepois = saldoAntes + delta;
+
+      await tx.estoqueItem.update({
+        where: { id: estoque.id },
+        data:  { quantidadeAtual: saldoDepois },
+      });
+
+      return tx.movimentacaoEstoque.create({
+        data: { itemId, tipo, quantidade, saldoAntes, saldoDepois, documento, observacoes },
+        include: { item: { select: { codigo: true, descricao: true } } },
+      });
+    });
+
+    return NextResponse.json({ data: result }, { status: 201 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Erro interno";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const itemId = searchParams.get("itemId") || undefined;
+  const tipo   = searchParams.get("tipo")   || undefined;
+  const take   = Math.min(parseInt(searchParams.get("take") || "200"), 500);
+
+  const movs = await prisma.movimentacaoEstoque.findMany({
+    where: {
+      ...(itemId ? { itemId }                    : {}),
+      ...(tipo   ? { tipo: tipo as "ENTRADA" | "SAIDA" | "AJUSTE" | "TRANSFERENCIA" } : {}),
+    },
+    include: {
+      item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } },
+    },
+    orderBy: { createdAt: "desc" },
+    take,
+  });
+  return NextResponse.json({ data: movs });
+}
