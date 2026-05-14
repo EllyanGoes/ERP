@@ -32,6 +32,11 @@ interface Props {
   triggerClassName?: string;
   /** When provided, clicking "Criar X" opens this dialog instead of navigating */
   renderCreateModal?: (args: CreateModalArgs) => React.ReactNode;
+  /**
+   * Values that should appear in the list but are "already used" —
+   * they get a green checkmark and cannot be re-selected.
+   */
+  disabledValues?: string[];
 }
 
 export default function ComboboxWithCreate({
@@ -48,6 +53,7 @@ export default function ComboboxWithCreate({
   disabled,
   triggerClassName,
   renderCreateModal,
+  disabledValues = [],
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -214,20 +220,55 @@ export default function ComboboxWithCreate({
               </p>
             )}
 
-            {filtered.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => select(opt.value)}
-                className={cn(
-                  "w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left",
-                  value === opt.value && "bg-blue-50/60 text-blue-700"
-                )}
-              >
-                <span className="truncate">{opt.label}</span>
-                {value === opt.value && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
-              </button>
-            ))}
+            {(() => {
+              const disabledOpts  = filtered.filter((o) => disabledValues.includes(o.value));
+              const availableOpts = filtered.filter((o) => !disabledValues.includes(o.value));
+              const showSeparator = disabledOpts.length > 0 && availableOpts.length > 0;
+
+              const renderOpt = (opt: ComboboxOption) => {
+                const isDisabled = disabledValues.includes(opt.value);
+                const isSelected = value === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => { if (!isDisabled) select(opt.value); }}
+                    disabled={isDisabled}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2 text-sm transition-colors text-left",
+                      isDisabled
+                        ? "cursor-not-allowed bg-emerald-50/50 text-gray-400"
+                        : isSelected
+                        ? "bg-blue-50/60 text-blue-700 hover:bg-blue-50"
+                        : "hover:bg-gray-50"
+                    )}
+                  >
+                    <span className="truncate">{opt.label}</span>
+                    {isDisabled && (
+                      <span className="flex items-center gap-1 shrink-0 text-emerald-600">
+                        <Check className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-semibold leading-none">vinculado</span>
+                      </span>
+                    )}
+                    {!isDisabled && isSelected && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                  </button>
+                );
+              };
+
+              return (
+                <>
+                  {disabledOpts.map(renderOpt)}
+                  {showSeparator && (
+                    <div className="flex items-center gap-2 px-3 py-1.5">
+                      <div className="flex-1 h-px bg-gray-100" />
+                      <span className="text-[10px] font-semibold text-gray-300 uppercase tracking-wider">Disponíveis</span>
+                      <div className="flex-1 h-px bg-gray-100" />
+                    </div>
+                  )}
+                  {availableOpts.map(renderOpt)}
+                </>
+              );
+            })()}
           </div>
 
           {/* Create option */}

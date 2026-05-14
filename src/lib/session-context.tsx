@@ -31,7 +31,9 @@ export function SessionProvider({ children, initial }: { children: ReactNode; in
   function canAccess(modulo: string): boolean {
     if (!user) return false;
     if (user.perfil === "ADMIN") return true;
-    return user.modulos.includes(modulo) || user.modulos.includes("*");
+    if (user.modulos.includes("*")) return true;
+    // Suporta tanto o formato antigo ("comercial") quanto granular ("comercial.clientes.ver")
+    return user.modulos.some((m) => m === modulo || m.startsWith(modulo + "."));
   }
 
   function refresh() {

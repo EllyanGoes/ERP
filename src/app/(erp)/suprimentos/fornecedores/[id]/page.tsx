@@ -512,16 +512,30 @@ export default function FornecedorDetailPage() {
                     )}
                     <div className="space-y-1.5">
                       <Label>Produto <span className="text-red-500">*</span></Label>
-                      <ComboboxWithCreate
-                        options={prodList.map((p) => ({ value: p.id, label: `${p.codigo} – ${p.descricao}` }))}
-                        value={addProd.itemId}
-                        onChange={(v) => setAddProd((prev) => ({ ...prev, itemId: v }))}
-                        allowNone={false}
-                        placeholder="Selecionar produto..."
-                        createHref="/suprimentos/produtos/novo"
-                        createParam="descricao"
-                        createLabel="produto"
-                      />
+                      {(() => {
+                        // IDs dos itens já vinculados a este fornecedor
+                        const linkedIds = (fornecedor?.produtos ?? []).map((p) => p.item.id);
+                        // Opções: vinculados primeiro (com ✓), depois os disponíveis
+                        const linkedOpts = prodList
+                          .filter((p) => linkedIds.includes(p.id))
+                          .map((p) => ({ value: p.id, label: `${p.codigo} – ${p.descricao}` }));
+                        const availableOpts = prodList
+                          .filter((p) => !linkedIds.includes(p.id))
+                          .map((p) => ({ value: p.id, label: `${p.codigo} – ${p.descricao}` }));
+                        return (
+                          <ComboboxWithCreate
+                            options={[...linkedOpts, ...availableOpts]}
+                            disabledValues={linkedIds}
+                            value={addProd.itemId}
+                            onChange={(v) => setAddProd((prev) => ({ ...prev, itemId: v }))}
+                            allowNone={false}
+                            placeholder="Selecionar produto..."
+                            createHref="/suprimentos/produtos/novo"
+                            createParam="descricao"
+                            createLabel="produto"
+                          />
+                        );
+                      })()}
                     </div>
                     <div className="space-y-1.5">
                       <Label>Prazo de Entrega (dias)</Label>

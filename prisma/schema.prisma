@@ -717,16 +717,28 @@ enum PerfilUsuario {
   USUARIO
 }
 
+model PerfilAcesso {
+  id          String    @id @default(cuid())
+  nome        String    @unique
+  descricao   String?
+  permissoes  String[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  usuarios    Usuario[]
+}
+
 model Usuario {
-  id         String        @id @default(cuid())
-  nome       String
-  email      String        @unique
-  senha      String
-  perfil     PerfilUsuario @default(USUARIO)
-  ativo      Boolean       @default(true)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-  permissoes Permissao[]
+  id             String        @id @default(cuid())
+  nome           String
+  email          String        @unique
+  senha          String
+  perfil         PerfilUsuario @default(USUARIO)
+  ativo          Boolean       @default(true)
+  perfilAcessoId String?
+  perfilAcesso   PerfilAcesso? @relation(fields: [perfilAcessoId], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  permissoes     Permissao[]
 }
 
 model Permissao {

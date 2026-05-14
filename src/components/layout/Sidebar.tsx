@@ -38,6 +38,9 @@ import {
   UserCog,
   LogOut,
   ShieldCheck,
+  HelpCircle,
+  User,
+  ChevronRight,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -65,7 +68,7 @@ interface Module {
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
-const modules: Module[] = [
+const mainModules: Module[] = [
   {
     id: "comercial",
     label: "Comercial",
@@ -100,8 +103,8 @@ const modules: Module[] = [
         kind: "Relatórios",
         items: [
           { href: "/suprimentos/relatorios/movimentacoes", label: "Entradas e Saídas", icon: FileBarChart2 },
-          { href: "/suprimentos/relatorios/curva-abc",     label: "Curva ABC",            icon: PieChart },
-          { href: "/suprimentos/relatorios/imd",           label: "IMD — Demandas",        icon: BarChart3 },
+          { href: "/suprimentos/relatorios/curva-abc",     label: "Curva ABC",          icon: PieChart },
+          { href: "/suprimentos/relatorios/imd",           label: "IMD — Demandas",     icon: BarChart3 },
         ],
       },
     ],
@@ -145,23 +148,30 @@ const modules: Module[] = [
       },
     ],
   },
-  {
-    id: "admin",
-    label: "Administração",
-    icon: ShieldCheck,
-    sections: [
-      {
-        kind: "Sistema",
-        items: [{ href: "/admin/usuarios", label: "Usuários", icon: UserCog }],
-      },
-    ],
-  },
 ];
 
-const STRIP_W    = 64;
-const PANEL_MIN  = 160;
-const PANEL_MAX  = 400;
-const PANEL_DEFAULT = 220;
+const adminModule: Module = {
+  id: "admin",
+  label: "Administração",
+  icon: ShieldCheck,
+  sections: [
+    {
+      kind: "Sistema",
+      items: [
+        { href: "/admin/usuarios", label: "Usuários",          icon: UserCog },
+        { href: "/admin/perfis",   label: "Perfis de Acesso",  icon: ShieldCheck },
+      ],
+    },
+  ],
+};
+
+const allModules = [...mainModules, adminModule];
+
+const STRIP_W       = 64;
+const PANEL_MIN       = 160;
+const PANEL_MAX       = 400;
+const PANEL_DEFAULT   = 220;
+const PANEL_COLLAPSE  = 100; // abaixo disso, fecha o painel completamente
 
 function moduleIsActive(mod: Module, pathname: string) {
   return mod.sections.some((s) =>
@@ -184,10 +194,10 @@ const kindStyle: Record<SubSection["kind"], string> = {
   Sistema:            "text-gray-400",
 };
 
-// ── Tooltip wrapper (portal-based to escape overflow:hidden) ──────────────────
+// ── Tooltip wrapper (portal-based) ────────────────────────────────────────────
 
 function StripTooltip({ label, children }: { label: string; children: React.ReactNode }) {
-  const ref     = useRef<HTMLDivElement>(null);
+  const ref      = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pos, setPos]         = useState({ top: 0, left: 0 });
   const [visible, setVisible] = useState(false);
@@ -226,17 +236,137 @@ function StripTooltip({ label, children }: { label: string; children: React.Reac
   );
 }
 
+// ── User Dropdown (portal-based) ──────────────────────────────────────────────
+
+function UserDropdown({
+  user,
+  userInitials,
+  onLogout,
+}: {
+  user: { nome: string; email: string; perfil: string } | null;
+  userInitials: string;
+  onLogout: () => void;
+}) {
+  const btnRef   = useRef<HTMLButtonElement>(null);
+  const dropRef  = useRef<HTMLDivElement>(null);
+  const [open, setOpen]     = useState(false);
+  const [pos, setPos]       = useState({ top: 0, left: 0 });
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  function handleToggle() {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setPos({ top: r.bottom - 220, left: r.right + 8 }); // anchor near bottom
+    setOpen((p) => !p);
+  }
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (
+        dropRef.current && !dropRef.current.contains(e.target as Node) &&
+        btnRef.current  && !btnRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const isAdmin = user?.perfil === "ADMIN";
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={handleToggle}
+        title={user ? `${user.nome} · ${user.email}` : "Usuário"}
+        className={cn(
+          "flex items-center justify-center w-9 h-9 rounded-xl transition-colors",
+          open ? "bg-gray-700" : "hover:bg-gray-800"
+        )}
+      >
+        <div className={cn(
+          "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold select-none",
+          isAdmin ? "bg-blue-500 text-white" : "bg-gray-600 text-gray-200"
+        )}>
+          {userInitials}
+        </div>
+      </button>
+
+      {mounted && open && createPortal(
+        <div
+          ref={dropRef}
+          className="fixed z-[9999] w-56 rounded-xl bg-white border border-gray-200 shadow-[0_8px_32px_rgba(0,0,0,0.14)] overflow-hidden"
+          style={{ top: pos.top, left: pos.left }}
+        >
+          {/* User info */}
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
+            <div className={cn(
+              "w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0",
+              isAdmin ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"
+            )}>
+              {userInitials}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900 truncate">{user?.nome ?? "—"}</p>
+              <p className="text-xs text-gray-400 truncate">{user?.email ?? "—"}</p>
+              {isAdmin && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-600 mt-0.5">
+                  <ShieldCheck className="w-3 h-3" /> Admin
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="py-1">
+            <Link
+              href="/minha-conta"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <User className="w-4 h-4 text-gray-400" />
+              Minha Conta
+              <ChevronRight className="w-3.5 h-3.5 text-gray-300 ml-auto" />
+            </Link>
+          </div>
+
+          <div className="border-t border-gray-100 py-1">
+            <button
+              onClick={() => { setOpen(false); onLogout(); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Sair
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, canAccess } = useSession();
 
-  // Filter modules by permission
-  const visibleModules = modules.filter((mod) => canAccess(mod.id));
+  // Visible main modules (exclude admin)
+  const visibleMain  = mainModules.filter((mod) => canAccess(mod.id));
+  const showAdmin    = canAccess("admin");
+
+  // All visible for active detection
+  const visibleAll = showAdmin ? [...visibleMain, adminModule] : visibleMain;
 
   const [openId, setOpenId] = useState<string | null>(() => {
-    const active = modules.find((m) => moduleIsActive(m, pathname));
+    const active = allModules.find((m) => moduleIsActive(m, pathname));
     return active?.id ?? null;
   });
 
@@ -250,14 +380,14 @@ export default function Sidebar() {
     return localStorage.getItem("sidebar-collapsed") === "1";
   });
 
-  const draggingRef  = useRef(false);
-  const dragStartX   = useRef(0);
-  const dragStartW   = useRef(0);
+  const draggingRef = useRef(false);
+  const dragStartX  = useRef(0);
+  const dragStartW  = useRef(0);
 
-  // Auto-open active module on navigation — only when the sidebar is not collapsed
+  // Auto-open active module on navigation
   useEffect(() => {
     if (stripCollapsed) return;
-    const active = modules.find((m) => moduleIsActive(m, pathname));
+    const active = allModules.find((m) => moduleIsActive(m, pathname));
     if (active) setOpenId(active.id);
   }, [pathname, stripCollapsed]);
 
@@ -268,15 +398,10 @@ export default function Sidebar() {
   }, [openId, panelWidth, stripCollapsed]);
 
   // Persist settings
-  useEffect(() => {
-    localStorage.setItem("sidebar-panel-w", String(panelWidth));
-  }, [panelWidth]);
+  useEffect(() => { localStorage.setItem("sidebar-panel-w", String(panelWidth)); }, [panelWidth]);
+  useEffect(() => { localStorage.setItem("sidebar-collapsed", stripCollapsed ? "1" : "0"); }, [stripCollapsed]);
 
-  useEffect(() => {
-    localStorage.setItem("sidebar-collapsed", stripCollapsed ? "1" : "0");
-  }, [stripCollapsed]);
-
-  // ⌘B / Ctrl+B shortcut
+  // ⌘B shortcut
   useEffect(() => {
     function handler(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "b") {
@@ -298,7 +423,16 @@ export default function Sidebar() {
     function onMove(ev: MouseEvent) {
       if (!draggingRef.current) return;
       const delta = ev.clientX - dragStartX.current;
-      const next  = Math.min(PANEL_MAX, Math.max(PANEL_MIN, dragStartW.current + delta));
+      const raw   = dragStartW.current + delta;
+      // Se arrastou além do threshold de colapso, fecha o painel
+      if (raw < PANEL_COLLAPSE) {
+        draggingRef.current = false;
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        setOpenId(null);
+        return;
+      }
+      const next = Math.min(PANEL_MAX, Math.max(PANEL_MIN, raw));
       setPanelWidth(next);
     }
     function onUp() {
@@ -315,12 +449,9 @@ export default function Sidebar() {
     window.location.href = "/login";
   }
 
-  const openModule = modules.find((m) => m.id === openId) ?? null;
+  const openModule = allModules.find((m) => m.id === openId) ?? null;
+  const sidebarW   = stripCollapsed ? 0 : STRIP_W + (openId ? panelWidth : 0);
 
-  // Show sidebar width
-  const sidebarW = stripCollapsed ? 0 : STRIP_W + (openId ? panelWidth : 0);
-
-  // User initials
   const userInitials = user?.nome
     ? user.nome.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
     : "?";
@@ -379,9 +510,9 @@ export default function Sidebar() {
 
           <div className="mx-4 border-t border-gray-800 my-2" />
 
-          {/* Module icons */}
-          <nav className="flex flex-col items-center gap-1 px-2 flex-1">
-            {visibleModules.map((mod) => {
+          {/* Main module icons */}
+          <nav className="flex flex-col items-center gap-1 px-2 flex-1 overflow-hidden">
+            {visibleMain.map((mod) => {
               const isOpen   = openId === mod.id;
               const isActive = moduleIsActive(mod, pathname);
               return (
@@ -407,30 +538,10 @@ export default function Sidebar() {
             })}
           </nav>
 
-          {/* Bottom: user info + collapse + settings */}
+          {/* ── Bottom area (de cima para baixo: recolher → admin → suporte → config → perfil) ── */}
           <div className="flex flex-col items-center gap-1 pb-3 pt-2 border-t border-gray-800 mt-2">
-            {/* User avatar */}
-            <StripTooltip label={user ? `${user.nome} · ${user.email}` : "Usuário"}>
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl">
-                <div className={cn(
-                  "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold",
-                  user?.perfil === "ADMIN" ? "bg-blue-500 text-white" : "bg-gray-600 text-gray-200"
-                )}>
-                  {userInitials}
-                </div>
-              </div>
-            </StripTooltip>
 
-            <StripTooltip label="Sair">
-              <button
-                onClick={handleLogout}
-                className="flex items-center justify-center w-9 h-9 rounded-xl
-                  text-gray-500 hover:bg-red-900/30 hover:text-red-400 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </StripTooltip>
-
+            {/* Recolher sidebar */}
             <StripTooltip label="Recolher sidebar (⌘B)">
               <button
                 onClick={() => setStripCollapsed(true)}
@@ -441,6 +552,40 @@ export default function Sidebar() {
               </button>
             </StripTooltip>
 
+            {/* Administração — só para quem tem acesso */}
+            {showAdmin && (
+              <StripTooltip label="Administração">
+                <button
+                  onClick={() => setOpenId(openId === "admin" ? null : "admin")}
+                  className={cn(
+                    "relative flex flex-col items-center justify-center w-9 h-9 rounded-xl transition-colors",
+                    openId === "admin"
+                      ? "bg-gray-700 text-white"
+                      : moduleIsActive(adminModule, pathname)
+                      ? "text-blue-400 hover:bg-gray-800"
+                      : "text-gray-500 hover:bg-gray-800 hover:text-gray-200"
+                  )}
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  {moduleIsActive(adminModule, pathname) && openId !== "admin" && (
+                    <span className="absolute right-1.5 top-1.5 w-1.5 h-1.5 bg-blue-400 rounded-full" />
+                  )}
+                </button>
+              </StripTooltip>
+            )}
+
+            {/* Suporte */}
+            <StripTooltip label="Suporte">
+              <Link
+                href="/suporte"
+                className="flex items-center justify-center w-9 h-9 rounded-xl
+                  text-gray-500 hover:bg-gray-800 hover:text-gray-200 transition-colors"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </Link>
+            </StripTooltip>
+
+            {/* Configurações */}
             <StripTooltip label="Configurações">
               <Link
                 href="/configuracoes"
@@ -450,6 +595,9 @@ export default function Sidebar() {
                 <Settings className="w-4 h-4" />
               </Link>
             </StripTooltip>
+
+            {/* Perfil (dropdown do usuário) */}
+            <UserDropdown user={user} userInitials={userInitials} onLogout={handleLogout} />
           </div>
         </div>
 

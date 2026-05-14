@@ -28,7 +28,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const record = await prisma.fornecedor.findUnique({
     where: { id: params.id },
     include: {
-      produtos: { include: { item: { select: { codigo: true, descricao: true } } } },
+      produtos: { include: { item: { select: { id: true, codigo: true, descricao: true } } } },
       pedidosCompra: { orderBy: { createdAt: "desc" }, take: 10 },
     },
   });
