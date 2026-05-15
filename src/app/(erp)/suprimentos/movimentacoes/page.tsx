@@ -42,13 +42,15 @@ type Lote = {
   itens: MovItem[];
 };
 
-type ItemOpt      = { id: string; codigo: string; descricao: string };
-type LocalEstoque = { id: string; nome: string };
+type ItemOpt       = { id: string; codigo: string; descricao: string };
+type LocalEstoque  = { id: string; nome: string };
 type FornecedorOpt = { id: string; razaoSocial: string; nomeFantasia: string | null };
+type UnidadeOption = { id: string; sigla: string; nome: string; isPrincipal: boolean };
 
 type LinhaItem = {
   key: number;
   itemId: string;
+  unidade: string;
   quantidade: string;
   valorUnitario: string;
   observacoes: string;
@@ -72,7 +74,85 @@ const ORIGEM_FILTER_OPTIONS: FilterOption[] = [
 function toNum(v: unknown) { return parseFloat(String(v ?? 0)); }
 let nextKey = 1;
 function newLinha(): LinhaItem {
-  return { key: nextKey++, itemId: "", quantidade: "", valorUnitario: "", observacoes: "", stockInfo: null, stockLoading: false };
+  return { key: nextKey++, itemId: "", unidade: "", quantidade: "", valorUnitario: "", observacoes: "", stockInfo: null, stockLoading: false };
+}
+
+// ── UnitSelect ────────────────────────────────────────────────────────────────
+function UnitSelect({ value, options, onChange, disabled }: {
+  value: string; options: UnidadeOption[]; onChange: (v: string) => void; disabled?: boolean;
+}) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos]   = useState<{ top?: number; bottom?: number; left: number; width: number } | null>(null);
+
+  function calcPos() {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - r.bottom - 8;
+    const spaceAbove = r.top - 8;
+    if (spaceBelow < 180 && spaceAbove > spaceBelow) {
+      setPos({ bottom: window.innerHeight - r.top + 4, left: r.left, width: r.width });
+    } else {
+      setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    calcPos();
+    window.addEventListener("scroll", calcPos, true);
+    window.addEventListener("resize", calcPos);
+    return () => { window.removeEventListener("scroll", calcPos, true); window.removeEventListener("resize", calcPos); };
+  }, [open]);
+
+  if (disabled || options.length === 0) {
+    return (
+      <div className="h-8 flex items-center px-2 text-sm border border-gray-100 rounded-md bg-gray-50 font-mono text-gray-500">
+        {value || "—"}
+      </div>
+    );
+  }
+  if (options.length === 1) {
+    return (
+      <div className="h-8 flex items-center px-2 text-sm border border-gray-100 rounded-md bg-gray-50 font-mono text-gray-700">
+        {value || options[0].sigla}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <button ref={btnRef} type="button" onClick={() => setOpen((p) => !p)}
+        className={cn(
+          "h-8 w-full flex items-center justify-between px-2 text-sm border border-gray-200 rounded-md bg-white font-mono transition-colors hover:border-gray-300",
+          open && "border-blue-400 ring-1 ring-blue-200"
+        )}>
+        <span className={value ? "text-gray-800" : "text-gray-400"}>{value || "Un."}</span>
+        <ChevronDown className={cn("w-3 h-3 text-gray-400 shrink-0 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && typeof window !== "undefined" && (
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
+          {pos && (
+            <div className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-auto"
+              style={{ top: pos.top, bottom: pos.bottom, left: pos.left, width: Math.max(pos.width, 140), maxHeight: 180 }}>
+              {options.map((u) => (
+                <button key={u.id} type="button" onClick={() => { onChange(u.sigla); setOpen(false); }}
+                  className={cn(
+                    "w-full px-3 py-2 text-sm text-left hover:bg-blue-50 hover:text-blue-700 transition-colors font-mono",
+                    value === u.sigla && "bg-blue-50 text-blue-700 font-medium"
+                  )}>
+                  <span className="font-bold">{u.sigla}</span>
+                  {u.nome && <span className="text-gray-400 ml-1.5 text-xs font-sans">{u.nome}</span>}
+                  {u.isPrincipal && <span className="ml-1.5 text-[10px] text-emerald-600">principal</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
 }
 
 function formatDateTime(d: string) {
@@ -123,6 +203,8 @@ export default function MovimentacoesPage() {
   const [submitting, setSubmitting] = useState(false);
   // Auto-link toast
   const [autoVinculoMsg, setAutoVinculoMsg] = useState<string | null>(null);
+  // Map itemId → list of units registered for that product (cached)
+  const [itemUnidades, setItemUnidades] = useState<Map<string, UnidadeOption[]>>(new Map());
 
   // ── Edit / Delete movement item ─────────────────────────────────────────────
   const [editMov, setEditMov]       = useState<MovItem | null>(null);
@@ -174,6 +256,20 @@ export default function MovimentacoesPage() {
     setLinhas((prev) => prev.map((l) => l.key === key ? { ...l, stockInfo: j, stockLoading: false } : l));
   }
 
+  // Fetch + cache units for a given product
+  async function fetchItemUnidades(itemId: string) {
+    if (!itemId || itemUnidades.has(itemId)) return itemUnidades.get(itemId) ?? [];
+    const res  = await fetch(`/api/suprimentos/produtos/${itemId}/unidades`);
+    const json = await res.json();
+    const list: UnidadeOption[] = Array.isArray(json)
+      ? json.map((u: { unidade: { id: string; sigla: string; nome: string }; isPrincipal: boolean }) => ({
+          id: u.unidade.id, sigla: u.unidade.sigla, nome: u.unidade.nome, isPrincipal: u.isPrincipal,
+        }))
+      : [];
+    setItemUnidades((prev) => new Map(prev).set(itemId, list));
+    return list;
+  }
+
   function updateLinha(key: number, patch: Partial<LinhaItem>) {
     setLinhas((prev) => {
       const updated = prev.map((l) => l.key === key ? { ...l, ...patch } : l);
@@ -184,6 +280,16 @@ export default function MovimentacoesPage() {
           checkStock(key, linha.itemId, localEstoqueId);
         } else {
           return updated.map((l) => l.key === key ? { ...l, stockInfo: null } : l);
+        }
+        // Fetch units for new item and auto-set principal/first unit
+        if (linha.itemId) {
+          fetchItemUnidades(linha.itemId).then((units) => {
+            if (!units || units.length === 0) return;
+            const principal = units.find((u) => u.isPrincipal) ?? units[0];
+            setLinhas((p) => p.map((l) => l.key === key && !l.unidade ? { ...l, unidade: principal.sigla } : l));
+          });
+        } else {
+          return updated.map((l) => l.key === key ? { ...l, unidade: "", stockInfo: null } : l);
         }
       }
       return updated;
@@ -717,7 +823,7 @@ export default function MovimentacoesPage() {
       {/* ── Modal Nova Movimentação ────────────────────────────────────────────── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 shrink-0">
               <h2 className="font-semibold text-gray-900">Nova Movimentação</h2>
@@ -822,10 +928,11 @@ export default function MovimentacoesPage() {
                     <div className={cn(
                       "grid gap-2 px-3 py-2 bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wide",
                       tipoMov === "ENTRADA"
-                        ? "grid-cols-[1fr_80px_90px_24px]"
-                        : "grid-cols-[1fr_90px_24px]"
+                        ? "grid-cols-[1fr_70px_80px_90px_24px]"
+                        : "grid-cols-[1fr_70px_90px_24px]"
                     )}>
                       <span>Produto</span>
+                      <span>Unidade</span>
                       {tipoMov === "ENTRADA" && <span className="text-right">Custo Unit.</span>}
                       <span className="text-right">Quantidade</span>
                       <span />
@@ -838,20 +945,28 @@ export default function MovimentacoesPage() {
                           <div className={cn(
                             "grid gap-2 items-center",
                             tipoMov === "ENTRADA"
-                              ? "grid-cols-[1fr_80px_90px_24px]"
-                              : "grid-cols-[1fr_90px_24px]"
+                              ? "grid-cols-[1fr_70px_80px_90px_24px]"
+                              : "grid-cols-[1fr_70px_90px_24px]"
                           )}>
                             {/* Produto */}
                             <ComboboxWithCreate
                               options={itemList.map((it) => ({ value: it.id, label: `${it.codigo} — ${it.descricao}` }))}
                               value={linha.itemId}
-                              onChange={(v) => updateLinha(linha.key, { itemId: v })}
+                              onChange={(v) => updateLinha(linha.key, { itemId: v, unidade: "" })}
                               allowNone={false}
                               placeholder="Selecionar produto..."
                               createHref="/suprimentos/produtos/novo"
                               createParam="descricao"
                               createLabel="produto"
                               triggerClassName="h-8 text-sm"
+                            />
+
+                            {/* Unidade */}
+                            <UnitSelect
+                              value={linha.unidade}
+                              options={itemUnidades.get(linha.itemId) ?? []}
+                              onChange={(v) => updateLinha(linha.key, { unidade: v })}
+                              disabled={!linha.itemId}
                             />
 
                             {/* Custo Unitário (ENTRADA only) */}
