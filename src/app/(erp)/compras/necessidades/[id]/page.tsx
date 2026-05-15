@@ -16,7 +16,7 @@ import { Pencil, Trash2, Loader2, AlertTriangle, Plus, Save, X, ChevronDown, Sen
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 // ── WA user type ──────────────────────────────────────────────────────────────
-type WAUser = { id: string; nome: string; email: string; telefone: string | null };
+type WAUser = { id: string; nome: string; email?: string; telefone: string | null; _type?: "colaborador" | "usuario" };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -345,12 +345,19 @@ export default function NecessidadeDetailPage() {
     setWAAprovadorId("");
     setWAUserSearch("");
     setSubmittingAprovacaoError("");
-    // Load users for direct mode
+    // Load colaboradores for direct mode (preferred — they have WhatsApp numbers)
     setWAUsersLoading(true);
     try {
-      const res  = await fetch("/api/configuracoes/usuarios");
+      const res  = await fetch("/api/empresa/colaboradores?ativo=true");
       const json = await res.json();
-      setWAUsers(Array.isArray(json) ? json : (json.data ?? []));
+      const list: WAUser[] = (Array.isArray(json) ? json : []).map((c: WAUser) => ({
+        id:      c.id,
+        nome:    c.nome,
+        email:   undefined,
+        telefone: c.telefone,
+        _type:   "colaborador" as const,
+      }));
+      setWAUsers(list);
     } catch { /* ignore */ }
     finally { setWAUsersLoading(false); }
   }
@@ -362,12 +369,17 @@ export default function NecessidadeDetailPage() {
     }
     setSubmittingAprovacao(true); setSubmittingAprovacaoError("");
     try {
+      const selectedUser = waUsers.find((u) => u.id === waAprovadorId);
+      const isColaborador = selectedUser?._type === "colaborador";
+
       const res = await fetch(`/api/compras/necessidades/${id}/submeter-aprovacao`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           waMode === "direto"
-            ? { modo: "direto", aprovadorId: waAprovadorId }
+            ? isColaborador
+              ? { modo: "direto", colaboradorId: waAprovadorId }
+              : { modo: "direto", aprovadorId: waAprovadorId }
             : { modo: "fluxo" }
         ),
       });
@@ -1108,7 +1120,7 @@ export default function NecessidadeDetailPage() {
                         {waUsers
                           .filter((u) => {
                             const q = waUserSearch.toLowerCase();
-                            return !q || u.nome.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+                            return !q || u.nome.toLowerCase().includes(q) || (u.email ?? "").toLowerCase().includes(q);
                           })
                           .map((u) => (
                             <button
@@ -1122,7 +1134,7 @@ export default function NecessidadeDetailPage() {
                             >
                               <div className="text-left">
                                 <p className={cn("font-medium", waAprovadorId === u.id ? "text-blue-700" : "text-gray-900")}>{u.nome}</p>
-                                <p className="text-xs text-gray-400">{u.email}</p>
+                                {u.email && <p className="text-xs text-gray-400">{u.email}</p>}
                               </div>
                               {u.telefone ? (
                                 <span className="text-xs text-gray-400 font-mono shrink-0">{u.telefone}</span>

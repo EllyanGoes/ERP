@@ -8,7 +8,10 @@ export async function GET() {
     const fluxos = await prisma.aprovacaoFluxo.findMany({
       include: {
         etapas: {
-          include: { aprovador: { select: { id: true, nome: true, email: true, telefone: true } } },
+          include: {
+            aprovador:   { select: { id: true, nome: true, email: true, telefone: true } },
+            colaborador: { select: { id: true, nome: true, telefone: true } },
+          },
           orderBy: { ordem: "asc" },
         },
       },
@@ -31,7 +34,8 @@ export async function POST(req: NextRequest) {
         nome?: string;
         valorMin?: number | null;
         valorMax?: number | null;
-        aprovadorId: string;
+        aprovadorId?: string;
+        colaboradorId?: string;
       }>;
     };
 
@@ -51,13 +55,17 @@ export async function POST(req: NextRequest) {
             nome: e.nome ?? null,
             valorMin: e.valorMin ?? null,
             valorMax: e.valorMax ?? null,
-            aprovadorId: e.aprovadorId,
+            aprovadorId:   e.aprovadorId   ?? null,
+            colaboradorId: e.colaboradorId ?? null,
           })),
         },
       },
       include: {
         etapas: {
-          include: { aprovador: { select: { id: true, nome: true, email: true, telefone: true } } },
+          include: {
+            aprovador:   { select: { id: true, nome: true, email: true, telefone: true } },
+            colaborador: { select: { id: true, nome: true, telefone: true } },
+          },
           orderBy: { ordem: "asc" },
         },
       },

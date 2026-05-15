@@ -170,6 +170,7 @@ model Filial {
 
   locaisEstoque       LocalEstoque[]
   necessidadesCompra  NecessidadeCompra[]
+  colaboradores       Colaborador[]
 }
 
 // ─── CLIENTES ─────────────────────────────────────────────────────────────────
@@ -814,6 +815,7 @@ model Usuario {
   permissoes     Permissao[]
   etapasAprovacao AprovacaoEtapa[]
   aprovacoessc    AprovacaoSC[]
+  colaborador    Colaborador?
 }
 
 model Permissao {
@@ -844,16 +846,18 @@ model AprovacaoFluxo {
 }
 
 model AprovacaoEtapa {
-  id          String         @id @default(cuid())
-  fluxoId     String
-  fluxo       AprovacaoFluxo @relation(fields: [fluxoId], references: [id], onDelete: Cascade)
-  ordem       Int
-  nome        String?
-  valorMin    Decimal?       @db.Decimal(15, 2)
-  valorMax    Decimal?       @db.Decimal(15, 2)
-  aprovadorId String
-  aprovador   Usuario        @relation(fields: [aprovadorId], references: [id])
-  createdAt   DateTime       @default(now())
+  id             String         @id @default(cuid())
+  fluxoId        String
+  fluxo          AprovacaoFluxo @relation(fields: [fluxoId], references: [id], onDelete: Cascade)
+  ordem          Int
+  nome           String?
+  valorMin       Decimal?       @db.Decimal(15, 2)
+  valorMax       Decimal?       @db.Decimal(15, 2)
+  aprovadorId    String?
+  aprovador      Usuario?       @relation(fields: [aprovadorId], references: [id])
+  colaboradorId  String?
+  colaborador    Colaborador?   @relation(fields: [colaboradorId], references: [id])
+  createdAt      DateTime       @default(now())
 }
 
 model AprovacaoSC {
@@ -869,4 +873,35 @@ model AprovacaoSC {
   respondidoEm  DateTime?
   waMsgId       String?
   createdAt     DateTime          @default(now())
+}
+
+// ─── COLABORADORES ────────────────────────────────────────────────────────────
+
+model Colaborador {
+  id           String    @id @default(cuid())
+  nome         String
+  cpf          String?   @unique
+  rg           String?
+  email        String?
+  telefone     String?
+  cargo        String?
+  departamento String?
+  dataAdmissao DateTime?
+  dataDemissao DateTime?
+  filialId     String?
+  filial       Filial?   @relation(fields: [filialId], references: [id])
+  usuarioId    String?   @unique
+  usuario      Usuario?  @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  ativo        Boolean   @default(true)
+  observacoes  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  etapasAprovacao AprovacaoEtapa[]
+}
+
+model Configuracao {
+  chave     String   @id
+  valor     String?
+  updatedAt DateTime @updatedAt
 }

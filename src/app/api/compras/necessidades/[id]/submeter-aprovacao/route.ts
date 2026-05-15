@@ -49,9 +49,10 @@ export async function POST(
 ) {
   try {
     const body = await req.json().catch(() => ({}));
-    // modo: "fluxo" = usa AprovacaoFluxo ativo com alçadas | "direto" = aprovadorId obrigatório
-    const modo:        "fluxo" | "direto" = body.modo ?? "fluxo";
-    const aprovadorId: string | undefined  = body.aprovadorId;
+    // modo: "fluxo" = usa AprovacaoFluxo ativo com alçadas | "direto" = aprovadorId ou colaboradorId obrigatório
+    const modo:           "fluxo" | "direto" = body.modo ?? "fluxo";
+    const aprovadorId:    string | undefined  = body.aprovadorId;
+    const colaboradorId:  string | undefined  = body.colaboradorId;
 
     // ── Load SC ──────────────────────────────────────────────────────────────
     const sc = await prisma.necessidadeCompra.findUnique({
@@ -93,17 +94,45 @@ export async function POST(
     let aprovadorResolved: { id: string; nome: string; telefone: string | null };
 
     if (modo === "direto") {
-      if (!aprovadorId) return NextResponse.json({ error: "aprovadorId é obrigatório no modo direto" }, { status: 400 });
-      const u = await prisma.usuario.findUnique({ where: { id: aprovadorId } });
-      if (!u) return NextResponse.json({ error: "Aprovador não encontrado" }, { status: 404 });
-      aprovadorResolved = { id: u.id, nome: u.nome, telefone: u.telefone ?? null };
+      if (!aprovadorId && !colaboradorId) {
+        return NextResponse.json({ error: "aprovadorId ou colaboradorId é obrigatório no modo direto" }, { status: 400 });
+      }
+
+      if (colaboradorId) {
+        const c = await prisma.colaborador.findUnique({ where: { id: colaboradorId } });
+        if (!c) return NextResponse.json({ error: "Colaborador não encontrado" }, { status: 404 });
+        // Use colaborador's telefone; fall back to linked usuario's telefone
+        let telefone = c.telefone ?? null;
+        if (!telefone && c.usuarioId) {
+          const u = await prisma.usuario.findUnique({ where: { id: c.usuarioId }, select: { telefone: true } });
+          telefone = u?.telefone ?? null;
+        }
+        // For AprovacaoSC we still need a usuario id — use linked usuario or fall back to any admin
+        const usuarioId = c.usuarioId;
+        if (!usuarioId) {
+          return NextResponse.json(
+            { error: `O colaborador "${c.nome}" não tem usuário do sistema vinculado. Vincule um usuário ao colaborador para usar o fluxo de aprovação.` },
+            { status: 422 }
+          );
+        }
+        const u = await prisma.usuario.findUnique({ where: { id: usuarioId } });
+        if (!u) return NextResponse.json({ error: "Usuário vinculado ao colaborador não encontrado" }, { status: 404 });
+        aprovadorResolved = { id: u.id, nome: c.nome, telefone };
+      } else {
+        const u = await prisma.usuario.findUnique({ where: { id: aprovadorId! } });
+        if (!u) return NextResponse.json({ error: "Aprovador não encontrado" }, { status: 404 });
+        aprovadorResolved = { id: u.id, nome: u.nome, telefone: u.telefone ?? null };
+      }
       etapaNome = "Aprovação Direta";
     } else {
       // Fluxo mode: pick active fluxo, match etapa by valor
       const fluxo = await prisma.aprovacaoFluxo.findFirst({
         where: { ativo: true },
         include: {
-          etapas: { include: { aprovador: true }, orderBy: { ordem: "asc" } },
+          etapas: {
+            include: { aprovador: true, colaborador: true },
+            orderBy: { ordem: "asc" },
+          },
         },
       });
 
@@ -129,11 +158,32 @@ export async function POST(
 
       etapaOrdem = etapa.ordem;
       etapaNome  = etapa.nome ?? `Etapa ${etapa.ordem}`;
-      aprovadorResolved = {
-        id: etapa.aprovador.id,
-        nome: etapa.aprovador.nome,
-        telefone: etapa.aprovador.telefone ?? null,
-      };
+
+      if (etapa.colaborador) {
+        // Prefer colaborador's telefone, fall back to usuario's
+        const c = etapa.colaborador;
+        let telefone = c.telefone ?? null;
+        if (!telefone && c.usuarioId) {
+          const u = await prisma.usuario.findUnique({ where: { id: c.usuarioId }, select: { telefone: true } });
+          telefone = u?.telefone ?? null;
+        }
+        // Still need a usuario for AprovacaoSC.aprovadorId
+        if (!c.usuarioId) {
+          return NextResponse.json(
+            { error: `O colaborador "${c.nome}" não tem usuário do sistema vinculado.` },
+            { status: 422 }
+          );
+        }
+        aprovadorResolved = { id: c.usuarioId, nome: c.nome, telefone };
+      } else if (etapa.aprovador) {
+        aprovadorResolved = {
+          id: etapa.aprovador.id,
+          nome: etapa.aprovador.nome,
+          telefone: etapa.aprovador.telefone ?? null,
+        };
+      } else {
+        return NextResponse.json({ error: "Etapa sem aprovador configurado" }, { status: 422 });
+      }
     }
 
     if (!aprovadorResolved.telefone) {

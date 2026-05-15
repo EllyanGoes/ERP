@@ -28,14 +28,22 @@ type Usuario = {
   telefone: string | null;
 };
 
+type ColaboradorMin = {
+  id: string;
+  nome: string;
+  telefone: string | null;
+};
+
 type Etapa = {
   id: string;
   ordem: number;
   nome: string | null;
   valorMin: number | null;
   valorMax: number | null;
-  aprovadorId: string;
-  aprovador: Usuario;
+  aprovadorId:   string | null;
+  aprovador:     Usuario | null;
+  colaboradorId: string | null;
+  colaborador:   ColaboradorMin | null;
 };
 
 type Fluxo = {
@@ -47,17 +55,20 @@ type Fluxo = {
 };
 
 type EtapaRow = {
-  ordem: number;
-  nome: string;
-  valorMin: string;
-  valorMax: string;
-  aprovadorId: string;
+  ordem:         number;
+  nome:          string;
+  valorMin:      string;
+  valorMax:      string;
+  aprovadorId:   string;
+  colaboradorId: string;
+  // which one is selected: "usuario" | "colaborador"
+  tipoAprovador: "usuario" | "colaborador";
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function emptyRow(ordem: number): EtapaRow {
-  return { ordem, nome: "", valorMin: "", valorMax: "", aprovadorId: "" };
+  return { ordem, nome: "", valorMin: "", valorMax: "", aprovadorId: "", colaboradorId: "", tipoAprovador: "colaborador" };
 }
 
 function fmtValor(v: number | null | undefined) {
@@ -68,10 +79,11 @@ function fmtValor(v: number | null | undefined) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function AprovacoesPage() {
-  const [fluxos, setFluxos]       = useState<Fluxo[]>([]);
-  const [usuarios, setUsuarios]   = useState<Usuario[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [pageError, setPageError] = useState("");
+  const [fluxos,        setFluxos]        = useState<Fluxo[]>([]);
+  const [usuarios,      setUsuarios]      = useState<Usuario[]>([]);
+  const [colaboradores, setColaboradores] = useState<ColaboradorMin[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [pageError,     setPageError]     = useState("");
 
   // ── Sheet state ───────────────────────────────────────────────────────────
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -90,14 +102,17 @@ export default function AprovacoesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [fRes, uRes] = await Promise.all([
+      const [fRes, uRes, cRes] = await Promise.all([
         fetch("/api/configuracoes/aprovacoes"),
         fetch("/api/configuracoes/usuarios"),
+        fetch("/api/empresa/colaboradores?ativo=true"),
       ]);
       const fJson = await fRes.json();
       const uJson = await uRes.json();
+      const cJson = await cRes.json();
       setFluxos(fJson.data ?? []);
       setUsuarios(uJson.data ?? []);
+      setColaboradores(Array.isArray(cJson) ? cJson : []);
     } catch {
       setPageError("Erro ao carregar dados");
     } finally {
@@ -123,11 +138,13 @@ export default function AprovacoesPage() {
     setFormAtivo(fluxo.ativo);
     setFormEtapas(
       fluxo.etapas.map((e) => ({
-        ordem: e.ordem,
-        nome: e.nome ?? "",
-        valorMin: e.valorMin != null ? String(e.valorMin) : "",
-        valorMax: e.valorMax != null ? String(e.valorMax) : "",
-        aprovadorId: e.aprovadorId,
+        ordem:         e.ordem,
+        nome:          e.nome ?? "",
+        valorMin:      e.valorMin != null ? String(e.valorMin) : "",
+        valorMax:      e.valorMax != null ? String(e.valorMax) : "",
+        aprovadorId:   e.aprovadorId   ?? "",
+        colaboradorId: e.colaboradorId ?? "",
+        tipoAprovador: e.colaboradorId ? "colaborador" : "usuario",
       }))
     );
     setFormError("");
@@ -154,7 +171,10 @@ export default function AprovacoesPage() {
 
   async function handleSave() {
     if (!formNome.trim()) { setFormError("Nome do fluxo é obrigatório"); return; }
-    const validEtapas = formEtapas.filter((e) => e.aprovadorId);
+    const validEtapas = formEtapas.filter((e) =>
+      (e.tipoAprovador === "colaborador" && e.colaboradorId) ||
+      (e.tipoAprovador === "usuario"     && e.aprovadorId)
+    );
     if (validEtapas.length === 0) { setFormError("Adicione pelo menos uma etapa com aprovador"); return; }
 
     setSaving(true); setFormError("");
@@ -163,11 +183,12 @@ export default function AprovacoesPage() {
         nome: formNome.trim(),
         ativo: formAtivo,
         etapas: validEtapas.map((e) => ({
-          ordem: e.ordem,
-          nome: e.nome.trim() || null,
-          valorMin: e.valorMin ? parseFloat(e.valorMin) : null,
-          valorMax: e.valorMax ? parseFloat(e.valorMax) : null,
-          aprovadorId: e.aprovadorId,
+          ordem:         e.ordem,
+          nome:          e.nome.trim() || null,
+          valorMin:      e.valorMin ? parseFloat(e.valorMin) : null,
+          valorMax:      e.valorMax ? parseFloat(e.valorMax) : null,
+          aprovadorId:   e.tipoAprovador === "usuario"      ? e.aprovadorId   || null : null,
+          colaboradorId: e.tipoAprovador === "colaborador"  ? e.colaboradorId || null : null,
         })),
       };
 
@@ -292,8 +313,11 @@ export default function AprovacoesPage() {
                               {etapa.nome || `Etapa ${etapa.ordem}`}
                             </p>
                             <p className="text-xs text-gray-500 truncate">
-                              Aprovador: {etapa.aprovador.nome}
-                              {etapa.aprovador.telefone ? ` · ${etapa.aprovador.telefone}` : " · sem telefone"}
+                              {etapa.colaborador ? (
+                                <>Colaborador: {etapa.colaborador.nome}{etapa.colaborador.telefone ? ` · ${etapa.colaborador.telefone}` : " · sem WhatsApp"}</>
+                              ) : etapa.aprovador ? (
+                                <>Aprovador: {etapa.aprovador.nome}{etapa.aprovador.telefone ? ` · ${etapa.aprovador.telefone}` : " · sem telefone"}</>
+                              ) : "Sem aprovador"}
                             </p>
                           </div>
                           {(etapa.valorMin != null || etapa.valorMax != null) && (
@@ -409,18 +433,59 @@ export default function AprovacoesPage() {
 
                       <div className="space-y-1.5">
                         <Label className="text-xs">Aprovador <span className="text-red-500">*</span></Label>
-                        <select
-                          value={row.aprovadorId}
-                          onChange={(e) => updateEtapaRow(i, "aprovadorId", e.target.value)}
-                          className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                        >
-                          <option value="">Selecionar aprovador...</option>
-                          {usuarios.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.nome}{u.telefone ? ` · ${u.telefone}` : " · sem telefone"}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex gap-2 mb-2">
+                          <button
+                            type="button"
+                            onClick={() => updateEtapaRow(i, "tipoAprovador", "colaborador")}
+                            className={cn(
+                              "flex-1 text-xs py-1 px-2 rounded-lg border transition-colors",
+                              row.tipoAprovador === "colaborador"
+                                ? "border-blue-500 bg-blue-50 text-blue-700 font-medium"
+                                : "border-gray-200 text-gray-500 hover:border-gray-300"
+                            )}
+                          >
+                            Colaborador
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateEtapaRow(i, "tipoAprovador", "usuario")}
+                            className={cn(
+                              "flex-1 text-xs py-1 px-2 rounded-lg border transition-colors",
+                              row.tipoAprovador === "usuario"
+                                ? "border-blue-500 bg-blue-50 text-blue-700 font-medium"
+                                : "border-gray-200 text-gray-500 hover:border-gray-300"
+                            )}
+                          >
+                            Usuário
+                          </button>
+                        </div>
+                        {row.tipoAprovador === "colaborador" ? (
+                          <select
+                            value={row.colaboradorId}
+                            onChange={(e) => updateEtapaRow(i, "colaboradorId", e.target.value)}
+                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          >
+                            <option value="">Selecionar colaborador...</option>
+                            {colaboradores.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.nome}{c.telefone ? ` · ${c.telefone}` : " · sem WhatsApp"}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <select
+                            value={row.aprovadorId}
+                            onChange={(e) => updateEtapaRow(i, "aprovadorId", e.target.value)}
+                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          >
+                            <option value="">Selecionar usuário...</option>
+                            {usuarios.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.nome}{u.telefone ? ` · ${u.telefone}` : " · sem telefone"}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">

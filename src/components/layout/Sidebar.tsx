@@ -43,6 +43,8 @@ import {
   User,
   ChevronRight,
   GitBranch,
+  UserCheck,
+  Plug,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -79,8 +81,9 @@ const mainModules: Module[] = [
       {
         kind: "Comercial",
         items: [
-          { href: "/empresa/filiais", label: "Filiais",  icon: GitBranch },
-          { href: "/clientes",        label: "Clientes", icon: Users },
+          { href: "/empresa/filiais",        label: "Filiais",        icon: GitBranch },
+          { href: "/empresa/colaboradores",  label: "Colaboradores",  icon: UserCheck },
+          { href: "/clientes",               label: "Clientes",       icon: Users },
         ],
       },
       {
@@ -194,7 +197,8 @@ const configModule: Module = {
     {
       kind: "Configurações",
       items: [
-        { href: "/configuracoes/aprovacoes", label: "Aprovações", icon: Settings2 },
+        { href: "/configuracoes/aprovacoes",   label: "Aprovações",   icon: Settings2 },
+        { href: "/configuracoes/integracoes",  label: "Integrações",  icon: Plug },
       ],
     },
   ],

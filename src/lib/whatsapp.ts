@@ -2,6 +2,8 @@
 // Meta Cloud API: POST https://graph.facebook.com/v19.0/{META_PHONE_NUMBER_ID}/messages
 // Z-API: POST https://api.z-api.io/instances/{ZAPI_INSTANCE_ID}/token/{ZAPI_TOKEN}/send-button-list
 
+import { prisma } from "@/lib/prisma";
+
 export interface WAButton {
   id: string;    // payload returned in webhook
   title: string; // button label (max 20 chars)
@@ -13,9 +15,18 @@ export interface WAMessage {
   buttons: WAButton[];
 }
 
+async function getConfig(key: string, envFallback: string | undefined): Promise<string | undefined> {
+  try {
+    const rec = await prisma.configuracao.findUnique({ where: { chave: key } });
+    return rec?.valor ?? envFallback;
+  } catch {
+    return envFallback;
+  }
+}
+
 async function sendMeta(msg: WAMessage): Promise<{ msgId: string }> {
-  const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
-  const token = process.env.META_ACCESS_TOKEN;
+  const phoneNumberId = await getConfig("wa_meta_phone_id", process.env.META_PHONE_NUMBER_ID);
+  const token         = await getConfig("wa_meta_access_token", process.env.META_ACCESS_TOKEN);
 
   if (!phoneNumberId || !token) {
     throw new Error("META_PHONE_NUMBER_ID and META_ACCESS_TOKEN are required for Meta provider");
@@ -65,12 +76,16 @@ async function sendMeta(msg: WAMessage): Promise<{ msgId: string }> {
 }
 
 async function sendZAPI(msg: WAMessage): Promise<{ msgId: string }> {
-  const instanceId = process.env.ZAPI_INSTANCE_ID;
-  const token = process.env.ZAPI_TOKEN;
+  const instanceId      = await getConfig("wa_zapi_instance_id", process.env.ZAPI_INSTANCE_ID);
+  const token           = await getConfig("wa_zapi_token", process.env.ZAPI_TOKEN);
+  const securityToken   = await getConfig("wa_zapi_security_token", process.env.ZAPI_SECURITY_TOKEN);
 
   if (!instanceId || !token) {
     throw new Error("ZAPI_INSTANCE_ID and ZAPI_TOKEN are required for Z-API provider");
   }
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (securityToken) headers["Client-Token"] = securityToken;
 
   const payload = {
     phone: msg.to,
@@ -87,7 +102,7 @@ async function sendZAPI(msg: WAMessage): Promise<{ msgId: string }> {
     `https://api.z-api.io/instances/${instanceId}/token/${token}/send-button-list`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(payload),
     }
   );
@@ -103,7 +118,7 @@ async function sendZAPI(msg: WAMessage): Promise<{ msgId: string }> {
 }
 
 export async function sendWAMessage(msg: WAMessage): Promise<{ msgId: string }> {
-  const provider = process.env.WHATSAPP_PROVIDER ?? "meta";
+  const provider = await getConfig("wa_provider", process.env.WHATSAPP_PROVIDER ?? "meta");
   if (provider === "zapi") return sendZAPI(msg);
   return sendMeta(msg);
 }

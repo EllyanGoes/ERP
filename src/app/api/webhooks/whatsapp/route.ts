@@ -107,18 +107,22 @@ export async function POST(req: NextRequest) {
           ordem: { gt: aprovacao.etapaOrdem },
           fluxo: { ativo: true },
         },
-        include: { aprovador: true },
+        include: { aprovador: true, colaborador: true },
         orderBy: { ordem: "asc" },
       });
 
-      if (proxEtapa && proxEtapa.aprovador.telefone) {
+      // Resolve telefone and usuarioId for next etapa
+      const proxTelefone = proxEtapa?.colaborador?.telefone ?? proxEtapa?.aprovador?.telefone ?? null;
+      const proxAprovadorId = proxEtapa?.colaborador?.usuarioId ?? proxEtapa?.aprovadorId ?? null;
+
+      if (proxEtapa && proxTelefone && proxAprovadorId) {
         // Create next AprovacaoSC and send WA
         const nova = await prisma.aprovacaoSC.create({
           data: {
             necessidadeId: sc.id,
             etapaOrdem: proxEtapa.ordem,
             etapaNome: proxEtapa.nome ?? null,
-            aprovadorId: proxEtapa.aprovadorId,
+            aprovadorId: proxAprovadorId,
             status: "PENDENTE",
           },
         });
@@ -143,7 +147,7 @@ export async function POST(req: NextRequest) {
         ].join("\n");
 
         const waResult = await sendWAMessage({
-          to: proxEtapa.aprovador.telefone.replace(/\D/g, ""),
+          to: proxTelefone.replace(/\D/g, ""),
           body: msgBody,
           buttons: [
             { id: `sc_APPROVE_${nova.id}`, title: "✅ Aprovar" },
