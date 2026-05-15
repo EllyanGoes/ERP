@@ -39,11 +39,15 @@ type Endereco = {
   ativo: boolean;
 };
 
+type Filial = { id: string; razaoSocial: string; nomeFantasia: string | null };
+
 type Local = {
   id: string;
   nome: string;
   descricao: string | null;
   ativo: boolean;
+  filialId: string | null;
+  filial: Filial | null;
   estoqueItens: EstoqueItem[];
 };
 
@@ -67,9 +71,10 @@ export default function LocalEstoqueDetailPage() {
 
   // ── Local edit ───────────────────────────────────────────────────────────────
   const [editMode, setEditMode] = useState(false);
-  const [form, setForm]         = useState({ nome: "", descricao: "", ativo: true });
+  const [form, setForm]         = useState({ nome: "", descricao: "", ativo: true, filialId: "" });
   const [saving, setSaving]     = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [filiais, setFiliais]   = useState<Filial[]>([]);
 
   // ── Local delete ─────────────────────────────────────────────────────────────
   const [showDelete, setShowDelete]   = useState(false);
@@ -105,7 +110,7 @@ export default function LocalEstoqueDetailPage() {
     if (!res.ok) { setLoading(false); return; }
     const data: Local = await res.json();
     setLocal(data);
-    setForm({ nome: data.nome, descricao: data.descricao ?? "", ativo: data.ativo });
+    setForm({ nome: data.nome, descricao: data.descricao ?? "", ativo: data.ativo, filialId: data.filialId ?? "" });
     setLoading(false);
   }, [id]);
 
@@ -126,6 +131,14 @@ export default function LocalEstoqueDetailPage() {
     if (key === "enderecos" && !endLoaded) loadEnderecos();
   }
 
+  // Load filiais when entering edit mode
+  useEffect(() => {
+    if (!editMode || filiais.length > 0) return;
+    fetch("/api/empresa/filiais?ativo=true")
+      .then((r) => r.json())
+      .then((d) => setFiliais(Array.isArray(d) ? d : []));
+  }, [editMode]); // eslint-disable-line
+
   // ── Local save ───────────────────────────────────────────────────────────────
   async function saveEdit() {
     if (!local) return;
@@ -133,7 +146,12 @@ export default function LocalEstoqueDetailPage() {
     const res = await fetch(`/api/suprimentos/locais-estoque/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: form.nome.trim(), descricao: form.descricao.trim() || undefined, ativo: form.ativo }),
+      body: JSON.stringify({
+        nome:     form.nome.trim(),
+        descricao: form.descricao.trim() || null,
+        ativo:    form.ativo,
+        filialId: form.filialId || null,
+      }),
     });
     if (!res.ok) { setSaveError((await res.json()).error || "Erro ao salvar"); setSaving(false); return; }
     await load(); setEditMode(false); setSaving(false);
@@ -233,6 +251,20 @@ export default function LocalEstoqueDetailPage() {
             <div className="space-y-2 flex-1">
               <Input value={form.nome} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))} className="text-lg font-semibold h-9 w-72" autoFocus />
               <Input value={form.descricao} onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))} placeholder="Descrição (opcional)" className="h-8 text-sm w-72" />
+              {/* Filial select */}
+              <div className="w-72">
+                <Label className="text-xs text-gray-500 mb-1 block">Filial</Label>
+                <select
+                  value={form.filialId}
+                  onChange={(e) => setForm((p) => ({ ...p, filialId: e.target.value }))}
+                  className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  <option value="">Sem filial vinculada</option>
+                  {filiais.map((f) => (
+                    <option key={f.id} value={f.id}>{f.nomeFantasia || f.razaoSocial}</option>
+                  ))}
+                </select>
+              </div>
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="ativo" checked={form.ativo} onChange={(e) => setForm((p) => ({ ...p, ativo: e.target.checked }))} className="rounded" />
                 <Label htmlFor="ativo" className="text-sm cursor-pointer">Ativo</Label>
@@ -243,6 +275,12 @@ export default function LocalEstoqueDetailPage() {
             <div>
               <h1 className="text-xl font-bold text-gray-900">{local.nome}</h1>
               {local.descricao && <p className="text-sm text-gray-500 mt-0.5">{local.descricao}</p>}
+              {local.filial && (
+                <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400" />
+                  {local.filial.nomeFantasia || local.filial.razaoSocial}
+                </p>
+              )}
             </div>
           )}
           <span className={`ml-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${local.ativo ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
@@ -256,7 +294,7 @@ export default function LocalEstoqueDetailPage() {
               <Button size="sm" onClick={saveEdit} disabled={saving || !form.nome.trim()}>
                 {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}Salvar
               </Button>
-              <Button size="sm" variant="outline" onClick={() => { setEditMode(false); setSaveError(""); setForm({ nome: local.nome, descricao: local.descricao ?? "", ativo: local.ativo }); }}>
+              <Button size="sm" variant="outline" onClick={() => { setEditMode(false); setSaveError(""); setForm({ nome: local.nome, descricao: local.descricao ?? "", ativo: local.ativo, filialId: local.filialId ?? "" }); }}>
                 <X className="w-4 h-4 mr-1" />Cancelar
               </Button>
             </>
