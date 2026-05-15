@@ -18,13 +18,13 @@ export default async function NecessidadesPage() {
   return (
     <div>
       <PageHeader
-        title="Necessidades de Compra"
-        breadcrumbs={[{ label: "Compras" }, { label: "Necessidades" }]}
+        title="Solicitações de Compras"
+        breadcrumbs={[{ label: "Compras" }, { label: "Solicitações" }]}
         action={
           <Button asChild>
             <Link href="/compras/necessidades/nova">
               <Plus className="w-4 h-4 mr-2" />
-              Nova Necessidade
+              Nova Solicitação
             </Link>
           </Button>
         }
@@ -32,8 +32,8 @@ export default async function NecessidadesPage() {
       <div className="px-8 pb-8">
         {necessidades.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
-            <p className="text-lg font-medium">Nenhuma necessidade registrada</p>
-            <p className="text-sm mt-1">Clique em &quot;Nova Necessidade&quot; para começar.</p>
+            <p className="text-lg font-medium">Nenhuma solicitação registrada</p>
+            <p className="text-sm mt-1">Clique em &quot;Nova Solicitação&quot; para começar.</p>
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
