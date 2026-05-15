@@ -61,7 +61,9 @@ export default function ComboboxWithCreate({
   const [createModal, setCreateModal] = useState<{ value: string } | null>(null);
   // Locally created options so they appear immediately after inline creation
   const [extraOptions, setExtraOptions] = useState<ComboboxOption[]>([]);
-  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{
+    top?: number; bottom?: number; left: number; width: number; maxHeight: number;
+  } | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -89,11 +91,27 @@ export default function ComboboxWithCreate({
   function calcPosition() {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    setDropdownPos({
-      top: rect.bottom + 4,
-      left: rect.left,
-      width: Math.max(rect.width, 220),
-    });
+    const DROPDOWN_MAX_H = 260;
+    const MARGIN = 8;
+    const spaceBelow = window.innerHeight - rect.bottom - MARGIN;
+    const spaceAbove = rect.top - MARGIN;
+    const openUpward = spaceBelow < DROPDOWN_MAX_H && spaceAbove > spaceBelow;
+
+    if (openUpward) {
+      setDropdownPos({
+        bottom:    window.innerHeight - rect.top + 4,
+        left:      rect.left,
+        width:     Math.max(rect.width, 220),
+        maxHeight: Math.min(DROPDOWN_MAX_H, spaceAbove),
+      });
+    } else {
+      setDropdownPos({
+        top:       rect.bottom + 4,
+        left:      rect.left,
+        width:     Math.max(rect.width, 220),
+        maxHeight: Math.min(DROPDOWN_MAX_H, spaceBelow),
+      });
+    }
   }
 
   useEffect(() => {
@@ -173,12 +191,13 @@ export default function ComboboxWithCreate({
           ref={dropdownRef}
           style={{
             position: "fixed",
-            top: dropdownPos.top,
-            left: dropdownPos.left,
-            width: dropdownPos.width,
-            zIndex: 9999,
+            top:      dropdownPos.top,
+            bottom:   dropdownPos.bottom,
+            left:     dropdownPos.left,
+            width:    dropdownPos.width,
+            zIndex:   9999,
           }}
-          className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden"
+          className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden flex flex-col"
         >
           {/* Search */}
           <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
@@ -199,7 +218,7 @@ export default function ComboboxWithCreate({
           </div>
 
           {/* Options list */}
-          <div className="max-h-52 overflow-y-auto py-1">
+          <div className="overflow-y-auto py-1 flex-1" style={{ maxHeight: dropdownPos ? dropdownPos.maxHeight - 52 : 208 }}>
             {allowNone && (
               <button
                 type="button"

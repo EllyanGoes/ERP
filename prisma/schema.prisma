@@ -556,6 +556,7 @@ model NecessidadeCompraItem {
   quantidade         Decimal           @db.Decimal(15, 3)
   quantidadeAprovada Decimal?          @db.Decimal(15, 3)
   observacao         String?
+  unidade            String?           // sigla da unidade escolhida (ex: "KG", "UN", "M3")
 }
 
 // 2. Cotação de Compra

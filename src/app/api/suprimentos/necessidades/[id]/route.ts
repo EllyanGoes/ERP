@@ -44,10 +44,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (Array.isArray(body.itens)) {
       await tx.necessidadeCompraItem.deleteMany({ where: { necessidadeId: params.id } });
       updateData.itens = {
-        create: body.itens.map((item: { itemId: string; quantidade: number; observacao?: string }) => ({
+        create: body.itens.map((item: { itemId: string; quantidade: number; observacao?: string; unidade?: string }) => ({
           itemId:     item.itemId,
           quantidade: parseFloat(String(item.quantidade)),
           observacao: item.observacao?.trim() || null,
+          unidade:    item.unidade?.trim()    || null,
         })),
       };
     }

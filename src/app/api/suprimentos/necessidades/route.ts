@@ -60,10 +60,11 @@ export async function POST(req: NextRequest) {
         projeto:              body.projeto?.trim()               || null,
         classificacaoAuxiliar: body.classificacaoAuxiliar?.trim() || null,
         itens: {
-          create: body.itens.map((item: { itemId: string; quantidade: number; observacao?: string }) => ({
+          create: body.itens.map((item: { itemId: string; quantidade: number; observacao?: string; unidade?: string }) => ({
             itemId:     item.itemId,
             quantidade: parseFloat(String(item.quantidade)),
             observacao: item.observacao?.trim() || null,
+            unidade:    item.unidade?.trim()    || null,
           })),
         },
       },
