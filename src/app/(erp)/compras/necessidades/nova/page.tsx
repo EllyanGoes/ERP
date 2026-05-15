@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session-context";
 import PageHeader from "@/components/shared/PageHeader";
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, ChevronDown, Loader2, Save, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, ChevronDown, Loader2, Save, CheckCircle2, X } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +32,140 @@ const PRIORIDADES = [
   { value: 5, label: "5 - Crítica" },
 ];
 
+// ── SearchableSelect ──────────────────────────────────────────────────────────
+// Campo de texto com filtro + dropdown via portal (para Filial e Local de Estoque)
+
+function SearchableSelect<T extends { id: string }>({
+  options, value, onChange, placeholder, getLabel, disabled,
+}: {
+  options: T[];
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  getLabel: (item: T) => string;
+  disabled?: boolean;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef     = useRef<HTMLInputElement>(null);
+  const [open,  setOpen]  = useState(false);
+  const [query, setQuery] = useState("");
+  const [pos,   setPos]   = useState<{ top: number; left: number; width: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  const selected = options.find((o) => o.id === value);
+  const filtered = query.trim()
+    ? options.filter((o) => getLabel(o).toLowerCase().includes(query.toLowerCase()))
+    : options;
+
+  function calcPos() {
+    if (!containerRef.current) return;
+    const r = containerRef.current.getBoundingClientRect();
+    setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+  }
+
+  function openDropdown() {
+    calcPos();
+    setQuery("");
+    setOpen(true);
+  }
+
+  function handleSelect(id: string) {
+    onChange(id);
+    setOpen(false);
+    setQuery("");
+    inputRef.current?.blur();
+  }
+
+  function handleClear(e: React.MouseEvent) {
+    e.stopPropagation();
+    onChange("");
+    setQuery("");
+    setOpen(false);
+  }
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (!containerRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    window.addEventListener("scroll", calcPos, true);
+    window.addEventListener("resize", calcPos);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      window.removeEventListener("scroll", calcPos, true);
+      window.removeEventListener("resize", calcPos);
+    };
+  }, [open]);
+
+  if (disabled) {
+    return (
+      <div className="flex items-center px-3 py-2 text-sm rounded-lg border border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed min-h-[38px]">
+        {placeholder}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className={cn(
+        "flex items-center rounded-lg border bg-white transition-colors",
+        open ? "border-blue-400 ring-1 ring-blue-200" : "border-gray-200 hover:border-gray-300"
+      )}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={open ? query : (selected ? getLabel(selected) : "")}
+          onChange={(e) => { setQuery(e.target.value); if (!open) openDropdown(); }}
+          onFocus={openDropdown}
+          placeholder={placeholder}
+          className="flex-1 px-3 py-2 text-sm bg-transparent outline-none placeholder:text-gray-400 text-gray-900"
+        />
+        {value && !open && (
+          <button type="button" onClick={handleClear} className="px-1.5 text-gray-300 hover:text-gray-500 transition-colors">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+        <ChevronDown className={cn("w-4 h-4 text-gray-400 shrink-0 mr-2 transition-transform", open && "rotate-180")} />
+      </div>
+
+      {mounted && open && createPortal(
+        <div
+          className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-auto max-h-56"
+          style={{ top: pos?.top, left: pos?.left, width: pos?.width }}
+        >
+          {filtered.length > 0 ? filtered.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(o.id); }}
+              className={cn(
+                "w-full px-3 py-2 text-sm text-left hover:bg-blue-50 hover:text-blue-700 transition-colors",
+                o.id === value && "bg-blue-50 text-blue-700 font-medium"
+              )}
+            >
+              {getLabel(o)}
+            </button>
+          )) : (
+            <p className="px-3 py-2.5 text-sm text-gray-400 italic">
+              {query ? `Nenhum resultado para "${query}"` : "Nenhuma opção disponível"}
+            </p>
+          )}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // ── SelectField ───────────────────────────────────────────────────────────────
+// Dropdown simples sem busca (usado para Centro de Custo)
 
 function SelectField<T extends { id: string }>({
   options, value, onChange, placeholder, getLabel, disabled,
@@ -307,9 +441,9 @@ export default function NovasolicitacaoPage() {
 
             <div className="space-y-1.5">
               <Label>Filial <span className="text-red-500">*</span></Label>
-              <SelectField options={filiais} value={filialId}
+              <SearchableSelect options={filiais} value={filialId}
                 onChange={(v) => { setFilialId(v); setLocalEstoqueId(""); }}
-                placeholder="Selecionar filial..." getLabel={(f) => f.nomeFantasia || f.razaoSocial} />
+                placeholder="Digite para filtrar filial..." getLabel={(f) => f.nomeFantasia || f.razaoSocial} />
               {!filialId && <p className="text-xs text-gray-400">Selecione a filial para habilitar o campo Local de Estoque</p>}
             </div>
 
@@ -354,8 +488,8 @@ export default function NovasolicitacaoPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Local de Estoque <span className="text-red-500">*</span></Label>
-                <SelectField options={locaisEstoque} value={localEstoqueId} onChange={setLocalEstoqueId}
-                  placeholder={filialId ? (locaisEstoque.length === 0 ? "Nenhum local para esta filial" : "Selecionar local de estoque...") : "Selecione a filial primeiro"}
+                <SearchableSelect options={locaisEstoque} value={localEstoqueId} onChange={setLocalEstoqueId}
+                  placeholder={filialId ? (locaisEstoque.length === 0 ? "Nenhum local para esta filial" : "Digite para filtrar local...") : "Selecione a filial primeiro"}
                   getLabel={(l) => l.nome} disabled={!filialId} />
               </div>
               <div className="space-y-1.5">
