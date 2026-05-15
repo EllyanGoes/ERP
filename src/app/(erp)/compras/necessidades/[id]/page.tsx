@@ -19,6 +19,7 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 type Necessidade = {
   id: string; numero: string; status: string; prioridade: number;
+  createdAt: string;
   solicitante: string | null; justificativa: string | null;
   dataNecessidade: string | null; observacoes: string | null;
   aprovadoPor: string | null; dataAprovacao: string | null;
@@ -36,6 +37,28 @@ type Necessidade = {
   }>;
   cotacoes: Array<{ id: string; numero: string; status: string }>;
 };
+
+const PRIORIDADE_INFO: Record<number, { label: string; className: string }> = {
+  1: { label: "1 — Muito Baixa", className: "text-gray-400" },
+  2: { label: "2 — Baixa",       className: "text-blue-400" },
+  3: { label: "3 — Média",       className: "text-amber-500" },
+  4: { label: "4 — Alta",        className: "text-orange-500" },
+  5: { label: "5 — Crítica",     className: "text-red-600 font-semibold" },
+};
+
+function InfoField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400 mb-0.5">{label}</p>
+      <div className="text-sm text-gray-800">{children}</div>
+    </div>
+  );
+}
+
+function PrioridadeBadge({ prioridade }: { prioridade: number }) {
+  const info = PRIORIDADE_INFO[prioridade] ?? { label: String(prioridade), className: "text-gray-500" };
+  return <span className={cn("text-sm", info.className)}>{info.label}</span>;
+}
 
 type Filial        = { id: string; razaoSocial: string; nomeFantasia: string | null };
 type LocalEstoque  = { id: string; nome: string };
@@ -586,43 +609,81 @@ export default function NecessidadeDetailPage() {
         {/* Info */}
         <Card>
           <CardHeader><CardTitle className="text-base">Informações</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {necessidade.filial && (
-              <div>
-                <p className="text-xs text-gray-500">Filial</p>
-                <p className="text-sm font-medium">{necessidade.filial.nomeFantasia || necessidade.filial.razaoSocial}</p>
-              </div>
-            )}
-            <div>
-              <p className="text-xs text-gray-500">Solicitante</p>
-              <p className="text-sm font-medium">{necessidade.solicitante || "—"}</p>
+          <CardContent className="space-y-5">
+
+            {/* Row 1: identidade */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <InfoField label="Número">
+                <span className="font-mono font-bold text-gray-900">{necessidade.numero}</span>
+              </InfoField>
+              <InfoField label="Status">
+                <div className="mt-0.5"><StatusBadge status={necessidade.status} /></div>
+              </InfoField>
+              <InfoField label="Prioridade">
+                <PrioridadeBadge prioridade={necessidade.prioridade} />
+              </InfoField>
+              <InfoField label="Data de Criação">
+                {formatDate(necessidade.createdAt)}
+              </InfoField>
             </div>
-            <div>
-              <p className="text-xs text-gray-500">Data de Necessidade</p>
-              <p className="text-sm font-medium">{formatDate(necessidade.dataNecessidade)}</p>
+
+            <div className="h-px bg-gray-100" />
+
+            {/* Row 2: origem */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <InfoField label="Filial">
+                {necessidade.filial ? (necessidade.filial.nomeFantasia || necessidade.filial.razaoSocial) : "—"}
+              </InfoField>
+              <InfoField label="Local de Estoque">
+                {necessidade.localEstoque?.nome ?? "—"}
+              </InfoField>
+              <InfoField label="Centro de Custo">
+                {necessidade.centroCusto ? `${necessidade.centroCusto.codigo} — ${necessidade.centroCusto.nome}` : "—"}
+              </InfoField>
             </div>
-            <div>
-              <p className="text-xs text-gray-500">Status</p>
-              <div className="mt-1"><StatusBadge status={necessidade.status} /></div>
+
+            <div className="h-px bg-gray-100" />
+
+            {/* Row 3: solicitação */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <InfoField label="Solicitante">
+                {necessidade.solicitante ?? "—"}
+              </InfoField>
+              <InfoField label="Entrega Desejada">
+                {formatDate(necessidade.dataNecessidade)}
+              </InfoField>
+              <InfoField label="Tipo de Compra">
+                {necessidade.tipoCompra ?? "—"}
+              </InfoField>
+              <InfoField label="Motivo">
+                {necessidade.motivo ?? "—"}
+              </InfoField>
             </div>
-            {necessidade.localEstoque && (
-              <div>
-                <p className="text-xs text-gray-500">Local de Estoque</p>
-                <p className="text-sm font-medium">{necessidade.localEstoque.nome}</p>
-              </div>
+
+            {/* Row 4: classificação — só mostra se algum tiver valor */}
+            {(necessidade.categoria || necessidade.projeto || necessidade.classificacaoAuxiliar) && (
+              <>
+                <div className="h-px bg-gray-100" />
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <InfoField label="Categoria">{necessidade.categoria ?? "—"}</InfoField>
+                  <InfoField label="Projeto">{necessidade.projeto ?? "—"}</InfoField>
+                  <InfoField label="Classificação Auxiliar">{necessidade.classificacaoAuxiliar ?? "—"}</InfoField>
+                </div>
+              </>
             )}
-            {necessidade.centroCusto && (
-              <div>
-                <p className="text-xs text-gray-500">Centro de Custo</p>
-                <p className="text-sm font-medium">{necessidade.centroCusto.codigo} — {necessidade.centroCusto.nome}</p>
-              </div>
-            )}
-            {necessidade.justificativa && (
-              <div className="md:col-span-3">
-                <p className="text-xs text-gray-500">Justificativa / Descrição</p>
-                <p className="text-sm text-gray-700 mt-1">{necessidade.justificativa}</p>
-              </div>
-            )}
+
+            <div className="h-px bg-gray-100" />
+
+            {/* Row 5: textos livres */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <InfoField label="Descrição / Justificativa">
+                <span className="text-gray-700 whitespace-pre-wrap">{necessidade.justificativa || "—"}</span>
+              </InfoField>
+              <InfoField label="Observações">
+                <span className="text-gray-700 whitespace-pre-wrap">{necessidade.observacoes || "—"}</span>
+              </InfoField>
+            </div>
+
           </CardContent>
         </Card>
 
