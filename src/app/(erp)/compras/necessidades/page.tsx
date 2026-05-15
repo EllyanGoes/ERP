@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { usePersistedFilters } from "@/lib/use-persisted-filters";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -266,12 +267,20 @@ export default function NecessidadesPage() {
   const [necessidades, setNecessidades] = useState<Necessidade[]>([]);
   const [loading,      setLoading]      = useState(true);
 
-  // Filters & sort
-  const [search,          setSearch]          = useState("");
-  const [filterStatuses,  setFilterStatuses]  = useState<string[]>([]);
-  const [filterStatusOp,  setFilterStatusOp]  = useState<FilterOp>("is");
-  const [filterFilial,    setFilterFilial]    = useState("");
-  const [sortKey,         setSortKey]         = useState("createdAt_desc");
+  // Filters & sort — persisted per user
+  const [f, setF] = usePersistedFilters("necessidades", {
+    search:         "",
+    filterStatuses: [] as string[],
+    filterStatusOp: "is" as FilterOp,
+    filterFilial:   "",
+    sortKey:        "createdAt_desc",
+  });
+  const { search, filterStatuses, filterStatusOp, filterFilial, sortKey } = f;
+  const setSearch         = (v: string)     => setF({ search: v });
+  const setFilterStatuses = (v: string[])   => setF({ filterStatuses: v });
+  const setFilterStatusOp = (v: FilterOp)   => setF({ filterStatusOp: v });
+  const setFilterFilial   = (v: string)     => setF({ filterFilial: v });
+  const setSortKey        = (v: string)     => setF({ sortKey: v });
 
   // Delete
   const [deleteItem,    setDeleteItem]    = useState<Necessidade | null>(null);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { usePersistedFilters } from "@/lib/use-persisted-filters";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,11 +53,18 @@ export default function RelatorioMovimentacoesPage() {
   const [loading, setLoading]   = useState(false);
   const [searched, setSearched] = useState(false);
 
-  // Filters
-  const [periodo,  setPeriodo]  = useState<DateRange>(defaultRange());
-  const [localId,  setLocalId]  = useState("");
-  const [tipo,     setTipo]     = useState("");   // "" | "ENTRADA" | "SAIDA"
-  const [search,   setSearch]   = useState("");   // client-side name filter
+  // Filters — persisted per user
+  const [f, setF] = usePersistedFilters("relatorio-movimentacoes", {
+    periodo: defaultRange() as DateRange,
+    localId: "",
+    tipo:    "",   // "" | "ENTRADA" | "SAIDA"
+    search:  "",   // client-side name filter
+  });
+  const { periodo, localId, tipo, search } = f;
+  const setPeriodo = (v: DateRange) => setF({ periodo: v });
+  const setLocalId = (v: string)    => setF({ localId: v });
+  const setTipo    = (v: string)    => setF({ tipo: v });
+  const setSearch  = (v: string)    => setF({ search: v });
 
   // Load locais once
   useEffect(() => {

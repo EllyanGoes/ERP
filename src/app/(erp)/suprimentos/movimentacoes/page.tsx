@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { usePersistedFilters } from "@/lib/use-persisted-filters";
 import PageHeader from "@/components/shared/PageHeader";
 import FilterDropdown, { FilterOption } from "@/components/shared/FilterDropdown";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
@@ -90,10 +91,20 @@ export default function MovimentacoesPage() {
   const [lotes, setLotes]       = useState<Lote[]>([]);
   const [loading, setLoading]   = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [search, setSearch]     = useState("");
-  const [tipoFilter, setTipoFilter] = useState("todos");
-  const [localFilter, setLocalFilter] = useState("todos");
-  const [dateRange, setDateRange] = useState<DateRange>(defaultRange);
+  // Filters — persisted per user
+  const [f, setF] = usePersistedFilters("movimentacoes", {
+    search:      "",
+    tipoFilter:  "todos",
+    localFilter: "todos",
+    origemFilter: "todos",
+    dateRange:   defaultRange as DateRange,
+  });
+  const { search, tipoFilter, localFilter, origemFilter, dateRange } = f;
+  const setSearch       = (v: string)    => setF({ search: v });
+  const setTipoFilter   = (v: string)    => setF({ tipoFilter: v });
+  const setLocalFilter  = (v: string)    => setF({ localFilter: v });
+  const setOrigemFilter = (v: string)    => setF({ origemFilter: v });
+  const setDateRange    = (v: DateRange) => setF({ dateRange: v });
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -110,7 +121,6 @@ export default function MovimentacoesPage() {
   const [linhas, setLinhas]       = useState<LinhaItem[]>([newLinha()]);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [origemFilter, setOrigemFilter] = useState("todos");
   // Auto-link toast
   const [autoVinculoMsg, setAutoVinculoMsg] = useState<string | null>(null);
 

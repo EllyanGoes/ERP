@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { usePersistedFilters } from "@/lib/use-persisted-filters";
 import PageHeader from "@/components/shared/PageHeader";
 import FilterDropdown, { FilterOption } from "@/components/shared/FilterDropdown";
 import { Button } from "@/components/ui/button";
@@ -32,9 +33,16 @@ export default function FornecedoresPage() {
   const router = useRouter();
   const [items, setItems]       = useState<Fornecedor[]>([]);
   const [loading, setLoading]   = useState(true);
-  const [search, setSearch]     = useState("");
-  const [ativo, setAtivo]       = useState<AtivoFilter>("todos");
   const debounceRef             = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Filters — persisted per user
+  const [f, setF] = usePersistedFilters("fornecedores", {
+    search: "",
+    ativo:  "todos" as AtivoFilter,
+  });
+  const { search, ativo } = f;
+  const setSearch = (v: string)      => setF({ search: v });
+  const setAtivo  = (v: AtivoFilter) => setF({ ativo: v });
 
   const load = useCallback(async (q: string, at: AtivoFilter) => {
     setLoading(true);
