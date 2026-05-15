@@ -22,6 +22,7 @@ import {
   ShoppingBag,
   CreditCard,
   Settings,
+  Settings2,
   CircleDot,
   FilePlus,
   Tag,
@@ -56,7 +57,7 @@ interface NavItem {
 }
 
 interface SubSection {
-  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro";
+  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações";
   items: NavItem[];
 }
 
@@ -185,7 +186,21 @@ const adminModule: Module = {
   ],
 };
 
-const allModules = [...mainModules, adminModule];
+const configModule: Module = {
+  id: "configuracoes",
+  label: "Configurações",
+  icon: Settings2,
+  sections: [
+    {
+      kind: "Configurações",
+      items: [
+        { href: "/configuracoes/aprovacoes", label: "Aprovações", icon: Settings2 },
+      ],
+    },
+  ],
+};
+
+const allModules = [...mainModules, adminModule, configModule];
 
 const STRIP_W       = 64;
 const PANEL_MIN       = 160;
@@ -215,6 +230,7 @@ const kindStyle: Record<SubSection["kind"], string> = {
   Comercial:          "text-blue-500",
   Compras:            "text-amber-500",
   Financeiro:         "text-emerald-600",
+  Configurações:      "text-purple-500",
 };
 
 // ── Tooltip wrapper (portal-based) ────────────────────────────────────────────
@@ -608,13 +624,22 @@ export default function Sidebar() {
 
             {/* Configurações */}
             <StripTooltip label="Configurações">
-              <Link
-                href="/configuracoes"
-                className="flex items-center justify-center w-9 h-9 rounded-xl
-                  text-gray-500 hover:bg-gray-800 hover:text-gray-200 transition-colors"
+              <button
+                onClick={() => setOpenId(openId === "configuracoes" ? null : "configuracoes")}
+                className={cn(
+                  "relative flex flex-col items-center justify-center w-9 h-9 rounded-xl transition-colors",
+                  openId === "configuracoes"
+                    ? "bg-gray-700 text-white"
+                    : moduleIsActive(configModule, pathname)
+                    ? "text-blue-400 hover:bg-gray-800"
+                    : "text-gray-500 hover:bg-gray-800 hover:text-gray-200"
+                )}
               >
                 <Settings className="w-4 h-4" />
-              </Link>
+                {moduleIsActive(configModule, pathname) && openId !== "configuracoes" && (
+                  <span className="absolute right-1.5 top-1.5 w-1.5 h-1.5 bg-blue-400 rounded-full" />
+                )}
+              </button>
             </StripTooltip>
 
             {/* Perfil (dropdown do usuário) */}

@@ -12,10 +12,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
-import { Pencil, Trash2, Loader2, AlertTriangle, Plus, Save, X, ChevronDown } from "lucide-react";
+import { Pencil, Trash2, Loader2, AlertTriangle, Plus, Save, X, ChevronDown, Send, CheckCircle2, XCircle, Clock } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+type AprovacaoSCItem = {
+  id: string;
+  etapaOrdem: number;
+  etapaNome: string | null;
+  status: "PENDENTE" | "APROVADO" | "REPROVADO";
+  observacao: string | null;
+  respondidoEm: string | null;
+  createdAt: string;
+  aprovador: { id: string; nome: string; email: string };
+};
 
 type Necessidade = {
   id: string; numero: string; status: string; prioridade: number;
@@ -36,6 +47,7 @@ type Necessidade = {
     item: { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null };
   }>;
   cotacoes: Array<{ id: string; numero: string; status: string }>;
+  aprovacoes?: AprovacaoSCItem[];
 };
 
 const PRIORIDADE_INFO: Record<number, { label: string; className: string }> = {
@@ -223,6 +235,8 @@ export default function NecessidadeDetailPage() {
   const [motivoReprovacao, setMotivoReprovacao]  = useState("");
   const [showApproveForm, setShowApproveForm]   = useState(false);
   const [showRejectForm, setShowRejectForm]     = useState(false);
+  const [submittingAprovacao, setSubmittingAprovacao] = useState(false);
+  const [submittingAprovacaoError, setSubmittingAprovacaoError] = useState("");
 
   // ── Edit mode state ──────────────────────────────────────────────────────────
   const [editMode, setEditMode] = useState(false);
@@ -312,6 +326,18 @@ export default function NecessidadeDetailPage() {
       router.push(`/suprimentos/cotacoes/${json.data.id}`);
     } catch { setActionError("Erro de conexão"); }
     finally   { setActioning(false); }
+  }
+
+  // ── Submeter aprovação WhatsApp ───────────────────────────────────────────────
+  async function submeterAprovacao() {
+    setSubmittingAprovacao(true); setSubmittingAprovacaoError("");
+    try {
+      const res = await fetch(`/api/compras/necessidades/${id}/submeter-aprovacao`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) { setSubmittingAprovacaoError(json.error || "Erro ao submeter aprovação"); return; }
+      await load();
+    } catch { setSubmittingAprovacaoError("Erro de conexão"); }
+    finally   { setSubmittingAprovacao(false); }
   }
 
   // ── Edit helpers ─────────────────────────────────────────────────────────────
@@ -774,6 +800,78 @@ export default function NecessidadeDetailPage() {
                 </CardContent>
               </Card>
             )}
+
+            {/* ── Aprovações WhatsApp ───────────────────────────────────────── */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="text-base">Aprovações via WhatsApp</CardTitle>
+                  {(necessidade.status === "RASCUNHO" || necessidade.status === "AGUARDANDO_APROVACAO") &&
+                    !(necessidade.aprovacoes ?? []).some((a) => a.status === "PENDENTE") && (
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={submeterAprovacao}
+                        disabled={submittingAprovacao}
+                      >
+                        {submittingAprovacao ? (
+                          <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> Enviando...</>
+                        ) : (
+                          <><Send className="w-3.5 h-3.5 mr-1" /> Enviar para Aprovação</>
+                        )}
+                      </Button>
+                    )}
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {submittingAprovacaoError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mb-3">
+                    {submittingAprovacaoError}
+                  </div>
+                )}
+                {(necessidade.aprovacoes ?? []).length === 0 ? (
+                  <p className="text-sm text-gray-400 italic">Nenhuma aprovação registrada.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {(necessidade.aprovacoes ?? []).map((apr) => (
+                      <div key={apr.id} className="flex items-center gap-4 bg-gray-50 rounded-lg px-4 py-3 text-sm">
+                        <div className="shrink-0">
+                          {apr.status === "APROVADO" && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
+                          {apr.status === "REPROVADO" && <XCircle className="w-5 h-5 text-red-500" />}
+                          {apr.status === "PENDENTE" && <Clock className="w-5 h-5 text-amber-500" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate">
+                            {apr.etapaNome ?? `Etapa ${apr.etapaOrdem}`}
+                            <span className="ml-2 text-xs font-normal text-gray-400">
+                              · {apr.aprovador.nome}
+                            </span>
+                          </p>
+                          {apr.observacao && (
+                            <p className="text-xs text-gray-500 mt-0.5">{apr.observacao}</p>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className={cn(
+                            "inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full",
+                            apr.status === "APROVADO"  && "bg-emerald-50 text-emerald-700 border border-emerald-200",
+                            apr.status === "REPROVADO" && "bg-red-50 text-red-700 border border-red-200",
+                            apr.status === "PENDENTE"  && "bg-amber-50 text-amber-700 border border-amber-200",
+                          )}>
+                            {apr.status === "APROVADO" && "Aprovado"}
+                            {apr.status === "REPROVADO" && "Reprovado"}
+                            {apr.status === "PENDENTE" && "Aguardando"}
+                          </span>
+                          {apr.respondidoEm && (
+                            <p className="text-xs text-gray-400 mt-0.5">{formatDate(apr.respondidoEm)}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
           </div>
 

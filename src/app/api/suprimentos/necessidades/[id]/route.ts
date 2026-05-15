@@ -13,6 +13,10 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         include: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } } },
       },
       cotacoes: { select: { id: true, numero: true, status: true } },
+      aprovacoes: {
+        include: { aprovador: { select: { id: true, nome: true, email: true } } },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 

@@ -543,6 +543,7 @@ model NecessidadeCompra {
 
   itens    NecessidadeCompraItem[]
   cotacoes CotacaoCompra[]
+  aprovacoes AprovacaoSC[]
 
   @@index([status])
 }
@@ -805,11 +806,14 @@ model Usuario {
   senha          String
   perfil         PerfilUsuario @default(USUARIO)
   ativo          Boolean       @default(true)
+  telefone       String?
   perfilAcessoId String?
   perfilAcesso   PerfilAcesso? @relation(fields: [perfilAcessoId], references: [id], onDelete: SetNull)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   permissoes     Permissao[]
+  etapasAprovacao AprovacaoEtapa[]
+  aprovacoessc    AprovacaoSC[]
 }
 
 model Permissao {
@@ -820,4 +824,49 @@ model Permissao {
 
   @@unique([usuarioId, modulo])
   @@index([usuarioId])
+}
+
+// ─── APROVAÇÕES WHATSAPP ──────────────────────────────────────────────────────
+
+enum StatusAprovacao {
+  PENDENTE
+  APROVADO
+  REPROVADO
+}
+
+model AprovacaoFluxo {
+  id        String           @id @default(cuid())
+  nome      String
+  ativo     Boolean          @default(true)
+  etapas    AprovacaoEtapa[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+model AprovacaoEtapa {
+  id          String         @id @default(cuid())
+  fluxoId     String
+  fluxo       AprovacaoFluxo @relation(fields: [fluxoId], references: [id], onDelete: Cascade)
+  ordem       Int
+  nome        String?
+  valorMin    Decimal?       @db.Decimal(15, 2)
+  valorMax    Decimal?       @db.Decimal(15, 2)
+  aprovadorId String
+  aprovador   Usuario        @relation(fields: [aprovadorId], references: [id])
+  createdAt   DateTime       @default(now())
+}
+
+model AprovacaoSC {
+  id            String            @id @default(cuid())
+  necessidadeId String
+  necessidade   NecessidadeCompra @relation(fields: [necessidadeId], references: [id], onDelete: Cascade)
+  etapaOrdem    Int
+  etapaNome     String?
+  aprovadorId   String
+  aprovador     Usuario           @relation(fields: [aprovadorId], references: [id])
+  status        StatusAprovacao   @default(PENDENTE)
+  observacao    String?
+  respondidoEm  DateTime?
+  waMsgId       String?
+  createdAt     DateTime          @default(now())
 }
