@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import StatusBadge from "@/components/shared/StatusBadge";
 import Link from "next/link";
 import {
   Plus, Trash2, Loader2, AlertTriangle, ChevronRight, Building2,
-  Search, X, ArrowUpDown, ChevronUp, ChevronDown as ChevronDownIcon,
+  Search, X, ArrowUpDown, ChevronUp, ChevronDown as ChevronDownIcon, Check,
 } from "lucide-react";
 import { formatDate, cn } from "@/lib/utils";
 
@@ -26,22 +27,21 @@ type Necessidade = {
 };
 
 const STATUS_OPTIONS = [
-  { value: "", label: "Todos os status" },
-  { value: "RASCUNHO",              label: "Rascunho" },
-  { value: "AGUARDANDO_APROVACAO",  label: "Aguardando Aprovação" },
-  { value: "APROVADA",              label: "Aprovada" },
-  { value: "REPROVADA",             label: "Reprovada" },
-  { value: "CANCELADA",             label: "Cancelada" },
-  { value: "CONCLUIDA",             label: "Concluída" },
+  { value: "RASCUNHO",             label: "Rascunho" },
+  { value: "AGUARDANDO_APROVACAO", label: "Aguardando Aprovação" },
+  { value: "APROVADA",             label: "Aprovada" },
+  { value: "REPROVADA",            label: "Reprovada" },
+  { value: "CANCELADA",            label: "Cancelada" },
+  { value: "CONCLUIDA",            label: "Concluída" },
 ];
 
 const SORT_OPTIONS = [
-  { value: "createdAt_desc", label: "Mais recente" },
-  { value: "createdAt_asc",  label: "Mais antiga" },
-  { value: "numero_asc",     label: "Número ↑" },
-  { value: "numero_desc",    label: "Número ↓" },
-  { value: "prioridade_desc",label: "Prioridade ↑" },
-  { value: "prioridade_asc", label: "Prioridade ↓" },
+  { value: "createdAt_desc",  label: "Mais recente" },
+  { value: "createdAt_asc",   label: "Mais antiga" },
+  { value: "numero_asc",      label: "Número ↑" },
+  { value: "numero_desc",     label: "Número ↓" },
+  { value: "prioridade_desc", label: "Prioridade ↑" },
+  { value: "prioridade_asc",  label: "Prioridade ↓" },
 ];
 
 const PRIORIDADE_LABEL: Record<number, { label: string; color: string }> = {
@@ -52,6 +52,213 @@ const PRIORIDADE_LABEL: Record<number, { label: string; color: string }> = {
   5: { label: "Crítica",     color: "text-red-600" },
 };
 
+// ── StatusFilterChip ──────────────────────────────────────────────────────────
+
+type FilterOp = "is" | "is_not";
+
+function StatusFilterChip({
+  selected, op, onChange, onOpChange, onClear,
+}: {
+  selected: string[];
+  op: FilterOp;
+  onChange: (v: string[]) => void;
+  onOpChange: (op: FilterOp) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [showOpMenu, setShowOpMenu] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const btnRef  = useRef<HTMLDivElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const opRef   = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [opPos, setOpPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  // Close on outside click
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || dropRef.current?.contains(t)) return;
+      setOpen(false); setShowOpMenu(false);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  function calcPos() {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 220) });
+  }
+
+  function calcOpPos() {
+    if (!opRef.current) return;
+    const r = opRef.current.getBoundingClientRect();
+    setOpPos({ top: r.bottom + 4, left: r.left });
+  }
+
+  function toggle(value: string) {
+    onChange(
+      selected.includes(value)
+        ? selected.filter((v) => v !== value)
+        : [...selected, value]
+    );
+  }
+
+  const active = selected.length > 0;
+  const opLabel = op === "is" ? "é" : "não é";
+
+  return (
+    <div ref={btnRef} className="relative inline-flex items-center">
+      {/* ── Chip ── */}
+      <div
+        className={cn(
+          "inline-flex items-center h-8 rounded-full border text-sm font-medium transition-colors cursor-pointer select-none",
+          active
+            ? "border-blue-400 bg-blue-50 text-blue-700"
+            : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700"
+        )}
+      >
+        {/* Label part → opens dropdown */}
+        <button
+          type="button"
+          onClick={() => { calcPos(); setOpen((p) => !p); setShowOpMenu(false); }}
+          className="pl-3 pr-1 h-full flex items-center gap-1.5 rounded-l-full"
+        >
+          <span className={cn("text-xs font-semibold", active ? "text-blue-500" : "text-gray-400")}>
+            Status
+          </span>
+          {active && (
+            <>
+              {/* Operator part → opens op menu */}
+              <button
+                ref={opRef}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); calcOpPos(); setShowOpMenu((p) => !p); setOpen(false); }}
+                className="px-1 py-0.5 rounded hover:bg-blue-100 text-blue-600 text-xs font-medium"
+              >
+                {opLabel}
+              </button>
+              <span className="text-blue-500 text-xs">
+                {selected.length === 1
+                  ? STATUS_OPTIONS.find((o) => o.value === selected[0])?.label
+                  : `${selected.length} selecionados`}
+              </span>
+            </>
+          )}
+          <ChevronDownIcon className={cn("w-3 h-3 ml-0.5 transition-transform", open && "rotate-180", active ? "text-blue-400" : "text-gray-400")} />
+        </button>
+
+        {/* Clear button */}
+        {active && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onClear(); setOpen(false); }}
+            className="pr-2 pl-0.5 h-full flex items-center rounded-r-full hover:text-blue-900"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+
+      {/* ── Operator mini-menu ── */}
+      {mounted && showOpMenu && opPos && createPortal(
+        <div
+          style={{ position: "fixed", top: opPos.top, left: opPos.left, zIndex: 9999 }}
+          className="bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[100px]"
+        >
+          {(["is", "is_not"] as FilterOp[]).map((o) => (
+            <button
+              key={o}
+              type="button"
+              onClick={() => { onOpChange(o); setShowOpMenu(false); }}
+              className={cn(
+                "w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2",
+                op === o && "text-blue-600 font-medium"
+              )}
+            >
+              {op === o && <Check className="w-3.5 h-3.5 shrink-0" />}
+              {o === "is" ? "É" : "Não é"}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+
+      {/* ── Main dropdown ── */}
+      {mounted && open && pos && createPortal(
+        <div
+          ref={dropRef}
+          style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
+          className="bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
+        >
+          {/* Operator row */}
+          <div className="flex border-b border-gray-100">
+            {(["is", "is_not"] as FilterOp[]).map((o) => (
+              <button
+                key={o}
+                type="button"
+                onClick={() => onOpChange(o)}
+                className={cn(
+                  "flex-1 py-2 text-xs font-semibold transition-colors",
+                  op === o
+                    ? "bg-blue-50 text-blue-600"
+                    : "text-gray-400 hover:bg-gray-50"
+                )}
+              >
+                {o === "is" ? "É" : "Não é"}
+              </button>
+            ))}
+          </div>
+
+          {/* Status list */}
+          <div className="py-1">
+            {STATUS_OPTIONS.map((opt) => {
+              const checked = selected.includes(opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => toggle(opt.value)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left",
+                    checked && "bg-blue-50/60"
+                  )}
+                >
+                  {/* Checkbox */}
+                  <span className={cn(
+                    "w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors",
+                    checked ? "bg-blue-600 border-blue-600" : "border-gray-300"
+                  )}>
+                    {checked && <Check className="w-3 h-3 text-white" />}
+                  </span>
+                  <StatusBadge status={opt.value} />
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Clear selection */}
+          {selected.length > 0 && (
+            <div className="border-t border-gray-100 px-3 py-2">
+              <button
+                type="button"
+                onClick={() => { onClear(); setOpen(false); }}
+                className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                Limpar seleção
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function NecessidadesPage() {
@@ -60,10 +267,11 @@ export default function NecessidadesPage() {
   const [loading,      setLoading]      = useState(true);
 
   // Filters & sort
-  const [search,     setSearch]     = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [filterFilial, setFilterFilial] = useState("");
-  const [sortKey,    setSortKey]    = useState("createdAt_desc");
+  const [search,          setSearch]          = useState("");
+  const [filterStatuses,  setFilterStatuses]  = useState<string[]>([]);
+  const [filterStatusOp,  setFilterStatusOp]  = useState<FilterOp>("is");
+  const [filterFilial,    setFilterFilial]    = useState("");
+  const [sortKey,         setSortKey]         = useState("createdAt_desc");
 
   // Delete
   const [deleteItem,    setDeleteItem]    = useState<Necessidade | null>(null);
@@ -106,7 +314,6 @@ export default function NecessidadesPage() {
   const filtered = useMemo(() => {
     let list = [...necessidades];
 
-    // Search: numero, solicitante, justificativa, tipoCompra
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((n) =>
@@ -118,13 +325,16 @@ export default function NecessidadesPage() {
       );
     }
 
-    // Status filter
-    if (filterStatus) list = list.filter((n) => n.status === filterStatus);
+    if (filterStatuses.length > 0) {
+      if (filterStatusOp === "is") {
+        list = list.filter((n) => filterStatuses.includes(n.status));
+      } else {
+        list = list.filter((n) => !filterStatuses.includes(n.status));
+      }
+    }
 
-    // Filial filter
     if (filterFilial) list = list.filter((n) => n.filial?.id === filterFilial);
 
-    // Sort
     const [field, dir] = sortKey.split("_");
     list.sort((a, b) => {
       let va: string | number, vb: string | number;
@@ -142,9 +352,9 @@ export default function NecessidadesPage() {
     });
 
     return list;
-  }, [necessidades, search, filterStatus, filterFilial, sortKey]);
+  }, [necessidades, search, filterStatuses, filterStatusOp, filterFilial, sortKey]);
 
-  // Group filtered list by filial
+  // Group by filial
   type Group = { filialId: string | null; filialLabel: string; items: Necessidade[] };
   const groups = useMemo<Group[]>(() => {
     const map = new Map<string, Group>();
@@ -157,7 +367,7 @@ export default function NecessidadesPage() {
     return Array.from(map.values());
   }, [filtered]);
 
-  const hasFilters = search || filterStatus || filterFilial;
+  const hasFilters = search || filterStatuses.length > 0 || filterFilial;
 
   return (
     <div>
@@ -176,7 +386,7 @@ export default function NecessidadesPage() {
 
       <div className="px-8 pb-8 space-y-4">
 
-        {/* ── Search + Filters + Sort ── */}
+        {/* ── Toolbar ── */}
         <div className="flex flex-wrap gap-2 items-center">
           {/* Search */}
           <div className="relative flex-1 min-w-[220px] max-w-xs">
@@ -194,21 +404,21 @@ export default function NecessidadesPage() {
             )}
           </div>
 
-          {/* Status filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="h-9 px-3 pr-8 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 min-w-[170px]"
-          >
-            {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          {/* Status filter chip */}
+          <StatusFilterChip
+            selected={filterStatuses}
+            op={filterStatusOp}
+            onChange={setFilterStatuses}
+            onOpChange={setFilterStatusOp}
+            onClear={() => { setFilterStatuses([]); setFilterStatusOp("is"); }}
+          />
 
           {/* Filial filter */}
           {filiais.length > 1 && (
             <select
               value={filterFilial}
               onChange={(e) => setFilterFilial(e.target.value)}
-              className="h-9 px-3 pr-8 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 min-w-[160px]"
+              className="h-8 px-3 text-sm border border-gray-200 rounded-full bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
             >
               <option value="">Todas as filiais</option>
               {filiais.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
@@ -227,19 +437,18 @@ export default function NecessidadesPage() {
             </select>
           </div>
 
-          {/* Clear filters */}
+          {/* Clear all filters */}
           {hasFilters && (
             <button
-              onClick={() => { setSearch(""); setFilterStatus(""); setFilterFilial(""); }}
-              className="h-9 px-3 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-md hover:bg-gray-50 flex items-center gap-1.5 transition-colors"
+              onClick={() => { setSearch(""); setFilterStatuses([]); setFilterStatusOp("is"); setFilterFilial(""); }}
+              className="h-8 px-3 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-full hover:bg-gray-50 flex items-center gap-1 transition-colors"
             >
-              <X className="w-3.5 h-3.5" />
-              Limpar
+              <X className="w-3 h-3" /> Limpar tudo
             </button>
           )}
         </div>
 
-        {/* ── Results count ── */}
+        {/* Results count */}
         {!loading && hasFilters && (
           <p className="text-xs text-gray-400">
             {filtered.length} resultado{filtered.length !== 1 ? "s" : ""} encontrado{filtered.length !== 1 ? "s" : ""}
@@ -259,7 +468,6 @@ export default function NecessidadesPage() {
         ) : (
           groups.map((group) => (
             <div key={group.filialId ?? "sem"}>
-              {/* Group header */}
               <div className="flex items-center gap-2 mb-2">
                 <Building2 className="w-3.5 h-3.5 text-blue-400" />
                 <span className="text-xs font-bold uppercase tracking-wider text-blue-500">{group.filialLabel}</span>
@@ -281,7 +489,7 @@ export default function NecessidadesPage() {
                         <SortHeader label="Data" field="createdAt" current={sortKey} onSort={setSortKey} />
                       </th>
                       <th className="text-center px-4 py-3 font-medium text-gray-600 w-14">Itens</th>
-                      <th className="w-16" />
+                      <th className="w-12" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -309,9 +517,7 @@ export default function NecessidadesPage() {
                             {prio && <span className={cn("text-xs font-semibold", prio.color)}>{n.prioridade} — {prio.label}</span>}
                           </td>
                           <td className="px-4 py-3 text-gray-500 text-xs">
-                            {n.dataNecessidade
-                              ? formatDate(n.dataNecessidade)
-                              : <span className="text-gray-300">—</span>}
+                            {n.dataNecessidade ? formatDate(n.dataNecessidade) : <span className="text-gray-300">—</span>}
                           </td>
                           <td className="px-4 py-3 text-center text-gray-500">{n._count.itens}</td>
                           <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
