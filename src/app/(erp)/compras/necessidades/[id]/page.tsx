@@ -582,12 +582,21 @@ export default function NecessidadeDetailPage() {
           { label: necessidade.numero },
         ]}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <StatusBadge status={necessidade.status} />
+
+            {/* RASCUNHO */}
             {isRascunho && (
               <>
                 <Button size="sm" variant="outline" onClick={enterEditMode}>
                   <Pencil className="w-3.5 h-3.5 mr-1" />Editar
+                </Button>
+                <Button size="sm"
+                  onClick={() => changeStatus("AGUARDANDO_APROVACAO")} disabled={actioning}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                  Enviar para Aprovação
                 </Button>
                 <Button size="sm" variant="outline"
                   className="border-red-200 text-red-600 hover:bg-red-50"
@@ -596,6 +605,38 @@ export default function NecessidadeDetailPage() {
                   <Trash2 className="w-3.5 h-3.5 mr-1" />Excluir
                 </Button>
               </>
+            )}
+
+            {/* AGUARDANDO_APROVACAO */}
+            {necessidade.status === "AGUARDANDO_APROVACAO" && (
+              <>
+                <Button size="sm" variant="outline"
+                  className="border-green-500 text-green-700 hover:bg-green-50"
+                  onClick={() => { setShowApproveForm(true); setShowRejectForm(false); }}
+                >
+                  Aprovar
+                </Button>
+                <Button size="sm" variant="outline"
+                  className="border-red-500 text-red-700 hover:bg-red-50"
+                  onClick={() => { setShowRejectForm(true); setShowApproveForm(false); }}
+                >
+                  Reprovar
+                </Button>
+                <Button size="sm" variant="ghost" className="text-gray-500"
+                  onClick={() => changeStatus("CANCELADA")} disabled={actioning}
+                >
+                  {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                  Cancelar Necessidade
+                </Button>
+              </>
+            )}
+
+            {/* APROVADA */}
+            {necessidade.status === "APROVADA" && (
+              <Button size="sm" onClick={gerarCotacao} disabled={actioning}>
+                {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                Gerar Cotação
+              </Button>
             )}
           </div>
         }
@@ -763,76 +804,65 @@ export default function NecessidadeDetailPage() {
           </Card>
         )}
 
-        {/* Action buttons */}
-        <div className="space-y-4">
-          {necessidade.status === "RASCUNHO" && (
-            <Button onClick={() => changeStatus("AGUARDANDO_APROVACAO")} disabled={actioning}>
-              {actioning ? "Enviando..." : "Enviar para Aprovação"}
-            </Button>
-          )}
-
-          {necessidade.status === "AGUARDANDO_APROVACAO" && (
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <Button variant="outline" className="border-green-500 text-green-700 hover:bg-green-50"
-                  onClick={() => { setShowApproveForm(true); setShowRejectForm(false); }}>
-                  Aprovar
-                </Button>
-                <Button variant="outline" className="border-red-500 text-red-700 hover:bg-red-50"
-                  onClick={() => { setShowRejectForm(true); setShowApproveForm(false); }}>
-                  Reprovar
-                </Button>
-                <Button variant="ghost" className="text-gray-500"
-                  onClick={() => changeStatus("CANCELADA")} disabled={actioning}>
-                  Cancelar Necessidade
-                </Button>
-              </div>
-
-              {showApproveForm && (
-                <Card className="border-green-200">
-                  <CardContent className="pt-4 space-y-3">
-                    <div className="space-y-1.5">
-                      <Label>Aprovado por</Label>
-                      <Input value={aprovadoPor} onChange={(e) => setAprovadoPor(e.target.value)} placeholder="Nome do aprovador" />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" className="bg-green-600 hover:bg-green-700"
-                        onClick={() => changeStatus("APROVADA", { aprovadoPor })} disabled={actioning}>
-                        {actioning ? "Aprovando..." : "Confirmar Aprovação"}
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setShowApproveForm(false)}>Cancelar</Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {showRejectForm && (
-                <Card className="border-red-200">
-                  <CardContent className="pt-4 space-y-3">
-                    <div className="space-y-1.5">
-                      <Label>Motivo da Reprovação</Label>
-                      <Input value={motivoReprovacao} onChange={(e) => setMotivoReprovacao(e.target.value)} placeholder="Descreva o motivo..." />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="destructive"
-                        onClick={() => changeStatus("REPROVADA", { motivoReprovacao })} disabled={actioning}>
-                        {actioning ? "Reprovando..." : "Confirmar Reprovação"}
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setShowRejectForm(false)}>Cancelar</Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
-
-          {necessidade.status === "APROVADA" && (
-            <Button onClick={gerarCotacao} disabled={actioning}>
-              {actioning ? "Gerando..." : "Gerar Cotação de Compra"}
-            </Button>
-          )}
-        </div>
       </div>
+
+      {/* Approve modal */}
+      {showApproveForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                <span className="text-green-600 text-lg">✓</span>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">Aprovar solicitação</p>
+                <p className="text-sm text-gray-500">{necessidade.numero}</p>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Aprovado por</Label>
+              <Input value={aprovadoPor} onChange={(e) => setAprovadoPor(e.target.value)} placeholder="Nome do aprovador" autoFocus />
+            </div>
+            {actionError && <p className="text-sm text-red-600">{actionError}</p>}
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="outline" onClick={() => setShowApproveForm(false)} disabled={actioning}>Cancelar</Button>
+              <Button size="sm" className="bg-green-600 hover:bg-green-700"
+                onClick={() => changeStatus("APROVADA", { aprovadoPor })} disabled={actioning}>
+                {actioning ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />Aprovando...</> : "Confirmar Aprovação"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject modal */}
+      {showRejectForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <X className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">Reprovar solicitação</p>
+                <p className="text-sm text-gray-500">{necessidade.numero}</p>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Motivo da reprovação</Label>
+              <Input value={motivoReprovacao} onChange={(e) => setMotivoReprovacao(e.target.value)} placeholder="Descreva o motivo..." autoFocus />
+            </div>
+            {actionError && <p className="text-sm text-red-600">{actionError}</p>}
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="outline" onClick={() => setShowRejectForm(false)} disabled={actioning}>Cancelar</Button>
+              <Button size="sm" variant="destructive"
+                onClick={() => changeStatus("REPROVADA", { motivoReprovacao })} disabled={actioning}>
+                {actioning ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />Reprovando...</> : "Confirmar Reprovação"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirm modal */}
       {showDelete && (
