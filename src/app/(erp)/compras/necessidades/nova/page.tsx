@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session-context";
 import PageHeader from "@/components/shared/PageHeader";
@@ -82,86 +82,13 @@ function SelectField<T extends { id: string }>({
   );
 }
 
-// ── UnitSelect ────────────────────────────────────────────────────────────────
+// ── UnitDisplay ───────────────────────────────────────────────────────────────
 
-function UnitSelect({ value, options, onChange, disabled }: {
-  value: string; options: UnidadeOption[]; onChange: (v: string) => void; disabled?: boolean;
-}) {
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState(false);
-  const [pos, setPos]   = useState<{ top?: number; bottom?: number; left: number; width: number } | null>(null);
-
-  function calcPos() {
-    if (!btnRef.current) return;
-    const r = btnRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - r.bottom - 8;
-    const spaceAbove = r.top - 8;
-    const maxH = 180;
-    if (spaceBelow < maxH && spaceAbove > spaceBelow) {
-      setPos({ bottom: window.innerHeight - r.top + 4, left: r.left, width: r.width });
-    } else {
-      setPos({ top: r.bottom + 4, left: r.left, width: r.width });
-    }
-  }
-
-  useEffect(() => {
-    if (!open) return;
-    calcPos();
-    window.addEventListener("scroll", calcPos, true);
-    window.addEventListener("resize", calcPos);
-    return () => { window.removeEventListener("scroll", calcPos, true); window.removeEventListener("resize", calcPos); };
-  }, [open]);
-
-  if (disabled || options.length === 0) {
-    return (
-      <div className="h-9 flex items-center justify-center px-2 text-sm text-gray-400 border border-gray-100 rounded-md bg-gray-50 font-mono">
-        {value || "—"}
-      </div>
-    );
-  }
-
+function UnitDisplay({ value }: { value: string }) {
   return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={() => setOpen((p) => !p)}
-        className={cn(
-          "h-9 w-full flex items-center justify-between px-2 text-sm border border-gray-200 rounded-md bg-white font-mono transition-colors hover:border-gray-300",
-          open && "border-blue-400 ring-1 ring-blue-200"
-        )}
-      >
-        <span className={value ? "text-gray-800" : "text-gray-400"}>{value || "Un."}</span>
-        <ChevronDown className={cn("w-3 h-3 text-gray-400 shrink-0 transition-transform", open && "rotate-180")} />
-      </button>
-      {open && typeof window !== "undefined" && (
-        <>
-          <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
-          {pos && (
-            <div
-              className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-auto"
-              style={{ top: pos.top, bottom: pos.bottom, left: pos.left, width: Math.max(pos.width, 120), maxHeight: 180 }}
-            >
-              {options.map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => { onChange(u.sigla); setOpen(false); }}
-                  className={cn(
-                    "w-full px-3 py-2 text-sm text-left hover:bg-blue-50 hover:text-blue-700 transition-colors font-mono",
-                    value === u.sigla && "bg-blue-50 text-blue-700 font-medium"
-                  )}
-                >
-                  <span className="font-bold">{u.sigla}</span>
-                  {u.nome && <span className="text-gray-400 ml-1.5 text-xs font-sans">{u.nome}</span>}
-                  {u.isPrincipal && <span className="ml-1.5 text-[10px] text-emerald-600">principal</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </>
+    <div className="h-9 flex items-center px-3 text-sm border border-gray-100 rounded-md bg-gray-50 font-mono text-gray-700">
+      {value || <span className="text-gray-300">—</span>}
+    </div>
   );
 }
 
@@ -387,7 +314,6 @@ export default function NovasolicitacaoPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {itens.map((row, i) => {
-              const units = itemUnidades.get(row.itemId) ?? [];
               return (
                 <div key={i} className="grid grid-cols-12 gap-3 items-end">
                   <div className="col-span-5 space-y-1.5">
@@ -414,12 +340,7 @@ export default function NovasolicitacaoPage() {
                   </div>
                   <div className="col-span-2 space-y-1.5">
                     {i === 0 && <Label>Unidade</Label>}
-                    <UnitSelect
-                      value={row.unidade}
-                      options={units}
-                      onChange={(v) => updateRow(i, "unidade", v)}
-                      disabled={!row.itemId}
-                    />
+                    <UnitDisplay value={row.unidade} />
                   </div>
                   <div className="col-span-2 space-y-1.5">
                     {i === 0 && <Label>Observação</Label>}
