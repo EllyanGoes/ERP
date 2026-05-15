@@ -27,6 +27,8 @@ export const MODULOS: ModuloDef[] = [
     label: "Empresa",
     group: "Empresa",
     recursos: [
+      // Empresa
+      { key: "filiais",             label: "Filiais",             acoes: ["ver", "inserir", "editar", "excluir"] },
       // Comercial
       { key: "clientes",            label: "Clientes",            acoes: ["ver", "inserir", "editar", "excluir"] },
       // Almoxarifado

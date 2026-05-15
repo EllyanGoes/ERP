@@ -146,6 +146,32 @@ model Empresa {
   updatedAt    DateTime @updatedAt
 }
 
+// ─── FILIAIS ──────────────────────────────────────────────────────────────────
+
+model Filial {
+  id           String   @id @default(cuid())
+  razaoSocial  String
+  nomeFantasia String?
+  cnpj         String?  @unique
+  ie           String?
+  email        String?
+  telefone     String?
+  celular      String?
+  cep          String?
+  logradouro   String?
+  numero       String?
+  complemento  String?
+  bairro       String?
+  cidade       String?
+  estado       String?
+  ativo        Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  locaisEstoque       LocalEstoque[]
+  necessidadesCompra  NecessidadeCompra[]
+}
+
 // ─── CLIENTES ─────────────────────────────────────────────────────────────────
 
 model Cliente {
@@ -226,12 +252,15 @@ model LocalEstoque {
   nome      String
   descricao String?
   ativo     Boolean       @default(true)
+  filialId  String?
+  filial    Filial?       @relation(fields: [filialId], references: [id])
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  estoqueItens  EstoqueItem[]
-  movimentacoes MovimentacaoEstoque[]
-  enderecos     EnderecoEstoque[]
+  estoqueItens        EstoqueItem[]
+  movimentacoes       MovimentacaoEstoque[]
+  enderecos           EnderecoEstoque[]
+  necessidadesCompra  NecessidadeCompra[]
 }
 
 model EnderecoEstoque {
@@ -485,19 +514,32 @@ model PedidoVendaItem {
 
 // 1. Necessidade de Compra
 model NecessidadeCompra {
-  id              String            @id @default(cuid())
-  numero          String            @unique
-  status          StatusNecessidade @default(RASCUNHO)
-  solicitante     String?
-  justificativa   String?
-  dataNecessidade DateTime?         // prazo em que os itens são necessários
-  observacoes     String?
+  id                    String            @id @default(cuid())
+  numero                String            @unique
+  status                StatusNecessidade @default(RASCUNHO)
+  solicitante           String?
+  justificativa         String?
+  dataNecessidade       DateTime?         // prazo em que os itens são necessários
+  observacoes           String?
   // Aprovação embutida
-  aprovadoPor     String?
-  dataAprovacao   DateTime?
-  motivoReprovacao String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  aprovadoPor           String?
+  dataAprovacao         DateTime?
+  motivoReprovacao      String?
+  // Novos campos
+  filialId              String?
+  filial                Filial?           @relation(fields: [filialId], references: [id])
+  prioridade            Int               @default(3)
+  localEstoqueId        String?
+  localEstoque          LocalEstoque?     @relation(fields: [localEstoqueId], references: [id])
+  centroCustoId         String?
+  centroCusto           CentroCusto?      @relation(fields: [centroCustoId], references: [id])
+  tipoCompra            String?
+  motivo                String?
+  categoria             String?
+  projeto               String?
+  classificacaoAuxiliar String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
   itens    NecessidadeCompraItem[]
   cotacoes CotacaoCompra[]
@@ -658,6 +700,8 @@ model CentroCusto {
   ativo               Boolean            @default(true)
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
+
+  necessidadesCompra  NecessidadeCompra[]
 
   @@index([grupoCentroCustoId])
 }

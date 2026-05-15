@@ -41,6 +41,7 @@ import {
   HelpCircle,
   User,
   ChevronRight,
+  GitBranch,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -77,7 +78,8 @@ const mainModules: Module[] = [
       {
         kind: "Comercial",
         items: [
-          { href: "/clientes", label: "Clientes", icon: Users },
+          { href: "/empresa/filiais", label: "Filiais",  icon: GitBranch },
+          { href: "/clientes",        label: "Clientes", icon: Users },
         ],
       },
       {
@@ -143,7 +145,7 @@ const mainModules: Module[] = [
       {
         kind: "Fluxo de Compras",
         items: [
-          { href: "/compras/necessidades",       label: "Necessidade de Compra", icon: ClipboardList },
+          { href: "/compras/necessidades",       label: "Solicitação de Compras", icon: ClipboardList },
           { href: "/suprimentos/cotacoes",       label: "Cotação de Compras",    icon: FileSearch },
           { href: "/suprimentos/pedidos-compra", label: "Pedido de Compras",     icon: FilePlus },
           { href: "/suprimentos/conferencias",   label: "Conferência de Compra", icon: PackageCheck },

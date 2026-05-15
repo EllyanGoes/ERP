@@ -3,12 +3,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
-const schema = z.object({ nome: z.string().min(1), descricao: z.string().optional() });
+const schema = z.object({
+  nome:     z.string().min(1),
+  descricao: z.string().optional(),
+  filialId: z.string().optional().nullable(),
+  ativo:    z.boolean().optional(),
+});
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const filialId = searchParams.get("filialId");
+  const ativo    = searchParams.get("ativo");
+
   const data = await prisma.localEstoque.findMany({
+    where: {
+      AND: [
+        filialId ? { filialId } : {},
+        ativo !== null && ativo !== "" ? { ativo: ativo === "true" } : {},
+      ],
+    },
     orderBy: { nome: "asc" },
     include: {
+      filial: { select: { id: true, razaoSocial: true } },
       _count: { select: { estoqueItens: true } },
       estoqueItens: {
         select: {
