@@ -182,11 +182,33 @@ function UnitSelect({ value, options, onChange, disabled }: {
   );
 }
 
+// ── useSidebarExpanded ────────────────────────────────────────────────────────
+// Returns true while the sidebar nav-panel is open (data-sidebar-expanded="1").
+
+function useSidebarExpanded() {
+  const [expanded, setExpanded] = useState(() =>
+    typeof document !== "undefined"
+      ? document.documentElement.dataset.sidebarExpanded === "1"
+      : false
+  );
+  useEffect(() => {
+    // Read initial value (SSR-safe)
+    setExpanded(document.documentElement.dataset.sidebarExpanded === "1");
+    const obs = new MutationObserver(() => {
+      setExpanded(document.documentElement.dataset.sidebarExpanded === "1");
+    });
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-sidebar-expanded"] });
+    return () => obs.disconnect();
+  }, []);
+  return expanded;
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function NecessidadeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const sidebarExpanded = useSidebarExpanded();
 
   // ── View state ───────────────────────────────────────────────────────────────
   const [necessidade, setNecessidade] = useState<Necessidade | null>(null);
@@ -647,7 +669,8 @@ export default function NecessidadeDetailPage() {
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-5">{actionError}</div>
         )}
 
-        <div className="flex flex-col xl:flex-row xl:items-start gap-5">
+        {/* Side-by-side quando sidebar recolhida; empilhado quando painel aberto */}
+        <div className={cn("flex gap-5", sidebarExpanded ? "flex-col" : "flex-row items-start")}>
 
           {/* ── Coluna esquerda: Informações ─────────────────────────────── */}
           <div className="min-w-0 flex-1 space-y-5">
@@ -755,7 +778,7 @@ export default function NecessidadeDetailPage() {
           </div>
 
           {/* ── Coluna direita: Itens + Cotações ─────────────────────────── */}
-          <div className="xl:w-[480px] xl:shrink-0 space-y-5">
+          <div className={cn("space-y-5", sidebarExpanded ? "w-full" : "w-[580px] shrink-0")}>
 
             <Card>
               <CardHeader><CardTitle className="text-base">Itens Solicitados</CardTitle></CardHeader>

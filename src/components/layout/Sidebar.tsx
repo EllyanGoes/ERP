@@ -410,10 +410,12 @@ export default function Sidebar() {
   // Note: no auto-open on pathname change — user controls which module panel is open.
   // Initial open state is set by useState initializer above.
 
-  // Sync CSS variable
+  // Sync CSS variable + data attribute (used by pages to react to sidebar state)
   useEffect(() => {
     const w = stripCollapsed ? 0 : STRIP_W + (openId ? panelWidth : 0);
     document.documentElement.style.setProperty("--sidebar-width", `${w}px`);
+    // "1" = panel open (sidebar expanded), "0" = strip-only or fully collapsed
+    document.documentElement.dataset.sidebarExpanded = (!stripCollapsed && !!openId) ? "1" : "0";
   }, [openId, panelWidth, stripCollapsed]);
 
   // Persist settings
