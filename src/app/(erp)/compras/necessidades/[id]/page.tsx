@@ -28,6 +28,7 @@ type AprovacaoSCItem = {
   observacao: string | null;
   respondidoEm: string | null;
   createdAt: string;
+  waMsgId: string | null;
   aprovador: { id: string; nome: string; email: string };
 };
 
@@ -871,14 +872,16 @@ export default function NecessidadeDetailPage() {
                     <MessageCircle className="w-4 h-4 text-green-600" />
                     <CardTitle className="text-base">Aprovações via WhatsApp</CardTitle>
                   </div>
-                  {(necessidade.status === "RASCUNHO" || necessidade.status === "AGUARDANDO_APROVACAO") &&
-                    !(necessidade.aprovacoes ?? []).some((a) => a.status === "PENDENTE") && (
+                  {["RASCUNHO", "AGUARDANDO_APROVACAO", "REPROVADA"].includes(necessidade.status) && (
                       <Button
                         size="sm"
                         className="bg-green-600 hover:bg-green-700 text-white"
                         onClick={openWAModal}
                       >
-                        <Send className="w-3.5 h-3.5 mr-1.5" /> Enviar para Aprovação
+                        <Send className="w-3.5 h-3.5 mr-1.5" />
+                        {(necessidade.aprovacoes ?? []).some((a) => a.status === "PENDENTE")
+                          ? "Reenviar para Aprovação"
+                          : "Enviar para Aprovação"}
                       </Button>
                     )}
                 </div>
@@ -904,6 +907,12 @@ export default function NecessidadeDetailPage() {
                           </p>
                           {apr.observacao && (
                             <p className="text-xs text-gray-500 mt-0.5">{apr.observacao}</p>
+                          )}
+                          {!apr.waMsgId && apr.status === "PENDENTE" && (
+                            <p className="text-xs text-amber-600 mt-0.5 flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3 shrink-0" />
+                              Mensagem não enviada — configure o WhatsApp e reenvie
+                            </p>
                           )}
                         </div>
                         <div className="text-right shrink-0">

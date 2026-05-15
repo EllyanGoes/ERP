@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendWAMessage } from "@/lib/whatsapp";
+import { sendWAMessage, validateWAConfig } from "@/lib/whatsapp";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const PRIORIDADE_LABEL: Record<number, string> = {
@@ -62,6 +62,12 @@ export async function POST(
     const aprovadorId:    string | undefined  = body.aprovadorId;
     const colaboradorId:  string | undefined  = body.colaboradorId;
 
+    // ── Validate WA config BEFORE touching the DB ─────────────────────────────
+    const waCheck = await validateWAConfig();
+    if (!waCheck.ok) {
+      return NextResponse.json({ error: waCheck.error }, { status: 422 });
+    }
+
     // ── Load SC ──────────────────────────────────────────────────────────────
     const sc = await prisma.necessidadeCompra.findUnique({
       where: { id: params.id },
@@ -77,7 +83,7 @@ export async function POST(
 
     if (!sc) return NextResponse.json({ error: "SC não encontrada" }, { status: 404 });
 
-    if (sc.status !== "RASCUNHO" && sc.status !== "AGUARDANDO_APROVACAO") {
+    if (!["RASCUNHO", "AGUARDANDO_APROVACAO", "REPROVADA"].includes(sc.status)) {
       return NextResponse.json(
         { error: `SC com status ${sc.status} não pode ser submetida para aprovação` },
         { status: 400 }

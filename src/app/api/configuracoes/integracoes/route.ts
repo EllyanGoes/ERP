@@ -5,9 +5,15 @@ import { prisma } from "@/lib/prisma";
 
 const MANAGED_KEYS = [
   "wa_provider",
+  // Evolution API
+  "wa_evolution_url",
+  "wa_evolution_instance",
+  "wa_evolution_apikey",
+  // Meta Cloud API
   "wa_meta_phone_id",
   "wa_meta_access_token",
   "wa_meta_webhook_token",
+  // Z-API
   "wa_zapi_instance_id",
   "wa_zapi_token",
   "wa_zapi_security_token",

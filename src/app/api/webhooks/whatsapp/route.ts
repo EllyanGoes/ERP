@@ -30,16 +30,37 @@ export async function POST(req: NextRequest) {
 
     let buttonPayload: string | null = null;
 
-    // ── Meta format ───────────────────────────────────────────────────────────
-    const metaMessage =
-      body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    if (metaMessage?.type === "interactive") {
-      buttonPayload = metaMessage.interactive?.button_reply?.id ?? null;
+    // ── Evolution API format ──────────────────────────────────────────────────
+    // Event: messages.upsert → data.message.buttonsResponseMessage.selectedButtonId
+    const evolutionMsg = body?.data?.message;
+    if (evolutionMsg?.buttonsResponseMessage?.selectedButtonId) {
+      buttonPayload = evolutionMsg.buttonsResponseMessage.selectedButtonId;
+    }
+    // Alt path (some Evolution versions)
+    if (!buttonPayload && evolutionMsg?.templateButtonReplyMessage?.selectedId) {
+      buttonPayload = evolutionMsg.templateButtonReplyMessage.selectedId;
+    }
+    // Evolution list message response
+    if (!buttonPayload && evolutionMsg?.listResponseMessage?.singleSelectReply?.selectedRowId) {
+      buttonPayload = evolutionMsg.listResponseMessage.singleSelectReply.selectedRowId;
     }
 
-    // ── Z-API format ──────────────────────────────────────────────────────────
+    // ── Meta format ───────────────────────────────────────────────────────────
+    const metaMessage = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    if (!buttonPayload && metaMessage?.type === "interactive") {
+      buttonPayload =
+        metaMessage.interactive?.button_reply?.id ??
+        metaMessage.interactive?.list_reply?.id ??
+        null;
+    }
+
+    // ── Z-API button reply format ─────────────────────────────────────────────
     if (!buttonPayload && body?.buttonResponseMessage?.selectedButtonId) {
       buttonPayload = body.buttonResponseMessage.selectedButtonId;
+    }
+    // ── Z-API list message reply format ───────────────────────────────────────
+    if (!buttonPayload && body?.listResponseMessage?.singleSelectReply?.selectedRowId) {
+      buttonPayload = body.listResponseMessage.singleSelectReply.selectedRowId;
     }
 
     if (!buttonPayload) {
