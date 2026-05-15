@@ -9,6 +9,10 @@ import { cn } from "@/lib/utils";
 export interface ComboboxOption {
   value: string;
   label: string;
+  /** Optional: bold code prefix displayed separately (e.g. "PROD-0001") */
+  code?: string;
+  /** Optional: stock balance shown in blue */
+  saldo?: number | null;
 }
 
 export interface CreateModalArgs {
@@ -179,8 +183,12 @@ export default function ComboboxWithCreate({
           triggerClassName
         )}
       >
-        <span className={cn("truncate", !selected && "text-muted-foreground")}>
-          {selected ? selected.label : placeholder}
+        <span className={cn("truncate flex items-baseline gap-1.5", !selected && "text-muted-foreground")}>
+          {selected
+            ? selected.code
+              ? <><span className="font-bold text-gray-900">[{selected.code}]</span><span>{selected.label.replace(`[${selected.code}] `, "")}</span></>
+              : selected.label
+            : placeholder}
         </span>
         <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", open && "rotate-180")} />
       </button>
@@ -262,7 +270,22 @@ export default function ComboboxWithCreate({
                         : "hover:bg-gray-50"
                     )}
                   >
-                    <span className="truncate">{opt.label}</span>
+                    {/* Label — with optional bold code + blue saldo */}
+                    <span className="flex-1 min-w-0">
+                      {opt.code ? (
+                        <span className="flex items-baseline gap-1.5">
+                          <span className="font-bold text-gray-900 shrink-0">[{opt.code}]</span>
+                          <span className="truncate">{opt.label.replace(`[${opt.code}] `, "")}</span>
+                          {opt.saldo !== undefined && opt.saldo !== null && (
+                            <span className="ml-1 text-xs font-semibold text-blue-600 shrink-0">
+                              {opt.saldo.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="truncate">{opt.label}</span>
+                      )}
+                    </span>
                     {isDisabled && (
                       <span className="flex items-center gap-1 shrink-0 text-emerald-600">
                         <Check className="w-3.5 h-3.5" />

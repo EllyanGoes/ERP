@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, ChevronDown, Loader2, Save } from "lucide-react";
+import { Plus, Trash2, ChevronDown, Loader2, Save, CheckCircle2 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 type Filial        = { id: string; razaoSocial: string; nomeFantasia: string | null };
 type LocalEstoque  = { id: string; nome: string };
 type CentroCusto   = { id: string; codigo: string; nome: string };
-type ItemOption    = { id: string; codigo: string; descricao: string; unidade: { sigla: string } | null };
+type ItemOption    = { id: string; codigo: string; descricao: string; unidade: { sigla: string } | null; estoqueItems?: Array<{ quantidadeAtual: number | string | null }> };
 type UnidadeOption = { id: string; sigla: string; nome: string; isPrincipal: boolean };
 
 type ItemRow = { itemId: string; quantidade: string; unidade: string; observacao: string };
@@ -188,6 +188,7 @@ export default function NovasolicitacaoPage() {
   const [itens,       setItens]       = useState<ItemRow[]>([{ itemId: "", quantidade: "1", unidade: "", observacao: "" }]);
   const [saving,      setSaving]      = useState(false);
   const [serverError, setServerError] = useState("");
+  const [successDialog, setSuccessDialog] = useState<{ numero: string; id: string } | null>(null);
 
   const [filiais,        setFiliais]        = useState<Filial[]>([]);
   const [locaisEstoque,  setLocaisEstoque]  = useState<LocalEstoque[]>([]);
@@ -229,6 +230,15 @@ export default function NovasolicitacaoPage() {
     return list;
   }
 
+  function resetForm() {
+    setDescricao(""); setPrioridade(3); setEntregaDesejada(""); setTipoCompra("");
+    setMotivo(""); setLocalEstoqueId(""); setCentroCustoId(""); setCategoria("");
+    setProjeto(""); setClassificacaoAuxiliar(""); setObservacoes("");
+    setItens([{ itemId: "", quantidade: "1", unidade: "", observacao: "" }]);
+    setServerError("");
+    if (user?.nome) setSolicitante(user.nome);
+  }
+
   function addRow() { setItens((p) => [...p, { itemId: "", quantidade: "1", unidade: "", observacao: "" }]); }
   function removeRow(i: number) { setItens((p) => p.filter((_, idx) => idx !== i)); }
   function updateRow(i: number, key: keyof ItemRow, value: string) {
@@ -253,6 +263,7 @@ export default function NovasolicitacaoPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!filialId) { setServerError("Filial é obrigatória"); return; }
+    if (!localEstoqueId) { setServerError("Local de Estoque é obrigatório"); return; }
     const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade) > 0);
     if (validItens.length === 0) { setServerError("Adicione pelo menos um item com quantidade válida"); return; }
     if (!descricao.trim()) { setServerError("Descrição é obrigatória"); return; }
@@ -276,7 +287,7 @@ export default function NovasolicitacaoPage() {
       });
       const json = await res.json();
       if (!res.ok) { setServerError(json.error || "Erro ao criar solicitação"); return; }
-      router.push(`/compras/necessidades/${json.data.id}`);
+      setSuccessDialog({ numero: json.data.numero, id: json.data.id });
     } catch { setServerError("Erro de conexão. Tente novamente."); }
     finally { setSaving(false); }
   }
@@ -343,7 +354,7 @@ export default function NovasolicitacaoPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>Local de Estoque</Label>
+                <Label>Local de Estoque <span className="text-red-500">*</span></Label>
                 <SelectField options={locaisEstoque} value={localEstoqueId} onChange={setLocalEstoqueId}
                   placeholder={filialId ? (locaisEstoque.length === 0 ? "Nenhum local para esta filial" : "Selecionar local de estoque...") : "Selecione a filial primeiro"}
                   getLabel={(l) => l.nome} disabled={!filialId} />
@@ -382,7 +393,12 @@ export default function NovasolicitacaoPage() {
                   <div className="col-span-5 space-y-1.5">
                     {i === 0 && <Label>Produto</Label>}
                     <ComboboxWithCreate
-                      options={itemOptions.map((opt) => ({ value: opt.id, label: `[${opt.codigo}] ${opt.descricao}` }))}
+                      options={itemOptions.map((opt) => {
+                        const saldo = (opt.estoqueItems ?? []).reduce(
+                          (sum, ei) => sum + parseFloat(String(ei.quantidadeAtual ?? 0)), 0
+                        );
+                        return { value: opt.id, label: `[${opt.codigo}] ${opt.descricao}`, code: opt.codigo, saldo };
+                      })}
                       value={row.itemId}
                       onChange={(v) => handleItemChange(i, v)}
                       allowNone={false}
@@ -429,6 +445,39 @@ export default function NovasolicitacaoPage() {
           </Button>
         </div>
       </form>
+
+      {/* ── Success Dialog ───────────────────────────────────────────────────── */}
+      {successDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 flex flex-col items-center gap-4 text-center">
+            <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+            </div>
+            <div>
+              <p className="text-lg font-semibold text-gray-900">Solicitação criada!</p>
+              <p className="text-sm text-gray-500 mt-0.5">
+                <span className="font-mono font-bold text-gray-700">{successDialog.numero}</span> foi registrada com sucesso.
+              </p>
+            </div>
+            <p className="text-sm text-gray-600">Deseja criar outra solicitação?</p>
+            <div className="flex gap-3 w-full">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => { router.push(`/compras/necessidades/${successDialog.id}`); setSuccessDialog(null); }}
+              >
+                Ver solicitação
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => { setSuccessDialog(null); resetForm(); }}
+              >
+                Criar outra
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

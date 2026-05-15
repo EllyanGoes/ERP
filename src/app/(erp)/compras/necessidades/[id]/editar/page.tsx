@@ -15,7 +15,7 @@ import { cn, decimalToNumber } from "@/lib/utils";
 type Filial        = { id: string; razaoSocial: string; nomeFantasia: string | null };
 type LocalEstoque  = { id: string; nome: string };
 type CentroCusto   = { id: string; codigo: string; nome: string };
-type ItemOption    = { id: string; codigo: string; descricao: string; unidade: { sigla: string } | null };
+type ItemOption    = { id: string; codigo: string; descricao: string; unidade: { sigla: string } | null; estoqueItems?: Array<{ quantidadeAtual: number | string | null }> };
 type UnidadeOption = { id: string; sigla: string; nome: string; isPrincipal: boolean };
 type ItemRow       = { itemId: string; quantidade: string; unidade: string; observacao: string };
 
@@ -235,6 +235,7 @@ export default function EditarSolicitacaoPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!filialId) { setError("Filial é obrigatória"); return; }
+    if (!localEstoqueId) { setError("Local de Estoque é obrigatório"); return; }
     const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade) > 0);
     if (validItens.length === 0) { setError("Adicione pelo menos um item com quantidade válida"); return; }
     if (!descricao.trim()) { setError("Descrição é obrigatória"); return; }
@@ -331,7 +332,7 @@ export default function EditarSolicitacaoPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>Local de Estoque</Label>
+                <Label>Local de Estoque <span className="text-red-500">*</span></Label>
                 <SelectField options={locaisEstoque} value={localEstoqueId} onChange={setLocalEstoqueId}
                   placeholder={filialId ? (locaisEstoque.length === 0 ? "Nenhum local para esta filial" : "Selecionar local...") : "Selecione a filial primeiro"}
                   getLabel={(l) => l.nome} disabled={!filialId} />
@@ -369,7 +370,12 @@ export default function EditarSolicitacaoPage() {
                   <div className="col-span-5 space-y-1.5">
                     {i === 0 && <Label>Produto</Label>}
                     <ComboboxWithCreate
-                      options={itemOptions.map((opt) => ({ value: opt.id, label: `[${opt.codigo}] ${opt.descricao}` }))}
+                      options={itemOptions.map((opt) => {
+                        const saldo = (opt.estoqueItems ?? []).reduce(
+                          (sum, ei) => sum + parseFloat(String(ei.quantidadeAtual ?? 0)), 0
+                        );
+                        return { value: opt.id, label: `[${opt.codigo}] ${opt.descricao}`, code: opt.codigo, saldo };
+                      })}
                       value={row.itemId}
                       onChange={(v) => handleItemChange(i, v)}
                       allowNone={false}
