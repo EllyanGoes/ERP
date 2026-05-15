@@ -4,10 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
 const schema = z.object({
-  nome:     z.string().min(1),
-  descricao: z.string().optional(),
-  ativo:    z.boolean().optional(),
-  filialId: z.string().nullable().optional(),
+  nome:      z.string().min(1),
+  descricao: z.string().nullable().optional(),
+  ativo:     z.boolean().optional(),
+  filialId:  z.string().min(1, "Filial é obrigatória"),
 });
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {

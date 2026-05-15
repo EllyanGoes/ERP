@@ -142,6 +142,7 @@ export default function LocalEstoqueDetailPage() {
   // ── Local save ───────────────────────────────────────────────────────────────
   async function saveEdit() {
     if (!local) return;
+    if (!form.filialId) { setSaveError("Filial é obrigatória"); return; }
     setSaving(true); setSaveError("");
     const res = await fetch(`/api/suprimentos/locais-estoque/${id}`, {
       method: "PATCH",
@@ -253,7 +254,7 @@ export default function LocalEstoqueDetailPage() {
               <Input value={form.descricao} onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))} placeholder="Descrição (opcional)" className="h-8 text-sm w-72" />
               {/* Filial select */}
               <div className="w-72">
-                <Label className="text-xs text-gray-500 mb-1 block">Filial</Label>
+                <Label className="text-xs text-gray-500 mb-1 block">Filial <span className="text-red-500">*</span></Label>
                 <select
                   value={form.filialId}
                   onChange={(e) => setForm((p) => ({ ...p, filialId: e.target.value }))}
@@ -291,7 +292,7 @@ export default function LocalEstoqueDetailPage() {
         <div className="flex items-center gap-2 shrink-0">
           {editMode ? (
             <>
-              <Button size="sm" onClick={saveEdit} disabled={saving || !form.nome.trim()}>
+              <Button size="sm" onClick={saveEdit} disabled={saving || !form.nome.trim() || !form.filialId}>
                 {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}Salvar
               </Button>
               <Button size="sm" variant="outline" onClick={() => { setEditMode(false); setSaveError(""); setForm({ nome: local.nome, descricao: local.descricao ?? "", ativo: local.ativo, filialId: local.filialId ?? "" }); }}>
