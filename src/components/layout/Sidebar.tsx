@@ -55,7 +55,7 @@ interface NavItem {
 }
 
 interface SubSection {
-  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras";
+  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro";
   items: NavItem[];
 }
 
@@ -95,6 +95,12 @@ const mainModules: Module[] = [
           { href: "/suprimentos/fornecedores",        label: "Fornecedores",        icon: Truck },
           { href: "/suprimentos/condicoes-pagamento", label: "Cond. de Pagamento",  icon: CalendarDays },
           { href: "/suprimentos/formas-pagamento",    label: "Formas de Pagamento", icon: CreditCard },
+        ],
+      },
+      {
+        kind: "Financeiro",
+        items: [
+          { href: "/empresa/centros-custo", label: "Centros de Custo", icon: CircleDot },
         ],
       },
     ],
@@ -206,6 +212,7 @@ const kindStyle: Record<SubSection["kind"], string> = {
   Sistema:            "text-gray-400",
   Comercial:          "text-blue-500",
   Compras:            "text-amber-500",
+  Financeiro:         "text-emerald-600",
 };
 
 // ── Tooltip wrapper (portal-based) ────────────────────────────────────────────

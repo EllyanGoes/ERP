@@ -637,6 +637,31 @@ model ConferenciaCompraItem {
   movimentacoes MovimentacaoEstoque[]
 }
 
+// ─── FINANCEIRO — CADASTROS ───────────────────────────────────────────────────
+
+model GrupoCentroCusto {
+  id        String        @id @default(cuid())
+  nome      String        @unique
+  ativo     Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  centros   CentroCusto[]
+}
+
+model CentroCusto {
+  id                  String             @id @default(cuid())
+  codigo              String             @unique
+  nome                String
+  grupoCentroCustoId  String?
+  grupoCentroCusto    GrupoCentroCusto?  @relation(fields: [grupoCentroCustoId], references: [id])
+  ativo               Boolean            @default(true)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([grupoCentroCustoId])
+}
+
 // ─── FINANCEIRO ───────────────────────────────────────────────────────────────
 
 model ContaReceber {

@@ -38,6 +38,8 @@ export const MODULOS: ModuloDef[] = [
       { key: "fornecedores",        label: "Fornecedores",        acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "condicoes-pagamento", label: "Cond. de Pagamento",  acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "formas-pagamento",    label: "Formas de Pagamento", acoes: ["ver", "inserir", "editar", "excluir"] },
+      // Financeiro
+      { key: "centros-custo",       label: "Centros de Custo",    acoes: ["ver", "inserir", "editar", "excluir"] },
     ],
   },
   {
