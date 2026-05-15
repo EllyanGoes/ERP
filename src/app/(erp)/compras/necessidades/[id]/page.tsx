@@ -778,7 +778,7 @@ export default function NecessidadeDetailPage() {
           </div>
 
           {/* ── Coluna direita: Itens + Cotações ─────────────────────────── */}
-          <div className={cn("space-y-5", sidebarExpanded ? "w-full" : "w-[580px] shrink-0")}>
+          <div className={cn("space-y-5", sidebarExpanded ? "w-full" : "w-[720px] shrink-0")}>
 
             <Card>
               <CardHeader><CardTitle className="text-base">Itens Solicitados</CardTitle></CardHeader>
