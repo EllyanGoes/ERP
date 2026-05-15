@@ -642,168 +642,178 @@ export default function NecessidadeDetailPage() {
         }
       />
 
-      <div className="px-8 pb-8 space-y-6 max-w-5xl">
+      <div className="px-8 pb-8">
         {actionError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{actionError}</div>
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-5">{actionError}</div>
         )}
 
-        {/* Info */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Informações</CardTitle></CardHeader>
-          <CardContent className="space-y-5">
+        <div className="flex flex-col xl:flex-row xl:items-start gap-5">
 
-            {/* Row 1: identidade */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <InfoField label="Número">
-                <span className="font-mono font-bold text-gray-900">{necessidade.numero}</span>
-              </InfoField>
-              <InfoField label="Status">
-                <div className="mt-0.5"><StatusBadge status={necessidade.status} /></div>
-              </InfoField>
-              <InfoField label="Prioridade">
-                <PrioridadeBadge prioridade={necessidade.prioridade} />
-              </InfoField>
-              <InfoField label="Data de Criação">
-                {formatDate(necessidade.createdAt)}
-              </InfoField>
-            </div>
+          {/* ── Coluna esquerda: Informações ─────────────────────────────── */}
+          <div className="min-w-0 flex-1 space-y-5">
 
-            <div className="h-px bg-gray-100" />
+            <Card>
+              <CardHeader><CardTitle className="text-base">Informações</CardTitle></CardHeader>
+              <CardContent className="space-y-5">
 
-            {/* Row 2: origem */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <InfoField label="Filial">
-                {necessidade.filial ? (necessidade.filial.nomeFantasia || necessidade.filial.razaoSocial) : "—"}
-              </InfoField>
-              <InfoField label="Local de Estoque">
-                {necessidade.localEstoque?.nome ?? "—"}
-              </InfoField>
-              <InfoField label="Centro de Custo">
-                {necessidade.centroCusto ? `${necessidade.centroCusto.codigo} — ${necessidade.centroCusto.nome}` : "—"}
-              </InfoField>
-            </div>
-
-            <div className="h-px bg-gray-100" />
-
-            {/* Row 3: solicitação */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <InfoField label="Solicitante">
-                {necessidade.solicitante ?? "—"}
-              </InfoField>
-              <InfoField label="Entrega Desejada">
-                {formatDate(necessidade.dataNecessidade)}
-              </InfoField>
-              <InfoField label="Tipo de Compra">
-                {necessidade.tipoCompra ?? "—"}
-              </InfoField>
-              <InfoField label="Motivo">
-                {necessidade.motivo ?? "—"}
-              </InfoField>
-            </div>
-
-            {/* Row 4: classificação — só mostra se algum tiver valor */}
-            {(necessidade.categoria || necessidade.projeto || necessidade.classificacaoAuxiliar) && (
-              <>
-                <div className="h-px bg-gray-100" />
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <InfoField label="Categoria">{necessidade.categoria ?? "—"}</InfoField>
-                  <InfoField label="Projeto">{necessidade.projeto ?? "—"}</InfoField>
-                  <InfoField label="Classificação Auxiliar">{necessidade.classificacaoAuxiliar ?? "—"}</InfoField>
+                {/* Row 1: identidade */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <InfoField label="Número">
+                    <span className="font-mono font-bold text-gray-900">{necessidade.numero}</span>
+                  </InfoField>
+                  <InfoField label="Status">
+                    <div className="mt-0.5"><StatusBadge status={necessidade.status} /></div>
+                  </InfoField>
+                  <InfoField label="Prioridade">
+                    <PrioridadeBadge prioridade={necessidade.prioridade} />
+                  </InfoField>
+                  <InfoField label="Data de Criação">
+                    {formatDate(necessidade.createdAt)}
+                  </InfoField>
                 </div>
-              </>
+
+                <div className="h-px bg-gray-100" />
+
+                {/* Row 2: origem */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  <InfoField label="Filial">
+                    {necessidade.filial ? (necessidade.filial.nomeFantasia || necessidade.filial.razaoSocial) : "—"}
+                  </InfoField>
+                  <InfoField label="Local de Estoque">
+                    {necessidade.localEstoque?.nome ?? "—"}
+                  </InfoField>
+                  <InfoField label="Centro de Custo">
+                    {necessidade.centroCusto ? `${necessidade.centroCusto.codigo} — ${necessidade.centroCusto.nome}` : "—"}
+                  </InfoField>
+                </div>
+
+                <div className="h-px bg-gray-100" />
+
+                {/* Row 3: solicitação */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <InfoField label="Solicitante">
+                    {necessidade.solicitante ?? "—"}
+                  </InfoField>
+                  <InfoField label="Entrega Desejada">
+                    {formatDate(necessidade.dataNecessidade)}
+                  </InfoField>
+                  <InfoField label="Tipo de Compra">
+                    {necessidade.tipoCompra ?? "—"}
+                  </InfoField>
+                  <InfoField label="Motivo">
+                    {necessidade.motivo ?? "—"}
+                  </InfoField>
+                </div>
+
+                {/* Row 4: classificação — só mostra se algum tiver valor */}
+                {(necessidade.categoria || necessidade.projeto || necessidade.classificacaoAuxiliar) && (
+                  <>
+                    <div className="h-px bg-gray-100" />
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      <InfoField label="Categoria">{necessidade.categoria ?? "—"}</InfoField>
+                      <InfoField label="Projeto">{necessidade.projeto ?? "—"}</InfoField>
+                      <InfoField label="Classificação Auxiliar">{necessidade.classificacaoAuxiliar ?? "—"}</InfoField>
+                    </div>
+                  </>
+                )}
+
+                <div className="h-px bg-gray-100" />
+
+                {/* Row 5: textos livres */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <InfoField label="Descrição / Justificativa">
+                    <span className="text-gray-700 whitespace-pre-wrap">{necessidade.justificativa || "—"}</span>
+                  </InfoField>
+                  <InfoField label="Observações">
+                    <span className="text-gray-700 whitespace-pre-wrap">{necessidade.observacoes || "—"}</span>
+                  </InfoField>
+                </div>
+
+              </CardContent>
+            </Card>
+
+            {/* Approval info */}
+            {(necessidade.status === "APROVADA" || necessidade.status === "REPROVADA") && (
+              <Card className={necessidade.status === "APROVADA" ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
+                <CardContent className="pt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {necessidade.status === "APROVADA" && (
+                    <>
+                      <div><p className="text-xs text-gray-500">Aprovado por</p><p className="text-sm font-medium">{necessidade.aprovadoPor || "—"}</p></div>
+                      <div><p className="text-xs text-gray-500">Data de Aprovação</p><p className="text-sm font-medium">{formatDate(necessidade.dataAprovacao)}</p></div>
+                    </>
+                  )}
+                  {necessidade.status === "REPROVADA" && (
+                    <div className="sm:col-span-3">
+                      <p className="text-xs text-red-600">Motivo da Reprovação</p>
+                      <p className="text-sm text-red-800 mt-1">{necessidade.motivoReprovacao || "—"}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
-            <div className="h-px bg-gray-100" />
+          </div>
 
-            {/* Row 5: textos livres */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InfoField label="Descrição / Justificativa">
-                <span className="text-gray-700 whitespace-pre-wrap">{necessidade.justificativa || "—"}</span>
-              </InfoField>
-              <InfoField label="Observações">
-                <span className="text-gray-700 whitespace-pre-wrap">{necessidade.observacoes || "—"}</span>
-              </InfoField>
-            </div>
+          {/* ── Coluna direita: Itens + Cotações ─────────────────────────── */}
+          <div className="xl:w-[480px] xl:shrink-0 space-y-5">
 
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader><CardTitle className="text-base">Itens Solicitados</CardTitle></CardHeader>
+              <CardContent className="p-0">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Código</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Descrição</th>
+                      <th className="text-right px-4 py-3 font-medium text-gray-600">Qtd.</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600 w-14">Un.</th>
+                      {necessidade.status === "APROVADA" && (
+                        <th className="text-right px-4 py-3 font-medium text-gray-600">Aprov.</th>
+                      )}
+                      <th className="text-left px-4 py-3 font-medium text-gray-600">Obs.</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {necessidade.itens.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-mono text-xs">{item.item.codigo}</td>
+                        <td className="px-4 py-3">{item.item.descricao}</td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {decimalToNumber(item.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                          {item.unidade ?? item.item.unidade?.sigla ?? item.item.unidadeMedida}
+                        </td>
+                        {necessidade.status === "APROVADA" && (
+                          <td className="px-4 py-3 text-right text-green-700 font-medium tabular-nums">
+                            {item.quantidadeAprovada ? decimalToNumber(item.quantidadeAprovada).toLocaleString("pt-BR") : "—"}
+                          </td>
+                        )}
+                        <td className="px-4 py-3 text-gray-500 text-xs">{item.observacao || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
 
-        {/* Approval info */}
-        {(necessidade.status === "APROVADA" || necessidade.status === "REPROVADA") && (
-          <Card className={necessidade.status === "APROVADA" ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
-            <CardContent className="pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-              {necessidade.status === "APROVADA" && (
-                <>
-                  <div><p className="text-xs text-gray-500">Aprovado por</p><p className="text-sm font-medium">{necessidade.aprovadoPor || "—"}</p></div>
-                  <div><p className="text-xs text-gray-500">Data de Aprovação</p><p className="text-sm font-medium">{formatDate(necessidade.dataAprovacao)}</p></div>
-                </>
-              )}
-              {necessidade.status === "REPROVADA" && (
-                <div className="md:col-span-3">
-                  <p className="text-xs text-red-600">Motivo da Reprovação</p>
-                  <p className="text-sm text-red-800 mt-1">{necessidade.motivoReprovacao || "—"}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+            {/* Cotações */}
+            {necessidade.cotacoes?.length > 0 && (
+              <Card>
+                <CardHeader><CardTitle className="text-base">Cotações Geradas</CardTitle></CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {necessidade.cotacoes.map((c) => (
+                    <Link key={c.id} href={`/suprimentos/cotacoes/${c.id}`}
+                      className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline border border-blue-200 rounded px-3 py-1">
+                      {c.numero} — <StatusBadge status={c.status} />
+                    </Link>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
 
-        {/* Items */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Itens Solicitados</CardTitle></CardHeader>
-          <CardContent className="p-0">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Código</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Descrição</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Qtd. Solicitada</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-16">Un.</th>
-                  {necessidade.status === "APROVADA" && (
-                    <th className="text-right px-4 py-3 font-medium text-gray-600">Qtd. Aprovada</th>
-                  )}
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Observação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {necessidade.itens.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs">{item.item.codigo}</td>
-                    <td className="px-4 py-3">{item.item.descricao}</td>
-                    <td className="px-4 py-3 text-right">
-                      {decimalToNumber(item.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">
-                      {item.unidade ?? item.item.unidade?.sigla ?? item.item.unidadeMedida}
-                    </td>
-                    {necessidade.status === "APROVADA" && (
-                      <td className="px-4 py-3 text-right text-green-700 font-medium">
-                        {item.quantidadeAprovada ? decimalToNumber(item.quantidadeAprovada).toLocaleString("pt-BR") : "—"}
-                      </td>
-                    )}
-                    <td className="px-4 py-3 text-gray-500 text-xs">{item.observacao || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-
-        {/* Cotações */}
-        {necessidade.cotacoes?.length > 0 && (
-          <Card>
-            <CardHeader><CardTitle className="text-base">Cotações Geradas</CardTitle></CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {necessidade.cotacoes.map((c) => (
-                <Link key={c.id} href={`/suprimentos/cotacoes/${c.id}`}
-                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline border border-blue-200 rounded px-3 py-1">
-                  {c.numero} — <StatusBadge status={c.status} />
-                </Link>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-
+          </div>
+        </div>
       </div>
 
       {/* Approve modal */}
