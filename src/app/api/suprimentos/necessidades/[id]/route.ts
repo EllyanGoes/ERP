@@ -27,6 +27,17 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json();
 
+  // Validate required fields when explicitly being set
+  if (body.filialId !== undefined && !body.filialId) {
+    return NextResponse.json({ error: "Filial é obrigatória" }, { status: 400 });
+  }
+  if (body.localEstoqueId !== undefined && !body.localEstoqueId) {
+    return NextResponse.json({ error: "Local de Estoque é obrigatório" }, { status: 400 });
+  }
+  if (body.motivo !== undefined && !body.motivo?.trim()) {
+    return NextResponse.json({ error: "Motivo de compra é obrigatório" }, { status: 400 });
+  }
+
   const record = await prisma.$transaction(async (tx) => {
     const updateData: Record<string, unknown> = {};
 

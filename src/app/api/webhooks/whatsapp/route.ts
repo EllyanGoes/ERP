@@ -68,8 +68,18 @@ export async function POST(req: NextRequest) {
     const aprovacao = await prisma.aprovacaoSC.findUnique({
       where: { id: aprovacaoSCId },
       include: {
-        necessidade: { include: { itens: true, filial: true } },
+        necessidade: {
+          include: {
+            filial: true,
+            itens: {
+              include: {
+                item: { select: { descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } },
+              },
+            },
+          },
+        },
         aprovador: true,
+        fluxo: true,
       },
     });
 
@@ -101,11 +111,13 @@ export async function POST(req: NextRequest) {
       // Approved — check if there are more etapas
       const sc = aprovacao.necessidade;
 
-      // Find the fluxo that contains an etapa with this ordem
+      // Find the next etapa within the same fluxo (or any active fluxo if no fluxo tracked)
       const proxEtapa = await prisma.aprovacaoEtapa.findFirst({
         where: {
           ordem: { gt: aprovacao.etapaOrdem },
-          fluxo: { ativo: true },
+          ...(aprovacao.fluxoId
+            ? { fluxoId: aprovacao.fluxoId }
+            : { fluxo: { ativo: true } }),
         },
         include: { aprovador: true, colaborador: true },
         orderBy: { ordem: "asc" },
@@ -120,6 +132,7 @@ export async function POST(req: NextRequest) {
         const nova = await prisma.aprovacaoSC.create({
           data: {
             necessidadeId: sc.id,
+            fluxoId: aprovacao.fluxoId,
             etapaOrdem: proxEtapa.ordem,
             etapaNome: proxEtapa.nome ?? null,
             aprovadorId: proxAprovadorId,
@@ -131,15 +144,24 @@ export async function POST(req: NextRequest) {
           ? sc.filial.nomeFantasia ?? sc.filial.razaoSocial
           : "—";
 
+        const linhasItens = sc.itens.map((it, i) => {
+          const qtd = parseFloat(String(it.quantidade ?? 0));
+          const un  = (it as { unidade?: string | null }).unidade
+            ?? it.item.unidade?.sigla
+            ?? it.item.unidadeMedida
+            ?? "un";
+          return `  ${i + 1}. ${it.item.descricao} — ${qtd.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} ${un}`;
+        });
+
         const msgBody = [
-          `*Nova SC para Aprovação* ✅`,
-          ``,
-          `*Solicitação Nº ${sc.numero}*`,
+          `*Ordem de Compras Nº ${sc.numero}*`,
           ``,
           `• *Filial:* ${filialNome}`,
           `• *Solicitante:* ${sc.solicitante ?? "—"}`,
           `• *Prioridade:* ${sc.prioridade}`,
-          `• *Itens:* ${sc.itens.length} produto(s)`,
+          ``,
+          `*Itens (${sc.itens.length}):*`,
+          ...linhasItens,
           ``,
           `_Etapa: ${proxEtapa.nome ?? `Etapa ${proxEtapa.ordem}`}_`,
           ``,

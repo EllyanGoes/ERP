@@ -12,6 +12,7 @@ import Link from "next/link";
 import {
   Plus, Trash2, Loader2, AlertTriangle, ChevronRight, Building2,
   Search, X, ArrowUpDown, ChevronUp, ChevronDown as ChevronDownIcon, Check,
+  LayoutList, Kanban,
 } from "lucide-react";
 import { formatDate, cn } from "@/lib/utils";
 
@@ -29,11 +30,21 @@ type Necessidade = {
 
 const STATUS_OPTIONS = [
   { value: "RASCUNHO",             label: "Rascunho" },
-  { value: "AGUARDANDO_APROVACAO", label: "Aguardando Aprovação" },
+  { value: "AGUARDANDO_APROVACAO", label: "Aguard. Aprovação" },
   { value: "APROVADA",             label: "Aprovada" },
   { value: "REPROVADA",            label: "Reprovada" },
   { value: "CANCELADA",            label: "Cancelada" },
   { value: "CONCLUIDA",            label: "Concluída" },
+];
+
+// Column config: which statuses show in kanban and their accent colors
+const KANBAN_COLUMNS: { status: string; label: string; color: string; dot: string }[] = [
+  { status: "RASCUNHO",             label: "Rascunho",          color: "bg-gray-100 border-gray-200",    dot: "bg-gray-400" },
+  { status: "AGUARDANDO_APROVACAO", label: "Aguard. Aprovação", color: "bg-amber-50 border-amber-200",   dot: "bg-amber-400" },
+  { status: "APROVADA",             label: "Aprovada",          color: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-500" },
+  { status: "REPROVADA",            label: "Reprovada",         color: "bg-red-50 border-red-200",       dot: "bg-red-500" },
+  { status: "CANCELADA",            label: "Cancelada",         color: "bg-zinc-50 border-zinc-200",     dot: "bg-zinc-400" },
+  { status: "CONCLUIDA",            label: "Concluída",         color: "bg-blue-50 border-blue-200",     dot: "bg-blue-500" },
 ];
 
 const SORT_OPTIONS = [
@@ -77,7 +88,6 @@ function StatusFilterChip({
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Close on outside click
   useEffect(() => {
     function handle(e: MouseEvent) {
       const t = e.target as Node;
@@ -113,27 +123,20 @@ function StatusFilterChip({
 
   return (
     <div ref={btnRef} className="relative inline-flex items-center">
-      {/* ── Chip ── */}
-      <div
-        className={cn(
-          "inline-flex items-center h-8 rounded-full border text-sm font-medium transition-colors cursor-pointer select-none",
-          active
-            ? "border-blue-400 bg-blue-50 text-blue-700"
-            : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700"
-        )}
-      >
-        {/* Label part → opens dropdown */}
+      <div className={cn(
+        "inline-flex items-center h-8 rounded-full border text-sm font-medium transition-colors cursor-pointer select-none",
+        active
+          ? "border-blue-400 bg-blue-50 text-blue-700"
+          : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700"
+      )}>
         <button
           type="button"
           onClick={() => { calcPos(); setOpen((p) => !p); setShowOpMenu(false); }}
           className="pl-3 pr-1 h-full flex items-center gap-1.5 rounded-l-full"
         >
-          <span className={cn("text-xs font-semibold", active ? "text-blue-500" : "text-gray-400")}>
-            Status
-          </span>
+          <span className={cn("text-xs font-semibold", active ? "text-blue-500" : "text-gray-400")}>Status</span>
           {active && (
             <>
-              {/* Operator part → opens op menu */}
               <button
                 ref={opRef}
                 type="button"
@@ -151,8 +154,6 @@ function StatusFilterChip({
           )}
           <ChevronDownIcon className={cn("w-3 h-3 ml-0.5 transition-transform", open && "rotate-180", active ? "text-blue-400" : "text-gray-400")} />
         </button>
-
-        {/* Clear button */}
         {active && (
           <button
             type="button"
@@ -164,22 +165,12 @@ function StatusFilterChip({
         )}
       </div>
 
-      {/* ── Operator mini-menu ── */}
       {mounted && showOpMenu && opPos && createPortal(
-        <div
-          style={{ position: "fixed", top: opPos.top, left: opPos.left, zIndex: 9999 }}
-          className="bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[100px]"
-        >
+        <div style={{ position: "fixed", top: opPos.top, left: opPos.left, zIndex: 9999 }}
+          className="bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[100px]">
           {(["is", "is_not"] as FilterOp[]).map((o) => (
-            <button
-              key={o}
-              type="button"
-              onClick={() => { onOpChange(o); setShowOpMenu(false); }}
-              className={cn(
-                "w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2",
-                op === o && "text-blue-600 font-medium"
-              )}
-            >
+            <button key={o} type="button" onClick={() => { onOpChange(o); setShowOpMenu(false); }}
+              className={cn("w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2", op === o && "text-blue-600 font-medium")}>
               {op === o && <Check className="w-3.5 h-3.5 shrink-0" />}
               {o === "is" ? "É" : "Não é"}
             </button>
@@ -188,51 +179,24 @@ function StatusFilterChip({
         document.body
       )}
 
-      {/* ── Main dropdown ── */}
       {mounted && open && pos && createPortal(
-        <div
-          ref={dropRef}
-          style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
-          className="bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
-        >
-          {/* Operator row */}
+        <div ref={dropRef} style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
+          className="bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
           <div className="flex border-b border-gray-100">
             {(["is", "is_not"] as FilterOp[]).map((o) => (
-              <button
-                key={o}
-                type="button"
-                onClick={() => onOpChange(o)}
-                className={cn(
-                  "flex-1 py-2 text-xs font-semibold transition-colors",
-                  op === o
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-gray-400 hover:bg-gray-50"
-                )}
-              >
+              <button key={o} type="button" onClick={() => onOpChange(o)}
+                className={cn("flex-1 py-2 text-xs font-semibold transition-colors", op === o ? "bg-blue-50 text-blue-600" : "text-gray-400 hover:bg-gray-50")}>
                 {o === "is" ? "É" : "Não é"}
               </button>
             ))}
           </div>
-
-          {/* Status list */}
           <div className="py-1">
             {STATUS_OPTIONS.map((opt) => {
               const checked = selected.includes(opt.value);
               return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => toggle(opt.value)}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left",
-                    checked && "bg-blue-50/60"
-                  )}
-                >
-                  {/* Checkbox */}
-                  <span className={cn(
-                    "w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors",
-                    checked ? "bg-blue-600 border-blue-600" : "border-gray-300"
-                  )}>
+                <button key={opt.value} type="button" onClick={() => toggle(opt.value)}
+                  className={cn("w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left", checked && "bg-blue-50/60")}>
+                  <span className={cn("w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors", checked ? "bg-blue-600 border-blue-600" : "border-gray-300")}>
                     {checked && <Check className="w-3 h-3 text-white" />}
                   </span>
                   <StatusBadge status={opt.value} />
@@ -240,15 +204,10 @@ function StatusFilterChip({
               );
             })}
           </div>
-
-          {/* Clear selection */}
           {selected.length > 0 && (
             <div className="border-t border-gray-100 px-3 py-2">
-              <button
-                type="button"
-                onClick={() => { onClear(); setOpen(false); }}
-                className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-              >
+              <button type="button" onClick={() => { onClear(); setOpen(false); }}
+                className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
                 Limpar seleção
               </button>
             </div>
@@ -260,6 +219,127 @@ function StatusFilterChip({
   );
 }
 
+// ── KanbanCard ────────────────────────────────────────────────────────────────
+
+function KanbanCard({ n, onDelete, onClick }: {
+  n: Necessidade;
+  onDelete: () => void;
+  onClick: () => void;
+}) {
+  const prio = PRIORIDADE_LABEL[n.prioridade];
+  const filialLabel = n.filial ? (n.filial.nomeFantasia || n.filial.razaoSocial) : null;
+
+  return (
+    <div
+      onClick={onClick}
+      className="bg-white border border-gray-200 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group"
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <span className="font-mono text-xs font-bold text-gray-500">{n.numero}</span>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
+          title="Excluir"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+
+      {/* Description */}
+      <p className="text-sm text-gray-800 font-medium leading-snug line-clamp-2 mb-2.5">
+        {n.justificativa || <span className="text-gray-400 italic font-normal">Sem descrição</span>}
+      </p>
+
+      {/* Meta */}
+      <div className="space-y-1.5">
+        {filialLabel && (
+          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <Building2 className="w-3 h-3 shrink-0 text-gray-400" />
+            <span className="truncate">{filialLabel}</span>
+          </div>
+        )}
+        {n.solicitante && (
+          <p className="text-xs text-gray-500 truncate">👤 {n.solicitante}</p>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-100">
+        {prio && (
+          <span className={cn("text-xs font-semibold", prio.color)}>
+            {n.prioridade} — {prio.label}
+          </span>
+        )}
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-xs text-gray-400">{n._count.itens} item{n._count.itens !== 1 ? "s" : ""}</span>
+          <span className="text-xs text-gray-300">{formatDate(n.createdAt)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── KanbanView ────────────────────────────────────────────────────────────────
+
+function KanbanView({ items, onDelete, onNavigate }: {
+  items: Necessidade[];
+  onDelete: (n: Necessidade) => void;
+  onNavigate: (id: string) => void;
+}) {
+  const byStatus = useMemo(() => {
+    const map = new Map<string, Necessidade[]>();
+    for (const col of KANBAN_COLUMNS) map.set(col.status, []);
+    for (const n of items) {
+      if (map.has(n.status)) map.get(n.status)!.push(n);
+    }
+    return map;
+  }, [items]);
+
+  return (
+    <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: "calc(100vh - 220px)" }}>
+      {KANBAN_COLUMNS.map((col) => {
+        const colItems = byStatus.get(col.status) ?? [];
+        return (
+          <div key={col.status} className="flex-shrink-0 w-72 flex flex-col">
+            {/* Column header */}
+            <div className={cn(
+              "flex items-center justify-between px-3 py-2.5 rounded-xl border mb-3",
+              col.color
+            )}>
+              <div className="flex items-center gap-2">
+                <div className={cn("w-2 h-2 rounded-full shrink-0", col.dot)} />
+                <span className="text-sm font-semibold text-gray-700">{col.label}</span>
+              </div>
+              <span className="text-xs font-bold text-gray-500 bg-white/70 px-2 py-0.5 rounded-full">
+                {colItems.length}
+              </span>
+            </div>
+
+            {/* Cards */}
+            <div className="flex flex-col gap-2.5 flex-1">
+              {colItems.length === 0 ? (
+                <div className="flex-1 flex items-start justify-center pt-8">
+                  <p className="text-xs text-gray-300 italic">Nenhuma SC</p>
+                </div>
+              ) : (
+                colItems.map((n) => (
+                  <KanbanCard
+                    key={n.id}
+                    n={n}
+                    onDelete={() => onDelete(n)}
+                    onClick={() => onNavigate(n.id)}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function NecessidadesPage() {
@@ -267,20 +347,22 @@ export default function NecessidadesPage() {
   const [necessidades, setNecessidades] = useState<Necessidade[]>([]);
   const [loading,      setLoading]      = useState(true);
 
-  // Filters & sort — persisted per user
+  // Filters, sort AND view — all persisted
   const [f, setF] = usePersistedFilters("necessidades", {
     search:         "",
     filterStatuses: [] as string[],
     filterStatusOp: "is" as FilterOp,
     filterFilial:   "",
     sortKey:        "createdAt_desc",
+    view:           "list" as "list" | "kanban",
   });
-  const { search, filterStatuses, filterStatusOp, filterFilial, sortKey } = f;
-  const setSearch         = (v: string)     => setF({ search: v });
-  const setFilterStatuses = (v: string[])   => setF({ filterStatuses: v });
-  const setFilterStatusOp = (v: FilterOp)   => setF({ filterStatusOp: v });
-  const setFilterFilial   = (v: string)     => setF({ filterFilial: v });
-  const setSortKey        = (v: string)     => setF({ sortKey: v });
+  const { search, filterStatuses, filterStatusOp, filterFilial, sortKey, view } = f;
+  const setSearch         = (v: string)           => setF({ search: v });
+  const setFilterStatuses = (v: string[])         => setF({ filterStatuses: v });
+  const setFilterStatusOp = (v: FilterOp)         => setF({ filterStatusOp: v });
+  const setFilterFilial   = (v: string)           => setF({ filterFilial: v });
+  const setSortKey        = (v: string)           => setF({ sortKey: v });
+  const setView           = (v: "list" | "kanban") => setF({ view: v });
 
   // Delete
   const [deleteItem,    setDeleteItem]    = useState<Necessidade | null>(null);
@@ -310,7 +392,6 @@ export default function NecessidadesPage() {
     setDeleteLoading(false);
   }
 
-  // Unique filials for filter
   const filiais = useMemo(() => {
     const map = new Map<string, string>();
     for (const n of necessidades) {
@@ -319,7 +400,6 @@ export default function NecessidadesPage() {
     return Array.from(map.entries()).map(([id, label]) => ({ id, label }));
   }, [necessidades]);
 
-  // Apply search + filter + sort (client-side)
   const filtered = useMemo(() => {
     let list = [...necessidades];
 
@@ -363,7 +443,6 @@ export default function NecessidadesPage() {
     return list;
   }, [necessidades, search, filterStatuses, filterStatusOp, filterFilial, sortKey]);
 
-  // Group by filial
   type Group = { filialId: string | null; filialLabel: string; items: Necessidade[] };
   const groups = useMemo<Group[]>(() => {
     const map = new Map<string, Group>();
@@ -434,17 +513,19 @@ export default function NecessidadesPage() {
             </select>
           )}
 
-          {/* Sort */}
-          <div className="flex items-center gap-1.5 ml-auto">
-            <ArrowUpDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-            <select
-              value={sortKey}
-              onChange={(e) => setSortKey(e.target.value)}
-              className="h-9 px-3 pr-8 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-            >
-              {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
+          {/* Sort — hidden in kanban since order within column is inherent */}
+          {view === "list" && (
+            <div className="flex items-center gap-1.5">
+              <ArrowUpDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value)}
+                className="h-9 px-3 pr-8 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+              >
+                {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          )}
 
           {/* Clear all filters */}
           {hasFilters && (
@@ -455,6 +536,36 @@ export default function NecessidadesPage() {
               <X className="w-3 h-3" /> Limpar tudo
             </button>
           )}
+
+          {/* View toggle */}
+          <div className="ml-auto flex items-center gap-0.5 p-0.5 bg-gray-100 rounded-lg border border-gray-200">
+            <button
+              type="button"
+              onClick={() => setView("list")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                view === "list"
+                  ? "bg-white text-gray-800 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              )}
+            >
+              <LayoutList className="w-4 h-4" />
+              Lista
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("kanban")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                view === "kanban"
+                  ? "bg-white text-gray-800 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              )}
+            >
+              <Kanban className="w-4 h-4" />
+              Kanban
+            </button>
+          </div>
         </div>
 
         {/* Results count */}
@@ -469,83 +580,100 @@ export default function NecessidadesPage() {
           <div className="flex justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
-            <p className="text-lg font-medium">{hasFilters ? "Nenhum resultado encontrado" : "Nenhuma solicitação registrada"}</p>
-            <p className="text-sm mt-1">{hasFilters ? "Tente ajustar os filtros." : "Clique em \"Nova Solicitação\" para começar."}</p>
-          </div>
-        ) : (
-          groups.map((group) => (
-            <div key={group.filialId ?? "sem"}>
-              <div className="flex items-center gap-2 mb-2">
-                <Building2 className="w-3.5 h-3.5 text-blue-400" />
-                <span className="text-xs font-bold uppercase tracking-wider text-blue-500">{group.filialLabel}</span>
-                <span className="text-xs text-gray-400">({group.items.length})</span>
-              </div>
-
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-4">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Número</th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-600">Descrição</th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-600 w-32">Solicitante</th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Status</th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">
-                        <SortHeader label="Prioridade" field="prioridade" current={sortKey} onSort={setSortKey} />
-                      </th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-600 w-32">
-                        <SortHeader label="Data" field="createdAt" current={sortKey} onSort={setSortKey} />
-                      </th>
-                      <th className="text-center px-4 py-3 font-medium text-gray-600 w-14">Itens</th>
-                      <th className="w-12" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {group.items.map((n) => {
-                      const prio = PRIORIDADE_LABEL[n.prioridade];
-                      return (
-                        <tr
-                          key={n.id}
-                          className="hover:bg-blue-50/40 transition-colors cursor-pointer"
-                          onClick={() => router.push(`/compras/necessidades/${n.id}`)}
-                        >
-                          <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">
-                            <span className="flex items-center gap-1">
-                              {n.numero}
-                              <ChevronRight className="w-3 h-3 text-gray-300" />
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <p className="text-gray-800 truncate max-w-xs">{n.justificativa || <span className="text-gray-300 italic">Sem descrição</span>}</p>
-                            {n.tipoCompra && <p className="text-xs text-gray-400 mt-0.5">{n.tipoCompra}</p>}
-                          </td>
-                          <td className="px-4 py-3 text-gray-600 truncate">{n.solicitante || "—"}</td>
-                          <td className="px-4 py-3"><StatusBadge status={n.status} /></td>
-                          <td className="px-4 py-3">
-                            {prio && <span className={cn("text-xs font-semibold", prio.color)}>{n.prioridade} — {prio.label}</span>}
-                          </td>
-                          <td className="px-4 py-3 text-gray-500 text-xs">
-                            {n.dataNecessidade ? formatDate(n.dataNecessidade) : <span className="text-gray-300">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-center text-gray-500">{n._count.itens}</td>
-                          <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => { setDeleteItem(n); setDeleteError(""); }}
-                              className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                              title="Excluir"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+        ) : view === "kanban" ? (
+          /* ── KANBAN VIEW ── */
+          filtered.length === 0 ? (
+            <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+              <p className="text-lg font-medium">{hasFilters ? "Nenhum resultado encontrado" : "Nenhuma solicitação registrada"}</p>
+              <p className="text-sm mt-1">{hasFilters ? "Tente ajustar os filtros." : "Clique em \"Nova Solicitação\" para começar."}</p>
             </div>
-          ))
+          ) : (
+            <KanbanView
+              items={filtered}
+              onDelete={(n) => { setDeleteItem(n); setDeleteError(""); }}
+              onNavigate={(id) => router.push(`/compras/necessidades/${id}`)}
+            />
+          )
+        ) : (
+          /* ── LIST VIEW ── */
+          filtered.length === 0 ? (
+            <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+              <p className="text-lg font-medium">{hasFilters ? "Nenhum resultado encontrado" : "Nenhuma solicitação registrada"}</p>
+              <p className="text-sm mt-1">{hasFilters ? "Tente ajustar os filtros." : "Clique em \"Nova Solicitação\" para começar."}</p>
+            </div>
+          ) : (
+            groups.map((group) => (
+              <div key={group.filialId ?? "sem"}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-blue-500">{group.filialLabel}</span>
+                  <span className="text-xs text-gray-400">({group.items.length})</span>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-4">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Número</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-600">Descrição</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-600 w-32">Solicitante</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Status</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">
+                          <SortHeader label="Prioridade" field="prioridade" current={sortKey} onSort={setSortKey} />
+                        </th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-600 w-32">
+                          <SortHeader label="Data" field="createdAt" current={sortKey} onSort={setSortKey} />
+                        </th>
+                        <th className="text-center px-4 py-3 font-medium text-gray-600 w-14">Itens</th>
+                        <th className="w-12" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {group.items.map((n) => {
+                        const prio = PRIORIDADE_LABEL[n.prioridade];
+                        return (
+                          <tr
+                            key={n.id}
+                            className="hover:bg-blue-50/40 transition-colors cursor-pointer"
+                            onClick={() => router.push(`/compras/necessidades/${n.id}`)}
+                          >
+                            <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">
+                              <span className="flex items-center gap-1">
+                                {n.numero}
+                                <ChevronRight className="w-3 h-3 text-gray-300" />
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="text-gray-800 truncate max-w-xs">{n.justificativa || <span className="text-gray-300 italic">Sem descrição</span>}</p>
+                              {n.tipoCompra && <p className="text-xs text-gray-400 mt-0.5">{n.tipoCompra}</p>}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 truncate">{n.solicitante || "—"}</td>
+                            <td className="px-4 py-3"><StatusBadge status={n.status} /></td>
+                            <td className="px-4 py-3">
+                              {prio && <span className={cn("text-xs font-semibold", prio.color)}>{n.prioridade} — {prio.label}</span>}
+                            </td>
+                            <td className="px-4 py-3 text-gray-500 text-xs">
+                              {n.dataNecessidade ? formatDate(n.dataNecessidade) : <span className="text-gray-300">—</span>}
+                            </td>
+                            <td className="px-4 py-3 text-center text-gray-500">{n._count.itens}</td>
+                            <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => { setDeleteItem(n); setDeleteError(""); }}
+                                className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                title="Excluir"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))
+          )
         )}
       </div>
 
@@ -593,11 +721,8 @@ function SortHeader({ label, field, current, onSort }: {
   }
 
   return (
-    <button
-      type="button"
-      onClick={toggle}
-      className={cn("flex items-center gap-1 hover:text-gray-800 transition-colors", active ? "text-blue-600" : "text-gray-600")}
-    >
+    <button type="button" onClick={toggle}
+      className={cn("flex items-center gap-1 hover:text-gray-800 transition-colors", active ? "text-blue-600" : "text-gray-600")}>
       {label}
       {active
         ? curDir === "desc" ? <ChevronDownIcon className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />

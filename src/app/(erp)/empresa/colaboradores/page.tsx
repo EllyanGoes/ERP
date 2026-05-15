@@ -22,7 +22,7 @@ type Colaborador = {
   departamento: string | null;
   telefone:     string | null;
   ativo:        boolean;
-  filial:       Filial | null;
+  filiais:      Filial[];
   usuario:      UsuarioMin | null;
 };
 
@@ -36,13 +36,20 @@ export default function ColaboradoresPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (search)      params.set("search", search);
-    if (filtroAtivo) params.set("ativo",  filtroAtivo);
-    const res  = await fetch(`/api/empresa/colaboradores?${params}`);
-    const json = await res.json();
-    setColaboradores(Array.isArray(json) ? json : []);
-    setLoading(false);
+    try {
+      const params = new URLSearchParams();
+      if (search)      params.set("search", search);
+      if (filtroAtivo) params.set("ativo",  filtroAtivo);
+      const res  = await fetch(`/api/empresa/colaboradores?${params}`);
+      const text = await res.text();
+      if (!text) { setLoading(false); return; }
+      const json = JSON.parse(text);
+      setColaboradores(Array.isArray(json) ? json : []);
+    } catch (e) {
+      console.error("[colaboradores load]", e);
+    } finally {
+      setLoading(false);
+    }
   }, [search, filtroAtivo]);
 
   useEffect(() => { load(); }, [load]);
@@ -160,8 +167,8 @@ export default function ColaboradoresPage() {
                       {c.departamento || <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-gray-500">
-                      {c.filial
-                        ? (c.filial.nomeFantasia || c.filial.razaoSocial)
+                      {c.filiais.length > 0
+                        ? c.filiais.map((f) => f.nomeFantasia || f.razaoSocial).join(", ")
                         : <span className="text-gray-300">—</span>
                       }
                     </td>

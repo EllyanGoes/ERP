@@ -49,7 +49,7 @@ export default function NovoColaboradorPage() {
   const [cargo,        setCargo]        = useState("");
   const [departamento, setDepartamento] = useState("");
   const [dataAdmissao, setDataAdmissao] = useState("");
-  const [filialId,     setFilialId]     = useState("");
+  const [filialIds,    setFilialIds]    = useState<string[]>([]);
   const [usuarioId,    setUsuarioId]    = useState("");
   const [ativo,        setAtivo]        = useState(true);
   const [observacoes,  setObservacoes]  = useState("");
@@ -86,7 +86,7 @@ export default function NovoColaboradorPage() {
           cargo:        cargo.trim()   || null,
           departamento: departamento.trim() || null,
           dataAdmissao: dataAdmissao || null,
-          filialId:     filialId     || null,
+          filialIds,
           usuarioId:    usuarioId    || null,
           ativo,
           observacoes:  observacoes.trim() || null,
@@ -206,18 +206,28 @@ export default function NovoColaboradorPage() {
                 />
               </Field>
               <Field label="Filial">
-                <select
-                  value={filialId}
-                  onChange={(e) => setFilialId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                >
-                  <option value="">Selecionar filial...</option>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                  {filiais.length === 0 && (
+                    <p className="text-xs text-gray-400 px-1">Nenhuma filial ativa</p>
+                  )}
                   {filiais.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.nomeFantasia || f.razaoSocial}
-                    </option>
+                    <label key={f.id} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer hover:bg-gray-50 rounded">
+                      <input
+                        type="checkbox"
+                        checked={filialIds.includes(f.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFilialIds((prev) => [...prev, f.id]);
+                          } else {
+                            setFilialIds((prev) => prev.filter((x) => x !== f.id));
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{f.nomeFantasia || f.razaoSocial}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </Field>
             </div>
 

@@ -14,7 +14,7 @@ const schema = z.object({
   departamento: z.string().optional().nullable(),
   dataAdmissao: z.string().optional().nullable(),
   dataDemissao: z.string().optional().nullable(),
-  filialId:     z.string().optional().nullable(),
+  filialIds:    z.array(z.string()).optional(),
   usuarioId:    z.string().optional().nullable(),
   ativo:        z.boolean().optional(),
   observacoes:  z.string().optional().nullable(),
@@ -38,12 +38,12 @@ export async function GET(req: NextRequest) {
             { email:        { contains: search, mode: "insensitive" } },
           ],
         } : {},
-        filialId ? { filialId } : {},
+        filialId ? { filiais: { some: { id: filialId } } } : {},
         ativo !== null && ativo !== "" ? { ativo: ativo === "true" } : {},
       ],
     },
     include: {
-      filial:  true,
+      filiais: true,
       usuario: { select: { id: true, nome: true, email: true } },
     },
     orderBy: { nome: "asc" },
@@ -59,16 +59,17 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { dataAdmissao, dataDemissao, ...rest } = body.data;
+    const { dataAdmissao, dataDemissao, filialIds, ...rest } = body.data;
     const colaborador = await prisma.colaborador.create({
       data: {
         ...rest,
         cpf:          rest.cpf?.trim() || null,
         dataAdmissao: dataAdmissao ? new Date(dataAdmissao) : null,
         dataDemissao: dataDemissao ? new Date(dataDemissao) : null,
+        filiais:      { connect: filialIds?.map((id) => ({ id })) ?? [] },
       },
       include: {
-        filial:  true,
+        filiais: true,
         usuario: { select: { id: true, nome: true, email: true } },
       },
     });

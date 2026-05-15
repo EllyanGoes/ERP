@@ -38,9 +38,10 @@ export async function PATCH(
 ) {
   try {
     const body = await req.json();
-    const { nome, ativo, etapas } = body as {
+    const { nome, ativo, processo, etapas } = body as {
       nome?: string;
       ativo?: boolean;
+      processo?: string;
       etapas?: Array<{
         ordem: number;
         nome?: string;
@@ -62,6 +63,7 @@ export async function PATCH(
         data: {
           ...(nome !== undefined ? { nome: nome.trim() } : {}),
           ...(ativo !== undefined ? { ativo } : {}),
+          ...(processo !== undefined ? { processo: processo as import("@prisma/client").ProcessoAprovacao } : {}),
           ...(etapas !== undefined
             ? {
                 etapas: {

@@ -30,6 +30,15 @@ export async function POST(req: NextRequest) {
   try {
   const body = await req.json();
 
+  if (!body.filialId) {
+    return NextResponse.json({ error: "Filial é obrigatória" }, { status: 400 });
+  }
+  if (!body.localEstoqueId) {
+    return NextResponse.json({ error: "Local de Estoque é obrigatório" }, { status: 400 });
+  }
+  if (!body.motivo?.trim()) {
+    return NextResponse.json({ error: "Motivo de compra é obrigatório" }, { status: 400 });
+  }
   if (!body.itens || body.itens.length === 0) {
     return NextResponse.json({ error: "Adicione pelo menos um item" }, { status: 400 });
   }

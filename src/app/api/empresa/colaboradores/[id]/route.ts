@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 const include = {
-  filial:  true,
+  filiais: true,
   usuario: { select: { id: true, nome: true, email: true } },
 } as const;
 
@@ -36,12 +36,13 @@ export async function PATCH(
 ) {
   try {
     const body = await req.json();
-    const { dataAdmissao, dataDemissao, ...rest } = body;
+    const { dataAdmissao, dataDemissao, filialIds, ...rest } = body;
 
     const data: Record<string, unknown> = { ...rest };
     if (dataAdmissao !== undefined) data.dataAdmissao = dataAdmissao ? new Date(dataAdmissao) : null;
     if (dataDemissao !== undefined) data.dataDemissao = dataDemissao ? new Date(dataDemissao) : null;
     if (rest.cpf !== undefined) data.cpf = rest.cpf?.trim() || null;
+    if (filialIds !== undefined) data.filiais = { set: (filialIds as string[]).map((id: string) => ({ id })) };
 
     const colaborador = await prisma.colaborador.update({
       where: { id: params.id },

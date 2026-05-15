@@ -836,13 +836,23 @@ enum StatusAprovacao {
   REPROVADO
 }
 
+enum ProcessoAprovacao {
+  SOLICITACAO_COMPRAS
+  PEDIDO_VENDA
+  CONTRATO
+  DESPESA
+  GERAL
+}
+
 model AprovacaoFluxo {
-  id        String           @id @default(cuid())
+  id        String              @id @default(cuid())
   nome      String
-  ativo     Boolean          @default(true)
+  processo  ProcessoAprovacao   @default(SOLICITACAO_COMPRAS)
+  ativo     Boolean             @default(true)
   etapas    AprovacaoEtapa[]
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  aprovacoes AprovacaoSC[]
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
 }
 
 model AprovacaoEtapa {
@@ -864,6 +874,8 @@ model AprovacaoSC {
   id            String            @id @default(cuid())
   necessidadeId String
   necessidade   NecessidadeCompra @relation(fields: [necessidadeId], references: [id], onDelete: Cascade)
+  fluxoId       String?
+  fluxo         AprovacaoFluxo?   @relation(fields: [fluxoId], references: [id], onDelete: SetNull)
   etapaOrdem    Int
   etapaNome     String?
   aprovadorId   String
@@ -888,8 +900,7 @@ model Colaborador {
   departamento String?
   dataAdmissao DateTime?
   dataDemissao DateTime?
-  filialId     String?
-  filial       Filial?   @relation(fields: [filialId], references: [id])
+  filiais      Filial[]
   usuarioId    String?   @unique
   usuario      Usuario?  @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   ativo        Boolean   @default(true)

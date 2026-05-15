@@ -27,8 +27,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { nome, etapas } = body as {
+    const { nome, processo, etapas } = body as {
       nome: string;
+      processo?: string;
       etapas: Array<{
         ordem: number;
         nome?: string;
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
     const fluxo = await prisma.aprovacaoFluxo.create({
       data: {
         nome: nome.trim(),
+        processo: (processo ?? "SOLICITACAO_COMPRAS") as import("@prisma/client").ProcessoAprovacao,
         etapas: {
           create: etapas.map((e) => ({
             ordem: e.ordem,

@@ -31,8 +31,7 @@ type Colaborador = {
   departamento:    string | null;
   dataAdmissao:    string | null;
   dataDemissao:    string | null;
-  filialId:        string | null;
-  filial:          Filial | null;
+  filiais:         Filial[];
   usuarioId:       string | null;
   usuario:         Usuario | null;
   ativo:           boolean;
@@ -92,7 +91,7 @@ export default function ColaboradorDetailPage() {
   const [eDepartamento, setEDepartamento] = useState("");
   const [eDataAdmissao, setEDataAdmissao] = useState("");
   const [eDataDemissao, setEDataDemissao] = useState("");
-  const [eFilialId,     setEFilialId]     = useState("");
+  const [eFilialIds,    setEFilialIds]    = useState<string[]>([]);
   const [eUsuarioId,    setEUsuarioId]    = useState("");
   const [eAtivo,        setEAtivo]        = useState(true);
   const [eObservacoes,  setEObservacoes]  = useState("");
@@ -117,6 +116,13 @@ export default function ColaboradorDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (colaborador) {
+      document.title = colaborador.nome + " — ERP";
+    }
+    return () => { document.title = "ERP"; };
+  }, [colaborador]);
+
   function enterEdit() {
     if (!colaborador) return;
     setENome(colaborador.nome);
@@ -128,7 +134,7 @@ export default function ColaboradorDetailPage() {
     setEDepartamento(colaborador.departamento ?? "");
     setEDataAdmissao(colaborador.dataAdmissao ? colaborador.dataAdmissao.slice(0, 10) : "");
     setEDataDemissao(colaborador.dataDemissao ? colaborador.dataDemissao.slice(0, 10) : "");
-    setEFilialId(colaborador.filialId ?? "");
+    setEFilialIds(colaborador.filiais.map((f) => f.id));
     setEUsuarioId(colaborador.usuarioId ?? "");
     setEAtivo(colaborador.ativo);
     setEObservacoes(colaborador.observacoes ?? "");
@@ -165,7 +171,7 @@ export default function ColaboradorDetailPage() {
           departamento: eDepartamento.trim() || null,
           dataAdmissao: eDataAdmissao || null,
           dataDemissao: eDataDemissao || null,
-          filialId:     eFilialId    || null,
+          filialIds:    eFilialIds,
           usuarioId:    eUsuarioId   || null,
           ativo:        eAtivo,
           observacoes:  eObservacoes.trim() || null,
@@ -274,16 +280,28 @@ export default function ColaboradorDetailPage() {
                 </Field>
               </div>
               <Field label="Filial">
-                <select
-                  value={eFilialId}
-                  onChange={(e) => setEFilialId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                >
-                  <option value="">Sem filial</option>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                  {filiais.length === 0 && (
+                    <p className="text-xs text-gray-400 px-1">Nenhuma filial ativa</p>
+                  )}
                   {filiais.map((f) => (
-                    <option key={f.id} value={f.id}>{f.nomeFantasia || f.razaoSocial}</option>
+                    <label key={f.id} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer hover:bg-gray-50 rounded">
+                      <input
+                        type="checkbox"
+                        checked={eFilialIds.includes(f.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setEFilialIds((prev) => [...prev, f.id]);
+                          } else {
+                            setEFilialIds((prev) => prev.filter((x) => x !== f.id));
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{f.nomeFantasia || f.razaoSocial}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </Field>
               <Field label="Usuário do sistema" hint="Opcional — vincule ao usuário de login">
                 <select
@@ -411,8 +429,8 @@ export default function ColaboradorDetailPage() {
               {colaborador.dataDemissao ? formatDate(colaborador.dataDemissao) : null}
             </InfoField>
             <InfoField label="Filial">
-              {colaborador.filial
-                ? (colaborador.filial.nomeFantasia || colaborador.filial.razaoSocial)
+              {colaborador.filiais.length > 0
+                ? colaborador.filiais.map((f) => f.nomeFantasia || f.razaoSocial).join(", ")
                 : null
               }
             </InfoField>

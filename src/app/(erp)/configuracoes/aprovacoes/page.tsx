@@ -49,9 +49,18 @@ type Etapa = {
 type Fluxo = {
   id: string;
   nome: string;
+  processo: string;
   ativo: boolean;
   createdAt: string;
   etapas: Etapa[];
+};
+
+const PROCESSO_LABELS: Record<string, string> = {
+  SOLICITACAO_COMPRAS: "Solicitação de Compras",
+  PEDIDO_VENDA:        "Pedido de Venda",
+  CONTRATO:            "Contrato",
+  DESPESA:             "Despesa",
+  GERAL:               "Geral",
 };
 
 type EtapaRow = {
@@ -89,6 +98,7 @@ export default function AprovacoesPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editId, setEditId]       = useState<string | null>(null);
   const [formNome, setFormNome]   = useState("");
+  const [formProcesso, setFormProcesso] = useState("SOLICITACAO_COMPRAS");
   const [formAtivo, setFormAtivo] = useState(true);
   const [formEtapas, setFormEtapas] = useState<EtapaRow[]>([emptyRow(1)]);
   const [formError, setFormError] = useState("");
@@ -126,6 +136,7 @@ export default function AprovacoesPage() {
   function openNew() {
     setEditId(null);
     setFormNome("");
+    setFormProcesso("SOLICITACAO_COMPRAS");
     setFormAtivo(true);
     setFormEtapas([emptyRow(1)]);
     setFormError("");
@@ -135,6 +146,7 @@ export default function AprovacoesPage() {
   function openEdit(fluxo: Fluxo) {
     setEditId(fluxo.id);
     setFormNome(fluxo.nome);
+    setFormProcesso(fluxo.processo ?? "SOLICITACAO_COMPRAS");
     setFormAtivo(fluxo.ativo);
     setFormEtapas(
       fluxo.etapas.map((e) => ({
@@ -181,6 +193,7 @@ export default function AprovacoesPage() {
     try {
       const payload = {
         nome: formNome.trim(),
+        processo: formProcesso,
         ativo: formAtivo,
         etapas: validEtapas.map((e) => ({
           ordem:         e.ordem,
@@ -271,6 +284,9 @@ export default function AprovacoesPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
                       <CardTitle className="text-base">{fluxo.nome}</CardTitle>
+                      <span className="inline-flex items-center text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 rounded-full px-2 py-0.5">
+                        {PROCESSO_LABELS[fluxo.processo] ?? fluxo.processo}
+                      </span>
                       {fluxo.ativo ? (
                         <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
                           <CheckCircle2 className="w-3 h-3" /> Ativo
@@ -364,6 +380,22 @@ export default function AprovacoesPage() {
                   {formError}
                 </div>
               )}
+
+              {/* Processo */}
+              <div className="space-y-1.5">
+                <Label>Processo <span className="text-red-500">*</span></Label>
+                <select
+                  value={formProcesso}
+                  onChange={(e) => setFormProcesso(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  <option value="SOLICITACAO_COMPRAS">Solicitação de Compras</option>
+                  <option value="PEDIDO_VENDA">Pedido de Venda</option>
+                  <option value="CONTRATO">Contrato</option>
+                  <option value="DESPESA">Despesa</option>
+                  <option value="GERAL">Geral</option>
+                </select>
+              </div>
 
               {/* Nome */}
               <div className="space-y-1.5">

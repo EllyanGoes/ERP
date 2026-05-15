@@ -10,12 +10,14 @@ const PRIORIDADE_LABEL: Record<number, string> = {
   4: "4 - Alta",        5: "5 - Crítica",
 };
 
+type ItemLinha = { descricao: string; quantidade: number; unidade: string };
+
 function buildMsgBody(sc: {
   numero: string;
   filialNome: string;
   solicitante: string | null;
   createdAt: Date;
-  totalItens: number;
+  itens: ItemLinha[];
   valorTotal: string | null;
   prioridade: number;
   justificativa: string | null;
@@ -26,16 +28,22 @@ function buildMsgBody(sc: {
     hour: "2-digit", minute: "2-digit",
   });
 
+  const linhasItens = sc.itens.map((it, i) =>
+    `  ${i + 1}. ${it.descricao} — ${it.quantidade.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} ${it.unidade}`
+  );
+
   return [
     `*Ordem de Compras Nº ${sc.numero}*`,
     ``,
     `• *Filial:* ${sc.filialNome}`,
     `• *Solicitado por:* ${sc.solicitante ?? "—"}`,
     `• *Data:* ${data}`,
-    `• *Total de produtos:* ${sc.totalItens}`,
-    ...(sc.valorTotal ? [`• *Valor total:* ${sc.valorTotal}`] : []),
     `• *Prioridade:* ${PRIORIDADE_LABEL[sc.prioridade] ?? sc.prioridade}`,
+    ...(sc.valorTotal ? [`• *Valor total:* ${sc.valorTotal}`] : []),
     ...(sc.justificativa ? [`• *Descrição:* ${sc.justificativa}`] : []),
+    ``,
+    `*Itens (${sc.itens.length}):*`,
+    ...linhasItens,
     ``,
     ...(sc.etapaNome ? [`_Etapa: ${sc.etapaNome}_`, ``] : []),
     `Responda com um dos botões abaixo:`,
@@ -60,7 +68,9 @@ export async function POST(
       include: {
         filial: true,
         itens: {
-          include: { item: { select: { precoCusto: true } } },
+          include: {
+            item: { select: { descricao: true, precoCusto: true, unidadeMedida: true, unidade: { select: { sigla: true } } } },
+          },
         },
       },
     });
@@ -91,6 +101,7 @@ export async function POST(
     // ── Resolve aprovador ─────────────────────────────────────────────────────
     let etapaOrdem = 1;
     let etapaNome: string | undefined;
+    let fluxoId: string | null = null;
     let aprovadorResolved: { id: string; nome: string; telefone: string | null };
 
     if (modo === "direto") {
@@ -125,9 +136,9 @@ export async function POST(
       }
       etapaNome = "Aprovação Direta";
     } else {
-      // Fluxo mode: pick active fluxo, match etapa by valor
+      // Fluxo mode: pick active fluxo for SOLICITACAO_COMPRAS, match etapa by valor
       const fluxo = await prisma.aprovacaoFluxo.findFirst({
-        where: { ativo: true },
+        where: { ativo: true, processo: "SOLICITACAO_COMPRAS" as import("@prisma/client").ProcessoAprovacao },
         include: {
           etapas: {
             include: { aprovador: true, colaborador: true },
@@ -142,6 +153,8 @@ export async function POST(
           { status: 422 }
         );
       }
+
+      fluxoId = fluxo.id;
 
       // Match etapa by valor total (if no ranges set, use first etapa)
       let etapa = fluxo.etapas[0];
@@ -203,7 +216,11 @@ export async function POST(
       filialNome,
       solicitante: sc.solicitante,
       createdAt: sc.createdAt,
-      totalItens: sc.itens.length,
+      itens: sc.itens.map((it) => ({
+        descricao: it.item.descricao,
+        quantidade: parseFloat(String(it.quantidade ?? 0)),
+        unidade: it.unidade ?? it.item.unidade?.sigla ?? it.item.unidadeMedida ?? "un",
+      })),
       valorTotal: valorTotalStr,
       prioridade: sc.prioridade,
       justificativa: sc.justificativa,
@@ -214,6 +231,7 @@ export async function POST(
     const aprovacao = await prisma.aprovacaoSC.create({
       data: {
         necessidadeId: sc.id,
+        fluxoId,
         etapaOrdem,
         etapaNome: etapaNome ?? null,
         aprovadorId: aprovadorResolved.id,

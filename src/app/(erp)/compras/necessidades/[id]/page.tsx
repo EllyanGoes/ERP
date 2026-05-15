@@ -480,6 +480,7 @@ export default function NecessidadeDetailPage() {
     e.preventDefault();
     if (!eFilialId) { setEditError("Filial é obrigatória"); return; }
     if (!eLocalEstoqueId) { setEditError("Local de Estoque é obrigatório"); return; }
+    if (!eMotivo.trim()) { setEditError("Motivo de compra é obrigatório"); return; }
     const validItens = eItens.filter((r) => r.itemId && parseFloat(r.quantidade) > 0);
     if (validItens.length === 0) { setEditError("Adicione pelo menos um item com quantidade válida"); return; }
     if (!eDescricao.trim()) { setEditError("Descrição é obrigatória"); return; }
@@ -515,6 +516,7 @@ export default function NecessidadeDetailPage() {
   if (!necessidade) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
   const isRascunho = necessidade.status === "RASCUNHO";
+  const canEdit    = ["RASCUNHO", "AGUARDANDO_APROVACAO", "REPROVADA"].includes(necessidade.status);
 
   // ── Edit mode view ───────────────────────────────────────────────────────────
   if (editMode) {
@@ -577,7 +579,7 @@ export default function NecessidadeDetailPage() {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Motivo</Label>
+                  <Label>Motivo <span className="text-red-500">*</span></Label>
                   <Input value={eMotivo} onChange={(e) => setEMotivo(e.target.value)} placeholder="Motivo da solicitação..." />
                 </div>
               </div>
@@ -689,12 +691,16 @@ export default function NecessidadeDetailPage() {
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <StatusBadge status={necessidade.status} />
 
+            {/* Edit — available on RASCUNHO, AGUARDANDO_APROVACAO, REPROVADA */}
+            {canEdit && (
+              <Button size="sm" variant="outline" onClick={enterEditMode}>
+                <Pencil className="w-3.5 h-3.5 mr-1" />Editar
+              </Button>
+            )}
+
             {/* RASCUNHO */}
             {isRascunho && (
               <>
-                <Button size="sm" variant="outline" onClick={enterEditMode}>
-                  <Pencil className="w-3.5 h-3.5 mr-1" />Editar
-                </Button>
                 <Button size="sm"
                   onClick={() => changeStatus("AGUARDANDO_APROVACAO")} disabled={actioning}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -1166,11 +1172,19 @@ export default function NecessidadeDetailPage() {
                   <p>• <span className="font-semibold">Filial:</span> {necessidade.filial?.nomeFantasia ?? necessidade.filial?.razaoSocial ?? "—"}</p>
                   <p>• <span className="font-semibold">Solicitado por:</span> {necessidade.solicitante ?? "—"}</p>
                   <p>• <span className="font-semibold">Data:</span> {new Date(necessidade.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
-                  <p>• <span className="font-semibold">Total de produtos:</span> {necessidade.itens.length}</p>
                   <p>• <span className="font-semibold">Prioridade:</span> {necessidade.prioridade} - {{ 1: "Muito Baixa", 2: "Baixa", 3: "Média", 4: "Alta", 5: "Crítica" }[necessidade.prioridade]}</p>
                   {necessidade.justificativa && (
                     <p>• <span className="font-semibold">Descrição:</span> {necessidade.justificativa}</p>
                   )}
+                  <p className="mb-1" />
+                  <p className="font-semibold">Itens ({necessidade.itens.length}):</p>
+                  {necessidade.itens.map((it, i) => (
+                    <p key={it.id}>
+                      {i + 1}. {it.item.descricao} —{" "}
+                      {decimalToNumber(it.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })}{" "}
+                      {it.unidade ?? it.item.unidade?.sigla ?? it.item.unidadeMedida ?? "un"}
+                    </p>
+                  ))}
                   <p className="mt-2 text-xs text-gray-500 italic">Responda com um dos botões abaixo:</p>
                   <div className="flex gap-2 mt-1 flex-wrap">
                     {["✅ Aprovar", "❌ Reprovar", "🔍 Detalhes"].map((b) => (

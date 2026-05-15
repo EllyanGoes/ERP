@@ -36,7 +36,7 @@ const PRIORIDADES = [
 // Campo de texto com filtro + dropdown via portal (para Filial e Local de Estoque)
 
 function SearchableSelect<T extends { id: string }>({
-  options, value, onChange, placeholder, getLabel, disabled,
+  options, value, onChange, placeholder, getLabel, disabled, error,
 }: {
   options: T[];
   value: string;
@@ -44,6 +44,7 @@ function SearchableSelect<T extends { id: string }>({
   placeholder: string;
   getLabel: (item: T) => string;
   disabled?: boolean;
+  error?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef     = useRef<HTMLInputElement>(null);
@@ -116,7 +117,9 @@ function SearchableSelect<T extends { id: string }>({
     <div ref={containerRef} className="relative">
       <div className={cn(
         "flex items-center rounded-lg border bg-white transition-colors",
-        open ? "border-blue-400 ring-1 ring-blue-200" : "border-gray-200 hover:border-gray-300"
+        open ? "border-blue-400 ring-1 ring-blue-200"
+          : error && !value ? "border-red-400 ring-1 ring-red-100"
+          : "border-gray-200 hover:border-gray-300"
       )}>
         <input
           ref={inputRef}
@@ -321,6 +324,7 @@ export default function NovasolicitacaoPage() {
   const [itens,       setItens]       = useState<ItemRow[]>([{ itemId: "", quantidade: "1", unidade: "", observacao: "" }]);
   const [saving,      setSaving]      = useState(false);
   const [serverError, setServerError] = useState("");
+  const [submitted,   setSubmitted]   = useState(false);
   const [successDialog, setSuccessDialog] = useState<{ numero: string; id: string } | null>(null);
 
   const [filiais,        setFiliais]        = useState<Filial[]>([]);
@@ -395,8 +399,10 @@ export default function NovasolicitacaoPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setSubmitted(true);
     if (!filialId) { setServerError("Filial é obrigatória"); return; }
     if (!localEstoqueId) { setServerError("Local de Estoque é obrigatório"); return; }
+    if (!motivo.trim()) { setServerError("Motivo de compra é obrigatório"); return; }
     const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade) > 0);
     if (validItens.length === 0) { setServerError("Adicione pelo menos um item com quantidade válida"); return; }
     if (!descricao.trim()) { setServerError("Descrição é obrigatória"); return; }
@@ -443,8 +449,12 @@ export default function NovasolicitacaoPage() {
               <Label>Filial <span className="text-red-500">*</span></Label>
               <SearchableSelect options={filiais} value={filialId}
                 onChange={(v) => { setFilialId(v); setLocalEstoqueId(""); }}
-                placeholder="Digite para filtrar filial..." getLabel={(f) => f.nomeFantasia || f.razaoSocial} />
-              {!filialId && <p className="text-xs text-gray-400">Selecione a filial para habilitar o campo Local de Estoque</p>}
+                placeholder="Digite para filtrar filial..." getLabel={(f) => f.nomeFantasia || f.razaoSocial}
+                error={submitted && !filialId} />
+              {submitted && !filialId
+                ? <p className="text-xs text-red-500">Filial é obrigatória</p>
+                : !filialId && <p className="text-xs text-gray-400">Selecione a filial para habilitar o campo Local de Estoque</p>
+              }
             </div>
 
             <div className="grid grid-cols-12 gap-4">
@@ -480,8 +490,14 @@ export default function NovasolicitacaoPage() {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label>Motivo</Label>
-                <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo da solicitação..." />
+                <Label>Motivo <span className="text-red-500">*</span></Label>
+                <Input
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  placeholder="Motivo da solicitação..."
+                  className={submitted && !motivo.trim() ? "border-red-400 focus-visible:ring-red-200" : ""}
+                />
+                {submitted && !motivo.trim() && <p className="text-xs text-red-500">Motivo é obrigatório</p>}
               </div>
             </div>
 
@@ -490,7 +506,11 @@ export default function NovasolicitacaoPage() {
                 <Label>Local de Estoque <span className="text-red-500">*</span></Label>
                 <SearchableSelect options={locaisEstoque} value={localEstoqueId} onChange={setLocalEstoqueId}
                   placeholder={filialId ? (locaisEstoque.length === 0 ? "Nenhum local para esta filial" : "Digite para filtrar local...") : "Selecione a filial primeiro"}
-                  getLabel={(l) => l.nome} disabled={!filialId} />
+                  getLabel={(l) => l.nome} disabled={!filialId}
+                  error={submitted && !!filialId && !localEstoqueId} />
+                {submitted && !!filialId && !localEstoqueId && (
+                  <p className="text-xs text-red-500">Local de Estoque é obrigatório</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>Centro de Custo</Label>
