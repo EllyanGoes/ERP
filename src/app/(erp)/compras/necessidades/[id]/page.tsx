@@ -276,12 +276,17 @@ export default function NecessidadeDetailPage() {
   // ── Load record ──────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
+    setError("");
     try {
       const res  = await fetch(`/api/suprimentos/necessidades/${id}`);
-      const json = await res.json();
+      const text = await res.text();
+      if (!text) { setError("Resposta vazia do servidor — reinicie o servidor de desenvolvimento."); return; }
+      const json = JSON.parse(text);
+      if (!res.ok) { setError(json.error || `Erro ${res.status}`); return; }
       setNecessidade(json.data);
-    } catch {
-      setError("Erro ao carregar");
+    } catch (e) {
+      console.error("[SC load]", e);
+      setError("Erro ao carregar — verifique o console do servidor.");
     } finally {
       setLoading(false);
     }
