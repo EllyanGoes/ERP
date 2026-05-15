@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  try {
   const body = await req.json();
 
   if (!body.itens || body.itens.length === 0) {
@@ -75,4 +76,9 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ data: necessidade }, { status: 201 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[POST /necessidades]", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
