@@ -66,9 +66,10 @@ export const MODULOS: ModuloDef[] = [
     label: "Compras",
     group: "Suprimentos",
     recursos: [
-      { key: "cotacoes",      label: "Cotação de Compras",    acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "pedidos-compra", label: "Pedido de Compras",    acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "conferencias",  label: "Conferência de Compra", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "solicitacoes",  label: "Solicitação de Compras", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "cotacoes",      label: "Cotação de Compras",     acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "pedidos-compra", label: "Pedido de Compras",     acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "conferencias",  label: "Conferência de Compra",  acoes: ["ver", "inserir", "editar", "excluir"] },
     ],
   },
   {

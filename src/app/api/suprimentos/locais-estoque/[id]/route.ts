@@ -3,12 +3,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
-const schema = z.object({ nome: z.string().min(1), descricao: z.string().optional(), ativo: z.boolean().optional() });
+const schema = z.object({
+  nome:     z.string().min(1),
+  descricao: z.string().optional(),
+  ativo:    z.boolean().optional(),
+  filialId: z.string().nullable().optional(),
+});
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.localEstoque.findUnique({
     where: { id: params.id },
     include: {
+      filial: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
       estoqueItens: {
         include: {
           item: {

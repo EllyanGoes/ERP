@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { generateDocNumber } from "@/lib/utils";
+import { generateSimpleDocNumber } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       update: { ultimo: { increment: 1 } },
     });
 
-    const numero = generateDocNumber("SC", seq.ultimo);
+    const numero = generateSimpleDocNumber("SC", seq.ultimo);
 
     const record = await tx.necessidadeCompra.create({
       data: {

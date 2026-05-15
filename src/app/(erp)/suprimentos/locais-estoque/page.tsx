@@ -1,19 +1,24 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MapPin, Package, Plus, Pencil, Trash2, Loader2, AlertTriangle, X, Check, Save } from "lucide-react";
+import { MapPin, Package, Plus, Pencil, Trash2, Loader2, AlertTriangle, X, Check, Save, Building2, GitBranch } from "lucide-react";
 import { formatBRL } from "@/lib/utils";
+
+type Filial = { id: string; razaoSocial: string; nomeFantasia: string | null };
 
 type LocalRow = {
   id: string;
   nome: string;
   descricao: string | null;
   ativo: boolean;
+  filialId: string | null;
+  filial: { id: string; razaoSocial: string } | null;
   _count: { estoqueItens: number };
   estoqueItens: Array<{
     quantidadeAtual: unknown;
@@ -28,18 +33,22 @@ function toNum(v: unknown) {
 
 export default function LocaisEstoquePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const filialFiltro = searchParams.get("filialId") ?? "";
+
   const [locais, setLocais] = useState<LocalRow[]>([]);
+  const [filiais, setFiliais] = useState<Filial[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Create modal
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ nome: "", descricao: "" });
+  const [createForm, setCreateForm] = useState({ nome: "", descricao: "", filialId: "" });
   const [createSaving, setCreateSaving] = useState(false);
   const [createError, setCreateError] = useState("");
 
   // Edit modal
   const [editItem, setEditItem] = useState<LocalRow | null>(null);
-  const [editForm, setEditForm] = useState({ nome: "", descricao: "", ativo: true });
+  const [editForm, setEditForm] = useState({ nome: "", descricao: "", ativo: true, filialId: "" });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
@@ -50,16 +59,23 @@ export default function LocaisEstoquePage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/suprimentos/locais-estoque");
+    const params = new URLSearchParams();
+    if (filialFiltro) params.set("filialId", filialFiltro);
+    const res = await fetch(`/api/suprimentos/locais-estoque?${params}`);
     const json = await res.json();
     setLocais(Array.isArray(json) ? json : []);
     setLoading(false);
-  }, []);
+  }, [filialFiltro]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    fetch("/api/empresa/filiais?ativo=true")
+      .then((r) => r.json())
+      .then((j) => setFiliais(Array.isArray(j) ? j : []));
+  }, [load]);
 
   function openCreate() {
-    setCreateForm({ nome: "", descricao: "" });
+    setCreateForm({ nome: "", descricao: "", filialId: "" });
     setCreateError("");
     setShowCreate(true);
   }
@@ -70,7 +86,11 @@ export default function LocaisEstoquePage() {
     const res = await fetch("/api/suprimentos/locais-estoque", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: createForm.nome.trim(), descricao: createForm.descricao.trim() || undefined }),
+      body: JSON.stringify({
+        nome:     createForm.nome.trim(),
+        descricao: createForm.descricao.trim() || undefined,
+        filialId: createForm.filialId || null,
+      }),
     });
     if (!res.ok) {
       setCreateError((await res.json()).error || "Erro ao salvar");
@@ -83,7 +103,7 @@ export default function LocaisEstoquePage() {
   function openEdit(item: LocalRow, e: React.MouseEvent) {
     e.stopPropagation();
     setEditItem(item);
-    setEditForm({ nome: item.nome, descricao: item.descricao ?? "", ativo: item.ativo });
+    setEditForm({ nome: item.nome, descricao: item.descricao ?? "", ativo: item.ativo, filialId: item.filialId ?? "" });
     setEditError("");
   }
 
@@ -93,7 +113,12 @@ export default function LocaisEstoquePage() {
     const res = await fetch(`/api/suprimentos/locais-estoque/${editItem.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: editForm.nome.trim(), descricao: editForm.descricao.trim() || undefined, ativo: editForm.ativo }),
+      body: JSON.stringify({
+        nome:     editForm.nome.trim(),
+        descricao: editForm.descricao.trim() || undefined,
+        ativo:    editForm.ativo,
+        filialId: editForm.filialId || null,
+      }),
     });
     if (!res.ok) {
       setEditError((await res.json()).error || "Erro ao salvar");
@@ -120,15 +145,18 @@ export default function LocaisEstoquePage() {
     setDeleteLoading(false);
   }
 
-  const totalProdutos = locais.reduce((s, l) => s + l._count.estoqueItens, 0);
+  const filialAtiva = filialFiltro ? filiais.find((f) => f.id === filialFiltro) : null;
 
-  // Grand total cost: sum of (precoCusto × quantidadeAtual) across all locais
+  const totalProdutos = locais.reduce((s, l) => s + l._count.estoqueItens, 0);
   const custoTotalGeral = locais.reduce((sum, local) => {
     return sum + local.estoqueItens.reduce((s, e) => {
       const custo = e.item?.precoCusto ? toNum(e.item.precoCusto) : 0;
       return s + custo * toNum(e.quantidadeAtual);
     }, 0);
   }, 0);
+
+  const filialNome = (f: Filial | null | undefined) =>
+    f ? (f.nomeFantasia || f.razaoSocial) : null;
 
   return (
     <div>
@@ -144,6 +172,25 @@ export default function LocaisEstoquePage() {
       />
 
       <div className="px-8 pb-8 space-y-6">
+        {/* Filial filter banner */}
+        {filialFiltro && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm">
+            <GitBranch className="w-4 h-4 text-blue-500 shrink-0" />
+            <span className="text-blue-800 font-medium">
+              Filtrando por filial:{" "}
+              <span className="font-semibold">
+                {filialAtiva ? (filialAtiva.nomeFantasia || filialAtiva.razaoSocial) : filialFiltro}
+              </span>
+            </span>
+            <Link
+              href="/suprimentos/locais-estoque"
+              className="ml-auto text-blue-500 hover:text-blue-700 underline text-xs"
+            >
+              Ver todos
+            </Link>
+          </div>
+        )}
+
         {/* Summary */}
         <div className="grid grid-cols-3 gap-4 max-w-lg">
           <div className="rounded-xl p-4 bg-emerald-50 text-emerald-700">
@@ -176,6 +223,7 @@ export default function LocaisEstoquePage() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Local</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Filial</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Descrição</th>
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Produtos</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">Custo Total</th>
@@ -200,6 +248,16 @@ export default function LocaisEstoquePage() {
                           <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
                           <span className="font-medium text-gray-900">{local.nome}</span>
                         </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {local.filial ? (
+                          <div className="flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                            <span className="text-gray-700 text-xs">{local.filial.razaoSocial}</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-500">{local.descricao || "—"}</td>
                       <td className="px-4 py-3 text-center">
@@ -260,7 +318,7 @@ export default function LocaisEstoquePage() {
             </div>
             <div className="space-y-3">
               <div>
-                <Label>Nome *</Label>
+                <Label>Nome <span className="text-red-500">*</span></Label>
                 <Input
                   value={createForm.nome}
                   onChange={(e) => setCreateForm((p) => ({ ...p, nome: e.target.value }))}
@@ -269,6 +327,19 @@ export default function LocaisEstoquePage() {
                   autoFocus
                   onKeyDown={(e) => e.key === "Enter" && saveCreate()}
                 />
+              </div>
+              <div>
+                <Label>Filial</Label>
+                <select
+                  value={createForm.filialId}
+                  onChange={(e) => setCreateForm((p) => ({ ...p, filialId: e.target.value }))}
+                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  <option value="">Sem filial</option>
+                  {filiais.map((f) => (
+                    <option key={f.id} value={f.id}>{filialNome(f) ?? f.razaoSocial}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <Label>Descrição</Label>
@@ -306,13 +377,26 @@ export default function LocaisEstoquePage() {
             </div>
             <div className="space-y-3">
               <div>
-                <Label>Nome *</Label>
+                <Label>Nome <span className="text-red-500">*</span></Label>
                 <Input
                   value={editForm.nome}
                   onChange={(e) => setEditForm((p) => ({ ...p, nome: e.target.value }))}
                   className="mt-1"
                   autoFocus
                 />
+              </div>
+              <div>
+                <Label>Filial</Label>
+                <select
+                  value={editForm.filialId}
+                  onChange={(e) => setEditForm((p) => ({ ...p, filialId: e.target.value }))}
+                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  <option value="">Sem filial</option>
+                  {filiais.map((f) => (
+                    <option key={f.id} value={f.id}>{filialNome(f) ?? f.razaoSocial}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <Label>Descrição</Label>

@@ -45,6 +45,11 @@ export function generateDocNumber(prefix: string, seq: number): string {
   return `${prefix}-${year}-${String(seq).padStart(4, "0")}`
 }
 
+/** Generates a simple sequential number without year, e.g. "SC-0001" */
+export function generateSimpleDocNumber(prefix: string, seq: number): string {
+  return `${prefix}-${String(seq).padStart(4, "0")}`
+}
+
 export function getStatusContaColor(status: string): string {
   switch (status) {
     case "ABERTA": return "blue"

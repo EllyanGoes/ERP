@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { formatDate, decimalToNumber } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
+import { Pencil, Trash2, Loader2, AlertTriangle } from "lucide-react";
 
 type Necessidade = {
   id: string;
@@ -23,12 +24,15 @@ type Necessidade = {
   aprovadoPor: string | null;
   dataAprovacao: string | null;
   motivoReprovacao: string | null;
+  filial: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
+  localEstoque: { id: string; nome: string } | null;
+  centroCusto: { id: string; codigo: string; nome: string } | null;
   itens: Array<{
     id: string;
     quantidade: unknown;
     quantidadeAprovada: unknown;
     observacao: string | null;
-    item: { id: string; codigo: string; descricao: string; unidadeMedida: string };
+    item: { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null };
   }>;
   cotacoes: Array<{ id: string; numero: string; status: string }>;
 };
@@ -41,6 +45,11 @@ export default function NecessidadeDetailPage() {
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [actioning, setActioning] = useState(false);
+
+  // Delete
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   // Approval fields
   const [aprovadoPor, setAprovadoPor] = useState("");
@@ -73,10 +82,7 @@ export default function NecessidadeDetailPage() {
         body: JSON.stringify({ status, ...extra }),
       });
       const json = await res.json();
-      if (!res.ok) {
-        setActionError(json.error || "Erro na operação");
-        return;
-      }
+      if (!res.ok) { setActionError(json.error || "Erro na operação"); return; }
       setShowApproveForm(false);
       setShowRejectForm(false);
       await load();
@@ -84,6 +90,21 @@ export default function NecessidadeDetailPage() {
       setActionError("Erro de conexão");
     } finally {
       setActioning(false);
+    }
+  }
+
+  async function handleDelete() {
+    setDeleteLoading(true); setDeleteError("");
+    try {
+      const res = await fetch(`/api/suprimentos/necessidades/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        setDeleteError((await res.json()).error || "Não foi possível excluir");
+        setDeleteLoading(false); return;
+      }
+      router.push("/compras/necessidades");
+    } catch {
+      setDeleteError("Erro de conexão");
+      setDeleteLoading(false);
     }
   }
 
@@ -104,10 +125,7 @@ export default function NecessidadeDetailPage() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) {
-        setActionError(json.error || "Erro ao gerar cotação");
-        return;
-      }
+      if (!res.ok) { setActionError(json.error || "Erro ao gerar cotação"); return; }
       router.push(`/suprimentos/cotacoes/${json.data.id}`);
     } catch {
       setActionError("Erro de conexão");
@@ -116,23 +134,50 @@ export default function NecessidadeDetailPage() {
     }
   }
 
-  // Set tab title dynamically
-  useTabTitle(necessidade ? `Necessidade ${necessidade.numero}` : null);
+  useTabTitle(necessidade ? `Solicitação ${necessidade.numero}` : null);
 
-  if (loading) return <div className="px-8 pt-8 text-gray-400">Carregando...</div>;
+  if (loading) return <div className="px-8 pt-8 text-gray-400"><Loader2 className="w-5 h-5 animate-spin inline mr-2" />Carregando...</div>;
   if (!necessidade) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
+
+  const isRascunho = necessidade.status === "RASCUNHO";
 
   return (
     <div>
       <PageHeader
-        title={`Necessidade ${necessidade.numero}`}
+        title={`Solicitação ${necessidade.numero}`}
         breadcrumbs={[
           { label: "Compras" },
-          { label: "Necessidades", href: "/compras/necessidades" },
+          { label: "Solicitações de Compras", href: "/compras/necessidades" },
           { label: necessidade.numero },
         ]}
-        action={<StatusBadge status={necessidade.status} />}
+        action={
+          <div className="flex items-center gap-2">
+            <StatusBadge status={necessidade.status} />
+            {isRascunho && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => router.push(`/compras/necessidades/${id}/editar`)}
+                >
+                  <Pencil className="w-3.5 h-3.5 mr-1" />
+                  Editar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-red-200 text-red-600 hover:bg-red-50"
+                  onClick={() => { setShowDelete(true); setDeleteError(""); }}
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  Excluir
+                </Button>
+              </>
+            )}
+          </div>
+        }
       />
+
       <div className="px-8 pb-8 space-y-6 max-w-5xl">
         {actionError && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{actionError}</div>
@@ -144,6 +189,12 @@ export default function NecessidadeDetailPage() {
             <CardTitle className="text-base">Informações</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {necessidade.filial && (
+              <div>
+                <p className="text-xs text-gray-500">Filial</p>
+                <p className="text-sm font-medium">{necessidade.filial.nomeFantasia || necessidade.filial.razaoSocial}</p>
+              </div>
+            )}
             <div>
               <p className="text-xs text-gray-500">Solicitante</p>
               <p className="text-sm font-medium">{necessidade.solicitante || "—"}</p>
@@ -154,13 +205,23 @@ export default function NecessidadeDetailPage() {
             </div>
             <div>
               <p className="text-xs text-gray-500">Status</p>
-              <div className="mt-1">
-                <StatusBadge status={necessidade.status} />
-              </div>
+              <div className="mt-1"><StatusBadge status={necessidade.status} /></div>
             </div>
+            {necessidade.localEstoque && (
+              <div>
+                <p className="text-xs text-gray-500">Local de Estoque</p>
+                <p className="text-sm font-medium">{necessidade.localEstoque.nome}</p>
+              </div>
+            )}
+            {necessidade.centroCusto && (
+              <div>
+                <p className="text-xs text-gray-500">Centro de Custo</p>
+                <p className="text-sm font-medium">{necessidade.centroCusto.codigo} — {necessidade.centroCusto.nome}</p>
+              </div>
+            )}
             {necessidade.justificativa && (
               <div className="md:col-span-3">
-                <p className="text-xs text-gray-500">Justificativa</p>
+                <p className="text-xs text-gray-500">Justificativa / Descrição</p>
                 <p className="text-sm text-gray-700 mt-1">{necessidade.justificativa}</p>
               </div>
             )}
@@ -205,6 +266,7 @@ export default function NecessidadeDetailPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Código</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Descrição</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">Qtd. Solicitada</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-16">Un.</th>
                   {necessidade.status === "APROVADA" && (
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Qtd. Aprovada</th>
                   )}
@@ -220,8 +282,10 @@ export default function NecessidadeDetailPage() {
                       {decimalToNumber(item.quantidade).toLocaleString("pt-BR", {
                         minimumFractionDigits: 0,
                         maximumFractionDigits: 3,
-                      })}{" "}
-                      {item.item.unidadeMedida}
+                      })}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                      {item.item.unidade?.sigla ?? item.item.unidadeMedida}
                     </td>
                     {necessidade.status === "APROVADA" && (
                       <td className="px-4 py-3 text-right text-green-700 font-medium">
@@ -261,10 +325,7 @@ export default function NecessidadeDetailPage() {
         {/* Action buttons */}
         <div className="space-y-4">
           {necessidade.status === "RASCUNHO" && (
-            <Button
-              onClick={() => changeStatus("AGUARDANDO_APROVACAO")}
-              disabled={actioning}
-            >
+            <Button onClick={() => changeStatus("AGUARDANDO_APROVACAO")} disabled={actioning}>
               {actioning ? "Enviando..." : "Enviar para Aprovação"}
             </Button>
           )}
@@ -361,6 +422,35 @@ export default function NecessidadeDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Delete confirm modal */}
+      {showDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">Excluir solicitação?</p>
+                <p className="text-sm text-gray-500 mt-0.5">{necessidade.numero}</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">Esta ação é permanente e não pode ser desfeita.</p>
+            {deleteError && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{deleteError}</p>
+            )}
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowDelete(false)} disabled={deleteLoading}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleteLoading}>
+                {deleteLoading ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />Excluindo...</> : <><Trash2 className="w-4 h-4 mr-1" />Excluir</>}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

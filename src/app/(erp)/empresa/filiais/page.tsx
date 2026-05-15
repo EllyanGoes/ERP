@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   GitBranch, Plus, Pencil, Trash2, Loader2, AlertTriangle,
-  X, Save, Check, Search,
+  X, Save, Check, Search, MapPin,
 } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -382,9 +383,19 @@ export default function FiliaisPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-500">{f.telefone || <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-center">
-                      <span className="inline-flex items-center gap-1 text-gray-700 text-xs">
-                        {f._count.locaisEstoque}
-                      </span>
+                      {f._count.locaisEstoque > 0 ? (
+                        <Link
+                          href={`/suprimentos/locais-estoque?filialId=${f.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline text-xs font-medium"
+                          title="Ver locais de estoque desta filial"
+                        >
+                          <MapPin className="w-3.5 h-3.5" />
+                          {f._count.locaisEstoque}
+                        </Link>
+                      ) : (
+                        <span className="text-gray-300 text-xs">0</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={cn(

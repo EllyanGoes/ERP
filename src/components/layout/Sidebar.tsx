@@ -407,12 +407,8 @@ export default function Sidebar() {
   const dragStartX  = useRef(0);
   const dragStartW  = useRef(0);
 
-  // Auto-open active module on navigation
-  useEffect(() => {
-    if (stripCollapsed) return;
-    const active = allModules.find((m) => moduleIsActive(m, pathname));
-    if (active) setOpenId(active.id);
-  }, [pathname, stripCollapsed]);
+  // Note: no auto-open on pathname change — user controls which module panel is open.
+  // Initial open state is set by useState initializer above.
 
   // Sync CSS variable
   useEffect(() => {
