@@ -458,11 +458,11 @@ export default function ColaboradorDetailPage() {
         )}
 
         {/* Fluxos de aprovação */}
-        {colaborador.etapasAprovacao.length > 0 && (
+        {(colaborador.etapasAprovacao?.length ?? 0) > 0 && (
           <Card>
             <CardHeader className="pb-3"><CardTitle className="text-base">Etapas de Aprovação</CardTitle></CardHeader>
             <CardContent className="space-y-2">
-              {colaborador.etapasAprovacao.map((e) => (
+              {(colaborador.etapasAprovacao ?? []).map((e) => (
                 <div key={e.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-4 py-3 text-sm">
                   <span className="font-mono text-xs font-bold text-blue-600 w-6 text-center">{e.ordem}</span>
                   <div>
