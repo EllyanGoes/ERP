@@ -45,6 +45,7 @@ import {
   GitBranch,
   UserCheck,
   Plug,
+  ThumbsUp,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -59,7 +60,7 @@ interface NavItem {
 }
 
 interface SubSection {
-  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações";
+  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações" | "Aprovações";
   items: NavItem[];
 }
 
@@ -146,6 +147,12 @@ const mainModules: Module[] = [
     label: "Compras",
     icon: ShoppingBag,
     sections: [
+      {
+        kind: "Aprovações" as SubSection["kind"],
+        items: [
+          { href: "/aprovacoes", label: "Minhas Aprovações", icon: ThumbsUp },
+        ],
+      },
       {
         kind: "Fluxo de Compras",
         items: [
@@ -235,6 +242,7 @@ const kindStyle: Record<SubSection["kind"], string> = {
   Compras:            "text-amber-500",
   Financeiro:         "text-emerald-600",
   Configurações:      "text-purple-500",
+  "Aprovações":       "text-emerald-600",
 };
 
 // ── Tooltip wrapper (portal-based) ────────────────────────────────────────────
@@ -400,6 +408,23 @@ function UserDropdown({
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, canAccess } = useSession();
+
+  // ── Pending approvals badge ────────────────────────────────────────────────
+  const [pendingAprov, setPendingAprov] = useState(0);
+  useEffect(() => {
+    async function fetchPending() {
+      try {
+        const res = await fetch("/api/aprovacoes?status=PENDENTE&limit=1");
+        if (res.ok) {
+          const d = await res.json();
+          setPendingAprov(d.pendingCount ?? 0);
+        }
+      } catch { /* ignore */ }
+    }
+    fetchPending();
+    const timer = setInterval(fetchPending, 60_000); // poll every 60s
+    return () => clearInterval(timer);
+  }, []);
 
   // Visible main modules (exclude admin)
   const visibleMain  = mainModules.filter((mod) => canAccess(mod.id));
@@ -700,7 +725,12 @@ export default function Sidebar() {
                             )}
                           >
                             <Icon className={cn("w-3.5 h-3.5 shrink-0", active ? "text-blue-500" : "text-gray-300")} />
-                            <span className="truncate">{item.label}</span>
+                            <span className="truncate flex-1">{item.label}</span>
+                            {item.href === "/aprovacoes" && pendingAprov > 0 && (
+                              <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
+                                {pendingAprov > 99 ? "99+" : pendingAprov}
+                              </span>
+                            )}
                           </Link>
                         );
                       })}
