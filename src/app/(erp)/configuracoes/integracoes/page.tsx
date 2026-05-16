@@ -173,11 +173,7 @@ export default function IntegracoesPage() {
       if (!hasCreds) {
         setWaStatus("unconfigured");
       } else {
-        checkStatus(prov, {
-          evoUrl: cfg.wa_evolution_url ?? "", evoInstance: cfg.wa_evolution_instance ?? "", evoKey: cfg.wa_evolution_apikey ?? "",
-          phoneId: cfg.wa_meta_phone_id ?? "", token: cfg.wa_meta_access_token ?? "",
-          instanceId: cfg.wa_zapi_instance_id ?? "", zapiTok: cfg.wa_zapi_token ?? "", security: cfg.wa_zapi_security_token ?? "",
-        });
+        checkStatus();
       }
     } catch {
       setWaStatus("unconfigured");
@@ -188,82 +184,24 @@ export default function IntegracoesPage() {
 
   useEffect(() => { loadConfig(); }, [loadConfig]);
 
-  // ── Check connection ──────────────────────────────────────────────────────────
-  async function checkStatus(prov: Provider, creds: {
-    evoUrl: string; evoInstance: string; evoKey: string;
-    phoneId: string; token: string;
-    instanceId: string; zapiTok: string; security: string;
-  }) {
+  // ── Check connection (server-side proxy — avoids CORS) ───────────────────────
+  async function checkStatus() {
     setWaStatus("checking"); setWaStatusMsg("");
     try {
-      if (prov === "evolution") {
-        // GET {url}/instance/fetchInstances — list instances to check connectivity
-        const res = await fetch(
-          `${creds.evoUrl.replace(/\/$/, "")}/instance/fetchInstances`,
-          { headers: { apikey: creds.evoKey } }
-        );
-        if (res.ok) {
-          const data = await res.json();
-          // Find our instance in the response
-          const instances = Array.isArray(data) ? data : [];
-          const found = instances.find(
-            (i: { instance?: { instanceName?: string }; name?: string }) =>
-              i?.instance?.instanceName === creds.evoInstance || i?.name === creds.evoInstance
-          );
-          const state: string | undefined =
-            found?.instance?.state ?? found?.connectionStatus ?? found?.status;
-          const connected = state === "open" || state === "connected";
-          setWaStatus(connected ? "ok" : "error");
-          setWaStatusMsg(connected ? `Instância: ${creds.evoInstance}` : `Estado: ${state ?? "desconectado"}`);
-        } else {
-          const err = await res.json().catch(() => ({}));
-          setWaStatus("error");
-          setWaStatusMsg(err?.message ?? `HTTP ${res.status}`);
-        }
-      } else if (prov === "meta") {
-        const res = await fetch(
-          `https://graph.facebook.com/v19.0/${creds.phoneId}`,
-          { headers: { Authorization: `Bearer ${creds.token}` } }
-        );
-        if (res.ok) {
-          const d = await res.json();
-          setWaStatus("ok");
-          setWaStatusMsg(d.display_phone_number ? `Número: ${d.display_phone_number}` : "");
-        } else {
-          const err = await res.json().catch(() => ({}));
-          setWaStatus("error");
-          setWaStatusMsg(err?.error?.message ?? `HTTP ${res.status}`);
-        }
-      } else {
-        const headers: Record<string, string> = {};
-        if (creds.security) headers["Client-Token"] = creds.security;
-        const res = await fetch(
-          `https://api.z-api.io/instances/${creds.instanceId}/token/${creds.zapiTok}/status`,
-          { headers }
-        );
-        if (res.ok) {
-          const d = await res.json();
-          setWaStatus(d?.connected ? "ok" : "error");
-          setWaStatusMsg(d?.connected ? "Instância conectada" : "Instância desconectada");
-        } else {
-          setWaStatus("error");
-          setWaStatusMsg(`HTTP ${res.status}: credenciais inválidas`);
-        }
-      }
+      const res = await fetch("/api/configuracoes/integracoes/status");
+      const d   = await res.json() as { connected: boolean; reason?: string };
+      setWaStatus(d.connected ? "ok" : "error");
+      setWaStatusMsg(d.reason ?? "");
     } catch {
       setWaStatus("error");
-      setWaStatusMsg("Sem resposta do servidor — verifique a URL e a conectividade");
+      setWaStatusMsg("Sem resposta do servidor");
     }
   }
 
   // ── Test ─────────────────────────────────────────────────────────────────────
   async function handleTest() {
     setTesting(true);
-    await checkStatus(provider, {
-      evoUrl: evoUrl, evoInstance: evoInstance, evoKey: evoApiKey,
-      phoneId: metaPhoneId, token: metaToken,
-      instanceId: zapiInstanceId, zapiTok: zapiToken, security: zapiSecurity,
-    });
+    await checkStatus();
     setTesting(false);
   }
 
@@ -289,11 +227,7 @@ export default function IntegracoesPage() {
       if (!res.ok) { setSaveMsg({ type: "err", text: (await res.json()).error || "Erro ao salvar" }); return; }
       setSaveMsg({ type: "ok", text: "Configurações salvas!" });
       setDirty(false);
-      checkStatus(provider, {
-        evoUrl, evoInstance, evoKey: evoApiKey,
-        phoneId: metaPhoneId, token: metaToken,
-        instanceId: zapiInstanceId, zapiTok: zapiToken, security: zapiSecurity,
-      });
+      checkStatus();
     } catch {
       setSaveMsg({ type: "err", text: "Erro de conexão." });
     } finally {
@@ -364,11 +298,7 @@ export default function IntegracoesPage() {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  checkStatus(provider, {
-                    evoUrl, evoInstance, evoKey: evoApiKey,
-                    phoneId: metaPhoneId, token: metaToken,
-                    instanceId: zapiInstanceId, zapiTok: zapiToken, security: zapiSecurity,
-                  });
+                  checkStatus();
                 }}
                 className="p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
                 title="Verificar conexão"
