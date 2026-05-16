@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
-import { Pencil, Trash2, Loader2, AlertTriangle, Plus, Save, X, ChevronDown, Send, CheckCircle2, XCircle, Clock, MessageCircle, Users, GitBranch, Search } from "lucide-react";
+import { Pencil, Trash2, Loader2, AlertTriangle, Plus, Save, X, ChevronDown, Send, CheckCircle2, XCircle, Clock, MessageCircle, Users, Search, Copy, ExternalLink } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 // ── WA user type ──────────────────────────────────────────────────────────────
@@ -243,11 +243,11 @@ export default function NecessidadeDetailPage() {
   const [submittingAprovacaoError, setSubmittingAprovacaoError] = useState("");
   // Modal WhatsApp
   const [showWAModal,     setShowWAModal]     = useState(false);
-  const [waMode,          setWAMode]          = useState<"fluxo" | "direto">("fluxo");
   const [waAprovadorId,   setWAAprovadorId]   = useState("");
   const [waUserSearch,    setWAUserSearch]    = useState("");
   const [waUsers,         setWAUsers]         = useState<WAUser[]>([]);
   const [waUsersLoading,  setWAUsersLoading]  = useState(false);
+  const [waCopied,        setWACopied]        = useState(false);
 
   // ── Edit mode state ──────────────────────────────────────────────────────────
   const [editMode, setEditMode] = useState(false);
@@ -344,28 +344,76 @@ export default function NecessidadeDetailPage() {
     finally   { setActioning(false); }
   }
 
-  // ── Submeter aprovação WhatsApp ───────────────────────────────────────────────
+  // ── Modal WhatsApp ────────────────────────────────────────────────────────────
   async function openWAModal() {
     setShowWAModal(true);
-    setWAMode("fluxo");
     setWAAprovadorId("");
     setWAUserSearch("");
+    setWACopied(false);
     setSubmittingAprovacaoError("");
-    // Load colaboradores for direct mode (preferred — they have WhatsApp numbers)
     setWAUsersLoading(true);
     try {
       const res  = await fetch("/api/empresa/colaboradores?ativo=true");
       const json = await res.json();
       const list: WAUser[] = (Array.isArray(json) ? json : []).map((c: WAUser) => ({
-        id:      c.id,
-        nome:    c.nome,
-        email:   undefined,
-        telefone: c.telefone,
-        _type:   "colaborador" as const,
+        id: c.id, nome: c.nome, email: undefined,
+        telefone: c.telefone, _type: "colaborador" as const,
       }));
       setWAUsers(list);
     } catch { /* ignore */ }
     finally { setWAUsersLoading(false); }
+  }
+
+  function buildWAMessage() {
+    if (!necessidade) return "";
+    const prioLabel: Record<number, string> = { 1: "1 - Muito Baixa", 2: "2 - Baixa", 3: "3 - Média", 4: "4 - Alta", 5: "5 - Crítica" };
+    const itensLines = necessidade.itens.map((it, i) =>
+      `  ${i + 1}. ${it.item.descricao} — ${decimalToNumber(it.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} ${it.unidade ?? it.item.unidade?.sigla ?? it.item.unidadeMedida ?? "un"}`
+    );
+    return [
+      `*Solicitação de Compras Nº ${necessidade.numero}*`,
+      ``,
+      `• *Filial:* ${necessidade.filial?.nomeFantasia ?? necessidade.filial?.razaoSocial ?? "—"}`,
+      `• *Solicitado por:* ${necessidade.solicitante ?? "—"}`,
+      `• *Data:* ${new Date(necessidade.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`,
+      `• *Prioridade:* ${prioLabel[necessidade.prioridade] ?? necessidade.prioridade}`,
+      ...(necessidade.justificativa ? [`• *Descrição:* ${necessidade.justificativa}`] : []),
+      ``,
+      `*Itens (${necessidade.itens.length}):*`,
+      ...itensLines,
+      ``,
+      `Aguardo sua aprovação. Responda com: ✅ Aprovado ou ❌ Reprovado`,
+    ].join("\n");
+  }
+
+  async function copyWAMessage() {
+    await navigator.clipboard.writeText(buildWAMessage());
+    setWACopied(true);
+    setTimeout(() => setWACopied(false), 2500);
+  }
+
+  function openWhatsApp() {
+    const approver = waUsers.find((u) => u.id === waAprovadorId);
+    const msg = buildWAMessage();
+    const encoded = encodeURIComponent(msg);
+    if (approver?.telefone) {
+      const phone = approver.telefone.replace(/\D/g, "");
+      const normalized = phone.startsWith("55") ? phone : `55${phone}`;
+      window.open(`https://wa.me/${normalized}?text=${encoded}`, "_blank");
+    } else {
+      // No phone — open WhatsApp Web without pre-selecting contact
+      window.open(`https://web.whatsapp.com/send?text=${encoded}`, "_blank");
+    }
+    // Still register the approval in DB (tracking only, non-blocking)
+    if (necessidade && waAprovadorId) {
+      fetch(`/api/compras/necessidades/${necessidade.id}/submeter-aprovacao`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modo: "direto", colaboradorId: waAprovadorId }),
+      }).catch(() => {});
+    }
+    setShowWAModal(false);
+    setTimeout(() => load(), 1500);
   }
 
   async function submeterAprovacao() {
@@ -742,12 +790,32 @@ export default function NecessidadeDetailPage() {
               </>
             )}
 
+            {/* Botão WA — disponível enquanto não aprovada/cancelada */}
+            {["RASCUNHO", "AGUARDANDO_APROVACAO", "REPROVADA"].includes(necessidade.status) && (
+              <Button size="sm" variant="outline"
+                className="border-green-500 text-green-700 hover:bg-green-50 gap-1.5"
+                onClick={openWAModal}
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                Encaminhar Aprovação
+              </Button>
+            )}
+
             {/* APROVADA */}
             {necessidade.status === "APROVADA" && (
-              <Button size="sm" onClick={gerarCotacao} disabled={actioning}>
-                {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
-                Gerar Cotação
-              </Button>
+              <>
+                <Button size="sm" variant="outline"
+                  className="border-green-500 text-green-700 hover:bg-green-50 gap-1.5"
+                  onClick={openWAModal}
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  Encaminhar Aprovação
+                </Button>
+                <Button size="sm" onClick={gerarCotacao} disabled={actioning}>
+                  {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                  Gerar Cotação
+                </Button>
+              </>
             )}
           </div>
         }
@@ -864,26 +932,12 @@ export default function NecessidadeDetailPage() {
               </Card>
             )}
 
-            {/* ── Aprovações WhatsApp ───────────────────────────────────────── */}
+            {/* ── Histórico de Aprovações ───────────────────────────────────── */}
             <Card>
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <MessageCircle className="w-4 h-4 text-green-600" />
-                    <CardTitle className="text-base">Aprovações via WhatsApp</CardTitle>
-                  </div>
-                  {["RASCUNHO", "AGUARDANDO_APROVACAO", "REPROVADA"].includes(necessidade.status) && (
-                      <Button
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        onClick={openWAModal}
-                      >
-                        <Send className="w-3.5 h-3.5 mr-1.5" />
-                        {(necessidade.aprovacoes ?? []).some((a) => a.status === "PENDENTE")
-                          ? "Reenviar para Aprovação"
-                          : "Enviar para Aprovação"}
-                      </Button>
-                    )}
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4 text-green-600" />
+                  <CardTitle className="text-base">Histórico de Aprovações</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
@@ -1059,10 +1113,11 @@ export default function NecessidadeDetailPage() {
         </div>
       )}
 
-      {/* ── Modal WhatsApp — Enviar para Aprovação ──────────────────────────── */}
+      {/* ── Modal Encaminhar Aprovação ──────────────────────────────────────── */}
       {showWAModal && necessidade && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
+
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 shrink-0">
               <div className="flex items-center gap-2">
@@ -1070,7 +1125,7 @@ export default function NecessidadeDetailPage() {
                   <MessageCircle className="w-4 h-4 text-green-600" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-gray-900">Enviar para Aprovação</h2>
+                  <h2 className="font-semibold text-gray-900">Encaminhar para Aprovação</h2>
                   <p className="text-xs text-gray-400 mt-0.5 font-mono">{necessidade.numero}</p>
                 </div>
               </div>
@@ -1081,160 +1136,87 @@ export default function NecessidadeDetailPage() {
 
             <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
 
-              {/* Mode selector */}
+              {/* Aprovador */}
               <div className="space-y-2">
-                <Label className="text-xs text-gray-500 uppercase tracking-wide">Tipo de Aprovação</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setWAMode("fluxo"); setWAAprovadorId(""); setSubmittingAprovacaoError(""); }}
-                    className={cn(
-                      "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-colors text-sm",
-                      waMode === "fluxo"
-                        ? "border-blue-500 bg-blue-50 text-blue-700"
-                        : "border-gray-200 text-gray-500 hover:border-gray-300"
-                    )}
-                  >
-                    <GitBranch className="w-5 h-5" />
-                    <span className="font-medium">Via Fluxo</span>
-                    <span className="text-xs text-center opacity-70">Aprovador automático por alçada de valor</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setWAMode("direto"); setSubmittingAprovacaoError(""); }}
-                    className={cn(
-                      "flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-colors text-sm",
-                      waMode === "direto"
-                        ? "border-blue-500 bg-blue-50 text-blue-700"
-                        : "border-gray-200 text-gray-500 hover:border-gray-300"
-                    )}
-                  >
-                    <Users className="w-5 h-5" />
-                    <span className="font-medium">Aprovador Direto</span>
-                    <span className="text-xs text-center opacity-70">Escolha manualmente quem aprova</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Direct: user search */}
-              {waMode === "direto" && (
-                <div className="space-y-2">
-                  <Label className="text-xs text-gray-500 uppercase tracking-wide">Selecionar Aprovador</Label>
-                  {waUsersLoading ? (
-                    <div className="flex items-center gap-2 py-3 text-sm text-gray-400">
-                      <Loader2 className="w-4 h-4 animate-spin" /> Carregando usuários...
-                    </div>
-                  ) : (
-                    <>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                        <input
-                          type="text"
-                          value={waUserSearch}
-                          onChange={(e) => setWAUserSearch(e.target.value)}
-                          placeholder="Buscar por nome ou e-mail..."
-                          className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        />
-                      </div>
-                      <div className="border border-gray-200 rounded-xl overflow-hidden max-h-44 overflow-y-auto">
-                        {waUsers
-                          .filter((u) => {
-                            const q = waUserSearch.toLowerCase();
-                            return !q || u.nome.toLowerCase().includes(q) || (u.email ?? "").toLowerCase().includes(q);
-                          })
-                          .map((u) => (
-                            <button
-                              key={u.id}
-                              type="button"
-                              onClick={() => { setWAAprovadorId(u.id); setSubmittingAprovacaoError(""); }}
-                              className={cn(
-                                "w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0",
-                                waAprovadorId === u.id && "bg-blue-50"
-                              )}
-                            >
-                              <div className="text-left">
-                                <p className={cn("font-medium", waAprovadorId === u.id ? "text-blue-700" : "text-gray-900")}>{u.nome}</p>
-                                {u.email && <p className="text-xs text-gray-400">{u.email}</p>}
-                              </div>
-                              {u.telefone ? (
-                                <span className="text-xs text-gray-400 font-mono shrink-0">{u.telefone}</span>
-                              ) : (
-                                <span className="text-xs text-red-400 shrink-0">sem telefone</span>
-                              )}
-                            </button>
-                          ))}
-                        {waUsers.length === 0 && (
-                          <p className="px-4 py-3 text-sm text-gray-400 italic">Nenhum usuário encontrado.</p>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Message preview */}
-              <div className="space-y-2">
-                <Label className="text-xs text-gray-500 uppercase tracking-wide">Preview da Mensagem</Label>
-                <div className="bg-[#e9ffd9] border border-green-200 rounded-xl p-4 space-y-1 text-sm text-gray-800 font-mono leading-relaxed">
-                  <p className="font-bold">Ordem de Compras Nº {necessidade.numero}</p>
-                  <p className="mb-1" />
-                  <p>• <span className="font-semibold">Filial:</span> {necessidade.filial?.nomeFantasia ?? necessidade.filial?.razaoSocial ?? "—"}</p>
-                  <p>• <span className="font-semibold">Solicitado por:</span> {necessidade.solicitante ?? "—"}</p>
-                  <p>• <span className="font-semibold">Data:</span> {new Date(necessidade.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
-                  <p>• <span className="font-semibold">Prioridade:</span> {necessidade.prioridade} - {{ 1: "Muito Baixa", 2: "Baixa", 3: "Média", 4: "Alta", 5: "Crítica" }[necessidade.prioridade]}</p>
-                  {necessidade.justificativa && (
-                    <p>• <span className="font-semibold">Descrição:</span> {necessidade.justificativa}</p>
-                  )}
-                  <p className="mb-1" />
-                  <p className="font-semibold">Itens ({necessidade.itens.length}):</p>
-                  {necessidade.itens.map((it, i) => (
-                    <p key={it.id}>
-                      {i + 1}. {it.item.descricao} —{" "}
-                      {decimalToNumber(it.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })}{" "}
-                      {it.unidade ?? it.item.unidade?.sigla ?? it.item.unidadeMedida ?? "un"}
-                    </p>
-                  ))}
-                  <p className="mt-2 text-xs text-gray-500 italic">Responda com um dos botões abaixo:</p>
-                  <div className="flex gap-2 mt-1 flex-wrap">
-                    {["✅ Aprovar", "❌ Reprovar", "🔍 Detalhes"].map((b) => (
-                      <span key={b} className="bg-white border border-green-300 rounded-lg px-3 py-1 text-xs text-green-800 font-sans">{b}</span>
-                    ))}
+                <Label className="text-xs text-gray-500 uppercase tracking-wide">Aprovador</Label>
+                {waUsersLoading ? (
+                  <div className="flex items-center gap-2 py-3 text-sm text-gray-400">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={waUserSearch}
+                        onChange={(e) => setWAUserSearch(e.target.value)}
+                        placeholder="Buscar colaborador..."
+                        className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400"
+                      />
+                    </div>
+                    <div className="border border-gray-200 rounded-xl overflow-hidden max-h-40 overflow-y-auto">
+                      {waUsers
+                        .filter((u) => {
+                          const q = waUserSearch.toLowerCase();
+                          return !q || u.nome.toLowerCase().includes(q);
+                        })
+                        .map((u) => (
+                          <button key={u.id} type="button"
+                            onClick={() => setWAAprovadorId(u.id)}
+                            className={cn(
+                              "w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0",
+                              waAprovadorId === u.id && "bg-green-50"
+                            )}
+                          >
+                            <p className={cn("font-medium", waAprovadorId === u.id ? "text-green-700" : "text-gray-900")}>{u.nome}</p>
+                            {u.telefone
+                              ? <span className="text-xs text-gray-400 font-mono">{u.telefone}</span>
+                              : <span className="text-xs text-red-400">sem telefone</span>}
+                          </button>
+                        ))}
+                      {waUsers.length === 0 && <p className="px-4 py-3 text-sm text-gray-400 italic">Nenhum colaborador encontrado.</p>}
+                    </div>
+                  </>
+                )}
               </div>
 
-              {submittingAprovacaoError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2.5 rounded-xl text-sm flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{submittingAprovacaoError}</span>
+              {/* Preview da mensagem */}
+              <div className="space-y-2">
+                <Label className="text-xs text-gray-500 uppercase tracking-wide">Mensagem</Label>
+                <div className="bg-[#e9ffd9] border border-green-200 rounded-xl p-4 text-sm text-gray-800 font-mono leading-relaxed whitespace-pre-wrap select-all">
+                  {buildWAMessage()}
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between shrink-0 bg-gray-50 rounded-b-2xl">
-              <p className="text-xs text-gray-400">
-                {waMode === "fluxo" ? "Aprovador determinado pela alçada configurada" : (
-                  waAprovadorId
-                    ? `Aprovador: ${waUsers.find((u) => u.id === waAprovadorId)?.nome ?? ""}`
-                    : "Selecione um aprovador"
-                )}
-              </p>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowWAModal(false)} disabled={submittingAprovacao}>
-                  Cancelar
+            <div className="px-6 py-4 border-t border-gray-100 shrink-0 bg-gray-50 rounded-b-2xl">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowWAModal(false)}>
+                  Fechar
                 </Button>
-                <Button
-                  size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                  onClick={submeterAprovacao}
-                  disabled={submittingAprovacao || (waMode === "direto" && !waAprovadorId)}
+                <Button type="button" variant="outline" size="sm" onClick={copyWAMessage}
+                  className={cn("gap-1.5", waCopied && "border-green-400 text-green-700 bg-green-50")}>
+                  <Copy className="w-3.5 h-3.5" />
+                  {waCopied ? "Copiado!" : "Copiar mensagem"}
+                </Button>
+                <Button type="button" size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                  onClick={openWhatsApp}
                 >
-                  {submittingAprovacao
-                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Enviando...</>
-                    : <><Send className="w-3.5 h-3.5 mr-1.5" />Enviar via WhatsApp</>}
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  {waAprovadorId ? "Abrir no WhatsApp" : "Abrir WhatsApp Web"}
                 </Button>
               </div>
+              {waAprovadorId && (
+                <p className="text-xs text-gray-400 mt-2 text-right">
+                  {(() => {
+                    const a = waUsers.find((u) => u.id === waAprovadorId);
+                    return a?.telefone ? `Vai abrir conversa com ${a.nome} (${a.telefone})` : `Abrirá o WhatsApp Web — selecione ${a?.nome} manualmente`;
+                  })()}
+                </p>
+              )}
             </div>
           </div>
         </div>
