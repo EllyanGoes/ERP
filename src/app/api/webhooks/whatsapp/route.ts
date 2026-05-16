@@ -149,6 +149,11 @@ export async function POST(req: NextRequest) {
       const proxAprovadorId = proxEtapa?.colaborador?.usuarioId ?? proxEtapa?.aprovadorId ?? null;
 
       if (proxEtapa && proxTelefone && proxAprovadorId) {
+        // Remover pendentes anteriores do mesmo aprovador nesta SC
+        await prisma.aprovacaoSC.deleteMany({
+          where: { necessidadeId: sc.id, aprovadorId: proxAprovadorId, status: "PENDENTE" },
+        });
+
         // Create next AprovacaoSC and send WA
         const nova = await prisma.aprovacaoSC.create({
           data: {

@@ -233,6 +233,17 @@ export async function POST(
       etapaNome,
     });
 
+    // ── Garantir 1 aprovação pendente por pessoa por SC ──────────────────────
+    // Remove entradas PENDENTE anteriores para este aprovador nesta SC
+    // para evitar duplicatas ao reenviar.
+    await prisma.aprovacaoSC.deleteMany({
+      where: {
+        necessidadeId: sc.id,
+        aprovadorId:   aprovadorResolved.id,
+        status:        "PENDENTE",
+      },
+    });
+
     // ── Create AprovacaoSC ────────────────────────────────────────────────────
     const aprovacao = await prisma.aprovacaoSC.create({
       data: {
