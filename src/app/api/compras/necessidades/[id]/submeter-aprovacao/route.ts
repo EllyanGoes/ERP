@@ -252,7 +252,11 @@ export async function POST(
     });
 
     // ── Send WA ───────────────────────────────────────────────────────────────
-    const phone = aprovadorResolved.telefone.replace(/\D/g, "");
+    // Normalize Brazilian phone: strip non-digits, then ensure country code 55
+    // Valid formats stored in DB: "47999999999" (11 digits) or "4799999999" (10 digits)
+    // Z-API expects: "5547999999999" (13 digits) or "554799999999" (12 digits)
+    const rawPhone = aprovadorResolved.telefone.replace(/\D/g, "");
+    const phone = rawPhone.startsWith("55") ? rawPhone : `55${rawPhone}`;
     const waResult = await sendWAMessage({
       to: phone,
       body: msgBody,
