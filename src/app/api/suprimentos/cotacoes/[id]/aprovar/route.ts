@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { generateDocNumber } from "@/lib/utils";
+import { generateSimpleDocNumber } from "@/lib/utils";
 
 // POST /api/suprimentos/cotacoes/[id]/aprovar
 // Marks the cotação as CONCLUIDA and generates a PedidoCompra from the melhorOpcao supplier
@@ -53,13 +53,18 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
         create: { prefixo: "PC", ultimo: 1 },
         update: { ultimo: { increment: 1 } },
       });
-      const numero = generateDocNumber("PC", seq.ultimo);
+      const numero = generateSimpleDocNumber("PC", seq.ultimo);
 
       const itensComPreco = melhor.itens.filter((i) => i.precoUnitario != null);
-      const valorTotal = itensComPreco.reduce(
-        (sum, i) => sum + parseFloat(String(i.subtotal ?? 0)),
-        0
-      );
+      const parsedItens = itensComPreco.map((i) => {
+        const qtd     = parseFloat(String(i.quantidade ?? 0));
+        const preco   = parseFloat(String(i.precoUnitario ?? 0));
+        // prefer stored subtotal; fallback to qtd × preço
+        const sub     = parseFloat(String(i.subtotal ?? 0));
+        const vlTotal = sub > 0 ? sub : qtd * preco;
+        return { itemId: i.itemId, quantidade: qtd, precoUnitario: preco, valorTotal: vlTotal };
+      });
+      const valorTotal = parsedItens.reduce((sum, i) => sum + i.valorTotal, 0);
 
       const pedidoCompra = await tx.pedidoCompra.create({
         data: {
@@ -68,12 +73,7 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
           fornecedorId: melhor.fornecedorId,
           valorTotal,
           itens: {
-            create: itensComPreco.map((i) => ({
-              itemId: i.itemId,
-              quantidade: parseFloat(String(i.quantidade)),
-              precoUnitario: parseFloat(String(i.precoUnitario ?? 0)),
-              valorTotal: parseFloat(String(i.subtotal ?? 0)),
-            })),
+            create: parsedItens,
           },
         },
         include: {

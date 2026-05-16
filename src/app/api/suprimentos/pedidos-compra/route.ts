@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { generateDocNumber } from "@/lib/utils";
+import { generateSimpleDocNumber } from "@/lib/utils";
 
 export async function GET() {
   const data = await prisma.pedidoCompra.findMany({
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       create: { prefixo: "PC", ultimo: 1 },
       update: { ultimo: { increment: 1 } },
     });
-    const numero = generateDocNumber("PC", seq.ultimo);
+    const numero = generateSimpleDocNumber("PC", seq.ultimo);
 
     const parsedItens = itens.map((i: { itemId: string; quantidade: number; precoUnitario: number }) => ({
       itemId: i.itemId,

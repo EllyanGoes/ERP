@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { generateDocNumber } from "@/lib/utils";
+import { generateSimpleDocNumber } from "@/lib/utils";
 
 export async function GET() {
   const data = await prisma.cotacaoCompra.findMany({
@@ -42,11 +42,11 @@ export async function POST(req: NextRequest) {
 
   const cotacao = await prisma.$transaction(async (tx) => {
     const seq = await tx.sequencia.upsert({
-      where: { prefixo: "CQ" },
-      create: { prefixo: "CQ", ultimo: 1 },
+      where: { prefixo: "CT" },
+      create: { prefixo: "CT", ultimo: 1 },
       update: { ultimo: { increment: 1 } },
     });
-    const numero = generateDocNumber("CQ", seq.ultimo);
+    const numero = generateSimpleDocNumber("CT", seq.ultimo);
 
     const record = await tx.cotacaoCompra.create({
       data: {
