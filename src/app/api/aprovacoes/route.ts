@@ -15,9 +15,13 @@ export async function GET(req: NextRequest) {
   const limit  = Math.min(50, parseInt(searchParams.get("limit") ?? "20"));
   const skip   = (page - 1) * limit;
 
+  const validStatuses = ["PENDENTE", "APROVADO", "REPROVADO"] as const;
+  type AprovStatus = typeof validStatuses[number];
+  const statusFilter = validStatuses.includes(status as AprovStatus) ? (status as AprovStatus) : undefined;
+
   const where = {
     aprovadorId: session.sub,
-    ...(status !== "all" ? { status } : {}),
+    ...(statusFilter ? { status: statusFilter } : {}),
   };
 
   const [total, items] = await Promise.all([

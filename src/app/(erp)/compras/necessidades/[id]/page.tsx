@@ -242,12 +242,14 @@ export default function NecessidadeDetailPage() {
   const [submittingAprovacao, setSubmittingAprovacao] = useState(false);
   const [submittingAprovacaoError, setSubmittingAprovacaoError] = useState("");
   // Modal WhatsApp
-  const [showWAModal,     setShowWAModal]     = useState(false);
-  const [waAprovadorId,   setWAAprovadorId]   = useState("");
-  const [waUserSearch,    setWAUserSearch]    = useState("");
-  const [waUsers,         setWAUsers]         = useState<WAUser[]>([]);
-  const [waUsersLoading,  setWAUsersLoading]  = useState(false);
-  const [waCopied,        setWACopied]        = useState(false);
+  const [showWAModal,       setShowWAModal]       = useState(false);
+  const [waAprovadorId,     setWAAprovadorId]     = useState("");
+  const [waUserSearch,      setWAUserSearch]      = useState("");
+  const [waDropdownOpen,    setWADropdownOpen]    = useState(false);
+  const [waUsers,           setWAUsers]           = useState<WAUser[]>([]);
+  const [waUsersLoading,    setWAUsersLoading]    = useState(false);
+  const [waCopied,          setWACopied]          = useState(false);
+  const waDropdownRef = useRef<HTMLDivElement>(null);
 
   // ── Edit mode state ──────────────────────────────────────────────────────────
   const [editMode, setEditMode] = useState(false);
@@ -345,10 +347,24 @@ export default function NecessidadeDetailPage() {
   }
 
   // ── Modal WhatsApp ────────────────────────────────────────────────────────────
+
+  // Close WA approver dropdown on outside click
+  useEffect(() => {
+    if (!waDropdownOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (waDropdownRef.current && !waDropdownRef.current.contains(e.target as Node)) {
+        setWADropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [waDropdownOpen]);
+
   async function openWAModal() {
     setShowWAModal(true);
     setWAAprovadorId("");
     setWAUserSearch("");
+    setWADropdownOpen(false);
     setWACopied(false);
     setSubmittingAprovacaoError("");
     setWAUsersLoading(true);
@@ -416,34 +432,6 @@ export default function NecessidadeDetailPage() {
     setTimeout(() => load(), 1500);
   }
 
-  async function submeterAprovacao() {
-    if (waMode === "direto" && !waAprovadorId) {
-      setSubmittingAprovacaoError("Selecione um aprovador.");
-      return;
-    }
-    setSubmittingAprovacao(true); setSubmittingAprovacaoError("");
-    try {
-      const selectedUser = waUsers.find((u) => u.id === waAprovadorId);
-      const isColaborador = selectedUser?._type === "colaborador";
-
-      const res = await fetch(`/api/compras/necessidades/${id}/submeter-aprovacao`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          waMode === "direto"
-            ? isColaborador
-              ? { modo: "direto", colaboradorId: waAprovadorId }
-              : { modo: "direto", aprovadorId: waAprovadorId }
-            : { modo: "fluxo" }
-        ),
-      });
-      const json = await res.json();
-      if (!res.ok) { setSubmittingAprovacaoError(json.error || "Erro ao submeter aprovação"); return; }
-      setShowWAModal(false);
-      await load();
-    } catch { setSubmittingAprovacaoError("Erro de conexão"); }
-    finally   { setSubmittingAprovacao(false); }
-  }
 
   // ── Edit helpers ─────────────────────────────────────────────────────────────
   function enterEditMode() {
@@ -1136,7 +1124,7 @@ export default function NecessidadeDetailPage() {
 
             <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
 
-              {/* Aprovador */}
+              {/* Aprovador — combobox dropdown */}
               <div className="space-y-2">
                 <Label className="text-xs text-gray-500 uppercase tracking-wide">Aprovador</Label>
                 {waUsersLoading ? (
@@ -1144,41 +1132,79 @@ export default function NecessidadeDetailPage() {
                     <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
                   </div>
                 ) : (
-                  <>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                      <input
-                        type="text"
-                        value={waUserSearch}
-                        onChange={(e) => setWAUserSearch(e.target.value)}
-                        placeholder="Buscar colaborador..."
-                        className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400"
-                      />
-                    </div>
-                    <div className="border border-gray-200 rounded-xl overflow-hidden max-h-40 overflow-y-auto">
-                      {waUsers
-                        .filter((u) => {
-                          const q = waUserSearch.toLowerCase();
-                          return !q || u.nome.toLowerCase().includes(q);
-                        })
-                        .map((u) => (
-                          <button key={u.id} type="button"
-                            onClick={() => setWAAprovadorId(u.id)}
-                            className={cn(
-                              "w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0",
-                              waAprovadorId === u.id && "bg-green-50"
-                            )}
-                          >
-                            <p className={cn("font-medium", waAprovadorId === u.id ? "text-green-700" : "text-gray-900")}>{u.nome}</p>
-                            {u.telefone
-                              ? <span className="text-xs text-gray-400 font-mono">{u.telefone}</span>
-                              : <span className="text-xs text-red-400">sem telefone</span>}
-                          </button>
-                        ))}
-                      {waUsers.length === 0 && <p className="px-4 py-3 text-sm text-gray-400 italic">Nenhum colaborador encontrado.</p>}
-                    </div>
-                  </>
+                  <div className="relative" ref={waDropdownRef}>
+                    {/* Trigger */}
+                    <button
+                      type="button"
+                      onClick={() => { setWADropdownOpen((p) => !p); setWAUserSearch(""); }}
+                      className={cn(
+                        "flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg border bg-white text-left transition-colors",
+                        waDropdownOpen ? "border-green-400 ring-1 ring-green-200" : "border-gray-200 hover:border-gray-300"
+                      )}
+                    >
+                      {waAprovadorId ? (
+                        <span className="text-gray-900 font-medium">
+                          {waUsers.find((u) => u.id === waAprovadorId)?.nome ?? "—"}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">Selecionar aprovador...</span>
+                      )}
+                      <ChevronDown className={cn("w-4 h-4 text-gray-400 shrink-0 transition-transform", waDropdownOpen && "rotate-180")} />
+                    </button>
+
+                    {/* Dropdown panel */}
+                    {waDropdownOpen && (
+                      <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                        {/* Search input inside dropdown */}
+                        <div className="relative border-b border-gray-100">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                          <input
+                            type="text"
+                            autoFocus
+                            value={waUserSearch}
+                            onChange={(e) => setWAUserSearch(e.target.value)}
+                            placeholder="Buscar colaborador..."
+                            className="w-full pl-8 pr-3 py-2.5 text-sm focus:outline-none bg-transparent placeholder:text-gray-400"
+                          />
+                        </div>
+                        {/* Results */}
+                        <div className="max-h-52 overflow-y-auto">
+                          {(() => {
+                            const q = waUserSearch.toLowerCase();
+                            const filtered = waUsers.filter((u) => !q || u.nome.toLowerCase().includes(q));
+                            if (filtered.length === 0) {
+                              return <p className="px-4 py-3 text-sm text-gray-400 italic">Nenhum resultado.</p>;
+                            }
+                            return filtered.map((u) => (
+                              <button key={u.id} type="button"
+                                onClick={() => { setWAAprovadorId(u.id); setWADropdownOpen(false); setWAUserSearch(""); }}
+                                className={cn(
+                                  "w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0",
+                                  waAprovadorId === u.id && "bg-green-50"
+                                )}
+                              >
+                                <span className={cn("font-medium", waAprovadorId === u.id ? "text-green-700" : "text-gray-900")}>{u.nome}</span>
+                                {u.telefone
+                                  ? <span className="text-xs text-gray-400 font-mono">{u.telefone}</span>
+                                  : <span className="text-xs text-red-400">sem telefone</span>}
+                              </button>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
+                {/* Show phone of selected approver */}
+                {waAprovadorId && (() => {
+                  const a = waUsers.find((u) => u.id === waAprovadorId);
+                  return a ? (
+                    <p className="text-xs text-gray-400 flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      {a.telefone ? <span className="font-mono">{a.telefone}</span> : <span className="text-red-400">Sem telefone cadastrado</span>}
+                    </p>
+                  ) : null;
+                })()}
               </div>
 
               {/* Preview da mensagem */}
