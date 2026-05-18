@@ -30,6 +30,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     include: {
       produtos: { include: { item: { select: { id: true, codigo: true, descricao: true } } } },
       pedidosCompra: { orderBy: { createdAt: "desc" }, take: 10 },
+      contatos: { orderBy: [{ principal: "desc" }, { nome: "asc" }] },
     },
   });
   if (!record) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
@@ -65,6 +66,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   }
   // Remove product links first, then delete
   await prisma.$transaction([
+    prisma.fornecedorContato.deleteMany({ where: { fornecedorId: params.id } }),
     prisma.produtoFornecedor.deleteMany({ where: { fornecedorId: params.id } }),
     prisma.fornecedor.delete({ where: { id: params.id } }),
   ]);

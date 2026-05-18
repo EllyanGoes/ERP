@@ -231,6 +231,7 @@ model Fornecedor {
 
   contasPagar       ContaPagar[]
   produtos          ProdutoFornecedor[]
+  contatos          FornecedorContato[]
   cotacoes          CotacaoFornecedor[]
   pedidosCompra     PedidoCompra[]
 }
@@ -391,19 +392,42 @@ model ItemUnidade {
 
 // Produto x Fornecedor — relacionamento com histórico de preço
 model ProdutoFornecedor {
-  id               String     @id @default(cuid())
+  id               String    @id @default(cuid())
   itemId           String
-  item             Item       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  item             Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
   fornecedorId     String
   fornecedor       Fornecedor @relation(fields: [fornecedorId], references: [id])
-  codigoFornecedor String?    // código do produto no catálogo do fornecedor
-  precoUltimo      Decimal?   @db.Decimal(15, 2)
+  codigoFornecedor String?   // código do produto no catálogo do fornecedor
+  especificacao    String?   // especificação técnica
+  tempoResuprimento Int?     // dias
+  classificacao    String?   // ex: "002 - BOM"
+  percentual       Decimal?  @db.Decimal(5, 2)   // %
+  precoUltimo      Decimal?  @db.Decimal(15, 2)  // valor última compra
+  dataUltimaCompra DateTime?
+  indiceFinanceiro String?   // símbolo/moeda: "R$", "US$"
+  qtdeUltimaCompra Decimal?  @db.Decimal(15, 3)
+  unidade          String?   // unidade na última compra
+  ultimaQtdeDev    Decimal?  @db.Decimal(15, 3)  // última quantidade devolvida
   prazoEntregaDias Int?
-  ativo            Boolean    @default(true)
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  ativo            Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@unique([itemId, fornecedorId])
+}
+
+model FornecedorContato {
+  id           String     @id @default(cuid())
+  fornecedorId String
+  fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  nome         String
+  cargo        String?
+  telefone     String?
+  ramal        String?
+  email        String?
+  principal    Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 }
 
 // ─── ESTOQUE ──────────────────────────────────────────────────────────────────

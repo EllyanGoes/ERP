@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
-import { Loader2, ChevronDown, ChevronRight, BarChart3, Sparkles, Search } from "lucide-react";
+import { Loader2, ChevronDown, ChevronRight, BarChart3, Sparkles, Search, Download } from "lucide-react";
 
 // Types
 type CotacaoFornecedorItem = {
@@ -76,6 +76,7 @@ export default function AnaliseCotacaoPage() {
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState("");
   const [itemSearch, setItemSearch] = useState("");
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -212,6 +213,181 @@ export default function AnaliseCotacaoPage() {
     } catch {
       setGenError("Erro ao processar. Tente novamente.");
       setGenerating(false);
+    }
+  }
+
+  async function generateMapaPDF(cotacaoData: Cotacao) {
+    const { default: jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+    const respondidosFornecedores = cotacaoData.fornecedores.filter(f => f.status === "RESPONDIDA");
+
+    // Build items map (same logic as buildItemsMap)
+    const itemsMapLocal = buildItemsMap(cotacaoData.fornecedores);
+    const itemsList = Array.from(itemsMapLocal.values());
+
+    // Header
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const titulo = "MAPA DA COTAÇÃO";
+    const subtitulo = `Cotação ${cotacaoData.numero}${cotacaoData.nome ? " — " + cotacaoData.nome : ""}   |   Data: ${dateStr}`;
+
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text(titulo, 14, 18);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(subtitulo, 14, 25);
+
+    // Build table head
+    // Fixed columns: #, Código, Descrição, U.M., Qtd
+    // Per supplier: Preço Unit., Total
+    const fixedHead = ["#", "Código", "Descrição", "U.M.", "Qtd"];
+    const supplierHeadPairs = respondidosFornecedores.flatMap(cf => {
+      const nome = cf.fornecedor.nomeFantasia || cf.fornecedor.razaoSocial;
+      // truncate long names
+      const shortNome = nome.length > 20 ? nome.slice(0, 18) + "…" : nome;
+      return [`${shortNome}\nPreço Unit.`, `${shortNome}\nTotal`];
+    });
+    const headRow = [...fixedHead, ...supplierHeadPairs];
+
+    // Build body rows
+    type PdfCell = string | { content: string; styles?: Record<string, unknown> };
+    const bodyRows: PdfCell[][] = itemsList.map((itemAnalysis, idx) => {
+      const fixedCols: PdfCell[] = [
+        String(idx + 1),
+        itemAnalysis.codigo,
+        itemAnalysis.descricao,
+        itemAnalysis.unidadeMedida,
+        String(itemAnalysis.quantidade),
+      ];
+
+      // Find min subtotal > 0 across all suppliers for this item
+      const allSubtotals = respondidosFornecedores.map(cf => {
+        const cfItem = cf.itens.find(i => i.itemId === itemAnalysis.itemId);
+        return cfItem ? decimalToNumber(cfItem.subtotal) : 0;
+      });
+      const validSubtotals = allSubtotals.filter(v => v > 0);
+      const minSubtotal = validSubtotals.length > 0 ? Math.min(...validSubtotals) : -1;
+
+      const supplierCols: PdfCell[] = respondidosFornecedores.flatMap((cf, cfIdx) => {
+        const cfItem = cf.itens.find(i => i.itemId === itemAnalysis.itemId);
+        if (!cfItem || decimalToNumber(cfItem.precoUnitario) === 0) {
+          return ["-", "-"] as PdfCell[];
+        }
+        const precoUnit = decimalToNumber(cfItem.precoUnitario);
+        const subtotal = allSubtotals[cfIdx];
+        const isBest = subtotal > 0 && subtotal === minSubtotal;
+        const cellStyles = isBest ? { fillColor: [200, 240, 200] } : {};
+        return [
+          { content: formatBRL(precoUnit), styles: cellStyles },
+          { content: formatBRL(subtotal), styles: cellStyles },
+        ] as PdfCell[];
+      });
+
+      return [...fixedCols, ...supplierCols];
+    });
+
+    // Summary rows
+    const totalRow: PdfCell[] = [
+      "", "", "TOTAL", "", "",
+      ...respondidosFornecedores.flatMap(cf => {
+        const total = cf.itens.reduce((acc, i) => acc + decimalToNumber(i.subtotal), 0);
+        return ["", { content: formatBRL(total), styles: { fontStyle: "bold" } }] as PdfCell[];
+      }),
+    ];
+
+    const freteRow: PdfCell[] = [
+      "", "", "Frete", "", "",
+      ...respondidosFornecedores.flatMap(cf => ["", formatBRL(decimalToNumber(cf.frete))] as PdfCell[]),
+    ];
+
+    const descontoPercRow: PdfCell[] = [
+      "", "", "Desconto (%)", "", "",
+      ...respondidosFornecedores.flatMap(cf => ["", `${decimalToNumber(cf.desconto).toFixed(2)}%`] as PdfCell[]),
+    ];
+
+    const descontoRsRow: PdfCell[] = [
+      "", "", "Desconto (R$)", "", "",
+      ...respondidosFornecedores.flatMap(cf => ["", formatBRL(decimalToNumber(cf.vrDesconto))] as PdfCell[]),
+    ];
+
+    const despesasRow: PdfCell[] = [
+      "", "", "Despesas", "", "",
+      ...respondidosFornecedores.flatMap(cf => ["", formatBRL(decimalToNumber(cf.despesas))] as PdfCell[]),
+    ];
+
+    const seguroRow: PdfCell[] = [
+      "", "", "Seguro", "", "",
+      ...respondidosFornecedores.flatMap(cf => ["", formatBRL(decimalToNumber(cf.seguro))] as PdfCell[]),
+    ];
+
+    const totalGeralRow: PdfCell[] = [
+      "", "", "TOTAL GERAL", "", "",
+      ...respondidosFornecedores.flatMap(cf => {
+        const tg = decimalToNumber(cf.totalCalculado);
+        return ["", { content: formatBRL(tg), styles: { fontStyle: "bold", fillColor: [220, 230, 255] } }] as PdfCell[];
+      }),
+    ];
+
+    bodyRows.push(totalRow, freteRow, descontoPercRow, descontoRsRow, despesasRow, seguroRow, totalGeralRow);
+
+    autoTable(doc, {
+      head: [headRow],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      body: bodyRows as any,
+      startY: 30,
+      styles: { fontSize: 7, cellPadding: 2 },
+      headStyles: { fillColor: [60, 60, 60], textColor: 255, fontStyle: "bold", halign: "center" },
+      columnStyles: {
+        0: { cellWidth: 8, halign: "center" },
+        1: { cellWidth: 18 },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 12, halign: "center" },
+        4: { cellWidth: 12, halign: "right" },
+      },
+      didParseCell: (data) => {
+        // Right-align supplier price columns
+        if (data.section === "body" && data.column.index >= 5) {
+          data.cell.styles.halign = "right";
+        }
+      },
+    });
+
+    // Footer
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pageCount = (doc as any).internal.getNumberOfPages() as number;
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(150);
+      doc.text(
+        `Gerado em ${dateStr} ${timeStr}`,
+        14,
+        doc.internal.pageSize.getHeight() - 5
+      );
+      doc.text(
+        `Página ${i} de ${pageCount}`,
+        doc.internal.pageSize.getWidth() - 14,
+        doc.internal.pageSize.getHeight() - 5,
+        { align: "right" }
+      );
+    }
+
+    doc.save(`Mapa-Cotacao-${cotacaoData.numero}.pdf`);
+  }
+
+  async function handleDownloadPdf() {
+    if (!cotacao) return;
+    setDownloadingPdf(true);
+    try {
+      await generateMapaPDF(cotacao);
+    } finally {
+      setDownloadingPdf(false);
     }
   }
 
@@ -548,6 +724,19 @@ export default function AnaliseCotacaoPage() {
       <div className="flex justify-end gap-3 pt-4 border-t">
         <Button variant="outline" onClick={() => router.push(`/suprimentos/cotacoes/${id}`)}>
           Cancelar
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleDownloadPdf}
+          disabled={downloadingPdf || !cotacao}
+          className="border-gray-300 text-gray-700 hover:bg-gray-50"
+        >
+          {downloadingPdf ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <Download className="h-4 w-4 mr-2" />
+          )}
+          Baixar Mapa
         </Button>
         {tab === "item" ? (
           <Button

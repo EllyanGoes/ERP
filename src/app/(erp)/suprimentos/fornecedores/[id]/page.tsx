@@ -11,11 +11,21 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Edit, Save, X, ExternalLink, Trash2, AlertTriangle, Plus, Loader2 } from "lucide-react";
+import { Edit, Save, X, ExternalLink, Trash2, AlertTriangle, Plus, Loader2, Pencil, Check, Star } from "lucide-react";
 import { formatBRL, formatDate, decimalToNumber } from "@/lib/utils";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+
+type FornecedorContato = {
+  id: string;
+  nome: string;
+  cargo: string | null;
+  telefone: string | null;
+  ramal: string | null;
+  email: string | null;
+  principal: boolean;
+};
 
 type Fornecedor = {
   id: string;
@@ -37,11 +47,21 @@ type Fornecedor = {
   estado: string | null;
   ativo: boolean;
   observacoes: string | null;
+  contatos: FornecedorContato[];
   produtos: Array<{
     id: string;
     codigoFornecedor: string | null;
     precoUltimo: unknown;
     prazoEntregaDias: number | null;
+    especificacao: string | null;
+    tempoResuprimento: number | null;
+    classificacao: string | null;
+    percentual: unknown;
+    dataUltimaCompra: string | null;
+    indiceFinanceiro: string | null;
+    qtdeUltimaCompra: unknown;
+    unidade: string | null;
+    ultimaQtdeDev: unknown;
     item: { id: string; codigo: string; descricao: string };
   }>;
   pedidosCompra: Array<{
@@ -71,9 +91,26 @@ const STATUS_COLOR: Record<string, string> = {
   CANCELADO:   "bg-red-100 text-red-700",
 };
 
-type PageTab = "dados" | "produtos" | "pedidos";
+type PageTab = "dados" | "produtos" | "pedidos" | "contatos";
 
 type ProdutoItem = { id: string; codigo: string; descricao: string };
+
+const EMPTY_CONTATO = { nome: "", cargo: "", telefone: "", ramal: "", email: "", principal: false };
+const EMPTY_PRODUTO = {
+  itemId: "",
+  codigoFornecedor: "",
+  prazoEntregaDias: "",
+  especificacao: "",
+  tempoResuprimento: "",
+  classificacao: "",
+  percentual: "",
+  dataUltimaCompra: "",
+  precoUltimo: "",
+  indiceFinanceiro: "",
+  qtdeUltimaCompra: "",
+  unidade: "",
+  ultimaQtdeDev: "",
+};
 
 export default function FornecedorDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -89,12 +126,22 @@ export default function FornecedorDetailPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+
   // ── Product linking ─────────────────────────────────────────────────
   const [prodList, setProdList] = useState<ProdutoItem[]>([]);
   const [showAddProd, setShowAddProd] = useState(false);
-  const [addProd, setAddProd] = useState({ itemId: "", prazoEntregaDias: "" });
+  const [addProd, setAddProd] = useState({ ...EMPTY_PRODUTO });
   const [addProdSaving, setAddProdSaving] = useState(false);
   const [addProdError, setAddProdError] = useState("");
+
+  // ── Contact management ───────────────────────────────────────────────
+  const [showAddContato, setShowAddContato] = useState(false);
+  const [addContato, setAddContato] = useState({ ...EMPTY_CONTATO });
+  const [addContatoSaving, setAddContatoSaving] = useState(false);
+  const [addContatoError, setAddContatoError] = useState("");
+  const [editingContatoId, setEditingContatoId] = useState<string | null>(null);
+  const [editContatoForm, setEditContatoForm] = useState<Partial<FornecedorContato>>({});
+  const [editContatoSaving, setEditContatoSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -150,7 +197,6 @@ export default function FornecedorDetailPage() {
   function setField(key: keyof Fornecedor, value: unknown) {
     setEditForm((prev) => {
       const next = { ...prev, [key]: value };
-      // Auto-fill nomeFantasia when razaoSocial changes, unless user already edited it
       if (key === "razaoSocial" && !nomeFantasiaEdited) {
         next.nomeFantasia = value as string;
       }
@@ -170,7 +216,6 @@ export default function FornecedorDetailPage() {
       const res = await fetch(`/api/suprimentos/fornecedores/${id}`, { method: "DELETE" });
       const j = await res.json();
       if (!res.ok) { setDeleteError(j.error || "Erro ao excluir"); setDeleting(false); return; }
-      // Close this tab and navigate to the list
       const thisTab = tabs.find((t) => t.href === `/suprimentos/fornecedores/${id}`);
       if (thisTab) closeTab(thisTab.id);
       else router.push("/suprimentos/fornecedores");
@@ -208,6 +253,7 @@ export default function FornecedorDetailPage() {
       const j = await res.json();
       if (!res.ok) { setAddProdError(j.error || "Erro ao vincular produto"); return; }
       setShowAddProd(false);
+      setAddProd({ ...EMPTY_PRODUTO });
       await load();
     } catch {
       setAddProdError("Erro de conexão");
@@ -223,15 +269,75 @@ export default function FornecedorDetailPage() {
     await load();
   }
 
+  // ── Contact handlers ─────────────────────────────────────────────────
+  async function saveContato() {
+    if (!addContato.nome.trim()) { setAddContatoError("Nome é obrigatório"); return; }
+    setAddContatoSaving(true);
+    setAddContatoError("");
+    try {
+      const res = await fetch(`/api/suprimentos/fornecedores/${id}/contatos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(addContato),
+      });
+      const j = await res.json();
+      if (!res.ok) { setAddContatoError(j.error || "Erro ao salvar contato"); return; }
+      setShowAddContato(false);
+      setAddContato({ ...EMPTY_CONTATO });
+      await load();
+    } catch {
+      setAddContatoError("Erro de conexão");
+    } finally {
+      setAddContatoSaving(false);
+    }
+  }
+
+  function startEditContato(c: FornecedorContato) {
+    setEditingContatoId(c.id);
+    setEditContatoForm({ nome: c.nome, cargo: c.cargo ?? "", telefone: c.telefone ?? "", ramal: c.ramal ?? "", email: c.email ?? "", principal: c.principal });
+  }
+
+  async function saveEditContato(contatoId: string) {
+    setEditContatoSaving(true);
+    try {
+      await fetch(`/api/suprimentos/fornecedores/${id}/contatos/${contatoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editContatoForm),
+      });
+      setEditingContatoId(null);
+      await load();
+    } catch {
+      // silently ignore
+    } finally {
+      setEditContatoSaving(false);
+    }
+  }
+
+  async function deleteContato(contatoId: string) {
+    await fetch(`/api/suprimentos/fornecedores/${id}/contatos/${contatoId}`, { method: "DELETE" });
+    await load();
+  }
+
+  async function setPrincipal(contatoId: string) {
+    await fetch(`/api/suprimentos/fornecedores/${id}/contatos/${contatoId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ principal: true }),
+    });
+    await load();
+  }
+
   useTabTitle(fornecedor ? (fornecedor.nomeFantasia || fornecedor.razaoSocial) : null);
 
   if (loading) return <div className="px-8 pt-8 text-gray-400">Carregando...</div>;
   if (!fornecedor) return <div className="px-8 pt-8 text-red-500">{error || "Fornecedor não encontrado"}</div>;
 
   const pageTabs: { key: PageTab; label: string; count?: number }[] = [
-    { key: "dados",    label: "Dados Cadastrais" },
-    { key: "produtos", label: "Produtos",         count: fornecedor.produtos?.length ?? 0 },
-    { key: "pedidos",  label: "Pedidos de Compra", count: fornecedor.pedidosCompra?.length ?? 0 },
+    { key: "dados",     label: "Dados Cadastrais" },
+    { key: "contatos",  label: "Contatos",         count: fornecedor.contatos?.length ?? 0 },
+    { key: "produtos",  label: "Produtos",          count: fornecedor.produtos?.length ?? 0 },
+    { key: "pedidos",   label: "Pedidos de Compra", count: fornecedor.pedidosCompra?.length ?? 0 },
   ];
 
   return (
@@ -501,35 +607,240 @@ export default function FornecedorDetailPage() {
           </div>
         )}
 
-        {/* ── Produtos ─────────────────────────────────────────────────── */}
-        {activeTab === "produtos" && (
+        {/* ── Contatos ─────────────────────────────────────────────────── */}
+        {activeTab === "contatos" && (
           <div className="max-w-5xl space-y-4">
             <div className="flex justify-end">
-              <Button size="sm" onClick={() => { setAddProdError(""); setAddProd({ itemId: "", prazoEntregaDias: "" }); setShowAddProd(true); }}>
+              <Button
+                size="sm"
+                onClick={() => { setAddContatoError(""); setAddContato({ ...EMPTY_CONTATO }); setShowAddContato(true); }}
+              >
+                <Plus className="w-4 h-4 mr-1" />Adicionar Contato
+              </Button>
+            </div>
+
+            {/* Add contato modal */}
+            {showAddContato && typeof window !== "undefined" && createPortal(
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+                <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg space-y-5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-900 text-base">Adicionar Contato</h3>
+                    <button type="button" onClick={() => setShowAddContato(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {addContatoError && (
+                    <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{addContatoError}</p>
+                  )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2 space-y-1.5">
+                      <Label>Nome <span className="text-red-500">*</span></Label>
+                      <Input value={addContato.nome} onChange={(e) => setAddContato((p) => ({ ...p, nome: e.target.value }))} placeholder="Nome completo" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Cargo</Label>
+                      <Input value={addContato.cargo} onChange={(e) => setAddContato((p) => ({ ...p, cargo: e.target.value }))} placeholder="Ex: Gerente Comercial" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>E-mail</Label>
+                      <Input type="email" value={addContato.email} onChange={(e) => setAddContato((p) => ({ ...p, email: e.target.value }))} placeholder="email@exemplo.com" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Telefone</Label>
+                      <Input value={addContato.telefone} onChange={(e) => setAddContato((p) => ({ ...p, telefone: e.target.value }))} placeholder="(11) 0000-0000" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Ramal</Label>
+                      <Input value={addContato.ramal} onChange={(e) => setAddContato((p) => ({ ...p, ramal: e.target.value }))} placeholder="Ex: 123" />
+                    </div>
+                    <div className="col-span-2 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="add-principal"
+                        checked={addContato.principal}
+                        onChange={(e) => setAddContato((p) => ({ ...p, principal: e.target.checked }))}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                      />
+                      <label htmlFor="add-principal" className="text-sm text-gray-700">Contato principal</label>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end pt-1">
+                    <Button size="sm" variant="outline" onClick={() => setShowAddContato(false)} disabled={addContatoSaving}>Cancelar</Button>
+                    <Button size="sm" onClick={saveContato} disabled={addContatoSaving}>
+                      {addContatoSaving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+                      Salvar
+                    </Button>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
+
+            <Card>
+              <CardContent className="p-0">
+                {!fornecedor.contatos?.length ? (
+                  <div className="text-center py-16 text-gray-400 text-sm">
+                    Nenhum contato cadastrado para este fornecedor
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Nome</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Cargo</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Telefone</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Ramal</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">E-mail</th>
+                        <th className="text-center px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Principal</th>
+                        <th className="w-16" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {fornecedor.contatos.map((c) => {
+                        const isEditing = editingContatoId === c.id;
+                        if (isEditing) {
+                          return (
+                            <tr key={c.id} className="bg-blue-50">
+                              <td className="px-4 py-2">
+                                <Input
+                                  className="h-7 text-sm"
+                                  value={editContatoForm.nome ?? ""}
+                                  onChange={(e) => setEditContatoForm((p) => ({ ...p, nome: e.target.value }))}
+                                />
+                              </td>
+                              <td className="px-4 py-2">
+                                <Input
+                                  className="h-7 text-sm"
+                                  value={(editContatoForm.cargo as string) ?? ""}
+                                  onChange={(e) => setEditContatoForm((p) => ({ ...p, cargo: e.target.value }))}
+                                />
+                              </td>
+                              <td className="px-4 py-2">
+                                <Input
+                                  className="h-7 text-sm"
+                                  value={(editContatoForm.telefone as string) ?? ""}
+                                  onChange={(e) => setEditContatoForm((p) => ({ ...p, telefone: e.target.value }))}
+                                />
+                              </td>
+                              <td className="px-4 py-2">
+                                <Input
+                                  className="h-7 text-sm"
+                                  value={(editContatoForm.ramal as string) ?? ""}
+                                  onChange={(e) => setEditContatoForm((p) => ({ ...p, ramal: e.target.value }))}
+                                />
+                              </td>
+                              <td className="px-4 py-2">
+                                <Input
+                                  className="h-7 text-sm"
+                                  value={(editContatoForm.email as string) ?? ""}
+                                  onChange={(e) => setEditContatoForm((p) => ({ ...p, email: e.target.value }))}
+                                />
+                              </td>
+                              <td className="px-4 py-2 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={editContatoForm.principal ?? false}
+                                  onChange={(e) => setEditContatoForm((p) => ({ ...p, principal: e.target.checked }))}
+                                  className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                                />
+                              </td>
+                              <td className="px-4 py-2 flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => saveEditContato(c.id)}
+                                  disabled={editContatoSaving}
+                                  className="text-green-600 hover:text-green-700 transition-colors"
+                                >
+                                  {editContatoSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingContatoId(null)}
+                                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        }
+                        return (
+                          <tr key={c.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 font-medium text-gray-800">{c.nome}</td>
+                            <td className="px-4 py-3 text-gray-500">{c.cargo || "—"}</td>
+                            <td className="px-4 py-3 text-gray-600">{c.telefone || "—"}</td>
+                            <td className="px-4 py-3 text-gray-600">{c.ramal || "—"}</td>
+                            <td className="px-4 py-3 text-gray-600">{c.email || "—"}</td>
+                            <td className="px-4 py-3 text-center">
+                              {c.principal ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                  <Star className="w-3 h-3" />Principal
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setPrincipal(c.id)}
+                                  className="text-xs text-gray-300 hover:text-amber-500 transition-colors"
+                                  title="Definir como principal"
+                                >
+                                  <Star className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 flex items-center gap-1 justify-center">
+                              <button
+                                type="button"
+                                onClick={() => startEditContato(c)}
+                                className="text-gray-300 hover:text-blue-500 transition-colors"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteContato(c.id)}
+                                className="text-gray-300 hover:text-red-500 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* ── Produtos ─────────────────────────────────────────────────── */}
+        {activeTab === "produtos" && (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <Button size="sm" onClick={() => { setAddProdError(""); setAddProd({ ...EMPTY_PRODUTO }); setShowAddProd(true); }}>
                 <Plus className="w-4 h-4 mr-1" />Vincular Produto
               </Button>
             </div>
 
-            {/* ── Product link dialog ─────────────────────────────────────── */}
+            {/* Product link dialog */}
             {showAddProd && typeof window !== "undefined" && createPortal(
               <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-                <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-5">
+                <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-xl space-y-5 max-h-[90vh] overflow-y-auto">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-gray-900 text-base">Vincular Produto</h3>
                     <button type="button" onClick={() => setShowAddProd(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
-                  <div className="space-y-4">
-                    {addProdError && (
-                      <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{addProdError}</p>
-                    )}
-                    <div className="space-y-1.5">
+                  {addProdError && (
+                    <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{addProdError}</p>
+                  )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2 space-y-1.5">
                       <Label>Produto <span className="text-red-500">*</span></Label>
                       {(() => {
-                        // IDs dos itens já vinculados a este fornecedor
                         const linkedIds = (fornecedor?.produtos ?? []).map((p) => p.item.id);
-                        // Opções: vinculados primeiro (com ✓), depois os disponíveis
                         const linkedOpts = prodList
                           .filter((p) => linkedIds.includes(p.id))
                           .map((p) => ({ value: p.id, label: `${p.codigo} – ${p.descricao}` }));
@@ -552,8 +863,52 @@ export default function FornecedorDetailPage() {
                       })()}
                     </div>
                     <div className="space-y-1.5">
+                      <Label>Código Fornecedor</Label>
+                      <Input value={addProd.codigoFornecedor} onChange={(e) => setAddProd((p) => ({ ...p, codigoFornecedor: e.target.value }))} placeholder="Cód. interno do fornecedor" />
+                    </div>
+                    <div className="space-y-1.5">
                       <Label>Prazo de Entrega (dias)</Label>
                       <Input type="number" value={addProd.prazoEntregaDias} onChange={(e) => setAddProd((p) => ({ ...p, prazoEntregaDias: e.target.value }))} placeholder="Ex: 7" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Especificação</Label>
+                      <Input value={addProd.especificacao} onChange={(e) => setAddProd((p) => ({ ...p, especificacao: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Tempo Ressup. (dias)</Label>
+                      <Input type="number" value={addProd.tempoResuprimento} onChange={(e) => setAddProd((p) => ({ ...p, tempoResuprimento: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Classificação</Label>
+                      <Input value={addProd.classificacao} onChange={(e) => setAddProd((p) => ({ ...p, classificacao: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>% (Percentual)</Label>
+                      <Input type="number" step="0.01" value={addProd.percentual} onChange={(e) => setAddProd((p) => ({ ...p, percentual: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Data Última Compra</Label>
+                      <Input type="date" value={addProd.dataUltimaCompra} onChange={(e) => setAddProd((p) => ({ ...p, dataUltimaCompra: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Valor Últ. Compra (R$)</Label>
+                      <Input type="number" step="0.01" value={addProd.precoUltimo ?? ""} onChange={(e) => setAddProd((p) => ({ ...p, precoUltimo: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Índice Financeiro</Label>
+                      <Input value={addProd.indiceFinanceiro} onChange={(e) => setAddProd((p) => ({ ...p, indiceFinanceiro: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Qtde Últ. Compra</Label>
+                      <Input type="number" step="0.001" value={addProd.qtdeUltimaCompra} onChange={(e) => setAddProd((p) => ({ ...p, qtdeUltimaCompra: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Unidade</Label>
+                      <Input value={addProd.unidade} onChange={(e) => setAddProd((p) => ({ ...p, unidade: e.target.value }))} placeholder="Ex: UN, KG, CX" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Qtde Dev.</Label>
+                      <Input type="number" step="0.001" value={addProd.ultimaQtdeDev} onChange={(e) => setAddProd((p) => ({ ...p, ultimaQtdeDev: e.target.value }))} />
                     </div>
                   </div>
                   <div className="flex gap-2 justify-end pt-1">
@@ -569,49 +924,76 @@ export default function FornecedorDetailPage() {
             )}
 
             <Card>
-              <CardContent className="p-0">
+              <CardContent className="p-0 overflow-x-auto">
                 {!fornecedor.produtos?.length ? (
                   <div className="text-center py-16 text-gray-400 text-sm">
                     Nenhum produto vinculado a este fornecedor
                   </div>
                 ) : (
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm min-w-[1100px]">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Código</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Descrição</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Cód. Fornecedor</th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Último Preço</th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Prazo (dias)</th>
-                        <th className="w-10" />
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Material</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Especificação</th>
+                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Tempo Ressup.</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Classificação</th>
+                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">%</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Última Compra</th>
+                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Valor Últ. Compra</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Índice Fin.</th>
+                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Qtde Últ. Compra</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Unidade</th>
+                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Qtde Dev.</th>
+                        <th className="w-12" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {fornecedor.produtos.map((p) => (
                         <tr key={p.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-mono text-xs text-blue-600">{p.item.codigo}</td>
-                          <td className="px-4 py-3 text-gray-800">{p.item.descricao}</td>
-                          <td className="px-4 py-3 text-gray-500">{p.codigoFornecedor || "—"}</td>
-                          <td className="px-4 py-3 text-right font-medium">
-                            {p.precoUltimo ? formatBRL(decimalToNumber(p.precoUltimo)) : <span className="text-gray-300">—</span>}
+                          <td className="px-4 py-3">
+                            <div className="font-mono text-xs text-blue-600">{p.item.codigo}</div>
+                            <div className="text-gray-800 max-w-[200px] truncate" title={p.item.descricao}>{p.item.descricao}</div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-500 max-w-[120px]">
+                            <span className="block truncate" title={p.especificacao ?? ""}>{p.especificacao || "—"}</span>
                           </td>
                           <td className="px-4 py-3 text-right text-gray-600">
-                            {p.prazoEntregaDias ?? <span className="text-gray-300">—</span>}
+                            {p.tempoResuprimento != null ? `${p.tempoResuprimento} d` : <span className="text-gray-300">—</span>}
                           </td>
-                          <td className="px-4 py-3 flex items-center justify-center gap-1">
-                            <Link
-                              href={`/suprimentos/produtos/${p.item.id}`}
-                              className="text-gray-300 hover:text-blue-500 transition-colors"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </Link>
-                            <button
-                              type="button"
-                              onClick={() => removeProduto(p.id)}
-                              className="text-gray-300 hover:text-red-500 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                          <td className="px-4 py-3 text-gray-500">{p.classificacao || "—"}</td>
+                          <td className="px-4 py-3 text-right text-gray-600">
+                            {p.percentual != null ? `${decimalToNumber(p.percentual).toFixed(2)}%` : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                            {p.dataUltimaCompra ? formatDate(p.dataUltimaCompra) : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium whitespace-nowrap">
+                            {p.precoUltimo != null ? formatBRL(decimalToNumber(p.precoUltimo)) : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">{p.indiceFinanceiro || "—"}</td>
+                          <td className="px-4 py-3 text-right text-gray-600">
+                            {p.qtdeUltimaCompra != null ? decimalToNumber(p.qtdeUltimaCompra).toLocaleString("pt-BR") : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">{p.unidade || "—"}</td>
+                          <td className="px-4 py-3 text-right text-gray-600">
+                            {p.ultimaQtdeDev != null ? decimalToNumber(p.ultimaQtdeDev).toLocaleString("pt-BR") : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-center gap-1">
+                              <Link
+                                href={`/suprimentos/produtos/${p.item.id}`}
+                                className="text-gray-300 hover:text-blue-500 transition-colors"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() => removeProduto(p.id)}
+                                className="text-gray-300 hover:text-red-500 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
