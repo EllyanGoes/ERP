@@ -9,7 +9,7 @@ datasource db {
 }
 
 model AnexoCotacaoFornecedor {
-  id                  String            @id
+  id                  String            @id @default(cuid())
   cotacaoFornecedorId String
   nome                String
   url                 String
@@ -20,7 +20,7 @@ model AnexoCotacaoFornecedor {
 }
 
 model AprovacaoEtapa {
-  id             String         @id
+  id             String         @id @default(cuid())
   fluxoId        String
   ordem          Int
   nome           String?
@@ -35,18 +35,18 @@ model AprovacaoEtapa {
 }
 
 model AprovacaoFluxo {
-  id             String            @id
+  id             String            @id @default(cuid())
   nome           String
   ativo          Boolean           @default(true)
   createdAt      DateTime          @default(now())
-  updatedAt      DateTime
+  updatedAt      DateTime @updatedAt
   processo       ProcessoAprovacao @default(SOLICITACAO_COMPRAS)
   etapas         AprovacaoEtapa[]
   aprovacoesSC   AprovacaoSC[]
 }
 
 model AprovacaoSC {
-  id                String            @id
+  id                String            @id @default(cuid())
   necessidadeId     String
   etapaOrdem        Int
   etapaNome         String?
@@ -63,13 +63,13 @@ model AprovacaoSC {
 }
 
 model CentroCusto {
-  id                 String              @id
+  id                 String              @id @default(cuid())
   codigo             String              @unique
   nome               String
   grupoCentroCustoId String?
   ativo              Boolean             @default(true)
   createdAt          DateTime            @default(now())
-  updatedAt          DateTime
+  updatedAt          DateTime @updatedAt
   grupoCentroCusto   GrupoCentroCusto?   @relation(fields: [grupoCentroCustoId], references: [id])
   necessidadesCompra NecessidadeCompra[]
 
@@ -77,7 +77,7 @@ model CentroCusto {
 }
 
 model Cliente {
-  id           String         @id
+  id           String         @id @default(cuid())
   tipoPessoa   TipoPessoa     @default(JURIDICA)
   razaoSocial  String
   nomeFantasia String?
@@ -96,7 +96,7 @@ model Cliente {
   cidade       String?
   estado       String?
   createdAt    DateTime       @default(now())
-  updatedAt    DateTime
+  updatedAt    DateTime @updatedAt
   contasReceber ContaReceber[]
   pedidosVenda  PedidoVenda[]
 
@@ -105,7 +105,7 @@ model Cliente {
 }
 
 model Colaborador {
-  id             String           @id
+  id             String           @id @default(cuid())
   nome           String
   cpf            String?          @unique
   rg             String?
@@ -119,14 +119,14 @@ model Colaborador {
   ativo          Boolean          @default(true)
   observacoes    String?
   createdAt      DateTime         @default(now())
-  updatedAt      DateTime
+  updatedAt      DateTime @updatedAt
   etapasAprovacao AprovacaoEtapa[]
   usuario         Usuario?         @relation(fields: [usuarioId], references: [id])
   filiais         Filial[]
 }
 
 model CondicaoPagamento {
-  id                String   @id
+  id                String   @id @default(cuid())
   nome              String
   descricao         String?
   numeroParcelas    Int      @default(1)
@@ -135,11 +135,11 @@ model CondicaoPagamento {
   descontoVista     Decimal? @db.Decimal(5, 2)
   ativo             Boolean  @default(true)
   createdAt         DateTime @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime @updatedAt
 }
 
 model ConferenciaCompra {
-  id                    String                  @id
+  id                    String                  @id @default(cuid())
   numero                String                  @unique
   pedidoId              String                  @unique
   status                StatusConferenciaCompra @default(PENDENTE)
@@ -147,7 +147,7 @@ model ConferenciaCompra {
   responsavel           String?
   observacoes           String?
   createdAt             DateTime                @default(now())
-  updatedAt             DateTime
+  updatedAt             DateTime @updatedAt
   pedido                PedidoCompra            @relation(fields: [pedidoId], references: [id])
   itens                 ConferenciaCompraItem[]
 
@@ -155,7 +155,7 @@ model ConferenciaCompra {
 }
 
 model ConferenciaCompraItem {
-  id                  String                @id
+  id                  String                @id @default(cuid())
   conferenciaId       String
   itemId              String
   quantidadePedida    Decimal               @db.Decimal(15, 3)
@@ -170,11 +170,11 @@ model ConferenciaCompraItem {
 model Configuracao {
   chave     String   @id
   valor     String?
-  updatedAt DateTime
+  updatedAt DateTime @updatedAt
 }
 
 model ContaPagar {
-  id              String            @id
+  id              String            @id @default(cuid())
   numero          String            @unique
   fornecedorId    String?
   descricao       String
@@ -190,7 +190,7 @@ model ContaPagar {
   notaFiscal      String?
   observacoes     String?
   createdAt       DateTime          @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime @updatedAt
   fornecedor      Fornecedor?       @relation(fields: [fornecedorId], references: [id])
   lancamentos     LancamentoCaixa[]
 
@@ -200,7 +200,7 @@ model ContaPagar {
 }
 
 model ContaReceber {
-  id              String            @id
+  id              String            @id @default(cuid())
   numero          String            @unique
   clienteId       String
   pedidoVendaId   String?
@@ -216,7 +216,7 @@ model ContaReceber {
   nossoNumero     String?
   observacoes     String?
   createdAt       DateTime          @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime @updatedAt
   cliente         Cliente           @relation(fields: [clienteId], references: [id])
   pedidoVenda     PedidoVenda?      @relation(fields: [pedidoVendaId], references: [id])
   lancamentos     LancamentoCaixa[]
@@ -227,7 +227,7 @@ model ContaReceber {
 }
 
 model CotacaoCompra {
-  id                   String              @id
+  id                   String              @id @default(cuid())
   numero               String              @unique
   necessidadeId        String?
   status               StatusCotacaoCompra @default(PENDENTE)
@@ -238,7 +238,7 @@ model CotacaoCompra {
   fornecedorVencedorId String?
   motivoReprovacao     String?
   createdAt            DateTime            @default(now())
-  updatedAt            DateTime
+  updatedAt            DateTime @updatedAt
   infoEntrega          String?
   nome                 String?
   necessidade          NecessidadeCompra?  @relation(fields: [necessidadeId], references: [id])
@@ -249,7 +249,7 @@ model CotacaoCompra {
 }
 
 model CotacaoFornecedor {
-  id                         String                       @id
+  id                         String                       @id @default(cuid())
   cotacaoId                  String
   fornecedorId               String
   status                     StatusRespostaFornecedor     @default(AGUARDANDO)
@@ -259,7 +259,7 @@ model CotacaoFornecedor {
   totalCalculado             Decimal?                     @db.Decimal(15, 2)
   melhorOpcao                Boolean                      @default(false)
   createdAt                  DateTime                     @default(now())
-  updatedAt                  DateTime
+  updatedAt                  DateTime @updatedAt
   desconto                   Decimal?                     @db.Decimal(5, 2)
   despesas                   Decimal?                     @db.Decimal(15, 2)
   frete                      Decimal?                     @db.Decimal(15, 2)
@@ -276,7 +276,7 @@ model CotacaoFornecedor {
 }
 
 model CotacaoFornecedorHistorico {
-  id                  String            @id
+  id                  String            @id @default(cuid())
   cotacaoFornecedorId String
   versao              Int               @default(1)
   totalCalculado      Decimal?          @db.Decimal(15, 2)
@@ -297,7 +297,7 @@ model CotacaoFornecedorHistorico {
 }
 
 model CotacaoFornecedorItem {
-  id                  String            @id
+  id                  String            @id @default(cuid())
   cotacaoFornecedorId String
   itemId              String
   quantidade          Decimal           @db.Decimal(15, 3)
@@ -311,7 +311,7 @@ model CotacaoFornecedorItem {
 }
 
 model Empresa {
-  id           String   @id
+  id           String   @id @default(cuid())
   razaoSocial  String
   nomeFantasia String?
   cnpj         String   @unique
@@ -327,30 +327,30 @@ model Empresa {
   cidade       String?
   estado       String?
   createdAt    DateTime @default(now())
-  updatedAt    DateTime
+  updatedAt    DateTime @updatedAt
 }
 
 model EnderecoEstoque {
-  id             String       @id
+  id             String       @id @default(cuid())
   localEstoqueId String
   codigo         String
   descricao      String?
   ativo          Boolean      @default(true)
   createdAt      DateTime     @default(now())
-  updatedAt      DateTime
+  updatedAt      DateTime @updatedAt
   localEstoque   LocalEstoque @relation(fields: [localEstoqueId], references: [id], onDelete: Cascade)
 
   @@unique([localEstoqueId, codigo])
 }
 
 model EstoqueItem {
-  id              String        @id
+  id              String        @id @default(cuid())
   itemId          String
   quantidadeAtual Decimal       @default(0) @db.Decimal(15, 3)
   quantidadeMin   Decimal       @default(0) @db.Decimal(15, 3)
   quantidadeMax   Decimal?      @db.Decimal(15, 3)
   localizacao     String?
-  updatedAt       DateTime
+  updatedAt       DateTime @updatedAt
   localEstoqueId  String?
   item            Item          @relation(fields: [itemId], references: [id])
   localEstoque    LocalEstoque? @relation(fields: [localEstoqueId], references: [id])
@@ -360,7 +360,7 @@ model EstoqueItem {
 }
 
 model Filial {
-  id                String              @id
+  id                String              @id @default(cuid())
   razaoSocial       String
   nomeFantasia      String?
   cnpj              String?             @unique
@@ -377,24 +377,24 @@ model Filial {
   estado            String?
   ativo             Boolean             @default(true)
   createdAt         DateTime            @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime @updatedAt
   locaisEstoque     LocalEstoque[]
   necessidadesCompra NecessidadeCompra[]
   colaboradores     Colaborador[]
 }
 
 model FormaPagamento {
-  id        String             @id
+  id        String             @id @default(cuid())
   nome      String
   tipo      TipoFormaPagamento @default(OUTROS)
   descricao String?
   ativo     Boolean            @default(true)
   createdAt DateTime           @default(now())
-  updatedAt DateTime
+  updatedAt DateTime @updatedAt
 }
 
 model Fornecedor {
-  id                String              @id
+  id                String              @id @default(cuid())
   tipoPessoa        TipoPessoa          @default(JURIDICA)
   razaoSocial       String
   nomeFantasia      String?
@@ -411,7 +411,7 @@ model Fornecedor {
   estado            String?
   ativo             Boolean             @default(true)
   createdAt         DateTime            @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime @updatedAt
   celular           String?
   contato           String?
   observacoes       String?
@@ -423,7 +423,7 @@ model Fornecedor {
 }
 
 model FornecedorContato {
-  id           String     @id
+  id           String     @id @default(cuid())
   fornecedorId String
   nome         String
   cargo        String?
@@ -432,21 +432,21 @@ model FornecedorContato {
   email        String?
   principal    Boolean    @default(false)
   createdAt    DateTime   @default(now())
-  updatedAt    DateTime
+  updatedAt    DateTime @updatedAt
   fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
 }
 
 model GrupoCentroCusto {
-  id          String        @id
+  id          String        @id @default(cuid())
   nome        String        @unique
   ativo       Boolean       @default(true)
   createdAt   DateTime      @default(now())
-  updatedAt   DateTime
+  updatedAt   DateTime @updatedAt
   centros CentroCusto[]
 }
 
 model Item {
-  id                    String                  @id
+  id                    String                  @id @default(cuid())
   codigo                String                  @unique
   descricao             String
   tipo                  TipoItem                @default(PRODUTO)
@@ -460,7 +460,7 @@ model Item {
   ativo                 Boolean                 @default(true)
   observacoes           String?
   createdAt             DateTime                @default(now())
-  updatedAt             DateTime
+  updatedAt             DateTime @updatedAt
   tipoProdutoId         String?
   unidadeId             String?
   conferenciaCompraItens ConferenciaCompraItem[]
@@ -480,7 +480,7 @@ model Item {
 }
 
 model ItemUnidade {
-  id                                         String   @id
+  id                                         String   @id @default(cuid())
   itemId                                     String
   unidadeId                                  String
   fatorConversao                             Decimal? @db.Decimal(15, 6)
@@ -496,7 +496,7 @@ model ItemUnidade {
 }
 
 model LancamentoCaixa {
-  id             String              @id
+  id             String              @id @default(cuid())
   tipo           TipoLancamentoCaixa
   descricao      String
   valor          Decimal             @db.Decimal(15, 2)
@@ -513,12 +513,12 @@ model LancamentoCaixa {
 }
 
 model LocalEstoque {
-  id                  String                @id
+  id                  String                @id @default(cuid())
   nome                String
   descricao           String?
   ativo               Boolean               @default(true)
   createdAt           DateTime              @default(now())
-  updatedAt           DateTime
+  updatedAt           DateTime @updatedAt
   filialId            String?
   enderecos          EnderecoEstoque[]
   estoqueItens       EstoqueItem[]
@@ -528,7 +528,7 @@ model LocalEstoque {
 }
 
 model LoteMovimentacao {
-  id                  String                  @id
+  id                  String                  @id @default(cuid())
   numero              String                  @unique
   tipo                TipoMovimentacaoEstoque
   documento           String?
@@ -538,7 +538,7 @@ model LoteMovimentacao {
 }
 
 model MovimentacaoEstoque {
-  id                    String                  @id
+  id                    String                  @id @default(cuid())
   itemId                String
   tipo                  TipoMovimentacaoEstoque
   quantidade            Decimal                 @db.Decimal(15, 3)
@@ -568,7 +568,7 @@ model MovimentacaoEstoque {
 }
 
 model NecessidadeCompra {
-  id                    String                  @id
+  id                    String                  @id @default(cuid())
   numero                String                  @unique
   status                StatusNecessidade       @default(RASCUNHO)
   solicitante           String?
@@ -579,7 +579,7 @@ model NecessidadeCompra {
   dataAprovacao         DateTime?
   motivoReprovacao      String?
   createdAt             DateTime                @default(now())
-  updatedAt             DateTime
+  updatedAt             DateTime @updatedAt
   categoria             String?
   centroCustoId         String?
   classificacaoAuxiliar String?
@@ -600,7 +600,7 @@ model NecessidadeCompra {
 }
 
 model NecessidadeCompraItem {
-  id                 String            @id
+  id                 String            @id @default(cuid())
   necessidadeId      String
   itemId             String
   quantidade         Decimal           @db.Decimal(15, 3)
@@ -612,7 +612,7 @@ model NecessidadeCompraItem {
 }
 
 model PedidoCompra {
-  id                  String             @id
+  id                  String             @id @default(cuid())
   numero              String             @unique
   cotacaoId           String?
   fornecedorId        String
@@ -621,7 +621,7 @@ model PedidoCompra {
   dataEntregaPrevista DateTime?
   observacoes         String?
   createdAt           DateTime           @default(now())
-  updatedAt           DateTime
+  updatedAt           DateTime @updatedAt
   condicoesPagamento  String?
   contato             String?
   desconto            Decimal?           @db.Decimal(5, 2)
@@ -641,7 +641,7 @@ model PedidoCompra {
 }
 
 model PedidoCompraItem {
-  id            String       @id
+  id            String       @id @default(cuid())
   pedidoId      String
   itemId        String
   quantidade    Decimal      @db.Decimal(15, 3)
@@ -652,7 +652,7 @@ model PedidoCompraItem {
 }
 
 model PedidoVenda {
-  id                String            @id
+  id                String            @id @default(cuid())
   numero            String            @unique
   clienteId         String
   status            StatusPedidoVenda @default(ORCAMENTO)
@@ -665,7 +665,7 @@ model PedidoVenda {
   condicaoPagamento String?
   observacoes       String?
   createdAt         DateTime          @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime @updatedAt
   contasReceber     ContaReceber[]
   cliente           Cliente           @relation(fields: [clienteId], references: [id])
   itens             PedidoVendaItem[]
@@ -676,7 +676,7 @@ model PedidoVenda {
 }
 
 model PedidoVendaItem {
-  id                  String                @id
+  id                  String                @id @default(cuid())
   pedidoVendaId       String
   itemId              String
   quantidade          Decimal               @db.Decimal(15, 3)
@@ -692,17 +692,17 @@ model PedidoVendaItem {
 }
 
 model PerfilAcesso {
-  id         String    @id
+  id         String    @id @default(cuid())
   nome       String    @unique
   descricao  String?
   permissoes String[]
   createdAt  DateTime  @default(now())
-  updatedAt  DateTime
+  updatedAt  DateTime @updatedAt
   usuarios   Usuario[]
 }
 
 model Permissao {
-  id        String  @id
+  id        String  @id @default(cuid())
   usuarioId String
   modulo    String
   usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
@@ -712,7 +712,7 @@ model Permissao {
 }
 
 model ProdutoFornecedor {
-  id                String     @id
+  id                String     @id @default(cuid())
   itemId            String
   fornecedorId      String
   codigoFornecedor  String?
@@ -720,7 +720,7 @@ model ProdutoFornecedor {
   prazoEntregaDias  Int?
   ativo             Boolean    @default(true)
   createdAt         DateTime   @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime @updatedAt
   classificacao     String?
   dataUltimaCompra  DateTime?
   especificacao     String?
@@ -742,22 +742,22 @@ model Sequencia {
 }
 
 model TipoProduto {
-  id        String   @id
+  id        String   @id @default(cuid())
   nome      String
   descricao String?
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime
+  updatedAt DateTime @updatedAt
   itens     Item[]
 }
 
 model Unidade {
-  id                                                          String                @id
+  id                                                          String                @id @default(cuid())
   nome                                                        String
   sigla                                                       String                @unique
   ativo                                                       Boolean               @default(true)
   createdAt                                                   DateTime              @default(now())
-  updatedAt                                                   DateTime
+  updatedAt                                                   DateTime @updatedAt
   itens               Item[]
   itemUnidadesBase    ItemUnidade[]         @relation("ItemUnidade_baseUnidadeIdToUnidade")
   itemUnidades        ItemUnidade[]         @relation("ItemUnidade_unidadeIdToUnidade")
@@ -767,12 +767,12 @@ model Unidade {
 }
 
 model UnidadeConversao {
-  id                                                 String   @id
+  id                                                 String   @id @default(cuid())
   unidadeOrigemId                                    String
   unidadeDestinoId                                   String
   fator                                              Decimal  @db.Decimal(18, 6)
   createdAt                                          DateTime @default(now())
-  updatedAt                                          DateTime
+  updatedAt                                          DateTime @updatedAt
   unidadeDestino Unidade  @relation("UnidadeConversao_unidadeDestinoIdToUnidade", fields: [unidadeDestinoId], references: [id], onDelete: Cascade)
   unidadeOrigem  Unidade  @relation("UnidadeConversao_unidadeOrigemIdToUnidade", fields: [unidadeOrigemId], references: [id], onDelete: Cascade)
 
@@ -780,14 +780,14 @@ model UnidadeConversao {
 }
 
 model Usuario {
-  id             String           @id
+  id             String           @id @default(cuid())
   nome           String
   email          String           @unique
   senha          String
   perfil         PerfilUsuario    @default(USUARIO)
   ativo          Boolean          @default(true)
   createdAt      DateTime         @default(now())
-  updatedAt      DateTime
+  updatedAt      DateTime @updatedAt
   perfilAcessoId String?
   telefone       String?
   aprovacaoEtapas AprovacaoEtapa[]

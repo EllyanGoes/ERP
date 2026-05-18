@@ -39,7 +39,13 @@ export async function POST(req: NextRequest) {
       },
     });
     return NextResponse.json({ ...user, senha: undefined }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "E-mail já cadastrado" }, { status: 409 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // P2002 = unique constraint violation (email)
+    if (typeof msg === "string" && msg.includes("P2002")) {
+      return NextResponse.json({ error: "E-mail já cadastrado" }, { status: 409 });
+    }
+    console.error("[POST /api/admin/usuarios]", err);
+    return NextResponse.json({ error: "Erro ao criar usuário" }, { status: 500 });
   }
 }
