@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useFormPersist } from "@/lib/form-persist";
+import { useDirtyForm } from "@/lib/dirty-form-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,6 +78,9 @@ export default function NovoPedidoCompraPage() {
   // Form state
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState("");
+
+  const isDirty = !!(fornecedorId || itens.some(r => r.itemId));
+  useDirtyForm(isDirty);
 
   // Auto-save effect
   useEffect(() => {

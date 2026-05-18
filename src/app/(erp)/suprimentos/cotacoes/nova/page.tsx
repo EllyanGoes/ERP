@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useFormPersist } from "@/lib/form-persist";
+import { useDirtyForm } from "@/lib/dirty-form-context";
 import {
   CheckSquare, Square, ChevronRight, Loader2, Search,
   X, Building2, AlertTriangle,
@@ -133,6 +134,9 @@ export default function NovaCotacaoWizard() {
   const [showConfirm, setShowConfirm]         = useState(false);
   const [saving, setSaving]                   = useState(false);
   const [saveError, setSaveError]             = useState("");
+
+  const isDirty = !!(selectedItemIds.size > 0 || nome || selectedFornIds.size > 0);
+  useDirtyForm(isDirty);
 
   // ── Item-in-cotação warnings ──────────────────────────────────────────────
   type ItemWarning = { itemId: string; codigo: string; descricao: string; cotacoes: string[] };

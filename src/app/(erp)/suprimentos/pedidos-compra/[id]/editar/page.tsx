@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useFormPersist } from "@/lib/form-persist";
+import { useDirtyForm } from "@/lib/dirty-form-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +61,7 @@ export default function EditarPedidoCompraPage() {
   // Loading state
   const [loadingPedido, setLoadingPedido] = useState(true);
   const [pedidoNumero, setPedidoNumero]   = useState("");
+  const baselineRef = useRef<string | null>(null);
 
   // Fornecedor section
   const [fornecedorId, setFornecedorIdState] = useState("");
@@ -170,6 +172,35 @@ export default function EditarPedidoCompraPage() {
         }
       }
 
+      // Capture baseline from fresh API data
+      const cf = pedido.cotacaoFornecedor;
+      const baselineFreteNum    = cf ? decimalToNumber(cf.frete)    : 0;
+      const baselineDescontoNum = cf ? decimalToNumber(cf.desconto) : 0;
+      const baseDespesasNum     = cf ? decimalToNumber(cf.despesas) : 0;
+      const baseSeguroNum       = cf ? decimalToNumber(cf.seguro)   : 0;
+      const baselineItens = Array.isArray(pedido.itens) && pedido.itens.length > 0
+        ? pedido.itens.map((it: { item: { id: string }; quantidade: unknown; precoUnitario: unknown; situacao?: string }) => ({
+            itemId:        it.item.id,
+            quantidade:    String(decimalToNumber(it.quantidade)),
+            precoUnitario: String(decimalToNumber(it.precoUnitario)),
+            situacao:      (it.situacao === "NAO_CONSIDERA" ? "NAO_CONSIDERA" : "CONSIDERA") as ItemRow["situacao"],
+          }))
+        : [{ itemId: "", quantidade: "1", precoUnitario: "", situacao: "CONSIDERA" as ItemRow["situacao"] }];
+      baselineRef.current = JSON.stringify({
+        fornecedorId:        pedido.fornecedor?.id ?? "",
+        contato:             pedido.contato ?? pedido.fornecedor?.contato ?? "",
+        email:               pedido.email   ?? pedido.fornecedor?.email   ?? "",
+        frete:               baselineFreteNum    ? String(baselineFreteNum)    : "",
+        tipoFrete:           cf?.tipoFrete ?? "",
+        desconto:            baselineDescontoNum ? String(baselineDescontoNum) : "",
+        despesas:            baseDespesasNum     ? String(baseDespesasNum)     : "",
+        seguro:              baseSeguroNum       ? String(baseSeguroNum)       : "",
+        condicoesPagamento:  cf?.condicoesPagamento ?? "",
+        dataEntregaPrevista: pedido.dataEntregaPrevista ? pedido.dataEntregaPrevista.slice(0, 10) : "",
+        observacoes:         pedido.observacoes ?? "",
+        itens:               baselineItens,
+      });
+
       setLoadingPedido(false);
     }).catch(() => {
       setError("Erro ao carregar pedido");
@@ -214,12 +245,15 @@ export default function EditarPedidoCompraPage() {
   const fornNome     = selectedForn ? (selectedForn.nomeFantasia || selectedForn.razaoSocial) : "";
   const codigoForn   = fornecedorId ? fornecedorId.slice(-8).toUpperCase() : "";
 
-  async function handleSave() {
-    if (!fornecedorId) { setError("Selecione um fornecedor"); return; }
+  const currentJson = JSON.stringify({ fornecedorId, contato, email, frete, tipoFrete, desconto, despesas, seguro, condicoesPagamento, dataEntregaPrevista, observacoes, itens });
+  const isDirty = baselineRef.current !== null && currentJson !== baselineRef.current;
+
+  async function handleSaveOnly() {
+    if (!fornecedorId) throw new Error("Selecione um fornecedor");
     const validItens = itens.filter(
       (row) => row.itemId && parseFloat(row.quantidade) > 0
     );
-    if (validItens.length === 0) { setError("Adicione pelo menos um item"); return; }
+    if (validItens.length === 0) throw new Error("Adicione pelo menos um item");
 
     setSaving(true);
     setError("");
@@ -249,13 +283,28 @@ export default function EditarPedidoCompraPage() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) { setError(json.error || "Erro ao salvar pedido"); return; }
+      if (!res.ok) { setError(json.error || "Erro ao salvar pedido"); throw new Error(json.error); }
       clearForm();
-      router.push(`/suprimentos/pedidos-compra/${id}`);
-    } catch {
-      setError("Erro de conexão. Tente novamente.");
+      baselineRef.current = null;
     } finally {
       setSaving(false);
+    }
+  }
+
+  useDirtyForm(isDirty, handleSaveOnly);
+
+  async function handleSave() {
+    if (!fornecedorId) { setError("Selecione um fornecedor"); return; }
+    const validItens = itens.filter(
+      (row) => row.itemId && parseFloat(row.quantidade) > 0
+    );
+    if (validItens.length === 0) { setError("Adicione pelo menos um item"); return; }
+    try {
+      await handleSaveOnly();
+      router.push(`/suprimentos/pedidos-compra/${id}`);
+    } catch {
+      // error already set inside handleSaveOnly; set fallback only if still empty
+      setError((prev) => prev || "Erro de conexão. Tente novamente.");
     }
   }
 

@@ -12,6 +12,7 @@ import { Plus, Trash2, ChevronDown, Loader2, Save } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { cn, decimalToNumber } from "@/lib/utils";
 import { useFormPersist } from "@/lib/form-persist";
+import { useDirtyForm } from "@/lib/dirty-form-context";
 
 type Filial        = { id: string; razaoSocial: string; nomeFantasia: string | null };
 type LocalEstoque  = { id: string; nome: string };
@@ -153,6 +154,7 @@ export default function EditarSolicitacaoPage() {
 
   const { save: saveForm, load: loadForm, clear: clearForm } = useFormPersist<FormSnapshot>(`sc:edit:${id}`);
   const formRestoredRef = useRef(false);
+  const baselineRef = useRef<string | null>(null);
 
   const [ready,   setReady]   = useState(false);
   const [numero,  setNumero]  = useState("");
@@ -226,6 +228,30 @@ export default function EditarSolicitacaoPage() {
           unidade: it.unidade ?? "", observacao: it.observacao ?? "",
         })));
       }
+      // Capture baseline from fresh API data (ground truth)
+      const baselineItens = data.itens.map((it: { itemId: string; quantidade: unknown; unidade?: string; observacao: string | null }) => ({
+        itemId: it.itemId,
+        quantidade: String(decimalToNumber(it.quantidade)),
+        unidade: it.unidade ?? "",
+        observacao: it.observacao ?? "",
+      }));
+      baselineRef.current = JSON.stringify({
+        filialId: data.filialId ?? "",
+        descricao: data.justificativa ?? "",
+        prioridade: data.prioridade ?? 3,
+        entregaDesejada: data.dataNecessidade ? data.dataNecessidade.slice(0, 10) : "",
+        solicitante: data.solicitante ?? "",
+        tipoCompra: data.tipoCompra ?? "",
+        motivo: data.motivo ?? "",
+        localEstoqueId: data.localEstoqueId ?? "",
+        centroCustoId: data.centroCustoId ?? "",
+        categoria: data.categoria ?? "",
+        projeto: data.projeto ?? "",
+        classificacaoAuxiliar: data.classificacaoAuxiliar ?? "",
+        observacoes: data.observacoes ?? "",
+        itens: baselineItens,
+      });
+
       setReady(true);
       setLoading(false);
     });
@@ -289,13 +315,15 @@ export default function EditarSolicitacaoPage() {
     else { const item = itemOptions.find((o) => o.id === itemId); updateRow(i, "unidade", item?.unidade?.sigla ?? ""); }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!filialId) { setError("Filial é obrigatória"); return; }
-    if (!localEstoqueId) { setError("Local de Estoque é obrigatório"); return; }
+  const currentJson = JSON.stringify({ filialId, descricao, prioridade, entregaDesejada, solicitante, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens });
+  const isDirty = baselineRef.current !== null && currentJson !== baselineRef.current;
+
+  async function handleSaveOnly() {
+    if (!filialId) throw new Error("Filial required");
+    if (!localEstoqueId) throw new Error("Local required");
     const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade) > 0);
-    if (validItens.length === 0) { setError("Adicione pelo menos um item com quantidade válida"); return; }
-    if (!descricao.trim()) { setError("Descrição é obrigatória"); return; }
+    if (validItens.length === 0) throw new Error("No items");
+    if (!descricao.trim()) throw new Error("Descricao required");
     setSaving(true); setError("");
     try {
       const res = await fetch(`/api/suprimentos/necessidades/${id}`, {
@@ -314,11 +342,27 @@ export default function EditarSolicitacaoPage() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) { setError(json.error || "Erro ao salvar"); return; }
+      if (!res.ok) { setError(json.error || "Erro ao salvar"); throw new Error(json.error); }
       clearForm();
+      baselineRef.current = null;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  useDirtyForm(isDirty, handleSaveOnly);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!filialId) { setError("Filial é obrigatória"); return; }
+    if (!localEstoqueId) { setError("Local de Estoque é obrigatório"); return; }
+    const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade) > 0);
+    if (validItens.length === 0) { setError("Adicione pelo menos um item com quantidade válida"); return; }
+    if (!descricao.trim()) { setError("Descrição é obrigatória"); return; }
+    try {
+      await handleSaveOnly();
       router.push(`/compras/necessidades/${id}`);
-    } catch { setError("Erro de conexão. Tente novamente."); }
-    finally { setSaving(false); }
+    } catch { /* error already set in handleSaveOnly */ }
   }
 
   if (loading) return <div className="px-8 pt-8 text-gray-400"><Loader2 className="w-5 h-5 animate-spin inline mr-2" />Carregando...</div>;

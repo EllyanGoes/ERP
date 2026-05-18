@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session-context";
 import { useFormPersist } from "@/lib/form-persist";
+import { useDirtyForm } from "@/lib/dirty-form-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -359,6 +360,10 @@ export default function NovasolicitacaoPage() {
   const [observacoes,           setObservacoes]           = useState("");
 
   const [itens,       setItens]       = useState<ItemRow[]>([{ itemId: "", quantidade: "1", unidade: "", observacao: "" }]);
+
+  const isDirty = !!(filialId || descricao || motivo || localEstoqueId || itens.some(r => r.itemId));
+  useDirtyForm(isDirty);
+
   const [saving,      setSaving]      = useState(false);
   const [serverError, setServerError] = useState("");
   const [submitted,   setSubmitted]   = useState(false);
