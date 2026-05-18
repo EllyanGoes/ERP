@@ -12,7 +12,7 @@ import { useFormPersist } from "@/lib/form-persist";
 import { useDirtyForm } from "@/lib/dirty-form-context";
 import {
   CheckSquare, Square, ChevronRight, Loader2, Search,
-  X, Building2, AlertTriangle,
+  X, Building2, AlertTriangle, SlidersHorizontal, EyeOff,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -119,6 +119,10 @@ export default function NovaCotacaoWizard() {
   const [itemSearch, setItemSearch]     = useState("");
   // scId → progress tag label+color
   const [scTagMap, setScTagMap]         = useState<Map<string, { label: string; color: string }>>(new Map());
+  // Step 1 filters
+  const [filterScIds,    setFilterScIds]    = useState<string[]>([]);
+  const [filterCats,     setFilterCats]     = useState<string[]>([]);
+  const [hideEmCotacao,  setHideEmCotacao]  = useState(false);
 
   // ── Step 2 state ──────────────────────────────────────────────────────────
   const [nome, setNome]                 = useState<string>("");
@@ -274,14 +278,50 @@ export default function NovaCotacaoWizard() {
   }, [step, scItems, selectedItemIds]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
+  // Unique SC options for filter dropdown
+  const scOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const i of scItems) if (!seen.has(i.scId)) seen.set(i.scId, i.scNumero);
+    return Array.from(seen.entries()).map(([id, numero]) => ({ id, numero }));
+  }, [scItems]);
+
+  // Unique category options
+  const catOptions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const i of scItems) if (i.categoria) seen.add(i.categoria);
+    return Array.from(seen).sort();
+  }, [scItems]);
+
   const filteredItems = useMemo(() => {
-    const q = itemSearch.toLowerCase();
-    return !q ? scItems : scItems.filter((i) =>
+    let list = scItems;
+    const q = itemSearch.toLowerCase().trim();
+    if (q) list = list.filter((i) =>
       i.descricao.toLowerCase().includes(q) ||
       i.codigo.toLowerCase().includes(q) ||
       i.scNumero.toLowerCase().includes(q)
     );
-  }, [scItems, itemSearch]);
+    if (filterScIds.length > 0) list = list.filter((i) => filterScIds.includes(i.scId));
+    if (filterCats.length > 0)  list = list.filter((i) => i.categoria && filterCats.includes(i.categoria));
+    if (hideEmCotacao)           list = list.filter((i) => !scTagMap.has(i.scId));
+    return list;
+  }, [scItems, itemSearch, filterScIds, filterCats, hideEmCotacao, scTagMap]);
+
+  const hasFilters = itemSearch || filterScIds.length > 0 || filterCats.length > 0 || hideEmCotacao;
+
+  function clearFilters() {
+    setItemSearch(""); setFilterScIds([]); setFilterCats([]); setHideEmCotacao(false);
+  }
+
+  // Helper: select/deselect all items of a given SC
+  function toggleSC(scId: string) {
+    const ids = scItems.filter((i) => i.scId === scId).map((i) => i.id);
+    const allSelected = ids.every((id) => selectedItemIds.has(id));
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => allSelected ? next.delete(id) : next.add(id));
+      return next;
+    });
+  }
 
   const allVisibleSelected = filteredItems.length > 0 && filteredItems.every((i) => selectedItemIds.has(i.id));
 
@@ -407,16 +447,95 @@ export default function NovaCotacaoWizard() {
       {/* ── STEP 1 — Necessidades ─────────────────────────────────────────── */}
       {step === 1 && (
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-base font-semibold text-gray-800">Necessidade de Compra</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Selecione os itens que deseja incluir nesta cotação.</p>
+          <div className="mb-4">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h2 className="text-base font-semibold text-gray-800">Necessidade de Compra</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Selecione os itens que deseja incluir nesta cotação.</p>
+              </div>
+              {/* Active filter count badge */}
+              {hasFilters && (
+                <button onClick={clearFilters}
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-full hover:bg-blue-100 transition-colors">
+                  <X className="w-3 h-3" /> Limpar filtros
+                </button>
+              )}
             </div>
-            <div className="relative w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-              <input type="text" value={itemSearch} onChange={(e) => setItemSearch(e.target.value)}
-                placeholder="Buscar por item, código ou SC..."
-                className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
+
+            {/* Filter bar */}
+            <div className="flex flex-wrap gap-2 items-center">
+              {/* Search */}
+              <div className="relative flex-1 min-w-[200px] max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                <input type="text" value={itemSearch} onChange={(e) => setItemSearch(e.target.value)}
+                  placeholder="Buscar por item, código ou SC..."
+                  className="w-full pl-8 pr-8 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                {itemSearch && (
+                  <button onClick={() => setItemSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Solicitação filter */}
+              {scOptions.length > 1 && (
+                <div className="relative">
+                  <select
+                    value={filterScIds.length === 1 ? filterScIds[0] : ""}
+                    onChange={(e) => setFilterScIds(e.target.value ? [e.target.value] : [])}
+                    className={cn(
+                      "h-8 pl-3 pr-7 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer appearance-none",
+                      filterScIds.length > 0 ? "border-blue-400 text-blue-700 bg-blue-50" : "border-gray-200 text-gray-600"
+                    )}
+                  >
+                    <option value="">Todas as SCs</option>
+                    {scOptions.map((sc) => (
+                      <option key={sc.id} value={sc.id}>{sc.numero}</option>
+                    ))}
+                  </select>
+                  <SlidersHorizontal className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                </div>
+              )}
+
+              {/* Categoria filter */}
+              {catOptions.length > 0 && (
+                <div className="relative">
+                  <select
+                    value={filterCats.length === 1 ? filterCats[0] : ""}
+                    onChange={(e) => setFilterCats(e.target.value ? [e.target.value] : [])}
+                    className={cn(
+                      "h-8 pl-3 pr-7 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer appearance-none",
+                      filterCats.length > 0 ? "border-blue-400 text-blue-700 bg-blue-50" : "border-gray-200 text-gray-600"
+                    )}
+                  >
+                    <option value="">Todas as categorias</option>
+                    {catOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <SlidersHorizontal className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                </div>
+              )}
+
+              {/* Hide Em Cotação toggle */}
+              <button
+                type="button"
+                onClick={() => setHideEmCotacao((p) => !p)}
+                className={cn(
+                  "flex items-center gap-1.5 h-8 px-3 text-sm border rounded-lg transition-colors cursor-pointer select-none",
+                  hideEmCotacao
+                    ? "border-amber-400 bg-amber-50 text-amber-700"
+                    : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                )}
+              >
+                <EyeOff className="w-3.5 h-3.5" />
+                Ocultar Em Cotação
+              </button>
+
+              {/* Result count */}
+              {hasFilters && !loadingItems && (
+                <span className="text-xs text-gray-400 ml-1">
+                  {filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""}
+                </span>
+              )}
             </div>
           </div>
 
@@ -470,7 +589,14 @@ export default function NovaCotacaoWizard() {
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-mono text-xs text-gray-700">{item.scNumero}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); toggleSC(item.scId); }}
+                              title="Selecionar/deselecionar todos itens desta SC"
+                              className="font-mono text-xs text-gray-700 hover:text-blue-600 hover:underline cursor-pointer"
+                            >
+                              {item.scNumero}
+                            </button>
                             {scTagMap.get(item.scId) && (
                               <span className={cn(
                                 "inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold border shrink-0",
