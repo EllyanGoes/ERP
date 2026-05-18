@@ -1,5 +1,5 @@
 "use client";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { contaPagarSchema, type ContaPagarFormData } from "@/lib/validations/financeiro";
@@ -17,7 +17,7 @@ const CATEGORIAS = ["Aluguel","Energia","Água","Internet","Folha de Pagamento",
 export default function ContaPagarForm({ fornecedores }: { fornecedores: FornecedorOption[] }) {
   const router = useRouter();
   const form = useForm<ContaPagarFormData>({
-    resolver: zodResolver(contaPagarSchema),
+    resolver: zodResolver(contaPagarSchema) as Resolver<ContaPagarFormData>,
     defaultValues: { dataVencimento: new Date().toISOString().split("T")[0] },
   });
 

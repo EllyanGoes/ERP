@@ -6,11 +6,13 @@ interface Breadcrumb { label: string; href?: string }
 
 interface PageHeaderProps {
   title: string;
+  subtitle?: string;
   breadcrumbs?: Breadcrumb[];
   action?: ReactNode;
+  actions?: ReactNode;
 }
 
-export default function PageHeader({ title, breadcrumbs, action }: PageHeaderProps) {
+export default function PageHeader({ title, subtitle, breadcrumbs, action, actions }: PageHeaderProps) {
   return (
     <div className="flex items-start justify-between px-8 pt-8 pb-6">
       <div>
@@ -31,8 +33,9 @@ export default function PageHeader({ title, breadcrumbs, action }: PageHeaderPro
           </nav>
         )}
         <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
+        {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
       </div>
-      {action && <div>{action}</div>}
+      {(action ?? actions) && <div>{action ?? actions}</div>}
     </div>
   );
 }

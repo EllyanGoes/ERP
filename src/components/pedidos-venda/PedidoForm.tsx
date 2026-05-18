@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { pedidoVendaSchema, type PedidoVendaFormData } from "@/lib/validations/pedido-venda";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -25,7 +25,7 @@ export default function PedidoForm({ clientes, itens }: { clientes: ClienteOptio
   const [submitting, setSubmitting] = useState<"orcamento" | "confirmado" | null>(null);
 
   const form = useForm<PedidoVendaFormData>({
-    resolver: zodResolver(pedidoVendaSchema),
+    resolver: zodResolver(pedidoVendaSchema) as Resolver<PedidoVendaFormData>,
     defaultValues: {
       dataEmissao: new Date().toISOString().split("T")[0],
       valorDesconto: 0,

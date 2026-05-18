@@ -1,5 +1,5 @@
 "use client";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { itemSchema, type ItemFormData } from "@/lib/validations/item";
@@ -32,7 +32,7 @@ type ItemWithEstoque = {
 export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
   const router = useRouter();
   const form = useForm<ItemFormData>({
-    resolver: zodResolver(itemSchema),
+    resolver: zodResolver(itemSchema) as Resolver<ItemFormData>,
     defaultValues: item ? {
       codigo: item.codigo,
       descricao: item.descricao,

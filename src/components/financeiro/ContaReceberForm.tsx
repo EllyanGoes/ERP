@@ -1,5 +1,5 @@
 "use client";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { contaReceberSchema, type ContaReceberFormData } from "@/lib/validations/financeiro";
@@ -16,7 +16,7 @@ type ClienteOption = { id: string; razaoSocial: string };
 export default function ContaReceberForm({ clientes }: { clientes: ClienteOption[] }) {
   const router = useRouter();
   const form = useForm<ContaReceberFormData>({
-    resolver: zodResolver(contaReceberSchema),
+    resolver: zodResolver(contaReceberSchema) as Resolver<ContaReceberFormData>,
     defaultValues: { dataVencimento: new Date().toISOString().split("T")[0] },
   });
 
