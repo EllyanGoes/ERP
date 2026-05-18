@@ -145,8 +145,22 @@ export default function FornecedorDetailPage() {
     }
   }
 
+  const [nomeFantasiaEdited, setNomeFantasiaEdited] = useState(false);
+
   function setField(key: keyof Fornecedor, value: unknown) {
-    setEditForm((prev) => ({ ...prev, [key]: value }));
+    setEditForm((prev) => {
+      const next = { ...prev, [key]: value };
+      // Auto-fill nomeFantasia when razaoSocial changes, unless user already edited it
+      if (key === "razaoSocial" && !nomeFantasiaEdited) {
+        next.nomeFantasia = value as string;
+      }
+      return next;
+    });
+  }
+
+  function setNomeFantasia(value: string) {
+    setNomeFantasiaEdited(true);
+    setEditForm((prev) => ({ ...prev, nomeFantasia: value }));
   }
 
   async function handleDelete() {
@@ -319,7 +333,7 @@ export default function FornecedorDetailPage() {
                 {editMode ? (
                   <>
                     <div className="space-y-1.5">
-                      <Label>Tipo de Pessoa</Label>
+                      <Label>Tipo de Pessoa <span className="text-red-500">*</span></Label>
                       <Select
                         value={editForm.tipoPessoa as string}
                         onValueChange={(v) => setField("tipoPessoa", v)}
@@ -336,12 +350,12 @@ export default function FornecedorDetailPage() {
                       <Input value={editForm.cpfCnpj ?? ""} onChange={(e) => setField("cpfCnpj", e.target.value)} />
                     </div>
                     <div className="space-y-1.5 md:col-span-2">
-                      <Label>Razão Social</Label>
+                      <Label>Razão Social <span className="text-red-500">*</span></Label>
                       <Input value={editForm.razaoSocial ?? ""} onChange={(e) => setField("razaoSocial", e.target.value)} />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Nome Fantasia</Label>
-                      <Input value={editForm.nomeFantasia ?? ""} onChange={(e) => setField("nomeFantasia", e.target.value)} />
+                      <Input value={editForm.nomeFantasia ?? ""} onChange={(e) => setNomeFantasia(e.target.value)} placeholder="Auto-preenchido com a Razão Social" />
                     </div>
                     <div className="space-y-1.5">
                       <Label>IE</Label>

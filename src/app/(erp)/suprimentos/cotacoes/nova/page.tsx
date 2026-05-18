@@ -285,7 +285,7 @@ export default function NovaCotacaoWizard() {
     const list = tab === "ultimos" ? ultFornecedores : allFornecedores;
     const q = fornSearch.toLowerCase();
     return !q ? list : list.filter((f) =>
-      (f.nomeFantasia ?? f.razaoSocial).toLowerCase().includes(q) ||
+      (f.nomeFantasia || f.razaoSocial).toLowerCase().includes(q) ||
       (f.cpfCnpj ?? "").toLowerCase().includes(q)
     );
   }
@@ -624,7 +624,7 @@ export default function NovaCotacaoWizard() {
                     </div>
                     <div className="flex-1">
                       <p className={cn("font-medium text-sm", checked ? "text-blue-800" : "text-gray-900")}>
-                        {f.nomeFantasia ?? f.razaoSocial}
+                        {f.nomeFantasia || f.razaoSocial}
                       </p>
                       <div className="flex flex-wrap gap-x-6 gap-y-0.5 mt-1 text-xs text-gray-500">
                         {f.cpfCnpj && (

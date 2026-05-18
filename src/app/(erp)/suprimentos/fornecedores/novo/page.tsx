@@ -61,14 +61,28 @@ export default function NovoFornecedorPage() {
   const [serverError, setServerError] = useState("");
   const [savedName, setSavedName] = useState<string | null>(null); // nome do fornecedor salvo
   const [savedId, setSavedId]   = useState<string | null>(null);
+  const [nomeFantasiaEdited, setNomeFantasiaEdited] = useState(false);
 
   function set(key: keyof FormData, value: string) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      // Auto-fill nomeFantasia from razaoSocial if user hasn't manually changed it
+      if (key === "razaoSocial" && !nomeFantasiaEdited) {
+        next.nomeFantasia = value;
+      }
+      return next;
+    });
     setErrors((prev) => ({ ...prev, [key]: undefined }));
+  }
+
+  function setNomeFantasia(value: string) {
+    setNomeFantasiaEdited(true);
+    setForm((prev) => ({ ...prev, nomeFantasia: value }));
   }
 
   function validate(): boolean {
     const newErrors: Partial<Record<keyof FormData, string>> = {};
+    if (!form.tipoPessoa) newErrors.tipoPessoa = "Tipo de pessoa é obrigatório";
     if (!form.razaoSocial.trim()) newErrors.razaoSocial = "Razão social é obrigatória";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -175,7 +189,7 @@ export default function NovoFornecedorPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>Tipo de Pessoa</Label>
+              <Label>Tipo de Pessoa <span className="text-red-500">*</span></Label>
               <Select value={form.tipoPessoa} onValueChange={(v) => set("tipoPessoa", v as "JURIDICA" | "FISICA")}>
                 <SelectTrigger>
                   <SelectValue />
@@ -214,8 +228,8 @@ export default function NovoFornecedorPage() {
               <Label>Nome Fantasia</Label>
               <Input
                 value={form.nomeFantasia}
-                onChange={(e) => set("nomeFantasia", e.target.value)}
-                placeholder="Nome Fantasia"
+                onChange={(e) => setNomeFantasia(e.target.value)}
+                placeholder="Auto-preenchido com a Razão Social"
               />
             </div>
 
