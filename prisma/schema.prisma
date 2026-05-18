@@ -698,14 +698,14 @@ model PerfilAcesso {
   permissoes String[]
   createdAt  DateTime  @default(now())
   updatedAt  DateTime
-  Usuario    Usuario[]
+  usuarios   Usuario[]
 }
 
 model Permissao {
   id        String  @id
   usuarioId String
   modulo    String
-  Usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@unique([usuarioId, modulo])
   @@index([usuarioId])
@@ -790,11 +790,11 @@ model Usuario {
   updatedAt      DateTime
   perfilAcessoId String?
   telefone       String?
-  AprovacaoEtapa AprovacaoEtapa[]
-  AprovacaoSC    AprovacaoSC[]
-  Colaborador    Colaborador?
-  Permissao      Permissao[]
-  PerfilAcesso   PerfilAcesso?    @relation(fields: [perfilAcessoId], references: [id])
+  aprovacaoEtapas AprovacaoEtapa[]
+  aprovacoesSC    AprovacaoSC[]
+  colaborador     Colaborador?
+  permissoes      Permissao[]
+  perfilAcesso    PerfilAcesso?    @relation(fields: [perfilAcessoId], references: [id])
 }
 
 enum PerfilUsuario {
