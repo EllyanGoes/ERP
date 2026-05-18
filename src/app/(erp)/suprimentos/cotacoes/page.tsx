@@ -20,7 +20,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn, formatDate } from "@/lib/utils";
-import { Plus, MoreHorizontal, Loader2, X, BarChart3, Pencil, Trash2 } from "lucide-react";
+import { useSession } from "@/lib/session-context";
+import { Plus, MoreHorizontal, Loader2, X, BarChart3, Pencil, Trash2, LayoutList, LayoutGrid } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type CotacaoItem = {
@@ -36,6 +37,12 @@ type CotacaoItem = {
   }>;
 };
 
+const COTACAO_KANBAN_COLS = [
+  { status: "PENDENTE",   label: "Pendente",   dot: "bg-amber-400",   bg: "bg-amber-50 border-amber-200" },
+  { status: "EM_ANALISE", label: "Em Análise", dot: "bg-blue-400",    bg: "bg-blue-50 border-blue-200" },
+  { status: "CONCLUIDA",  label: "Concluída",  dot: "bg-green-400",   bg: "bg-green-50 border-green-200" },
+];
+
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   PENDENTE:   { label: "Pendente",   cls: "bg-amber-100 text-amber-700" },
   EM_ANALISE: { label: "Em Análise", cls: "bg-blue-100 text-blue-700" },
@@ -44,14 +51,26 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
 
 export default function CotacoesPage() {
   const router = useRouter();
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
   const [cotacoes, setCotacoes] = useState<CotacaoItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [filterStatus, setFilterStatus] = useState("TODOS");
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"list" | "kanban">(() =>
+    typeof window !== "undefined"
+      ? (localStorage.getItem("cotacoes-view") as "list" | "kanban") ?? "list"
+      : "list"
+  );
 
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; numero: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  function canDelete(c: CotacaoItem) {
+    if (c.status === "CONCLUIDA") return isAdmin;
+    return true;
+  }
 
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -141,9 +160,26 @@ export default function CotacoesPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-72"
           />
+
+          <div className="flex items-center gap-1 border rounded-lg p-0.5 bg-white">
+            <button
+              onClick={() => { setView("list"); localStorage.setItem("cotacoes-view", "list"); }}
+              className={cn("p-1.5 rounded-md transition-colors", view === "list" ? "bg-gray-100 text-gray-800" : "text-gray-400 hover:text-gray-600")}
+              title="Visualização em lista"
+            >
+              <LayoutList className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => { setView("kanban"); localStorage.setItem("cotacoes-view", "kanban"); }}
+              className={cn("p-1.5 rounded-md transition-colors", view === "kanban" ? "bg-gray-100 text-gray-800" : "text-gray-400 hover:text-gray-600")}
+              title="Visualização em Kanban"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Table */}
+        {/* Table / Kanban */}
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
@@ -153,7 +189,7 @@ export default function CotacoesPage() {
             <p className="text-lg font-medium">Nenhuma cotação encontrada</p>
             <p className="text-sm mt-1">Tente ajustar os filtros ou clique em &quot;Nova Cotação&quot;.</p>
           </div>
-        ) : (
+        ) : view === "list" ? (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -208,12 +244,14 @@ export default function CotacoesPage() {
                             <DropdownMenuItem onClick={() => router.push(`/suprimentos/cotacoes/${c.id}/analise`)}>
                               <BarChart3 className="h-4 w-4 mr-2" /> Analisar
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-red-600 focus:text-red-600"
-                              onClick={() => setDeleteTarget({ id: c.id, numero: c.numero })}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" /> Excluir
-                            </DropdownMenuItem>
+                            {canDelete(c) && (
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600"
+                                onClick={() => setDeleteTarget({ id: c.id, numero: c.numero })}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" /> Excluir
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>
@@ -222,6 +260,70 @@ export default function CotacoesPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        ) : (
+          <div className="flex gap-4 overflow-x-auto pb-4 pt-2">
+            {COTACAO_KANBAN_COLS.map(col => {
+              const colItems = filtered.filter(c => c.status === col.status);
+              return (
+                <div key={col.status} className="flex-shrink-0 w-72 flex flex-col">
+                  <div className={cn("rounded-t-lg border-t border-x px-3 py-2 flex items-center gap-2", col.bg)}>
+                    <div className={cn("w-2 h-2 rounded-full", col.dot)} />
+                    <span className="text-xs font-semibold text-gray-700">{col.label}</span>
+                    <span className="ml-auto text-xs text-gray-400">{colItems.length}</span>
+                  </div>
+                  <div className={cn("flex-1 rounded-b-lg border-b border-x p-2 space-y-2 min-h-24", col.bg)}>
+                    {colItems.map(c => {
+                      const resp = c.fornecedores.filter(f => f.status === "RESPONDIDA").length;
+                      const desc = c.fornecedores.filter(f => f.status === "RECUSADA").length;
+                      return (
+                        <div
+                          key={c.id}
+                          className="bg-white rounded-lg border border-gray-100 shadow-sm p-3 cursor-pointer hover:shadow-md transition-shadow"
+                          onClick={() => router.push(`/suprimentos/cotacoes/${c.id}`)}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="text-xs font-bold text-gray-800">{c.numero}</p>
+                              {c.nome && <p className="text-xs text-gray-500 mt-0.5 truncate max-w-44">{c.nome}</p>}
+                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger onClick={e => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+                                  <MoreHorizontal className="w-3.5 h-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={e => { e.stopPropagation(); router.push(`/suprimentos/cotacoes/${c.id}`); }}>
+                                  <Pencil className="h-4 w-4 mr-2" /> Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={e => { e.stopPropagation(); router.push(`/suprimentos/cotacoes/${c.id}/analise`); }}>
+                                  <BarChart3 className="h-4 w-4 mr-2" /> Analisar
+                                </DropdownMenuItem>
+                                {canDelete(c) && (
+                                  <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={e => { e.stopPropagation(); setDeleteTarget({ id: c.id, numero: c.numero }); }}>
+                                    <Trash2 className="h-4 w-4 mr-2" /> Excluir
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                          <div className="mt-2 flex items-center gap-3 text-xs text-gray-400">
+                            <span>{c._count.fornecedores} forn.</span>
+                            {resp > 0 && <span className="text-green-600">{resp} resp.</span>}
+                            {desc > 0 && <span className="text-red-500">{desc} desc.</span>}
+                          </div>
+                          <p className="text-xs text-gray-300 mt-1">{formatDate(c.createdAt)}</p>
+                        </div>
+                      );
+                    })}
+                    {colItems.length === 0 && (
+                      <p className="text-xs text-center text-gray-300 py-4">Nenhuma cotação</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

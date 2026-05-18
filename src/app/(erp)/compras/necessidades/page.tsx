@@ -15,6 +15,7 @@ import {
   LayoutList, Kanban,
 } from "lucide-react";
 import { formatDate, cn } from "@/lib/utils";
+import { useSession } from "@/lib/session-context";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -221,10 +222,11 @@ function StatusFilterChip({
 
 // ── KanbanCard ────────────────────────────────────────────────────────────────
 
-function KanbanCard({ n, onDelete, onClick }: {
+function KanbanCard({ n, onDelete, onClick, canDelete }: {
   n: Necessidade;
   onDelete: () => void;
   onClick: () => void;
+  canDelete: boolean;
 }) {
   const prio = PRIORIDADE_LABEL[n.prioridade];
   const filialLabel = n.filial ? (n.filial.nomeFantasia || n.filial.razaoSocial) : null;
@@ -237,13 +239,15 @@ function KanbanCard({ n, onDelete, onClick }: {
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <span className="font-mono text-xs font-bold text-gray-500">{n.numero}</span>
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
-          title="Excluir"
-        >
-          <Trash2 className="w-3 h-3" />
-        </button>
+        {canDelete && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
+            title="Excluir"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        )}
       </div>
 
       {/* Description */}
@@ -282,10 +286,11 @@ function KanbanCard({ n, onDelete, onClick }: {
 
 // ── KanbanView ────────────────────────────────────────────────────────────────
 
-function KanbanView({ items, onDelete, onNavigate }: {
+function KanbanView({ items, onDelete, onNavigate, canDelete }: {
   items: Necessidade[];
   onDelete: (n: Necessidade) => void;
   onNavigate: (id: string) => void;
+  canDelete: (n: Necessidade) => boolean;
 }) {
   const byStatus = useMemo(() => {
     const map = new Map<string, Necessidade[]>();
@@ -329,6 +334,7 @@ function KanbanView({ items, onDelete, onNavigate }: {
                     n={n}
                     onDelete={() => onDelete(n)}
                     onClick={() => onNavigate(n.id)}
+                    canDelete={canDelete(n)}
                   />
                 ))
               )}
@@ -344,6 +350,12 @@ function KanbanView({ items, onDelete, onNavigate }: {
 
 export default function NecessidadesPage() {
   const router = useRouter();
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
+  function canDeleteSC(n: { status: string }) {
+    if (n.status === "APROVADA" || n.status === "CONCLUIDA") return isAdmin;
+    return true;
+  }
   const [necessidades, setNecessidades] = useState<Necessidade[]>([]);
   const [loading,      setLoading]      = useState(true);
 
@@ -592,6 +604,7 @@ export default function NecessidadesPage() {
               items={filtered}
               onDelete={(n) => { setDeleteItem(n); setDeleteError(""); }}
               onNavigate={(id) => router.push(`/compras/necessidades/${id}`)}
+              canDelete={canDeleteSC}
             />
           )
         ) : (
@@ -657,13 +670,15 @@ export default function NecessidadesPage() {
                             </td>
                             <td className="px-4 py-3 text-center text-gray-500">{n._count.itens}</td>
                             <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                onClick={() => { setDeleteItem(n); setDeleteError(""); }}
-                                className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                                title="Excluir"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {canDeleteSC(n) && (
+                                <button
+                                  onClick={() => { setDeleteItem(n); setDeleteError(""); }}
+                                  className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                  title="Excluir"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );

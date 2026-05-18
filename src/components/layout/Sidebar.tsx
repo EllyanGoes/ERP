@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -456,7 +456,7 @@ export default function Sidebar() {
   // Initial open state is set by useState initializer above.
 
   // Sync CSS variable + data attribute (used by pages to react to sidebar state)
-  useEffect(() => {
+  useLayoutEffect(() => {
     const w = stripCollapsed ? 0 : STRIP_W + (openId ? panelWidth : 0);
     document.documentElement.style.setProperty("--sidebar-width", `${w}px`);
     // "1" = panel open (sidebar expanded), "0" = strip-only or fully collapsed
