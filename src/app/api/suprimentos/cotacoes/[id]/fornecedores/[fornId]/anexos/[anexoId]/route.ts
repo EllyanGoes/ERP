@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { del } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 
-type Params = { params: { id: string; cfId: string; anexoId: string } };
+type Params = { params: { id: string; fornId: string; anexoId: string } };
 
 export async function DELETE(_: NextRequest, { params }: Params) {
   const anexo = await prisma.anexoCotacaoFornecedor.findUnique({

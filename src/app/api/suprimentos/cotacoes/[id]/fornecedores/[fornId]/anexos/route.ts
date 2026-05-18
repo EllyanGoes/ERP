@@ -3,12 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 
-type Params = { params: { id: string; cfId: string } };
+type Params = { params: { id: string; fornId: string } };
 
 /** GET — list all attachments for a CotacaoFornecedor */
 export async function GET(_: NextRequest, { params }: Params) {
   const anexos = await prisma.anexoCotacaoFornecedor.findMany({
-    where: { cotacaoFornecedorId: params.cfId },
+    where: { cotacaoFornecedorId: params.fornId },
     orderBy: { createdAt: "asc" },
   });
   return NextResponse.json({ data: anexos });
@@ -17,7 +17,7 @@ export async function GET(_: NextRequest, { params }: Params) {
 /** POST — upload a new file (multipart/form-data, field: "file") */
 export async function POST(req: NextRequest, { params }: Params) {
   // Verify CF exists
-  const cf = await prisma.cotacaoFornecedor.findUnique({ where: { id: params.cfId } });
+  const cf = await prisma.cotacaoFornecedor.findUnique({ where: { id: params.fornId } });
   if (!cf) return NextResponse.json({ error: "Proposta não encontrada" }, { status: 404 });
 
   const formData = await req.formData();
@@ -29,14 +29,14 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Arquivo muito grande (máx. 20 MB)" }, { status: 413 });
 
   const blob = await put(
-    `cotacoes/${params.id}/propostas/${params.cfId}/${Date.now()}-${file.name}`,
+    `cotacoes/${params.id}/propostas/${params.fornId}/${Date.now()}-${file.name}`,
     file,
     { access: "public" }
   );
 
   const anexo = await prisma.anexoCotacaoFornecedor.create({
     data: {
-      cotacaoFornecedorId: params.cfId,
+      cotacaoFornecedorId: params.fornId,
       nome:    file.name,
       url:     blob.url,
       tamanho: file.size,
