@@ -109,30 +109,30 @@ export function DirtyFormProvider({ children }: { children: React.ReactNode }) {
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-3 justify-end">
-          <Button
-            variant="outline"
-            onClick={() => { setShowModal(false); pendingRef.current = null; }}
-            className="border-red-800 text-red-800 hover:bg-red-50"
-          >
-            Continuar editando
-          </Button>
+        <div className="flex flex-col gap-2">
           {onSaveRef.current && (
             <Button
-              variant="outline"
               onClick={saveAndLeave}
               disabled={saving}
-              className="border-red-800 text-red-800 hover:bg-red-50"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
             >
               {saving && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
-              Salvar
+              Salvar alterações
             </Button>
           )}
           <Button
-            onClick={confirmLeave}
-            className="bg-red-800 hover:bg-red-900 text-white"
+            variant="outline"
+            onClick={() => { setShowModal(false); pendingRef.current = null; }}
+            className="w-full"
           >
-            Sair da página
+            Continuar editando
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={confirmLeave}
+            className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+          >
+            Sair sem salvar
           </Button>
         </div>
       </div>
