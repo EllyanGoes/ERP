@@ -599,6 +599,12 @@ model CotacaoFornecedor {
   observacao         String?
   totalCalculado     Decimal?                 @db.Decimal(15, 2) // calculado automaticamente
   melhorOpcao        Boolean                  @default(false)    // menor preço total
+  frete              Decimal?                 @db.Decimal(15, 2)
+  tipoFrete          String?
+  desconto           Decimal?                 @db.Decimal(5, 2)
+  vrDesconto         Decimal?                 @db.Decimal(15, 2)
+  despesas           Decimal?                 @db.Decimal(15, 2)
+  seguro             Decimal?                 @db.Decimal(15, 2)
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
 
@@ -617,6 +623,8 @@ model CotacaoFornecedorItem {
   precoUnitario       Decimal?          @db.Decimal(15, 2)
   subtotal            Decimal?          @db.Decimal(15, 2) // precoUnitario * quantidade
   disponivel          Boolean           @default(true)
+  situacao            String?           @default("CONSIDERA")
+  qtdDisponivel       Decimal?          @db.Decimal(15, 3)
 }
 
 // 3. Pedido de Compra

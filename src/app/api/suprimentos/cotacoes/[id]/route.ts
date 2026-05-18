@@ -9,7 +9,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       necessidade: { select: { id: true, numero: true } },
       fornecedores: {
         include: {
-          fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+          fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true, cpfCnpj: true, email: true, contato: true } },
           itens: {
             include: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } } },
           },
@@ -38,4 +38,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   });
 
   return NextResponse.json({ data: record });
+}
+
+export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  await prisma.cotacaoCompra.delete({ where: { id: params.id } });
+  return NextResponse.json({ success: true });
 }

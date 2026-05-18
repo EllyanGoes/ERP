@@ -7,13 +7,22 @@ export async function PATCH(
   { params }: { params: { id: string; fornId: string } }
 ) {
   const body = await req.json();
-  const { status, prazoEntregaDias, condicoesPagamento, observacao, itens } = body;
+  const {
+    status, prazoEntregaDias, condicoesPagamento, observacao, itens,
+    frete, tipoFrete, desconto, vrDesconto, despesas, seguro,
+  } = body;
 
   const updateData: Record<string, unknown> = {};
   if (status !== undefined) updateData.status = status;
   if (prazoEntregaDias !== undefined) updateData.prazoEntregaDias = prazoEntregaDias ? Number(prazoEntregaDias) : null;
   if (condicoesPagamento !== undefined) updateData.condicoesPagamento = condicoesPagamento || null;
   if (observacao !== undefined) updateData.observacao = observacao || null;
+  if (frete !== undefined) updateData.frete = frete != null ? parseFloat(String(frete)) : null;
+  if (tipoFrete !== undefined) updateData.tipoFrete = tipoFrete || null;
+  if (desconto !== undefined) updateData.desconto = desconto != null ? parseFloat(String(desconto)) : null;
+  if (vrDesconto !== undefined) updateData.vrDesconto = vrDesconto != null ? parseFloat(String(vrDesconto)) : null;
+  if (despesas !== undefined) updateData.despesas = despesas != null ? parseFloat(String(despesas)) : null;
+  if (seguro !== undefined) updateData.seguro = seguro != null ? parseFloat(String(seguro)) : null;
 
   // Update item prices if provided
   if (itens && Array.isArray(itens)) {
@@ -28,6 +37,8 @@ export async function PATCH(
           ...(preco !== undefined ? { precoUnitario: preco } : {}),
           ...(qtd !== undefined ? { quantidade: qtd } : {}),
           ...(item.disponivel !== undefined ? { disponivel: item.disponivel } : {}),
+          ...(item.situacao !== undefined ? { situacao: item.situacao } : {}),
+          ...(item.qtdDisponivel != null ? { qtdDisponivel: parseFloat(String(item.qtdDisponivel)) } : {}),
           subtotal: item.disponivel !== false ? subtotal : 0,
         },
       });
@@ -78,4 +89,12 @@ export async function PATCH(
   });
 
   return NextResponse.json({ data: updated });
+}
+
+export async function DELETE(
+  _: NextRequest,
+  { params }: { params: { id: string; fornId: string } }
+) {
+  await prisma.cotacaoFornecedor.delete({ where: { id: params.fornId } });
+  return NextResponse.json({ success: true });
 }

@@ -1,22 +1,109 @@
-export const dynamic = "force-dynamic";
+"use client";
 
-import { prisma } from "@/lib/prisma";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
-import StatusBadge from "@/components/shared/StatusBadge";
-import ClickableRow from "@/components/shared/ClickableRow";
-import Link from "next/link";
-import { Plus } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn, formatDate } from "@/lib/utils";
+import { Plus, MoreHorizontal, Loader2, X } from "lucide-react";
 
-export default async function CotacoesPage() {
-  const cotacoes = await prisma.cotacaoCompra.findMany({
-    include: {
-      necessidade: { select: { numero: true } },
-      _count: { select: { fornecedores: true } },
-    },
-    orderBy: { createdAt: "desc" },
+// ── Types ─────────────────────────────────────────────────────────────────────
+type CotacaoItem = {
+  id: string;
+  numero: string;
+  nome: string | null;
+  status: "PENDENTE" | "EM_ANALISE" | "CONCLUIDA";
+  createdAt: string;
+  _count: { fornecedores: number };
+  fornecedores: Array<{
+    status: "AGUARDANDO" | "RESPONDIDA" | "RECUSADA";
+    itens: Array<{ precoUnitario: unknown }>;
+  }>;
+};
+
+const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  PENDENTE:   { label: "Pendente",   cls: "bg-amber-100 text-amber-700" },
+  EM_ANALISE: { label: "Em Análise", cls: "bg-blue-100 text-blue-700" },
+  CONCLUIDA:  { label: "Concluída",  cls: "bg-green-100 text-green-700" },
+};
+
+export default function CotacoesPage() {
+  const router = useRouter();
+  const [cotacoes, setCotacoes] = useState<CotacaoItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [filterStatus, setFilterStatus] = useState("TODOS");
+  const [search, setSearch] = useState("");
+
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; numero: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // ── Load ──────────────────────────────────────────────────────────────────
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/suprimentos/cotacoes");
+      const json = await res.json();
+      setCotacoes(json.data ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await fetch(`/api/suprimentos/cotacoes/${deleteTarget.id}`, { method: "DELETE" });
+      await load();
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  }
+
+  // ── Filter ────────────────────────────────────────────────────────────────
+  const filtered = cotacoes.filter((c) => {
+    const matchStatus = filterStatus === "TODOS" || c.status === filterStatus;
+    const q = search.toLowerCase();
+    const matchSearch =
+      !q ||
+      c.numero.toLowerCase().includes(q) ||
+      (c.nome ?? "").toLowerCase().includes(q);
+    return matchStatus && matchSearch;
   });
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function getQtdProdutos(c: CotacaoItem) {
+    if (c.fornecedores.length === 0) return 0;
+    return c.fornecedores[0].itens.length;
+  }
+
+  function getRespondidas(c: CotacaoItem) {
+    return c.fornecedores.filter((f) => f.status === "RESPONDIDA").length;
+  }
+
+  function getDescartadas(c: CotacaoItem) {
+    return c.fornecedores.filter((f) => f.status === "RECUSADA").length;
+  }
 
   return (
     <div>
@@ -32,53 +119,150 @@ export default async function CotacoesPage() {
           </Button>
         }
       />
-      <div className="px-8 pb-8">
-        {cotacoes.length === 0 ? (
+
+      <div className="px-8 pb-8 space-y-4">
+        {/* Filters */}
+        <div className="flex items-center gap-3">
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="TODOS">Todos</SelectItem>
+              <SelectItem value="PENDENTE">Pendente</SelectItem>
+              <SelectItem value="EM_ANALISE">Em Análise</SelectItem>
+              <SelectItem value="CONCLUIDA">Concluída</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Input
+            placeholder="Buscar por número ou apelido..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-72"
+          />
+        </div>
+
+        {/* Table */}
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
-            <p className="text-lg font-medium">Nenhuma cotação registrada</p>
-            <p className="text-sm mt-1">Clique em &quot;Nova Cotação&quot; para começar.</p>
+            <p className="text-lg font-medium">Nenhuma cotação encontrada</p>
+            <p className="text-sm mt-1">Tente ajustar os filtros ou clique em &quot;Nova Cotação&quot;.</p>
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Número</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Necessidade</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Prazo Resposta</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Fornecedores</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Num. Cotação</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Apelido Cot.</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Data Receb.</th>
+                  <th className="text-center px-4 py-3 font-medium text-gray-600">Qtd. Produto</th>
+                  <th className="text-center px-4 py-3 font-medium text-gray-600">Qtd. Fornece.</th>
+                  <th className="text-center px-4 py-3 font-medium text-gray-600">Prop. Respondidas</th>
+                  <th className="text-center px-4 py-3 font-medium text-gray-600">Prop. Descartadas</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {cotacoes.map((c) => (
-                  <ClickableRow key={c.id} href={`/suprimentos/cotacoes/${c.id}`}>
-                    <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">{c.numero}</td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {c.necessidade?.numero ? (
-                        <Link
-                          href={`/compras/necessidades/${c.necessidadeId}`}
-                          className="text-blue-600 hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {c.necessidade.numero}
-                        </Link>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={c.status} />
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{formatDate(c.dataLimiteResposta)}</td>
-                    <td className="px-4 py-3 text-center text-gray-600">{c._count.fornecedores}</td>
-                  </ClickableRow>
-                ))}
+                {filtered.map((c) => {
+                  const badge = STATUS_BADGE[c.status] ?? { label: c.status, cls: "bg-gray-100 text-gray-700" };
+                  return (
+                    <tr
+                      key={c.id}
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => router.push(`/suprimentos/cotacoes/${c.id}`)}
+                    >
+                      <td className="px-4 py-3">
+                        <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium", badge.cls)}>
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">{c.numero}</td>
+                      <td className="px-4 py-3 text-gray-600">{c.nome || "—"}</td>
+                      <td className="px-4 py-3 text-gray-600">{formatDate(c.createdAt)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600">{getQtdProdutos(c)}</td>
+                      <td className="px-4 py-3 text-center text-gray-600">{c._count.fornecedores}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="text-green-700 font-medium">{getRespondidas(c)}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="text-red-600 font-medium">{getDescartadas(c)}</span>
+                      </td>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => router.push(`/suprimentos/cotacoes/${c.id}`)}>
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={() => setDeleteTarget({ id: c.id, numero: c.numero })}
+                            >
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* Delete confirm modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => !deleting && setDeleteTarget(null)}
+          />
+          <div className="relative bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
+            <button
+              onClick={() => !deleting && setDeleteTarget(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <h2 className="font-semibold text-gray-900">Excluir cotação?</h2>
+            <p className="text-sm text-gray-600">
+              Tem certeza que deseja excluir a cotação{" "}
+              <span className="font-mono font-medium">{deleteTarget.numero}</span>?
+              Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={confirmDelete}
+                disabled={deleting}
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Excluir
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

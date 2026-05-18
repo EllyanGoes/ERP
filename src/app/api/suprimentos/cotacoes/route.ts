@@ -8,6 +8,12 @@ export async function GET() {
     include: {
       necessidade: { select: { id: true, numero: true } },
       _count: { select: { fornecedores: true } },
+      fornecedores: {
+        select: {
+          status: true,
+          itens: { select: { precoUnitario: true } },
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
