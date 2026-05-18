@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
-import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Users, CheckCircle2 } from "lucide-react";
+import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Users, CheckCircle2, Pencil } from "lucide-react";
 
 type WAUser = { id: string; nome: string; telefone: string | null };
 
@@ -271,6 +271,13 @@ export default function PedidoCompraDetailPage() {
         action={
           <div className="flex items-center gap-2">
             <StatusBadge status={pedido.status} />
+            {(pedido.status === "RASCUNHO" || pedido.status === "ENVIADO") && (
+              <Button size="sm" variant="outline" asChild>
+                <Link href={`/suprimentos/pedidos-compra/${id}/editar`}>
+                  <Pencil className="w-3.5 h-3.5 mr-1.5" /> Editar
+                </Link>
+              </Button>
+            )}
             <Button size="sm" variant="outline"
               className="border-green-500 text-green-700 hover:bg-green-50 gap-1.5"
               onClick={openWAModal}>

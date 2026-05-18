@@ -10,11 +10,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, ChevronDown, Loader2, Save, CheckCircle2, X } from "lucide-react";
+import { Plus, Trash2, ChevronDown, Loader2, Save, CheckCircle2, X, AlertTriangle } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+type ConflictItem = {
+  itemId: string;
+  itemDescricao: string;
+  itemCodigo: string;
+  processos: Array<{ tipo: "SC" | "PC"; numero: string; status: string; id: string }>;
+};
 
 type Filial        = { id: string; razaoSocial: string; nomeFantasia: string | null };
 type LocalEstoque  = { id: string; nome: string };
@@ -23,6 +30,15 @@ type ItemOption    = { id: string; codigo: string; descricao: string; unidade: {
 type UnidadeOption = { id: string; sigla: string; nome: string; isPrincipal: boolean };
 
 type ItemRow = { itemId: string; quantidade: string; unidade: string; observacao: string };
+
+const STATUS_PT: Record<string, string> = {
+  RASCUNHO: "Rascunho",
+  AGUARDANDO_APROVACAO: "Aguardando Aprovação",
+  APROVADA: "Aprovada",
+  ENVIADO: "Enviado",
+  CONFIRMADO: "Confirmado",
+  EM_TRANSITO: "Em Trânsito",
+};
 
 const PRIORIDADES = [
   { value: 1, label: "1 - Muito Baixa" },
@@ -327,6 +343,10 @@ export default function NovasolicitacaoPage() {
   const [submitted,   setSubmitted]   = useState(false);
   const [successDialog, setSuccessDialog] = useState<{ numero: string; id: string } | null>(null);
 
+  const [showDuplicateWarning,  setShowDuplicateWarning]  = useState(false);
+  const [duplicateConflicts,    setDuplicateConflicts]    = useState<ConflictItem[]>([]);
+  const [userConfirmedDuplicate, setUserConfirmedDuplicate] = useState(false);
+
   const [filiais,        setFiliais]        = useState<Filial[]>([]);
   const [locaisEstoque,  setLocaisEstoque]  = useState<LocalEstoque[]>([]);
   const [centrosCusto,   setCentrosCusto]   = useState<CentroCusto[]>([]);
@@ -397,15 +417,7 @@ export default function NovasolicitacaoPage() {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitted(true);
-    if (!filialId) { setServerError("Filial é obrigatória"); return; }
-    if (!localEstoqueId) { setServerError("Local de Estoque é obrigatório"); return; }
-    if (!motivo.trim()) { setServerError("Motivo de compra é obrigatório"); return; }
-    const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade) > 0);
-    if (validItens.length === 0) { setServerError("Adicione pelo menos um item com quantidade válida"); return; }
-    if (!descricao.trim()) { setServerError("Descrição é obrigatória"); return; }
+  async function doSubmit(validItens: ItemRow[]) {
     setSaving(true); setServerError("");
     try {
       const res = await fetch("/api/suprimentos/necessidades", {
@@ -429,6 +441,39 @@ export default function NovasolicitacaoPage() {
       setSuccessDialog({ numero: json.data.numero, id: json.data.id });
     } catch { setServerError("Erro de conexão. Tente novamente."); }
     finally { setSaving(false); }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitted(true);
+    if (!filialId) { setServerError("Filial é obrigatória"); return; }
+    if (!localEstoqueId) { setServerError("Local de Estoque é obrigatório"); return; }
+    if (!motivo.trim()) { setServerError("Motivo de compra é obrigatório"); return; }
+    const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade) > 0);
+    if (validItens.length === 0) { setServerError("Adicione pelo menos um item com quantidade válida"); return; }
+    if (!descricao.trim()) { setServerError("Descrição é obrigatória"); return; }
+
+    // Duplicate check (skip if user already confirmed)
+    if (!userConfirmedDuplicate) {
+      try {
+        const checkRes = await fetch("/api/suprimentos/necessidades/check-duplicados", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ itemIds: validItens.map((r) => r.itemId) }),
+        });
+        if (checkRes.ok) {
+          const checkJson = await checkRes.json();
+          if (checkJson.conflicts && checkJson.conflicts.length > 0) {
+            setDuplicateConflicts(checkJson.conflicts);
+            setShowDuplicateWarning(true);
+            return;
+          }
+        }
+      } catch {
+        // If duplicate check fails, proceed with submission anyway
+      }
+    }
+
+    await doSubmit(validItens);
   }
 
   return (
@@ -598,6 +643,78 @@ export default function NovasolicitacaoPage() {
           </Button>
         </div>
       </form>
+
+      {/* ── Duplicate Warning Modal ──────────────────────────────────────────── */}
+      {showDuplicateWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-amber-100 bg-amber-50">
+              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">Itens já em andamento</p>
+                <p className="text-xs text-gray-500 mt-0.5">Alguns itens já estão presentes em processos ativos</p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-4 max-h-72 overflow-y-auto space-y-3">
+              <p className="text-sm text-gray-600">Os seguintes itens já estão em processos ativos:</p>
+              <ul className="space-y-3">
+                {duplicateConflicts.map((c) => (
+                  <li key={c.itemId} className="rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2.5">
+                    <p className="text-sm font-medium text-gray-800">
+                      <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded mr-1.5">{c.itemCodigo}</span>
+                      {c.itemDescricao}
+                    </p>
+                    <ul className="mt-1.5 space-y-1">
+                      {c.processos.map((p, idx) => (
+                        <li key={idx} className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <span className="text-gray-400">→</span>
+                          <span className="font-mono font-semibold text-gray-700">{p.numero}</span>
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded text-[10px] font-medium",
+                            p.tipo === "SC"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-purple-100 text-purple-700"
+                          )}>{p.tipo}</span>
+                          <span className="text-gray-500">{STATUS_PT[p.status] ?? p.status}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-gray-600 pt-1">Deseja prosseguir assim mesmo?</p>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 px-6 py-4 border-t border-gray-100 justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowDuplicateWarning(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                className="bg-amber-500 hover:bg-amber-600 text-white border-0"
+                onClick={async () => {
+                  setUserConfirmedDuplicate(true);
+                  setShowDuplicateWarning(false);
+                  const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade) > 0);
+                  await doSubmit(validItens);
+                }}
+              >
+                Prosseguir assim mesmo
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Success Dialog ───────────────────────────────────────────────────── */}
       {successDialog && (

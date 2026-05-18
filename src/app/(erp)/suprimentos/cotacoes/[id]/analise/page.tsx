@@ -5,9 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
-import { Loader2, ChevronDown, ChevronRight, BarChart3 } from "lucide-react";
+import { Loader2, ChevronDown, ChevronRight, BarChart3, Sparkles } from "lucide-react";
 
-// Types - same as cotação detail page
+// Types
 type CotacaoFornecedorItem = {
   id: string; itemId: string; quantidade: unknown; precoUnitario: unknown; subtotal: unknown;
   situacao: string | null;
@@ -24,14 +24,21 @@ type CotacaoFornecedor = {
   despesas: unknown;
   seguro: unknown;
   melhorOpcao: boolean;
+  updatedAt: string;
   fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null; cpfCnpj: string | null; cidade?: string | null; estado?: string | null };
   itens: CotacaoFornecedorItem[];
+  historico: Array<{ versao: number; createdAt: string }>;
 };
 type Cotacao = {
   id: string; numero: string; nome: string | null;
   status: "PENDENTE" | "EM_ANALISE" | "CONCLUIDA";
   fornecedores: CotacaoFornecedor[];
 };
+
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
 
 export default function AnaliseCotacaoPage() {
   const { id } = useParams<{ id: string }>();
@@ -58,7 +65,6 @@ export default function AnaliseCotacaoPage() {
     if (preSelected) {
       setSelectedCfId(preSelected.id);
     } else if (respondidas.length > 0) {
-      // pick lowest total
       const sorted = [...respondidas].sort((a: CotacaoFornecedor, b: CotacaoFornecedor) => decimalToNumber(a.totalCalculado) - decimalToNumber(b.totalCalculado));
       setSelectedCfId(sorted[0].id);
     }
@@ -84,7 +90,6 @@ export default function AnaliseCotacaoPage() {
     setGenerating(true);
     setGenError("");
     try {
-      // Set melhorOpcao on selected cf
       await fetch(`/api/suprimentos/cotacoes/${id}/fornecedores/${selectedCfId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -103,18 +108,32 @@ export default function AnaliseCotacaoPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Breadcrumb */}
-      <nav className="text-sm text-gray-500 mb-4 flex items-center gap-1">
+      <nav className="text-sm text-gray-500 mb-2 flex items-center gap-1">
         <Link href="/suprimentos/cotacoes" className="hover:text-gray-700">Cotações</Link>
         <span>›</span>
-        <Link href={`/suprimentos/cotacoes/${id}`} className="hover:text-gray-700">Análise da cotação</Link>
+        <Link href={`/suprimentos/cotacoes/${id}`} className="hover:text-gray-700">{cotacao.numero}</Link>
+        <span>›</span>
+        <span className="text-gray-700">Análise</span>
       </nav>
 
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">
-        Análise da cotação - {cotacao.numero}
-      </h1>
+      {/* Header bar */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-bold text-gray-800">Análise da Cotação</h1>
+        <button
+          disabled
+          title="Em breve"
+          className="inline-flex items-center gap-2 border border-purple-200 text-purple-600 rounded-lg px-3 py-1.5 text-sm font-medium opacity-50 cursor-not-allowed"
+        >
+          <Sparkles className="h-4 w-4" />
+          Análise por IA
+          <span className="ml-1 inline-block bg-purple-100 text-purple-600 text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none">
+            Em breve
+          </span>
+        </button>
+      </div>
 
       {/* Mapa da cotação collapsible */}
-      <div className="border rounded-lg mb-6 bg-red-50 border-red-100">
+      <div className="border rounded-xl mb-6 bg-gray-50 border-gray-200 shadow-sm">
         <button
           className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700"
           onClick={() => setMapaOpen(!mapaOpen)}
@@ -124,7 +143,6 @@ export default function AnaliseCotacaoPage() {
         </button>
         {mapaOpen && (
           <div className="px-4 pb-4 text-sm text-gray-600">
-            {/* Mapa grid - items vs fornecedores */}
             <p className="text-gray-400 italic">Mapa de comparação de itens por fornecedor.</p>
           </div>
         )}
@@ -146,13 +164,13 @@ export default function AnaliseCotacaoPage() {
         ))}
       </div>
 
-      {/* Sort by */}
+      {/* Sort row */}
       <div className="flex items-center gap-3 mb-6">
         <span className="text-sm font-medium text-gray-700">Ordenar por:</span>
         <select
           value={sortBy}
           onChange={e => setSortBy(e.target.value)}
-          className="border rounded px-3 py-1.5 text-sm bg-white"
+          className="border rounded-lg px-3 py-1.5 text-sm bg-white border-gray-200"
         >
           <option value="melhor_preco">Melhor preço sem impostos</option>
           <option value="pior_preco">Maior preço</option>
@@ -160,7 +178,6 @@ export default function AnaliseCotacaoPage() {
         </select>
       </div>
 
-      {/* Informações label */}
       <p className="text-sm font-medium text-gray-700 mb-4">Informações</p>
 
       {/* No respondidas */}
@@ -179,37 +196,52 @@ export default function AnaliseCotacaoPage() {
           const frete = decimalToNumber(cf.frete);
           const isBest = total === bestTotal && bestTotal > 0;
           const isSelected = selectedCfId === cf.id;
+          const latestHistorico = cf.historico?.[0] ?? null;
+          const updatedLabel = latestHistorico
+            ? `Atualizado em ${formatDate(latestHistorico.createdAt)}`
+            : cf.updatedAt
+            ? `Atualizado em ${formatDate(cf.updatedAt)}`
+            : null;
 
           return (
             <div
               key={cf.id}
               onClick={() => setSelectedCfId(cf.id)}
               className={cn(
-                "border rounded-lg p-4 cursor-pointer transition-all",
-                isSelected ? "border-blue-500 bg-blue-50 shadow-md" : "border-gray-200 bg-white hover:border-gray-300"
+                "border rounded-xl p-4 cursor-pointer transition-all shadow-sm",
+                isSelected
+                  ? "border-blue-500 ring-1 ring-blue-100 bg-blue-50/30"
+                  : "border-gray-200 bg-white hover:border-gray-300"
               )}
             >
               {/* Header */}
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  {isBest && (
-                    <span className="inline-block bg-green-100 text-green-700 text-xs font-semibold px-2 py-0.5 rounded-full mb-1">
-                      Melhor preço
-                    </span>
-                  )}
-                  <p className="font-bold text-gray-800 text-sm leading-tight">{nome}</p>
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap gap-1 mb-1">
+                    {isBest && (
+                      <span className="inline-block bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold px-2 py-0.5 rounded-full">
+                        Melhor preço
+                      </span>
+                    )}
+                    {latestHistorico && (
+                      <span className="inline-block bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full">
+                        Proposta v{latestHistorico.versao} · {formatDate(latestHistorico.createdAt)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-bold text-gray-800 text-sm leading-tight truncate">{nome}</p>
                   {cf.fornecedor.cpfCnpj && <p className="text-xs text-gray-500 mt-0.5">{cf.fornecedor.cpfCnpj}</p>}
                 </div>
                 <input
                   type="radio"
                   checked={isSelected}
                   onChange={() => setSelectedCfId(cf.id)}
-                  className="mt-1 accent-blue-600"
+                  className="mt-1 ml-2 accent-blue-600 flex-shrink-0"
                 />
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mt-3 pt-3 border-t">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mt-3 pt-3 border-t border-gray-100">
                 <div>
                   <p className="text-gray-400">Total sem impostos</p>
                   <p className="font-semibold text-gray-800">{formatBRL(total)}</p>
@@ -228,8 +260,8 @@ export default function AnaliseCotacaoPage() {
                 </div>
               </div>
 
-              {/* Detalhes link */}
-              <div className="mt-3 pt-2 border-t">
+              {/* Footer row */}
+              <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
                 <Link
                   href={`/suprimentos/cotacoes/${id}/proposta/${cf.id}`}
                   onClick={e => e.stopPropagation()}
@@ -237,6 +269,9 @@ export default function AnaliseCotacaoPage() {
                 >
                   Detalhes
                 </Link>
+                {updatedLabel && (
+                  <span className="text-[11px] text-gray-400">{updatedLabel}</span>
+                )}
               </div>
             </div>
           );
@@ -270,7 +305,7 @@ export default function AnaliseCotacaoPage() {
       {/* Confirm modal */}
       {showConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Formalizar a cotação</h2>
             <p className="text-gray-600 mb-6">
               Deseja confirmar a análise e gerar documentos com os vencedores selecionados?

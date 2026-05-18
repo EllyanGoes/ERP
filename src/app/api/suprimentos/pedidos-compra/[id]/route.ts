@@ -54,7 +54,64 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json();
+  const pedidoId = params.id;
 
+  if (body.edit === true) {
+    // Full edit mode: delete all existing items, create new ones, update all fields
+    const itens: Array<{ itemId: string; quantidade: number; precoUnitario: number; situacao?: string }> =
+      body.itens ?? [];
+
+    const subtotal = itens.reduce((s, it) => {
+      const situacao = it.situacao ?? "CONSIDERA";
+      if (situacao !== "CONSIDERA") return s;
+      return s + (Number(it.quantidade) || 0) * (Number(it.precoUnitario) || 0);
+    }, 0);
+
+    const descontoVal  = Number(body.desconto)  || 0;
+    const freteVal     = Number(body.frete)      || 0;
+    const despesasVal  = Number(body.despesas)   || 0;
+    const seguroVal    = Number(body.seguro)      || 0;
+    const vrDescontoCalc = (subtotal * descontoVal) / 100;
+    const valorTotal   = subtotal - vrDescontoCalc + freteVal + despesasVal + seguroVal;
+
+    const record = await prisma.$transaction(async (tx) => {
+      await tx.pedidoCompraItem.deleteMany({ where: { pedidoId } });
+
+      await tx.pedidoCompraItem.createMany({
+        data: itens.map((it) => ({
+          pedidoId,
+          itemId:       it.itemId,
+          quantidade:   Number(it.quantidade),
+          precoUnitario: Number(it.precoUnitario) || 0,
+          valorTotal:   (Number(it.quantidade) || 0) * (Number(it.precoUnitario) || 0),
+          situacao:     (it.situacao ?? "CONSIDERA") as string,
+        })),
+      });
+
+      return tx.pedidoCompra.update({
+        where: { id: pedidoId },
+        data: {
+          fornecedorId:        body.fornecedorId       || undefined,
+          contato:             body.contato            ?? null,
+          email:               body.email              ?? null,
+          frete:               freteVal                || null,
+          tipoFrete:           body.tipoFrete          || null,
+          desconto:            descontoVal             || null,
+          vrDesconto:          vrDescontoCalc          || null,
+          despesas:            despesasVal             || null,
+          seguro:              seguroVal               || null,
+          condicoesPagamento:  body.condicoesPagamento || null,
+          dataEntregaPrevista: body.dataEntregaPrevista ? new Date(body.dataEntregaPrevista) : null,
+          observacoes:         body.observacoes        || null,
+          valorTotal,
+        },
+      });
+    });
+
+    return NextResponse.json({ data: record });
+  }
+
+  // Default: partial update (status / dataEntregaPrevista / observacoes)
   const updateData: Record<string, unknown> = {};
   if (body.status !== undefined) updateData.status = body.status;
   if (body.dataEntregaPrevista !== undefined)
@@ -62,7 +119,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.observacoes !== undefined) updateData.observacoes = body.observacoes || null;
 
   const record = await prisma.pedidoCompra.update({
-    where: { id: params.id },
+    where: { id: pedidoId },
     data: updateData,
   });
 

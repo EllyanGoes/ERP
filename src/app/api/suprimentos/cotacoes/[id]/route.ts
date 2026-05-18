@@ -13,6 +13,11 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
           itens: {
             include: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } } },
           },
+          historico: {
+            orderBy: { versao: "desc" },
+            take: 1,
+            select: { versao: true, createdAt: true },
+          },
         },
         orderBy: { createdAt: "asc" },
       },
