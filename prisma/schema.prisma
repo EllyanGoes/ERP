@@ -29,9 +29,9 @@ model AprovacaoEtapa {
   aprovadorId    String?
   createdAt      DateTime       @default(now())
   colaboradorId  String?
-  Usuario        Usuario?       @relation(fields: [aprovadorId], references: [id])
-  Colaborador    Colaborador?   @relation(fields: [colaboradorId], references: [id])
-  AprovacaoFluxo AprovacaoFluxo @relation(fields: [fluxoId], references: [id], onDelete: Cascade)
+  aprovador      Usuario?       @relation(fields: [aprovadorId], references: [id])
+  colaborador    Colaborador?   @relation(fields: [colaboradorId], references: [id])
+  fluxo          AprovacaoFluxo @relation(fields: [fluxoId], references: [id], onDelete: Cascade)
 }
 
 model AprovacaoFluxo {
@@ -41,8 +41,8 @@ model AprovacaoFluxo {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime
   processo       ProcessoAprovacao @default(SOLICITACAO_COMPRAS)
-  AprovacaoEtapa AprovacaoEtapa[]
-  AprovacaoSC    AprovacaoSC[]
+  etapas         AprovacaoEtapa[]
+  aprovacoesSC   AprovacaoSC[]
 }
 
 model AprovacaoSC {
@@ -57,8 +57,8 @@ model AprovacaoSC {
   waMsgId           String?
   createdAt         DateTime          @default(now())
   fluxoId           String?
-  Usuario           Usuario           @relation(fields: [aprovadorId], references: [id])
-  AprovacaoFluxo    AprovacaoFluxo?   @relation(fields: [fluxoId], references: [id])
+  aprovador         Usuario           @relation(fields: [aprovadorId], references: [id])
+  fluxo             AprovacaoFluxo?   @relation(fields: [fluxoId], references: [id])
   necessidade       NecessidadeCompra @relation(fields: [necessidadeId], references: [id], onDelete: Cascade)
 }
 
@@ -97,8 +97,8 @@ model Cliente {
   estado       String?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime
-  ContaReceber ContaReceber[]
-  PedidoVenda  PedidoVenda[]
+  contasReceber ContaReceber[]
+  pedidosVenda  PedidoVenda[]
 
   @@index([cpfCnpj])
   @@index([status])
@@ -120,9 +120,9 @@ model Colaborador {
   observacoes    String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime
-  AprovacaoEtapa AprovacaoEtapa[]
-  Usuario        Usuario?         @relation(fields: [usuarioId], references: [id])
-  Filial         Filial[]
+  etapasAprovacao AprovacaoEtapa[]
+  usuario         Usuario?         @relation(fields: [usuarioId], references: [id])
+  Filial          Filial[]
 }
 
 model CondicaoPagamento {
@@ -191,8 +191,8 @@ model ContaPagar {
   observacoes     String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime
-  Fornecedor      Fornecedor?       @relation(fields: [fornecedorId], references: [id])
-  LancamentoCaixa LancamentoCaixa[]
+  fornecedor      Fornecedor?       @relation(fields: [fornecedorId], references: [id])
+  lancamentos     LancamentoCaixa[]
 
   @@index([dataVencimento])
   @@index([fornecedorId])
@@ -217,9 +217,9 @@ model ContaReceber {
   observacoes     String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime
-  Cliente         Cliente           @relation(fields: [clienteId], references: [id])
-  PedidoVenda     PedidoVenda?      @relation(fields: [pedidoVendaId], references: [id])
-  LancamentoCaixa LancamentoCaixa[]
+  cliente         Cliente           @relation(fields: [clienteId], references: [id])
+  pedidoVenda     PedidoVenda?      @relation(fields: [pedidoVendaId], references: [id])
+  lancamentos     LancamentoCaixa[]
 
   @@index([clienteId])
   @@index([dataVencimento])
@@ -415,11 +415,11 @@ model Fornecedor {
   celular           String?
   contato           String?
   observacoes       String?
-  ContaPagar        ContaPagar[]
-  CotacaoFornecedor CotacaoFornecedor[]
-  FornecedorContato FornecedorContato[]
-  PedidoCompra      PedidoCompra[]
-  ProdutoFornecedor ProdutoFornecedor[]
+  contasPagar       ContaPagar[]
+  cotacoes          CotacaoFornecedor[]
+  contatos          FornecedorContato[]
+  pedidosCompra     PedidoCompra[]
+  produtos          ProdutoFornecedor[]
 }
 
 model FornecedorContato {
@@ -433,7 +433,7 @@ model FornecedorContato {
   principal    Boolean    @default(false)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime
-  Fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
 }
 
 model GrupoCentroCusto {
@@ -505,8 +505,8 @@ model LancamentoCaixa {
   contaPagarId   String?
   observacoes    String?
   createdAt      DateTime            @default(now())
-  ContaPagar     ContaPagar?         @relation(fields: [contaPagarId], references: [id])
-  ContaReceber   ContaReceber?       @relation(fields: [contaReceberId], references: [id])
+  contaPagar     ContaPagar?         @relation(fields: [contaPagarId], references: [id])
+  contaReceber   ContaReceber?       @relation(fields: [contaReceberId], references: [id])
 
   @@index([dataLancamento])
   @@index([tipo])
@@ -589,7 +589,7 @@ model NecessidadeCompra {
   prioridade            Int                     @default(3)
   projeto               String?
   tipoCompra            String?
-  aprovacoesSC          AprovacaoSC[]
+  aprovacoes            AprovacaoSC[]
   cotacoes              CotacaoCompra[]
   centroCusto           CentroCusto?            @relation(fields: [centroCustoId], references: [id])
   filial                Filial?                 @relation(fields: [filialId], references: [id])
@@ -666,9 +666,9 @@ model PedidoVenda {
   observacoes       String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime
-  ContaReceber      ContaReceber[]
-  Cliente           Cliente           @relation(fields: [clienteId], references: [id])
-  PedidoVendaItem   PedidoVendaItem[]
+  contasReceber     ContaReceber[]
+  cliente           Cliente           @relation(fields: [clienteId], references: [id])
+  itens             PedidoVendaItem[]
 
   @@index([clienteId])
   @@index([dataEmissao])
@@ -684,8 +684,8 @@ model PedidoVendaItem {
   desconto            Decimal               @default(0) @db.Decimal(15, 2)
   valorTotal          Decimal               @db.Decimal(15, 2)
   MovimentacaoEstoque MovimentacaoEstoque[]
-  Item                Item                  @relation(fields: [itemId], references: [id])
-  PedidoVenda         PedidoVenda           @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
+  item                Item                  @relation(fields: [itemId], references: [id])
+  pedidoVenda         PedidoVenda           @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
 
   @@index([itemId])
   @@index([pedidoVendaId])
