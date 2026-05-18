@@ -465,7 +465,7 @@ model Item {
   unidadeId             String?
   conferenciaCompraItens ConferenciaCompraItem[]
   cotacaoFornecedorItens CotacaoFornecedorItem[]
-  estoqueItens           EstoqueItem[]
+  estoqueItems           EstoqueItem[]
   tipoProduto            TipoProduto?            @relation(fields: [tipoProdutoId], references: [id])
   unidade                Unidade?                @relation(fields: [unidadeId], references: [id])
   itemUnidades           ItemUnidade[]
