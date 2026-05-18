@@ -550,7 +550,7 @@ export default function NecessidadeDetailPage() {
   if (!necessidade) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
   const isRascunho = necessidade.status === "RASCUNHO";
-  const canEdit    = ["RASCUNHO", "AGUARDANDO_APROVACAO", "REPROVADA"].includes(necessidade.status);
+  const canEdit    = ["RASCUNHO", "AGUARDANDO_APROVACAO", "REJEITADA"].includes(necessidade.status);
 
   // ── Edit mode view ───────────────────────────────────────────────────────────
   if (editMode) {
@@ -725,7 +725,7 @@ export default function NecessidadeDetailPage() {
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <StatusBadge status={necessidade.status} />
 
-            {/* Edit — available on RASCUNHO, AGUARDANDO_APROVACAO, REPROVADA */}
+            {/* Edit — available on RASCUNHO, AGUARDANDO_APROVACAO, REJEITADA */}
             {canEdit && (
               <Button size="sm" variant="outline" onClick={enterEditMode}>
                 <Pencil className="w-3.5 h-3.5 mr-1" />Editar
@@ -751,20 +751,8 @@ export default function NecessidadeDetailPage() {
               </>
             )}
 
-            {/* AGUARDANDO_APROVACAO */}
-            {necessidade.status === "AGUARDANDO_APROVACAO" && (
-              <>
-                <Button size="sm" variant="ghost" className="text-gray-500"
-                  onClick={() => changeStatus("CANCELADA")} disabled={actioning}
-                >
-                  {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
-                  Cancelar Necessidade
-                </Button>
-              </>
-            )}
-
-            {/* Botão WA — disponível enquanto não aprovada/cancelada */}
-            {["RASCUNHO", "AGUARDANDO_APROVACAO", "REPROVADA"].includes(necessidade.status) && (
+            {/* Botão WA — disponível enquanto não aprovada/em cotação */}
+            {["RASCUNHO", "AGUARDANDO_APROVACAO", "REJEITADA"].includes(necessidade.status) && (
               <Button size="sm" variant="outline"
                 className="border-green-500 text-green-700 hover:bg-green-50 gap-1.5"
                 onClick={openWAModal}
@@ -885,7 +873,7 @@ export default function NecessidadeDetailPage() {
             </Card>
 
             {/* Approval info */}
-            {(necessidade.status === "APROVADA" || necessidade.status === "REPROVADA") && (
+            {(necessidade.status === "APROVADA" || necessidade.status === "REJEITADA") && (
               <Card className={necessidade.status === "APROVADA" ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
                 <CardContent className="pt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {necessidade.status === "APROVADA" && (
@@ -894,9 +882,9 @@ export default function NecessidadeDetailPage() {
                       <div><p className="text-xs text-gray-500">Data de Aprovação</p><p className="text-sm font-medium">{formatDate(necessidade.dataAprovacao)}</p></div>
                     </>
                   )}
-                  {necessidade.status === "REPROVADA" && (
+                  {necessidade.status === "REJEITADA" && (
                     <div className="sm:col-span-3">
-                      <p className="text-xs text-red-600">Motivo da Reprovação</p>
+                      <p className="text-xs text-red-600">Motivo da Rejeição</p>
                       <p className="text-sm text-red-800 mt-1">{necessidade.motivoReprovacao || "—"}</p>
                     </div>
                   )}
@@ -1077,7 +1065,7 @@ export default function NecessidadeDetailPage() {
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="outline" onClick={() => setShowRejectForm(false)} disabled={actioning}>Cancelar</Button>
               <Button size="sm" variant="destructive"
-                onClick={() => changeStatus("REPROVADA", { motivoReprovacao })} disabled={actioning}>
+                onClick={() => changeStatus("REJEITADA", { motivoReprovacao })} disabled={actioning}>
                 {actioning ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />Reprovando...</> : "Confirmar Reprovação"}
               </Button>
             </div>

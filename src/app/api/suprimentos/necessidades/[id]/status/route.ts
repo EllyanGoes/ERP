@@ -3,11 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 const TRANSITIONS: Record<string, string[]> = {
-  RASCUNHO: ["AGUARDANDO_APROVACAO", "CANCELADA"],
-  AGUARDANDO_APROVACAO: ["APROVADA", "REPROVADA", "CANCELADA"],
-  APROVADA: [],
-  REPROVADA: [],
-  CANCELADA: [],
+  RASCUNHO:             ["AGUARDANDO_APROVACAO"],
+  AGUARDANDO_APROVACAO: ["APROVADA", "REJEITADA"],
+  APROVADA:             ["EM_COTACAO"],
+  REJEITADA:            ["AGUARDANDO_APROVACAO"],
+  EM_COTACAO:           ["TOTALMENTE_ATENDIDA", "PARCIALMENTE_ATENDIDA"],
+  TOTALMENTE_ATENDIDA:  [],
+  PARCIALMENTE_ATENDIDA: [],
 };
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -35,7 +37,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   } else if (status === "APROVADA") {
     updateData.aprovadoPor = aprovadoPor || null;
     updateData.dataAprovacao = new Date();
-  } else if (status === "REPROVADA") {
+  } else if (status === "REJEITADA") {
     updateData.motivoReprovacao = motivoReprovacao || null;
     updateData.dataAprovacao = new Date();
   }

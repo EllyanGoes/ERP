@@ -5,8 +5,10 @@ const configs: Record<string, { label: string; className: string }> = {
   RASCUNHO: { label: "Rascunho", className: "bg-gray-100 text-gray-600" },
   AGUARDANDO_APROVACAO: { label: "Aguard. Aprovação", className: "bg-amber-100 text-amber-700" },
   APROVADA: { label: "Aprovada", className: "bg-green-100 text-green-700" },
-  REPROVADA: { label: "Reprovada", className: "bg-red-100 text-red-700" },
-  CANCELADA: { label: "Cancelada", className: "bg-gray-100 text-gray-500" },
+  REJEITADA: { label: "Rejeitada", className: "bg-red-100 text-red-700" },
+  EM_COTACAO: { label: "Em Cotação", className: "bg-blue-100 text-blue-700" },
+  TOTALMENTE_ATENDIDA: { label: "Totalmente Atendida", className: "bg-emerald-100 text-emerald-700" },
+  PARCIALMENTE_ATENDIDA: { label: "Parcialmente Atendida", className: "bg-orange-100 text-orange-700" },
   // StatusCotacaoCompra (3 estados)
   EM_ANALISE: { label: "Em Análise", className: "bg-blue-100 text-blue-700" },
   // StatusRespostaFornecedor

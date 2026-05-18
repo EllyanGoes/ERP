@@ -83,7 +83,7 @@ export async function POST(
 
     if (!sc) return NextResponse.json({ error: "SC não encontrada" }, { status: 404 });
 
-    if (!["RASCUNHO", "AGUARDANDO_APROVACAO", "REPROVADA"].includes(sc.status)) {
+    if (!["RASCUNHO", "AGUARDANDO_APROVACAO", "REJEITADA"].includes(sc.status)) {
       return NextResponse.json(
         { error: `SC com status ${sc.status} não pode ser submetida para aprovação` },
         { status: 400 }

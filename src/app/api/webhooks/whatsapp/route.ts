@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       await prisma.necessidadeCompra.update({
         where: { id: aprovacao.necessidadeId },
         data: {
-          status: "REPROVADA",
+          status: "REJEITADA",
           motivoReprovacao: `Reprovado via WhatsApp por ${aprovacao.aprovador.nome} (etapa ${aprovacao.etapaOrdem})`,
         },
       });

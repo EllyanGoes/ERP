@@ -31,22 +31,24 @@ type Necessidade = {
 };
 
 const STATUS_OPTIONS = [
-  { value: "RASCUNHO",             label: "Rascunho" },
-  { value: "AGUARDANDO_APROVACAO", label: "Aguard. Aprovação" },
-  { value: "APROVADA",             label: "Aprovada" },
-  { value: "REPROVADA",            label: "Reprovada" },
-  { value: "CANCELADA",            label: "Cancelada" },
-  { value: "CONCLUIDA",            label: "Concluída" },
+  { value: "RASCUNHO",              label: "Rascunho" },
+  { value: "AGUARDANDO_APROVACAO",  label: "Aguard. Aprovação" },
+  { value: "APROVADA",              label: "Aprovada" },
+  { value: "REJEITADA",             label: "Rejeitada" },
+  { value: "EM_COTACAO",            label: "Em Cotação" },
+  { value: "TOTALMENTE_ATENDIDA",   label: "Totalmente Atendida" },
+  { value: "PARCIALMENTE_ATENDIDA", label: "Parcialmente Atendida" },
 ];
 
 // Column config: which statuses show in kanban and their accent colors
 const KANBAN_COLUMNS: { status: string; label: string; color: string; dot: string }[] = [
-  { status: "RASCUNHO",             label: "Rascunho",          color: "bg-gray-100 border-gray-200",    dot: "bg-gray-400" },
-  { status: "AGUARDANDO_APROVACAO", label: "Aguard. Aprovação", color: "bg-amber-50 border-amber-200",   dot: "bg-amber-400" },
-  { status: "APROVADA",             label: "Aprovada",          color: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-500" },
-  { status: "REPROVADA",            label: "Reprovada",         color: "bg-red-50 border-red-200",       dot: "bg-red-500" },
-  { status: "CANCELADA",            label: "Cancelada",         color: "bg-zinc-50 border-zinc-200",     dot: "bg-zinc-400" },
-  { status: "CONCLUIDA",            label: "Concluída",         color: "bg-blue-50 border-blue-200",     dot: "bg-blue-500" },
+  { status: "RASCUNHO",              label: "Rascunho",              color: "bg-gray-100 border-gray-200",      dot: "bg-gray-400" },
+  { status: "AGUARDANDO_APROVACAO",  label: "Aguard. Aprovação",     color: "bg-amber-50 border-amber-200",     dot: "bg-amber-400" },
+  { status: "APROVADA",              label: "Aprovada",              color: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-500" },
+  { status: "REJEITADA",             label: "Rejeitada",             color: "bg-red-50 border-red-200",         dot: "bg-red-500" },
+  { status: "EM_COTACAO",            label: "Em Cotação",            color: "bg-blue-50 border-blue-200",       dot: "bg-blue-500" },
+  { status: "TOTALMENTE_ATENDIDA",   label: "Totalmente Atendida",   color: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-600" },
+  { status: "PARCIALMENTE_ATENDIDA", label: "Parcialmente Atendida", color: "bg-orange-50 border-orange-200",   dot: "bg-orange-500" },
 ];
 
 const SORT_OPTIONS = [
@@ -227,16 +229,16 @@ function StatusFilterChip({
 const SC_NEXT_STATUS: Record<string, string> = {
   RASCUNHO:             "AGUARDANDO_APROVACAO",
   AGUARDANDO_APROVACAO: "APROVADA",
-  APROVADA:             "CONCLUIDA",
-  REPROVADA:            "AGUARDANDO_APROVACAO",
+  APROVADA:             "EM_COTACAO",
+  REJEITADA:            "AGUARDANDO_APROVACAO",
 };
 
 /** Route to open when a card is dropped on its next column */
 function scDropRoute(id: string, from: string, to: string): string | null {
   if (from === "RASCUNHO"             && to === "AGUARDANDO_APROVACAO") return `/compras/necessidades/${id}`;
   if (from === "AGUARDANDO_APROVACAO" && to === "APROVADA")             return `/compras/necessidades/${id}`;
-  if (from === "APROVADA"             && to === "CONCLUIDA")            return `/suprimentos/cotacoes/nova?necessidadeId=${id}`;
-  if (from === "REPROVADA"            && to === "AGUARDANDO_APROVACAO") return `/compras/necessidades/${id}`;
+  if (from === "APROVADA"             && to === "EM_COTACAO")           return `/suprimentos/cotacoes/nova?necessidadeId=${id}`;
+  if (from === "REJEITADA"            && to === "AGUARDANDO_APROVACAO") return `/compras/necessidades/${id}`;
   return null;
 }
 
@@ -425,7 +427,7 @@ export default function NecessidadesPage() {
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
   function canDeleteSC(n: { status: string }) {
-    if (n.status === "APROVADA" || n.status === "CONCLUIDA") return isAdmin;
+    if (["APROVADA", "EM_COTACAO", "TOTALMENTE_ATENDIDA", "PARCIALMENTE_ATENDIDA"].includes(n.status)) return isAdmin;
     return true;
   }
   const [necessidades, setNecessidades] = useState<Necessidade[]>([]);
