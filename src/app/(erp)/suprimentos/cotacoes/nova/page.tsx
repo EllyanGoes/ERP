@@ -99,18 +99,31 @@ export default function NovaCotacaoWizard() {
 
   useTabTitle("Nova Cotação");
 
-  const [step, setStep] = useState(1);
+  // ── Read sessionStorage ONCE for lazy state initialization ──────────────
+  // This runs synchronously before first render, so state is correct from the start.
+  // The persist useEffect then keeps sessionStorage in sync on every change.
+  function _ss<T>(key: string, fallback: T): T {
+    if (typeof window === "undefined") return fallback;
+    try {
+      const raw = sessionStorage.getItem("cotacao-wizard");
+      if (!raw) return fallback;
+      const val = JSON.parse(raw)[key];
+      return val !== undefined && val !== null ? val : fallback;
+    } catch { return fallback; }
+  }
+
+  const [step, setStep] = useState<number>(() => _ss("step", 1));
 
   // ── Step 1 state ──────────────────────────────────────────────────────────
   const [scItems, setScItems]           = useState<SCItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(() => new Set(_ss<string[]>("selectedItemIds", [])));
   const [itemSearch, setItemSearch]     = useState("");
 
   // ── Step 2 state ──────────────────────────────────────────────────────────
-  const [nome, setNome]                 = useState("");
-  const [dataLimite, setDataLimite]     = useState("");
-  const [infoEntrega, setInfoEntrega]   = useState("");
+  const [nome, setNome]                 = useState<string>(() => _ss("nome", ""));
+  const [dataLimite, setDataLimite]     = useState<string>(() => _ss("dataLimite", ""));
+  const [infoEntrega, setInfoEntrega]   = useState<string>(() => _ss("infoEntrega", ""));
   const [step2Error, setStep2Error]     = useState("");
 
   // ── Step 3 state ──────────────────────────────────────────────────────────
@@ -119,7 +132,7 @@ export default function NovaCotacaoWizard() {
   const [allFornecedores, setAllFornecedores] = useState<Fornecedor[]>([]);
   const [ultFornecedores, setUltFornecedores] = useState<Fornecedor[]>([]);
   const [loadingForn, setLoadingForn]         = useState(false);
-  const [selectedFornIds, setSelectedFornIds] = useState<Set<string>>(new Set());
+  const [selectedFornIds, setSelectedFornIds] = useState<Set<string>>(() => new Set(_ss<string[]>("selectedFornIds", [])));
   const [showConfirm, setShowConfirm]         = useState(false);
   const [saving, setSaving]                   = useState(false);
   const [saveError, setSaveError]             = useState("");
@@ -130,7 +143,7 @@ export default function NovaCotacaoWizard() {
   const [showItemWarning, setShowItemWarning] = useState(false);
   const [checkingItems, setCheckingItems]     = useState(false);
 
-  // ── Persist wizard state ──────────────────────────────────────────────────
+  // ── Persist wizard state on every change ─────────────────────────────────
   useEffect(() => {
     try {
       sessionStorage.setItem("cotacao-wizard", JSON.stringify({
@@ -146,19 +159,7 @@ export default function NovaCotacaoWizard() {
 
   // ── Load SC items ─────────────────────────────────────────────────────────
   useEffect(() => {
-    // Try to restore saved state
-    try {
-      const saved = sessionStorage.getItem("cotacao-wizard");
-      if (saved) {
-        const s = JSON.parse(saved);
-        if (s.step) setStep(s.step);
-        if (s.selectedItemIds) setSelectedItemIds(new Set(s.selectedItemIds));
-        if (s.nome) setNome(s.nome);
-        if (s.dataLimite) setDataLimite(s.dataLimite);
-        if (s.infoEntrega) setInfoEntrega(s.infoEntrega);
-        if (s.selectedFornIds) setSelectedFornIds(new Set(s.selectedFornIds));
-      }
-    } catch { /* ignore */ }
+    // State already restored from sessionStorage via lazy useState initializers above
 
     setLoadingItems(true);
     fetch("/api/suprimentos/necessidades?status=APROVADA")
