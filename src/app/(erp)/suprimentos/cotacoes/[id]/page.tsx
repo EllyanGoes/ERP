@@ -13,9 +13,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatBRL, formatDate, decimalToNumber } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Loader2, CheckCircle2, ChevronDown, ChevronRight,
-  Plus, ArrowLeft, BarChart3, X,
+  Plus, ArrowLeft, BarChart3, X, Pencil,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -49,6 +52,7 @@ type Cotacao = {
   status: "PENDENTE" | "EM_ANALISE" | "CONCLUIDA";
   dataLimiteResposta: string | null;
   observacoes: string | null;
+  infoEntrega: string | null;
   fornecedores: CotacaoFornecedor[];
   pedidos: Array<{ id: string; numero: string; status: string }>;
 };
@@ -89,6 +93,56 @@ export default function CotacaoDetailPage() {
   const [historicoTarget, setHistoricoTarget] = useState<{ cfId: string; fornNome: string } | null>(null);
   const [historicoData, setHistoricoData] = useState<HistoricoEntry[]>([]);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
+
+  // ── Edit cotação modal ────────────────────────────────────────────────────
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editNome, setEditNome] = useState("");
+  const [editDataLimite, setEditDataLimite] = useState("");
+  const [editInfoEntrega, setEditInfoEntrega] = useState("");
+  const [editObservacoes, setEditObservacoes] = useState("");
+  const [editError, setEditError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function openEditModal() {
+    if (!cotacao) return;
+    setEditNome(cotacao.nome ?? "");
+    setEditDataLimite(
+      cotacao.dataLimiteResposta
+        ? cotacao.dataLimiteResposta.slice(0, 10)
+        : ""
+    );
+    setEditInfoEntrega(cotacao.infoEntrega ?? "");
+    setEditObservacoes(cotacao.observacoes ?? "");
+    setEditError("");
+    setShowEditModal(true);
+  }
+
+  async function handleSaveEdit() {
+    if (!editNome.trim()) { setEditError("Informe o apelido da cotação."); return; }
+    if (!editDataLimite)  { setEditError("Informe o prazo de recebimento."); return; }
+    setSaving(true);
+    setEditError("");
+    try {
+      const res = await fetch(`/api/suprimentos/cotacoes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: editNome.trim(),
+          dataLimiteResposta: editDataLimite || null,
+          infoEntrega: editInfoEntrega.trim() || null,
+          observacoes: editObservacoes.trim() || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setEditError(json.error || "Erro ao salvar."); return; }
+      setShowEditModal(false);
+      await load();
+    } catch {
+      setEditError("Erro de conexão.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -241,6 +295,12 @@ export default function CotacaoDetailPage() {
               </Button>
             )}
             {canEdit && (
+              <Button variant="outline" onClick={openEditModal}>
+                <Pencil className="w-4 h-4 mr-2" />
+                Editar cotação
+              </Button>
+            )}
+            {canEdit && (
               <Button
                 variant="outline"
                 onClick={() => router.push(`/suprimentos/cotacoes/${id}/nova-participante`)}
@@ -261,6 +321,36 @@ export default function CotacaoDetailPage() {
         {actionError && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{actionError}</div>
         )}
+
+        {/* ── Info header card ───────────────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 px-5 py-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Apelido</p>
+              <p className="font-semibold text-gray-800 truncate">{cotacao.nome || <span className="text-gray-300 font-normal">—</span>}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Prazo de resposta</p>
+              <p className="font-medium text-gray-800">
+                {cotacao.dataLimiteResposta
+                  ? formatDate(cotacao.dataLimiteResposta)
+                  : <span className="text-gray-300">—</span>}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Informações de entrega</p>
+              <p className="text-gray-700 text-xs line-clamp-2 whitespace-pre-wrap">
+                {cotacao.infoEntrega || <span className="text-gray-300">—</span>}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Observações</p>
+              <p className="text-gray-700 text-xs line-clamp-2 whitespace-pre-wrap">
+                {cotacao.observacoes || <span className="text-gray-300">—</span>}
+              </p>
+            </div>
+          </div>
+        </div>
 
         {/* ── Itens da cotação (collapsible) ─────────────────────────────── */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -454,13 +544,111 @@ export default function CotacaoDetailPage() {
           </div>
         )}
 
-        {/* Data limite */}
-        {cotacao.dataLimiteResposta && (
-          <p className="text-xs text-gray-400">
-            Prazo de resposta: {formatDate(cotacao.dataLimiteResposta)}
-          </p>
-        )}
       </div>
+
+      {/* ── Edit cotação modal ─────────────────────────────────────────────────── */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+              <div>
+                <h2 className="font-semibold text-gray-900">Editar cotação</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{cotacao?.numero}</p>
+              </div>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 space-y-5 overflow-y-auto">
+              {/* Nome */}
+              <div className="space-y-1.5">
+                <Label>
+                  Apelido da cotação <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  value={editNome}
+                  onChange={(e) => setEditNome(e.target.value)}
+                  placeholder="Ex.: Compras materiais elétricos Abril/2026"
+                  className={cn(!editNome.trim() && editError ? "border-red-400" : "")}
+                />
+              </div>
+
+              {/* Prazo */}
+              <div className="space-y-1.5">
+                <Label>
+                  Prazo de recebimento <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  type="date"
+                  value={editDataLimite}
+                  onChange={(e) => setEditDataLimite(e.target.value)}
+                  className={cn(!editDataLimite && editError ? "border-red-400" : "")}
+                />
+                <p className="text-xs text-gray-400">
+                  Prazo limite para os fornecedores enviarem suas propostas.
+                </p>
+              </div>
+
+              {/* Info entrega */}
+              <div className="space-y-1.5">
+                <Label>Informações de entrega</Label>
+                <Textarea
+                  value={editInfoEntrega}
+                  onChange={(e) => setEditInfoEntrega(e.target.value)}
+                  rows={4}
+                  className="font-mono text-sm"
+                  placeholder="Endereço de entrega, instruções especiais..."
+                />
+              </div>
+
+              {/* Observações */}
+              <div className="space-y-1.5">
+                <Label>Observações</Label>
+                <Textarea
+                  value={editObservacoes}
+                  onChange={(e) => setEditObservacoes(e.target.value)}
+                  rows={3}
+                  placeholder="Observações gerais da cotação..."
+                />
+              </div>
+
+              {editError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {editError}
+                </p>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowEditModal(false)}
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSaveEdit}
+                disabled={saving}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {saving ? (
+                  <><Loader2 className="w-4 h-4 animate-spin mr-2" />Salvando...</>
+                ) : (
+                  "Salvar alterações"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── History modal ──────────────────────────────────────────────────────── */}
       {historicoTarget && (

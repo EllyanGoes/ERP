@@ -33,7 +33,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const body = await req.json();
 
   const updateData: Record<string, unknown> = {};
-  if (body.observacoes !== undefined) updateData.observacoes = body.observacoes || null;
+  if (body.nome               !== undefined) updateData.nome               = body.nome?.trim()        || null;
+  if (body.observacoes        !== undefined) updateData.observacoes        = body.observacoes?.trim() || null;
+  if (body.infoEntrega        !== undefined) updateData.infoEntrega        = body.infoEntrega?.trim() || null;
   if (body.dataLimiteResposta !== undefined)
     updateData.dataLimiteResposta = body.dataLimiteResposta ? new Date(body.dataLimiteResposta) : null;
 
