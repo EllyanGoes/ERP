@@ -45,11 +45,16 @@ export async function PATCH(
     }
   }
 
-  // Recalculate totalCalculado for this supplier
+  // Recalculate totalCalculado for this supplier (items subtotal + frete + despesas + seguro - vrDesconto)
   const allItems = await prisma.cotacaoFornecedorItem.findMany({
     where: { cotacaoFornecedorId: params.fornId },
   });
-  const total = allItems.reduce((sum, i) => sum + (i.disponivel ? parseFloat(String(i.subtotal ?? 0)) : 0), 0);
+  const itemsSubtotal = allItems.reduce((sum, i) => sum + (i.disponivel ? parseFloat(String(i.subtotal ?? 0)) : 0), 0);
+  const freteNum = frete != null ? parseFloat(String(frete)) : 0;
+  const despesasNum = despesas != null ? parseFloat(String(despesas)) : 0;
+  const seguroNum = seguro != null ? parseFloat(String(seguro)) : 0;
+  const vrDescontoNum = vrDesconto != null ? parseFloat(String(vrDesconto)) : 0;
+  const total = itemsSubtotal - vrDescontoNum + freteNum + despesasNum + seguroNum;
   updateData.totalCalculado = total;
 
   // ── Create history snapshot of current state ──────────────────────────

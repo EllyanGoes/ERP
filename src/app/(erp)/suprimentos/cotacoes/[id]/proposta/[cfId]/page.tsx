@@ -313,6 +313,7 @@ export default function EditPropostaPage() {
         seguro: seguroVal || null,
         itens: itens.map((i) => ({
           id: i.id,
+          quantidade: i.quantidade,
           precoUnitario: parseFloat(i.precoUnitario) || 0,
           disponivel: i.situacao === "CONSIDERA",
           situacao: i.situacao,

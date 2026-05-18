@@ -485,6 +485,10 @@ export default function AnaliseCotacaoPage() {
               const nome = cf.fornecedor.nomeFantasia || cf.fornecedor.razaoSocial;
               const total = decimalToNumber(cf.totalCalculado);
               const frete = decimalToNumber(cf.frete);
+              const despesas = decimalToNumber(cf.despesas);
+              const seguro = decimalToNumber(cf.seguro);
+              const vrDesconto = decimalToNumber(cf.vrDesconto);
+              const extrasTotal = frete + despesas + seguro - vrDesconto;
               const isBest = total === bestTotal && bestTotal > 0;
               const isSelected = selectedCfId === cf.id;
               const latestHistorico = cf.historico?.[0] ?? null;
@@ -534,16 +538,16 @@ export default function AnaliseCotacaoPage() {
                   {/* Stats */}
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mt-3 pt-3 border-t border-gray-100">
                     <div>
-                      <p className="text-gray-400">Total sem impostos</p>
+                      <p className="text-gray-400">Total da proposta</p>
                       <p className="font-semibold text-gray-800">{formatBRL(total)}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400">Total Frete</p>
-                      <p className="font-semibold text-gray-800">{formatBRL(frete)}</p>
+                      <p className="text-gray-400">Frete</p>
+                      <p className="font-semibold text-gray-800">{frete > 0 ? formatBRL(frete) : "—"}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400">Total com impostos</p>
-                      <p className="font-semibold text-gray-800">{formatBRL(total)}</p>
+                      <p className="text-gray-400">Desconto / Extras</p>
+                      <p className="font-semibold text-gray-800">{extrasTotal !== 0 ? formatBRL(extrasTotal) : "—"}</p>
                     </div>
                     <div>
                       <p className="text-gray-400">Prazo mín.</p>
