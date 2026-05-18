@@ -59,7 +59,7 @@ model AprovacaoSC {
   fluxoId           String?
   Usuario           Usuario           @relation(fields: [aprovadorId], references: [id])
   AprovacaoFluxo    AprovacaoFluxo?   @relation(fields: [fluxoId], references: [id])
-  NecessidadeCompra NecessidadeCompra @relation(fields: [necessidadeId], references: [id], onDelete: Cascade)
+  necessidade       NecessidadeCompra @relation(fields: [necessidadeId], references: [id], onDelete: Cascade)
 }
 
 model CentroCusto {
@@ -241,9 +241,9 @@ model CotacaoCompra {
   updatedAt            DateTime
   infoEntrega          String?
   nome                 String?
-  NecessidadeCompra    NecessidadeCompra?  @relation(fields: [necessidadeId], references: [id])
-  CotacaoFornecedor    CotacaoFornecedor[]
-  PedidoCompra         PedidoCompra[]
+  necessidade          NecessidadeCompra?  @relation(fields: [necessidadeId], references: [id])
+  fornecedores         CotacaoFornecedor[]
+  pedidos              PedidoCompra[]
 
   @@index([status])
 }
@@ -267,10 +267,10 @@ model CotacaoFornecedor {
   tipoFrete                  String?
   vrDesconto                 Decimal?                     @db.Decimal(15, 2)
   AnexoCotacaoFornecedor     AnexoCotacaoFornecedor[]
-  CotacaoCompra              CotacaoCompra                @relation(fields: [cotacaoId], references: [id], onDelete: Cascade)
-  Fornecedor                 Fornecedor                   @relation(fields: [fornecedorId], references: [id])
-  CotacaoFornecedorHistorico CotacaoFornecedorHistorico[]
-  CotacaoFornecedorItem      CotacaoFornecedorItem[]
+  cotacao                    CotacaoCompra                @relation(fields: [cotacaoId], references: [id], onDelete: Cascade)
+  fornecedor                 Fornecedor                   @relation(fields: [fornecedorId], references: [id])
+  historico                  CotacaoFornecedorHistorico[]
+  itens                      CotacaoFornecedorItem[]
 
   @@unique([cotacaoId, fornecedorId])
 }
@@ -291,7 +291,7 @@ model CotacaoFornecedorHistorico {
   observacao          String?
   itensSnapshot       Json?
   createdAt           DateTime          @default(now())
-  CotacaoFornecedor   CotacaoFornecedor @relation(fields: [cotacaoFornecedorId], references: [id], onDelete: Cascade)
+  cotacaoFornecedor   CotacaoFornecedor @relation(fields: [cotacaoFornecedorId], references: [id], onDelete: Cascade)
 
   @@index([cotacaoFornecedorId])
 }
@@ -306,8 +306,8 @@ model CotacaoFornecedorItem {
   disponivel          Boolean           @default(true)
   qtdDisponivel       Decimal?          @db.Decimal(15, 3)
   situacao            String?           @default("CONSIDERA")
-  CotacaoFornecedor   CotacaoFornecedor @relation(fields: [cotacaoFornecedorId], references: [id], onDelete: Cascade)
-  Item                Item              @relation(fields: [itemId], references: [id])
+  cotacaoFornecedor   CotacaoFornecedor @relation(fields: [cotacaoFornecedorId], references: [id], onDelete: Cascade)
+  item                Item              @relation(fields: [itemId], references: [id])
 }
 
 model Empresa {
@@ -378,8 +378,8 @@ model Filial {
   ativo             Boolean             @default(true)
   createdAt         DateTime            @default(now())
   updatedAt         DateTime
-  LocalEstoque      LocalEstoque[]
-  NecessidadeCompra NecessidadeCompra[]
+  locaisEstoque     LocalEstoque[]
+  necessidadesCompra NecessidadeCompra[]
   Colaborador       Colaborador[]
 }
 
@@ -589,12 +589,12 @@ model NecessidadeCompra {
   prioridade            Int                     @default(3)
   projeto               String?
   tipoCompra            String?
-  AprovacaoSC           AprovacaoSC[]
-  CotacaoCompra         CotacaoCompra[]
-  CentroCusto           CentroCusto?            @relation(fields: [centroCustoId], references: [id])
-  Filial                Filial?                 @relation(fields: [filialId], references: [id])
-  LocalEstoque          LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
-  NecessidadeCompraItem NecessidadeCompraItem[]
+  aprovacoesSC          AprovacaoSC[]
+  cotacoes              CotacaoCompra[]
+  centroCusto           CentroCusto?            @relation(fields: [centroCustoId], references: [id])
+  filial                Filial?                 @relation(fields: [filialId], references: [id])
+  localEstoque          LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
+  itens                 NecessidadeCompraItem[]
 
   @@index([status])
 }
@@ -607,8 +607,8 @@ model NecessidadeCompraItem {
   quantidadeAprovada Decimal?          @db.Decimal(15, 3)
   observacao         String?
   unidade            String?
-  Item               Item              @relation(fields: [itemId], references: [id])
-  NecessidadeCompra  NecessidadeCompra @relation(fields: [necessidadeId], references: [id], onDelete: Cascade)
+  item               Item              @relation(fields: [itemId], references: [id])
+  necessidade        NecessidadeCompra @relation(fields: [necessidadeId], references: [id], onDelete: Cascade)
 }
 
 model PedidoCompra {
@@ -632,9 +632,9 @@ model PedidoCompra {
   tipoFrete           String?
   vrDesconto          Decimal?           @db.Decimal(15, 2)
   ConferenciaCompra   ConferenciaCompra?
-  CotacaoCompra       CotacaoCompra?     @relation(fields: [cotacaoId], references: [id])
-  Fornecedor          Fornecedor         @relation(fields: [fornecedorId], references: [id])
-  PedidoCompraItem    PedidoCompraItem[]
+  cotacao             CotacaoCompra?     @relation(fields: [cotacaoId], references: [id])
+  fornecedor          Fornecedor         @relation(fields: [fornecedorId], references: [id])
+  itens               PedidoCompraItem[]
 
   @@index([fornecedorId])
   @@index([status])
@@ -647,8 +647,8 @@ model PedidoCompraItem {
   quantidade    Decimal      @db.Decimal(15, 3)
   precoUnitario Decimal      @db.Decimal(15, 2)
   valorTotal    Decimal      @db.Decimal(15, 2)
-  Item          Item         @relation(fields: [itemId], references: [id])
-  PedidoCompra  PedidoCompra @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  item          Item         @relation(fields: [itemId], references: [id])
+  pedido        PedidoCompra @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 }
 
 model PedidoVenda {
