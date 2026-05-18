@@ -16,7 +16,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { necessidadeId, observacoes, dataLimiteResposta, fornecedorIds = [], itens = [] } = body;
+  const { necessidadeId, nome, observacoes, infoEntrega, dataLimiteResposta, fornecedorIds = [], itens = [] } = body;
 
   // Build itemId -> quantidade map
   let qtdMap: Record<string, number> = {};
@@ -51,8 +51,10 @@ export async function POST(req: NextRequest) {
     const record = await tx.cotacaoCompra.create({
       data: {
         numero,
+        nome: nome?.trim() || null,
         necessidadeId: necessidadeId || null,
         observacoes: observacoes?.trim() || null,
+        infoEntrega: infoEntrega?.trim() || null,
         dataLimiteResposta: dataLimiteResposta ? new Date(dataLimiteResposta) : null,
         fornecedores: {
           create: fornecedorIds.map((fornecedorId: string) => ({

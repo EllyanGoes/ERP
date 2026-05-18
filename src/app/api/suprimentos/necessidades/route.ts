@@ -20,6 +20,16 @@ export async function GET(req: NextRequest) {
       localEstoque: { select: { id: true, nome: true } },
       centroCusto:  { select: { id: true, codigo: true, nome: true } },
       _count:       { select: { itens: true } },
+      itens: {
+        include: {
+          item: {
+            select: {
+              id: true, codigo: true, descricao: true, unidadeMedida: true,
+              unidade: { select: { sigla: true } },
+            },
+          },
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   });

@@ -565,11 +565,13 @@ model NecessidadeCompraItem {
 model CotacaoCompra {
   id                 String              @id @default(cuid())
   numero             String              @unique
+  nome               String?             // apelido do grupo de cotações
   necessidadeId      String?
   necessidade        NecessidadeCompra?  @relation(fields: [necessidadeId], references: [id])
   status             StatusCotacaoCompra @default(PENDENTE)
   dataLimiteResposta DateTime?
   observacoes        String?
+  infoEntrega        String?             // informações de entrega
   // Aprovação embutida
   aprovadoPor        String?
   dataAprovacao      DateTime?
