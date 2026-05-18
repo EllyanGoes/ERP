@@ -20,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn, formatDate } from "@/lib/utils";
-import { Plus, MoreHorizontal, Loader2, X, BarChart3 } from "lucide-react";
+import { Plus, MoreHorizontal, Loader2, X, BarChart3, Pencil, Trash2 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type CotacaoItem = {
@@ -203,16 +203,16 @@ export default function CotacoesPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => router.push(`/suprimentos/cotacoes/${c.id}`)}>
-                              Editar
+                              <Pencil className="h-4 w-4 mr-2" /> Editar
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => router.push(`/suprimentos/cotacoes/${c.id}/analise`)}>
                               <BarChart3 className="h-4 w-4 mr-2" /> Analisar
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              className="text-red-600"
+                              className="text-red-600 focus:text-red-600"
                               onClick={() => setDeleteTarget({ id: c.id, numero: c.numero })}
                             >
-                              Excluir
+                              <Trash2 className="h-4 w-4 mr-2" /> Excluir
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

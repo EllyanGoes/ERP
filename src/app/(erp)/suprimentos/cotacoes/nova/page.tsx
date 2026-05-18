@@ -124,6 +124,12 @@ export default function NovaCotacaoWizard() {
   const [saving, setSaving]                   = useState(false);
   const [saveError, setSaveError]             = useState("");
 
+  // ── Item-in-cotação warnings ──────────────────────────────────────────────
+  type ItemWarning = { itemId: string; codigo: string; descricao: string; cotacoes: string[] };
+  const [itemWarnings, setItemWarnings]       = useState<ItemWarning[]>([]);
+  const [showItemWarning, setShowItemWarning] = useState(false);
+  const [checkingItems, setCheckingItems]     = useState(false);
+
   // ── Persist wizard state ──────────────────────────────────────────────────
   useEffect(() => {
     try {
@@ -285,9 +291,27 @@ export default function NovaCotacaoWizard() {
   }
 
   // ── Navigation ────────────────────────────────────────────────────────────
-  function goStep2() {
+  async function goStep2() {
     if (selectedItemIds.size === 0) return;
-    setStep(2);
+    setCheckingItems(true);
+    try {
+      const selectedItems = scItems.filter((i) => selectedItemIds.has(i.id));
+      const itemIds = Array.from(new Set(selectedItems.map((i) => i.itemId))).join(",");
+      const res = await fetch(`/api/suprimentos/cotacoes/verificar-itens?itemIds=${itemIds}`);
+      const json = await res.json();
+      const warnings: ItemWarning[] = json.data ?? [];
+      if (warnings.length > 0) {
+        setItemWarnings(warnings);
+        setShowItemWarning(true);
+      } else {
+        setStep(2);
+      }
+    } catch {
+      // If check fails, proceed anyway
+      setStep(2);
+    } finally {
+      setCheckingItems(false);
+    }
   }
 
   function goStep3() {
@@ -443,8 +467,9 @@ export default function NovaCotacaoWizard() {
                   {selectedItemIds.size} {selectedItemIds.size === 1 ? "registro selecionado" : "registros selecionados"}
                 </div>
               )}
-              <Button onClick={goStep2} disabled={selectedItemIds.size === 0}
+              <Button onClick={goStep2} disabled={selectedItemIds.size === 0 || checkingItems}
                 className="gap-1.5">
+                {checkingItems ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Iniciar cotação <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
@@ -623,6 +648,44 @@ export default function NovaCotacaoWizard() {
               className="gap-1.5 bg-blue-600 hover:bg-blue-700">
               Gerar cotação
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Item-in-cotação warning modal ─────────────────────────────────── */}
+      {showItemWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Itens em cotação aberta</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Os itens abaixo já estão em cotações em andamento. Deseja continuar mesmo assim?
+                </p>
+              </div>
+            </div>
+            <div className="border rounded-lg divide-y max-h-56 overflow-y-auto mb-5">
+              {itemWarnings.map((w) => (
+                <div key={w.itemId} className="px-4 py-2.5">
+                  <p className="text-sm font-medium text-gray-800">{w.codigo} — {w.descricao}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Em cotação: <span className="text-amber-600 font-medium">{w.cotacoes.join(", ")}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowItemWarning(false)}>
+                Cancelar
+              </Button>
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => { setShowItemWarning(false); setStep(2); }}
+              >
+                Continuar mesmo assim
+              </Button>
+            </div>
           </div>
         </div>
       )}
