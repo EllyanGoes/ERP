@@ -65,7 +65,7 @@ export default async function PedidosCompraPage() {
                       {p.valorTotal !== null ? formatBRL(decimalToNumber(p.valorTotal)) : "—"}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{formatDate(p.dataEntregaPrevista)}</td>
-                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-3 text-right">
                       <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} />
                     </td>
                   </ClickableRow>

@@ -63,7 +63,6 @@ export default async function ConferenciasPage() {
                       <Link
                         href={`/suprimentos/pedidos-compra/${c.pedido.id}`}
                         className="text-blue-600 hover:underline font-mono text-xs"
-                        onClick={(e) => e.stopPropagation()}
                       >
                         {c.pedido.numero}
                       </Link>
