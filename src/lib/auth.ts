@@ -45,5 +45,7 @@ export async function getSession(): Promise<SessionPayload | null> {
 
 export function canAccess(session: SessionPayload, modulo: string): boolean {
   if (session.perfil === "ADMIN") return true;
-  return session.modulos.includes(modulo) || session.modulos.includes("*");
+  if (session.modulos.includes("*")) return true;
+  // Permissions are stored as "modulo.recurso.acao" — match exact key OR any sub-permission
+  return session.modulos.some((m) => m === modulo || m.startsWith(`${modulo}.`));
 }
