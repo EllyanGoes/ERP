@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
-import { Loader2, ChevronDown, Save, X, Plus } from "lucide-react";
+import { Loader2, ChevronDown, Save, X, Plus, Paperclip, Upload, File, FileText, FileImage, Trash2 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ItemForm = {
@@ -73,6 +73,8 @@ export default function NovaParticipantePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saveError, setSaveError] = useState("");
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Cotação meta ─────────────────────────────────────────────────────────
   const [cotacaoNumero, setCotacaoNumero] = useState("");
@@ -341,6 +343,20 @@ export default function NovaParticipantePage() {
       });
       const json = await res.json();
       if (!res.ok) { setSaveError(json.error || "Erro ao salvar"); return; }
+
+      const newCfId: string = json.data.id;
+
+      // Upload staged files to the newly created CF
+      if (stagedFiles.length > 0) {
+        for (const file of stagedFiles) {
+          const fd = new FormData();
+          fd.append("file", file);
+          await fetch(
+            `/api/suprimentos/cotacoes/${cotacaoId}/fornecedores/${newCfId}/anexos`,
+            { method: "POST", body: fd }
+          ).catch(() => {/* non-blocking */});
+        }
+      }
 
       clearForm();
       setIsDirty(false);
@@ -686,6 +702,70 @@ export default function NovaParticipantePage() {
                 </tr>
               </tfoot>
             </table>
+          </div>
+        </div>
+
+        {/* ── Documentos da Proposta (staged) ───────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+            <h2 className="font-semibold text-sm text-gray-800">Documentos da Proposta</h2>
+          </div>
+          <div className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Paperclip className="w-4 h-4 text-gray-400" />
+              <span className="text-xs text-gray-400">PDF, imagens, planilhas — máx. 20 MB por arquivo</span>
+            </div>
+
+            {/* Staged file list */}
+            {stagedFiles.length > 0 && (
+              <div className="space-y-1.5">
+                {stagedFiles.map((f, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100 bg-gray-50">
+                    {f.type.startsWith("image/") ? <FileImage className="w-4 h-4 text-purple-500 shrink-0" />
+                      : f.type === "application/pdf" ? <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                      : <File className="w-4 h-4 text-blue-400 shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{f.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {f.size < 1024 * 1024 ? `${(f.size / 1024).toFixed(1)} KB` : `${(f.size / (1024 * 1024)).toFixed(1)} MB`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setStagedFiles((p) => p.filter((_, idx) => idx !== i))}
+                      className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Drop zone */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="flex flex-col items-center justify-center gap-2 px-4 py-5 rounded-xl border-2 border-dashed border-gray-200 hover:border-blue-300 hover:bg-gray-50 cursor-pointer transition-colors"
+            >
+              <Upload className="w-5 h-5 text-gray-300" />
+              <p className="text-xs text-gray-500 select-none text-center">
+                Clique ou arraste arquivos aqui<br />
+                <span className="text-gray-400">Serão enviados junto com a proposta</span>
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.zip,.rar"
+                onChange={(e) => {
+                  if (e.target.files) {
+                    setStagedFiles((p) => [...p, ...Array.from(e.target.files!)]);
+                    e.target.value = "";
+                  }
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>

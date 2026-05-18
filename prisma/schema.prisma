@@ -610,8 +610,20 @@ model CotacaoFornecedor {
 
   itens     CotacaoFornecedorItem[]
   historico CotacaoFornecedorHistorico[]
+  anexos    AnexoCotacaoFornecedor[]
 
   @@unique([cotacaoId, fornecedorId])
+}
+
+model AnexoCotacaoFornecedor {
+  id                  String            @id @default(cuid())
+  cotacaoFornecedorId String
+  cotacaoFornecedor   CotacaoFornecedor @relation(fields: [cotacaoFornecedorId], references: [id], onDelete: Cascade)
+  nome                String            // original filename
+  url                 String            // Vercel Blob URL
+  tamanho             Int               // bytes
+  tipo                String            // MIME type
+  createdAt           DateTime          @default(now())
 }
 
 model CotacaoFornecedorHistorico {

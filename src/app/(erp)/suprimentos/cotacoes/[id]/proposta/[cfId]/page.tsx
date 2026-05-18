@@ -24,6 +24,7 @@ import {
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
 import { Loader2, ChevronDown, Save, X, Plus } from "lucide-react";
+import AnexosSection from "@/components/shared/AnexosSection";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ItemForm = {
@@ -653,6 +654,18 @@ export default function EditPropostaPage() {
                 </tr>
               </tfoot>
             </table>
+          </div>
+        </div>
+
+        {/* ── Anexos ────────────────────────────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+            <h2 className="font-semibold text-sm text-gray-800">Documentos da Proposta</h2>
+          </div>
+          <div className="p-4">
+            <AnexosSection
+              apiBase={`/api/suprimentos/cotacoes/${cotacaoId}/fornecedores/${cfId}/anexos`}
+            />
           </div>
         </div>
       </div>
