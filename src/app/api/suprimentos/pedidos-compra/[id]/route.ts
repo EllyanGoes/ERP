@@ -125,3 +125,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   return NextResponse.json({ data: record });
 }
+
+export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const pedidoId = params.id;
+
+  // Only allow deletion of RASCUNHO or ENVIADO pedidos
+  const pedido = await prisma.pedidoCompra.findUnique({ where: { id: pedidoId }, select: { status: true } });
+  if (!pedido) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
+  if (!["RASCUNHO", "ENVIADO"].includes(pedido.status)) {
+    return NextResponse.json({ error: "Apenas pedidos em Rascunho ou Enviado podem ser excluídos" }, { status: 400 });
+  }
+
+  await prisma.$transaction([
+    prisma.pedidoCompraItem.deleteMany({ where: { pedidoId } }),
+    prisma.pedidoCompra.delete({ where: { id: pedidoId } }),
+  ]);
+
+  return NextResponse.json({ ok: true });
+}

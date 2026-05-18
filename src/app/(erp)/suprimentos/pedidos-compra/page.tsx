@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { formatBRL, formatDate, decimalToNumber } from "@/lib/utils";
+import PedidoActionsMenu from "./PedidoActionsMenu";
 
 export default async function PedidosCompraPage() {
   const pedidos = await prisma.pedidoCompra.findMany({
@@ -47,6 +48,7 @@ export default async function PedidosCompraPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-600">Valor Total</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Entrega Prevista</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -63,6 +65,9 @@ export default async function PedidosCompraPage() {
                       {p.valorTotal !== null ? formatBRL(decimalToNumber(p.valorTotal)) : "—"}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{formatDate(p.dataEntregaPrevista)}</td>
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} />
+                    </td>
                   </ClickableRow>
                 ))}
               </tbody>
