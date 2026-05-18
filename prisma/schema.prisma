@@ -16,7 +16,7 @@ model AnexoCotacaoFornecedor {
   tamanho             Int
   tipo                String
   createdAt           DateTime          @default(now())
-  CotacaoFornecedor   CotacaoFornecedor @relation(fields: [cotacaoFornecedorId], references: [id], onDelete: Cascade)
+  cotacaoFornecedor   CotacaoFornecedor @relation(fields: [cotacaoFornecedorId], references: [id], onDelete: Cascade)
 }
 
 model AprovacaoEtapa {
@@ -70,8 +70,8 @@ model CentroCusto {
   ativo              Boolean             @default(true)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime
-  GrupoCentroCusto   GrupoCentroCusto?   @relation(fields: [grupoCentroCustoId], references: [id])
-  NecessidadeCompra  NecessidadeCompra[]
+  grupoCentroCusto   GrupoCentroCusto?   @relation(fields: [grupoCentroCustoId], references: [id])
+  necessidadesCompra NecessidadeCompra[]
 
   @@index([grupoCentroCustoId])
 }
@@ -122,7 +122,7 @@ model Colaborador {
   updatedAt      DateTime
   etapasAprovacao AprovacaoEtapa[]
   usuario         Usuario?         @relation(fields: [usuarioId], references: [id])
-  Filial          Filial[]
+  filiais         Filial[]
 }
 
 model CondicaoPagamento {
@@ -148,8 +148,8 @@ model ConferenciaCompra {
   observacoes           String?
   createdAt             DateTime                @default(now())
   updatedAt             DateTime
-  PedidoCompra          PedidoCompra            @relation(fields: [pedidoId], references: [id])
-  ConferenciaCompraItem ConferenciaCompraItem[]
+  pedido                PedidoCompra            @relation(fields: [pedidoId], references: [id])
+  itens                 ConferenciaCompraItem[]
 
   @@index([status])
 }
@@ -162,9 +162,9 @@ model ConferenciaCompraItem {
   quantidadeRecebida  Decimal               @default(0) @db.Decimal(15, 3)
   divergencia         Boolean               @default(false)
   observacao          String?
-  ConferenciaCompra   ConferenciaCompra     @relation(fields: [conferenciaId], references: [id], onDelete: Cascade)
-  Item                Item                  @relation(fields: [itemId], references: [id])
-  MovimentacaoEstoque MovimentacaoEstoque[]
+  conferencia         ConferenciaCompra     @relation(fields: [conferenciaId], references: [id], onDelete: Cascade)
+  item                Item                  @relation(fields: [itemId], references: [id])
+  movimentacoes       MovimentacaoEstoque[]
 }
 
 model Configuracao {
@@ -338,7 +338,7 @@ model EnderecoEstoque {
   ativo          Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime
-  LocalEstoque   LocalEstoque @relation(fields: [localEstoqueId], references: [id], onDelete: Cascade)
+  localEstoque   LocalEstoque @relation(fields: [localEstoqueId], references: [id], onDelete: Cascade)
 
   @@unique([localEstoqueId, codigo])
 }
@@ -352,8 +352,8 @@ model EstoqueItem {
   localizacao     String?
   updatedAt       DateTime
   localEstoqueId  String?
-  Item            Item          @relation(fields: [itemId], references: [id])
-  LocalEstoque    LocalEstoque? @relation(fields: [localEstoqueId], references: [id])
+  item            Item          @relation(fields: [itemId], references: [id])
+  localEstoque    LocalEstoque? @relation(fields: [localEstoqueId], references: [id])
 
   @@unique([itemId, localEstoqueId])
   @@index([itemId])
@@ -380,7 +380,7 @@ model Filial {
   updatedAt         DateTime
   locaisEstoque     LocalEstoque[]
   necessidadesCompra NecessidadeCompra[]
-  Colaborador       Colaborador[]
+  colaboradores     Colaborador[]
 }
 
 model FormaPagamento {
@@ -442,7 +442,7 @@ model GrupoCentroCusto {
   ativo       Boolean       @default(true)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime
-  CentroCusto CentroCusto[]
+  centros CentroCusto[]
 }
 
 model Item {
@@ -463,17 +463,17 @@ model Item {
   updatedAt             DateTime
   tipoProdutoId         String?
   unidadeId             String?
-  ConferenciaCompraItem ConferenciaCompraItem[]
-  CotacaoFornecedorItem CotacaoFornecedorItem[]
-  EstoqueItem           EstoqueItem[]
-  TipoProduto           TipoProduto?            @relation(fields: [tipoProdutoId], references: [id])
-  Unidade               Unidade?                @relation(fields: [unidadeId], references: [id])
-  ItemUnidade           ItemUnidade[]
-  MovimentacaoEstoque   MovimentacaoEstoque[]
-  NecessidadeCompraItem NecessidadeCompraItem[]
-  PedidoCompraItem      PedidoCompraItem[]
-  PedidoVendaItem       PedidoVendaItem[]
-  ProdutoFornecedor     ProdutoFornecedor[]
+  conferenciaCompraItens ConferenciaCompraItem[]
+  cotacaoFornecedorItens CotacaoFornecedorItem[]
+  estoqueItens           EstoqueItem[]
+  tipoProduto            TipoProduto?            @relation(fields: [tipoProdutoId], references: [id])
+  unidade                Unidade?                @relation(fields: [unidadeId], references: [id])
+  itemUnidades           ItemUnidade[]
+  movimentacoes          MovimentacaoEstoque[]
+  necessidadeCompraItens NecessidadeCompraItem[]
+  pedidoCompraItens      PedidoCompraItem[]
+  pedidoVendaItens       PedidoVendaItem[]
+  produtosFornecedor     ProdutoFornecedor[]
 
   @@index([codigo])
   @@index([tipo])
@@ -487,9 +487,9 @@ model ItemUnidade {
   isPrincipal                                Boolean  @default(false)
   createdAt                                  DateTime @default(now())
   baseUnidadeId                              String?
-  Unidade_ItemUnidade_baseUnidadeIdToUnidade Unidade? @relation("ItemUnidade_baseUnidadeIdToUnidade", fields: [baseUnidadeId], references: [id])
-  Item                                       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  Unidade_ItemUnidade_unidadeIdToUnidade     Unidade  @relation("ItemUnidade_unidadeIdToUnidade", fields: [unidadeId], references: [id])
+  baseUnidade Unidade? @relation("ItemUnidade_baseUnidadeIdToUnidade", fields: [baseUnidadeId], references: [id])
+  item        Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  unidade     Unidade  @relation("ItemUnidade_unidadeIdToUnidade", fields: [unidadeId], references: [id])
 
   @@unique([itemId, unidadeId])
   @@index([itemId])
@@ -520,11 +520,11 @@ model LocalEstoque {
   createdAt           DateTime              @default(now())
   updatedAt           DateTime
   filialId            String?
-  EnderecoEstoque     EnderecoEstoque[]
-  EstoqueItem         EstoqueItem[]
-  Filial              Filial?               @relation(fields: [filialId], references: [id])
-  MovimentacaoEstoque MovimentacaoEstoque[]
-  NecessidadeCompra   NecessidadeCompra[]
+  enderecos          EnderecoEstoque[]
+  estoqueItens       EstoqueItem[]
+  filial             Filial?               @relation(fields: [filialId], references: [id])
+  movimentacoes      MovimentacaoEstoque[]
+  necessidadesCompra NecessidadeCompra[]
 }
 
 model LoteMovimentacao {
@@ -534,7 +534,7 @@ model LoteMovimentacao {
   documento           String?
   observacoes         String?
   createdAt           DateTime                @default(now())
-  MovimentacaoEstoque MovimentacaoEstoque[]
+  itens MovimentacaoEstoque[]
 }
 
 model MovimentacaoEstoque {
@@ -554,12 +554,12 @@ model MovimentacaoEstoque {
   loteId                String?
   valorUnitario         Decimal?                @db.Decimal(15, 4)
   unidadeId             String?
-  ConferenciaCompraItem ConferenciaCompraItem?  @relation(fields: [conferenciaItemId], references: [id])
-  Item                  Item                    @relation(fields: [itemId], references: [id])
-  LocalEstoque          LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
-  LoteMovimentacao      LoteMovimentacao?       @relation(fields: [loteId], references: [id])
-  PedidoVendaItem       PedidoVendaItem?        @relation(fields: [pedidoVendaItemId], references: [id])
-  Unidade               Unidade?                @relation(fields: [unidadeId], references: [id])
+  conferenciaItem ConferenciaCompraItem?  @relation(fields: [conferenciaItemId], references: [id])
+  item            Item                    @relation(fields: [itemId], references: [id])
+  localEstoque    LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
+  lote            LoteMovimentacao?       @relation(fields: [loteId], references: [id])
+  pedidoVendaItem PedidoVendaItem?        @relation(fields: [pedidoVendaItemId], references: [id])
+  unidade         Unidade?                @relation(fields: [unidadeId], references: [id])
 
   @@index([createdAt])
   @@index([itemId])
@@ -631,7 +631,7 @@ model PedidoCompra {
   seguro              Decimal?           @db.Decimal(15, 2)
   tipoFrete           String?
   vrDesconto          Decimal?           @db.Decimal(15, 2)
-  ConferenciaCompra   ConferenciaCompra?
+  conferencia         ConferenciaCompra?
   cotacao             CotacaoCompra?     @relation(fields: [cotacaoId], references: [id])
   fornecedor          Fornecedor         @relation(fields: [fornecedorId], references: [id])
   itens               PedidoCompraItem[]
@@ -683,9 +683,9 @@ model PedidoVendaItem {
   precoUnitario       Decimal               @db.Decimal(15, 2)
   desconto            Decimal               @default(0) @db.Decimal(15, 2)
   valorTotal          Decimal               @db.Decimal(15, 2)
-  MovimentacaoEstoque MovimentacaoEstoque[]
-  item                Item                  @relation(fields: [itemId], references: [id])
-  pedidoVenda         PedidoVenda           @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
+  movimentacoes MovimentacaoEstoque[]
+  item          Item                  @relation(fields: [itemId], references: [id])
+  pedidoVenda   PedidoVenda           @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
 
   @@index([itemId])
   @@index([pedidoVendaId])
@@ -730,8 +730,8 @@ model ProdutoFornecedor {
   tempoResuprimento Int?
   ultimaQtdeDev     Decimal?   @db.Decimal(15, 3)
   unidade           String?
-  Fornecedor        Fornecedor @relation(fields: [fornecedorId], references: [id])
-  Item              Item       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  fornecedor        Fornecedor @relation(fields: [fornecedorId], references: [id])
+  item              Item       @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@unique([itemId, fornecedorId])
 }
@@ -748,7 +748,7 @@ model TipoProduto {
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime
-  Item      Item[]
+  itens     Item[]
 }
 
 model Unidade {
@@ -758,12 +758,12 @@ model Unidade {
   ativo                                                       Boolean               @default(true)
   createdAt                                                   DateTime              @default(now())
   updatedAt                                                   DateTime
-  Item                                                        Item[]
-  ItemUnidade_ItemUnidade_baseUnidadeIdToUnidade              ItemUnidade[]         @relation("ItemUnidade_baseUnidadeIdToUnidade")
-  ItemUnidade_ItemUnidade_unidadeIdToUnidade                  ItemUnidade[]         @relation("ItemUnidade_unidadeIdToUnidade")
-  MovimentacaoEstoque                                         MovimentacaoEstoque[]
-  UnidadeConversao_UnidadeConversao_unidadeDestinoIdToUnidade UnidadeConversao[]    @relation("UnidadeConversao_unidadeDestinoIdToUnidade")
-  UnidadeConversao_UnidadeConversao_unidadeOrigemIdToUnidade  UnidadeConversao[]    @relation("UnidadeConversao_unidadeOrigemIdToUnidade")
+  itens               Item[]
+  itemUnidadesBase    ItemUnidade[]         @relation("ItemUnidade_baseUnidadeIdToUnidade")
+  itemUnidades        ItemUnidade[]         @relation("ItemUnidade_unidadeIdToUnidade")
+  movimentacoes       MovimentacaoEstoque[]
+  conversoesDestino   UnidadeConversao[]    @relation("UnidadeConversao_unidadeDestinoIdToUnidade")
+  conversoesOrigem    UnidadeConversao[]    @relation("UnidadeConversao_unidadeOrigemIdToUnidade")
 }
 
 model UnidadeConversao {
@@ -773,8 +773,8 @@ model UnidadeConversao {
   fator                                              Decimal  @db.Decimal(18, 6)
   createdAt                                          DateTime @default(now())
   updatedAt                                          DateTime
-  Unidade_UnidadeConversao_unidadeDestinoIdToUnidade Unidade  @relation("UnidadeConversao_unidadeDestinoIdToUnidade", fields: [unidadeDestinoId], references: [id], onDelete: Cascade)
-  Unidade_UnidadeConversao_unidadeOrigemIdToUnidade  Unidade  @relation("UnidadeConversao_unidadeOrigemIdToUnidade", fields: [unidadeOrigemId], references: [id], onDelete: Cascade)
+  unidadeDestino Unidade  @relation("UnidadeConversao_unidadeDestinoIdToUnidade", fields: [unidadeDestinoId], references: [id], onDelete: Cascade)
+  unidadeOrigem  Unidade  @relation("UnidadeConversao_unidadeOrigemIdToUnidade", fields: [unidadeOrigemId], references: [id], onDelete: Cascade)
 
   @@unique([unidadeOrigemId, unidadeDestinoId])
 }
