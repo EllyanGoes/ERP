@@ -27,25 +27,8 @@ type Necessidade = {
   filial: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
   localEstoque: { id: string; nome: string } | null;
   _count: { itens: number };
-  cotacoes: Array<{ id: string; status: string; pedidos: Array<{ id: string; status: string }> }>;
+  cotacoes?: Array<{ id: string; status: string; pedidos: Array<{ id: string; status: string }> }>;
 };
-
-// ── SC Progress Tags ──────────────────────────────────────────────────────────
-const COTACAO_ACTIVE   = new Set(["PENDENTE", "EM_ANALISE"]);
-const PC_ACTIVE        = new Set(["RASCUNHO", "ENVIADO", "CONFIRMADO", "EM_TRANSITO"]);
-
-function scProgressTags(n: Necessidade) {
-  const tags: { label: string; color: string }[] = [];
-  if (!n.cotacoes?.length) return tags;
-
-  const hasActiveCot = n.cotacoes.some((c) => COTACAO_ACTIVE.has(c.status));
-  const hasActivePC  = n.cotacoes.some((c) => c.pedidos.some((p) => PC_ACTIVE.has(p.status)));
-
-  if (hasActivePC)  tags.push({ label: "Com PC",      color: "bg-blue-100 text-blue-700 border-blue-200" });
-  else if (hasActiveCot) tags.push({ label: "Em Cotação", color: "bg-amber-100 text-amber-700 border-amber-200" });
-
-  return tags;
-}
 
 const STATUS_OPTIONS = [
   { value: "RASCUNHO",             label: "Rascunho" },
@@ -313,15 +296,6 @@ function KanbanCard({ n, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
           <p className="text-xs text-gray-500 truncate">👤 {n.solicitante}</p>
         )}
       </div>
-
-      {/* Progress tags */}
-      {scProgressTags(n).length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-2">
-          {scProgressTags(n).map((t) => (
-            <span key={t.label} className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", t.color)}>{t.label}</span>
-          ))}
-        </div>
-      )}
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-100">
@@ -759,12 +733,7 @@ export default function NecessidadesPage() {
                               </span>
                             </td>
                             <td className="px-4 py-3">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="text-gray-800 truncate max-w-xs">{n.justificativa || <span className="text-gray-300 italic">Sem descrição</span>}</p>
-                                {scProgressTags(n).map((t) => (
-                                  <span key={t.label} className={cn("inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold border shrink-0", t.color)}>{t.label}</span>
-                                ))}
-                              </div>
+                              <p className="text-gray-800 truncate max-w-xs">{n.justificativa || <span className="text-gray-300 italic">Sem descrição</span>}</p>
                               {n.tipoCompra && <p className="text-xs text-gray-400 mt-0.5">{n.tipoCompra}</p>}
                             </td>
                             <td className="px-4 py-3 text-gray-600 truncate">{n.solicitante || "—"}</td>

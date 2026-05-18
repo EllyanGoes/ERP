@@ -117,6 +117,8 @@ export default function NovaCotacaoWizard() {
   const [loadingItems, setLoadingItems] = useState(true);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [itemSearch, setItemSearch]     = useState("");
+  // scId → progress tag label+color
+  const [scTagMap, setScTagMap]         = useState<Map<string, { label: string; color: string }>>(new Map());
 
   // ── Step 2 state ──────────────────────────────────────────────────────────
   const [nome, setNome]                 = useState<string>("");
@@ -173,6 +175,9 @@ export default function NovaCotacaoWizard() {
   }, [step, selectedItemIds, nome, dataLimite, infoEntrega, selectedFornIds, saveForm]);
 
   // ── Load SC items ─────────────────────────────────────────────────────────
+  const COTACAO_ACTIVE_SET = new Set(["PENDENTE", "EM_ANALISE"]);
+  const PC_ACTIVE_SET      = new Set(["RASCUNHO", "ENVIADO", "CONFIRMADO", "EM_TRANSITO"]);
+
   useEffect(() => {
     setLoadingItems(true);
     fetch("/api/suprimentos/necessidades?status=APROVADA")
@@ -180,9 +185,12 @@ export default function NovaCotacaoWizard() {
       .then((json) => {
         const scs = Array.isArray(json) ? json : (json.data ?? []);
         const flat: SCItem[] = [];
+        const tagMap = new Map<string, { label: string; color: string }>();
+
         scs.forEach((sc: {
           id: string; numero: string; categoria: string | null;
           dataNecessidade: string | null;
+          cotacoes?: Array<{ id: string; status: string; pedidos: Array<{ id: string; status: string }> }>;
           itens: Array<{
             id: string; quantidade: unknown; unidade: string | null;
             item: { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade?: { sigla: string } | null };
@@ -203,8 +211,18 @@ export default function NovaCotacaoWizard() {
               dataNecessidade: sc.dataNecessidade ?? null,
             });
           });
+
+          // Compute progress tag for this SC
+          if (sc.cotacoes?.length) {
+            const hasActivePC  = sc.cotacoes.some((c) => c.pedidos?.some((p) => PC_ACTIVE_SET.has(p.status)));
+            const hasActiveCot = sc.cotacoes.some((c) => COTACAO_ACTIVE_SET.has(c.status));
+            if (hasActivePC)       tagMap.set(sc.id, { label: "Com PC",      color: "bg-blue-100 text-blue-700 border-blue-200" });
+            else if (hasActiveCot) tagMap.set(sc.id, { label: "Em Cotação",  color: "bg-amber-100 text-amber-700 border-amber-200" });
+          }
         });
+
         setScItems(flat);
+        setScTagMap(tagMap);
 
         // Se veio via ?necessidadeId=, pré-selecionar todos os itens dessa SC
         if (necessidadeIdParam) {
@@ -450,7 +468,19 @@ export default function NovaCotacaoWizard() {
                             ? <CheckSquare className="w-4 h-4 text-blue-500" />
                             : <Square className="w-4 h-4 text-gray-300" />}
                         </td>
-                        <td className="px-3 py-3 font-mono text-xs text-gray-700">{item.scNumero}</td>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono text-xs text-gray-700">{item.scNumero}</span>
+                            {scTagMap.get(item.scId) && (
+                              <span className={cn(
+                                "inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold border shrink-0",
+                                scTagMap.get(item.scId)!.color
+                              )}>
+                                {scTagMap.get(item.scId)!.label}
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-3 py-3 text-center text-gray-500">{String(item.ordem).padStart(4, "0")}</td>
                         <td className="px-3 py-3 font-mono text-xs text-gray-600">{item.codigo}</td>
                         <td className="px-3 py-3 font-medium text-gray-900">{item.descricao}</td>
