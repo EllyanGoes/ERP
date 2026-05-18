@@ -5,8 +5,11 @@ import { generateSimpleDocNumber } from "@/lib/utils";
 
 // POST /api/suprimentos/cotacoes/[id]/aprovar
 // Marks the cotação as CONCLUIDA and generates a PedidoCompra from the melhorOpcao supplier
-export async function POST(_: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const body = await req.json().catch(() => ({}));
+    const cfIdParam = body.cfId as string | undefined;
+
     const result = await prisma.$transaction(async (tx) => {
       const cotacao = await tx.cotacaoCompra.findUnique({
         where: { id: params.id },
@@ -23,8 +26,10 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
       if (!cotacao) throw new Error("Cotação não encontrada");
       if (cotacao.status === "CONCLUIDA") throw new Error("Cotação já concluída");
 
-      // Find melhorOpcao supplier; if none set, pick the respondida with lowest total
-      let melhor = cotacao.fornecedores.find((f) => f.melhorOpcao);
+      // Find the best supplier: use cfId if provided, then melhorOpcao, then lowest total respondida
+      let melhor = cfIdParam
+        ? cotacao.fornecedores.find((f) => f.id === cfIdParam)
+        : cotacao.fornecedores.find((f) => f.melhorOpcao);
       if (!melhor) {
         const respondidas = cotacao.fornecedores
           .filter((f) => f.status === "RESPONDIDA" && f.totalCalculado != null)

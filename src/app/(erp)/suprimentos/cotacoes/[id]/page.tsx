@@ -190,13 +190,13 @@ export default function CotacaoDetailPage() {
         ]}
         action={
           <div className="flex items-center gap-2">
-            {cotacao.status === "PENDENTE" && (
+            {(cotacao.status === "PENDENTE" || cotacao.status === "EM_ANALISE") && (
               <Button
-                onClick={() => changeStatus("EM_ANALISE")}
+                onClick={() => router.push(`/suprimentos/cotacoes/${id}/analise`)}
                 disabled={actioning}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                {actioning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <BarChart3 className="w-4 h-4 mr-2" />}
+                <BarChart3 className="w-4 h-4 mr-2" />
                 Analisar
               </Button>
             )}

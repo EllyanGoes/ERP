@@ -124,8 +124,36 @@ export default function NovaCotacaoWizard() {
   const [saving, setSaving]                   = useState(false);
   const [saveError, setSaveError]             = useState("");
 
+  // ── Persist wizard state ──────────────────────────────────────────────────
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("cotacao-wizard", JSON.stringify({
+        step,
+        selectedItemIds: Array.from(selectedItemIds),
+        nome,
+        dataLimite,
+        infoEntrega,
+        selectedFornIds: Array.from(selectedFornIds),
+      }));
+    } catch { /* ignore */ }
+  }, [step, selectedItemIds, nome, dataLimite, infoEntrega, selectedFornIds]);
+
   // ── Load SC items ─────────────────────────────────────────────────────────
   useEffect(() => {
+    // Try to restore saved state
+    try {
+      const saved = sessionStorage.getItem("cotacao-wizard");
+      if (saved) {
+        const s = JSON.parse(saved);
+        if (s.step) setStep(s.step);
+        if (s.selectedItemIds) setSelectedItemIds(new Set(s.selectedItemIds));
+        if (s.nome) setNome(s.nome);
+        if (s.dataLimite) setDataLimite(s.dataLimite);
+        if (s.infoEntrega) setInfoEntrega(s.infoEntrega);
+        if (s.selectedFornIds) setSelectedFornIds(new Set(s.selectedFornIds));
+      }
+    } catch { /* ignore */ }
+
     setLoadingItems(true);
     fetch("/api/suprimentos/necessidades?status=APROVADA")
       .then((r) => r.json())
@@ -297,6 +325,7 @@ export default function NovaCotacaoWizard() {
       });
       const json = await res.json();
       if (!res.ok) { setSaveError(json.error || "Erro ao criar cotação"); setSaving(false); return; }
+      sessionStorage.removeItem("cotacao-wizard");
       setShowConfirm(false);
       router.push(`/suprimentos/cotacoes/${json.data.id}`);
     } catch {
@@ -406,7 +435,7 @@ export default function NovaCotacaoWizard() {
 
           {/* Bottom bar */}
           <div className="mt-6 flex items-center justify-between">
-            <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={() => { sessionStorage.removeItem("cotacao-wizard"); router.back(); }}>Cancelar</Button>
             <div className="flex items-center gap-4">
               {selectedItemIds.size > 0 && (
                 <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-700 text-sm px-3 py-1.5 rounded-full">

@@ -20,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn, formatDate } from "@/lib/utils";
-import { Plus, MoreHorizontal, Loader2, X } from "lucide-react";
+import { Plus, MoreHorizontal, Loader2, X, BarChart3 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type CotacaoItem = {
@@ -204,6 +204,9 @@ export default function CotacoesPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => router.push(`/suprimentos/cotacoes/${c.id}`)}>
                               Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.push(`/suprimentos/cotacoes/${c.id}/analise`)}>
+                              <BarChart3 className="h-4 w-4 mr-2" /> Analisar
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-red-600"
