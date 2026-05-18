@@ -64,7 +64,7 @@ interface NavItem {
 }
 
 interface SubSection {
-  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações" | "Aprovações";
+  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações" | "Aprovações" | "Manutenção";
   items: NavItem[];
 }
 
@@ -183,6 +183,19 @@ const mainModules: Module[] = [
       },
     ],
   },
+  {
+    id: "pcm",
+    label: "PCM",
+    icon: Wrench,
+    sections: [
+      {
+        kind: "Manutenção" as SubSection["kind"],
+        items: [
+          { href: "/pcm/dashboard", label: "Dashboard PCM", icon: BarChart3 },
+        ],
+      },
+    ],
+  },
 ];
 
 const adminModule: Module = {
@@ -220,7 +233,6 @@ const allModules = [...mainModules, adminModule, configModule];
 // ── Future modules (strip-only, no panel, disabled) ───────────────────────────
 const futureModules: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "pcp",             label: "PCP — Planejamento e Controle de Produção",  icon: Factory },
-  { id: "pcm",             label: "PCM — Planejamento e Controle de Manutenção", icon: Wrench  },
   { id: "gestao-pessoas",  label: "Gestão de Pessoas",                           icon: Users2  },
 ];
 
@@ -254,6 +266,7 @@ const kindStyle: Record<SubSection["kind"], string> = {
   Financeiro:         "text-emerald-600",
   Configurações:      "text-purple-500",
   "Aprovações":       "text-emerald-600",
+  "Manutenção":       "text-orange-500",
 };
 
 // ── Tooltip wrapper (portal-based) ────────────────────────────────────────────

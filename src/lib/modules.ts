@@ -83,6 +83,14 @@ export const MODULOS: ModuloDef[] = [
     ],
   },
   {
+    key: "pcm",
+    label: "PCM",
+    group: "Manutenção",
+    recursos: [
+      { key: "dashboard", label: "Dashboard PCM", acoes: ["ver"] },
+    ],
+  },
+  {
     key: "admin",
     label: "Administração",
     group: "Sistema",
