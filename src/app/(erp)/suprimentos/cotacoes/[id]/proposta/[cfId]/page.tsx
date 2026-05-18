@@ -99,6 +99,7 @@ export default function EditPropostaPage() {
   const [contato, setContato] = useState("");
   const [email, setEmail] = useState("");
   const [condicoesPagamento, setCondicoesPagamento] = useState("");
+  const [condicoesList, setCondicoesList] = useState<{ id: string; nome: string }[]>([]);
   const [frete, setFrete] = useState("");
   const [tipoFrete, setTipoFrete] = useState("");
   const [desconto, setDesconto] = useState("");
@@ -158,6 +159,17 @@ export default function EditPropostaPage() {
   }, [cotacaoId, cfId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // ── Load condições de pagamento ───────────────────────────────────────────
+  useEffect(() => {
+    fetch("/api/suprimentos/condicoes-pagamento")
+      .then((r) => r.json())
+      .then((list) => {
+        if (Array.isArray(list)) setCondicoesList(list);
+      })
+      .catch(() => {});
+  }, []);
+
   useTabTitle(data ? `Proposta ${data.fornecedor.nomeFantasia || data.fornecedor.razaoSocial}` : null);
 
   // ── Computed values ───────────────────────────────────────────────────────
@@ -383,11 +395,22 @@ export default function EditPropostaPage() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Condição pagamento</Label>
-              <Input
-                value={condicoesPagamento}
-                onChange={(e) => setCondicoesPagamento(e.target.value)}
-                placeholder="Ex: 30/60 DDL"
-              />
+              <Select
+                value={condicoesPagamento || "__none__"}
+                onValueChange={(v) => setCondicoesPagamento(v === "__none__" ? "" : v)}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Selecionar condição..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Nenhuma —</SelectItem>
+                  {condicoesList.map((c) => (
+                    <SelectItem key={c.id} value={c.nome}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Despesas</Label>
