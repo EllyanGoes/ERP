@@ -15,7 +15,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatBRL, formatDate, decimalToNumber } from "@/lib/utils";
 import {
   Loader2, CheckCircle2, ChevronDown, ChevronRight,
-  Plus, ArrowLeft, BarChart3,
+  Plus, ArrowLeft, BarChart3, X,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -53,6 +53,19 @@ type Cotacao = {
   pedidos: Array<{ id: string; numero: string; status: string }>;
 };
 
+type HistoricoEntry = {
+  id: string;
+  versao: number;
+  totalCalculado: unknown;
+  frete: unknown;
+  desconto: unknown;
+  condicoesPagamento: string | null;
+  prazoEntregaDias: number | null;
+  observacao: string | null;
+  itensSnapshot: Array<{ codigo: string; descricao: string; quantidade: string; precoUnitario: string | null; subtotal: string | null; situacao: string | null }> | null;
+  createdAt: string;
+};
+
 // ── Status badge ───────────────────────────────────────────────────────────────
 const STATUS_RESP_BADGE: Record<string, { label: string; cls: string }> = {
   AGUARDANDO: { label: "Pendente",            cls: "bg-amber-100 text-amber-700 border border-amber-200" },
@@ -72,6 +85,10 @@ export default function CotacaoDetailPage() {
 
   const [actioning, setActioning] = useState(false);
   const [actionError, setActionError] = useState("");
+
+  const [historicoTarget, setHistoricoTarget] = useState<{ cfId: string; fornNome: string } | null>(null);
+  const [historicoData, setHistoricoData] = useState<HistoricoEntry[]>([]);
+  const [loadingHistorico, setLoadingHistorico] = useState(false);
 
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -152,6 +169,19 @@ export default function CotacaoDetailPage() {
       await load();
     } catch {
       // silent
+    }
+  }
+
+  async function openHistorico(cfId: string, fornNome: string) {
+    setHistoricoTarget({ cfId, fornNome });
+    setHistoricoData([]);
+    setLoadingHistorico(true);
+    try {
+      const res = await fetch(`/api/suprimentos/cotacoes/${id}/fornecedores/${cfId}/historico`);
+      const json = await res.json();
+      setHistoricoData(json.data ?? []);
+    } finally {
+      setLoadingHistorico(false);
     }
   }
 
@@ -390,6 +420,16 @@ export default function CotacaoDetailPage() {
                     </p>
                   </div>
                 </div>
+
+                {/* History link */}
+                <div className="mt-3 pt-2 border-t text-center">
+                  <button
+                    onClick={() => openHistorico(cf.id, fornNome)}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Exibir histórico de propostas
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -421,6 +461,102 @@ export default function CotacaoDetailPage() {
           </p>
         )}
       </div>
+
+      {/* ── History modal ──────────────────────────────────────────────────────── */}
+      {historicoTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">
+                  Histórico de propostas
+                </h2>
+                <p className="text-sm text-gray-500">{historicoTarget.fornNome}</p>
+              </div>
+              <button onClick={() => setHistoricoTarget(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto flex-1 p-6">
+              {loadingHistorico && (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                </div>
+              )}
+              {!loadingHistorico && historicoData.length === 0 && (
+                <p className="text-center text-gray-400 py-8 text-sm">
+                  Nenhum histórico de proposta registrado ainda.
+                </p>
+              )}
+              {!loadingHistorico && historicoData.map((h) => (
+                <div key={h.id} className="border rounded-lg p-4 mb-4 last:mb-0">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold text-gray-700">
+                      Versão {h.versao}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {new Date(h.createdAt).toLocaleString("pt-BR")}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-xs mb-3">
+                    <div>
+                      <p className="text-gray-400">Total</p>
+                      <p className="font-medium">{formatBRL(decimalToNumber(h.totalCalculado))}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Frete</p>
+                      <p className="font-medium">{formatBRL(decimalToNumber(h.frete))}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Desconto</p>
+                      <p className="font-medium">{decimalToNumber(h.desconto).toFixed(2)}%</p>
+                    </div>
+                    {h.condicoesPagamento && (
+                      <div>
+                        <p className="text-gray-400">Cond. Pagamento</p>
+                        <p className="font-medium">{h.condicoesPagamento}</p>
+                      </div>
+                    )}
+                    {h.prazoEntregaDias != null && (
+                      <div>
+                        <p className="text-gray-400">Prazo entrega</p>
+                        <p className="font-medium">{h.prazoEntregaDias} dias</p>
+                      </div>
+                    )}
+                  </div>
+                  {h.itensSnapshot && h.itensSnapshot.length > 0 && (
+                    <table className="w-full text-xs border-t pt-2 mt-2">
+                      <thead>
+                        <tr className="text-gray-400">
+                          <th className="text-left py-1">Produto</th>
+                          <th className="text-left py-1">Descrição</th>
+                          <th className="text-right py-1">Qtd</th>
+                          <th className="text-right py-1">Preço Unit.</th>
+                          <th className="text-right py-1">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {h.itensSnapshot.map((item, idx) => (
+                          <tr key={idx} className="border-t border-gray-50">
+                            <td className="py-1 text-gray-500">{item.codigo}</td>
+                            <td className="py-1">{item.descricao}</td>
+                            <td className="py-1 text-right">{item.quantidade}</td>
+                            <td className="py-1 text-right">{item.precoUnitario ? formatBRL(parseFloat(item.precoUnitario)) : "—"}</td>
+                            <td className="py-1 text-right">{item.subtotal ? formatBRL(parseFloat(item.subtotal)) : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -52,6 +52,42 @@ export async function PATCH(
   const total = allItems.reduce((sum, i) => sum + (i.disponivel ? parseFloat(String(i.subtotal ?? 0)) : 0), 0);
   updateData.totalCalculado = total;
 
+  // ── Create history snapshot of current state ──────────────────────────
+  const currentCf = await prisma.cotacaoFornecedor.findUnique({
+    where: { id: params.fornId },
+    include: { itens: { include: { item: { select: { codigo: true, descricao: true } } } } },
+  });
+  if (currentCf) {
+    const versaoCount = await prisma.cotacaoFornecedorHistorico.count({
+      where: { cotacaoFornecedorId: params.fornId },
+    });
+    const itensSnapshot = currentCf.itens.map((i) => ({
+      codigo: i.item.codigo,
+      descricao: i.item.descricao,
+      quantidade: String(i.quantidade),
+      precoUnitario: i.precoUnitario != null ? String(i.precoUnitario) : null,
+      subtotal: i.subtotal != null ? String(i.subtotal) : null,
+      situacao: i.situacao,
+    }));
+    await prisma.cotacaoFornecedorHistorico.create({
+      data: {
+        cotacaoFornecedorId: params.fornId,
+        versao: versaoCount + 1,
+        totalCalculado: currentCf.totalCalculado,
+        frete: currentCf.frete,
+        tipoFrete: currentCf.tipoFrete,
+        desconto: currentCf.desconto,
+        vrDesconto: currentCf.vrDesconto,
+        despesas: currentCf.despesas,
+        seguro: currentCf.seguro,
+        condicoesPagamento: currentCf.condicoesPagamento,
+        prazoEntregaDias: currentCf.prazoEntregaDias,
+        observacao: currentCf.observacao,
+        itensSnapshot,
+      },
+    });
+  }
+
   await prisma.cotacaoFornecedor.update({
     where: { id: params.fornId },
     data: updateData,

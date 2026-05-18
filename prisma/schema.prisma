@@ -608,9 +608,31 @@ model CotacaoFornecedor {
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
 
-  itens CotacaoFornecedorItem[]
+  itens     CotacaoFornecedorItem[]
+  historico CotacaoFornecedorHistorico[]
 
   @@unique([cotacaoId, fornecedorId])
+}
+
+model CotacaoFornecedorHistorico {
+  id                  String            @id @default(cuid())
+  cotacaoFornecedorId String
+  cotacaoFornecedor   CotacaoFornecedor @relation(fields: [cotacaoFornecedorId], references: [id], onDelete: Cascade)
+  versao              Int               @default(1)
+  totalCalculado      Decimal?          @db.Decimal(15, 2)
+  frete               Decimal?          @db.Decimal(15, 2)
+  tipoFrete           String?
+  desconto            Decimal?          @db.Decimal(5, 2)
+  vrDesconto          Decimal?          @db.Decimal(15, 2)
+  despesas            Decimal?          @db.Decimal(15, 2)
+  seguro              Decimal?          @db.Decimal(15, 2)
+  condicoesPagamento  String?
+  prazoEntregaDias    Int?
+  observacao          String?
+  itensSnapshot       Json?
+  createdAt           DateTime          @default(now())
+
+  @@index([cotacaoFornecedorId])
 }
 
 model CotacaoFornecedorItem {
