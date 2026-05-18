@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
+import { useFormPersist } from "@/lib/form-persist";
 import {
   CheckSquare, Square, ChevronRight, Loader2, Search,
   X, Building2, AlertTriangle,
@@ -99,31 +100,27 @@ export default function NovaCotacaoWizard() {
 
   useTabTitle("Nova Cotação");
 
-  // ── Read sessionStorage ONCE for lazy state initialization ──────────────
-  // This runs synchronously before first render, so state is correct from the start.
-  // The persist useEffect then keeps sessionStorage in sync on every change.
-  function _ss<T>(key: string, fallback: T): T {
-    if (typeof window === "undefined") return fallback;
-    try {
-      const raw = sessionStorage.getItem("cotacao-wizard");
-      if (!raw) return fallback;
-      const val = JSON.parse(raw)[key];
-      return val !== undefined && val !== null ? val : fallback;
-    } catch { return fallback; }
-  }
+  const { save: saveForm, load: loadForm, clear: clearForm } = useFormPersist<{
+    step: number;
+    selectedItemIds: string[];
+    nome: string;
+    dataLimite: string;
+    infoEntrega: string;
+    selectedFornIds: string[];
+  }>("cotacao:nova");
 
-  const [step, setStep] = useState<number>(() => _ss("step", 1));
+  const [step, setStep] = useState<number>(1);
 
   // ── Step 1 state ──────────────────────────────────────────────────────────
   const [scItems, setScItems]           = useState<SCItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(() => new Set(_ss<string[]>("selectedItemIds", [])));
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [itemSearch, setItemSearch]     = useState("");
 
   // ── Step 2 state ──────────────────────────────────────────────────────────
-  const [nome, setNome]                 = useState<string>(() => _ss("nome", ""));
-  const [dataLimite, setDataLimite]     = useState<string>(() => _ss("dataLimite", ""));
-  const [infoEntrega, setInfoEntrega]   = useState<string>(() => _ss("infoEntrega", ""));
+  const [nome, setNome]                 = useState<string>("");
+  const [dataLimite, setDataLimite]     = useState<string>("");
+  const [infoEntrega, setInfoEntrega]   = useState<string>("");
   const [step2Error, setStep2Error]     = useState("");
 
   // ── Step 3 state ──────────────────────────────────────────────────────────
@@ -132,7 +129,7 @@ export default function NovaCotacaoWizard() {
   const [allFornecedores, setAllFornecedores] = useState<Fornecedor[]>([]);
   const [ultFornecedores, setUltFornecedores] = useState<Fornecedor[]>([]);
   const [loadingForn, setLoadingForn]         = useState(false);
-  const [selectedFornIds, setSelectedFornIds] = useState<Set<string>>(() => new Set(_ss<string[]>("selectedFornIds", [])));
+  const [selectedFornIds, setSelectedFornIds] = useState<Set<string>>(new Set());
   const [showConfirm, setShowConfirm]         = useState(false);
   const [saving, setSaving]                   = useState(false);
   const [saveError, setSaveError]             = useState("");
@@ -143,24 +140,36 @@ export default function NovaCotacaoWizard() {
   const [showItemWarning, setShowItemWarning] = useState(false);
   const [checkingItems, setCheckingItems]     = useState(false);
 
+  // ── Restore wizard state on mount ────────────────────────────────────────
+  const formRestoredRef = useRef(false);
+  useEffect(() => {
+    if (formRestoredRef.current) return;
+    formRestoredRef.current = true;
+    const saved = loadForm();
+    if (saved) {
+      setStep(saved.step ?? 1);
+      setSelectedItemIds(new Set(saved.selectedItemIds ?? []));
+      setNome(saved.nome ?? "");
+      setDataLimite(saved.dataLimite ?? "");
+      setInfoEntrega(saved.infoEntrega ?? "");
+      setSelectedFornIds(new Set(saved.selectedFornIds ?? []));
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Persist wizard state on every change ─────────────────────────────────
   useEffect(() => {
-    try {
-      sessionStorage.setItem("cotacao-wizard", JSON.stringify({
-        step,
-        selectedItemIds: Array.from(selectedItemIds),
-        nome,
-        dataLimite,
-        infoEntrega,
-        selectedFornIds: Array.from(selectedFornIds),
-      }));
-    } catch { /* ignore */ }
-  }, [step, selectedItemIds, nome, dataLimite, infoEntrega, selectedFornIds]);
+    saveForm({
+      step,
+      selectedItemIds: Array.from(selectedItemIds),
+      nome,
+      dataLimite,
+      infoEntrega,
+      selectedFornIds: Array.from(selectedFornIds),
+    });
+  }, [step, selectedItemIds, nome, dataLimite, infoEntrega, selectedFornIds, saveForm]);
 
   // ── Load SC items ─────────────────────────────────────────────────────────
   useEffect(() => {
-    // State already restored from sessionStorage via lazy useState initializers above
-
     setLoadingItems(true);
     fetch("/api/suprimentos/necessidades?status=APROVADA")
       .then((r) => r.json())
@@ -350,7 +359,7 @@ export default function NovaCotacaoWizard() {
       });
       const json = await res.json();
       if (!res.ok) { setSaveError(json.error || "Erro ao criar cotação"); setSaving(false); return; }
-      sessionStorage.removeItem("cotacao-wizard");
+      clearForm();
       setShowConfirm(false);
       router.push(`/suprimentos/cotacoes/${json.data.id}`);
     } catch (e: unknown) {
@@ -460,7 +469,7 @@ export default function NovaCotacaoWizard() {
 
           {/* Bottom bar */}
           <div className="mt-6 flex items-center justify-between">
-            <Button type="button" variant="outline" onClick={() => { sessionStorage.removeItem("cotacao-wizard"); router.back(); }}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={() => { clearForm(); router.back(); }}>Cancelar</Button>
             <div className="flex items-center gap-4">
               {selectedItemIds.size > 0 && (
                 <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-700 text-sm px-3 py-1.5 rounded-full">

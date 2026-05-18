@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session-context";
+import { useFormPersist } from "@/lib/form-persist";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -319,9 +320,29 @@ function UnitSelect({ value, options, onChange, disabled }: {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+type FormSnapshot = {
+  filialId: string;
+  descricao: string;
+  prioridade: number;
+  entregaDesejada: string;
+  solicitante: string;
+  tipoCompra: string;
+  motivo: string;
+  localEstoqueId: string;
+  centroCustoId: string;
+  categoria: string;
+  projeto: string;
+  classificacaoAuxiliar: string;
+  observacoes: string;
+  itens: ItemRow[];
+};
+
 export default function NovasolicitacaoPage() {
   const router   = useRouter();
   const { user } = useSession();
+
+  const { save: saveForm, load: loadForm, clear: clearForm } = useFormPersist<FormSnapshot>("sc:nova");
+  const formRestoredRef = useRef(false);
 
   const [filialId,              setFilialId]              = useState("");
   const [descricao,             setDescricao]             = useState("");
@@ -354,13 +375,40 @@ export default function NovasolicitacaoPage() {
   // Map itemId → list of units pre-registered for that product
   const [itemUnidades,   setItemUnidades]   = useState<Map<string, UnidadeOption[]>>(new Map());
 
-  useEffect(() => { if (user?.nome) setSolicitante(user.nome); }, [user]);
+  // Restore on mount from sessionStorage (takes priority over user.nome fallback)
+  useEffect(() => {
+    const saved = loadForm();
+    if (saved && !formRestoredRef.current) {
+      formRestoredRef.current = true;
+      setFilialId(saved.filialId ?? "");
+      setDescricao(saved.descricao ?? "");
+      setPrioridade(saved.prioridade ?? 3);
+      setEntregaDesejada(saved.entregaDesejada ?? "");
+      setSolicitante(saved.solicitante ?? user?.nome ?? "");
+      setTipoCompra(saved.tipoCompra ?? "");
+      setMotivo(saved.motivo ?? "");
+      setLocalEstoqueId(saved.localEstoqueId ?? "");
+      setCentroCustoId(saved.centroCustoId ?? "");
+      setCategoria(saved.categoria ?? "");
+      setProjeto(saved.projeto ?? "");
+      setClassificacaoAuxiliar(saved.classificacaoAuxiliar ?? "");
+      setObservacoes(saved.observacoes ?? "");
+      setItens(saved.itens ?? [{ itemId: "", quantidade: "1", unidade: "", observacao: "" }]);
+    } else if (!formRestoredRef.current && user?.nome) {
+      setSolicitante(user.nome);
+    }
+  }, []); // eslint-disable-line
 
   useEffect(() => {
     fetch("/api/empresa/filiais?ativo=true").then((r) => r.json()).then((j) => setFiliais(Array.isArray(j) ? j : []));
     fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json()).then((j) => setCentrosCusto(Array.isArray(j) ? j : []));
     fetch("/api/suprimentos/produtos").then((r) => r.json()).then((j) => setItemOptions(Array.isArray(j) ? j : j.data ?? []));
   }, []);
+
+  // Auto-save form state to sessionStorage on every change
+  useEffect(() => {
+    saveForm({ filialId, descricao, prioridade, entregaDesejada, solicitante, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens });
+  }, [filialId, descricao, prioridade, entregaDesejada, solicitante, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens, saveForm]);
 
   const loadLocais = useCallback(async (fId: string) => {
     if (!fId) { setLocaisEstoque([]); setLocalEstoqueId(""); return; }
@@ -438,6 +486,7 @@ export default function NovasolicitacaoPage() {
       });
       const json = await res.json();
       if (!res.ok) { setServerError(json.error || "Erro ao criar solicitação"); return; }
+      clearForm();
       setSuccessDialog({ numero: json.data.numero, id: json.data.id });
     } catch { setServerError("Erro de conexão. Tente novamente."); }
     finally { setSaving(false); }

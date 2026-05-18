@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2, ChevronDown, Loader2, Save } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { cn, decimalToNumber } from "@/lib/utils";
+import { useFormPersist } from "@/lib/form-persist";
 
 type Filial        = { id: string; razaoSocial: string; nomeFantasia: string | null };
 type LocalEstoque  = { id: string; nome: string };
@@ -129,9 +130,29 @@ function UnitSelect({ value, options, onChange, disabled }: {
   );
 }
 
+type FormSnapshot = {
+  filialId: string;
+  descricao: string;
+  prioridade: number;
+  entregaDesejada: string;
+  solicitante: string;
+  tipoCompra: string;
+  motivo: string;
+  localEstoqueId: string;
+  centroCustoId: string;
+  categoria: string;
+  projeto: string;
+  classificacaoAuxiliar: string;
+  observacoes: string;
+  itens: ItemRow[];
+};
+
 export default function EditarSolicitacaoPage() {
   const { id }  = useParams<{ id: string }>();
   const router  = useRouter();
+
+  const { save: saveForm, load: loadForm, clear: clearForm } = useFormPersist<FormSnapshot>(`sc:edit:${id}`);
+  const formRestoredRef = useRef(false);
 
   const [ready,   setReady]   = useState(false);
   const [numero,  setNumero]  = useState("");
@@ -166,27 +187,49 @@ export default function EditarSolicitacaoPage() {
       if (!data) { setError("Não encontrado"); setLoading(false); return; }
       if (data.status !== "RASCUNHO") { setError("Apenas rascunhos podem ser editados"); setLoading(false); return; }
       setNumero(data.numero);
-      setFilialId(data.filialId ?? "");
-      setDescricao(data.justificativa ?? "");
-      setPrioridade(data.prioridade ?? 3);
-      setEntregaDesejada(data.dataNecessidade ? data.dataNecessidade.slice(0, 10) : "");
-      setSolicitante(data.solicitante ?? "");
-      setTipoCompra(data.tipoCompra ?? "");
-      setMotivo(data.motivo ?? "");
-      setLocalEstoqueId(data.localEstoqueId ?? "");
-      setCentroCustoId(data.centroCustoId ?? "");
-      setCategoria(data.categoria ?? "");
-      setProjeto(data.projeto ?? "");
-      setClassificacaoAuxiliar(data.classificacaoAuxiliar ?? "");
-      setObservacoes(data.observacoes ?? "");
-      setItens(data.itens.map((it: { itemId: string; quantidade: unknown; unidade?: string; observacao: string | null }) => ({
-        itemId: it.itemId, quantidade: String(decimalToNumber(it.quantidade)),
-        unidade: it.unidade ?? "", observacao: it.observacao ?? "",
-      })));
+      const cached = loadForm();
+      if (cached && !formRestoredRef.current) {
+        formRestoredRef.current = true;
+        setFilialId(cached.filialId ?? data.filialId ?? "");
+        setDescricao(cached.descricao ?? data.justificativa ?? "");
+        setPrioridade(cached.prioridade ?? data.prioridade ?? 3);
+        setEntregaDesejada(cached.entregaDesejada ?? (data.dataNecessidade ? data.dataNecessidade.slice(0, 10) : ""));
+        setSolicitante(cached.solicitante ?? data.solicitante ?? "");
+        setTipoCompra(cached.tipoCompra ?? data.tipoCompra ?? "");
+        setMotivo(cached.motivo ?? data.motivo ?? "");
+        setLocalEstoqueId(cached.localEstoqueId ?? data.localEstoqueId ?? "");
+        setCentroCustoId(cached.centroCustoId ?? data.centroCustoId ?? "");
+        setCategoria(cached.categoria ?? data.categoria ?? "");
+        setProjeto(cached.projeto ?? data.projeto ?? "");
+        setClassificacaoAuxiliar(cached.classificacaoAuxiliar ?? data.classificacaoAuxiliar ?? "");
+        setObservacoes(cached.observacoes ?? data.observacoes ?? "");
+        setItens(cached.itens ?? data.itens.map((it: { itemId: string; quantidade: unknown; unidade?: string; observacao: string | null }) => ({
+          itemId: it.itemId, quantidade: String(decimalToNumber(it.quantidade)),
+          unidade: it.unidade ?? "", observacao: it.observacao ?? "",
+        })));
+      } else {
+        setFilialId(data.filialId ?? "");
+        setDescricao(data.justificativa ?? "");
+        setPrioridade(data.prioridade ?? 3);
+        setEntregaDesejada(data.dataNecessidade ? data.dataNecessidade.slice(0, 10) : "");
+        setSolicitante(data.solicitante ?? "");
+        setTipoCompra(data.tipoCompra ?? "");
+        setMotivo(data.motivo ?? "");
+        setLocalEstoqueId(data.localEstoqueId ?? "");
+        setCentroCustoId(data.centroCustoId ?? "");
+        setCategoria(data.categoria ?? "");
+        setProjeto(data.projeto ?? "");
+        setClassificacaoAuxiliar(data.classificacaoAuxiliar ?? "");
+        setObservacoes(data.observacoes ?? "");
+        setItens(data.itens.map((it: { itemId: string; quantidade: unknown; unidade?: string; observacao: string | null }) => ({
+          itemId: it.itemId, quantidade: String(decimalToNumber(it.quantidade)),
+          unidade: it.unidade ?? "", observacao: it.observacao ?? "",
+        })));
+      }
       setReady(true);
       setLoading(false);
     });
-  }, [id]);
+  }, [id]); // eslint-disable-line
 
   // Load static options
   useEffect(() => {
@@ -194,6 +237,12 @@ export default function EditarSolicitacaoPage() {
     fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json()).then((j) => setCentrosCusto(Array.isArray(j) ? j : []));
     fetch("/api/suprimentos/produtos").then((r) => r.json()).then((j) => setItemOptions(Array.isArray(j) ? j : j.data ?? []));
   }, []);
+
+  // Auto-save form state to sessionStorage on every change
+  useEffect(() => {
+    if (!ready) return;
+    saveForm({ filialId, descricao, prioridade, entregaDesejada, solicitante, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens });
+  }, [filialId, descricao, prioridade, entregaDesejada, solicitante, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens, ready, saveForm]);
 
   const loadLocais = useCallback(async (fId: string) => {
     if (!fId) { setLocaisEstoque([]); return; }
@@ -266,6 +315,7 @@ export default function EditarSolicitacaoPage() {
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error || "Erro ao salvar"); return; }
+      clearForm();
       router.push(`/compras/necessidades/${id}`);
     } catch { setError("Erro de conexão. Tente novamente."); }
     finally { setSaving(false); }

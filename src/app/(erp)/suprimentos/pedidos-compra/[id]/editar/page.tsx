@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useFormPersist } from "@/lib/form-persist";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,21 @@ type ItemRow = {
   situacao: "CONSIDERA" | "NAO_CONSIDERA";
 };
 
+type FormSnapshot = {
+  fornecedorId: string;
+  contato: string;
+  email: string;
+  frete: string;
+  tipoFrete: string;
+  desconto: string;
+  despesas: string;
+  seguro: string;
+  condicoesPagamento: string;
+  dataEntregaPrevista: string;
+  observacoes: string;
+  itens: ItemRow[];
+};
+
 const TIPO_FRETE_OPTIONS = [
   { value: "C", label: "C-CIF" },
   { value: "F", label: "F-FOB" },
@@ -34,6 +50,7 @@ const TIPO_FRETE_OPTIONS = [
 export default function EditarPedidoCompraPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { save: saveForm, load: loadForm, clear: clearForm } = useFormPersist<FormSnapshot>(`pc:edit:${id}`);
 
   // Data
   const [fornecedores, setFornecedores]   = useState<Fornecedor[]>([]);
@@ -68,7 +85,13 @@ export default function EditarPedidoCompraPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState("");
 
+  // Auto-save effect
+  useEffect(() => {
+    saveForm({ fornecedorId, contato, email, frete, tipoFrete, desconto, despesas, seguro, condicoesPagamento, dataEntregaPrevista, observacoes, itens });
+  }, [fornecedorId, contato, email, frete, tipoFrete, desconto, despesas, seguro, condicoesPagamento, dataEntregaPrevista, observacoes, itens, saveForm]);
+
   // Load reference data + pedido in parallel
+  const formRestoredRef = useRef(false);
   useEffect(() => {
     Promise.all([
       fetch("/api/suprimentos/fornecedores").then((r) => r.json()),
@@ -84,47 +107,67 @@ export default function EditarPedidoCompraPage() {
       if (!pedido) { setError("Pedido não encontrado"); setLoadingPedido(false); return; }
 
       setPedidoNumero(pedido.numero ?? "");
-      setFornecedorIdState(pedido.fornecedor?.id ?? "");
 
-      // Use PC-level contato/email if available, fall back to fornecedor's
-      setContato(pedido.contato ?? pedido.fornecedor?.contato ?? "");
-      setEmail(pedido.email ?? pedido.fornecedor?.email ?? "");
+      // Check cache first — restore unsaved user changes; fall back to API data
+      const saved = formRestoredRef.current ? null : loadForm();
+      formRestoredRef.current = true;
 
-      // Financial fields from cotacaoFornecedor (which for manual PCs mirrors PC own fields)
-      const cf = pedido.cotacaoFornecedor;
-      if (cf) {
-        const freteNum    = decimalToNumber(cf.frete);
-        const descontoNum = decimalToNumber(cf.desconto);
-        const despesasNum = decimalToNumber(cf.despesas);
-        const seguroNum   = decimalToNumber(cf.seguro);
-        if (freteNum)    setFrete(String(freteNum));
-        if (cf.tipoFrete) setTipoFrete(cf.tipoFrete);
-        if (descontoNum) setDesconto(String(descontoNum));
-        if (despesasNum) setDespesas(String(despesasNum));
-        if (seguroNum)   setSeguro(String(seguroNum));
-        if (cf.condicoesPagamento) setCondicoesPagamento(cf.condicoesPagamento);
-      }
+      if (saved && saved.fornecedorId) {
+        setFornecedorIdState(saved.fornecedorId);
+        setContato(saved.contato ?? "");
+        setEmail(saved.email ?? "");
+        setFrete(saved.frete ?? "");
+        setTipoFrete(saved.tipoFrete ?? "");
+        setDesconto(saved.desconto ?? "");
+        setDespesas(saved.despesas ?? "");
+        setSeguro(saved.seguro ?? "");
+        setCondicoesPagamento(saved.condicoesPagamento ?? "");
+        setDataEntregaPrevista(saved.dataEntregaPrevista ?? "");
+        setObservacoes(saved.observacoes ?? "");
+        if (saved.itens && saved.itens.length > 0) setItens(saved.itens);
+      } else {
+        setFornecedorIdState(pedido.fornecedor?.id ?? "");
 
-      if (pedido.dataEntregaPrevista) {
-        // Format ISO date to YYYY-MM-DD for date input
-        setDataEntregaPrevista(pedido.dataEntregaPrevista.slice(0, 10));
-      }
+        // Use PC-level contato/email if available, fall back to fornecedor's
+        setContato(pedido.contato ?? pedido.fornecedor?.contato ?? "");
+        setEmail(pedido.email ?? pedido.fornecedor?.email ?? "");
 
-      if (pedido.observacoes) setObservacoes(pedido.observacoes);
+        // Financial fields from cotacaoFornecedor (which for manual PCs mirrors PC own fields)
+        const cf = pedido.cotacaoFornecedor;
+        if (cf) {
+          const freteNum    = decimalToNumber(cf.frete);
+          const descontoNum = decimalToNumber(cf.desconto);
+          const despesasNum = decimalToNumber(cf.despesas);
+          const seguroNum   = decimalToNumber(cf.seguro);
+          if (freteNum)    setFrete(String(freteNum));
+          if (cf.tipoFrete) setTipoFrete(cf.tipoFrete);
+          if (descontoNum) setDesconto(String(descontoNum));
+          if (despesasNum) setDespesas(String(despesasNum));
+          if (seguroNum)   setSeguro(String(seguroNum));
+          if (cf.condicoesPagamento) setCondicoesPagamento(cf.condicoesPagamento);
+        }
 
-      // Map existing items
-      if (Array.isArray(pedido.itens) && pedido.itens.length > 0) {
-        setItens(pedido.itens.map((it: {
-          item: { id: string };
-          quantidade: unknown;
-          precoUnitario: unknown;
-          situacao?: string;
-        }) => ({
-          itemId:       it.item.id,
-          quantidade:   String(decimalToNumber(it.quantidade)),
-          precoUnitario: String(decimalToNumber(it.precoUnitario)),
-          situacao:     (it.situacao === "NAO_CONSIDERA" ? "NAO_CONSIDERA" : "CONSIDERA") as ItemRow["situacao"],
-        })));
+        if (pedido.dataEntregaPrevista) {
+          // Format ISO date to YYYY-MM-DD for date input
+          setDataEntregaPrevista(pedido.dataEntregaPrevista.slice(0, 10));
+        }
+
+        if (pedido.observacoes) setObservacoes(pedido.observacoes);
+
+        // Map existing items
+        if (Array.isArray(pedido.itens) && pedido.itens.length > 0) {
+          setItens(pedido.itens.map((it: {
+            item: { id: string };
+            quantidade: unknown;
+            precoUnitario: unknown;
+            situacao?: string;
+          }) => ({
+            itemId:       it.item.id,
+            quantidade:   String(decimalToNumber(it.quantidade)),
+            precoUnitario: String(decimalToNumber(it.precoUnitario)),
+            situacao:     (it.situacao === "NAO_CONSIDERA" ? "NAO_CONSIDERA" : "CONSIDERA") as ItemRow["situacao"],
+          })));
+        }
       }
 
       setLoadingPedido(false);
@@ -207,6 +250,7 @@ export default function EditarPedidoCompraPage() {
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error || "Erro ao salvar pedido"); return; }
+      clearForm();
       router.push(`/suprimentos/pedidos-compra/${id}`);
     } catch {
       setError("Erro de conexão. Tente novamente.");

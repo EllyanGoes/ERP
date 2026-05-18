@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useFormPersist } from "@/lib/form-persist";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,20 @@ type ItemRow = {
   situacao: "CONSIDERA" | "NAO_CONSIDERA";
 };
 
+type FormSnapshot = {
+  fornecedorId: string;
+  contato: string;
+  email: string;
+  frete: string;
+  tipoFrete: string;
+  desconto: string;
+  despesas: string;
+  seguro: string;
+  condicoesPagamento: string;
+  dataEntregaPrevista: string;
+  itens: ItemRow[];
+};
+
 const TIPO_FRETE_OPTIONS = [
   { value: "C", label: "C-CIF" },
   { value: "F", label: "F-FOB" },
@@ -33,6 +48,7 @@ const TIPO_FRETE_OPTIONS = [
 
 export default function NovoPedidoCompraPage() {
   const router = useRouter();
+  const { save: saveForm, load: loadForm, clear: clearForm } = useFormPersist<FormSnapshot>("pc:novo");
 
   // Data
   const [fornecedores, setFornecedores]   = useState<Fornecedor[]>([]);
@@ -61,6 +77,32 @@ export default function NovoPedidoCompraPage() {
   // Form state
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState("");
+
+  // Auto-save effect
+  useEffect(() => {
+    saveForm({ fornecedorId, contato, email, frete, tipoFrete, desconto, despesas, seguro, condicoesPagamento, dataEntregaPrevista, itens });
+  }, [fornecedorId, contato, email, frete, tipoFrete, desconto, despesas, seguro, condicoesPagamento, dataEntregaPrevista, itens, saveForm]);
+
+  // Restore on mount
+  const formRestoredRef = useRef(false);
+  useEffect(() => {
+    if (formRestoredRef.current) return;
+    formRestoredRef.current = true;
+    const saved = loadForm();
+    if (saved) {
+      if (saved.fornecedorId !== undefined) setFornecedorIdState(saved.fornecedorId);
+      if (saved.contato !== undefined) setContato(saved.contato);
+      if (saved.email !== undefined) setEmail(saved.email);
+      if (saved.frete !== undefined) setFrete(saved.frete);
+      if (saved.tipoFrete !== undefined) setTipoFrete(saved.tipoFrete);
+      if (saved.desconto !== undefined) setDesconto(saved.desconto);
+      if (saved.despesas !== undefined) setDespesas(saved.despesas);
+      if (saved.seguro !== undefined) setSeguro(saved.seguro);
+      if (saved.condicoesPagamento !== undefined) setCondicoesPagamento(saved.condicoesPagamento);
+      if (saved.dataEntregaPrevista !== undefined) setDataEntregaPrevista(saved.dataEntregaPrevista);
+      if (saved.itens !== undefined) setItens(saved.itens);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetch("/api/suprimentos/fornecedores")
@@ -147,6 +189,7 @@ export default function NovoPedidoCompraPage() {
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error || "Erro ao criar pedido"); return; }
+      clearForm();
       router.push(`/suprimentos/pedidos-compra/${json.data.id}`);
     } catch {
       setError("Erro de conexão. Tente novamente.");

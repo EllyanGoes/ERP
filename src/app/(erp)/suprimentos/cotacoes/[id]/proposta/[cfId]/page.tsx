@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useFormPersist } from "@/lib/form-persist";
 import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,13 @@ const TIPO_FRETE_OPTIONS = [
 ];
 
 // ── Component ──────────────────────────────────────────────────────────────────
+type FormSnapshot = {
+  contato: string; email: string; condicoesPagamento: string;
+  frete: string; tipoFrete: string; desconto: string;
+  despesas: string; seguro: string;
+  itens: ItemForm[];
+};
+
 export default function EditPropostaPage() {
   const { id: cotacaoId, cfId } = useParams<{ id: string; cfId: string }>();
   const router = useRouter();
@@ -107,6 +115,11 @@ export default function EditPropostaPage() {
   const [seguro, setSeguro] = useState("");
   const [itens, setItens] = useState<ItemForm[]>([]);
 
+  // ── Persistência entre abas ───────────────────────────────────────────────
+  const { save: saveForm, load: loadForm, clear: clearForm } =
+    useFormPersist<FormSnapshot>(`proposta:${cfId}`);
+  const dataLoadedRef = useRef(false);
+
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,40 +136,59 @@ export default function EditPropostaPage() {
 
       const combined: PropostaData = {
         ...cf,
-        cotacao: {
-          id: cotacao.id,
-          numero: cotacao.numero,
-          nome: cotacao.nome,
-        },
+        cotacao: { id: cotacao.id, numero: cotacao.numero, nome: cotacao.nome },
         propostaNumero: cfIndex + 1,
       };
       setData(combined);
 
-      // Init form
-      setContato(cf.fornecedor.contato ?? "");
-      setEmail(cf.fornecedor.email ?? "");
-      setCondicoesPagamento(cf.condicoesPagamento ?? "");
-      setFrete(cf.frete != null ? decimalToNumber(cf.frete).toString() : "");
-      setTipoFrete(cf.tipoFrete ?? "");
-      setDesconto(cf.desconto != null ? decimalToNumber(cf.desconto).toString() : "");
-      setDespesas(cf.despesas != null ? decimalToNumber(cf.despesas).toString() : "");
-      setSeguro(cf.seguro != null ? decimalToNumber(cf.seguro).toString() : "");
-      setItens(
-        cf.itens.map((i: PropostaData["itens"][0]) => ({
-          id: i.id,
-          itemId: i.itemId,
-          quantidade: decimalToNumber(i.quantidade),
-          precoUnitario: i.precoUnitario != null ? decimalToNumber(i.precoUnitario).toString() : "",
-          situacao: i.situacao ?? "CONSIDERA",
-          item: i.item,
-        }))
-      );
+      // Build API-derived item list first
+      const apiItens: ItemForm[] = cf.itens.map((i: PropostaData["itens"][0]) => ({
+        id: i.id, itemId: i.itemId,
+        quantidade: decimalToNumber(i.quantidade),
+        precoUnitario: i.precoUnitario != null ? decimalToNumber(i.precoUnitario).toString() : "",
+        situacao: i.situacao ?? "CONSIDERA",
+        item: i.item,
+      }));
+
+      // Prefer cached values (user may have typed unsaved data)
+      const cached = loadForm();
+      if (cached && !dataLoadedRef.current) {
+        setContato(cached.contato ?? cf.fornecedor.contato ?? "");
+        setEmail(cached.email ?? cf.fornecedor.email ?? "");
+        setCondicoesPagamento(cached.condicoesPagamento ?? cf.condicoesPagamento ?? "");
+        setFrete(cached.frete ?? (cf.frete != null ? decimalToNumber(cf.frete).toString() : ""));
+        setTipoFrete(cached.tipoFrete ?? cf.tipoFrete ?? "");
+        setDesconto(cached.desconto ?? (cf.desconto != null ? decimalToNumber(cf.desconto).toString() : ""));
+        setDespesas(cached.despesas ?? (cf.despesas != null ? decimalToNumber(cf.despesas).toString() : ""));
+        setSeguro(cached.seguro ?? (cf.seguro != null ? decimalToNumber(cf.seguro).toString() : ""));
+        // Use cached itens only if they match the same set of item IDs
+        const sameItems = cached.itens?.length === apiItens.length &&
+          cached.itens.every((ci, idx) => ci.id === apiItens[idx]?.id);
+        setItens(sameItems ? cached.itens : apiItens);
+      } else {
+        setContato(cf.fornecedor.contato ?? "");
+        setEmail(cf.fornecedor.email ?? "");
+        setCondicoesPagamento(cf.condicoesPagamento ?? "");
+        setFrete(cf.frete != null ? decimalToNumber(cf.frete).toString() : "");
+        setTipoFrete(cf.tipoFrete ?? "");
+        setDesconto(cf.desconto != null ? decimalToNumber(cf.desconto).toString() : "");
+        setDespesas(cf.despesas != null ? decimalToNumber(cf.despesas).toString() : "");
+        setSeguro(cf.seguro != null ? decimalToNumber(cf.seguro).toString() : "");
+        setItens(apiItens);
+      }
+      dataLoadedRef.current = true;
     } catch {
       setError("Erro ao carregar proposta");
     } finally {
       setLoading(false);
     }
-  }, [cotacaoId, cfId]);
+  }, [cotacaoId, cfId, loadForm]);
+
+  // ── Auto-save ao mudar qualquer campo do formulário ───────────────────────
+  useEffect(() => {
+    if (loading) return;
+    saveForm({ contato, email, condicoesPagamento, frete, tipoFrete, desconto, despesas, seguro, itens });
+  }, [contato, email, condicoesPagamento, frete, tipoFrete, desconto, despesas, seguro, itens, loading, saveForm]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -219,6 +251,7 @@ export default function EditPropostaPage() {
       const json = await res.json();
       if (!res.ok) { setSaveError(json.error || "Erro ao salvar"); return; }
 
+      clearForm();
       router.push(`/suprimentos/cotacoes/${cotacaoId}`);
     } catch {
       setSaveError("Erro de conexão");
