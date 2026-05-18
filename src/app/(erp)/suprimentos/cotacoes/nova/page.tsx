@@ -328,8 +328,8 @@ export default function NovaCotacaoWizard() {
       sessionStorage.removeItem("cotacao-wizard");
       setShowConfirm(false);
       router.push(`/suprimentos/cotacoes/${json.data.id}`);
-    } catch {
-      setSaveError("Erro de conexão. Tente novamente.");
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : "Erro de conexão. Tente novamente.");
       setSaving(false);
     }
   }

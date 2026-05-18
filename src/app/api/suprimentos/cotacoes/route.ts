@@ -21,6 +21,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  try {
   const body = await req.json();
   const { necessidadeId, nome, observacoes, infoEntrega, dataLimiteResposta, fornecedorIds = [], itens = [] } = body;
 
@@ -83,4 +84,9 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ data: cotacao }, { status: 201 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[POST /cotacoes]", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
