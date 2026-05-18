@@ -8,12 +8,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     include: {
       fornecedor: {
         select: {
-          id: true,
-          razaoSocial: true,
-          nomeFantasia: true,
-          cpfCnpj: true,
-          contato: true,
-          email: true,
+          id: true, razaoSocial: true, nomeFantasia: true,
+          cpfCnpj: true, contato: true, email: true,
         },
       },
       cotacao: { select: { id: true, numero: true, nome: true } },
@@ -26,7 +22,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
   if (!record) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
 
-  // Fetch CotacaoFornecedor to get proposal details (frete, desconto, condições, etc.)
+  // Fetch CotacaoFornecedor to get proposal details — fallback to PedidoCompra own fields for manual PCs
   let cotacaoFornecedor = null;
   if (record.cotacaoId && record.fornecedorId) {
     const allCfs = await prisma.cotacaoFornecedor.findMany({
@@ -35,12 +31,22 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     });
     const cfIndex = allCfs.findIndex((cf) => cf.fornecedorId === record.fornecedorId);
     const cf = allCfs[cfIndex];
-    if (cf) {
-      cotacaoFornecedor = {
-        ...cf,
-        propostaNumero: cfIndex + 1,
-      };
-    }
+    if (cf) cotacaoFornecedor = { ...cf, propostaNumero: cfIndex + 1 };
+  }
+
+  // For manual PCs (no cotação), build cotacaoFornecedor-shaped object from PC own fields
+  if (!cotacaoFornecedor) {
+    cotacaoFornecedor = {
+      propostaNumero: 1,
+      frete:              record.frete,
+      tipoFrete:          record.tipoFrete,
+      desconto:           record.desconto,
+      vrDesconto:         record.vrDesconto,
+      despesas:           record.despesas,
+      seguro:             record.seguro,
+      condicoesPagamento: record.condicoesPagamento,
+      prazoEntregaDias:   null,
+    };
   }
 
   return NextResponse.json({ data: { ...record, cotacaoFornecedor } });
