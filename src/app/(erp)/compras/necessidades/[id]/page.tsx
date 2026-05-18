@@ -326,24 +326,8 @@ export default function NecessidadeDetailPage() {
   }
 
   // ── Cotação ──────────────────────────────────────────────────────────────────
-  async function gerarCotacao() {
-    setActioning(true); setActionError("");
-    try {
-      const res = await fetch("/api/suprimentos/cotacoes", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          necessidadeId: id, fornecedorIds: [],
-          itens: necessidade?.itens.map((it) => ({
-            itemId: it.item.id,
-            quantidade: decimalToNumber(it.quantidadeAprovada ?? it.quantidade),
-          })),
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) { setActionError(json.error || "Erro ao gerar cotação"); return; }
-      router.push(`/suprimentos/cotacoes/${json.data.id}`);
-    } catch { setActionError("Erro de conexão"); }
-    finally   { setActioning(false); }
+  function gerarCotacao() {
+    router.push(`/suprimentos/cotacoes/nova?necessidadeId=${id}`);
   }
 
   // ── Modal WhatsApp ────────────────────────────────────────────────────────────
@@ -800,8 +784,7 @@ export default function NecessidadeDetailPage() {
                   <MessageCircle className="w-3.5 h-3.5" />
                   Encaminhar Aprovação
                 </Button>
-                <Button size="sm" onClick={gerarCotacao} disabled={actioning}>
-                  {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                <Button size="sm" onClick={gerarCotacao}>
                   Gerar Cotação
                 </Button>
               </>
