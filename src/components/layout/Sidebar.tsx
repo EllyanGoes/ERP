@@ -3,7 +3,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useDirtyFormContext } from "@/lib/dirty-form-context";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -303,6 +304,8 @@ function UserDropdown({
   const [open, setOpen]     = useState(false);
   const [pos, setPos]       = useState({ top: 0, left: 0 });
   const [mounted, setMounted] = useState(false);
+  const { attemptNavigate } = useDirtyFormContext();
+  const router = useRouter();
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -376,15 +379,14 @@ function UserDropdown({
 
           {/* Actions */}
           <div className="py-1">
-            <Link
-              href="/minha-conta"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            <button
+              onClick={() => { setOpen(false); attemptNavigate(() => router.push("/minha-conta")); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <User className="w-4 h-4 text-gray-400" />
               Minha Conta
               <ChevronRight className="w-3.5 h-3.5 text-gray-300 ml-auto" />
-            </Link>
+            </button>
           </div>
 
           <div className="border-t border-gray-100 py-1">
@@ -407,6 +409,8 @@ function UserDropdown({
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { attemptNavigate } = useDirtyFormContext();
   const { user, canAccess } = useSession();
 
   // ── Pending approvals badge ────────────────────────────────────────────────
@@ -560,8 +564,8 @@ export default function Sidebar() {
           {/* Dashboard */}
           <div className="flex flex-col items-center pt-3 pb-1 gap-1">
             <StripTooltip label="Dashboard">
-              <Link
-                href="/dashboard"
+              <button
+                onClick={() => attemptNavigate(() => router.push("/dashboard"))}
                 className={cn(
                   "flex flex-col items-center justify-center w-9 h-9 rounded-xl transition-colors",
                   pathname === "/dashboard"
@@ -570,7 +574,7 @@ export default function Sidebar() {
                 )}
               >
                 <LayoutDashboard className="w-4 h-4" />
-              </Link>
+              </button>
             </StripTooltip>
           </div>
 
@@ -642,13 +646,13 @@ export default function Sidebar() {
 
             {/* Suporte */}
             <StripTooltip label="Suporte">
-              <Link
-                href="/suporte"
+              <button
+                onClick={() => attemptNavigate(() => router.push("/suporte"))}
                 className="flex items-center justify-center w-9 h-9 rounded-xl
                   text-gray-500 hover:bg-gray-800 hover:text-gray-200 transition-colors"
               >
                 <HelpCircle className="w-4 h-4" />
-              </Link>
+              </button>
             </StripTooltip>
 
             {/* Configurações */}
@@ -714,24 +718,24 @@ export default function Sidebar() {
                           );
                         }
                         return (
-                          <Link
+                          <button
                             key={item.href}
-                            href={item.href}
+                            onClick={() => attemptNavigate(() => router.push(item.href))}
                             className={cn(
-                              "flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors",
+                              "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors",
                               active
                                 ? "bg-blue-50 text-blue-700 font-medium"
                                 : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
                             )}
                           >
                             <Icon className={cn("w-3.5 h-3.5 shrink-0", active ? "text-blue-500" : "text-gray-300")} />
-                            <span className="truncate flex-1">{item.label}</span>
+                            <span className="truncate flex-1 text-left">{item.label}</span>
                             {item.href === "/aprovacoes" && pendingAprov > 0 && (
                               <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
                                 {pendingAprov > 99 ? "99+" : pendingAprov}
                               </span>
                             )}
-                          </Link>
+                          </button>
                         );
                       })}
                     </div>

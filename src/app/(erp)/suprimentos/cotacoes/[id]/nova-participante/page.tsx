@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useFormPersist } from "@/lib/form-persist";
+import { useDirtyForm } from "@/lib/dirty-form-context";
 import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -94,6 +95,10 @@ export default function NovaParticipantePage() {
   const [seguro, setSeguro] = useState("");
   const [itens, setItens] = useState<ItemForm[]>([]);
 
+  // ── Dirty tracking ────────────────────────────────────────────────────────
+  const [isDirty, setIsDirty] = useState(false);
+  const baselineRef = useRef<string | null>(null);
+
   // ── Persistência entre abas ───────────────────────────────────────────────
   const { save: saveForm, load: loadForm, clear: clearForm } =
     useFormPersist<FormSnapshot>(`cotacao:nova-participante:${cotacaoId}`);
@@ -131,24 +136,70 @@ export default function NovaParticipantePage() {
 
       // Prefer cached values
       const cached = loadForm();
+      let resolvedFornecedorId: string;
+      let resolvedContato: string;
+      let resolvedEmail: string;
+      let resolvedCondicoes: string;
+      let resolvedFrete: string;
+      let resolvedTipoFrete: string;
+      let resolvedDesconto: string;
+      let resolvedDespesas: string;
+      let resolvedSeguro: string;
+      let resolvedItens: ItemForm[];
+
       if (cached && !dataLoadedRef.current) {
-        setFornecedorId(cached.fornecedorId ?? "");
-        setContato(cached.contato ?? "");
-        setEmail(cached.email ?? "");
-        setCondicoesPagamento(cached.condicoesPagamento ?? "");
-        setFrete(cached.frete ?? "");
-        setTipoFrete(cached.tipoFrete ?? "");
-        setDesconto(cached.desconto ?? "");
-        setDespesas(cached.despesas ?? "");
-        setSeguro(cached.seguro ?? "");
-        // Use cached itens only if they match the same item IDs
+        resolvedFornecedorId = cached.fornecedorId ?? "";
+        resolvedContato = cached.contato ?? "";
+        resolvedEmail = cached.email ?? "";
+        resolvedCondicoes = cached.condicoesPagamento ?? "";
+        resolvedFrete = cached.frete ?? "";
+        resolvedTipoFrete = cached.tipoFrete ?? "";
+        resolvedDesconto = cached.desconto ?? "";
+        resolvedDespesas = cached.despesas ?? "";
+        resolvedSeguro = cached.seguro ?? "";
         const sameItems =
           cached.itens?.length === apiItens.length &&
           cached.itens.every((ci, idx) => ci.itemId === apiItens[idx]?.itemId);
-        setItens(sameItems ? cached.itens : apiItens);
+        resolvedItens = sameItems ? cached.itens : apiItens;
       } else {
-        setItens(apiItens);
+        resolvedFornecedorId = "";
+        resolvedContato = "";
+        resolvedEmail = "";
+        resolvedCondicoes = "";
+        resolvedFrete = "";
+        resolvedTipoFrete = "";
+        resolvedDesconto = "";
+        resolvedDespesas = "";
+        resolvedSeguro = "";
+        resolvedItens = apiItens;
       }
+
+      setFornecedorId(resolvedFornecedorId);
+      setContato(resolvedContato);
+      setEmail(resolvedEmail);
+      setCondicoesPagamento(resolvedCondicoes);
+      setFrete(resolvedFrete);
+      setTipoFrete(resolvedTipoFrete);
+      setDesconto(resolvedDesconto);
+      setDespesas(resolvedDespesas);
+      setSeguro(resolvedSeguro);
+      setItens(resolvedItens);
+
+      // Capture baseline for dirty tracking (clean = no supplier selected, no prices)
+      baselineRef.current = JSON.stringify({
+        fornecedorId: resolvedFornecedorId,
+        contato: resolvedContato,
+        email: resolvedEmail,
+        condicoesPagamento: resolvedCondicoes,
+        frete: resolvedFrete,
+        tipoFrete: resolvedTipoFrete,
+        desconto: resolvedDesconto,
+        despesas: resolvedDespesas,
+        seguro: resolvedSeguro,
+        itens: resolvedItens,
+      });
+      setIsDirty(false);
+
       dataLoadedRef.current = true;
     } catch {
       setError("Erro ao carregar cotação");
@@ -196,6 +247,15 @@ export default function NovaParticipantePage() {
     if (loading) return;
     saveForm({ fornecedorId, contato, email, condicoesPagamento, frete, tipoFrete, desconto, despesas, seguro, itens });
   }, [fornecedorId, contato, email, condicoesPagamento, frete, tipoFrete, desconto, despesas, seguro, itens, loading, saveForm]);
+
+  // ── Dirty state tracking ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (baselineRef.current === null || loading) return;
+    const current = JSON.stringify({ fornecedorId, contato, email, condicoesPagamento, frete, tipoFrete, desconto, despesas, seguro, itens });
+    setIsDirty(current !== baselineRef.current);
+  }, [fornecedorId, contato, email, condicoesPagamento, frete, tipoFrete, desconto, despesas, seguro, itens, loading]);
+
+  useDirtyForm(isDirty, async () => { await handleSave(); });
 
   // ── Modal nova condição de pagamento ──────────────────────────────────────
   const [showNovaCondicao, setShowNovaCondicao] = useState(false);
@@ -283,6 +343,8 @@ export default function NovaParticipantePage() {
       if (!res.ok) { setSaveError(json.error || "Erro ao salvar"); return; }
 
       clearForm();
+      setIsDirty(false);
+      baselineRef.current = null;
       router.push(`/suprimentos/cotacoes/${cotacaoId}`);
     } catch {
       setSaveError("Erro de conexão");

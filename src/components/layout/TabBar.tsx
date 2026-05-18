@@ -4,12 +4,14 @@ import { useRef, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { useTabsContext, type Tab } from "@/lib/tabs-context";
+import { useDirtyFormContext } from "@/lib/dirty-form-context";
 import { cn } from "@/lib/utils";
 
 type DropTarget = { id: string; side: "before" | "after" } | null;
 
 export default function TabBar() {
   const { tabs, activeHref, closeTab, reorderTabs } = useTabsContext();
+  const { attemptNavigate } = useDirtyFormContext();
   const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
@@ -108,7 +110,7 @@ export default function TabBar() {
                 <span
                   role="button"
                   tabIndex={-1}
-                  onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                  onClick={(e) => { e.stopPropagation(); attemptNavigate(() => closeTab(tab.id)); }}
                   className={cn(
                     "flex items-center justify-center w-4 h-4 rounded-full shrink-0",
                     "transition-colors",

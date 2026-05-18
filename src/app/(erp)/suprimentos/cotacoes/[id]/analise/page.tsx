@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
-import { Loader2, ChevronDown, ChevronRight, BarChart3, Sparkles } from "lucide-react";
+import { Loader2, ChevronDown, ChevronRight, BarChart3, Sparkles, Search } from "lucide-react";
 
 // Types
 type CotacaoFornecedorItem = {
@@ -21,6 +21,7 @@ type CotacaoFornecedor = {
   totalCalculado: unknown;
   frete: unknown;
   desconto: unknown;
+  vrDesconto: unknown;
   despesas: unknown;
   seguro: unknown;
   melhorOpcao: boolean;
@@ -33,6 +34,26 @@ type Cotacao = {
   id: string; numero: string; nome: string | null;
   status: "PENDENTE" | "EM_ANALISE" | "CONCLUIDA";
   fornecedores: CotacaoFornecedor[];
+};
+
+type ItemAnalysis = {
+  itemId: string;
+  codigo: string;
+  descricao: string;
+  unidadeMedida: string;
+  quantidade: number;
+  suppliers: Array<{
+    cfId: string;
+    fornecedorNome: string;
+    fornecedorCodigo: string;
+    prazoEntregaDias: number | null;
+    frete: number;
+    desconto: number;
+    vrDesconto: number;
+    precoUnitario: number;
+    subtotal: number;
+    isBestPrice: boolean;
+  }>;
 };
 
 function formatDate(dateStr: string) {
@@ -50,17 +71,21 @@ export default function AnaliseCotacaoPage() {
   const [sortBy, setSortBy] = useState("melhor_preco");
   const [mapaOpen, setMapaOpen] = useState(false);
   const [selectedCfId, setSelectedCfId] = useState<string | null>(null);
+  const [selectedByItem, setSelectedByItem] = useState<Map<string, string>>(new Map());
   const [showConfirm, setShowConfirm] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState("");
+  const [itemSearch, setItemSearch] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     const res = await fetch(`/api/suprimentos/cotacoes/${id}`);
     const json = await res.json();
-    setCotacao(json.data);
-    // Auto-select melhorOpcao or lowest total respondida
-    const respondidas = (json.data?.fornecedores ?? []).filter((f: CotacaoFornecedor) => f.status === "RESPONDIDA");
+    const data: Cotacao = json.data;
+    setCotacao(data);
+
+    // Auto-select for "Por Proposta" tab
+    const respondidas = (data?.fornecedores ?? []).filter((f: CotacaoFornecedor) => f.status === "RESPONDIDA");
     const preSelected = respondidas.find((f: CotacaoFornecedor) => f.melhorOpcao);
     if (preSelected) {
       setSelectedCfId(preSelected.id);
@@ -68,10 +93,98 @@ export default function AnaliseCotacaoPage() {
       const sorted = [...respondidas].sort((a: CotacaoFornecedor, b: CotacaoFornecedor) => decimalToNumber(a.totalCalculado) - decimalToNumber(b.totalCalculado));
       setSelectedCfId(sorted[0].id);
     }
+
+    // Auto-select best price per item for "Por Item" tab
+    const itemsMap = buildItemsMap(data?.fornecedores ?? []);
+    const autoSelected = new Map<string, string>();
+    itemsMap.forEach((itemAnalysis) => {
+      const best = itemAnalysis.suppliers.find(s => s.isBestPrice);
+      if (best) autoSelected.set(itemAnalysis.itemId, best.cfId);
+    });
+    setSelectedByItem(autoSelected);
+
     setLoading(false);
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  function buildItemsMap(fornecedores: CotacaoFornecedor[]): Map<string, ItemAnalysis> {
+    const respondidas = fornecedores.filter(f => f.status === "RESPONDIDA");
+    const map = new Map<string, ItemAnalysis>();
+
+    respondidas.forEach(cf => {
+      cf.itens.forEach(cfItem => {
+        const existing = map.get(cfItem.itemId);
+        const subtotal = decimalToNumber(cfItem.subtotal);
+        const supplierEntry = {
+          cfId: cf.id,
+          fornecedorNome: cf.fornecedor.nomeFantasia || cf.fornecedor.razaoSocial,
+          fornecedorCodigo: cf.id.slice(-8).toUpperCase(),
+          prazoEntregaDias: cf.prazoEntregaDias,
+          frete: decimalToNumber(cf.frete),
+          desconto: decimalToNumber(cf.desconto),
+          vrDesconto: decimalToNumber(cf.vrDesconto),
+          precoUnitario: decimalToNumber(cfItem.precoUnitario),
+          subtotal,
+          isBestPrice: false, // computed after
+        };
+
+        if (!existing) {
+          map.set(cfItem.itemId, {
+            itemId: cfItem.itemId,
+            codigo: cfItem.item.codigo,
+            descricao: cfItem.item.descricao,
+            unidadeMedida: cfItem.item.unidadeMedida,
+            quantidade: decimalToNumber(cfItem.quantidade),
+            suppliers: [supplierEntry],
+          });
+        } else {
+          existing.suppliers.push(supplierEntry);
+        }
+      });
+    });
+
+    // Mark best price per item
+    map.forEach(itemAnalysis => {
+      const validSuppliers = itemAnalysis.suppliers.filter(s => s.subtotal > 0);
+      if (validSuppliers.length > 0) {
+        const minSubtotal = Math.min(...validSuppliers.map(s => s.subtotal));
+        itemAnalysis.suppliers.forEach(s => {
+          s.isBestPrice = s.subtotal === minSubtotal && s.subtotal > 0;
+        });
+      }
+    });
+
+    return map;
+  }
+
+  const itemsMap = useMemo(() => {
+    if (!cotacao) return new Map<string, ItemAnalysis>();
+    return buildItemsMap(cotacao.fornecedores);
+  }, [cotacao]);
+
+  const filteredItems = useMemo(() => {
+    const entries = Array.from(itemsMap.values());
+    if (!itemSearch.trim()) return entries;
+    const term = itemSearch.toLowerCase();
+    return entries.filter(
+      item => item.codigo.toLowerCase().includes(term) || item.descricao.toLowerCase().includes(term)
+    );
+  }, [itemsMap, itemSearch]);
+
+  const summary = useMemo(() => {
+    let totalItens = 0, totalFrete = 0, totalDesconto = 0;
+    selectedByItem.forEach((cfId, itemId) => {
+      const cf = cotacao?.fornecedores.find(f => f.id === cfId);
+      if (!cf) return;
+      const item = cf.itens.find(i => i.itemId === itemId);
+      if (item) totalItens += decimalToNumber(item.subtotal);
+      const itemCount = cf.itens.length || 1;
+      totalFrete += decimalToNumber(cf.frete) / itemCount;
+      totalDesconto += decimalToNumber(cf.vrDesconto) / itemCount;
+    });
+    return { totalItens, totalFrete, totalDesconto, valorPagar: totalItens + totalFrete - totalDesconto };
+  }, [selectedByItem, cotacao]);
 
   const respondidas = (cotacao?.fornecedores ?? []).filter(f => f.status === "RESPONDIDA");
 
@@ -188,100 +301,244 @@ export default function AnaliseCotacaoPage() {
         </div>
       )}
 
-      {/* Supplier cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-        {sorted.map(cf => {
-          const nome = cf.fornecedor.nomeFantasia || cf.fornecedor.razaoSocial;
-          const total = decimalToNumber(cf.totalCalculado);
-          const frete = decimalToNumber(cf.frete);
-          const isBest = total === bestTotal && bestTotal > 0;
-          const isSelected = selectedCfId === cf.id;
-          const latestHistorico = cf.historico?.[0] ?? null;
-          const updatedLabel = latestHistorico
-            ? `Atualizado em ${formatDate(latestHistorico.createdAt)}`
-            : cf.updatedAt
-            ? `Atualizado em ${formatDate(cf.updatedAt)}`
-            : null;
+      {/* TAB: Por Proposta */}
+      {tab === "proposta" && respondidas.length > 0 && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            {sorted.map(cf => {
+              const nome = cf.fornecedor.nomeFantasia || cf.fornecedor.razaoSocial;
+              const total = decimalToNumber(cf.totalCalculado);
+              const frete = decimalToNumber(cf.frete);
+              const isBest = total === bestTotal && bestTotal > 0;
+              const isSelected = selectedCfId === cf.id;
+              const latestHistorico = cf.historico?.[0] ?? null;
+              const updatedLabel = latestHistorico
+                ? `Atualizado em ${formatDate(latestHistorico.createdAt)}`
+                : cf.updatedAt
+                ? `Atualizado em ${formatDate(cf.updatedAt)}`
+                : null;
 
-          return (
-            <div
-              key={cf.id}
-              onClick={() => setSelectedCfId(cf.id)}
-              className={cn(
-                "border rounded-xl p-4 cursor-pointer transition-all shadow-sm",
-                isSelected
-                  ? "border-blue-500 ring-1 ring-blue-100 bg-blue-50/30"
-                  : "border-gray-200 bg-white hover:border-gray-300"
-              )}
-            >
-              {/* Header */}
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap gap-1 mb-1">
-                    {isBest && (
-                      <span className="inline-block bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold px-2 py-0.5 rounded-full">
-                        Melhor preço
-                      </span>
-                    )}
-                    {latestHistorico && (
-                      <span className="inline-block bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full">
-                        Proposta v{latestHistorico.versao} · {formatDate(latestHistorico.createdAt)}
-                      </span>
+              return (
+                <div
+                  key={cf.id}
+                  onClick={() => setSelectedCfId(cf.id)}
+                  className={cn(
+                    "border rounded-xl p-4 cursor-pointer transition-all shadow-sm",
+                    isSelected
+                      ? "border-blue-500 ring-1 ring-blue-100 bg-blue-50/30"
+                      : "border-gray-200 bg-white hover:border-gray-300"
+                  )}
+                >
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {isBest && (
+                          <span className="inline-block bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold px-2 py-0.5 rounded-full">
+                            Melhor preço
+                          </span>
+                        )}
+                        {latestHistorico && (
+                          <span className="inline-block bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full">
+                            Proposta v{latestHistorico.versao} · {formatDate(latestHistorico.createdAt)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-bold text-gray-800 text-sm leading-tight truncate">{nome}</p>
+                      {cf.fornecedor.cpfCnpj && <p className="text-xs text-gray-500 mt-0.5">{cf.fornecedor.cpfCnpj}</p>}
+                    </div>
+                    <input
+                      type="radio"
+                      checked={isSelected}
+                      onChange={() => setSelectedCfId(cf.id)}
+                      className="mt-1 ml-2 accent-blue-600 flex-shrink-0"
+                    />
+                  </div>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mt-3 pt-3 border-t border-gray-100">
+                    <div>
+                      <p className="text-gray-400">Total sem impostos</p>
+                      <p className="font-semibold text-gray-800">{formatBRL(total)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Total Frete</p>
+                      <p className="font-semibold text-gray-800">{formatBRL(frete)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Total com impostos</p>
+                      <p className="font-semibold text-gray-800">{formatBRL(total)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Prazo mín.</p>
+                      <p className="font-semibold text-gray-800">{cf.prazoEntregaDias != null ? `${cf.prazoEntregaDias} Dias` : "—"}</p>
+                    </div>
+                  </div>
+
+                  {/* Footer row */}
+                  <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
+                    <Link
+                      href={`/suprimentos/cotacoes/${id}/proposta/${cf.id}`}
+                      onClick={e => e.stopPropagation()}
+                      className="text-xs text-red-600 hover:underline"
+                    >
+                      Detalhes
+                    </Link>
+                    {updatedLabel && (
+                      <span className="text-[11px] text-gray-400">{updatedLabel}</span>
                     )}
                   </div>
-                  <p className="font-bold text-gray-800 text-sm leading-tight truncate">{nome}</p>
-                  {cf.fornecedor.cpfCnpj && <p className="text-xs text-gray-500 mt-0.5">{cf.fornecedor.cpfCnpj}</p>}
                 </div>
-                <input
-                  type="radio"
-                  checked={isSelected}
-                  onChange={() => setSelectedCfId(cf.id)}
-                  className="mt-1 ml-2 accent-blue-600 flex-shrink-0"
-                />
+              );
+            })}
+          </div>
+
+          {respondidas.length > 6 && (
+            <div className="flex justify-center mb-8">
+              <Button variant="outline" size="sm">Carregar mais resultados</Button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* TAB: Por Item */}
+      {tab === "item" && respondidas.length > 0 && (
+        <div className="mb-8">
+          {/* Search */}
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              value={itemSearch}
+              onChange={e => setItemSearch(e.target.value)}
+              placeholder="Buscar por código ou descrição..."
+              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-300"
+            />
+          </div>
+
+          {filteredItems.length === 0 && (
+            <div className="text-center py-12 text-gray-400">
+              <p>Nenhum item encontrado.</p>
+            </div>
+          )}
+
+          {filteredItems.map(itemAnalysis => (
+            <div key={itemAnalysis.itemId} className="bg-white rounded-xl border border-gray-200 mb-4 overflow-hidden">
+              {/* Item header */}
+              <div className="bg-gray-50 px-4 py-3 grid grid-cols-4 text-sm border-b border-gray-200">
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Código do produto</p>
+                  <p className="font-semibold text-gray-800">{itemAnalysis.codigo}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-gray-400 mb-0.5">Descrição do produto</p>
+                  <p className="font-semibold text-gray-800">{itemAnalysis.descricao}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">U.M.</p>
+                    <p className="font-semibold text-gray-800">{itemAnalysis.unidadeMedida}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Quantidade</p>
+                    <p className="font-semibold text-gray-800">{itemAnalysis.quantidade}</p>
+                  </div>
+                </div>
               </div>
 
-              {/* Stats */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mt-3 pt-3 border-t border-gray-100">
-                <div>
-                  <p className="text-gray-400">Total sem impostos</p>
-                  <p className="font-semibold text-gray-800">{formatBRL(total)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400">Total Frete</p>
-                  <p className="font-semibold text-gray-800">{formatBRL(frete)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400">Total com impostos</p>
-                  <p className="font-semibold text-gray-800">{formatBRL(total)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400">Prazo mín.</p>
-                  <p className="font-semibold text-gray-800">{cf.prazoEntregaDias != null ? `${cf.prazoEntregaDias} Dias` : "—"}</p>
-                </div>
-              </div>
+              {/* Suppliers table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-100 text-xs font-medium text-gray-600">
+                      <th className="w-8 px-3 py-2"></th>
+                      <th className="px-3 py-2 text-left">Status</th>
+                      <th className="px-3 py-2 text-left">Cód. Fornecedor</th>
+                      <th className="px-3 py-2 text-left">Fornecedor</th>
+                      <th className="px-3 py-2 text-right">Prazo entrega</th>
+                      <th className="px-3 py-2 text-right">Total Frete</th>
+                      <th className="px-3 py-2 text-right">Desconto</th>
+                      <th className="px-3 py-2 text-right">Total Item</th>
+                      <th className="px-3 py-2 text-right">Valor total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {itemAnalysis.suppliers.map(supplier => {
+                      const isSelectedForItem = selectedByItem.get(itemAnalysis.itemId) === supplier.cfId;
+                      const descontoPercent = supplier.subtotal > 0
+                        ? ((supplier.vrDesconto / supplier.subtotal) * 100).toFixed(0)
+                        : "0";
+                      // Approximate "valor total" as subtotal + frete - vrDesconto (per-item portion)
+                      const fretePerItem = supplier.frete;
+                      const vrDescontoPerItem = supplier.vrDesconto;
+                      const valorTotal = supplier.subtotal + fretePerItem - vrDescontoPerItem;
 
-              {/* Footer row */}
-              <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
-                <Link
-                  href={`/suprimentos/cotacoes/${id}/proposta/${cf.id}`}
-                  onClick={e => e.stopPropagation()}
-                  className="text-xs text-red-600 hover:underline"
-                >
-                  Detalhes
-                </Link>
-                {updatedLabel && (
-                  <span className="text-[11px] text-gray-400">{updatedLabel}</span>
-                )}
+                      return (
+                        <tr
+                          key={supplier.cfId}
+                          onClick={() => setSelectedByItem(prev => new Map(prev).set(itemAnalysis.itemId, supplier.cfId))}
+                          className={cn(
+                            "border-t border-gray-100 cursor-pointer transition-colors",
+                            isSelectedForItem
+                              ? "bg-blue-50"
+                              : supplier.isBestPrice
+                              ? "bg-emerald-50 hover:bg-emerald-100/60"
+                              : "hover:bg-gray-50"
+                          )}
+                        >
+                          <td className="px-3 py-2.5 text-center">
+                            <input
+                              type="radio"
+                              checked={isSelectedForItem}
+                              onChange={() => setSelectedByItem(prev => new Map(prev).set(itemAnalysis.itemId, supplier.cfId))}
+                              onClick={e => e.stopPropagation()}
+                              className="accent-blue-600"
+                            />
+                          </td>
+                          <td className="px-3 py-2.5">
+                            {supplier.isBestPrice && (
+                              <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
+                                Melhor preço
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-gray-500 font-mono text-xs">{supplier.fornecedorCodigo}</td>
+                          <td className="px-3 py-2.5 font-medium text-gray-800 max-w-[200px] truncate">{supplier.fornecedorNome}</td>
+                          <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">
+                            {supplier.prazoEntregaDias != null ? `${supplier.prazoEntregaDias}d` : "—"}
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-gray-700">{formatBRL(fretePerItem)}</td>
+                          <td className="px-3 py-2.5 text-right text-gray-700">{descontoPercent}%</td>
+                          <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{formatBRL(supplier.subtotal)}</td>
+                          <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{formatBRL(valorTotal)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
 
-      {/* Load more */}
-      {respondidas.length > 6 && (
-        <div className="flex justify-center mb-8">
-          <Button variant="outline" size="sm">Carregar mais resultados</Button>
+          {/* Summary bar */}
+          <div className="bg-white border-t-2 border-gray-200 px-6 py-4 flex flex-wrap gap-8 text-sm rounded-xl mt-6 shadow-sm">
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Total Itens</p>
+              <p className="font-bold text-gray-800">{formatBRL(summary.totalItens)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Total Frete</p>
+              <p className="font-bold text-gray-800">{formatBRL(summary.totalFrete)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Descontos</p>
+              <p className="font-bold text-gray-800">{formatBRL(summary.totalDesconto)}</p>
+            </div>
+            <div className="ml-auto">
+              <p className="text-xs text-gray-400 mb-0.5">Valor a pagar</p>
+              <p className="font-bold text-lg text-gray-900">{formatBRL(summary.valorPagar)}</p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -292,14 +549,24 @@ export default function AnaliseCotacaoPage() {
         <Button variant="outline" onClick={() => router.push(`/suprimentos/cotacoes/${id}`)}>
           Cancelar
         </Button>
-        <Button
-          className="bg-red-600 hover:bg-red-700 text-white"
-          onClick={() => setShowConfirm(true)}
-          disabled={!selectedCfId || generating}
-        >
-          {generating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          Gerar
-        </Button>
+        {tab === "item" ? (
+          <Button
+            className="bg-red-600 hover:bg-red-700 text-white opacity-50 cursor-not-allowed"
+            disabled
+            title="Selecione a análise Por Proposta Completa para gerar"
+          >
+            Gerar
+          </Button>
+        ) : (
+          <Button
+            className="bg-red-600 hover:bg-red-700 text-white"
+            onClick={() => setShowConfirm(true)}
+            disabled={!selectedCfId || generating}
+          >
+            {generating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Gerar
+          </Button>
+        )}
       </div>
 
       {/* Confirm modal */}

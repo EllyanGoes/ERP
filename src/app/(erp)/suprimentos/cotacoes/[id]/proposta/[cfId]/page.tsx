@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useFormPersist } from "@/lib/form-persist";
+import { useDirtyForm } from "@/lib/dirty-form-context";
 import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -115,6 +116,10 @@ export default function EditPropostaPage() {
   const [seguro, setSeguro] = useState("");
   const [itens, setItens] = useState<ItemForm[]>([]);
 
+  // ── Dirty tracking ────────────────────────────────────────────────────────
+  const [isDirty, setIsDirty] = useState(false);
+  const baselineRef = useRef<string | null>(null);
+
   // ── Persistência entre abas ───────────────────────────────────────────────
   const { save: saveForm, load: loadForm, clear: clearForm } =
     useFormPersist<FormSnapshot>(`proposta:${cfId}`);
@@ -152,30 +157,64 @@ export default function EditPropostaPage() {
 
       // Prefer cached values (user may have typed unsaved data)
       const cached = loadForm();
+      let resolvedContato: string;
+      let resolvedEmail: string;
+      let resolvedCondicoes: string;
+      let resolvedFrete: string;
+      let resolvedTipoFrete: string;
+      let resolvedDesconto: string;
+      let resolvedDespesas: string;
+      let resolvedSeguro: string;
+      let resolvedItens: ItemForm[];
+
       if (cached && !dataLoadedRef.current) {
-        setContato(cached.contato ?? cf.fornecedor.contato ?? "");
-        setEmail(cached.email ?? cf.fornecedor.email ?? "");
-        setCondicoesPagamento(cached.condicoesPagamento ?? cf.condicoesPagamento ?? "");
-        setFrete(cached.frete ?? (cf.frete != null ? decimalToNumber(cf.frete).toString() : ""));
-        setTipoFrete(cached.tipoFrete ?? cf.tipoFrete ?? "");
-        setDesconto(cached.desconto ?? (cf.desconto != null ? decimalToNumber(cf.desconto).toString() : ""));
-        setDespesas(cached.despesas ?? (cf.despesas != null ? decimalToNumber(cf.despesas).toString() : ""));
-        setSeguro(cached.seguro ?? (cf.seguro != null ? decimalToNumber(cf.seguro).toString() : ""));
-        // Use cached itens only if they match the same set of item IDs
+        resolvedContato = cached.contato ?? cf.fornecedor.contato ?? "";
+        resolvedEmail = cached.email ?? cf.fornecedor.email ?? "";
+        resolvedCondicoes = cached.condicoesPagamento ?? cf.condicoesPagamento ?? "";
+        resolvedFrete = cached.frete ?? (cf.frete != null ? decimalToNumber(cf.frete).toString() : "");
+        resolvedTipoFrete = cached.tipoFrete ?? cf.tipoFrete ?? "";
+        resolvedDesconto = cached.desconto ?? (cf.desconto != null ? decimalToNumber(cf.desconto).toString() : "");
+        resolvedDespesas = cached.despesas ?? (cf.despesas != null ? decimalToNumber(cf.despesas).toString() : "");
+        resolvedSeguro = cached.seguro ?? (cf.seguro != null ? decimalToNumber(cf.seguro).toString() : "");
         const sameItems = cached.itens?.length === apiItens.length &&
           cached.itens.every((ci, idx) => ci.id === apiItens[idx]?.id);
-        setItens(sameItems ? cached.itens : apiItens);
+        resolvedItens = sameItems ? cached.itens : apiItens;
       } else {
-        setContato(cf.fornecedor.contato ?? "");
-        setEmail(cf.fornecedor.email ?? "");
-        setCondicoesPagamento(cf.condicoesPagamento ?? "");
-        setFrete(cf.frete != null ? decimalToNumber(cf.frete).toString() : "");
-        setTipoFrete(cf.tipoFrete ?? "");
-        setDesconto(cf.desconto != null ? decimalToNumber(cf.desconto).toString() : "");
-        setDespesas(cf.despesas != null ? decimalToNumber(cf.despesas).toString() : "");
-        setSeguro(cf.seguro != null ? decimalToNumber(cf.seguro).toString() : "");
-        setItens(apiItens);
+        resolvedContato = cf.fornecedor.contato ?? "";
+        resolvedEmail = cf.fornecedor.email ?? "";
+        resolvedCondicoes = cf.condicoesPagamento ?? "";
+        resolvedFrete = cf.frete != null ? decimalToNumber(cf.frete).toString() : "";
+        resolvedTipoFrete = cf.tipoFrete ?? "";
+        resolvedDesconto = cf.desconto != null ? decimalToNumber(cf.desconto).toString() : "";
+        resolvedDespesas = cf.despesas != null ? decimalToNumber(cf.despesas).toString() : "";
+        resolvedSeguro = cf.seguro != null ? decimalToNumber(cf.seguro).toString() : "";
+        resolvedItens = apiItens;
       }
+
+      setContato(resolvedContato);
+      setEmail(resolvedEmail);
+      setCondicoesPagamento(resolvedCondicoes);
+      setFrete(resolvedFrete);
+      setTipoFrete(resolvedTipoFrete);
+      setDesconto(resolvedDesconto);
+      setDespesas(resolvedDespesas);
+      setSeguro(resolvedSeguro);
+      setItens(resolvedItens);
+
+      // Capture baseline for dirty tracking
+      baselineRef.current = JSON.stringify({
+        contato: resolvedContato,
+        email: resolvedEmail,
+        condicoesPagamento: resolvedCondicoes,
+        frete: resolvedFrete,
+        tipoFrete: resolvedTipoFrete,
+        desconto: resolvedDesconto,
+        despesas: resolvedDespesas,
+        seguro: resolvedSeguro,
+        itens: resolvedItens,
+      });
+      setIsDirty(false);
+
       dataLoadedRef.current = true;
     } catch {
       setError("Erro ao carregar proposta");
@@ -189,6 +228,15 @@ export default function EditPropostaPage() {
     if (loading) return;
     saveForm({ contato, email, condicoesPagamento, frete, tipoFrete, desconto, despesas, seguro, itens });
   }, [contato, email, condicoesPagamento, frete, tipoFrete, desconto, despesas, seguro, itens, loading, saveForm]);
+
+  // ── Dirty state tracking ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (baselineRef.current === null || loading) return;
+    const current = JSON.stringify({ contato, email, condicoesPagamento, frete, tipoFrete, desconto, despesas, seguro, itens });
+    setIsDirty(current !== baselineRef.current);
+  }, [contato, email, condicoesPagamento, frete, tipoFrete, desconto, despesas, seguro, itens, loading]);
+
+  useDirtyForm(isDirty, async () => { await handleSave(); });
 
   useEffect(() => { load(); }, [load]);
 
@@ -279,6 +327,8 @@ export default function EditPropostaPage() {
       if (!res.ok) { setSaveError(json.error || "Erro ao salvar"); return; }
 
       clearForm();
+      setIsDirty(false);
+      baselineRef.current = null;
       router.push(`/suprimentos/cotacoes/${cotacaoId}`);
     } catch {
       setSaveError("Erro de conexão");
