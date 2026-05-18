@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     const seguroVal   = seguro    != null ? parseFloat(String(seguro))   : 0;
     const valorTotal  = subtotal - descontoVal + freteVal + despesasVal + seguroVal;
 
-    return tx.pedidoCompra.create({
+    const pedido = await tx.pedidoCompra.create({
       data: {
         numero,
         fornecedorId,
@@ -72,6 +72,55 @@ export async function POST(req: NextRequest) {
         itens: { include: { item: { select: { id: true, codigo: true, descricao: true } } } },
       },
     });
+
+    // Update necessidade status when a pedido is placed
+    if (cotacaoId) {
+      const cotacao = await tx.cotacaoCompra.findUnique({
+        where: { id: cotacaoId },
+        select: {
+          necessidadeId: true,
+          necessidade: {
+            select: {
+              itens: { select: { itemId: true } },
+            },
+          },
+        },
+      });
+
+      if (cotacao?.necessidadeId && cotacao.necessidade) {
+        // Check how many distinct itemIds from the necessidade already have a pedido
+        const necessidadeId = cotacao.necessidadeId;
+        const necessidadeItemIds = new Set(cotacao.necessidade.itens.map((i) => i.itemId));
+
+        // Get all pedido items linked (via cotacao) to this necessidade
+        const pedidosExistentes = await tx.pedidoCompra.findMany({
+          where: { cotacaoId },
+          select: { itens: { select: { itemId: true } } },
+        });
+
+        const atendidosIds = new Set(
+          pedidosExistentes.flatMap((p) => p.itens.map((i) => i.itemId))
+        );
+
+        const totalNec    = necessidadeItemIds.size;
+        const totalAtend  = [...necessidadeItemIds].filter((id) => atendidosIds.has(id)).length;
+
+        const novoStatus =
+          totalNec > 0 && totalAtend >= totalNec
+            ? "TOTALMENTE_ATENDIDA"
+            : "PARCIALMENTE_ATENDIDA";
+
+        await tx.necessidadeCompra.updateMany({
+          where: {
+            id: necessidadeId,
+            status: { in: ["EM_COTACAO", "APROVADA", "PARCIALMENTE_ATENDIDA"] },
+          },
+          data: { status: novoStatus },
+        });
+      }
+    }
+
+    return pedido;
   });
 
   return NextResponse.json({ data: pedido }, { status: 201 });

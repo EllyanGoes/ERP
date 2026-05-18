@@ -80,6 +80,17 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Update necessidade status → EM_COTACAO
+    if (necessidadeId) {
+      await tx.necessidadeCompra.updateMany({
+        where: {
+          id: necessidadeId,
+          status: { in: ["APROVADA"] },
+        },
+        data: { status: "EM_COTACAO" },
+      });
+    }
+
     return record;
   });
 
