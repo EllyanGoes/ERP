@@ -233,7 +233,7 @@ export default function PedidoCompraDetailPage() {
     }, 0);
   }
 
-  useTabTitle(pedido ? `PC ${pedido.numero}` : null);
+  useTabTitle(pedido ? pedido.numero : null);
 
   if (loading) return (
     <div className="flex items-center justify-center py-24">
