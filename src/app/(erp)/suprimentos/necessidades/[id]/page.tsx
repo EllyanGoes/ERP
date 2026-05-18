@@ -168,7 +168,7 @@ export default function NecessidadeDetailPage() {
         </Card>
 
         {/* Approval info */}
-        {(necessidade.status === "APROVADA" || necessidade.status === "REPROVADA") && (
+        {(necessidade.status === "APROVADA" || necessidade.status === "REJEITADA") && (
           <Card className={necessidade.status === "APROVADA" ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
             <CardContent className="pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
               {necessidade.status === "APROVADA" && (
@@ -183,9 +183,9 @@ export default function NecessidadeDetailPage() {
                   </div>
                 </>
               )}
-              {necessidade.status === "REPROVADA" && (
+              {necessidade.status === "REJEITADA" && (
                 <div className="md:col-span-3">
-                  <p className="text-xs text-red-600">Motivo da Reprovação</p>
+                  <p className="text-xs text-red-600">Motivo da Rejeição</p>
                   <p className="text-sm text-red-800 mt-1">{necessidade.motivoReprovacao || "—"}</p>
                 </div>
               )}
@@ -286,14 +286,6 @@ export default function NecessidadeDetailPage() {
                 >
                   Reprovar
                 </Button>
-                <Button
-                  variant="ghost"
-                  className="text-gray-500"
-                  onClick={() => changeStatus("CANCELADA")}
-                  disabled={actioning}
-                >
-                  Cancelar Necessidade
-                </Button>
               </div>
 
               {showApproveForm && (
@@ -328,7 +320,7 @@ export default function NecessidadeDetailPage() {
                 <Card className="border-red-200">
                   <CardContent className="pt-4 space-y-3">
                     <div className="space-y-1.5">
-                      <Label>Motivo da Reprovação</Label>
+                      <Label>Motivo da Rejeição</Label>
                       <Input
                         value={motivoReprovacao}
                         onChange={(e) => setMotivoReprovacao(e.target.value)}
@@ -339,7 +331,7 @@ export default function NecessidadeDetailPage() {
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={() => changeStatus("REPROVADA", { motivoReprovacao })}
+                        onClick={() => changeStatus("REJEITADA", { motivoReprovacao })}
                         disabled={actioning}
                       >
                         {actioning ? "Reprovando..." : "Confirmar Reprovação"}
