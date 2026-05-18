@@ -1,5 +1,6 @@
 import Sidebar from "@/components/layout/Sidebar";
 import TabBar from "@/components/layout/TabBar";
+import ScrollRestorer from "@/components/layout/ScrollRestorer";
 import { TabsProvider } from "@/lib/tabs-context";
 import { SessionProvider } from "@/lib/session-context";
 import { DirtyFormProvider } from "@/lib/dirty-form-context";
@@ -22,6 +23,7 @@ export default async function ErpLayout({ children }: { children: React.ReactNod
               style={{ marginLeft: "var(--sidebar-width, 64px)" }}
             >
               <TabBar />
+              <ScrollRestorer />
               <main id="erp-main" className="flex-1 overflow-y-auto">
                 {children}
               </main>

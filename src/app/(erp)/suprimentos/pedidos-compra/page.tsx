@@ -60,7 +60,7 @@ export default async function PedidosCompraPage() {
                       <StatusBadge status={p.status} />
                     </td>
                     <td className="px-4 py-3 text-right font-medium">
-                      {formatBRL(decimalToNumber(p.valorTotal))}
+                      {p.valorTotal !== null ? formatBRL(decimalToNumber(p.valorTotal)) : "—"}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{formatDate(p.dataEntregaPrevista)}</td>
                   </ClickableRow>

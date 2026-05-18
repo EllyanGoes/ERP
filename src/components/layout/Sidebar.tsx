@@ -47,6 +47,9 @@ import {
   UserCheck,
   Plug,
   ThumbsUp,
+  Factory,
+  Wrench,
+  Users2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -213,6 +216,13 @@ const configModule: Module = {
 };
 
 const allModules = [...mainModules, adminModule, configModule];
+
+// ── Future modules (strip-only, no panel, disabled) ───────────────────────────
+const futureModules: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: "pcp",             label: "PCP — Planejamento e Controle de Produção",  icon: Factory },
+  { id: "pcm",             label: "PCM — Planejamento e Controle de Manutenção", icon: Wrench  },
+  { id: "gestao-pessoas",  label: "Gestão de Pessoas",                           icon: Users2  },
+];
 
 const STRIP_W       = 64;
 const PANEL_MIN       = 160;
@@ -581,7 +591,7 @@ export default function Sidebar() {
           <div className="mx-4 border-t border-gray-800 my-2" />
 
           {/* Main module icons */}
-          <nav className="flex flex-col items-center gap-1 px-2 flex-1 overflow-hidden">
+          <nav className="flex flex-col items-center gap-1 px-2 flex-1 overflow-y-auto scrollbar-none" style={{ scrollbarWidth: "none" }}>
             {visibleMain.map((mod) => {
               const isOpen   = openId === mod.id;
               const isActive = moduleIsActive(mod, pathname);
@@ -606,6 +616,20 @@ export default function Sidebar() {
                 </StripTooltip>
               );
             })}
+
+            {/* Divider before future modules */}
+            <div className="w-6 border-t border-gray-700 my-1.5" />
+
+            {/* Future modules — disabled with "breve" indicator */}
+            {futureModules.map((mod) => (
+              <StripTooltip key={mod.id} label={`${mod.label} — Em breve`}>
+                <div className="relative flex flex-col items-center justify-center w-9 h-9 rounded-xl cursor-not-allowed opacity-40">
+                  <mod.icon className="w-4 h-4 text-gray-400" />
+                  {/* tiny "soon" dot */}
+                  <span className="absolute right-1 top-1 w-1.5 h-1.5 bg-amber-400 rounded-full" />
+                </div>
+              </StripTooltip>
+            ))}
           </nav>
 
           {/* ── Bottom area (de cima para baixo: recolher → admin → suporte → config → perfil) ── */}
