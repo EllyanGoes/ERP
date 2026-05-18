@@ -220,21 +220,49 @@ function StatusFilterChip({
   );
 }
 
+// ── Drag & Drop helpers ───────────────────────────────────────────────────────
+
+/** Returns the valid next status for a given SC status (for DnD progression) */
+const SC_NEXT_STATUS: Record<string, string> = {
+  RASCUNHO:             "AGUARDANDO_APROVACAO",
+  AGUARDANDO_APROVACAO: "APROVADA",
+  APROVADA:             "CONCLUIDA",
+  REPROVADA:            "AGUARDANDO_APROVACAO",
+};
+
+/** Route to open when a card is dropped on its next column */
+function scDropRoute(id: string, from: string, to: string): string | null {
+  if (from === "RASCUNHO"             && to === "AGUARDANDO_APROVACAO") return `/compras/necessidades/${id}`;
+  if (from === "AGUARDANDO_APROVACAO" && to === "APROVADA")             return `/compras/necessidades/${id}`;
+  if (from === "APROVADA"             && to === "CONCLUIDA")            return `/suprimentos/cotacoes/nova?necessidadeId=${id}`;
+  if (from === "REPROVADA"            && to === "AGUARDANDO_APROVACAO") return `/compras/necessidades/${id}`;
+  return null;
+}
+
 // ── KanbanCard ────────────────────────────────────────────────────────────────
 
-function KanbanCard({ n, onDelete, onClick, canDelete }: {
+function KanbanCard({ n, onDelete, onClick, canDelete, onDragStart, onDragEnd, isDragging }: {
   n: Necessidade;
   onDelete: () => void;
   onClick: () => void;
   canDelete: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  isDragging: boolean;
 }) {
   const prio = PRIORIDADE_LABEL[n.prioridade];
   const filialLabel = n.filial ? (n.filial.nomeFantasia || n.filial.razaoSocial) : null;
 
   return (
     <div
+      draggable
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
+      onDragEnd={onDragEnd}
       onClick={onClick}
-      className="bg-white border border-gray-200 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group"
+      className={cn(
+        "bg-white border border-gray-200 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-grab active:cursor-grabbing group",
+        isDragging && "opacity-40 scale-95 rotate-1"
+      )}
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -286,12 +314,16 @@ function KanbanCard({ n, onDelete, onClick, canDelete }: {
 
 // ── KanbanView ────────────────────────────────────────────────────────────────
 
-function KanbanView({ items, onDelete, onNavigate, canDelete }: {
+function KanbanView({ items, onDelete, onNavigate, canDelete, onCardDrop }: {
   items: Necessidade[];
   onDelete: (n: Necessidade) => void;
   onNavigate: (id: string) => void;
   canDelete: (n: Necessidade) => boolean;
+  onCardDrop: (id: string, fromStatus: string, toStatus: string) => void;
 }) {
+  const [dragItem, setDragItem] = useState<{ id: string; status: string } | null>(null);
+  const [overCol, setOverCol]   = useState<string | null>(null);
+
   const byStatus = useMemo(() => {
     const map = new Map<string, Necessidade[]>();
     for (const col of KANBAN_COLUMNS) map.set(col.status, []);
@@ -301,16 +333,39 @@ function KanbanView({ items, onDelete, onNavigate, canDelete }: {
     return map;
   }, [items]);
 
+  function isValidTarget(toStatus: string) {
+    return !!dragItem && SC_NEXT_STATUS[dragItem.status] === toStatus;
+  }
+
+  function handleDrop(toStatus: string) {
+    if (dragItem && isValidTarget(toStatus)) {
+      onCardDrop(dragItem.id, dragItem.status, toStatus);
+    }
+    setDragItem(null);
+    setOverCol(null);
+  }
+
   return (
     <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: "calc(100vh - 220px)" }}>
       {KANBAN_COLUMNS.map((col) => {
-        const colItems = byStatus.get(col.status) ?? [];
+        const colItems   = byStatus.get(col.status) ?? [];
+        const isOver     = overCol === col.status;
+        const canReceive = isValidTarget(col.status);
+
         return (
-          <div key={col.status} className="flex-shrink-0 w-72 flex flex-col">
+          <div
+            key={col.status}
+            className="flex-shrink-0 w-72 flex flex-col"
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = canReceive ? "move" : "none"; }}
+            onDragEnter={(e) => { e.preventDefault(); if (canReceive) setOverCol(col.status); }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverCol(null); }}
+            onDrop={(e) => { e.preventDefault(); handleDrop(col.status); }}
+          >
             {/* Column header */}
             <div className={cn(
-              "flex items-center justify-between px-3 py-2.5 rounded-xl border mb-3",
-              col.color
+              "flex items-center justify-between px-3 py-2.5 rounded-xl border mb-3 transition-all",
+              col.color,
+              isOver && canReceive && "ring-2 ring-blue-400 shadow-md"
             )}>
               <div className="flex items-center gap-2">
                 <div className={cn("w-2 h-2 rounded-full shrink-0", col.dot)} />
@@ -322,10 +377,17 @@ function KanbanView({ items, onDelete, onNavigate, canDelete }: {
             </div>
 
             {/* Cards */}
-            <div className="flex flex-col gap-2.5 flex-1">
-              {colItems.length === 0 ? (
+            <div className={cn(
+              "flex flex-col gap-2.5 flex-1 rounded-xl p-1 -m-1 transition-all",
+              isOver && canReceive && "bg-blue-50/50 outline outline-2 outline-dashed outline-blue-300"
+            )}>
+              {colItems.length === 0 && !isOver ? (
                 <div className="flex-1 flex items-start justify-center pt-8">
                   <p className="text-xs text-gray-300 italic">Nenhuma SC</p>
+                </div>
+              ) : colItems.length === 0 && isOver ? (
+                <div className="flex-1 flex items-center justify-center py-8">
+                  <p className="text-xs text-blue-400 font-medium">Soltar aqui</p>
                 </div>
               ) : (
                 colItems.map((n) => (
@@ -335,8 +397,17 @@ function KanbanView({ items, onDelete, onNavigate, canDelete }: {
                     onDelete={() => onDelete(n)}
                     onClick={() => onNavigate(n.id)}
                     canDelete={canDelete(n)}
+                    onDragStart={() => setDragItem({ id: n.id, status: n.status })}
+                    onDragEnd={() => { setDragItem(null); setOverCol(null); }}
+                    isDragging={dragItem?.id === n.id}
                   />
                 ))
+              )}
+              {/* Drop zone hint at bottom when column has cards */}
+              {isOver && canReceive && colItems.length > 0 && (
+                <div className="h-12 rounded-lg border-2 border-dashed border-blue-300 flex items-center justify-center">
+                  <p className="text-xs text-blue-400 font-medium">Soltar aqui</p>
+                </div>
               )}
             </div>
           </div>
@@ -605,6 +676,10 @@ export default function NecessidadesPage() {
               onDelete={(n) => { setDeleteItem(n); setDeleteError(""); }}
               onNavigate={(id) => router.push(`/compras/necessidades/${id}`)}
               canDelete={canDeleteSC}
+              onCardDrop={(id, from, to) => {
+                const route = scDropRoute(id, from, to);
+                if (route) router.push(route);
+              }}
             />
           )
         ) : (

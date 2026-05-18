@@ -6,8 +6,17 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const record = await prisma.pedidoCompra.findUnique({
     where: { id: params.id },
     include: {
-      fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
-      cotacao: { select: { id: true, numero: true } },
+      fornecedor: {
+        select: {
+          id: true,
+          razaoSocial: true,
+          nomeFantasia: true,
+          cpfCnpj: true,
+          contato: true,
+          email: true,
+        },
+      },
+      cotacao: { select: { id: true, numero: true, nome: true } },
       itens: {
         include: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } } },
       },
@@ -16,7 +25,25 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   });
 
   if (!record) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
-  return NextResponse.json({ data: record });
+
+  // Fetch CotacaoFornecedor to get proposal details (frete, desconto, condições, etc.)
+  let cotacaoFornecedor = null;
+  if (record.cotacaoId && record.fornecedorId) {
+    const allCfs = await prisma.cotacaoFornecedor.findMany({
+      where: { cotacaoId: record.cotacaoId },
+      orderBy: { id: "asc" },
+    });
+    const cfIndex = allCfs.findIndex((cf) => cf.fornecedorId === record.fornecedorId);
+    const cf = allCfs[cfIndex];
+    if (cf) {
+      cotacaoFornecedor = {
+        ...cf,
+        propostaNumero: cfIndex + 1,
+      };
+    }
+  }
+
+  return NextResponse.json({ data: { ...record, cotacaoFornecedor } });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

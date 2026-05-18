@@ -432,6 +432,19 @@ export default function NecessidadeDetailPage() {
     setTimeout(() => load(), 1500);
   }
 
+  async function confirmarDiretamente() {
+    if (!necessidade || !waAprovadorId) return;
+    try {
+      await fetch(`/api/compras/necessidades/${necessidade.id}/submeter-aprovacao`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modo: "direto", colaboradorId: waAprovadorId }),
+      });
+    } catch { /* silencioso */ }
+    setShowWAModal(false);
+    setTimeout(() => load(), 800);
+  }
+
 
   // ── Edit helpers ─────────────────────────────────────────────────────────────
   function enterEditMode() {
@@ -740,10 +753,10 @@ export default function NecessidadeDetailPage() {
               <>
                 <Button size="sm"
                   onClick={() => changeStatus("AGUARDANDO_APROVACAO")} disabled={actioning}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
                 >
-                  {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
-                  Enviar para Aprovação
+                  {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                  Confirmar SC
                 </Button>
                 <Button size="sm" variant="outline"
                   className="border-red-200 text-red-600 hover:bg-red-50"
@@ -757,18 +770,6 @@ export default function NecessidadeDetailPage() {
             {/* AGUARDANDO_APROVACAO */}
             {necessidade.status === "AGUARDANDO_APROVACAO" && (
               <>
-                <Button size="sm" variant="outline"
-                  className="border-green-500 text-green-700 hover:bg-green-50"
-                  onClick={() => { setShowApproveForm(true); setShowRejectForm(false); }}
-                >
-                  Aprovar
-                </Button>
-                <Button size="sm" variant="outline"
-                  className="border-red-500 text-red-700 hover:bg-red-50"
-                  onClick={() => { setShowRejectForm(true); setShowApproveForm(false); }}
-                >
-                  Reprovar
-                </Button>
                 <Button size="sm" variant="ghost" className="text-gray-500"
                   onClick={() => changeStatus("CANCELADA")} disabled={actioning}
                 >
@@ -1228,18 +1229,27 @@ export default function NecessidadeDetailPage() {
                   {waCopied ? "Copiado!" : "Copiar mensagem"}
                 </Button>
                 <Button type="button" size="sm"
+                  variant="outline"
+                  className="gap-1.5 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                  disabled={!waAprovadorId}
+                  onClick={confirmarDiretamente}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Confirmar
+                </Button>
+                <Button type="button" size="sm"
                   className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
                   onClick={openWhatsApp}
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  {waAprovadorId ? "Abrir no WhatsApp" : "Abrir WhatsApp Web"}
+                  {waAprovadorId ? "Encaminhar pelo WhatsApp" : "Abrir WhatsApp Web"}
                 </Button>
               </div>
               {waAprovadorId && (
                 <p className="text-xs text-gray-400 mt-2 text-right">
                   {(() => {
                     const a = waUsers.find((u) => u.id === waAprovadorId);
-                    return a?.telefone ? `Vai abrir conversa com ${a.nome} (${a.telefone})` : `Abrirá o WhatsApp Web — selecione ${a?.nome} manualmente`;
+                    return a?.telefone ? `WhatsApp: ${a.nome} (${a.telefone})` : `WhatsApp Web — selecione ${a?.nome} manualmente`;
                   })()}
                 </p>
               )}
