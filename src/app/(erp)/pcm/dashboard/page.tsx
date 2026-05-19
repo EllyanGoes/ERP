@@ -33,11 +33,11 @@ import {
   CheckSquare,
   Square,
   MinusSquare,
+  X as XIcon,
+  TableProperties,
 } from "lucide-react";
 import Link from "next/link";
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   Tooltip,
@@ -45,9 +45,9 @@ import {
   CartesianGrid,
   LineChart,
   Line,
-  Legend,
+  ReferenceLine,
 } from "recharts";
-import type { IndicadorEquipamento, IndicadoresResponse } from "@/app/api/pcm/indicadores/route";
+import type { IndicadorEquipamento, TendenciaMensal, IndicadoresResponse } from "@/app/api/pcm/indicadores/route";
 import type { LocalNode, AplicacoesResponse } from "@/app/api/pcm/aplicacoes/route";
 
 // ---------------------------------------------------------------------------
@@ -112,6 +112,196 @@ function fmtTime(iso: string) {
   try {
     return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   } catch { return "—"; }
+}
+
+/** Format hours as "Xd Yh" if ≥ 24h, else "X,Xh" */
+function fmtHoras(h: number): string {
+  if (h <= 0) return "0h";
+  if (h >= 24) {
+    const d = Math.floor(h / 24);
+    const r = Math.round(h % 24);
+    return r > 0 ? `${d}d ${r}h` : `${d}d`;
+  }
+  return `${h.toFixed(1)}h`;
+}
+
+// ── Metric line chart ─────────────────────────────────────────────────────────
+type MetricKey = "mtbfMedio" | "mttrMedio" | "disponibilidade" | "confiabilidade";
+
+interface MetricConfig {
+  key: MetricKey;
+  label: string;
+  color: string;
+  fmtY: (v: number) => string;
+  fmtDot: (v: number) => string;
+  domain?: [number | "auto" | "dataMin", number | "auto" | "dataMax"];
+  target?: number;
+  targetLabel?: string;
+}
+
+const METRIC_CONFIGS: MetricConfig[] = [
+  {
+    key:         "disponibilidade",
+    label:       "Disponibilidade",
+    color:       "#22c55e",
+    fmtY:        (v) => `${v.toFixed(1)}%`,
+    fmtDot:      (v) => `${v.toFixed(2)}%`,
+    domain:      ["auto", "dataMax"],
+  },
+  {
+    key:         "confiabilidade",
+    label:       "Confiabilidade",
+    color:       "#3b82f6",
+    fmtY:        (v) => `${v.toFixed(1)}%`,
+    fmtDot:      (v) => `${v.toFixed(2)}%`,
+    domain:      ["auto", "dataMax"],
+  },
+  {
+    key:         "mtbfMedio",
+    label:       "MTBF",
+    color:       "#14b8a6",
+    fmtY:        fmtHoras,
+    fmtDot:      fmtHoras,
+    domain:      ["auto", "dataMax"],
+  },
+  {
+    key:         "mttrMedio",
+    label:       "MTTR",
+    color:       "#f59e0b",
+    fmtY:        fmtHoras,
+    fmtDot:      fmtHoras,
+    domain:      ["auto", "dataMax"],
+  },
+];
+
+// Custom dot with value label above
+function LabeledDot(props: {
+  cx?: number; cy?: number; value?: number; fmtDot: (v: number) => string; color: string;
+}) {
+  const { cx = 0, cy = 0, value = 0, fmtDot, color } = props;
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={5} fill={color} stroke="white" strokeWidth={2} />
+      <text
+        x={cx} y={cy - 10}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={600}
+        fill="#374151"
+      >
+        {fmtDot(value)}
+      </text>
+    </g>
+  );
+}
+
+// ── Drill-down modal ──────────────────────────────────────────────────────────
+function DrillModal({
+  metric,
+  equipamentos,
+  targets,
+  onClose,
+}: {
+  metric: MetricConfig;
+  equipamentos: IndicadorEquipamento[];
+  targets: { mtbf: number; mttr: number };
+  onClose: () => void;
+}) {
+  function eqVal(eq: IndicadorEquipamento): number {
+    if (metric.key === "mtbfMedio")       return eq.mtbf;
+    if (metric.key === "mttrMedio")       return eq.mttr;
+    if (metric.key === "disponibilidade") return eq.disponibilidade;
+    return eq.confiabilidade;
+  }
+
+  const sorted = [...equipamentos].sort((a, b) => {
+    const va = eqVal(a);
+    const vb = eqVal(b);
+    // For MTTR lower is better → asc; for others → desc
+    return metric.key === "mttrMedio" ? va - vb : vb - va;
+  });
+
+  const isGood = (eq: IndicadorEquipamento) => {
+    if (metric.key === "mtbfMedio")     return eq.mtbf  >= targets.mtbf;
+    if (metric.key === "mttrMedio")     return eq.mttr  <= targets.mttr;
+    if (metric.key === "disponibilidade") return eq.disponibilidade >= 95;
+    if (metric.key === "confiabilidade")  return eq.confiabilidade  >= 60;
+    return true;
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[85vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+          <div>
+            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+              <TableProperties className="w-4 h-4 text-gray-400" />
+              Visão Detalhada — {metric.label}
+            </h2>
+            <p className="text-xs text-gray-400 mt-0.5">{sorted.length} equipamentos · ordenados do melhor para o pior</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100">
+            <XIcon className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-y-auto flex-1">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 uppercase">Equipamento</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Local</th>
+                <th className="text-center px-4 py-2.5 text-xs font-medium text-gray-500 uppercase">Falhas</th>
+                <th className="text-right px-4 py-2.5 text-xs font-medium text-gray-500 uppercase">{metric.label}</th>
+                <th className="text-center px-4 py-2.5 text-xs font-medium text-gray-500 uppercase">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((eq, i) => {
+                const raw = eqVal(eq);
+                const good = isGood(eq);
+                return (
+                  <tr key={eq.codApl} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-300 w-5 text-right font-mono">{i + 1}</span>
+                        <div>
+                          <p className="font-medium text-gray-800 truncate max-w-[180px]">{eq.descricao}</p>
+                          <p className="text-xs text-gray-400 font-mono">{eq.tag}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500 hidden md:table-cell">
+                      <span className="truncate block max-w-[160px]">{eq.localInstalacao}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                        eq.totalFalhas >= 5 ? "bg-red-100 text-red-700" : eq.totalFalhas >= 3 ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"
+                      }`}>{eq.totalFalhas}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={`font-bold text-base ${good ? "text-green-600" : "text-red-600"}`} style={{ color: good ? metric.color : "#ef4444" }}>
+                        {metric.fmtDot(raw)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        good ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                      }`}>
+                        {good ? "✓ OK" : "✗ Abaixo"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +390,9 @@ export default function PCMDashboardPage() {
   const [showTargets, setShowTargets] = useState(false);
   const [targets, setTargets] = useState<{ mtbf: number; mttr: number }>({ mtbf: 120, mttr: 4 });
   const [targetInput, setTargetInput] = useState({ mtbf: "120", mttr: "4" });
+
+  // ── Drill-down ────────────────────────────────────────────────────────────────
+  const [drillMetric, setDrillMetric] = useState<MetricConfig | null>(null);
 
   // ── Tree popover filter ──────────────────────────────────────────────────────
   const [showTreePopover, setShowTreePopover]   = useState(false);
@@ -379,19 +572,6 @@ export default function PCMDashboardPage() {
     };
   }, [equipamentosFiltrados]);
 
-  // Chart data: top 10 worst MTBF
-  const barChartData = useMemo(() => {
-    if (!data) return [];
-    return [...data.equipamentos]
-      .sort((a, b) => a.mtbf - b.mtbf)
-      .slice(0, 10)
-      .map((e) => ({
-        name: e.descricao.length > 22 ? e.descricao.slice(0, 22) + "…" : e.descricao,
-        MTBF: e.mtbf,
-        MTTR: e.mttr,
-        tag: e.tag,
-      }));
-  }, [data]);
 
   function handleSort(field: SortField) {
     if (sortField === field) {
@@ -412,38 +592,22 @@ export default function PCMDashboardPage() {
     setShowTargets(false);
   }
 
-  // Custom tooltip for bar chart
-  const CustomBarTooltip = ({ active, payload, label }: any) => {
+  // Generic tooltip for metric line charts
+  function MetricTooltip({ active, payload, label, fmtDot }: { active?: boolean; payload?: any[]; label?: string; fmtDot: (v: number) => string }) {
     if (active && payload?.length) {
       return (
         <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 shadow text-xs">
-          <p className="font-semibold text-gray-700 mb-1">{label}</p>
+          <p className="font-semibold text-gray-600 mb-1">{label}</p>
           {payload.map((p: any) => (
-            <p key={p.dataKey} style={{ color: p.color }}>
-              {p.dataKey}: <span className="font-bold">{fmt1(p.value)}h</span>
+            <p key={p.dataKey} style={{ color: p.color }} className="font-bold text-sm">
+              {fmtDot(p.value)}
             </p>
           ))}
         </div>
       );
     }
     return null;
-  };
-
-  const CustomLineTooltip = ({ active, payload, label }: any) => {
-    if (active && payload?.length) {
-      return (
-        <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 shadow text-xs">
-          <p className="font-semibold text-gray-700 mb-1">{label}</p>
-          {payload.map((p: any) => (
-            <p key={p.dataKey} style={{ color: p.color }}>
-              {p.dataKey}: <span className="font-bold">{fmt1(p.value)}h</span>
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
+  }
 
   return (
     <div>
@@ -946,125 +1110,93 @@ export default function PCMDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Charts */}
-        {!loading && data && data.equipamentos.length > 0 && (
-          <div className="grid grid-cols-2 gap-6">
-            {/* Bar chart: Top 10 piores MTBF */}
-            <Card className="border-gray-100">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold text-gray-700">
-                  MTBF por Equipamento
-                  <span className="ml-2 text-xs font-normal text-gray-400">
-                    — 10 piores
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart
-                    data={barChartData}
-                    layout="vertical"
-                    margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                    <XAxis
-                      type="number"
-                      tick={{ fontSize: 10, fill: "#94a3b8" }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => `${v}h`}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      tick={{ fontSize: 10, fill: "#64748b" }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={130}
-                    />
-                    <Tooltip content={<CustomBarTooltip />} />
-                    <Bar dataKey="MTBF" fill="#3b82f6" radius={[0, 4, 4, 0]} />
-                    <Bar dataKey="MTTR" fill="#f59e0b" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-                <div className="flex items-center gap-4 mt-1 ml-2">
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <span className="w-3 h-3 rounded-sm bg-blue-500 inline-block" />
-                    MTBF (h)
+        {/* ── Metric line charts (TRACTIAN-style) ── */}
+        {!loading && data && data.tendencia.length > 0 && (
+          <div className="space-y-4">
+            {METRIC_CONFIGS.map((cfg) => (
+              <Card key={cfg.key} className="border-gray-100">
+                <CardContent className="pt-4 pb-4">
+                  {/* Card header row */}
+                  <div className="flex items-center justify-between mb-1">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{cfg.label}</p>
+                      <button
+                        onClick={() => setDrillMetric(cfg)}
+                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-0.5"
+                      >
+                        Visão Detalhada
+                        <ChevronRight className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <span className="text-xs text-gray-400 bg-gray-50 border border-gray-100 rounded px-2 py-0.5">
+                      Mês
+                    </span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <span className="w-3 h-3 rounded-sm bg-amber-400 inline-block" />
-                    MTTR (h)
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* Line chart: Falhas mensais + MTTR médio */}
-            <Card className="border-gray-100">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold text-gray-700">
-                  Ocorrências Mensais
-                  <span className="ml-2 text-xs font-normal text-gray-400">
-                    — falhas corretivas e MTTR médio
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={260}>
-                  <LineChart
-                    data={data.tendencia}
-                    margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 10, fill: "#94a3b8" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      yAxisId="falhas"
-                      orientation="left"
-                      tick={{ fontSize: 10, fill: "#94a3b8" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      yAxisId="mttr"
-                      orientation="right"
-                      tick={{ fontSize: 10, fill: "#94a3b8" }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => `${v}h`}
-                    />
-                    <Tooltip content={<CustomLineTooltip />} />
-                    <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
-                    <Line
-                      yAxisId="falhas"
-                      type="monotone"
-                      dataKey="falhas"
-                      stroke="#ef4444"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: "#ef4444" }}
-                      name="Falhas"
-                      activeDot={{ r: 5 }}
-                    />
-                    <Line
-                      yAxisId="mttr"
-                      type="monotone"
-                      dataKey="mttrMedio"
-                      stroke="#f59e0b"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: "#f59e0b" }}
-                      name="MTTR Médio (h)"
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+                  {/* Chart */}
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart
+                      data={data.tendencia}
+                      margin={{ top: 22, right: 24, left: 0, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fontSize: 11, fill: "#9ca3af" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 10, fill: "#9ca3af" }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={cfg.fmtY}
+                        width={56}
+                        domain={cfg.domain}
+                      />
+                      <Tooltip
+                        content={({ active, payload, label }) => (
+                          <MetricTooltip
+                            active={active}
+                            payload={payload as any[]}
+                            label={typeof label === "string" ? label : String(label ?? "")}
+                            fmtDot={cfg.fmtDot}
+                          />
+                        )}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey={cfg.key}
+                        stroke={cfg.color}
+                        strokeWidth={2.5}
+                        dot={(props) => (
+                          <LabeledDot
+                            key={`dot-${props.index}`}
+                            cx={props.cx}
+                            cy={props.cy}
+                            value={props.value}
+                            fmtDot={cfg.fmtDot}
+                            color={cfg.color}
+                          />
+                        )}
+                        activeDot={{ r: 6, fill: cfg.color, stroke: "white", strokeWidth: 2 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            ))}
           </div>
+        )}
+
+        {/* Drill-down modal */}
+        {drillMetric && (
+          <DrillModal
+            metric={drillMetric}
+            equipamentos={equipamentosFiltrados}
+            targets={targets}
+            onClose={() => setDrillMetric(null)}
+          />
         )}
 
         {/* Footer info */}

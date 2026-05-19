@@ -19,9 +19,12 @@ export interface IndicadorEquipamento {
 }
 
 export interface TendenciaMensal {
-  mes: string;    // "YYYY-MM"
-  label: string;  // "Jan/25"
-  mttrMedio: number;
+  mes: string;           // "YYYY-MM"
+  label: string;         // "Jan/25"
+  mttrMedio: number;     // h
+  mtbfMedio: number;     // h
+  disponibilidade: number; // %
+  confiabilidade: number;  // R(720h) %
   falhas: number;
   totalHhReparo: number;
 }
@@ -153,11 +156,16 @@ async function queryEngeman(diasPeriodo: number): Promise<{
       FALHAS: number;
       MTTR_MEDIO: number;
       TOTAL_HH_REPARO: number;
+      HORAS_MES: number;
+      MTBF_MEDIO: number;
+      DISPONIBILIDADE: number;
     }>(`
       SELECT
         YEAR(o.DATENT)  AS ANO,
         MONTH(o.DATENT) AS MES,
         COUNT(*)        AS FALHAS,
+
+        /* MTTR */
         SUM(
           CASE
             WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
@@ -165,13 +173,40 @@ async function queryEngeman(diasPeriodo: number): Promise<{
             ELSE ISNULL(o.HOREXEREA, 0)
           END
         ) / NULLIF(COUNT(*), 0) AS MTTR_MEDIO,
+
+        /* Total horas de reparo */
         SUM(
           CASE
             WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
               THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
             ELSE ISNULL(o.HOREXEREA, 0)
           END
-        ) AS TOTAL_HH_REPARO
+        ) AS TOTAL_HH_REPARO,
+
+        /* Horas do mês = dias do mês × 24 */
+        DAY(EOMONTH(DATEFROMPARTS(YEAR(o.DATENT), MONTH(o.DATENT), 1))) * 24.0 AS HORAS_MES,
+
+        /* MTBF mensal = (horas_mês − hh_reparo) / falhas */
+        (
+          DAY(EOMONTH(DATEFROMPARTS(YEAR(o.DATENT), MONTH(o.DATENT), 1))) * 24.0
+          - SUM(
+              CASE
+                WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
+                  THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
+                ELSE ISNULL(o.HOREXEREA, 0)
+              END
+            )
+        ) / NULLIF(COUNT(*), 0) AS MTBF_MEDIO,
+
+        /* Disponibilidade = (1 − hh_reparo / horas_mês) × 100 */
+        (1.0 - SUM(
+          CASE
+            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
+              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
+            ELSE ISNULL(o.HOREXEREA, 0)
+          END
+        ) / (DAY(EOMONTH(DATEFROMPARTS(YEAR(o.DATENT), MONTH(o.DATENT), 1))) * 24.0)) * 100.0 AS DISPONIBILIDADE
+
       FROM ORDSERV o
       WHERE o.CODTIPMAN IN (1, 2, 3)
         AND o.STATORD = 'F'
@@ -210,13 +245,21 @@ async function queryEngeman(diasPeriodo: number): Promise<{
     };
   });
 
-  const tendencia: TendenciaMensal[] = trendResult.recordset.map((r) => ({
-    mes:            `${r.ANO}-${String(r.MES).padStart(2, "0")}`,
-    label:          `${MESES[r.MES - 1]}/${String(r.ANO).slice(2)}`,
-    mttrMedio:      parseFloat((r.MTTR_MEDIO ?? 0).toFixed(2)),
-    falhas:         r.FALHAS,
-    totalHhReparo:  parseFloat((r.TOTAL_HH_REPARO ?? 0).toFixed(2)),
-  }));
+  const tendencia: TendenciaMensal[] = trendResult.recordset.map((r) => {
+    const mtbf = Math.max(r.MTBF_MEDIO ?? 0, 0);
+    const disp = Math.min(Math.max(r.DISPONIBILIDADE ?? 100, 0), 100);
+    const conf = mtbf > 0 ? Math.exp(-720 / mtbf) * 100 : 0;
+    return {
+      mes:             `${r.ANO}-${String(r.MES).padStart(2, "0")}`,
+      label:           `${MESES[r.MES - 1]}/${String(r.ANO).slice(2)}`,
+      mttrMedio:       parseFloat((r.MTTR_MEDIO ?? 0).toFixed(2)),
+      mtbfMedio:       parseFloat(mtbf.toFixed(2)),
+      disponibilidade: parseFloat(disp.toFixed(2)),
+      confiabilidade:  parseFloat(conf.toFixed(2)),
+      falhas:          r.FALHAS,
+      totalHhReparo:   parseFloat((r.TOTAL_HH_REPARO ?? 0).toFixed(2)),
+    };
+  });
 
   const locais = locaisResult.recordset.map((r) => r.DESCRICAO).filter(Boolean);
 
@@ -242,14 +285,25 @@ function mockData(diasPeriodo: number): { equipamentos: IndicadorEquipamento[]; 
 
   const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
   const now = new Date();
+  // Realistic mock trend: MTBF ~470h→510h, MTTR ~2.5h→3.5h, Disp ~99.3%→99.7%
+  const mockMtbf  = [472, 495, 511, 483, 502, 488];
+  const mockMttr  = [3.2, 2.8, 3.5, 3.1, 2.6, 3.0];
+  const mockDisp  = [99.4, 99.5, 99.3, 99.6, 99.7, 99.4];
   const tendencia: TendenciaMensal[] = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+    const mtbf = mockMtbf[i];
+    const mttr = mockMttr[i];
+    const disp = mockDisp[i];
+    const conf = Math.exp(-720 / mtbf) * 100;
     return {
-      mes:           `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-      label:         `${MESES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`,
-      mttrMedio:     +(3 + Math.random() * 4).toFixed(2),
-      falhas:        Math.floor(60 + Math.random() * 50),
-      totalHhReparo: +(200 + Math.random() * 300).toFixed(2),
+      mes:             `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      label:           `${MESES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`,
+      mttrMedio:       mttr,
+      mtbfMedio:       mtbf,
+      disponibilidade: disp,
+      confiabilidade:  parseFloat(conf.toFixed(2)),
+      falhas:          Math.floor(60 + Math.random() * 50),
+      totalHhReparo:   +(200 + Math.random() * 300).toFixed(2),
     };
   });
 
