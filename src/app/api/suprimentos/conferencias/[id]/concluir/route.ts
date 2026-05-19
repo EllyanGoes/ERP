@@ -122,6 +122,101 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         where: { id: conferencia.pedidoId },
         data: { status: "RECEBIDO" },
       });
+
+      // ── Cascade SC (NecessidadeCompra) status ─────────────────────────────
+      const pedido = await tx.pedidoCompra.findUnique({
+        where: { id: conferencia.pedidoId },
+        select: {
+          cotacaoId: true,
+          itens: { select: { itemId: true, quantidade: true } },
+        },
+      });
+
+      if (pedido?.cotacaoId) {
+        const cotacao = await tx.cotacaoCompra.findUnique({
+          where: { id: pedido.cotacaoId },
+          select: {
+            necessidadeId: true,
+            necessidade: {
+              select: {
+                itens: { select: { itemId: true, quantidade: true } },
+              },
+            },
+          },
+        });
+
+        if (cotacao?.necessidadeId && cotacao.necessidade) {
+          const necessidadeId = cotacao.necessidadeId;
+          const scItems = cotacao.necessidade.itens;
+          const scItemIds = new Set(scItems.map((i) => i.itemId));
+
+          // Build a map of itemId → total received across ALL conferencias for
+          // pedidos linked to this cotação
+          const pedidosDaCotacao = await tx.pedidoCompra.findMany({
+            where: { cotacaoId: pedido.cotacaoId, status: "RECEBIDO" },
+            select: { id: true },
+          });
+          const pedidoIds = pedidosDaCotacao.map((p) => p.id);
+
+          const confsConcluidas = await tx.conferenciaCompra.findMany({
+            where: {
+              pedidoId: { in: pedidoIds },
+              status: { in: ["CONCLUIDA", "DIVERGENCIA"] },
+            },
+            select: {
+              itens: { select: { itemId: true, quantidadeRecebida: true } },
+            },
+          });
+
+          // Sum received per itemId
+          const recebidoMap = new Map<string, number>();
+          for (const conf of confsConcluidas) {
+            for (const ci of conf.itens) {
+              const prev = recebidoMap.get(ci.itemId) ?? 0;
+              recebidoMap.set(
+                ci.itemId,
+                prev + parseFloat(String(ci.quantidadeRecebida ?? 0))
+              );
+            }
+          }
+          // Also include current conferencia items being concluded now
+          for (const ci of conferencia.itens) {
+            const prev = recebidoMap.get(ci.itemId) ?? 0;
+            recebidoMap.set(
+              ci.itemId,
+              prev + parseFloat(String(ci.quantidadeRecebida ?? 0))
+            );
+          }
+
+          // Check coverage: every SC item needs qtd received >= qtd necessidade
+          let totalAtendidos = 0;
+          for (const scItem of scItems) {
+            const recebido = recebidoMap.get(scItem.itemId) ?? 0;
+            const necessario = parseFloat(String(scItem.quantidade));
+            if (recebido >= necessario - 0.001) totalAtendidos++;
+          }
+
+          const novoStatus =
+            scItemIds.size > 0 && totalAtendidos >= scItemIds.size
+              ? "TOTALMENTE_ATENDIDA"
+              : "PARCIALMENTE_ATENDIDA";
+
+          await tx.necessidadeCompra.updateMany({
+            where: {
+              id: necessidadeId,
+              status: {
+                in: [
+                  "EM_COTACAO",
+                  "APROVADA",
+                  "PARCIALMENTE_ATENDIDA",
+                  "TOTALMENTE_ATENDIDA",
+                ],
+              },
+            },
+            data: { status: novoStatus },
+          });
+        }
+      }
     }
 
     // ── Auto-link items to supplier ───────────────────────────────────────────

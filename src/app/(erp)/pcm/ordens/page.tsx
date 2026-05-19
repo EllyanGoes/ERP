@@ -81,7 +81,12 @@ const PRIORIDADE_CONFIG: Record<string, string> = {
 type CacheEntry = { data: OrdensResponse; dias: number; agrupamento: string; savedAt: string };
 
 // ── Cache helpers ─────────────────────────────────────────────────────────────
+
+// Module-level memory cache — survives tab switches within the same session
+let _ordensMemCache: { data: OrdensResponse; dias: number; agrupamento: string } | null = null;
+
 function saveCache(data: OrdensResponse, dias: number, agrupamento: string) {
+  _ordensMemCache = { data, dias, agrupamento };
   if (typeof window === "undefined") return;
   try {
     const entry: CacheEntry = { data, dias, agrupamento, savedAt: new Date().toISOString() };
@@ -101,6 +106,14 @@ function loadCache(dias: number, agrupamento: string): { data: OrdensResponse; s
   } catch {
     return null;
   }
+}
+
+function getOrdensCache(dias: number, agrupamento: string): OrdensResponse | null {
+  if (_ordensMemCache?.dias === dias && _ordensMemCache?.agrupamento === agrupamento)
+    return _ordensMemCache.data;
+  const ls = loadCache(dias, agrupamento);
+  if (ls) { _ordensMemCache = { data: ls.data, dias, agrupamento }; return ls.data; }
+  return null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -443,9 +456,7 @@ function DrillModal({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function OrdensReportPage() {
-  const [data, setData]           = useState<OrdensResponse | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  // Resolve initial filters (lazy, runs once on mount)
   const [dias, setDias] = useState<number>(() => {
     if (typeof window === "undefined") return 365;
     try {
@@ -460,6 +471,28 @@ export default function OrdensReportPage() {
       return (saved.agrupamento as "semana" | "mes") || "semana";
     } catch { return "semana"; }
   });
+
+  // Lazy-initialize from cache — zero spinner flash on tab switch
+  const [data, setData]           = useState<OrdensResponse | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = JSON.parse(localStorage.getItem(LS_FILTER_KEY) ?? "{}");
+      const d = (saved.dias as number) || 365;
+      const a: "semana" | "mes" = (saved.agrupamento as "semana" | "mes") || "semana";
+      return getOrdensCache(d, a);
+    } catch { return null; }
+  });
+  const [loading, setLoading]     = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      const saved = JSON.parse(localStorage.getItem(LS_FILTER_KEY) ?? "{}");
+      const d = (saved.dias as number) || 365;
+      const a: "semana" | "mes" = (saved.agrupamento as "semana" | "mes") || "semana";
+      return getOrdensCache(d, a) === null;
+    } catch { return true; }
+  });
+  const [engemanOffline, setEngemanOffline] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [drillStatus, setDrillStatus] = useState<string | null>(null);
   const [selectedCodord, setSelectedCodord] = useState<number | null>(null);
 
@@ -469,8 +502,14 @@ export default function OrdensReportPage() {
     else setLoading(true);
     try {
       const res  = await fetch(`/api/pcm/ordens?dias=${dias}&agrupamento=${agrupamento}`);
+      if (res.status === 503) {
+        setEngemanOffline(true);
+        if (!background) setData(null);
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: OrdensResponse = await res.json();
+      setEngemanOffline(false);
       setData(json);
       saveCache(json, dias, agrupamento);
     } catch {
@@ -481,14 +520,16 @@ export default function OrdensReportPage() {
     }
   }, [dias, agrupamento]);
 
-  // Stale-while-revalidate
+  // Stale-while-revalidate — lazy init already handles mount; this handles dias/agrupamento changes
   useEffect(() => {
-    const cached = loadCache(dias, agrupamento);
+    const cached = getOrdensCache(dias, agrupamento);
     if (cached) {
-      setData(cached.data);
+      setData(cached);
       setLoading(false);
-      fetchData(true);
+      fetchData(true); // silent background refresh
     } else {
+      setData(null);
+      setLoading(true);
       fetchData(false);
     }
   }, [fetchData, dias, agrupamento]);
@@ -561,20 +602,16 @@ export default function OrdensReportPage() {
               </span>
             )}
 
-            {data && (
-              <div
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border",
-                  "bg-green-50 border-green-200 text-green-700",
-                )}
-              >
+            {engemanOffline ? (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-red-50 border-red-200 text-red-700">
                 <Database className="w-3.5 h-3.5" />
-                <span
-                  className={cn(
-                    "w-2 h-2 rounded-full",
-                    "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]",
-                  )}
-                />
+                <span className="w-2 h-2 rounded-full bg-red-500" />
+                Engeman inacessível
+              </div>
+            ) : data && (
+              <div className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border", "bg-green-50 border-green-200 text-green-700")}>
+                <Database className="w-3.5 h-3.5" />
+                <span className={cn("w-2 h-2 rounded-full", "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]")} />
                 Engeman online
               </div>
             )}
@@ -635,11 +672,24 @@ export default function OrdensReportPage() {
           )}
         </div>
 
-        {/* ── Loading state ────────────────────────────────────────────────── */}
+        {/* ── Loading / offline state ──────────────────────────────────────── */}
         {loading && !data && (
           <div className="flex items-center justify-center py-24 text-gray-400 gap-2">
             <Loader2 className="w-5 h-5 animate-spin" />
             <span className="text-sm">Carregando dados do Engeman…</span>
+          </div>
+        )}
+        {!loading && engemanOffline && !data && (
+          <div className="flex flex-col items-center justify-center py-24 gap-3 text-sm">
+            <Database className="w-10 h-10 text-red-300" />
+            <p className="font-semibold text-red-600">Engeman inacessível</p>
+            <p className="text-gray-400 text-center max-w-sm">
+              O servidor Engeman não está acessível neste ambiente (rede local apenas).
+            </p>
+            <Button variant="outline" size="sm" className="gap-1.5 mt-1" onClick={() => fetchData(false)}>
+              <RefreshCw className="w-4 h-4" />
+              Tentar novamente
+            </Button>
           </div>
         )}
 

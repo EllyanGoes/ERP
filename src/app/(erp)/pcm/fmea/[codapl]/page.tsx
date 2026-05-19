@@ -44,6 +44,9 @@ import {
 import type { FMEAResponse, FalhaRegistro } from "@/app/api/pcm/fmea/[codapl]/route";
 import { cn } from "@/lib/utils";
 
+// Module-level per-asset cache (Map<"codapl:dias", FMEAResponse>)
+const _fmeaMemCache = new Map<string, FMEAResponse>();
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtH(h: number): string {
   if (h <= 0) return "0h";
@@ -105,26 +108,42 @@ export default function FMEAPage() {
   const { codapl } = useParams<{ codapl: string }>();
   const searchParams = useSearchParams();
 
-  const [dias, setDias]       = useState(() => parseInt(searchParams.get("dias") ?? "365", 10) || 365);
-  const [data, setData]       = useState<FMEAResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [dias, setDias] = useState(() => parseInt(searchParams.get("dias") ?? "365", 10) || 365);
+  // Lazy-initialize from memory cache — no spinner flash when returning to this asset's tab
+  const [data, setData]       = useState<FMEAResponse | null>(() =>
+    _fmeaMemCache.get(`${codapl}:365`) ?? null
+  );
+  const [loading, setLoading] = useState<boolean>(() =>
+    !_fmeaMemCache.has(`${codapl}:365`)
+  );
+  const [engemanOffline, setEngemanOffline] = useState(false);
 
   const [sortKey, setSortKey]   = useState<SortKey>("datent");
   const [sortDir, setSortDir]   = useState<"asc" | "desc">("desc");
 
-  // Clear stale data immediately when navigating to a different asset
+  // When codapl changes: load from cache if available, else show spinner
   useEffect(() => {
-    setData(null);
-    setLoading(true);
-  }, [codapl]);
+    const key = `${codapl}:${dias}`;
+    const cached = _fmeaMemCache.get(key);
+    if (cached) {
+      setData(cached);
+      setLoading(false);
+    } else {
+      setData(null);
+      setLoading(true);
+    }
+  }, [codapl, dias]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const res  = await fetch(`/api/pcm/fmea/${codapl}?dias=${dias}`);
+      if (res.status === 503) { setEngemanOffline(true); setData(null); return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setData(json as FMEAResponse);
+      setEngemanOffline(false);
+      const json = await res.json() as FMEAResponse;
+      _fmeaMemCache.set(`${codapl}:${dias}`, json);
+      setData(json);
     } catch {
       setData(null);
     } finally {
@@ -132,7 +151,12 @@ export default function FMEAPage() {
     }
   }, [codapl, dias]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  // Only fetch if we don't have cached data for this codapl+dias
+  useEffect(() => {
+    if (!_fmeaMemCache.has(`${codapl}:${dias}`)) {
+      fetchData();
+    }
+  }, [fetchData, codapl, dias]);
 
   // ── Sorted failures ────────────────────────────────────────────────────────
   const sorted: FalhaRegistro[] = data
@@ -180,15 +204,16 @@ export default function FMEAPage() {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            {data && (
-              <div className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border",
-                "bg-green-50 border-green-200 text-green-700",
-              )}>
+            {engemanOffline ? (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-red-50 border-red-200 text-red-700">
                 <Database className="w-3.5 h-3.5" />
-                <span className={cn("w-2 h-2 rounded-full",
-                  "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]",
-                )} />
+                <span className="w-2 h-2 rounded-full bg-red-500" />
+                Engeman inacessível
+              </div>
+            ) : data && (
+              <div className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border", "bg-green-50 border-green-200 text-green-700")}>
+                <Database className="w-3.5 h-3.5" />
+                <span className={cn("w-2 h-2 rounded-full", "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]")} />
                 Engeman online
               </div>
             )}
@@ -226,6 +251,19 @@ export default function FMEAPage() {
           <div className="flex items-center justify-center py-24 text-gray-400 gap-2">
             <Loader2 className="w-5 h-5 animate-spin" />
             <span className="text-sm">Buscando histórico de O.S…</span>
+          </div>
+        )}
+        {!loading && engemanOffline && !data && (
+          <div className="flex flex-col items-center justify-center py-24 gap-3 text-sm">
+            <Database className="w-10 h-10 text-red-300" />
+            <p className="font-semibold text-red-600">Engeman inacessível</p>
+            <p className="text-gray-400 text-center max-w-sm">
+              O servidor Engeman não está acessível neste ambiente (rede local apenas).
+            </p>
+            <Button variant="outline" size="sm" className="gap-1.5 mt-1" onClick={fetchData}>
+              <RefreshCw className="w-4 h-4" />
+              Tentar novamente
+            </Button>
           </div>
         )}
 
@@ -435,10 +473,17 @@ export default function FMEAPage() {
                             </td>
                             <td className="px-4 py-3 hidden lg:table-cell">
                               {f.datafim ? (
-                                <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                                  <CalendarX className="w-3 h-3 text-gray-400" />
-                                  {f.datafim}
-                                </span>
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="flex items-center gap-1.5 text-xs text-gray-600">
+                                    <CalendarX className="w-3 h-3 text-green-500 flex-shrink-0" />
+                                    {f.datafim}
+                                  </span>
+                                  {f.fechadoPor && (
+                                    <span className="text-[11px] text-gray-400 pl-[18px] truncate max-w-[160px]">
+                                      {f.fechadoPor}
+                                    </span>
+                                  )}
+                                </div>
                               ) : (
                                 <span className="text-gray-300 text-xs">Em aberto</span>
                               )}

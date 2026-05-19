@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   AlertTriangle, CheckCircle2, XCircle, Info,
   RefreshCw, ArrowLeft, ClipboardList,
-  MapPin, Clock, Tag,
+  MapPin, Clock, Tag, Database,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { QualidadeResponse } from "@/app/api/pcm/qualidade/route";
@@ -114,11 +114,15 @@ export default function QualidadeDadosPage() {
   const [data, setData] = useState<QualidadeResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [engemanOffline, setEngemanOffline] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/pcm/qualidade");
+      if (res.status === 503) { setEngemanOffline(true); setData(null); return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setEngemanOffline(false);
       setData(await res.json());
     } catch { setData(null); }
     finally { setLoading(false); }
@@ -134,7 +138,21 @@ export default function QualidadeDadosPage() {
   );
 
   if (!data) return (
-    <div className="px-8 pt-8 text-red-500 text-sm">Erro ao carregar dados de qualidade.</div>
+    <div className="flex flex-col items-center justify-center py-32 gap-3 text-sm">
+      <Database className="w-10 h-10 text-red-300" />
+      <p className="font-semibold text-red-600">
+        {engemanOffline ? "Engeman inacessível" : "Erro ao carregar dados"}
+      </p>
+      <p className="text-gray-400 text-center max-w-sm">
+        {engemanOffline
+          ? "O servidor Engeman não está acessível neste ambiente (rede local apenas)."
+          : "Não foi possível carregar os dados de qualidade."}
+      </p>
+      <Button variant="outline" size="sm" className="gap-1.5 mt-1" onClick={load}>
+        <RefreshCw className="w-4 h-4" />
+        Tentar novamente
+      </Button>
+    </div>
   );
 
   const scoreColor = data.score >= 80 ? "text-green-600" : data.score >= 60 ? "text-amber-600" : "text-red-600";

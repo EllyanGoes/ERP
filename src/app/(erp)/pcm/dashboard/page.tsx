@@ -72,6 +72,10 @@ const LS_TARGETS_KEY    = "pcm_targets_v1";
 const LS_CACHE_KEY      = "pcm_indicadores_cache_v2";
 const CACHE_MAX_AGE_MS  = 30 * 60 * 1000; // 30 min — dados ficam válidos
 
+// ── Module-level memory cache — survives tab switches within the same session ──
+// (Unlike localStorage, this never triggers a parse/serialize cost)
+let _dashMemCache: { data: IndicadoresResponse; dias: number } | null = null;
+
 // ── Targets ──────────────────────────────────────────────────────────────────
 function loadTargets(): { mtbf: number; mttr: number } {
   if (typeof window === "undefined") return { mtbf: 120, mttr: 4 };
@@ -108,6 +112,20 @@ function loadDataCache(dias: number): { data: IndicadoresResponse; stale: boolea
     const age = Date.now() - new Date(entry.savedAt).getTime();
     return { data: entry.data, stale: age > CACHE_MAX_AGE_MS };
   } catch { return null; }
+}
+
+/** Check memory cache first (instant), then localStorage — returns data or null */
+function getCachedData(dias: number): IndicadoresResponse | null {
+  if (_dashMemCache?.dias === dias) return _dashMemCache.data;
+  const ls = loadDataCache(dias);
+  if (ls) { _dashMemCache = { data: ls.data, dias }; return ls.data; }
+  return null;
+}
+
+/** Persist to both memory and localStorage */
+function setCachedData(data: IndicadoresResponse, dias: number) {
+  _dashMemCache = { data, dias };
+  saveDataCache(data, dias);
 }
 
 function fmtTime(iso: string) {
@@ -451,8 +469,11 @@ function SortIcon({ field, sortField, sortDir }: { field: string; sortField: str
 // ---------------------------------------------------------------------------
 export default function PCMDashboardPage() {
   const [dias, setDias] = useState(365);
-  const [data, setData] = useState<IndicadoresResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Lazy initializers — read from memory/LS cache immediately on mount.
+  // This means zero spinner flash when switching back to this tab.
+  const [data, setData]       = useState<IndicadoresResponse | null>(() => getCachedData(365));
+  const [loading, setLoading] = useState<boolean>(() => getCachedData(365) === null);
+  const [engemanOffline, setEngemanOffline] = useState(false);
   const [refreshing, setRefreshing] = useState(false); // background refresh
   const [sortField, setSortField] = useState<SortField>("mtbf");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -472,6 +493,9 @@ export default function PCMDashboardPage() {
   const [loadingLocais, setLoadingLocais]       = useState(false);
   const treePopoverRef                          = useRef<HTMLDivElement>(null);
 
+  // ── Status aplicação filter ──────────────────────────────────────────────────
+  const [statusAplicacao, setStatusAplicacao] = useState<"ativas" | "inativas" | "todas">("ativas");
+
   // Load targets from localStorage on mount
   useEffect(() => {
     const t = loadTargets();
@@ -485,10 +509,16 @@ export default function PCMDashboardPage() {
     else setLoading(true);
     try {
       const res = await fetch(`/api/pcm/indicadores?dias=${dias}`);
+      if (res.status === 503) {
+        setEngemanOffline(true);
+        if (!background) setData(null);
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: IndicadoresResponse = await res.json();
+      setEngemanOffline(false);
       setData(json);
-      saveDataCache(json, dias);
+      setCachedData(json, dias);
     } catch {
       if (!background) setData(null);
     } finally {
@@ -497,14 +527,18 @@ export default function PCMDashboardPage() {
     }
   }, [dias]);
 
-  // Stale-while-revalidate: mostra cache imediatamente, atualiza em background
+  // On mount / dias change: if cache exists show it immediately (lazy init handled mount),
+  // but always kick off a background refresh so data stays fresh.
   useEffect(() => {
-    const cached = loadDataCache(dias);
+    const cached = getCachedData(dias);
     if (cached) {
-      setData(cached.data);
+      // Data already visible from lazy init or previous dias load — just refresh quietly
+      setData(cached);
       setLoading(false);
-      fetchData(true); // refresca silenciosamente
+      fetchData(true);
     } else {
+      setData(null);
+      setLoading(true);
       fetchData(false);
     }
   }, [fetchData, dias]);
@@ -519,6 +553,11 @@ export default function PCMDashboardPage() {
       .finally(() => setLoadingLocais(false));
   }, []);
 
+  // Reset tree selection when status filter changes (different set of apps)
+  useEffect(() => {
+    setTreeSelected(null);
+  }, [statusAplicacao]);
+
   // Close tree popover on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -530,11 +569,35 @@ export default function PCMDashboardPage() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [showTreePopover]);
 
-  // Filtered tree nodes for the popover (search-filtered)
-  const treeNodes = useMemo(() => {
-    if (!treeSearch.trim()) return allLocais;
-    const q = treeSearch.toLowerCase();
+  // Map codApl → ativo for cross-referencing with indicator data
+  const ativoMap = useMemo(
+    () => new Map(allLocais.flatMap((l) => l.equips.map((e) => [e.codApl, e.ativo]))),
+    [allLocais]
+  );
+
+  // Locais filtered by ativo status (for tree and allCodApls)
+  const locaisFiltradosPorStatus = useMemo(() => {
+    if (statusAplicacao === "todas") return allLocais;
+    const wantAtivo = statusAplicacao === "ativas";
     return allLocais
+      .map((loc) => ({
+        ...loc,
+        equips: loc.equips.filter((e) => e.ativo === wantAtivo),
+      }))
+      .filter((loc) => loc.equips.length > 0);
+  }, [allLocais, statusAplicacao]);
+
+  // All codApls from the status-filtered tree (not just those with OS)
+  const allCodApls = useMemo(
+    () => new Set(locaisFiltradosPorStatus.flatMap((l) => l.equips.map((e) => e.codApl))),
+    [locaisFiltradosPorStatus]
+  );
+
+  // Filtered tree nodes for the popover (search-filtered, already status-filtered)
+  const treeNodes = useMemo(() => {
+    if (!treeSearch.trim()) return locaisFiltradosPorStatus;
+    const q = treeSearch.toLowerCase();
+    return locaisFiltradosPorStatus
       .map((loc) => ({
         ...loc,
         equips: loc.equips.filter(
@@ -542,7 +605,7 @@ export default function PCMDashboardPage() {
         ),
       }))
       .filter((loc) => loc.descricao.toLowerCase().includes(q) || loc.equips.length > 0);
-  }, [allLocais, treeSearch]);
+  }, [locaisFiltradosPorStatus, treeSearch]);
 
   // Expand matched nodes when searching
   useEffect(() => {
@@ -558,12 +621,6 @@ export default function PCMDashboardPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allLocais]);
-
-  // All codApls from the full tree (not just those with OS)
-  const allCodApls = useMemo(
-    () => new Set(allLocais.flatMap((l) => l.equips.map((e) => e.codApl))),
-    [allLocais]
-  );
 
   // ── Tree helpers ────────────────────────────────────────────────────────────
   function toggleTreeLocation(local: string, equips: { codApl: number }[]) {
@@ -609,6 +666,16 @@ export default function PCMDashboardPage() {
     if (!data) return [];
     let list = data.equipamentos;
 
+    // Filter by ativo status (only applies when ativoMap is populated from Engeman)
+    if (ativoMap.size > 0 && statusAplicacao !== "todas") {
+      const wantAtivo = statusAplicacao === "ativas";
+      list = list.filter((e) => {
+        const ativo = ativoMap.get(e.codApl);
+        // If not in map (unknown), include only in "ativas" (safer default)
+        return ativo === undefined ? wantAtivo : ativo === wantAtivo;
+      });
+    }
+
     if (treeSelected !== null) {
       list = list.filter((e) => treeSelected.has(e.codApl));
     }
@@ -626,7 +693,7 @@ export default function PCMDashboardPage() {
     });
 
     return list;
-  }, [data, sortField, sortDir, treeSelected]);
+  }, [data, sortField, sortDir, treeSelected, ativoMap, statusAplicacao]);
 
   // KPI averages — reflect current tree selection
   const kpis = useMemo(() => {
@@ -698,17 +765,17 @@ export default function PCMDashboardPage() {
               </span>
             )}
 
-            {/* Connection status indicator — always visible when data is present */}
-            {data && (
-              <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-green-50 border-green-200 text-green-700"
-              >
+            {/* Connection status indicator */}
+            {engemanOffline ? (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-red-50 border-red-200 text-red-700">
                 <Database className="w-3.5 h-3.5" />
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]"
-                  }`}
-                />
+                <span className="w-2 h-2 rounded-full bg-red-500" />
+                Engeman inacessível
+              </div>
+            ) : data && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-green-50 border-green-200 text-green-700">
+                <Database className="w-3.5 h-3.5" />
+                <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]" />
                 Engeman online
               </div>
             )}
@@ -803,46 +870,6 @@ export default function PCMDashboardPage() {
             </CardContent>
           </Card>
         )}
-
-        {/* KPI Cards */}
-        <div className="grid grid-cols-4 gap-4">
-          <KpiCard
-            title="Média MTBF"
-            value={`${fmt1(kpis.mtbf)}h`}
-            subtitle={`Meta: ${targets.mtbf}h entre falhas`}
-            icon={Activity}
-            color={kpis.mtbf >= targets.mtbf ? "text-blue-600" : "text-red-600"}
-            bg={kpis.mtbf >= targets.mtbf ? "bg-blue-50" : "bg-red-50"}
-            trend={kpis.mtbf >= targets.mtbf ? "up" : "down"}
-          />
-          <KpiCard
-            title="Média MTTR"
-            value={`${fmt1(kpis.mttr)}h`}
-            subtitle={`Meta: ≤ ${targets.mttr}h para reparar`}
-            icon={AlertTriangle}
-            color={kpis.mttr <= targets.mttr ? "text-green-600" : "text-red-600"}
-            bg={kpis.mttr <= targets.mttr ? "bg-green-50" : "bg-red-50"}
-            trend={kpis.mttr <= targets.mttr ? "up" : "down"}
-          />
-          <KpiCard
-            title="Disponibilidade Média"
-            value={fmtPct(kpis.disp)}
-            subtitle="Tempo operacional / período"
-            icon={TrendingUp}
-            color={kpis.disp >= 95 ? "text-green-600" : kpis.disp >= 85 ? "text-amber-600" : "text-red-600"}
-            bg={kpis.disp >= 95 ? "bg-green-50" : kpis.disp >= 85 ? "bg-amber-50" : "bg-red-50"}
-            trend={kpis.disp >= 90 ? "up" : "down"}
-          />
-          <KpiCard
-            title="Confiabilidade Média"
-            value={fmtPct(kpis.conf)}
-            subtitle="R(t) = e^(-720/MTBF) em 720h"
-            icon={Activity}
-            color={kpis.conf >= 60 ? "text-blue-600" : "text-amber-600"}
-            bg={kpis.conf >= 60 ? "bg-blue-50" : "bg-amber-50"}
-            trend={kpis.conf >= 60 ? "up" : "down"}
-          />
-        </div>
 
         {/* Filters */}
         <div className="flex items-end gap-3 flex-wrap">
@@ -973,7 +1000,144 @@ export default function PCMDashboardPage() {
             </Select>
           </div>
 
+          {/* Situação das aplicações */}
+          <div>
+            <Label className="text-xs text-gray-500 mb-1 block">Situação</Label>
+            <Select
+              value={statusAplicacao}
+              onValueChange={(v) => setStatusAplicacao(v as "ativas" | "inativas" | "todas")}
+            >
+              <SelectTrigger className="w-44 h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ativas">Somente Ativas</SelectItem>
+                <SelectItem value="inativas">Somente Inativas</SelectItem>
+                <SelectItem value="todas">Ativas + Inativas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
         </div>
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-4 gap-4">
+          <KpiCard
+            title="Média MTBF"
+            value={`${fmt1(kpis.mtbf)}h`}
+            subtitle={`Meta: ${targets.mtbf}h entre falhas`}
+            icon={Activity}
+            color={kpis.mtbf >= targets.mtbf ? "text-blue-600" : "text-red-600"}
+            bg={kpis.mtbf >= targets.mtbf ? "bg-blue-50" : "bg-red-50"}
+            trend={kpis.mtbf >= targets.mtbf ? "up" : "down"}
+          />
+          <KpiCard
+            title="Média MTTR"
+            value={`${fmt1(kpis.mttr)}h`}
+            subtitle={`Meta: ≤ ${targets.mttr}h para reparar`}
+            icon={AlertTriangle}
+            color={kpis.mttr <= targets.mttr ? "text-green-600" : "text-red-600"}
+            bg={kpis.mttr <= targets.mttr ? "bg-green-50" : "bg-red-50"}
+            trend={kpis.mttr <= targets.mttr ? "up" : "down"}
+          />
+          <KpiCard
+            title="Disponibilidade Média"
+            value={fmtPct(kpis.disp)}
+            subtitle="Tempo operacional / período"
+            icon={TrendingUp}
+            color={kpis.disp >= 95 ? "text-green-600" : kpis.disp >= 85 ? "text-amber-600" : "text-red-600"}
+            bg={kpis.disp >= 95 ? "bg-green-50" : kpis.disp >= 85 ? "bg-amber-50" : "bg-red-50"}
+            trend={kpis.disp >= 90 ? "up" : "down"}
+          />
+          <KpiCard
+            title="Confiabilidade Média"
+            value={fmtPct(kpis.conf)}
+            subtitle="R(t) = e^(-720/MTBF) em 720h"
+            icon={Activity}
+            color={kpis.conf >= 60 ? "text-blue-600" : "text-amber-600"}
+            bg={kpis.conf >= 60 ? "bg-blue-50" : "bg-amber-50"}
+            trend={kpis.conf >= 60 ? "up" : "down"}
+          />
+        </div>
+
+        {/* ── Metric line charts (TRACTIAN-style) ── */}
+        {!loading && data && data.tendencia.length > 0 && (
+          <div className="space-y-4">
+            {METRIC_CONFIGS.map((cfg) => (
+              <Card key={cfg.key} className="border-gray-100">
+                <CardContent className="pt-4 pb-4">
+                  {/* Card header row */}
+                  <div className="flex items-center justify-between mb-1">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{cfg.label}</p>
+                      <button
+                        onClick={() => setDrillMetric(cfg)}
+                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-0.5"
+                      >
+                        Visão Detalhada
+                        <ChevronRight className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <span className="text-xs text-gray-400 bg-gray-50 border border-gray-100 rounded px-2 py-0.5">
+                      Mês
+                    </span>
+                  </div>
+
+                  {/* Chart */}
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart
+                      data={data.tendencia}
+                      margin={{ top: 22, right: 24, left: 0, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fontSize: 11, fill: "#9ca3af" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 10, fill: "#9ca3af" }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={cfg.fmtY}
+                        width={56}
+                        domain={cfg.domain}
+                      />
+                      <Tooltip
+                        content={({ active, payload, label }) => (
+                          <MetricTooltip
+                            active={active}
+                            payload={payload as any[]}
+                            label={typeof label === "string" ? label : String(label ?? "")}
+                            fmtDot={cfg.fmtDot}
+                          />
+                        )}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey={cfg.key}
+                        stroke={cfg.color}
+                        strokeWidth={2.5}
+                        dot={(props) => (
+                          <LabeledDot
+                            key={`dot-${props.index}`}
+                            cx={props.cx}
+                            cy={props.cy}
+                            value={props.value}
+                            fmtDot={cfg.fmtDot}
+                            color={cfg.color}
+                          />
+                        )}
+                        activeDot={{ r: 6, fill: cfg.color, stroke: "white", strokeWidth: 2 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
 
         {/* Main table */}
         <Card className="border-gray-100">
@@ -995,6 +1159,24 @@ export default function PCMDashboardPage() {
               <div className="flex items-center justify-center py-16 text-gray-400 text-sm gap-2">
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 Carregando dados do Engeman…
+              </div>
+            ) : engemanOffline ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3 text-sm">
+                <Database className="w-10 h-10 text-red-300" />
+                <p className="font-semibold text-red-600">Engeman inacessível</p>
+                <p className="text-gray-400 text-center max-w-sm">
+                  O banco de dados do Engeman não está acessível neste ambiente.
+                  O servidor está disponível apenas na rede local (192.168.0.206).
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 mt-1"
+                  onClick={() => fetchData(false)}
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Tentar novamente
+                </Button>
               </div>
             ) : equipamentosFiltrados.length === 0 ? (
               <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
@@ -1175,85 +1357,6 @@ export default function PCMDashboardPage() {
             )}
           </CardContent>
         </Card>
-
-        {/* ── Metric line charts (TRACTIAN-style) ── */}
-        {!loading && data && data.tendencia.length > 0 && (
-          <div className="space-y-4">
-            {METRIC_CONFIGS.map((cfg) => (
-              <Card key={cfg.key} className="border-gray-100">
-                <CardContent className="pt-4 pb-4">
-                  {/* Card header row */}
-                  <div className="flex items-center justify-between mb-1">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800">{cfg.label}</p>
-                      <button
-                        onClick={() => setDrillMetric(cfg)}
-                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-0.5"
-                      >
-                        Visão Detalhada
-                        <ChevronRight className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <span className="text-xs text-gray-400 bg-gray-50 border border-gray-100 rounded px-2 py-0.5">
-                      Mês
-                    </span>
-                  </div>
-
-                  {/* Chart */}
-                  <ResponsiveContainer width="100%" height={200}>
-                    <LineChart
-                      data={data.tendencia}
-                      margin={{ top: 22, right: 24, left: 0, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                      <XAxis
-                        dataKey="label"
-                        tick={{ fontSize: 11, fill: "#9ca3af" }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 10, fill: "#9ca3af" }}
-                        axisLine={false}
-                        tickLine={false}
-                        tickFormatter={cfg.fmtY}
-                        width={56}
-                        domain={cfg.domain}
-                      />
-                      <Tooltip
-                        content={({ active, payload, label }) => (
-                          <MetricTooltip
-                            active={active}
-                            payload={payload as any[]}
-                            label={typeof label === "string" ? label : String(label ?? "")}
-                            fmtDot={cfg.fmtDot}
-                          />
-                        )}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey={cfg.key}
-                        stroke={cfg.color}
-                        strokeWidth={2.5}
-                        dot={(props) => (
-                          <LabeledDot
-                            key={`dot-${props.index}`}
-                            cx={props.cx}
-                            cy={props.cy}
-                            value={props.value}
-                            fmtDot={cfg.fmtDot}
-                            color={cfg.color}
-                          />
-                        )}
-                        activeDot={{ r: 6, fill: cfg.color, stroke: "white", strokeWidth: 2 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
 
         {/* Drill-down modal */}
         {drillMetric && (

@@ -5,13 +5,14 @@ import sql from "mssql";
 
 export interface FalhaRegistro {
   codord: number;
-  descricao: string;       // OBS
-  datent: string;          // data abertura
-  datafim: string | null;  // data conclusão
+  descricao: string;        // OBS
+  datent: string;           // data abertura
+  datafim: string | null;   // data conclusão (DATFEC)
   statord: string;
-  horasParada: number;     // tempo de parada calculado
-  tipo: string;            // TIPMANUT.DESCRICAO
+  horasParada: number;      // tempo de parada calculado
+  tipo: string;             // TIPMANUT.DESCRICAO
   prioridade: string | null;
+  fechadoPor: string | null; // NOME_FECHOU
 }
 
 export interface FMEAResponse {
@@ -93,12 +94,13 @@ async function queryFMEA(codapl: number, dias: number): Promise<FMEAResponse> {
         EQUIPAMENTO: string | null;
         TAG: string | null;
         LOCAL: string | null;
+        NOME_FECHOU: string | null;
       }>(`
         SELECT
           o.CODORD,
           o.OBS,
           o.DATENT,
-          NULL                                                      AS DATAFIM,
+          o.DATFEC                                                  AS DATAFIM,
           o.MAQPAR,
           o.MAQFUN,
           ISNULL(o.HOREXEREA, 0)                                    AS HOREXEREA,
@@ -107,7 +109,8 @@ async function queryFMEA(codapl: number, dias: number): Promise<FMEAResponse> {
           o.PRISUB,
           ISNULL(RTRIM(a.DESCRICAO), 'Não informado')               AS EQUIPAMENTO,
           CAST(a.CODAPL AS VARCHAR(20))                             AS TAG,
-          ISNULL(RTRIM(l.DESCRICAO), 'Não informado')               AS LOCAL
+          ISNULL(RTRIM(l.DESCRICAO), 'Não informado')               AS LOCAL,
+          o.NOME_FECHOU
         FROM ORDSERV o
         INNER JOIN APLIC    a ON a.CODAPL    = o.CODAPL
         LEFT  JOIN LOCAPLIC l ON l.CODLOCAPL = a.CODLOCAPL
@@ -163,6 +166,7 @@ async function queryFMEA(codapl: number, dias: number): Promise<FMEAResponse> {
           : r.PRISUB === 2 ? "MÉDIA"
           : r.PRISUB === 3 ? "BAIXA"
           : null,
+        fechadoPor: r.NOME_FECHOU ?? null,
       };
     });
 

@@ -10,7 +10,17 @@ import { Label } from "@/components/ui/label";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
-import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Users, CheckCircle2, Pencil } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Users, CheckCircle2, FileInput, Link2, FileText } from "lucide-react";
+
+const STATUS_FLOW: { value: string; label: string }[] = [
+  { value: "AGUARDANDO_PAGAMENTO", label: "Aguard. Pagamento" },
+  { value: "EM_TRANSITO",          label: "Em Trânsito"       },
+  { value: "CONFIRMADO",           label: "Confirmado"        },
+  { value: "CANCELADO",            label: "Cancelado"         },
+];
 
 type WAUser = { id: string; nome: string; telefone: string | null };
 
@@ -35,7 +45,16 @@ type PedidoCompra = {
   dataEntregaPrevista: string | null;
   observacoes: string | null;
   cotacaoId: string | null;
-  cotacao: { id: string; numero: string; nome: string | null } | null;
+  cotacao: {
+    id: string; numero: string; nome: string | null;
+    necessidade: {
+      id: string; numero: string; solicitante: string | null;
+      justificativa: string | null;
+      centroCusto: { nome: string } | null;
+      localEstoque: { nome: string } | null;
+      itens: Array<{ quantidade: unknown; item: { descricao: string } }>;
+    } | null;
+  } | null;
   fornecedor: {
     id: string;
     razaoSocial: string;
@@ -62,17 +81,6 @@ const TIPO_FRETE_LABEL: Record<string, string> = {
   O: "Outro",
 };
 
-const STATUS_NEXT: Record<string, { label: string; next: string; variant: "default" | "outline" }[]> = {
-  RASCUNHO: [{ label: "Enviar Pedido", next: "ENVIADO", variant: "default" }],
-  ENVIADO: [{ label: "Confirmar Recebimento", next: "CONFIRMADO", variant: "default" }],
-  CONFIRMADO: [
-    { label: "Marcar Em Trânsito", next: "EM_TRANSITO", variant: "outline" },
-    { label: "Registrar Chegada", next: "RECEBIDO", variant: "default" },
-  ],
-  EM_TRANSITO: [{ label: "Registrar Chegada", next: "RECEBIDO", variant: "default" }],
-  RECEBIDO: [],
-  CANCELADO: [],
-};
 
 export default function PedidoCompraDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -83,6 +91,13 @@ export default function PedidoCompraDetailPage() {
   const [actionError, setActionError] = useState("");
   const [actioning, setActioning] = useState(false);
 
+  // ── Vincular Cotação popover ──────────────────────────────────────────────────
+  const [ctPopoverOpen,  setCtPopoverOpen]  = useState(false);
+  const [ctSearch,       setCtSearch]       = useState("");
+  const [ctOptions,      setCtOptions]      = useState<{ id: string; numero: string; nome: string | null; necessidade: { numero: string } | null }[]>([]);
+  const [ctSearching,    setCtSearching]    = useState(false);
+  const ctPopoverRef = useRef<HTMLDivElement>(null);
+
   // ── WA modal state ────────────────────────────────────────────────────────────
   const [showWAModal,    setShowWAModal]    = useState(false);
   const [waAprovadorId,  setWAAprovadorId]  = useState("");
@@ -92,6 +107,53 @@ export default function PedidoCompraDetailPage() {
   const [waUsersLoading, setWAUsersLoading] = useState(false);
   const [waCopied,       setWACopied]       = useState(false);
   const waDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close CT popover on outside click
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (ctPopoverRef.current && !ctPopoverRef.current.contains(e.target as Node))
+        setCtPopoverOpen(false);
+    }
+    if (ctPopoverOpen) document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [ctPopoverOpen]);
+
+  // Search cotações while typing
+  useEffect(() => {
+    if (!ctSearch.trim()) { setCtOptions([]); return; }
+    const t = setTimeout(async () => {
+      setCtSearching(true);
+      try {
+        const res  = await fetch(`/api/suprimentos/cotacoes`);
+        const json = await res.json();
+        const q    = ctSearch.toLowerCase();
+        const list = (json.data ?? []).filter((c: { numero: string; nome: string | null }) =>
+          c.numero.toLowerCase().includes(q) || (c.nome ?? "").toLowerCase().includes(q)
+        );
+        setCtOptions(list.slice(0, 10));
+      } catch { /* ignore */ }
+      finally { setCtSearching(false); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [ctSearch]);
+
+  async function vincularCotacao(cotacaoId: string | null) {
+    setActioning(true);
+    try {
+      const res  = await fetch(`/api/suprimentos/pedidos-compra/${id}`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ vincularCotacao: cotacaoId }),
+      });
+      if (res.ok) {
+        await load();
+        setCtPopoverOpen(false);
+        setCtSearch("");
+        setCtOptions([]);
+      }
+    } catch { /* ignore */ }
+    finally { setActioning(false); }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -177,29 +239,49 @@ export default function PedidoCompraDetailPage() {
 
   function buildWAMessage() {
     if (!pedido) return "";
-    const cf = pedido.cotacaoFornecedor;
+    const cf  = pedido.cotacaoFornecedor;
+    const sc  = pedido.cotacao?.necessidade ?? null;
+    const total = calcTotal();
+
     const itensLines = pedido.itens.map((it, i) => {
       const qtd   = decimalToNumber(it.quantidade);
       const preco = decimalToNumber(it.precoUnitario);
       const tot   = decimalToNumber(it.valorTotal) || qtd * preco;
       return `  ${i + 1}. ${it.item.descricao} — ${qtd.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} ${it.item.unidadeMedida} × ${formatBRL(preco)} = ${formatBRL(tot)}`;
     });
-    const total = calcTotal();
-    return [
-      `*Pedido de Compra ${pedido.numero}*`,
-      ``,
-      `• *Fornecedor:* ${pedido.fornecedor.nomeFantasia || pedido.fornecedor.razaoSocial}`,
-      ...(pedido.cotacao ? [`• *Cotação:* ${pedido.cotacao.numero}`] : []),
-      ...(cf?.condicoesPagamento ? [`• *Cond. Pagamento:* ${cf.condicoesPagamento}`] : []),
-      ...(cf?.prazoEntregaDias ? [`• *Prazo Entrega:* ${cf.prazoEntregaDias} dias`] : []),
-      ...(pedido.dataEntregaPrevista ? [`• *Entrega Prevista:* ${formatDate(pedido.dataEntregaPrevista)}`] : []),
-      ``,
-      `*Itens (${pedido.itens.length}):*`,
-      ...itensLines,
-      ``,
-      `*Total: ${formatBRL(total)}*`,
-      ...(pedido.observacoes ? [``, `_Obs: ${pedido.observacoes}_`] : []),
-    ].join("\n");
+
+    const lines: string[] = [];
+
+    // ── SC block (only if linked) ──────────────────────────────────────────────
+    if (sc) {
+      lines.push(`*SC:* ${sc.numero}`);
+      const setor = sc.centroCusto?.nome ?? sc.localEstoque?.nome ?? null;
+      if (setor)              lines.push(`*Setor:* ${setor}`);
+      if (sc.solicitante)     lines.push(`*Solicitante:* ${sc.solicitante}`);
+      if (sc.justificativa)   lines.push(`*Descrição:* ${sc.justificativa}`);
+      lines.push(``);
+    }
+
+    // ── PC block ──────────────────────────────────────────────────────────────
+    lines.push(`*PC:* ${pedido.numero.replace(/^PC-/, "")}`);
+    lines.push(`*Fornecedor:* ${pedido.fornecedor.nomeFantasia || pedido.fornecedor.razaoSocial}`);
+    if (cf?.condicoesPagamento) lines.push(`*Cond. Pagamento:* ${cf.condicoesPagamento}`);
+    if (pedido.dataEntregaPrevista) lines.push(`*Entrega Prevista:* ${formatDate(pedido.dataEntregaPrevista)}`);
+    lines.push(``);
+
+    // ── Items ──────────────────────────────────────────────────────────────────
+    lines.push(`*Itens (${pedido.itens.length}):*`);
+    lines.push(...itensLines);
+    lines.push(``);
+
+    // ── Totals ─────────────────────────────────────────────────────────────────
+    const vrDesconto = decimalToNumber(cf?.vrDesconto);
+    if (vrDesconto > 0) lines.push(`*Desconto:* ${formatBRL(vrDesconto)}`);
+    lines.push(`*Total:* ${formatBRL(total)}`);
+
+    if (pedido.observacoes) lines.push(``, `_Obs: ${pedido.observacoes}_`);
+
+    return lines.join("\n");
   }
 
   async function copyWAMessage() {
@@ -243,7 +325,6 @@ export default function PedidoCompraDetailPage() {
   if (!pedido) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
   const totalGeral  = calcTotal();
-  const nextActions = STATUS_NEXT[pedido.status] ?? [];
   const cf          = pedido.cotacaoFornecedor;
   const fornNome    = pedido.fornecedor.nomeFantasia || pedido.fornecedor.razaoSocial;
   const codigoForn  = pedido.fornecedor.id.slice(-8).toUpperCase();
@@ -270,29 +351,38 @@ export default function PedidoCompraDetailPage() {
         ]}
         action={
           <div className="flex items-center gap-2">
-            <StatusBadge status={pedido.status} />
-            {(pedido.status === "RASCUNHO" || pedido.status === "ENVIADO") && (
-              <Button size="sm" variant="outline" asChild>
-                <Link href={`/suprimentos/pedidos-compra/${id}/editar`}>
-                  <Pencil className="w-3.5 h-3.5 mr-1.5" /> Editar
-                </Link>
-              </Button>
-            )}
+            {/* Status inline selector */}
+            <Select
+              value={pedido.status}
+              onValueChange={(v) => changeStatus(v)}
+              disabled={actioning || pedido.status === "CANCELADO" || pedido.status === "CONFIRMADO"}
+            >
+              <SelectTrigger className="h-8 w-48 text-xs font-medium">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_FLOW.map((s) => (
+                  <SelectItem key={s.value} value={s.value} className="text-xs">
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* WhatsApp */}
             <Button size="sm" variant="outline"
               className="border-green-500 text-green-700 hover:bg-green-50 gap-1.5"
               onClick={openWAModal}>
-              <MessageCircle className="w-3.5 h-3.5" /> Encaminhar via WhatsApp
+              <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
             </Button>
-            {nextActions.map((action) => (
-              <Button key={action.next} size="sm" variant={action.variant}
-                onClick={() => changeStatus(action.next)} disabled={actioning}>
-                {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
-                {action.label}
-              </Button>
-            ))}
-            {(pedido.status === "CONFIRMADO" || pedido.status === "EM_TRANSITO") && !pedido.conferencia && (
-              <Button size="sm" onClick={registrarConferencia} disabled={actioning}>
-                {actioning ? "Criando..." : "Gerar Doc. Entrada"}
+
+            {/* Gerar Doc. Entrada */}
+            {!pedido.conferencia && pedido.status !== "CANCELADO" && (
+              <Button size="sm" className="gap-1.5" onClick={registrarConferencia} disabled={actioning}>
+                {actioning
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <FileInput className="w-3.5 h-3.5" />}
+                Gerar Doc. Entrada
               </Button>
             )}
           </div>
@@ -339,16 +429,97 @@ export default function PedidoCompraDetailPage() {
 
         {/* ── Seção Cotação / Financeiro ───────────────────────────────── */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
             <h2 className="font-semibold text-sm text-gray-800">Cotação</h2>
-            {pedido.cotacao && (
-              <Link
-                href={`/suprimentos/cotacoes/${pedido.cotacao.id}`}
-                className="text-xs text-blue-600 hover:underline"
-              >
-                {pedido.cotacao.numero}{pedido.cotacao.nome ? ` — ${pedido.cotacao.nome}` : ""}
-              </Link>
-            )}
+
+            <div className="flex items-center gap-2 ml-auto">
+              {/* Link to cotação */}
+              {pedido.cotacao && (
+                <Link
+                  href={`/suprimentos/cotacoes/${pedido.cotacao.id}`}
+                  className="flex items-center gap-1 text-xs text-indigo-600 hover:underline font-medium"
+                >
+                  <FileText className="w-3 h-3" />
+                  {pedido.cotacao.numero}{pedido.cotacao.nome ? ` — ${pedido.cotacao.nome}` : ""}
+                  {pedido.cotacao.necessidade && (
+                    <span className="text-gray-400 font-normal ml-1">
+                      · SC {pedido.cotacao.necessidade.numero}
+                    </span>
+                  )}
+                </Link>
+              )}
+
+              {/* Vincular / desvincular CT button */}
+              <div className="relative" ref={ctPopoverRef}>
+                {pedido.cotacao ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs text-gray-400 hover:text-red-500 gap-1"
+                    onClick={() => vincularCotacao(null)}
+                    disabled={actioning}
+                    title="Desvincular Cotação"
+                  >
+                    <X className="w-3 h-3" /> Desvincular CT
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2.5 text-xs gap-1.5"
+                    onClick={() => { setCtPopoverOpen((v) => !v); setCtSearch(""); setCtOptions([]); }}
+                    disabled={actioning}
+                  >
+                    <Link2 className="w-3 h-3" /> Vincular CT
+                  </Button>
+                )}
+
+                {/* Popover de busca */}
+                {ctPopoverOpen && (
+                  <div className="absolute right-0 top-full mt-2 z-50 w-80 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
+                    <div className="p-3 border-b border-gray-100">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                        <input
+                          autoFocus
+                          type="text"
+                          value={ctSearch}
+                          onChange={(e) => setCtSearch(e.target.value)}
+                          placeholder="Buscar cotação… (ex: CT-2025-0001)"
+                          className="w-full pl-8 pr-3 h-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="max-h-52 overflow-y-auto">
+                      {ctSearching ? (
+                        <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-gray-400">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando…
+                        </div>
+                      ) : ctOptions.length === 0 ? (
+                        <p className="px-4 py-3 text-xs text-gray-400 italic text-center">
+                          {ctSearch.trim() ? "Nenhuma cotação encontrada." : "Digite para buscar uma Cotação."}
+                        </p>
+                      ) : ctOptions.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onMouseDown={() => vincularCotacao(c.id)}
+                          className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-indigo-50 border-b border-gray-50 last:border-0"
+                        >
+                          <span className="font-mono font-semibold text-gray-800">{c.numero}</span>
+                          <div className="text-right">
+                            {c.nome && <p className="text-xs text-gray-600">{c.nome}</p>}
+                            {c.necessidade && (
+                              <p className="text-xs text-gray-400">SC {c.necessidade.numero}</p>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="space-y-1">

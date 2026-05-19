@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { decimalToNumber, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
-import { ChevronDown, ChevronRight, Plus, Trash2, X } from "lucide-react";
+import { Link2, X, Plus, Trash2, Search, ExternalLink } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -82,43 +83,46 @@ function emptyRow(): ItemRow {
 export default function NovoDocumentoEntradaPage() {
   const router = useRouter();
 
-  // NF fields
-  const [tipoNota, setTipoNota] = useState("NORMAL");
-  const [numeroNF, setNumeroNF] = useState("");
-  const [serie, setSerie] = useState("1");
-  const [dtEmissao, setDtEmissao] = useState("");
-  const [ufOrigem, setUfOrigem] = useState("");
-  const [espDocumento, setEspDocumento] = useState("SPED");
+  // Documento fields
+  const [tipoDocumento, setTipoDocumento] = useState<"NF" | "SN">("NF");
+  const [numeroNF, setNumeroNF]           = useState("");
+  const [serie, setSerie]                 = useState("1");
+  const [dtEmissao, setDtEmissao]         = useState("");
+  const [ufOrigem, setUfOrigem]           = useState("");
+  const [espDocumento, setEspDocumento]   = useState("SPED");
+
+  const isSN = tipoDocumento === "SN";
 
   // Fornecedor
-  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
-  const [fornecedorId, setFornecedorId] = useState("");
-  const [fornSearch, setFornSearch] = useState("");
-  const [fornDropOpen, setFornDropOpen] = useState(false);
+  const [fornecedores, setFornecedores]   = useState<Fornecedor[]>([]);
+  const [fornecedorId, setFornecedorId]   = useState("");
+  const [fornSearch, setFornSearch]       = useState("");
+  const [fornDropOpen, setFornDropOpen]   = useState(false);
+  const fornRef = useRef<HTMLDivElement>(null);
 
-  // Pedido vinculado (optional)
-  const [pedidosOpen, setPedidosOpen] = useState(false);
-  const [pedidoSearch, setPedidoSearch] = useState("");
-  const [pedidoOptions, setPedidoOptions] = useState<PedidoOption[]>([]);
-  const [pedidoDropOpen, setPedidoDropOpen] = useState(false);
+  // Pedido vinculado — button in header
   const [vinculadoPedido, setVinculadoPedido] = useState<PedidoOption | null>(null);
+  const [pcPopoverOpen, setPcPopoverOpen]     = useState(false);
+  const [pedidoSearch, setPedidoSearch]       = useState("");
+  const [pedidoOptions, setPedidoOptions]     = useState<PedidoOption[]>([]);
+  const pcPopoverRef = useRef<HTMLDivElement>(null);
 
   // Items
-  const [itens, setItens] = useState<ItemRow[]>([emptyRow()]);
-  const [produtos, setProdutos] = useState<Produto[]>([]);
-  const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoque[]>([]);
-  const [prodSearchMap, setProdSearchMap] = useState<Record<string, string>>({});
-  const [prodDropMap, setProdDropMap] = useState<Record<string, boolean>>({});
+  const [itens, setItens]                       = useState<ItemRow[]>([emptyRow()]);
+  const [produtos, setProdutos]                 = useState<Produto[]>([]);
+  const [locaisEstoque, setLocaisEstoque]       = useState<LocalEstoque[]>([]);
+  const [prodSearchMap, setProdSearchMap]       = useState<Record<string, string>>({});
+  const [prodDropMap, setProdDropMap]           = useState<Record<string, boolean>>({});
 
   // Totals
-  const [frete, setFrete] = useState("");
-  const [seguro, setSeguro] = useState("");
+  const [frete, setFrete]       = useState("");
+  const [seguro, setSeguro]     = useState("");
   const [despesas, setDespesas] = useState("");
   const [desconto, setDesconto] = useState("");
 
   // Form state
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError]           = useState("");
 
   useTabTitle("Novo Doc. Entrada");
 
@@ -161,6 +165,40 @@ export default function NovoDocumentoEntradaPage() {
     return () => clearTimeout(t);
   }, [pedidoSearch, searchPedidos]);
 
+  // Close PC popover on outside click
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (pcPopoverRef.current && !pcPopoverRef.current.contains(e.target as Node)) {
+        setPcPopoverOpen(false);
+      }
+    }
+    if (pcPopoverOpen) document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [pcPopoverOpen]);
+
+  // Close fornecedor dropdown on outside click
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (fornRef.current && !fornRef.current.contains(e.target as Node)) {
+        setFornDropOpen(false);
+      }
+    }
+    if (fornDropOpen) document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [fornDropOpen]);
+
+  // Clear NF-specific fields when switching to SN
+  useEffect(() => {
+    if (isSN) {
+      setNumeroNF("");
+      setSerie("");
+      setEspDocumento("");
+    } else {
+      setSerie("1");
+      setEspDocumento("SPED");
+    }
+  }, [isSN]);
+
   function selectFornecedor(f: Fornecedor) {
     setFornecedorId(f.id);
     setFornSearch(f.nomeFantasia || f.razaoSocial);
@@ -169,9 +207,10 @@ export default function NovoDocumentoEntradaPage() {
 
   function selectPedido(p: PedidoOption) {
     setVinculadoPedido(p);
-    setPedidoDropOpen(false);
-    setPedidoSearch(p.numero);
-    // Auto-fill fornecedor
+    setPcPopoverOpen(false);
+    setPedidoSearch("");
+    setPedidoOptions([]);
+    // Auto-fill fornecedor from pedido
     selectFornecedor({
       id: p.fornecedor.id,
       razaoSocial: p.fornecedor.razaoSocial,
@@ -229,15 +268,15 @@ export default function NovoDocumentoEntradaPage() {
 
   // Computed totals
   const vlrMercadoria = itens.reduce((s, r) => {
-    const qtd = parseFloat(r.quantidadePedida) || 0;
+    const qtd  = parseFloat(r.quantidadePedida) || 0;
     const unit = parseFloat(r.vlrUnitario) || 0;
     return s + qtd * unit;
   }, 0);
-  const freteNum = parseFloat(frete) || 0;
-  const seguroNum = parseFloat(seguro) || 0;
+  const freteNum    = parseFloat(frete)    || 0;
+  const seguroNum   = parseFloat(seguro)   || 0;
   const despesasNum = parseFloat(despesas) || 0;
   const descontoNum = parseFloat(desconto) || 0;
-  const vlrBruto = vlrMercadoria + freteNum + seguroNum + despesasNum - descontoNum;
+  const vlrBruto    = vlrMercadoria + freteNum + seguroNum + despesasNum - descontoNum;
 
   async function handleSubmit() {
     setError("");
@@ -257,36 +296,30 @@ export default function NovoDocumentoEntradaPage() {
     try {
       const payload: Record<string, unknown> = {
         fornecedorId,
-        tipoNota,
-        numeroNF: numeroNF || null,
-        serie: serie || null,
-        dtEmissao: dtEmissao || null,
-        ufOrigem: ufOrigem || null,
-        espDocumento: espDocumento || "SPED",
-        frete: freteNum > 0 ? freteNum : null,
+        pedidoId: vinculadoPedido?.id ?? null,
+        tipoNota: tipoDocumento,
+        numeroNF:    isSN ? null : (numeroNF || null),
+        serie:       isSN ? null : (serie    || null),
+        dtEmissao:   dtEmissao    || null,
+        ufOrigem:    ufOrigem     || null,
+        espDocumento: isSN ? null : (espDocumento || "SPED"),
+        frete:    freteNum    > 0 ? freteNum    : null,
         tipoFrete: null,
-        seguro: seguroNum > 0 ? seguroNum : null,
+        seguro:   seguroNum   > 0 ? seguroNum   : null,
         despesas: despesasNum > 0 ? despesasNum : null,
         desconto: descontoNum > 0 ? descontoNum : null,
         itens: validItens.map((r, idx) => ({
           itemId: r.itemId,
           quantidadePedida: parseFloat(r.quantidadePedida),
-          vlrUnitario: parseFloat(r.vlrUnitario) || null,
+          vlrUnitario:  parseFloat(r.vlrUnitario) || null,
           localEstoqueId: r.localEstoqueId || null,
-          tipoEntrada: r.tipoEntrada || null,
-          codFiscal: r.codFiscal || null,
+          tipoEntrada:  r.tipoEntrada || null,
+          codFiscal:    r.codFiscal   || null,
           itemNF: idx + 1,
         })),
       };
 
-      // If linked to a pedido, pass pedidoId too — but the API creates standalone
-      // with fornecedorId. We just pass it as extra info.
-      if (vinculadoPedido) {
-        // Not passing pedidoId here since we want to create a standalone doc
-        // that references fornecedor. The pedido relation is a separate future link.
-      }
-
-      const res = await fetch("/api/suprimentos/conferencias", {
+      const res  = await fetch("/api/suprimentos/conferencias", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -315,6 +348,89 @@ export default function NovoDocumentoEntradaPage() {
           { label: "Doc. de Entrada", href: "/suprimentos/conferencias" },
           { label: "Novo" },
         ]}
+        action={
+          /* ── Botão Vincular PC ─────────────────────────────────────────── */
+          <div className="relative" ref={pcPopoverRef}>
+            <Button
+              type="button"
+              variant={vinculadoPedido ? "default" : "outline"}
+              size="sm"
+              onClick={() => setPcPopoverOpen((v) => !v)}
+              className={cn(
+                "gap-1.5",
+                vinculadoPedido && "bg-blue-600 hover:bg-blue-700 text-white"
+              )}
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              {vinculadoPedido ? vinculadoPedido.numero : "Vincular PC"}
+              {vinculadoPedido && (
+                <span
+                  role="button"
+                  onPointerDown={(e) => { e.stopPropagation(); clearPedido(); }}
+                  className="ml-0.5 opacity-70 hover:opacity-100"
+                >
+                  <X className="w-3 h-3" />
+                </span>
+              )}
+            </Button>
+
+            {pcPopoverOpen && (
+              <div className="absolute right-0 top-full mt-2 z-50 w-80 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
+                {/* Search */}
+                <div className="p-3 border-b border-gray-100">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <input
+                      autoFocus
+                      type="text"
+                      value={pedidoSearch}
+                      onChange={(e) => setPedidoSearch(e.target.value)}
+                      placeholder="Buscar PC… (ex: PC-2025-0001)"
+                      className="w-full pl-8 pr-3 h-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Results */}
+                <div className="max-h-52 overflow-y-auto">
+                  {pedidoOptions.length === 0 ? (
+                    <p className="px-4 py-3 text-xs text-gray-400 italic text-center">
+                      {pedidoSearch.trim() ? "Nenhum resultado." : "Digite para buscar um Pedido de Compra."}
+                    </p>
+                  ) : pedidoOptions.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onMouseDown={() => selectPedido(p)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                    >
+                      <span className="font-mono font-semibold text-gray-800">{p.numero}</span>
+                      <span className="text-xs text-gray-400 truncate max-w-[140px]">
+                        {p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Linked summary */}
+                {vinculadoPedido && (
+                  <div className="px-4 py-2.5 bg-blue-50 border-t border-blue-100 flex items-center justify-between">
+                    <span className="text-xs font-medium text-blue-700 flex items-center gap-1">
+                      <Link2 className="w-3 h-3" /> {vinculadoPedido.numero}
+                    </span>
+                    <Link
+                      href={`/suprimentos/pedidos-compra/${vinculadoPedido.id}`}
+                      target="_blank"
+                      className="text-xs text-blue-600 hover:underline flex items-center gap-0.5"
+                    >
+                      Abrir <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        }
       />
 
       <div className="px-8 pb-8 max-w-6xl space-y-6">
@@ -324,44 +440,53 @@ export default function NovoDocumentoEntradaPage() {
           </div>
         )}
 
-        {/* ── Dados da Nota Fiscal ──────────────────────────────────────────── */}
+        {/* ── Dados do Documento ───────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Dados da Nota Fiscal</CardTitle>
+            <CardTitle className="text-base">Dados do Documento</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Tipo da Nota */}
+
+            {/* Tipo de Documento */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Tipo da Nota</Label>
+              <Label className="text-xs text-gray-500">Tipo de Documento</Label>
               <select
-                value={tipoNota}
-                onChange={(e) => setTipoNota(e.target.value)}
+                value={tipoDocumento}
+                onChange={(e) => setTipoDocumento(e.target.value as "NF" | "SN")}
                 className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="NORMAL">Normal</option>
-                <option value="COMPLEMENTAR">Complementar</option>
-                <option value="DEVOLUCAO">Devolução</option>
-                <option value="ENTRADA_SIMBOLICA">Entrada Simbólica</option>
+                <option value="NF">NF — Nota Fiscal</option>
+                <option value="SN">SN — Sem Nota</option>
               </select>
             </div>
 
-            {/* Numero NF */}
+            {/* Número NF */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Número NF</Label>
+              <Label className={cn("text-xs", isSN ? "text-gray-300" : "text-gray-500")}>
+                Número NF
+                {isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
+              </Label>
               <Input
-                value={numeroNF}
+                value={isSN ? "" : numeroNF}
                 onChange={(e) => setNumeroNF(e.target.value)}
-                placeholder="000000"
+                placeholder={isSN ? "—" : "000000"}
+                disabled={isSN}
+                className={isSN ? "bg-gray-50 text-gray-300 cursor-not-allowed" : ""}
               />
             </div>
 
-            {/* Serie */}
+            {/* Série */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Série</Label>
+              <Label className={cn("text-xs", isSN ? "text-gray-300" : "text-gray-500")}>
+                Série
+                {isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
+              </Label>
               <Input
-                value={serie}
+                value={isSN ? "" : serie}
                 onChange={(e) => setSerie(e.target.value)}
-                placeholder="1"
+                placeholder={isSN ? "—" : "1"}
+                disabled={isSN}
+                className={isSN ? "bg-gray-50 text-gray-300 cursor-not-allowed" : ""}
               />
             </div>
 
@@ -375,13 +500,18 @@ export default function NovoDocumentoEntradaPage() {
               />
             </div>
 
-            {/* Espec. Docum. */}
+            {/* Espécie de Documento */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Espec. Docum.</Label>
+              <Label className={cn("text-xs", isSN ? "text-gray-300" : "text-gray-500")}>
+                Espécie de Documento
+                {isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
+              </Label>
               <Input
-                value={espDocumento}
+                value={isSN ? "" : espDocumento}
                 onChange={(e) => setEspDocumento(e.target.value)}
-                placeholder="SPED"
+                placeholder={isSN ? "—" : "SPED"}
+                disabled={isSN}
+                className={isSN ? "bg-gray-50 text-gray-300 cursor-not-allowed" : ""}
               />
             </div>
 
@@ -415,8 +545,10 @@ export default function NovoDocumentoEntradaPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1.5 md:col-span-2">
-                <Label className="text-xs text-gray-500">Fornecedor <span className="text-red-500">*</span></Label>
+              <div className="space-y-1.5 md:col-span-2" ref={fornRef}>
+                <Label className="text-xs text-gray-500">
+                  Fornecedor <span className="text-red-500">*</span>
+                </Label>
                 <div className="relative">
                   <Input
                     value={fornSearch}
@@ -426,9 +558,14 @@ export default function NovoDocumentoEntradaPage() {
                       if (!e.target.value) setFornecedorId("");
                     }}
                     onFocus={() => setFornDropOpen(true)}
-                    placeholder="Buscar fornecedor..."
+                    placeholder="Buscar no cadastro de fornecedores..."
                     className={!fornecedorId && fornSearch ? "border-red-300" : ""}
                   />
+                  {/* Linked indicator */}
+                  {fornecedorId && (
+                    <Link2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-blue-400 pointer-events-none" />
+                  )}
+
                   {fornDropOpen && fornSearch && (
                     <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
                       {fornecedores
@@ -454,6 +591,9 @@ export default function NovoDocumentoEntradaPage() {
                             {f.nomeFantasia && (
                               <span className="text-gray-400 text-xs ml-2">{f.razaoSocial}</span>
                             )}
+                            {f.cpfCnpj && (
+                              <span className="text-gray-300 text-xs ml-2 font-mono">{f.cpfCnpj}</span>
+                            )}
                           </button>
                         ))}
                       {fornecedores.filter((f) => {
@@ -472,7 +612,7 @@ export default function NovoDocumentoEntradaPage() {
 
               {selectedFornecedor && (
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">CNPJ</Label>
+                  <Label className="text-xs text-gray-500">CNPJ / CPF</Label>
                   <Input
                     value={selectedFornecedor.cpfCnpj ?? "—"}
                     readOnly
@@ -483,68 +623,6 @@ export default function NovoDocumentoEntradaPage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* ── Vincular Pedido (collapsible) ─────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setPedidosOpen((p) => !p)}
-            className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors"
-          >
-            <span className="font-semibold text-sm text-gray-800">
-              Vincular a Pedido de Compra (opcional)
-            </span>
-            {vinculadoPedido ? (
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">
-                Pedido: {vinculadoPedido.numero}
-                <button
-                  type="button"
-                  onMouseDown={(e) => { e.stopPropagation(); clearPedido(); }}
-                  className="ml-0.5 hover:text-blue-900"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ) : (
-              pedidosOpen ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />
-            )}
-          </button>
-          {pedidosOpen && (
-            <div className="p-4">
-              <div className="space-y-1.5 max-w-sm">
-                <Label className="text-xs text-gray-500">Buscar Pedido de Compra</Label>
-                <div className="relative">
-                  <Input
-                    value={pedidoSearch}
-                    onChange={(e) => {
-                      setPedidoSearch(e.target.value);
-                      setPedidoDropOpen(true);
-                    }}
-                    onFocus={() => setPedidoDropOpen(true)}
-                    placeholder="Ex: PC-2025-0001"
-                  />
-                  {pedidoDropOpen && pedidoOptions.length > 0 && (
-                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
-                      {pedidoOptions.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onMouseDown={() => selectPedido(p)}
-                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
-                        >
-                          <span className="font-mono font-medium text-gray-900">{p.numero}</span>
-                          <span className="text-gray-400 text-xs ml-2">
-                            {p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* ── Items Table ──────────────────────────────────────────────────── */}
         <Card>
@@ -573,8 +651,8 @@ export default function NovoDocumentoEntradaPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {itens.map((row, idx) => {
-                    const qtd = parseFloat(row.quantidadePedida) || 0;
-                    const unit = parseFloat(row.vlrUnitario) || 0;
+                    const qtd   = parseFloat(row.quantidadePedida) || 0;
+                    const unit  = parseFloat(row.vlrUnitario) || 0;
                     const total = qtd * unit;
                     const prodSearch = prodSearchMap[row._key] ?? row.descricao;
 
@@ -730,67 +808,27 @@ export default function NovoDocumentoEntradaPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs text-gray-500">Vlr. Mercadoria</Label>
-                <Input
-                  value={formatBRL(vlrMercadoria)}
-                  readOnly
-                  className="bg-gray-50 text-right font-medium"
-                />
+                <Input value={formatBRL(vlrMercadoria)} readOnly className="bg-gray-50 text-right font-medium" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-gray-500">Frete</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={frete}
-                  onChange={(e) => setFrete(e.target.value)}
-                  placeholder="0,00"
-                  className="text-right"
-                />
+                <Input type="number" step="0.01" min="0" value={frete} onChange={(e) => setFrete(e.target.value)} placeholder="0,00" className="text-right" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-gray-500">Seguro</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={seguro}
-                  onChange={(e) => setSeguro(e.target.value)}
-                  placeholder="0,00"
-                  className="text-right"
-                />
+                <Input type="number" step="0.01" min="0" value={seguro} onChange={(e) => setSeguro(e.target.value)} placeholder="0,00" className="text-right" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-gray-500">Despesas</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={despesas}
-                  onChange={(e) => setDespesas(e.target.value)}
-                  placeholder="0,00"
-                  className="text-right"
-                />
+                <Input type="number" step="0.01" min="0" value={despesas} onChange={(e) => setDespesas(e.target.value)} placeholder="0,00" className="text-right" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-gray-500">Desconto</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={desconto}
-                  onChange={(e) => setDesconto(e.target.value)}
-                  placeholder="0,00"
-                  className="text-right"
-                />
+                <Input type="number" step="0.01" min="0" value={desconto} onChange={(e) => setDesconto(e.target.value)} placeholder="0,00" className="text-right" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-gray-500">Vlr. Bruto</Label>
-                <Input
-                  value={formatBRL(vlrBruto)}
-                  readOnly
-                  className="bg-blue-50 text-right font-bold text-blue-900 border-blue-200"
-                />
+                <Input value={formatBRL(vlrBruto)} readOnly className="bg-blue-50 text-right font-bold text-blue-900 border-blue-200" />
               </div>
             </div>
           </CardContent>

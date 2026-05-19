@@ -883,12 +883,14 @@ enum StatusNecessidade {
 }
 
 enum StatusPedidoCompra {
+  AGUARDANDO_PAGAMENTO
+  EM_TRANSITO
+  CONFIRMADO
+  CANCELADO
+  // legado — mantidos para compatibilidade com registros existentes
   RASCUNHO
   ENVIADO
-  CONFIRMADO
-  EM_TRANSITO
   RECEBIDO
-  CANCELADO
 }
 
 enum StatusPedidoVenda {

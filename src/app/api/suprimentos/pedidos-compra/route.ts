@@ -7,7 +7,18 @@ export async function GET() {
   const data = await prisma.pedidoCompra.findMany({
     include: {
       fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
-      cotacao: { select: { id: true, numero: true } },
+      cotacao: {
+        select: {
+          id: true, numero: true,
+          necessidade: {
+            select: {
+              id: true, numero: true, solicitante: true,
+              centroCusto: { select: { nome: true } },
+              localEstoque: { select: { nome: true } },
+            },
+          },
+        },
+      },
       _count: { select: { itens: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -51,6 +62,7 @@ export async function POST(req: NextRequest) {
     const pedido = await tx.pedidoCompra.create({
       data: {
         numero,
+        status:             "AGUARDANDO_PAGAMENTO",
         fornecedorId,
         cotacaoId:          cotacaoId || null,
         valorTotal,
@@ -103,7 +115,7 @@ export async function POST(req: NextRequest) {
         );
 
         const totalNec    = necessidadeItemIds.size;
-        const totalAtend  = [...necessidadeItemIds].filter((id) => atendidosIds.has(id)).length;
+        const totalAtend  = Array.from(necessidadeItemIds).filter((id) => atendidosIds.has(id)).length;
 
         const novoStatus =
           totalNec > 0 && totalAtend >= totalNec

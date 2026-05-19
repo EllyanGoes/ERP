@@ -7,6 +7,7 @@ export interface AplicacaoNode {
   codApl: number;
   tag: string;
   descricao: string;
+  ativo: boolean;
 }
 
 export interface LocalNode {
@@ -36,17 +37,17 @@ export async function GET() {
     const pool = await sql.connect(dbConfig);
     const result = await pool.request().query<{
       CODAPL: number; TAG: string; DESCRICAO: string;
-      CODLOCAPL: number | null; LOCAL: string;
+      CODLOCAPL: number | null; LOCAL: string; ATIVO: string;
     }>(`
       SELECT
         a.CODAPL,
         CAST(a.CODAPL AS VARCHAR(20)) AS TAG,
         RTRIM(ISNULL(a.DESCRICAO, 'Sem descrição')) AS DESCRICAO,
         a.CODLOCAPL,
-        ISNULL(RTRIM(l.DESCRICAO), 'Sem local') AS LOCAL
+        ISNULL(RTRIM(l.DESCRICAO), 'Sem local') AS LOCAL,
+        ISNULL(a.ATIVO, 'N') AS ATIVO
       FROM APLIC a
       LEFT JOIN LOCAPLIC l ON l.CODLOCAPL = a.CODLOCAPL
-      WHERE a.ATIVO = 'S'
       ORDER BY LOCAL, a.DESCRICAO
     `);
     await pool.close();
@@ -56,7 +57,12 @@ export async function GET() {
       if (!map.has(r.LOCAL)) {
         map.set(r.LOCAL, { codLocapl: r.CODLOCAPL, descricao: r.LOCAL, equips: [] });
       }
-      map.get(r.LOCAL)!.equips.push({ codApl: r.CODAPL, tag: r.TAG, descricao: r.DESCRICAO });
+      map.get(r.LOCAL)!.equips.push({
+        codApl: r.CODAPL,
+        tag: r.TAG,
+        descricao: r.DESCRICAO,
+        ativo: r.ATIVO === "S",
+      });
     }
 
     const locais = Array.from(map.values()).sort((a, b) => a.descricao.localeCompare(b.descricao));

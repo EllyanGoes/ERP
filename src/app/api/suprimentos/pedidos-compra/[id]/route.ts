@@ -12,7 +12,27 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
           cpfCnpj: true, contato: true, email: true,
         },
       },
-      cotacao: { select: { id: true, numero: true, nome: true } },
+      cotacao: {
+        select: {
+          id: true, numero: true, nome: true,
+          necessidade: {
+            select: {
+              id: true,
+              numero: true,
+              solicitante: true,
+              justificativa: true,
+              centroCusto: { select: { nome: true } },
+              localEstoque: { select: { nome: true } },
+              itens: {
+                select: {
+                  quantidade: true,
+                  item: { select: { descricao: true } },
+                },
+              },
+            },
+          },
+        },
+      },
       itens: {
         include: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } } },
       },
@@ -108,6 +128,24 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       });
     });
 
+    return NextResponse.json({ data: record });
+  }
+
+  // Vincular / desvincular cotação
+  if (body.vincularCotacao !== undefined) {
+    const cotacaoId = body.vincularCotacao as string | null;
+    const record = await prisma.pedidoCompra.update({
+      where: { id: pedidoId },
+      data: { cotacaoId: cotacaoId || null },
+      include: {
+        cotacao: {
+          select: {
+            id: true, numero: true,
+            necessidade: { select: { id: true, numero: true, solicitante: true } },
+          },
+        },
+      },
+    });
     return NextResponse.json({ data: record });
   }
 

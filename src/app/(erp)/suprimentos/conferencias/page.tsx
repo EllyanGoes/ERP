@@ -6,40 +6,28 @@ import StatusBadge from "@/components/shared/StatusBadge";
 import ClickableRow from "@/components/shared/ClickableRow";
 import { Button } from "@/components/ui/button";
 import { formatDate, formatBRL, decimalToNumber } from "@/lib/utils";
+import { prisma } from "@/lib/prisma";
 
-type ConferenciaItem = {
-  id: string;
-  vlrTotal: unknown;
-};
-
-type ConferenciaDoc = {
-  id: string;
-  numero: string;
-  status: string;
-  numeroNF: string | null;
-  dtEmissao: string | null;
-  vrTotal: unknown;
-  createdAt: string;
-  pedido: {
-    id: string;
-    numero: string;
-    fornecedor: { razaoSocial: string; nomeFantasia: string | null };
-  } | null;
-  fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
-  itens: ConferenciaItem[];
-};
-
-async function getConferencias(): Promise<ConferenciaDoc[]> {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/suprimentos/conferencias`,
-    { cache: "no-store" }
-  );
-  if (!res.ok) return [];
-  const json = await res.json();
-  return json.data ?? [];
+async function getConferencias() {
+  return prisma.conferenciaCompra.findMany({
+    orderBy: { createdAt: "desc" },
+    include: {
+      pedido: {
+        select: {
+          id: true,
+          numero: true,
+          fornecedor: { select: { razaoSocial: true, nomeFantasia: true } },
+        },
+      },
+      fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+      itens: { select: { id: true, vlrTotal: true } },
+    },
+  });
 }
 
-function getFornecedorNome(doc: ConferenciaDoc): string {
+type ConferenciaRow = Awaited<ReturnType<typeof getConferencias>>[number];
+
+function getFornecedorNome(doc: ConferenciaRow): string {
   if (doc.fornecedor) {
     return doc.fornecedor.nomeFantasia || doc.fornecedor.razaoSocial;
   }
@@ -49,7 +37,7 @@ function getFornecedorNome(doc: ConferenciaDoc): string {
   return "—";
 }
 
-function calcValorTotal(doc: ConferenciaDoc): number {
+function calcValorTotal(doc: ConferenciaRow): number {
   const vr = decimalToNumber(doc.vrTotal);
   if (vr > 0) return vr;
   return doc.itens.reduce((s, i) => s + decimalToNumber(i.vlrTotal), 0);

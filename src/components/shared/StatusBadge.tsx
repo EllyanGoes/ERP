@@ -16,8 +16,9 @@ const configs: Record<string, { label: string; className: string }> = {
   RESPONDIDA: { label: "Respondida", className: "bg-green-100 text-green-700" },
   RECUSADA: { label: "Recusada", className: "bg-red-100 text-red-700" },
   // StatusPedidoCompra
-  ENVIADO: { label: "Enviado", className: "bg-blue-100 text-blue-700" },
+  AGUARDANDO_PAGAMENTO: { label: "Aguard. Pagamento", className: "bg-yellow-100 text-yellow-700" },
   EM_TRANSITO: { label: "Em Trânsito", className: "bg-amber-100 text-amber-700" },
+  ENVIADO: { label: "Enviado", className: "bg-blue-100 text-blue-700" },
   RECEBIDO: { label: "Recebido", className: "bg-emerald-100 text-emerald-700" },
   // StatusConferenciaCompra
   PENDENTE: { label: "Pendente", className: "bg-amber-100 text-amber-700" },
