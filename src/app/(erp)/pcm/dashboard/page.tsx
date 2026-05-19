@@ -58,8 +58,11 @@ type SortField = keyof Pick<
   "descricao" | "totalFalhas" | "mtbf" | "mttr" | "disponibilidade" | "confiabilidade"
 >;
 
-const LS_TARGETS_KEY = "pcm_targets_v1";
+const LS_TARGETS_KEY    = "pcm_targets_v1";
+const LS_CACHE_KEY      = "pcm_indicadores_cache_v2";
+const CACHE_MAX_AGE_MS  = 30 * 60 * 1000; // 30 min — dados ficam válidos
 
+// ── Targets ──────────────────────────────────────────────────────────────────
 function loadTargets(): { mtbf: number; mttr: number } {
   if (typeof window === "undefined") return { mtbf: 120, mttr: 4 };
   try {
@@ -72,6 +75,35 @@ function loadTargets(): { mtbf: number; mttr: number } {
 function saveTargets(t: { mtbf: number; mttr: number }) {
   if (typeof window === "undefined") return;
   localStorage.setItem(LS_TARGETS_KEY, JSON.stringify(t));
+}
+
+// ── Data cache ────────────────────────────────────────────────────────────────
+type CacheEntry = { data: IndicadoresResponse; dias: number; savedAt: string };
+
+function saveDataCache(data: IndicadoresResponse, dias: number) {
+  if (typeof window === "undefined") return;
+  try {
+    const entry: CacheEntry = { data, dias, savedAt: new Date().toISOString() };
+    localStorage.setItem(LS_CACHE_KEY, JSON.stringify(entry));
+  } catch {}
+}
+
+function loadDataCache(dias: number): { data: IndicadoresResponse; stale: boolean } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(LS_CACHE_KEY);
+    if (!raw) return null;
+    const entry: CacheEntry = JSON.parse(raw);
+    if (entry.dias !== dias) return null; // período diferente, ignorar
+    const age = Date.now() - new Date(entry.savedAt).getTime();
+    return { data: entry.data, stale: age > CACHE_MAX_AGE_MS };
+  } catch { return null; }
+}
+
+function fmtTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  } catch { return "—"; }
 }
 
 // ---------------------------------------------------------------------------
@@ -154,6 +186,7 @@ export default function PCMDashboardPage() {
   const [dias, setDias] = useState(365);
   const [data, setData] = useState<IndicadoresResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false); // background refresh
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("mtbf");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -169,22 +202,34 @@ export default function PCMDashboardPage() {
     setTargetInput({ mtbf: String(t.mtbf), mttr: String(t.mttr) });
   }, []);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  // background=true → não mostra spinner, só atualiza dados silenciosamente
+  const fetchData = useCallback(async (background = false) => {
+    if (background) setRefreshing(true);
+    else setLoading(true);
     try {
       const res = await fetch(`/api/pcm/indicadores?dias=${dias}`);
       const json: IndicadoresResponse = await res.json();
       setData(json);
+      saveDataCache(json, dias);
     } catch {
-      setData(null);
+      if (!background) setData(null);
     } finally {
-      setLoading(false);
+      if (background) setRefreshing(false);
+      else setLoading(false);
     }
   }, [dias]);
 
+  // Stale-while-revalidate: mostra cache imediatamente, atualiza em background
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    const cached = loadDataCache(dias);
+    if (cached) {
+      setData(cached.data);
+      setLoading(false);
+      fetchData(true); // refresca silenciosamente
+    } else {
+      fetchData(false);
+    }
+  }, [fetchData, dias]);
 
   // Locais vindos da API (já filtrados)
   const locations = useMemo(() => data?.locais ?? [], [data]);
@@ -316,11 +361,18 @@ export default function PCMDashboardPage() {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            {/* Connection status indicator */}
-            {!loading && (
+            {/* Last update time */}
+            {data?.generatedAt && (
+              <span className="text-xs text-gray-400 hidden sm:block">
+                Atualizado às {fmtTime(data.generatedAt)}
+              </span>
+            )}
+
+            {/* Connection status indicator — always visible when data is present */}
+            {data && (
               <div
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
-                  data?.source === "db"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
+                  data.source === "db"
                     ? "bg-green-50 border-green-200 text-green-700"
                     : "bg-amber-50 border-amber-200 text-amber-700"
                 }`}
@@ -328,12 +380,15 @@ export default function PCMDashboardPage() {
                 <Database className="w-3.5 h-3.5" />
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    data?.source === "db" ? "bg-green-500" : "bg-amber-500"
+                    data.source === "db"
+                      ? "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]"
+                      : "bg-amber-400"
                   }`}
                 />
-                {data?.source === "db" ? "Engeman online" : "Engeman offline"}
+                {data.source === "db" ? "Engeman online" : "Engeman offline"}
               </div>
             )}
+
             {/* Data quality button */}
             <Link href="/pcm/qualidade">
               <Button variant="outline" size="sm" className="gap-1.5">
@@ -353,11 +408,11 @@ export default function PCMDashboardPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={fetchData}
-              disabled={loading}
+              onClick={() => fetchData(false)}
+              disabled={loading || refreshing}
               className="gap-1"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-4 h-4 ${loading || refreshing ? "animate-spin" : ""}`} />
               Atualizar
             </Button>
           </div>
