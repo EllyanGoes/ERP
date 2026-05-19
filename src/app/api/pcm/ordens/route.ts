@@ -38,7 +38,7 @@ export interface OrdensResponse {
     total: number;
   };
   detalhe: Record<string, DetalheOS[]>;  // keyed by status code "A","F","E","C"
-  source: "db" | "mock";
+  source: "db";
   generatedAt: string;
 }
 
@@ -224,88 +224,6 @@ async function queryEngeman(dias: number, agrupamento: "semana" | "mes"): Promis
   return { periodos, status, detalhe };
 }
 
-// ── Mock (fallback) ───────────────────────────────────────────────────────────
-function mockData(dias: number, agrupamento: "semana" | "mes"): {
-  periodos: PeriodoOS[];
-  status: OrdensResponse["status"];
-  detalhe: Record<string, DetalheOS[]>;
-} {
-  const now = new Date();
-  const periodos: PeriodoOS[] = [];
-
-  if (agrupamento === "mes") {
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const criadas     = Math.floor(30 + Math.random() * 40);
-      const concluidas  = Math.floor(criadas * (0.55 + Math.random() * 0.3));
-      const preventivas = Math.floor(criadas * (0.4 + Math.random() * 0.2));
-      const corretivas  = criadas - preventivas;
-      periodos.push({
-        label:       monthLabel(d.getFullYear(), d.getMonth() + 1),
-        criadas,
-        concluidas,
-        preventivas,
-        corretivas,
-      });
-    }
-  } else {
-    for (let i = 5; i >= 0; i--) {
-      const start = new Date(now);
-      start.setDate(now.getDate() - i * 7);
-      const end = new Date(start);
-      end.setDate(start.getDate() + 6);
-      const pad = (n: number) => String(n).padStart(2, "0");
-      const label = `${pad(start.getDate())}/${pad(start.getMonth() + 1)} - ${pad(end.getDate())}/${pad(end.getMonth() + 1)}`;
-      const criadas     = Math.floor(8 + Math.random() * 12);
-      const concluidas  = Math.floor(criadas * (0.55 + Math.random() * 0.3));
-      const preventivas = Math.floor(criadas * (0.4 + Math.random() * 0.2));
-      const corretivas  = criadas - preventivas;
-      periodos.push({ label, criadas, concluidas, preventivas, corretivas });
-    }
-  }
-
-  const status = {
-    emAberto:    Math.floor(15 + Math.random() * 10),
-    emEspera:    Math.floor(5  + Math.random() * 5),
-    emProgresso: Math.floor(8  + Math.random() * 8),
-    concluidas:  Math.floor(40 + Math.random() * 30),
-    canceladas:  Math.floor(2  + Math.random() * 4),
-    total:       0,
-  };
-  status.total = status.emAberto + status.emEspera + status.emProgresso + status.concluidas + status.canceladas;
-
-  const tipos = ["Corretiva", "Preventiva", "Preditiva", "Inspeção", "Lubrificação"];
-  const equipamentos = ["LAMINADOR 01", "MAROMBA 01", "EXTRUSOR 02", "BRITADOR 01", "COMPRESSOR 01", "FORNO", "EMPILHADEIRA"];
-  const locais = ["LINHA DE PRODUÇÃO 1", "CHAMOTE", "QUEIMA", "ÁREA DE PRODUÇÃO", "FROTA", "ESTUFA 1"];
-
-  function mockOS(statord: string, count: number): DetalheOS[] {
-    return Array.from({ length: count }, (_, i) => {
-      const datent = new Date(now);
-      datent.setDate(now.getDate() - Math.floor(Math.random() * dias));
-      return {
-        codord:     10000 + Math.floor(Math.random() * 90000),
-        titulo:     `${tipos[i % tipos.length]} — ${equipamentos[i % equipamentos.length]}`,
-        local:      locais[i % locais.length],
-        equipamento: equipamentos[i % equipamentos.length],
-        tipo:       tipos[i % tipos.length],
-        statord,
-        prioridade: ["ALTA","MÉDIA","BAIXA", null][i % 4],
-        datent:     fmtDatetime(datent),
-      };
-    });
-  }
-
-  const detalhe: Record<string, DetalheOS[]> = {
-    A: mockOS("A", Math.min(status.emAberto,    10)),
-    E: mockOS("E", Math.min(status.emEspera,    5)),
-    P: mockOS("P", Math.min(status.emProgresso, 8)),
-    F: mockOS("F", Math.min(status.concluidas,  10)),
-    C: mockOS("C", Math.min(status.canceladas,  4)),
-  };
-
-  return { periodos, status, detalhe };
-}
-
 // ── Handler ───────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const params      = req.nextUrl.searchParams;
@@ -315,21 +233,15 @@ export async function GET(req: NextRequest) {
   let periodos: PeriodoOS[];
   let status: OrdensResponse["status"];
   let detalhe: Record<string, DetalheOS[]>;
-  let source: "db" | "mock";
 
   try {
     const result = await queryEngeman(dias, agrupamento);
     periodos = result.periodos;
     status   = result.status;
     detalhe  = result.detalhe;
-    source   = "db";
   } catch (err) {
-    console.error("[PCM /api/pcm/ordens] Engeman inacessível, usando mock:", err instanceof Error ? err.message : err);
-    const result = mockData(dias, agrupamento);
-    periodos = result.periodos;
-    status   = result.status;
-    detalhe  = result.detalhe;
-    source   = "mock";
+    console.error("[PCM /api/pcm/ordens] Engeman inacessível:", err instanceof Error ? err.message : err);
+    return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
   }
 
   // ── Derived totals ────────────────────────────────────────────────────────
@@ -364,7 +276,7 @@ export async function GET(req: NextRequest) {
     periodos,
     status,
     detalhe,
-    source,
+    source: "db",
     generatedAt: new Date().toISOString(),
   };
 

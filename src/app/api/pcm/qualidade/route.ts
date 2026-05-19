@@ -38,7 +38,7 @@ export interface QualidadeResponse {
   osTempoLongo:      { total: number; lista: OsTempoLongo[] };
   // Resumo score (0-100)
   score: number;
-  source: "db" | "mock";
+  source: "db";
   generatedAt: string;
 }
 
@@ -87,7 +87,7 @@ async function queryQualidade(dias: number): Promise<Omit<QualidadeResponse, "so
 
   // Equipamentos sem local
   const equipSemLocLista = await q<{ CODAPL: number; TAG: string; DESCRICAO: string }>(`
-    SELECT CODAPL, TAG, RTRIM(DESCRICAO) AS DESCRICAO
+    SELECT CODAPL, CAST(CODAPL AS VARCHAR(20)) AS TAG, RTRIM(DESCRICAO) AS DESCRICAO
     FROM APLIC WHERE CODLOCAPL IS NULL AND ATIVO = 'S'
     ORDER BY CODAPL
   `);
@@ -101,7 +101,7 @@ async function queryQualidade(dias: number): Promise<Omit<QualidadeResponse, "so
     SELECT
       o.CODORD,
       ISNULL(RTRIM(a.DESCRICAO), 'Sem equipamento') AS EQUIP,
-      ISNULL(a.TAG, '—') AS TAG,
+      ISNULL(CAST(a.CODAPL AS VARCHAR(20)), '—') AS TAG,
       CONVERT(varchar(16), o.MAQPAR, 120) AS MAQPAR,
       CONVERT(varchar(16), o.MAQFUN, 120) AS MAQFUN,
       DATEDIFF(HOUR, o.MAQPAR, o.MAQFUN) AS HH
@@ -153,31 +153,12 @@ async function queryQualidade(dias: number): Promise<Omit<QualidadeResponse, "so
   };
 }
 
-function mockQualidade(dias: number): Omit<QualidadeResponse, "source" | "generatedAt"> {
-  return {
-    periodo: dias, totalCorretivas: 542,
-    osSemEquipamento: { total: 152, pct: 28.0, lista: [] },
-    comMaqparMaqfun:  { total: 295, pct: 54.4 },
-    semMaqparComHh:   { total: 240, pct: 44.3 },
-    semNenhumTempo:   { total: 7,   pct: 1.3  },
-    equipSemLocal:    { total: 46, totalAtivos: 387, lista: [] },
-    osTempoLongo:     { total: 4, lista: [
-      { codord: 193,  equip: "MOTOR ELETRICO 34",   tag: "MTE-0034", maqpar: "2025-06-10 10:40", maqfun: "2025-06-16 11:20", hhReparo: 145 },
-      { codord: 1677, equip: "EXAUSTOR 08",          tag: "EXA-0008", maqpar: "2026-04-04 08:00", maqfun: "2026-04-08 17:00", hhReparo: 105 },
-      { codord: 1744, equip: "CARACOL EXTRUSOR 01",  tag: "CRC-0003", maqpar: "2026-04-14 08:00", maqfun: "2026-04-17 15:00", hhReparo: 79  },
-      { codord: 1752, equip: "CARACOL EXTRUSOR 01",  tag: "CRC-0003", maqpar: "2026-04-14 08:00", maqfun: "2026-04-17 15:44", hhReparo: 79  },
-    ]},
-    score: 67,
-  };
-}
-
 export async function GET() {
   try {
     const data = await queryQualidade(365);
     return NextResponse.json({ ...data, source: "db", generatedAt: new Date().toISOString() });
   } catch (err) {
     console.error("[PCM qualidade] DB offline:", err instanceof Error ? err.message : err);
-    const data = mockQualidade(365);
-    return NextResponse.json({ ...data, source: "mock", generatedAt: new Date().toISOString() });
+    return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
   }
 }

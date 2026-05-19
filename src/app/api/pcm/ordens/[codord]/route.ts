@@ -100,7 +100,7 @@ async function queryOS(codord: number): Promise<OSDetalhe | null> {
           o.PRISUB,
           o.CODAPL,
           ISNULL(RTRIM(a.DESCRICAO), 'Não informado')               AS EQUIPAMENTO,
-          ISNULL(RTRIM(a.TAG), '')                                   AS TAG,
+          CAST(a.CODAPL AS VARCHAR(20))                              AS TAG,
           ISNULL(RTRIM(l.DESCRICAO), 'Não informado')               AS LOCAL,
           NULL                                                      AS RESPONSAVEL
         FROM ORDSERV o

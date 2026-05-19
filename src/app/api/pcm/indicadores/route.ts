@@ -33,7 +33,7 @@ export interface IndicadoresResponse {
   equipamentos: IndicadorEquipamento[];
   tendencia: TendenciaMensal[];
   locais: string[];
-  source: "db" | "mock";
+  source: "db";
   generatedAt: string;
 }
 
@@ -92,7 +92,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
     }>(`
       SELECT
         a.CODAPL,
-        a.TAG,
+        CAST(a.CODAPL AS VARCHAR(20))               AS TAG,
         RTRIM(a.DESCRICAO)                          AS DESCRICAO,
         ISNULL(RTRIM(l.DESCRICAO), 'Não informado') AS LOCAL_INSTALACAO,
         COUNT(*)                                     AS TOTAL_FALHAS,
@@ -142,7 +142,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
         AND o.DATENT >= DATEADD(DAY, -@diasPeriodo, GETDATE())
         AND o.CODAPL IS NOT NULL
 
-      GROUP BY a.CODAPL, a.TAG, a.DESCRICAO, l.DESCRICAO
+      GROUP BY a.CODAPL, a.DESCRICAO, l.DESCRICAO
       HAVING COUNT(*) >= 1
       ORDER BY TOTAL_FALHAS DESC
     `);
@@ -266,56 +266,6 @@ async function queryEngeman(diasPeriodo: number): Promise<{
   return { equipamentos, tendencia, locais };
 }
 
-// ── Mock (fallback quando DB inacessível) ─────────────────────────────────────
-// Equipamentos baseados nos dados reais do Engeman Tramontin
-function mockData(diasPeriodo: number): { equipamentos: IndicadorEquipamento[]; tendencia: TendenciaMensal[]; locais: string[] } {
-  const periodoHoras = diasPeriodo * 24;
-  const equipamentos: IndicadorEquipamento[] = [
-    { codApl: 269, tag: "EPA-0001", descricao: "EMPILHADEIRA BAOLI KBD30",           localInstalacao: "FROTA",                                   totalFalhas: 18, totalHorasReparo: 32.4,  mtbf: 484.9, mttr: 1.8,  disponibilidade: 99.63, confiabilidade: 22.3, periodoHoras },
-    { codApl: 505, tag: "MAR-0003", descricao: "MAROMBA 01 (BERTAN)",                 localInstalacao: "LINHA DE PRODUÇÃO 1 (SECADOR ESTUFA)",     totalFalhas: 16, totalHorasReparo: 35.1,  mtbf: 545.3, mttr: 2.2,  disponibilidade: 99.60, confiabilidade: 26.5, periodoHoras },
-    { codApl:  23, tag: "MES-0003", descricao: "MESA DE CORTE 03",                   localInstalacao: "LINHA DE PRODUÇÃO 1 (SECADOR ESTUFA)",     totalFalhas: 15, totalHorasReparo: 34.9,  mtbf: 581.7, mttr: 2.3,  disponibilidade: 99.60, confiabilidade: 28.7, periodoHoras },
-    { codApl:  20, tag: "LAM-0001", descricao: "LAMINADOR 01",                        localInstalacao: "LINHA DE PRODUÇÃO 1 (SECADOR ESTUFA)",     totalFalhas: 15, totalHorasReparo: 65.5,  mtbf: 579.6, mttr: 4.4,  disponibilidade: 99.25, confiabilidade: 28.5, periodoHoras },
-    { codApl:  84, tag: "BRT-0001", descricao: "BRITADOR MARTELO",                   localInstalacao: "CHAMOTE",                                  totalFalhas: 14, totalHorasReparo: 30.5,  mtbf: 623.5, mttr: 2.2,  disponibilidade: 99.65, confiabilidade: 31.1, periodoHoras },
-    { codApl: 129, tag: "FOR-0000", descricao: "ÁREA DO FORNO",                      localInstalacao: "QUEIMA",                                   totalFalhas: 14, totalHorasReparo: 88.8,  mtbf: 619.4, mttr: 6.3,  disponibilidade: 98.99, confiabilidade: 30.9, periodoHoras },
-    { codApl: 143, tag: "CRC-0003", descricao: "CARACOL EXTRUSOR 01",                localInstalacao: "LD FORNO",                                 totalFalhas: 11, totalHorasReparo: 201.6, mtbf: 778.0, mttr: 18.3, disponibilidade: 97.70, confiabilidade: 39.6, periodoHoras },
-    { codApl:  55, tag: "MAR-0001", descricao: "MAROMBA 1",                          localInstalacao: "LINHA DE PRODUÇÃO 1 (SECADOR ESTUFA)",     totalFalhas: 11, totalHorasReparo: 83.4,  mtbf: 788.8, mttr: 7.6,  disponibilidade: 99.05, confiabilidade: 40.2, periodoHoras },
-    { codApl: 496, tag: "EXT-0001", descricao: "EXTRATOR 01",                        localInstalacao: "ESTUFA 1",                                 totalFalhas:  9, totalHorasReparo: 24.6,  mtbf: 970.6, mttr: 2.7,  disponibilidade: 99.72, confiabilidade: 47.4, periodoHoras },
-    { codApl: 123, tag: "CPA-0001", descricao: "COMPRESSOR DE AR 1",                 localInstalacao: "ÁREA DE PRODUÇÃO",                         totalFalhas:  9, totalHorasReparo: 26.6,  mtbf: 970.4, mttr: 3.0,  disponibilidade: 99.70, confiabilidade: 47.4, periodoHoras },
-  ];
-
-  const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  const now = new Date();
-  // Realistic mock trend: 12 months of data — period param controls how many months are shown
-  const mockMtbf  = [458, 472, 495, 511, 483, 502, 488, 476, 510, 495, 503, 488];
-  const mockMttr  = [3.6, 3.2, 2.8, 3.5, 3.1, 2.6, 3.0, 3.3, 2.9, 3.4, 2.7, 3.1];
-  const mockDisp  = [99.2, 99.4, 99.5, 99.3, 99.6, 99.7, 99.4, 99.3, 99.5, 99.4, 99.6, 99.4];
-  const mockFalhas = [82, 76, 68, 71, 64, 59, 73, 78, 65, 70, 61, 74];
-  // Number of months to show based on the requested period
-  const monthCount = diasPeriodo <= 30 ? 1 : diasPeriodo <= 60 ? 2 : diasPeriodo <= 90 ? 3
-                   : diasPeriodo <= 120 ? 4 : diasPeriodo <= 180 ? 6 : 12;
-  const tendencia: TendenciaMensal[] = Array.from({ length: monthCount }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (monthCount - 1) + i, 1);
-    const idx = (12 - monthCount + i) % 12;
-    const mtbf = mockMtbf[idx];
-    const mttr = mockMttr[idx];
-    const disp = mockDisp[idx];
-    const conf = Math.exp(-720 / mtbf) * 100;
-    return {
-      mes:             `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-      label:           `${MESES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`,
-      mttrMedio:       mttr,
-      mtbfMedio:       mtbf,
-      disponibilidade: disp,
-      confiabilidade:  parseFloat(conf.toFixed(2)),
-      falhas:          mockFalhas[idx],
-      totalHhReparo:   +(mttr * mockFalhas[idx]).toFixed(2),
-    };
-  });
-
-  const locais = Array.from(new Set(equipamentos.map((e) => e.localInstalacao)));
-  return { equipamentos, tendencia, locais };
-}
-
 // ── Handler ───────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const dias = parseInt(req.nextUrl.searchParams.get("dias") ?? "365", 10) || 365;
@@ -331,15 +281,7 @@ export async function GET(req: NextRequest) {
     };
     return NextResponse.json(response);
   } catch (err) {
-    console.error("[PCM /api/pcm/indicadores] Engeman inacessível, usando mock:", err instanceof Error ? err.message : err);
-    const { equipamentos, tendencia, locais } = mockData(dias);
-    const response: IndicadoresResponse = {
-      equipamentos,
-      tendencia,
-      locais,
-      source: "mock",
-      generatedAt: new Date().toISOString(),
-    };
-    return NextResponse.json(response);
+    console.error("[PCM /api/pcm/indicadores] Engeman inacessível:", err instanceof Error ? err.message : err);
+    return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
   }
 }

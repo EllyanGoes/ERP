@@ -27,7 +27,7 @@ export interface FMEAResponse {
   confiabilidade: number;
   periodoMeses: number;
   falhas: FalhaRegistro[];
-  source: "db" | "mock";
+  source: "db";
   generatedAt: string;
 }
 
@@ -106,7 +106,7 @@ async function queryFMEA(codapl: number, dias: number): Promise<FMEAResponse> {
           ISNULL(RTRIM(t.DESCRICAO), 'Tipo ' + CAST(ISNULL(o.CODTIPMAN,0) AS VARCHAR)) AS TIPO,
           o.PRISUB,
           ISNULL(RTRIM(a.DESCRICAO), 'Não informado')               AS EQUIPAMENTO,
-          ISNULL(RTRIM(a.TAG), '')                                   AS TAG,
+          CAST(a.CODAPL AS VARCHAR(20))                             AS TAG,
           ISNULL(RTRIM(l.DESCRICAO), 'Não informado')               AS LOCAL
         FROM ORDSERV o
         INNER JOIN APLIC    a ON a.CODAPL    = o.CODAPL
@@ -123,7 +123,7 @@ async function queryFMEA(codapl: number, dias: number): Promise<FMEAResponse> {
       const infoResult = await pool.request()
         .input("codapl2", sql.Int, codapl)
         .query<{ EQUIPAMENTO: string | null; TAG: string | null; LOCAL: string | null }>(`
-          SELECT RTRIM(a.DESCRICAO) AS EQUIPAMENTO, RTRIM(a.TAG) AS TAG,
+          SELECT RTRIM(a.DESCRICAO) AS EQUIPAMENTO, CAST(a.CODAPL AS VARCHAR(20)) AS TAG,
                  ISNULL(RTRIM(l.DESCRICAO), 'Não informado') AS LOCAL
           FROM APLIC a
           LEFT JOIN LOCAPLIC l ON l.CODLOCAPL = a.CODLOCAPL
@@ -192,60 +192,6 @@ async function queryFMEA(codapl: number, dias: number): Promise<FMEAResponse> {
   }
 }
 
-// ── Mock fallback ─────────────────────────────────────────────────────────────
-function mockFMEA(codapl: number, dias: number): FMEAResponse {
-  const tipos = ["Corretiva", "Corretiva Programada", "Corretiva Não Programada"];
-  const descricoes = [
-    "Falha no rolamento do motor",
-    "Correia de transmissão rompida",
-    "Superaquecimento do motor",
-    "Curto circuito no painel elétrico",
-    "Vazamento hidráulico",
-    "Desgaste excessivo das gaxetas",
-    "Falha no sensor de temperatura",
-    "Quebra do eixo de transmissão",
-  ];
-  const now = new Date();
-  const n = 8;
-  const falhas: FalhaRegistro[] = Array.from({ length: n }, (_, i) => {
-    const datent = new Date(now);
-    datent.setDate(now.getDate() - Math.floor((i / n) * dias));
-    const hp = 1 + Math.random() * 6;
-    return {
-      codord:     10000 + i,
-      descricao:  descricoes[i % descricoes.length],
-      datent:     datent.toISOString().slice(0, 16).replace("T", " "),
-      datafim:    null,
-      statord:    i < 6 ? "F" : "A",
-      horasParada: parseFloat(hp.toFixed(2)),
-      tipo:       tipos[i % tipos.length],
-      prioridade: ["ALTA", "MÉDIA", "BAIXA", null][i % 4],
-    };
-  });
-  const periodoHoras = dias * 24;
-  const totalHorasParada = falhas.reduce((s, f) => s + f.horasParada, 0);
-  const mttr = totalHorasParada / n;
-  const mtbf = Math.max((periodoHoras - totalHorasParada) / n, 0);
-  const disp = Math.min((1 - totalHorasParada / periodoHoras) * 100, 100);
-  const conf = mtbf > 0 ? Math.exp(-720 / mtbf) * 100 : 0;
-  return {
-    codapl,
-    equipamento: "EMPILHADEIRA BAOLI KBD30",
-    tag:         `EQ-${String(codapl).padStart(4, "0")}`,
-    local:       "FROTA",
-    totalFalhas: n,
-    totalHorasParada: parseFloat(totalHorasParada.toFixed(2)),
-    mtbf:        parseFloat(mtbf.toFixed(2)),
-    mttr:        parseFloat(mttr.toFixed(2)),
-    disponibilidade: parseFloat(disp.toFixed(2)),
-    confiabilidade:  parseFloat(conf.toFixed(2)),
-    periodoMeses: Math.round(dias / 30),
-    falhas,
-    source: "mock",
-    generatedAt: new Date().toISOString(),
-  };
-}
-
 export async function GET(
   req: NextRequest,
   { params }: { params: { codapl: string } }
@@ -261,6 +207,6 @@ export async function GET(
     return NextResponse.json(data);
   } catch (err) {
     console.error("[PCM /api/pcm/fmea]", err instanceof Error ? err.message : err);
-    return NextResponse.json(mockFMEA(codapl, dias));
+    return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
   }
 }

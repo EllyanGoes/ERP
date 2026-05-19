@@ -116,6 +116,7 @@ export default function FMEAPage() {
     setLoading(true);
     try {
       const res  = await fetch(`/api/pcm/fmea/${codapl}?dias=${dias}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setData(json as FMEAResponse);
     } catch {
@@ -176,17 +177,13 @@ export default function FMEAPage() {
             {data && (
               <div className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border",
-                data.source === "db"
-                  ? "bg-green-50 border-green-200 text-green-700"
-                  : "bg-amber-50 border-amber-200 text-amber-700",
+                "bg-green-50 border-green-200 text-green-700",
               )}>
                 <Database className="w-3.5 h-3.5" />
                 <span className={cn("w-2 h-2 rounded-full",
-                  data.source === "db"
-                    ? "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]"
-                    : "bg-amber-400",
+                  "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]",
                 )} />
-                {data.source === "db" ? "Engeman online" : "Engeman offline"}
+                Engeman online
               </div>
             )}
 
@@ -452,7 +449,7 @@ export default function FMEAPage() {
             {/* Footer */}
             <p className="text-xs text-gray-400 text-right">
               Atualizado em {new Date(data.generatedAt).toLocaleString("pt-BR")} ·{" "}
-              Fonte: {data.source === "db" ? "Engeman CMMS" : "Dados simulados"}
+              Fonte: Engeman CMMS
             </p>
           </>
         )}

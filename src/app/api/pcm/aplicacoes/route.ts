@@ -18,7 +18,7 @@ export interface LocalNode {
 export interface AplicacoesResponse {
   locais: LocalNode[];
   total: number;
-  source: "db" | "mock";
+  source: "db";
 }
 
 const dbConfig: sql.config = {
@@ -40,7 +40,7 @@ export async function GET() {
     }>(`
       SELECT
         a.CODAPL,
-        ISNULL(a.TAG, '') AS TAG,
+        CAST(a.CODAPL AS VARCHAR(20)) AS TAG,
         RTRIM(ISNULL(a.DESCRICAO, 'Sem descrição')) AS DESCRICAO,
         a.CODLOCAPL,
         ISNULL(RTRIM(l.DESCRICAO), 'Sem local') AS LOCAL
@@ -61,22 +61,8 @@ export async function GET() {
 
     const locais = Array.from(map.values()).sort((a, b) => a.descricao.localeCompare(b.descricao));
     return NextResponse.json({ locais, total: result.recordset.length, source: "db" } satisfies AplicacoesResponse);
-  } catch {
-    // Mock fallback - same equipment as indicators mock
-    const locais: LocalNode[] = [
-      { codLocapl: 1, descricao: "FROTA", equips: [{ codApl: 269, tag: "EPA-0001", descricao: "EMPILHADEIRA BAOLI KBD30" }] },
-      { codLocapl: 2, descricao: "LINHA DE PRODUÇÃO 1 (SECADOR ESTUFA)", equips: [
-        { codApl: 505, tag: "MAR-0003", descricao: "MAROMBA 01 (BERTAN)" },
-        { codApl: 23,  tag: "MES-0003", descricao: "MESA DE CORTE 03" },
-        { codApl: 20,  tag: "LAM-0001", descricao: "LAMINADOR 01" },
-        { codApl: 55,  tag: "MAR-0001", descricao: "MAROMBA 1" },
-      ]},
-      { codLocapl: 3, descricao: "CHAMOTE", equips: [{ codApl: 84, tag: "BRT-0001", descricao: "BRITADOR MARTELO" }] },
-      { codLocapl: 4, descricao: "QUEIMA", equips: [{ codApl: 129, tag: "FOR-0000", descricao: "ÁREA DO FORNO" }] },
-      { codLocapl: 5, descricao: "LD FORNO", equips: [{ codApl: 143, tag: "CRC-0003", descricao: "CARACOL EXTRUSOR 01" }] },
-      { codLocapl: 6, descricao: "ESTUFA 1", equips: [{ codApl: 496, tag: "EXT-0001", descricao: "EXTRATOR 01" }] },
-      { codLocapl: 7, descricao: "ÁREA DE PRODUÇÃO", equips: [{ codApl: 123, tag: "CPA-0001", descricao: "COMPRESSOR DE AR 1" }] },
-    ];
-    return NextResponse.json({ locais, total: locais.reduce((s, l) => s + l.equips.length, 0), source: "mock" } satisfies AplicacoesResponse);
+  } catch (err) {
+    console.error("[PCM /api/pcm/aplicacoes] Engeman inacessível:", err instanceof Error ? err.message : err);
+    return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
   }
 }

@@ -118,6 +118,7 @@ export default function QualidadeDadosPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/pcm/qualidade");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData(await res.json());
     } catch { setData(null); }
     finally { setLoading(false); }
@@ -156,11 +157,6 @@ export default function QualidadeDadosPage() {
         ]}
         action={
           <div className="flex items-center gap-2">
-            {data.source === "mock" && (
-              <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
-                Dados simulados
-              </span>
-            )}
             <Button variant="outline" size="sm" onClick={load} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
               Atualizar
@@ -188,7 +184,7 @@ export default function QualidadeDadosPage() {
               <p className={cn("text-lg font-bold mb-0.5", scoreColor)}>{scoreLabel}</p>
               <p className="text-xs text-gray-400 mb-4">
                 Score calculado sobre {data.totalCorretivas} OS corretivas dos últimos {data.periodo} dias.
-                Fonte: {data.source === "db" ? "Engeman CMMS (banco real)" : "dados simulados"}.
+                Fonte: Engeman CMMS.
               </p>
               <div className="space-y-2.5">
                 <CoverageBar
@@ -423,7 +419,7 @@ export default function QualidadeDadosPage() {
 
         <p className="text-xs text-gray-400 text-right">
           Atualizado em {new Date(data.generatedAt).toLocaleString("pt-BR")} ·{" "}
-          Fonte: {data.source === "db" ? "Engeman CMMS" : "Dados simulados"}
+          Fonte: Engeman CMMS
         </p>
       </div>
     </div>
