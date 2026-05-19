@@ -1,0 +1,752 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import PageHeader from "@/components/shared/PageHeader";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  RefreshCw,
+  Database,
+  ClipboardList,
+  X,
+  MapPin,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Loader2,
+  Circle,
+} from "lucide-react";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
+import type { OrdensResponse, DetalheOS } from "@/app/api/pcm/ordens/route";
+import { cn } from "@/lib/utils";
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const LS_CACHE_KEY    = "pcm_ordens_cache_v1";
+const CACHE_MAX_AGE_MS = 30 * 60 * 1000;
+
+const STATUS_CONFIG: Record<string, {
+  label: string;
+  color: string;
+  bg: string;
+  border: string;
+  text: string;
+  Icon: React.ElementType;
+}> = {
+  A: { label: "Em Aberto",    color: "#3b82f6", bg: "bg-blue-50",   border: "border-blue-200",  text: "text-blue-700",   Icon: AlertCircle   },
+  E: { label: "Em Espera",    color: "#f59e0b", bg: "bg-amber-50",  border: "border-amber-200", text: "text-amber-700",  Icon: Clock         },
+  P: { label: "Em Progresso", color: "#6366f1", bg: "bg-indigo-50", border: "border-indigo-200",text: "text-indigo-700", Icon: Circle        },
+  F: { label: "Concluídas",   color: "#22c55e", bg: "bg-green-50",  border: "border-green-200", text: "text-green-700",  Icon: CheckCircle2  },
+  C: { label: "Canceladas",   color: "#94a3b8", bg: "bg-slate-50",  border: "border-slate-200", text: "text-slate-600",  Icon: XCircle       },
+};
+
+const PRIORIDADE_CONFIG: Record<string, string> = {
+  ALTA:   "bg-red-100 text-red-700",
+  MÉDIA:  "bg-amber-100 text-amber-700",
+  BAIXA:  "bg-green-100 text-green-700",
+};
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+type CacheEntry = { data: OrdensResponse; dias: number; agrupamento: string; savedAt: string };
+
+// ── Cache helpers ─────────────────────────────────────────────────────────────
+function saveCache(data: OrdensResponse, dias: number, agrupamento: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const entry: CacheEntry = { data, dias, agrupamento, savedAt: new Date().toISOString() };
+    localStorage.setItem(LS_CACHE_KEY, JSON.stringify(entry));
+  } catch {}
+}
+
+function loadCache(dias: number, agrupamento: string): { data: OrdensResponse; stale: boolean } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(LS_CACHE_KEY);
+    if (!raw) return null;
+    const entry: CacheEntry = JSON.parse(raw);
+    if (entry.dias !== dias || entry.agrupamento !== agrupamento) return null;
+    const age = Date.now() - new Date(entry.savedAt).getTime();
+    return { data: entry.data, stale: age > CACHE_MAX_AGE_MS };
+  } catch {
+    return null;
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmtTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "—";
+  }
+}
+
+function statusLabel(code: string): string {
+  const map: Record<string, string> = {
+    A: "Em Aberto",
+    E: "Em Espera",
+    F: "Concluída",
+    C: "Cancelada",
+    P: "Em Progresso",
+  };
+  return map[code] ?? "Em Progresso";
+}
+
+// ── Custom Tooltip ────────────────────────────────────────────────────────────
+function ChartTooltip({ active, payload, label }: {
+  active?: boolean;
+  payload?: Array<{ name: string; value: number; color: string }>;
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-md text-xs">
+      <p className="font-semibold text-gray-700 mb-1">{label}</p>
+      {payload.map((p) => (
+        <p key={p.name} style={{ color: p.color }}>
+          {p.name}: <span className="font-bold">{p.value}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
+// ── Drill-down Modal ──────────────────────────────────────────────────────────
+function DrillModal({
+  statusCode,
+  items,
+  onClose,
+}: {
+  statusCode: string;
+  items: DetalheOS[];
+  onClose: () => void;
+}) {
+  const cfg = STATUS_CONFIG[statusCode];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <ClipboardList className="w-5 h-5 text-gray-600" />
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Ordens de Serviço</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Detalhamento por status
+              </p>
+            </div>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border",
+                cfg?.bg,
+                cfg?.border,
+                cfg?.text,
+              )}
+            >
+              {cfg?.Icon && <cfg.Icon className="w-3.5 h-3.5" />}
+              {cfg?.label ?? statusLabel(statusCode)}
+            </span>
+            <span className="text-xs text-gray-400 font-medium">
+              {items.length} O.S.
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
+            aria-label="Fechar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 px-6 py-4">
+          {items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+              <ClipboardList className="w-10 h-10 mb-3 opacity-30" />
+              <p className="text-sm">Nenhuma O.S. encontrada neste status.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {items.map((os) => {
+                const prioStyle = os.prioridade
+                  ? (PRIORIDADE_CONFIG[os.prioridade.toUpperCase()] ?? "bg-gray-100 text-gray-600")
+                  : null;
+                const osCfg = STATUS_CONFIG[os.statord];
+
+                return (
+                  <div
+                    key={`${os.codord}-${os.datent}`}
+                    className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50/60 transition-colors"
+                  >
+                    {/* Body */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{os.titulo}</p>
+                        <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-0.5">
+                          #{os.codord}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+                        <MapPin className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{os.local} / {os.equipamento}</span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        {/* Status chip */}
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border",
+                            osCfg?.bg,
+                            osCfg?.border,
+                            osCfg?.text,
+                          )}
+                        >
+                          {statusLabel(os.statord)}
+                        </span>
+
+                        {/* Tipo chip */}
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                          {os.tipo}
+                        </span>
+
+                        {/* Prioridade chip */}
+                        {os.prioridade && prioStyle && (
+                          <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium", prioStyle)}>
+                            {os.prioridade}
+                          </span>
+                        )}
+
+                        {/* Date */}
+                        <span className="ml-auto text-[11px] text-gray-400 flex-shrink-0">
+                          {os.datent}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+export default function OrdensReportPage() {
+  const [data, setData]           = useState<OrdensResponse | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [dias, setDias]           = useState(365);
+  const [agrupamento, setAgrupamento] = useState<"semana" | "mes">("semana");
+  const [drillStatus, setDrillStatus] = useState<string | null>(null);
+
+  // ── Fetch ────────────────────────────────────────────────────────────────
+  const fetchData = useCallback(async (background = false) => {
+    if (background) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const res  = await fetch(`/api/pcm/ordens?dias=${dias}&agrupamento=${agrupamento}`);
+      const json: OrdensResponse = await res.json();
+      setData(json);
+      saveCache(json, dias, agrupamento);
+    } catch {
+      if (!background) setData(null);
+    } finally {
+      if (background) setRefreshing(false);
+      else setLoading(false);
+    }
+  }, [dias, agrupamento]);
+
+  // Stale-while-revalidate
+  useEffect(() => {
+    const cached = loadCache(dias, agrupamento);
+    if (cached) {
+      setData(cached.data);
+      setLoading(false);
+      fetchData(true);
+    } else {
+      fetchData(false);
+    }
+  }, [fetchData, dias, agrupamento]);
+
+  // ── Derived data ─────────────────────────────────────────────────────────
+  const periodos   = data?.periodos   ?? [];
+  const statusData = data?.status;
+  const detalhe    = data?.detalhe    ?? {};
+
+  // Pie chart data — only show slices with count > 0
+  const pieData = [
+    { key: "A", name: "Em Aberto",    value: statusData?.emAberto    ?? 0, color: "#3b82f6" },
+    { key: "E", name: "Em Espera",    value: statusData?.emEspera    ?? 0, color: "#f59e0b" },
+    { key: "P", name: "Em Progresso", value: statusData?.emProgresso ?? 0, color: "#6366f1" },
+    { key: "F", name: "Concluídas",   value: statusData?.concluidas  ?? 0, color: "#22c55e" },
+    { key: "C", name: "Canceladas",   value: statusData?.canceladas  ?? 0, color: "#94a3b8" },
+  ].filter((s) => s.value > 0);
+
+  const totalStatus = statusData?.total ?? 0;
+
+  // Custom pie label (outside the donut) — uses PieLabelRenderProps which has optional fields
+  const renderPieLabel = (props: {
+    cx?: number; cy?: number; midAngle?: number;
+    outerRadius?: number; name?: string; value?: number;
+  }) => {
+    const { cx = 0, cy = 0, midAngle = 0, outerRadius = 0, name = "", value = 0 } = props;
+    if (value === 0) return null;
+    const RADIAN = Math.PI / 180;
+    const radius = outerRadius + 28;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    const pct = totalStatus > 0 ? Math.round((value / totalStatus) * 100) : 0;
+    return (
+      <text
+        x={x}
+        y={y}
+        fill="#64748b"
+        textAnchor={x > cx ? "start" : "end"}
+        dominantBaseline="central"
+        style={{ fontSize: 11, fontWeight: 500 }}
+      >
+        {name} ({pct}%)
+      </text>
+    );
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div>
+      <PageHeader
+        title="Relatório de O.S."
+        subtitle="Ordens de Serviço — criadas, concluídas e indicadores por período"
+        breadcrumbs={[
+          { label: "Menu" },
+          { label: "PCM" },
+          { label: "Relatório OS" },
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            {data?.generatedAt && (
+              <span className="text-xs text-gray-400 hidden sm:block">
+                Atualizado às {fmtTime(data.generatedAt)}
+              </span>
+            )}
+
+            {data && (
+              <div
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border",
+                  data.source === "db"
+                    ? "bg-green-50 border-green-200 text-green-700"
+                    : "bg-amber-50 border-amber-200 text-amber-700",
+                )}
+              >
+                <Database className="w-3.5 h-3.5" />
+                <span
+                  className={cn(
+                    "w-2 h-2 rounded-full",
+                    data.source === "db"
+                      ? "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]"
+                      : "bg-amber-400",
+                  )}
+                />
+                {data.source === "db" ? "Engeman online" : "Engeman offline"}
+              </div>
+            )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchData(false)}
+              disabled={loading || refreshing}
+              className="gap-1.5"
+            >
+              <RefreshCw
+                className={cn("w-4 h-4", (loading || refreshing) && "animate-spin")}
+              />
+              Atualizar
+            </Button>
+          </div>
+        }
+      />
+
+      <div className="px-8 pb-10 space-y-6">
+
+        {/* ── Filter bar ──────────────────────────────────────────────────── */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500 font-medium">Período:</span>
+            <Select value={String(dias)} onValueChange={(v) => setDias(Number(v))}>
+              <SelectTrigger className="w-40 h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="30">Últimos 30 dias</SelectItem>
+                <SelectItem value="90">Últimos 90 dias</SelectItem>
+                <SelectItem value="180">Últimos 180 dias</SelectItem>
+                <SelectItem value="365">Últimos 12 meses</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500 font-medium">Agrupamento:</span>
+            <Select value={agrupamento} onValueChange={(v) => setAgrupamento(v as "semana" | "mes")}>
+              <SelectTrigger className="w-36 h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="semana">Por Semana</SelectItem>
+                <SelectItem value="mes">Por Mês</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {(loading || refreshing) && (
+            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              {loading ? "Carregando…" : "Atualizando…"}
+            </div>
+          )}
+        </div>
+
+        {/* ── Loading state ────────────────────────────────────────────────── */}
+        {loading && !data && (
+          <div className="flex items-center justify-center py-24 text-gray-400 gap-2">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span className="text-sm">Carregando dados do Engeman…</span>
+          </div>
+        )}
+
+        {/* ── Charts row ──────────────────────────────────────────────────── */}
+        {data && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              {/* Card 1 — Criadas X Concluídas */}
+              <Card className="border-gray-100">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold text-gray-700">
+                    Criadas × Concluídas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* KPI row */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-blue-50 rounded-xl px-4 py-3">
+                      <p className="text-[11px] text-blue-500 font-medium uppercase tracking-wide">
+                        Total Criadas
+                      </p>
+                      <p className="text-2xl font-bold text-blue-700 mt-0.5">
+                        {data.totais.criadas}
+                      </p>
+                    </div>
+                    <div className="bg-green-50 rounded-xl px-4 py-3">
+                      <p className="text-[11px] text-green-500 font-medium uppercase tracking-wide">
+                        Total Concluídas
+                      </p>
+                      <p className="text-2xl font-bold text-green-700 mt-0.5">
+                        {data.totais.concluidas}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl px-4 py-3">
+                      <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">
+                        Índice de Conclusão
+                      </p>
+                      <p
+                        className={cn(
+                          "text-2xl font-bold mt-0.5",
+                          data.totais.indiceConclusao >= 70
+                            ? "text-green-600"
+                            : data.totais.indiceConclusao >= 50
+                            ? "text-amber-600"
+                            : "text-red-600",
+                        )}
+                      >
+                        {data.totais.indiceConclusao}%
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Line chart */}
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={periodos} margin={{ top: 5, right: 16, left: -10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fontSize: 10, fill: "#94a3b8" }}
+                        axisLine={false}
+                        tickLine={false}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis
+                        tick={{ fontSize: 10, fill: "#94a3b8" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Legend
+                        wrapperStyle={{ fontSize: 11, color: "#94a3b8", paddingTop: 8 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="criadas"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        dot={{ r: 3, fill: "#3b82f6" }}
+                        name="Criadas"
+                        activeDot={{ r: 5 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="concluidas"
+                        stroke="#22c55e"
+                        strokeWidth={2}
+                        dot={{ r: 3, fill: "#22c55e" }}
+                        name="Concluídas"
+                        activeDot={{ r: 5 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Card 2 — Preventivas X Corretivas */}
+              <Card className="border-gray-100">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold text-gray-700">
+                    Preventivas × Corretivas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* KPI row */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-blue-50 rounded-xl px-4 py-3">
+                      <p className="text-[11px] text-blue-500 font-medium uppercase tracking-wide">
+                        Preventivas
+                      </p>
+                      <p className="text-2xl font-bold text-blue-700 mt-0.5">
+                        {data.tipoTotais.preventivas}
+                      </p>
+                    </div>
+                    <div className="bg-red-50 rounded-xl px-4 py-3">
+                      <p className="text-[11px] text-red-500 font-medium uppercase tracking-wide">
+                        Corretivas
+                      </p>
+                      <p className="text-2xl font-bold text-red-700 mt-0.5">
+                        {data.tipoTotais.corretivas}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl px-4 py-3">
+                      <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">
+                        % Preventivas
+                      </p>
+                      <p
+                        className={cn(
+                          "text-2xl font-bold mt-0.5",
+                          data.tipoTotais.pctPreventivas >= 60
+                            ? "text-blue-600"
+                            : data.tipoTotais.pctPreventivas >= 40
+                            ? "text-amber-600"
+                            : "text-red-600",
+                        )}
+                      >
+                        {data.tipoTotais.pctPreventivas}%
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Stacked bar chart */}
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={periodos} margin={{ top: 5, right: 16, left: -10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fontSize: 10, fill: "#94a3b8" }}
+                        axisLine={false}
+                        tickLine={false}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis
+                        tick={{ fontSize: 10, fill: "#94a3b8" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Legend
+                        wrapperStyle={{ fontSize: 11, color: "#94a3b8", paddingTop: 8 }}
+                      />
+                      <Bar
+                        dataKey="preventivas"
+                        stackId="a"
+                        fill="#3b82f6"
+                        name="Preventivas"
+                        radius={[0, 0, 2, 2]}
+                      />
+                      <Bar
+                        dataKey="corretivas"
+                        stackId="a"
+                        fill="#ef4444"
+                        name="Corretivas"
+                        radius={[2, 2, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* ── Status section ─────────────────────────────────────────── */}
+            <Card className="border-gray-100">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-gray-700">
+                  Status das O.S.
+                  <span className="ml-2 text-xs font-normal text-gray-400">
+                    — clique num status para ver as ordens
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col lg:flex-row gap-6 items-center lg:items-start">
+
+                  {/* Counters */}
+                  <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
+                    {(["A","E","P","F","C"] as const).map((code) => {
+                      const cfg = STATUS_CONFIG[code];
+                      const count =
+                        code === "A" ? (statusData?.emAberto    ?? 0)
+                        : code === "E" ? (statusData?.emEspera    ?? 0)
+                        : code === "P" ? (statusData?.emProgresso ?? 0)
+                        : code === "F" ? (statusData?.concluidas  ?? 0)
+                        :                (statusData?.canceladas  ?? 0);
+
+                      return (
+                        <button
+                          key={code}
+                          onClick={() => setDrillStatus(code)}
+                          className={cn(
+                            "flex flex-col items-center justify-center gap-1 rounded-2xl border-2 px-4 py-4 transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer",
+                            cfg.bg,
+                            cfg.border,
+                            drillStatus === code && "ring-2 ring-offset-1 ring-current shadow-md",
+                          )}
+                        >
+                          <cfg.Icon className={cn("w-6 h-6", cfg.text)} />
+                          <span className={cn("text-3xl font-bold leading-none", cfg.text)}>
+                            {count}
+                          </span>
+                          <span className={cn("text-xs font-medium text-center", cfg.text)}>
+                            {cfg.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Donut chart */}
+                  <div className="flex-shrink-0 w-full lg:w-80">
+                    {pieData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={260}>
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={70}
+                            outerRadius={110}
+                            paddingAngle={3}
+                            dataKey="value"
+                            label={renderPieLabel}
+                            labelLine={false}
+                            onClick={(entry) => {
+                              const code = (entry as { key?: string }).key;
+                              if (code) setDrillStatus(code);
+                            }}
+                            style={{ cursor: "pointer" }}
+                          >
+                            {pieData.map((entry) => (
+                              <Cell
+                                key={entry.key}
+                                fill={entry.color}
+                                opacity={drillStatus === null || drillStatus === entry.key ? 1 : 0.45}
+                                stroke="white"
+                                strokeWidth={2}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value) => {
+                              const n = typeof value === "number" ? value : 0;
+                              return `${n} (${totalStatus > 0 ? Math.round((n / totalStatus) * 100) : 0}%)`;
+                            }}
+                            contentStyle={{
+                              border: "1px solid #e2e8f0",
+                              borderRadius: 8,
+                              fontSize: 12,
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex items-center justify-center h-[260px] text-gray-300">
+                        <p className="text-sm">Sem dados</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Donut center label (total) */}
+                <p className="text-center text-xs text-gray-400 mt-1">
+                  Total: <span className="font-semibold text-gray-600">{totalStatus}</span> ordens de serviço no período
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Footer */}
+            <p className="text-xs text-gray-400 text-right">
+              Atualizado em{" "}
+              {new Date(data.generatedAt).toLocaleString("pt-BR")} ·{" "}
+              Fonte: {data.source === "db" ? "Engeman CMMS" : "Dados simulados"}
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* ── Drill-down modal ──────────────────────────────────────────────── */}
+      {drillStatus !== null && data && (
+        <DrillModal
+          statusCode={drillStatus}
+          items={detalhe[drillStatus] ?? []}
+          onClose={() => setDrillStatus(null)}
+        />
+      )}
+    </div>
+  );
+}
