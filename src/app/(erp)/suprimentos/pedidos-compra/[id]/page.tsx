@@ -292,7 +292,7 @@ export default function PedidoCompraDetailPage() {
             ))}
             {(pedido.status === "CONFIRMADO" || pedido.status === "EM_TRANSITO") && !pedido.conferencia && (
               <Button size="sm" onClick={registrarConferencia} disabled={actioning}>
-                {actioning ? "Criando..." : "Registrar Conferência"}
+                {actioning ? "Criando..." : "Gerar Doc. Entrada"}
               </Button>
             )}
           </div>
@@ -433,7 +433,7 @@ export default function PedidoCompraDetailPage() {
             </div>
             {pedido.conferencia && (
               <div className="space-y-1">
-                <Label className="text-xs text-gray-500">Conferência</Label>
+                <Label className="text-xs text-gray-500">Doc. Entrada</Label>
                 <div className="flex items-center h-9 px-3 border border-gray-200 rounded-md bg-gray-50 gap-2">
                   <Link
                     href={`/suprimentos/conferencias/${pedido.conferencia.id}`}

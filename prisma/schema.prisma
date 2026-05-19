@@ -141,17 +141,34 @@ model CondicaoPagamento {
 model ConferenciaCompra {
   id                    String                  @id @default(cuid())
   numero                String                  @unique
-  pedidoId              String                  @unique
+  pedidoId              String?                 @unique
   status                StatusConferenciaCompra @default(PENDENTE)
   dataConferencia       DateTime?
   responsavel           String?
   observacoes           String?
+  // Campos Documento de Entrada (Nota Fiscal)
+  tipoNota              String?                 @default("NORMAL")
+  numeroNF              String?
+  serie                 String?
+  dtEmissao             DateTime?
+  ufOrigem              String?
+  espDocumento          String?                 @default("SPED")
+  fornecedorId          String?
+  // Financeiro
+  frete                 Decimal?                @db.Decimal(15, 2)
+  tipoFrete             String?
+  seguro                Decimal?                @db.Decimal(15, 2)
+  despesas              Decimal?                @db.Decimal(15, 2)
+  desconto              Decimal?                @db.Decimal(15, 2)
+  vrTotal               Decimal?                @db.Decimal(15, 2)
   createdAt             DateTime                @default(now())
-  updatedAt             DateTime @updatedAt
-  pedido                PedidoCompra            @relation(fields: [pedidoId], references: [id])
+  updatedAt             DateTime                @updatedAt
+  pedido                PedidoCompra?           @relation(fields: [pedidoId], references: [id])
+  fornecedor            Fornecedor?             @relation(fields: [fornecedorId], references: [id])
   itens                 ConferenciaCompraItem[]
 
   @@index([status])
+  @@index([fornecedorId])
 }
 
 model ConferenciaCompraItem {
@@ -162,8 +179,18 @@ model ConferenciaCompraItem {
   quantidadeRecebida  Decimal               @default(0) @db.Decimal(15, 3)
   divergencia         Boolean               @default(false)
   observacao          String?
+  // Campos NF item
+  localEstoqueId      String?
+  vlrUnitario         Decimal?              @db.Decimal(15, 2)
+  vlrTotal            Decimal?              @db.Decimal(15, 2)
+  vlrIPI              Decimal?              @db.Decimal(15, 2)
+  vlrICMS             Decimal?              @db.Decimal(15, 2)
+  tipoEntrada         String?
+  codFiscal           String?
+  tpOper              String?
   conferencia         ConferenciaCompra     @relation(fields: [conferenciaId], references: [id], onDelete: Cascade)
   item                Item                  @relation(fields: [itemId], references: [id])
+  localEstoque        LocalEstoque?         @relation(fields: [localEstoqueId], references: [id])
   movimentacoes       MovimentacaoEstoque[]
 }
 
@@ -420,6 +447,7 @@ model Fornecedor {
   contatos          FornecedorContato[]
   pedidosCompra     PedidoCompra[]
   produtos          ProdutoFornecedor[]
+  docEntradas       ConferenciaCompra[]
 }
 
 model FornecedorContato {
@@ -525,6 +553,7 @@ model LocalEstoque {
   filial             Filial?               @relation(fields: [filialId], references: [id])
   movimentacoes      MovimentacaoEstoque[]
   necessidadesCompra NecessidadeCompra[]
+  docEntradaItens    ConferenciaCompraItem[]
 }
 
 model LoteMovimentacao {

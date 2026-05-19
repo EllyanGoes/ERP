@@ -163,7 +163,7 @@ const mainModules: Module[] = [
           { href: "/compras/necessidades",       label: "Solicitação de Compras", icon: ClipboardList },
           { href: "/suprimentos/cotacoes",       label: "Cotação de Compras",    icon: FileSearch },
           { href: "/suprimentos/pedidos-compra", label: "Pedido de Compras",     icon: FilePlus },
-          { href: "/suprimentos/conferencias",   label: "Conferência de Compra", icon: PackageCheck },
+          { href: "/suprimentos/conferencias",   label: "Doc. Entrada", icon: PackageCheck },
         ],
       },
     ],

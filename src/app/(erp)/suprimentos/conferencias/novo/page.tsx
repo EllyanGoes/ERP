@@ -1,0 +1,811 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import PageHeader from "@/components/shared/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { decimalToNumber, formatBRL } from "@/lib/utils";
+import { useTabTitle } from "@/lib/tabs-context";
+import { ChevronDown, ChevronRight, Plus, Trash2, X } from "lucide-react";
+
+const UF_LIST = [
+  "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
+  "PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO",
+];
+
+type Fornecedor = {
+  id: string;
+  razaoSocial: string;
+  nomeFantasia: string | null;
+  cpfCnpj: string | null;
+};
+
+type Produto = {
+  id: string;
+  codigo: string;
+  descricao: string;
+  unidadeMedida: string;
+};
+
+type LocalEstoque = {
+  id: string;
+  nome: string;
+};
+
+type PedidoOption = {
+  id: string;
+  numero: string;
+  fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null };
+  itens: Array<{
+    id: string;
+    quantidade: unknown;
+    item: { id: string; codigo: string; descricao: string; unidadeMedida: string };
+  }>;
+};
+
+type ItemRow = {
+  _key: string;
+  itemId: string;
+  codigo: string;
+  descricao: string;
+  unidadeMedida: string;
+  localEstoqueId: string;
+  quantidadePedida: string;
+  vlrUnitario: string;
+  tipoEntrada: string;
+  codFiscal: string;
+};
+
+function makeKey() {
+  return Math.random().toString(36).slice(2);
+}
+
+function emptyRow(): ItemRow {
+  return {
+    _key: makeKey(),
+    itemId: "",
+    codigo: "",
+    descricao: "",
+    unidadeMedida: "",
+    localEstoqueId: "",
+    quantidadePedida: "",
+    vlrUnitario: "",
+    tipoEntrada: "",
+    codFiscal: "",
+  };
+}
+
+export default function NovoDocumentoEntradaPage() {
+  const router = useRouter();
+
+  // NF fields
+  const [tipoNota, setTipoNota] = useState("NORMAL");
+  const [numeroNF, setNumeroNF] = useState("");
+  const [serie, setSerie] = useState("1");
+  const [dtEmissao, setDtEmissao] = useState("");
+  const [ufOrigem, setUfOrigem] = useState("");
+  const [espDocumento, setEspDocumento] = useState("SPED");
+
+  // Fornecedor
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
+  const [fornecedorId, setFornecedorId] = useState("");
+  const [fornSearch, setFornSearch] = useState("");
+  const [fornDropOpen, setFornDropOpen] = useState(false);
+
+  // Pedido vinculado (optional)
+  const [pedidosOpen, setPedidosOpen] = useState(false);
+  const [pedidoSearch, setPedidoSearch] = useState("");
+  const [pedidoOptions, setPedidoOptions] = useState<PedidoOption[]>([]);
+  const [pedidoDropOpen, setPedidoDropOpen] = useState(false);
+  const [vinculadoPedido, setVinculadoPedido] = useState<PedidoOption | null>(null);
+
+  // Items
+  const [itens, setItens] = useState<ItemRow[]>([emptyRow()]);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoque[]>([]);
+  const [prodSearchMap, setProdSearchMap] = useState<Record<string, string>>({});
+  const [prodDropMap, setProdDropMap] = useState<Record<string, boolean>>({});
+
+  // Totals
+  const [frete, setFrete] = useState("");
+  const [seguro, setSeguro] = useState("");
+  const [despesas, setDespesas] = useState("");
+  const [desconto, setDesconto] = useState("");
+
+  // Form state
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useTabTitle("Novo Doc. Entrada");
+
+  // Load fornecedores
+  useEffect(() => {
+    fetch("/api/suprimentos/fornecedores")
+      .then((r) => r.json())
+      .then((j) => setFornecedores(j.data ?? []))
+      .catch(() => {});
+  }, []);
+
+  // Load produtos
+  useEffect(() => {
+    fetch("/api/suprimentos/produtos")
+      .then((r) => r.json())
+      .then((j) => setProdutos(j.data ?? []))
+      .catch(() => {});
+  }, []);
+
+  // Load locais-estoque
+  useEffect(() => {
+    fetch("/api/suprimentos/locais-estoque")
+      .then((r) => r.json())
+      .then((j) => setLocaisEstoque(j.data ?? []))
+      .catch(() => {});
+  }, []);
+
+  // Search pedidos when typing
+  const searchPedidos = useCallback(async (q: string) => {
+    if (!q.trim()) { setPedidoOptions([]); return; }
+    try {
+      const res = await fetch(`/api/suprimentos/pedidos-compra?search=${encodeURIComponent(q)}&limit=10`);
+      const json = await res.json();
+      setPedidoOptions(json.data ?? []);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => searchPedidos(pedidoSearch), 300);
+    return () => clearTimeout(t);
+  }, [pedidoSearch, searchPedidos]);
+
+  function selectFornecedor(f: Fornecedor) {
+    setFornecedorId(f.id);
+    setFornSearch(f.nomeFantasia || f.razaoSocial);
+    setFornDropOpen(false);
+  }
+
+  function selectPedido(p: PedidoOption) {
+    setVinculadoPedido(p);
+    setPedidoDropOpen(false);
+    setPedidoSearch(p.numero);
+    // Auto-fill fornecedor
+    selectFornecedor({
+      id: p.fornecedor.id,
+      razaoSocial: p.fornecedor.razaoSocial,
+      nomeFantasia: p.fornecedor.nomeFantasia,
+      cpfCnpj: null,
+    });
+    // Pull items from pedido
+    setItens(
+      p.itens.map((pi) => ({
+        _key: makeKey(),
+        itemId: pi.item.id,
+        codigo: pi.item.codigo,
+        descricao: pi.item.descricao,
+        unidadeMedida: pi.item.unidadeMedida,
+        localEstoqueId: "",
+        quantidadePedida: decimalToNumber(pi.quantidade).toString(),
+        vlrUnitario: "",
+        tipoEntrada: "",
+        codFiscal: "",
+      }))
+    );
+  }
+
+  function clearPedido() {
+    setVinculadoPedido(null);
+    setPedidoSearch("");
+    setPedidoOptions([]);
+  }
+
+  function updateItem(key: string, field: keyof ItemRow, value: string) {
+    setItens((prev) =>
+      prev.map((r) => (r._key === key ? { ...r, [field]: value } : r))
+    );
+  }
+
+  function selectProduto(key: string, p: Produto) {
+    setItens((prev) =>
+      prev.map((r) =>
+        r._key === key
+          ? { ...r, itemId: p.id, codigo: p.codigo, descricao: p.descricao, unidadeMedida: p.unidadeMedida }
+          : r
+      )
+    );
+    setProdSearchMap((prev) => ({ ...prev, [key]: p.descricao }));
+    setProdDropMap((prev) => ({ ...prev, [key]: false }));
+  }
+
+  function addRow() {
+    setItens((prev) => [...prev, emptyRow()]);
+  }
+
+  function removeRow(key: string) {
+    setItens((prev) => prev.filter((r) => r._key !== key));
+  }
+
+  // Computed totals
+  const vlrMercadoria = itens.reduce((s, r) => {
+    const qtd = parseFloat(r.quantidadePedida) || 0;
+    const unit = parseFloat(r.vlrUnitario) || 0;
+    return s + qtd * unit;
+  }, 0);
+  const freteNum = parseFloat(frete) || 0;
+  const seguroNum = parseFloat(seguro) || 0;
+  const despesasNum = parseFloat(despesas) || 0;
+  const descontoNum = parseFloat(desconto) || 0;
+  const vlrBruto = vlrMercadoria + freteNum + seguroNum + despesasNum - descontoNum;
+
+  async function handleSubmit() {
+    setError("");
+
+    if (!fornecedorId) {
+      setError("Selecione um fornecedor.");
+      return;
+    }
+
+    const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidadePedida) > 0);
+    if (validItens.length === 0) {
+      setError("Adicione pelo menos 1 item com produto e quantidade.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload: Record<string, unknown> = {
+        fornecedorId,
+        tipoNota,
+        numeroNF: numeroNF || null,
+        serie: serie || null,
+        dtEmissao: dtEmissao || null,
+        ufOrigem: ufOrigem || null,
+        espDocumento: espDocumento || "SPED",
+        frete: freteNum > 0 ? freteNum : null,
+        tipoFrete: null,
+        seguro: seguroNum > 0 ? seguroNum : null,
+        despesas: despesasNum > 0 ? despesasNum : null,
+        desconto: descontoNum > 0 ? descontoNum : null,
+        itens: validItens.map((r, idx) => ({
+          itemId: r.itemId,
+          quantidadePedida: parseFloat(r.quantidadePedida),
+          vlrUnitario: parseFloat(r.vlrUnitario) || null,
+          localEstoqueId: r.localEstoqueId || null,
+          tipoEntrada: r.tipoEntrada || null,
+          codFiscal: r.codFiscal || null,
+          itemNF: idx + 1,
+        })),
+      };
+
+      // If linked to a pedido, pass pedidoId too — but the API creates standalone
+      // with fornecedorId. We just pass it as extra info.
+      if (vinculadoPedido) {
+        // Not passing pedidoId here since we want to create a standalone doc
+        // that references fornecedor. The pedido relation is a separate future link.
+      }
+
+      const res = await fetch("/api/suprimentos/conferencias", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || "Erro ao criar documento");
+        return;
+      }
+      router.push(`/suprimentos/conferencias/${json.data.id}`);
+    } catch {
+      setError("Erro de conexão");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const selectedFornecedor = fornecedores.find((f) => f.id === fornecedorId);
+
+  return (
+    <div>
+      <PageHeader
+        title="Novo Documento de Entrada"
+        breadcrumbs={[
+          { label: "Suprimentos" },
+          { label: "Doc. de Entrada", href: "/suprimentos/conferencias" },
+          { label: "Novo" },
+        ]}
+      />
+
+      <div className="px-8 pb-8 max-w-6xl space-y-6">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+            {error}
+          </div>
+        )}
+
+        {/* ── Dados da Nota Fiscal ──────────────────────────────────────────── */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Dados da Nota Fiscal</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Tipo da Nota */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">Tipo da Nota</Label>
+              <select
+                value={tipoNota}
+                onChange={(e) => setTipoNota(e.target.value)}
+                className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="NORMAL">Normal</option>
+                <option value="COMPLEMENTAR">Complementar</option>
+                <option value="DEVOLUCAO">Devolução</option>
+                <option value="ENTRADA_SIMBOLICA">Entrada Simbólica</option>
+              </select>
+            </div>
+
+            {/* Numero NF */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">Número NF</Label>
+              <Input
+                value={numeroNF}
+                onChange={(e) => setNumeroNF(e.target.value)}
+                placeholder="000000"
+              />
+            </div>
+
+            {/* Serie */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">Série</Label>
+              <Input
+                value={serie}
+                onChange={(e) => setSerie(e.target.value)}
+                placeholder="1"
+              />
+            </div>
+
+            {/* DT Emissão */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">DT Emissão</Label>
+              <Input
+                type="date"
+                value={dtEmissao}
+                onChange={(e) => setDtEmissao(e.target.value)}
+              />
+            </div>
+
+            {/* Espec. Docum. */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">Espec. Docum.</Label>
+              <Input
+                value={espDocumento}
+                onChange={(e) => setEspDocumento(e.target.value)}
+                placeholder="SPED"
+              />
+            </div>
+
+            {/* UF Origem */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">UF Origem</Label>
+              <select
+                value={ufOrigem}
+                onChange={(e) => setUfOrigem(e.target.value)}
+                className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Selecione...</option>
+                {UF_LIST.map((uf) => (
+                  <option key={uf} value={uf}>{uf}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Loja (read-only) */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">Loja</Label>
+              <Input value="01" readOnly className="bg-gray-50" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Fornecedor ───────────────────────────────────────────────────── */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Fornecedor</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1.5 md:col-span-2">
+                <Label className="text-xs text-gray-500">Fornecedor <span className="text-red-500">*</span></Label>
+                <div className="relative">
+                  <Input
+                    value={fornSearch}
+                    onChange={(e) => {
+                      setFornSearch(e.target.value);
+                      setFornDropOpen(true);
+                      if (!e.target.value) setFornecedorId("");
+                    }}
+                    onFocus={() => setFornDropOpen(true)}
+                    placeholder="Buscar fornecedor..."
+                    className={!fornecedorId && fornSearch ? "border-red-300" : ""}
+                  />
+                  {fornDropOpen && fornSearch && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+                      {fornecedores
+                        .filter((f) => {
+                          const q = fornSearch.toLowerCase();
+                          return (
+                            f.razaoSocial.toLowerCase().includes(q) ||
+                            (f.nomeFantasia?.toLowerCase().includes(q) ?? false) ||
+                            (f.cpfCnpj?.includes(q) ?? false)
+                          );
+                        })
+                        .slice(0, 10)
+                        .map((f) => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onMouseDown={() => selectFornecedor(f)}
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                          >
+                            <span className="font-medium text-gray-900">
+                              {f.nomeFantasia || f.razaoSocial}
+                            </span>
+                            {f.nomeFantasia && (
+                              <span className="text-gray-400 text-xs ml-2">{f.razaoSocial}</span>
+                            )}
+                          </button>
+                        ))}
+                      {fornecedores.filter((f) => {
+                        const q = fornSearch.toLowerCase();
+                        return (
+                          f.razaoSocial.toLowerCase().includes(q) ||
+                          (f.nomeFantasia?.toLowerCase().includes(q) ?? false)
+                        );
+                      }).length === 0 && (
+                        <p className="px-4 py-3 text-sm text-gray-400 italic">Nenhum resultado.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {selectedFornecedor && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-500">CNPJ</Label>
+                  <Input
+                    value={selectedFornecedor.cpfCnpj ?? "—"}
+                    readOnly
+                    className="bg-gray-50 font-mono"
+                  />
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Vincular Pedido (collapsible) ─────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setPedidosOpen((p) => !p)}
+            className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors"
+          >
+            <span className="font-semibold text-sm text-gray-800">
+              Vincular a Pedido de Compra (opcional)
+            </span>
+            {vinculadoPedido ? (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">
+                Pedido: {vinculadoPedido.numero}
+                <button
+                  type="button"
+                  onMouseDown={(e) => { e.stopPropagation(); clearPedido(); }}
+                  className="ml-0.5 hover:text-blue-900"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ) : (
+              pedidosOpen ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />
+            )}
+          </button>
+          {pedidosOpen && (
+            <div className="p-4">
+              <div className="space-y-1.5 max-w-sm">
+                <Label className="text-xs text-gray-500">Buscar Pedido de Compra</Label>
+                <div className="relative">
+                  <Input
+                    value={pedidoSearch}
+                    onChange={(e) => {
+                      setPedidoSearch(e.target.value);
+                      setPedidoDropOpen(true);
+                    }}
+                    onFocus={() => setPedidoDropOpen(true)}
+                    placeholder="Ex: PC-2025-0001"
+                  />
+                  {pedidoDropOpen && pedidoOptions.length > 0 && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+                      {pedidoOptions.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onMouseDown={() => selectPedido(p)}
+                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                        >
+                          <span className="font-mono font-medium text-gray-900">{p.numero}</span>
+                          <span className="text-gray-400 text-xs ml-2">
+                            {p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Items Table ──────────────────────────────────────────────────── */}
+        <Card>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-base">Itens</CardTitle>
+            <Button type="button" size="sm" variant="outline" onClick={addRow}>
+              <Plus className="w-3.5 h-3.5 mr-1.5" /> Adicionar Item
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-6">#</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs min-w-[200px]">Produto</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs min-w-[120px]">Local Estoque</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-16">U.M.</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-28">Qtd. Pedida</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-28">Vlr. Unit.</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-28">Vlr. Total</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-28">Tipo Entrada</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Cód. Fiscal</th>
+                    <th className="w-8" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {itens.map((row, idx) => {
+                    const qtd = parseFloat(row.quantidadePedida) || 0;
+                    const unit = parseFloat(row.vlrUnitario) || 0;
+                    const total = qtd * unit;
+                    const prodSearch = prodSearchMap[row._key] ?? row.descricao;
+
+                    return (
+                      <tr key={row._key} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
+
+                        {/* Produto */}
+                        <td className="px-3 py-2">
+                          <div className="relative">
+                            <Input
+                              value={prodSearch}
+                              onChange={(e) => {
+                                setProdSearchMap((prev) => ({ ...prev, [row._key]: e.target.value }));
+                                setProdDropMap((prev) => ({ ...prev, [row._key]: true }));
+                                if (!e.target.value) {
+                                  updateItem(row._key, "itemId", "");
+                                  updateItem(row._key, "descricao", "");
+                                }
+                              }}
+                              onFocus={() => setProdDropMap((prev) => ({ ...prev, [row._key]: true }))}
+                              placeholder="Buscar produto..."
+                              className="text-xs h-8"
+                            />
+                            {prodDropMap[row._key] && (
+                              <div className="absolute z-50 mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+                                {produtos
+                                  .filter((p) => {
+                                    const q = (prodSearch || "").toLowerCase();
+                                    return (
+                                      p.descricao.toLowerCase().includes(q) ||
+                                      p.codigo.toLowerCase().includes(q)
+                                    );
+                                  })
+                                  .slice(0, 10)
+                                  .map((p) => (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      onMouseDown={() => selectProduto(row._key, p)}
+                                      className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                                    >
+                                      <span className="font-mono text-gray-500 mr-2">{p.codigo}</span>
+                                      <span className="font-medium text-gray-900">{p.descricao}</span>
+                                    </button>
+                                  ))}
+                                {produtos.filter((p) => {
+                                  const q = (prodSearch || "").toLowerCase();
+                                  return p.descricao.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q);
+                                }).length === 0 && (
+                                  <p className="px-3 py-2 text-xs text-gray-400 italic">Nenhum resultado.</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Local Estoque */}
+                        <td className="px-3 py-2">
+                          <select
+                            value={row.localEstoqueId}
+                            onChange={(e) => updateItem(row._key, "localEstoqueId", e.target.value)}
+                            className="w-full h-8 px-2 border border-gray-200 rounded-md text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">Global</option>
+                            {locaisEstoque.map((l) => (
+                              <option key={l.id} value={l.id}>{l.nome}</option>
+                            ))}
+                          </select>
+                        </td>
+
+                        {/* U.M. */}
+                        <td className="px-3 py-2">
+                          <span className="text-xs text-gray-500">{row.unidadeMedida || "—"}</span>
+                        </td>
+
+                        {/* Qtd. Pedida */}
+                        <td className="px-3 py-2">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            min="0"
+                            value={row.quantidadePedida}
+                            onChange={(e) => updateItem(row._key, "quantidadePedida", e.target.value)}
+                            className="text-right h-8 text-xs"
+                          />
+                        </td>
+
+                        {/* Vlr. Unit */}
+                        <td className="px-3 py-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={row.vlrUnitario}
+                            onChange={(e) => updateItem(row._key, "vlrUnitario", e.target.value)}
+                            className="text-right h-8 text-xs"
+                          />
+                        </td>
+
+                        {/* Vlr. Total */}
+                        <td className="px-3 py-2 text-right text-xs text-gray-600 whitespace-nowrap">
+                          {total > 0 ? formatBRL(total) : "—"}
+                        </td>
+
+                        {/* Tipo Entrada */}
+                        <td className="px-3 py-2">
+                          <Input
+                            value={row.tipoEntrada}
+                            onChange={(e) => updateItem(row._key, "tipoEntrada", e.target.value)}
+                            placeholder="—"
+                            className="h-8 text-xs"
+                          />
+                        </td>
+
+                        {/* Cód. Fiscal */}
+                        <td className="px-3 py-2">
+                          <Input
+                            value={row.codFiscal}
+                            onChange={(e) => updateItem(row._key, "codFiscal", e.target.value)}
+                            placeholder="—"
+                            className="h-8 text-xs font-mono"
+                          />
+                        </td>
+
+                        {/* Delete */}
+                        <td className="px-3 py-2">
+                          {itens.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeRow(row._key)}
+                              className="text-gray-400 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Totals ───────────────────────────────────────────────────────── */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Totais</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Vlr. Mercadoria</Label>
+                <Input
+                  value={formatBRL(vlrMercadoria)}
+                  readOnly
+                  className="bg-gray-50 text-right font-medium"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Frete</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={frete}
+                  onChange={(e) => setFrete(e.target.value)}
+                  placeholder="0,00"
+                  className="text-right"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Seguro</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={seguro}
+                  onChange={(e) => setSeguro(e.target.value)}
+                  placeholder="0,00"
+                  className="text-right"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Despesas</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={despesas}
+                  onChange={(e) => setDespesas(e.target.value)}
+                  placeholder="0,00"
+                  className="text-right"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Desconto</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={desconto}
+                  onChange={(e) => setDesconto(e.target.value)}
+                  placeholder="0,00"
+                  className="text-right"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Vlr. Bruto</Label>
+                <Input
+                  value={formatBRL(vlrBruto)}
+                  readOnly
+                  className="bg-blue-50 text-right font-bold text-blue-900 border-blue-200"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Actions ──────────────────────────────────────────────────────── */}
+        <div className="flex gap-3">
+          <Button variant="outline" asChild>
+            <Link href="/suprimentos/conferencias">Cancelar</Link>
+          </Button>
+          <Button onClick={handleSubmit} disabled={submitting}>
+            {submitting ? "Incluindo..." : "Incluir"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

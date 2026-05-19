@@ -32,14 +32,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
 
       if (qtdRecebida > 0) {
-        // Get current stock
+        // Use item-specific localEstoqueId if set, otherwise fall back to null (global stock)
+        const targetLocalEstoqueId = item.localEstoqueId ?? null;
+
+        // Get current stock for this location
         const estoqueItem = await tx.estoqueItem.findFirst({
-          where: { itemId: item.itemId, localEstoqueId: null },
+          where: { itemId: item.itemId, localEstoqueId: targetLocalEstoqueId },
           select: { id: true, quantidadeAtual: true },
         });
 
         const saldoAntes = estoqueItem ? parseFloat(String(estoqueItem.quantidadeAtual)) : 0;
         const saldoDepois = saldoAntes + qtdRecebida;
+
+        // Determine document reference
+        const docRef = conferencia.pedido?.numero
+          ? `Recebimento ${conferencia.pedido.numero}`
+          : `Recebimento ${conferencia.numero}`;
 
         // Create stock movement
         const mov = await tx.movimentacaoEstoque.create({
@@ -50,18 +58,28 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             saldoAntes,
             saldoDepois,
             documento: conferencia.numero,
-            observacoes: `Recebimento ${conferencia.pedido.numero}`,
+            observacoes: docRef,
             conferenciaItemId: item.id,
           },
         });
 
         movimentacoesCriadas.push(mov.id);
 
-        // Update or create stock record (no specific location)
+        // Update or create stock record
         if (estoqueItem) {
-          await tx.estoqueItem.update({ where: { id: estoqueItem.id }, data: { quantidadeAtual: saldoDepois } });
+          await tx.estoqueItem.update({
+            where: { id: estoqueItem.id },
+            data: { quantidadeAtual: saldoDepois },
+          });
         } else {
-          await tx.estoqueItem.create({ data: { itemId: item.itemId, quantidadeAtual: saldoDepois, quantidadeMin: 0 } });
+          await tx.estoqueItem.create({
+            data: {
+              itemId: item.itemId,
+              quantidadeAtual: saldoDepois,
+              quantidadeMin: 0,
+              localEstoqueId: targetLocalEstoqueId,
+            },
+          });
         }
 
         // Mark divergencia on item
@@ -88,6 +106,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         pedido: {
           include: { fornecedor: { select: { id: true, razaoSocial: true } } },
         },
+        fornecedor: { select: { id: true, razaoSocial: true } },
         itens: {
           include: {
             item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } },
@@ -97,14 +116,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       },
     });
 
-    // Update pedido to RECEBIDO
-    await tx.pedidoCompra.update({
-      where: { id: conferencia.pedidoId },
-      data: { status: "RECEBIDO" },
-    });
+    // Update pedido to RECEBIDO (only if linked to a pedido)
+    if (conferencia.pedidoId) {
+      await tx.pedidoCompra.update({
+        where: { id: conferencia.pedidoId },
+        data: { status: "RECEBIDO" },
+      });
+    }
 
     // ── Auto-link items to supplier ───────────────────────────────────────────
-    const fornecedorId = conferencia.pedido.fornecedorId;
+    const fornecedorId = conferencia.pedido?.fornecedorId ?? conferencia.fornecedorId;
     const autoVinculos: string[] = [];
     if (fornecedorId) {
       for (const item of conferencia.itens) {
@@ -125,5 +146,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return { conferencia: updatedConferencia, movimentacoesCriadas, autoVinculos };
   });
 
-  return NextResponse.json({ data: result.conferencia, movimentacoesCriadas: result.movimentacoesCriadas, autoVinculos: result.autoVinculos });
+  return NextResponse.json({
+    data: result.conferencia,
+    movimentacoesCriadas: result.movimentacoesCriadas,
+    autoVinculos: result.autoVinculos,
+  });
 }

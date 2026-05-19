@@ -8,12 +8,32 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     include: {
       pedido: {
         include: {
-          fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+          fornecedor: {
+            select: {
+              id: true,
+              razaoSocial: true,
+              nomeFantasia: true,
+              cpfCnpj: true,
+              contato: true,
+              email: true,
+            },
+          },
+        },
+      },
+      fornecedor: {
+        select: {
+          id: true,
+          razaoSocial: true,
+          nomeFantasia: true,
+          cpfCnpj: true,
+          contato: true,
+          email: true,
         },
       },
       itens: {
         include: {
           item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } },
+          localEstoque: { select: { id: true, nome: true } },
           movimentacoes: { select: { id: true, tipo: true, quantidade: true, createdAt: true } },
         },
       },
@@ -26,12 +46,31 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json();
-  const { itens, observacoes } = body;
+  const {
+    itens,
+    observacoes,
+    tipoNota,
+    numeroNF,
+    serie,
+    dtEmissao,
+    ufOrigem,
+    espDocumento,
+    frete,
+    tipoFrete,
+    seguro,
+    despesas,
+    desconto,
+    vrTotal,
+  } = body;
 
   await prisma.$transaction(async (tx) => {
     if (itens && Array.isArray(itens)) {
       for (const item of itens) {
         const qtdRecebida = parseFloat(String(item.quantidadeRecebida ?? 0));
+        const vlrUnit = item.vlrUnitario != null ? parseFloat(String(item.vlrUnitario)) : undefined;
+        const vlrTot = item.vlrTotal != null ? parseFloat(String(item.vlrTotal)) : undefined;
+        const vlrIPI = item.vlrIPI != null ? parseFloat(String(item.vlrIPI)) : undefined;
+        const vlrICMS = item.vlrICMS != null ? parseFloat(String(item.vlrICMS)) : undefined;
 
         // Get pedida to determine divergencia
         const ci = await tx.conferenciaCompraItem.findUnique({
@@ -48,6 +87,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             quantidadeRecebida: qtdRecebida,
             divergencia,
             ...(item.observacao !== undefined ? { observacao: item.observacao || null } : {}),
+            ...(vlrUnit !== undefined ? { vlrUnitario: vlrUnit } : {}),
+            ...(vlrTot !== undefined ? { vlrTotal: vlrTot } : {}),
+            ...(vlrIPI !== undefined ? { vlrIPI: vlrIPI } : {}),
+            ...(vlrICMS !== undefined ? { vlrICMS: vlrICMS } : {}),
+            ...(item.tipoEntrada !== undefined ? { tipoEntrada: item.tipoEntrada || null } : {}),
+            ...(item.codFiscal !== undefined ? { codFiscal: item.codFiscal || null } : {}),
+            ...(item.tpOper !== undefined ? { tpOper: item.tpOper || null } : {}),
+            ...(item.localEstoqueId !== undefined ? { localEstoqueId: item.localEstoqueId || null } : {}),
           },
         });
       }
@@ -55,6 +102,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const updateData: Record<string, unknown> = { status: "EM_CONFERENCIA" };
     if (observacoes !== undefined) updateData.observacoes = observacoes || null;
+    if (tipoNota !== undefined) updateData.tipoNota = tipoNota || null;
+    if (numeroNF !== undefined) updateData.numeroNF = numeroNF || null;
+    if (serie !== undefined) updateData.serie = serie || null;
+    if (dtEmissao !== undefined) updateData.dtEmissao = dtEmissao ? new Date(dtEmissao) : null;
+    if (ufOrigem !== undefined) updateData.ufOrigem = ufOrigem || null;
+    if (espDocumento !== undefined) updateData.espDocumento = espDocumento || null;
+    if (frete !== undefined) updateData.frete = frete != null ? parseFloat(String(frete)) : null;
+    if (tipoFrete !== undefined) updateData.tipoFrete = tipoFrete || null;
+    if (seguro !== undefined) updateData.seguro = seguro != null ? parseFloat(String(seguro)) : null;
+    if (despesas !== undefined) updateData.despesas = despesas != null ? parseFloat(String(despesas)) : null;
+    if (desconto !== undefined) updateData.desconto = desconto != null ? parseFloat(String(desconto)) : null;
+    if (vrTotal !== undefined) updateData.vrTotal = vrTotal != null ? parseFloat(String(vrTotal)) : null;
 
     await tx.conferenciaCompra.update({
       where: { id: params.id },
@@ -66,11 +125,33 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     where: { id: params.id },
     include: {
       pedido: {
-        include: { fornecedor: { select: { id: true, razaoSocial: true } } },
+        include: {
+          fornecedor: {
+            select: {
+              id: true,
+              razaoSocial: true,
+              nomeFantasia: true,
+              cpfCnpj: true,
+              contato: true,
+              email: true,
+            },
+          },
+        },
+      },
+      fornecedor: {
+        select: {
+          id: true,
+          razaoSocial: true,
+          nomeFantasia: true,
+          cpfCnpj: true,
+          contato: true,
+          email: true,
+        },
       },
       itens: {
         include: {
           item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } },
+          localEstoque: { select: { id: true, nome: true } },
           movimentacoes: true,
         },
       },

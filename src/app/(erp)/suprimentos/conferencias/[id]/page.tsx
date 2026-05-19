@@ -9,8 +9,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatusBadge from "@/components/shared/StatusBadge";
-import { formatDate, decimalToNumber } from "@/lib/utils";
+import { formatDate, formatBRL, decimalToNumber } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
+
+const UF_LIST = [
+  "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
+  "PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO",
+];
+
+type LocalEstoque = { id: string; nome: string } | null;
 
 type ConferenciaItem = {
   id: string;
@@ -18,7 +25,25 @@ type ConferenciaItem = {
   quantidadeRecebida: unknown;
   divergencia: boolean;
   observacao: string | null;
+  vlrUnitario: unknown;
+  vlrTotal: unknown;
+  vlrIPI: unknown;
+  vlrICMS: unknown;
+  tipoEntrada: string | null;
+  codFiscal: string | null;
+  tpOper: string | null;
+  localEstoqueId: string | null;
+  localEstoque: LocalEstoque;
   item: { id: string; codigo: string; descricao: string; unidadeMedida: string };
+};
+
+type FornecedorInfo = {
+  id: string;
+  razaoSocial: string;
+  nomeFantasia: string | null;
+  cpfCnpj: string | null;
+  contato: string | null;
+  email: string | null;
 };
 
 type Conferencia = {
@@ -28,11 +53,25 @@ type Conferencia = {
   dataConferencia: string | null;
   responsavel: string | null;
   observacoes: string | null;
+  tipoNota: string | null;
+  numeroNF: string | null;
+  serie: string | null;
+  dtEmissao: string | null;
+  ufOrigem: string | null;
+  espDocumento: string | null;
+  frete: unknown;
+  tipoFrete: string | null;
+  seguro: unknown;
+  despesas: unknown;
+  desconto: unknown;
+  vrTotal: unknown;
+  pedidoId: string | null;
   pedido: {
     id: string;
     numero: string;
-    fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null };
-  };
+    fornecedor: FornecedorInfo;
+  } | null;
+  fornecedor: FornecedorInfo | null;
   itens: ConferenciaItem[];
 };
 
@@ -40,7 +79,17 @@ type EditItem = {
   id: string;
   quantidadeRecebida: string;
   observacao: string;
+  vlrUnitario: string;
+  vlrTotal: string;
+  vlrIPI: string;
+  vlrICMS: string;
+  tipoEntrada: string;
+  codFiscal: string;
+  tpOper: string;
+  localEstoqueId: string;
 };
+
+type LocalEstoqueOption = { id: string; nome: string };
 
 function getItemStatus(pedida: number, recebida: number): { label: string; cls: string } {
   if (recebida === 0) return { label: "Faltante", cls: "bg-red-100 text-red-700" };
@@ -48,7 +97,7 @@ function getItemStatus(pedida: number, recebida: number): { label: string; cls: 
   return { label: "OK", cls: "bg-green-100 text-green-700" };
 }
 
-export default function ConferenciaDetailPage() {
+export default function DocumentoEntradaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [conferencia, setConferencia] = useState<Conferencia | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,7 +109,21 @@ export default function ConferenciaDetailPage() {
   const [editItems, setEditItems] = useState<EditItem[]>([]);
   const [responsavel, setResponsavel] = useState("");
   const [observacoes, setObservacoes] = useState("");
+
+  // NF fields (editable when PENDENTE)
+  const [tipoNota, setTipoNota] = useState("");
+  const [numeroNF, setNumeroNF] = useState("");
+  const [serie, setSerie] = useState("");
+  const [dtEmissao, setDtEmissao] = useState("");
+  const [ufOrigem, setUfOrigem] = useState("");
+  const [espDocumento, setEspDocumento] = useState("");
+  const [frete, setFrete] = useState("");
+  const [seguro, setSeguro] = useState("");
+  const [despesas, setDespesas] = useState("");
+  const [desconto, setDesconto] = useState("");
+
   const [saving, setSaving] = useState(false);
+  const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoqueOption[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,15 +134,36 @@ export default function ConferenciaDetailPage() {
       setConferencia(conf);
       setResponsavel(conf.responsavel ?? "");
       setObservacoes(conf.observacoes ?? "");
+      setTipoNota(conf.tipoNota ?? "NORMAL");
+      setNumeroNF(conf.numeroNF ?? "");
+      setSerie(conf.serie ?? "");
+      setDtEmissao(
+        conf.dtEmissao ? conf.dtEmissao.slice(0, 10) : ""
+      );
+      setUfOrigem(conf.ufOrigem ?? "");
+      setEspDocumento(conf.espDocumento ?? "SPED");
+      setFrete(decimalToNumber(conf.frete) > 0 ? String(decimalToNumber(conf.frete)) : "");
+      setSeguro(decimalToNumber(conf.seguro) > 0 ? String(decimalToNumber(conf.seguro)) : "");
+      setDespesas(decimalToNumber(conf.despesas) > 0 ? String(decimalToNumber(conf.despesas)) : "");
+      setDesconto(decimalToNumber(conf.desconto) > 0 ? String(decimalToNumber(conf.desconto)) : "");
+
       setEditItems(
         conf.itens.map((i) => ({
           id: i.id,
           quantidadeRecebida: decimalToNumber(i.quantidadeRecebida).toString(),
           observacao: i.observacao ?? "",
+          vlrUnitario: decimalToNumber(i.vlrUnitario) > 0 ? String(decimalToNumber(i.vlrUnitario)) : "",
+          vlrTotal: decimalToNumber(i.vlrTotal) > 0 ? String(decimalToNumber(i.vlrTotal)) : "",
+          vlrIPI: decimalToNumber(i.vlrIPI) > 0 ? String(decimalToNumber(i.vlrIPI)) : "",
+          vlrICMS: decimalToNumber(i.vlrICMS) > 0 ? String(decimalToNumber(i.vlrICMS)) : "",
+          tipoEntrada: i.tipoEntrada ?? "",
+          codFiscal: i.codFiscal ?? "",
+          tpOper: i.tpOper ?? "",
+          localEstoqueId: i.localEstoqueId ?? "",
         }))
       );
     } catch {
-      setError("Erro ao carregar conferência");
+      setError("Erro ao carregar documento");
     } finally {
       setLoading(false);
     }
@@ -87,8 +171,31 @@ export default function ConferenciaDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    fetch("/api/suprimentos/locais-estoque")
+      .then((r) => r.json())
+      .then((j) => setLocaisEstoque(j.data ?? []))
+      .catch(() => {});
+  }, []);
+
   function updateEditItem(itemId: string, key: keyof EditItem, value: string) {
     setEditItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, [key]: value } : i)));
+  }
+
+  // Auto-calc vlrTotal when vlrUnitario or quantidadeRecebida changes
+  function updateItemAndCalc(itemId: string, key: "vlrUnitario" | "quantidadeRecebida", value: string) {
+    setEditItems((prev) =>
+      prev.map((i) => {
+        if (i.id !== itemId) return i;
+        const updated = { ...i, [key]: value };
+        const qtd = parseFloat(key === "quantidadeRecebida" ? value : i.quantidadeRecebida) || 0;
+        const unit = parseFloat(key === "vlrUnitario" ? value : i.vlrUnitario) || 0;
+        if (qtd > 0 && unit > 0) {
+          updated.vlrTotal = (qtd * unit).toFixed(2);
+        }
+        return updated;
+      })
+    );
   }
 
   async function salvarConferencia() {
@@ -100,10 +207,28 @@ export default function ConferenciaDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           observacoes: observacoes || null,
+          tipoNota: tipoNota || null,
+          numeroNF: numeroNF || null,
+          serie: serie || null,
+          dtEmissao: dtEmissao || null,
+          ufOrigem: ufOrigem || null,
+          espDocumento: espDocumento || null,
+          frete: frete ? parseFloat(frete) : null,
+          seguro: seguro ? parseFloat(seguro) : null,
+          despesas: despesas ? parseFloat(despesas) : null,
+          desconto: desconto ? parseFloat(desconto) : null,
           itens: editItems.map((i) => ({
             id: i.id,
             quantidadeRecebida: parseFloat(i.quantidadeRecebida) || 0,
             observacao: i.observacao || null,
+            vlrUnitario: i.vlrUnitario ? parseFloat(i.vlrUnitario) : null,
+            vlrTotal: i.vlrTotal ? parseFloat(i.vlrTotal) : null,
+            vlrIPI: i.vlrIPI ? parseFloat(i.vlrIPI) : null,
+            vlrICMS: i.vlrICMS ? parseFloat(i.vlrICMS) : null,
+            tipoEntrada: i.tipoEntrada || null,
+            codFiscal: i.codFiscal || null,
+            tpOper: i.tpOper || null,
+            localEstoqueId: i.localEstoqueId || null,
           })),
         }),
       });
@@ -124,10 +249,8 @@ export default function ConferenciaDetailPage() {
     setActioning(true);
     setActionError("");
     try {
-      // First save items
       await salvarConferencia();
 
-      // Then finalize
       const res = await fetch(`/api/suprimentos/conferencias/${id}/concluir`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -135,13 +258,13 @@ export default function ConferenciaDetailPage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        setActionError(json.error || "Erro ao concluir conferência");
+        setActionError(json.error || "Erro ao concluir");
         return;
       }
       await load();
       if (json.autoVinculos?.length > 0) {
         setAutoVinculoMsg(
-          `Vinculação automática: ${json.autoVinculos.join(", ")} ${json.autoVinculos.length === 1 ? "foi vinculado" : "foram vinculados"} ao fornecedor deste pedido.`
+          `Vinculação automática: ${json.autoVinculos.join(", ")} ${json.autoVinculos.length === 1 ? "foi vinculado" : "foram vinculados"} ao fornecedor.`
         );
         setTimeout(() => setAutoVinculoMsg(null), 7000);
       }
@@ -159,7 +282,7 @@ export default function ConferenciaDetailPage() {
       const res = await fetch(`/api/suprimentos/conferencias/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itens: [] }), // triggers EM_CONFERENCIA status
+        body: JSON.stringify({ itens: [] }),
       });
       if (!res.ok) {
         const j = await res.json();
@@ -174,96 +297,476 @@ export default function ConferenciaDetailPage() {
     }
   }
 
-  // Set tab title dynamically
-  useTabTitle(conferencia ? `Conf. ${conferencia.numero}` : null);
+  useTabTitle(conferencia ? `Doc. ${conferencia.numero}` : null);
 
   if (loading) return <div className="px-8 pt-8 text-gray-400">Carregando...</div>;
   if (!conferencia) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
   const isEditable = conferencia.status === "EM_CONFERENCIA";
-  const totalPedido = conferencia.itens.reduce((s, i) => s + decimalToNumber(i.quantidadePedida), 0);
-  const totalRecebido = editItems.reduce((s, i) => s + (parseFloat(i.quantidadeRecebida) || 0), 0);
+  const isPendente = conferencia.status === "PENDENTE";
+  const nfEditable = isPendente || isEditable;
+
   const hasDivergencias = editItems.some((ei) => {
     const item = conferencia.itens.find((i) => i.id === ei.id);
     if (!item) return false;
     return Math.abs(decimalToNumber(item.quantidadePedida) - (parseFloat(ei.quantidadeRecebida) || 0)) > 0.001;
   });
 
+  // Fornecedor info: prefer standalone fornecedor, fallback to pedido.fornecedor
+  const fornInfo: FornecedorInfo | null = conferencia.fornecedor ?? conferencia.pedido?.fornecedor ?? null;
+  const fornNome = fornInfo ? (fornInfo.nomeFantasia || fornInfo.razaoSocial) : "—";
+  const codigoForn = fornInfo ? fornInfo.id.slice(-8).toUpperCase() : "—";
+
+  // Totals
+  const vlrMercadoria = conferencia.itens.reduce((s, i) => s + decimalToNumber(i.vlrTotal), 0);
+  const freteNum = decimalToNumber(conferencia.frete);
+  const seguroNum = decimalToNumber(conferencia.seguro);
+  const despesasNum = decimalToNumber(conferencia.despesas);
+  const descontoNum = decimalToNumber(conferencia.desconto);
+  const vrTotalNum = decimalToNumber(conferencia.vrTotal);
+  const vlrBruto = vrTotalNum > 0 ? vrTotalNum : vlrMercadoria + freteNum + seguroNum + despesasNum - descontoNum;
+
   return (
     <div>
       {/* Auto-vínculo toast */}
       {autoVinculoMsg && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 bg-emerald-700 text-white text-sm px-5 py-3 rounded-2xl shadow-lg max-w-lg">
-          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
           <span>{autoVinculoMsg}</span>
           <button onClick={() => setAutoVinculoMsg(null)} className="ml-1 opacity-70 hover:opacity-100">✕</button>
         </div>
       )}
 
       <PageHeader
-        title={`Conferência ${conferencia.numero}`}
+        title={`Documento de Entrada ${conferencia.numero}`}
         breadcrumbs={[
           { label: "Suprimentos" },
-          { label: "Conferências", href: "/suprimentos/conferencias" },
+          { label: "Doc. de Entrada", href: "/suprimentos/conferencias" },
           { label: conferencia.numero },
         ]}
-        action={<StatusBadge status={conferencia.status} />}
+        action={
+          <div className="flex items-center gap-2">
+            <StatusBadge status={conferencia.status} />
+          </div>
+        }
       />
-      <div className="px-8 pb-8 space-y-6 max-w-5xl">
+
+      <div className="px-8 pb-8 max-w-6xl space-y-6">
         {actionError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{actionError}</div>
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+            {actionError}
+          </div>
         )}
 
-        {/* Info */}
-        <Card>
-          <CardContent className="pt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <p className="text-xs text-gray-500">Pedido</p>
+        {/* ── Seção 1: Nota Fiscal ──────────────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+            <h2 className="font-semibold text-sm text-gray-800">Nota Fiscal</h2>
+          </div>
+          <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Tipo da Nota</Label>
+              {nfEditable ? (
+                <select
+                  value={tipoNota}
+                  onChange={(e) => setTipoNota(e.target.value)}
+                  className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="NORMAL">Normal</option>
+                  <option value="COMPLEMENTAR">Complementar</option>
+                  <option value="DEVOLUCAO">Devolução</option>
+                  <option value="ENTRADA_SIMBOLICA">Entrada Simbólica</option>
+                </select>
+              ) : (
+                <Input value={conferencia.tipoNota ?? "—"} readOnly className="bg-gray-50" />
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Série</Label>
+              {nfEditable ? (
+                <Input value={serie} onChange={(e) => setSerie(e.target.value)} placeholder="1" />
+              ) : (
+                <Input value={conferencia.serie ?? "—"} readOnly className="bg-gray-50" />
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Número NF</Label>
+              {nfEditable ? (
+                <Input value={numeroNF} onChange={(e) => setNumeroNF(e.target.value)} placeholder="000000" />
+              ) : (
+                <Input value={conferencia.numeroNF ?? "—"} readOnly className="bg-gray-50" />
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">DT Emissão</Label>
+              {nfEditable ? (
+                <Input type="date" value={dtEmissao} onChange={(e) => setDtEmissao(e.target.value)} />
+              ) : (
+                <Input
+                  value={conferencia.dtEmissao ? formatDate(conferencia.dtEmissao) : "—"}
+                  readOnly
+                  className="bg-gray-50"
+                />
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Espec. Docum.</Label>
+              {nfEditable ? (
+                <Input value={espDocumento} onChange={(e) => setEspDocumento(e.target.value)} placeholder="SPED" />
+              ) : (
+                <Input value={conferencia.espDocumento ?? "—"} readOnly className="bg-gray-50" />
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">UF Origem</Label>
+              {nfEditable ? (
+                <select
+                  value={ufOrigem}
+                  onChange={(e) => setUfOrigem(e.target.value)}
+                  className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">—</option>
+                  {UF_LIST.map((uf) => (
+                    <option key={uf} value={uf}>{uf}</option>
+                  ))}
+                </select>
+              ) : (
+                <Input value={conferencia.ufOrigem ?? "—"} readOnly className="bg-gray-50" />
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Data Conferência</Label>
+              <Input
+                value={conferencia.dataConferencia ? formatDate(conferencia.dataConferencia) : "—"}
+                readOnly
+                className="bg-gray-50"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Nº Documento</Label>
+              <Input value={conferencia.numero} readOnly className="bg-gray-50 font-mono text-xs" />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Seção 2: Fornecedor ───────────────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+            <h2 className="font-semibold text-sm text-gray-800">Fornecedor</h2>
+            {conferencia.pedido && (
               <Link
                 href={`/suprimentos/pedidos-compra/${conferencia.pedido.id}`}
-                className="text-sm font-medium text-blue-600 hover:underline font-mono"
+                className="text-xs text-blue-600 hover:underline font-mono"
               >
-                {conferencia.pedido.numero}
+                Pedido vinculado: {conferencia.pedido.numero}
               </Link>
+            )}
+          </div>
+          <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Código</Label>
+              <Input value={codigoForn} readOnly className="bg-gray-50 font-mono" />
             </div>
-            <div>
-              <p className="text-xs text-gray-500">Fornecedor</p>
-              <p className="text-sm font-medium">
-                {conferencia.pedido.fornecedor.nomeFantasia || conferencia.pedido.fornecedor.razaoSocial}
-              </p>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Loja</Label>
+              <Input value="01" readOnly className="bg-gray-50" />
             </div>
-            <div>
-              <p className="text-xs text-gray-500">Status</p>
-              <div className="mt-1"><StatusBadge status={conferencia.status} /></div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Nome Fornecedor</Label>
+              <Input value={fornNome} readOnly className="bg-gray-50" />
             </div>
-            <div>
-              <p className="text-xs text-gray-500">Data de Conferência</p>
-              <p className="text-sm font-medium">{formatDate(conferencia.dataConferencia)}</p>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">CNPJ</Label>
+              <Input value={fornInfo?.cpfCnpj ?? "—"} readOnly className="bg-gray-50 font-mono" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Contato</Label>
+              <Input value={fornInfo?.contato ?? "—"} readOnly className="bg-gray-50" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">E-mail</Label>
+              <Input value={fornInfo?.email ?? "—"} readOnly className="bg-gray-50" />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Seção 3: Itens ───────────────────────────────────────────────── */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Itens</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">#NF</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">Produto</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">Descrição</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">Local Estoque</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">U.M.</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Qtd. Pedida</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Qtd. Recebida</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Vlr. Unit.</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Vlr. Total</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Vlr. IPI</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Vlr. ICMS</th>
+                    <th className="text-center px-3 py-2.5 font-medium text-gray-600 text-xs">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {conferencia.itens.map((item, idx) => {
+                    const ei = editItems[idx];
+                    const qtdPedida = decimalToNumber(item.quantidadePedida);
+                    const qtdRecebida = parseFloat(ei?.quantidadeRecebida ?? "0") || 0;
+                    const itemStatus = getItemStatus(qtdPedida, qtdRecebida);
+                    const localNome = item.localEstoque?.nome ?? null;
+
+                    return (
+                      <tr
+                        key={item.id}
+                        className={`hover:bg-gray-50 ${item.divergencia && !isEditable ? "bg-amber-50/50" : ""}`}
+                      >
+                        <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-gray-500">{item.item.codigo}</td>
+                        <td className="px-3 py-2 text-xs text-gray-800 max-w-[200px]">{item.item.descricao}</td>
+
+                        {/* Local Estoque */}
+                        <td className="px-3 py-2">
+                          {isEditable && ei ? (
+                            <select
+                              value={ei.localEstoqueId}
+                              onChange={(e) => updateEditItem(item.id, "localEstoqueId", e.target.value)}
+                              className="w-full h-7 px-2 border border-gray-200 rounded text-xs bg-white focus:outline-none"
+                            >
+                              <option value="">Global</option>
+                              {locaisEstoque.map((l) => (
+                                <option key={l.id} value={l.id}>{l.nome}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="text-xs text-gray-600">{localNome ?? "Global"}</span>
+                          )}
+                        </td>
+
+                        <td className="px-3 py-2 text-xs text-gray-500">{item.item.unidadeMedida}</td>
+
+                        {/* Qtd. Pedida */}
+                        <td className="px-3 py-2 text-right text-xs text-gray-700">
+                          {qtdPedida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                        </td>
+
+                        {/* Qtd. Recebida */}
+                        <td className="px-3 py-2">
+                          {isEditable && ei ? (
+                            <Input
+                              type="number"
+                              step="0.001"
+                              min="0"
+                              className="w-24 ml-auto text-right h-7 text-xs"
+                              value={ei.quantidadeRecebida}
+                              onChange={(e) => updateItemAndCalc(item.id, "quantidadeRecebida", e.target.value)}
+                            />
+                          ) : (
+                            <span className="block text-right text-xs text-gray-700">
+                              {decimalToNumber(item.quantidadeRecebida).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Vlr. Unit */}
+                        <td className="px-3 py-2">
+                          {isEditable && ei ? (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-24 ml-auto text-right h-7 text-xs"
+                              value={ei.vlrUnitario}
+                              onChange={(e) => updateItemAndCalc(item.id, "vlrUnitario", e.target.value)}
+                            />
+                          ) : (
+                            <span className="block text-right text-xs text-gray-700">
+                              {decimalToNumber(item.vlrUnitario) > 0
+                                ? formatBRL(decimalToNumber(item.vlrUnitario))
+                                : "—"}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Vlr. Total */}
+                        <td className="px-3 py-2">
+                          {isEditable && ei ? (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-24 ml-auto text-right h-7 text-xs"
+                              value={ei.vlrTotal}
+                              onChange={(e) => updateEditItem(item.id, "vlrTotal", e.target.value)}
+                            />
+                          ) : (
+                            <span className="block text-right text-xs text-gray-700">
+                              {decimalToNumber(item.vlrTotal) > 0
+                                ? formatBRL(decimalToNumber(item.vlrTotal))
+                                : "—"}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Vlr. IPI */}
+                        <td className="px-3 py-2">
+                          {isEditable && ei ? (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-24 ml-auto text-right h-7 text-xs"
+                              value={ei.vlrIPI}
+                              onChange={(e) => updateEditItem(item.id, "vlrIPI", e.target.value)}
+                            />
+                          ) : (
+                            <span className="block text-right text-xs text-gray-700">
+                              {decimalToNumber(item.vlrIPI) > 0
+                                ? formatBRL(decimalToNumber(item.vlrIPI))
+                                : "—"}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Vlr. ICMS */}
+                        <td className="px-3 py-2">
+                          {isEditable && ei ? (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-24 ml-auto text-right h-7 text-xs"
+                              value={ei.vlrICMS}
+                              onChange={(e) => updateEditItem(item.id, "vlrICMS", e.target.value)}
+                            />
+                          ) : (
+                            <span className="block text-right text-xs text-gray-700">
+                              {decimalToNumber(item.vlrICMS) > 0
+                                ? formatBRL(decimalToNumber(item.vlrICMS))
+                                : "—"}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-3 py-2 text-center">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${itemStatus.cls}`}
+                          >
+                            {isEditable ? itemStatus.label : (item.divergencia ? "Divergência" : "OK")}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
 
-        {/* Summary */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-blue-50 rounded-xl p-4">
-            <p className="text-xs text-blue-600 font-medium">Total Pedido</p>
-            <p className="text-2xl font-bold text-blue-900 mt-1">{totalPedido.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}</p>
-            <p className="text-xs text-blue-500">itens solicitados</p>
+        {/* ── Seção 4: Totais ──────────────────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+            <h2 className="font-semibold text-sm text-gray-800">Totais</h2>
           </div>
-          <div className="bg-green-50 rounded-xl p-4">
-            <p className="text-xs text-green-600 font-medium">Total Recebido</p>
-            <p className="text-2xl font-bold text-green-900 mt-1">{totalRecebido.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}</p>
-            <p className="text-xs text-green-500">itens contados</p>
-          </div>
-          <div className={`rounded-xl p-4 ${hasDivergencias ? "bg-amber-50" : "bg-gray-50"}`}>
-            <p className={`text-xs font-medium ${hasDivergencias ? "text-amber-600" : "text-gray-500"}`}>Divergências</p>
-            <p className={`text-2xl font-bold mt-1 ${hasDivergencias ? "text-amber-900" : "text-gray-700"}`}>
-              {hasDivergencias ? "Sim" : "Nenhuma"}
-            </p>
+          <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Vlr. Mercadoria</Label>
+              {isEditable ? (
+                <Input value={formatBRL(vlrMercadoria)} readOnly className="bg-gray-50 text-right" />
+              ) : (
+                <Input value={vlrMercadoria > 0 ? formatBRL(vlrMercadoria) : "—"} readOnly className="bg-gray-50 text-right" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Frete</Label>
+              {nfEditable ? (
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={frete}
+                  onChange={(e) => setFrete(e.target.value)}
+                  placeholder="0,00"
+                  className="text-right"
+                />
+              ) : (
+                <Input value={freteNum > 0 ? formatBRL(freteNum) : "—"} readOnly className="bg-gray-50 text-right" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Seguro</Label>
+              {nfEditable ? (
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={seguro}
+                  onChange={(e) => setSeguro(e.target.value)}
+                  placeholder="0,00"
+                  className="text-right"
+                />
+              ) : (
+                <Input value={seguroNum > 0 ? formatBRL(seguroNum) : "—"} readOnly className="bg-gray-50 text-right" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Despesas</Label>
+              {nfEditable ? (
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={despesas}
+                  onChange={(e) => setDespesas(e.target.value)}
+                  placeholder="0,00"
+                  className="text-right"
+                />
+              ) : (
+                <Input value={despesasNum > 0 ? formatBRL(despesasNum) : "—"} readOnly className="bg-gray-50 text-right" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Desconto</Label>
+              {nfEditable ? (
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={desconto}
+                  onChange={(e) => setDesconto(e.target.value)}
+                  placeholder="0,00"
+                  className="text-right"
+                />
+              ) : (
+                <Input value={descontoNum > 0 ? formatBRL(descontoNum) : "—"} readOnly className="bg-gray-50 text-right" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Vlr. Bruto</Label>
+              <Input
+                value={vlrBruto > 0 ? formatBRL(vlrBruto) : "—"}
+                readOnly
+                className="bg-blue-50 text-right font-bold text-blue-900 border-blue-200"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Responsavel */}
+        {/* ── Responsável ──────────────────────────────────────────────────── */}
         {isEditable && (
           <Card>
             <CardContent className="pt-4">
@@ -279,82 +782,7 @@ export default function ConferenciaDetailPage() {
           </Card>
         )}
 
-        {/* Items table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Itens para Conferência</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Código</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Descrição</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Qtd. Pedida</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Qtd. Recebida</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Observação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {conferencia.itens.map((item, idx) => {
-                  const ei = editItems[idx];
-                  const qtdPedida = decimalToNumber(item.quantidadePedida);
-                  const qtdRecebida = parseFloat(ei?.quantidadeRecebida ?? "0") || 0;
-                  const itemStatus = getItemStatus(qtdPedida, qtdRecebida);
-
-                  return (
-                    <tr
-                      key={item.id}
-                      className={`hover:bg-gray-50 ${item.divergencia && !isEditable ? "bg-amber-50/50" : ""}`}
-                    >
-                      <td className="px-4 py-3 font-mono text-xs text-gray-600">{item.item.codigo}</td>
-                      <td className="px-4 py-3">{item.item.descricao}</td>
-                      <td className="px-4 py-3 text-right text-gray-700">
-                        {qtdPedida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {item.item.unidadeMedida}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {isEditable && ei ? (
-                          <Input
-                            type="number"
-                            step="0.001"
-                            min="0"
-                            className="w-28 ml-auto text-right"
-                            value={ei.quantidadeRecebida}
-                            onChange={(e) => updateEditItem(item.id, "quantidadeRecebida", e.target.value)}
-                          />
-                        ) : (
-                          <span className="text-gray-700">
-                            {decimalToNumber(item.quantidadeRecebida).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${itemStatus.cls}`}>
-                          {isEditable ? itemStatus.label : (item.divergencia ? "Divergência" : "OK")}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {isEditable && ei ? (
-                          <Input
-                            value={ei.observacao}
-                            onChange={(e) => updateEditItem(item.id, "observacao", e.target.value)}
-                            placeholder="Observação..."
-                            className="text-xs"
-                          />
-                        ) : (
-                          <span className="text-xs text-gray-500">{item.observacao || "—"}</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-
-        {/* Actions */}
+        {/* ── Actions ──────────────────────────────────────────────────────── */}
         <div className="flex gap-3 flex-wrap">
           {conferencia.status === "PENDENTE" && (
             <Button onClick={iniciarConferencia} disabled={actioning}>
@@ -362,23 +790,24 @@ export default function ConferenciaDetailPage() {
             </Button>
           )}
 
+          {(isPendente || isEditable) && !actioning && (
+            <Button variant="outline" onClick={salvarConferencia} disabled={saving}>
+              {saving ? "Salvando..." : "Salvar Progresso"}
+            </Button>
+          )}
+
           {isEditable && (
-            <>
-              <Button variant="outline" onClick={salvarConferencia} disabled={saving}>
-                {saving ? "Salvando..." : "Salvar Progresso"}
-              </Button>
-              <Button
-                onClick={concluir}
-                disabled={actioning}
-                className={hasDivergencias ? "bg-amber-600 hover:bg-amber-700" : ""}
-              >
-                {actioning
-                  ? "Concluindo..."
-                  : hasDivergencias
-                  ? "Concluir com Divergências"
-                  : "Concluir Conferência"}
-              </Button>
-            </>
+            <Button
+              onClick={concluir}
+              disabled={actioning}
+              className={hasDivergencias ? "bg-amber-600 hover:bg-amber-700" : ""}
+            >
+              {actioning
+                ? "Concluindo..."
+                : hasDivergencias
+                ? "Concluir com Divergências"
+                : "Concluir"}
+            </Button>
           )}
         </div>
       </div>
