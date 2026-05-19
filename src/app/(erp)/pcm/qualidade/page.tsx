@@ -250,31 +250,33 @@ export default function QualidadeDadosPage() {
           <p className="text-xs text-gray-500 mb-3">
             <strong className="text-gray-700">Ação:</strong> Ao abrir uma OS corretiva no Engeman, sempre selecionar o equipamento no campo <em>Aplicação</em>.
           </p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b text-gray-400">
-                  <th className="text-left py-1.5">Nº OS</th>
-                  <th className="text-left py-1.5">Data</th>
-                  <th className="text-left py-1.5">Tipo</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {data.osSemEquipamento.lista.slice(0, 15).map((os) => (
-                  <tr key={os.codord} className="hover:bg-gray-50">
-                    <td className="py-1.5 font-mono font-semibold text-gray-700">{os.codord}</td>
-                    <td className="py-1.5 text-gray-600">{os.datent}</td>
-                    <td className="py-1.5 text-gray-600">{os.tipo}</td>
+          {data.osSemEquipamento.lista.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-gray-400">
+                    <th className="text-left py-1.5 pr-4">Nº OS</th>
+                    <th className="text-left py-1.5 pr-4">Data Abertura</th>
+                    <th className="text-left py-1.5">Tipo</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            {data.osSemEquipamento.lista.length > 15 && (
-              <p className="text-xs text-gray-400 mt-2">
-                +{data.osSemEquipamento.lista.length - 15} registros adicionais não exibidos.
-              </p>
-            )}
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {data.osSemEquipamento.lista.slice(0, 15).map((os) => (
+                    <tr key={os.codord} className="hover:bg-gray-50">
+                      <td className="py-1.5 pr-4 text-orange-500 font-medium">{os.codord}</td>
+                      <td className="py-1.5 pr-4 text-gray-600">{os.datent}</td>
+                      <td className="py-1.5 text-gray-600">{os.tipo}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {data.osSemEquipamento.lista.length > 15 && (
+                <p className="text-xs text-gray-400 mt-2">
+                  +{data.osSemEquipamento.lista.length - 15} registros adicionais não exibidos.
+                </p>
+              )}
+            </div>
+          )}
         </Section>
 
         {/* ── Seção 2: Tempo de parada ──────────────────────────────────── */}
@@ -320,14 +322,28 @@ export default function QualidadeDadosPage() {
           <p className="text-xs text-gray-600 mb-3">
             <strong className="text-gray-700">Ação:</strong> Acessar o cadastro de cada equipamento no Engeman e preencher o campo <em>Local de Instalação</em>.
           </p>
-          <div className="grid grid-cols-2 gap-1">
-            {data.equipSemLocal.lista.map((e) => (
-              <div key={e.codApl} className="flex items-center gap-2 text-xs py-1 border-b border-gray-50 last:border-0">
-                <span className="font-mono text-gray-400 text-[10px] w-20 shrink-0">{e.tag}</span>
-                <span className="text-gray-700 truncate">{e.descricao}</span>
-              </div>
-            ))}
-          </div>
+          {data.equipSemLocal.lista.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-gray-400">
+                    <th className="text-left py-1.5 pr-4">Cód APL</th>
+                    <th className="text-left py-1.5 pr-4">TAG</th>
+                    <th className="text-left py-1.5">Equipamento</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {data.equipSemLocal.lista.map((e) => (
+                    <tr key={e.codApl} className="hover:bg-gray-50">
+                      <td className="py-1.5 pr-4 text-orange-500 font-medium">{e.codApl}</td>
+                      <td className="py-1.5 pr-4 font-mono text-gray-500 text-[11px]">{e.tag}</td>
+                      <td className="py-1.5 text-gray-700">{e.descricao}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Section>
 
         {/* ── Seção 4: OS com tempo longo ──────────────────────────────── */}

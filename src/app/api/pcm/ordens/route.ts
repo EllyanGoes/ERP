@@ -77,6 +77,15 @@ function monthLabel(ano: number, mes: number): string {
   return `${MESES_ABREV[mes - 1]}/${String(ano).slice(2)}`;
 }
 
+function stripRtf(input: string | null | undefined): string {
+  if (!input) return "";
+  if (!input.trim().startsWith("{\\rtf")) return input.trim();
+  let text = input.replace(/\{\\[^{}]*\}/g, "");
+  text = text.replace(/\\[a-zA-Z]+\d*\s?/g, " ");
+  text = text.replace(/[{}]/g, "");
+  return text.replace(/\s+/g, " ").trim() || "Sem descrição";
+}
+
 function fmtDatetime(d: Date | string | null): string {
   if (!d) return "";
   const dt = d instanceof Date ? d : new Date(d);
@@ -94,7 +103,8 @@ async function queryEngeman(dias: number, agrupamento: "semana" | "mes"): Promis
   const pool = await sql.connect(dbConfig);
 
   // ── 1. Períodos agrupados ────────────────────────────────────────────────
-  // Corretivas = CODTIPMAN IN (1,2,3), Preventivas = CODTIPMAN >= 4
+  // Corretivas = CODTIPMAN IN (1,2,3)  → CRT, CRP, CRN
+  // Preventivas = CODTIPMAN NOT IN (1,2,3) → tudo que não é corretivo
   // Concluídas = STATORD = 'F'
   const groupCol = agrupamento === "semana"
     ? "DATEPART(WEEK, o.DATENT)"
@@ -115,7 +125,7 @@ async function queryEngeman(dias: number, agrupamento: "semana" | "mes"): Promis
         ${groupCol}        AS PERIODO,
         COUNT(*)           AS CRIADAS,
         SUM(CASE WHEN ISNULL(o.STATORD, 'A') = 'F' THEN 1 ELSE 0 END) AS CONCLUIDAS,
-        SUM(CASE WHEN o.CODTIPMAN >= 4 THEN 1 ELSE 0 END) AS PREVENTIVAS,
+        SUM(CASE WHEN o.CODTIPMAN NOT IN (1,2,3) AND o.CODTIPMAN IS NOT NULL THEN 1 ELSE 0 END) AS PREVENTIVAS,
         SUM(CASE WHEN o.CODTIPMAN IN (1,2,3) THEN 1 ELSE 0 END) AS CORRETIVAS
       FROM ORDSERV o
       WHERE o.DATENT >= DATEADD(DAY, -@diasPeriodo, GETDATE())
@@ -150,12 +160,12 @@ async function queryEngeman(dias: number, agrupamento: "semana" | "mes"): Promis
     }>(`
       SELECT TOP 200
         o.CODORD,
-        ISNULL(RTRIM(o.DESCRICAO), 'Sem descrição')        AS DESCRICAO,
+        ISNULL(RTRIM(o.OBS), 'Sem descrição')              AS DESCRICAO,
         ISNULL(RTRIM(l.DESCRICAO), 'Não informado')        AS LOCAL,
         ISNULL(RTRIM(a.DESCRICAO), 'Não informado')        AS EQUIPAMENTO,
         ISNULL(RTRIM(t.DESCRICAO), 'Tipo ' + CAST(ISNULL(o.CODTIPMAN,0) AS VARCHAR)) AS TIPO,
         ISNULL(o.STATORD, 'A')                             AS STATORD,
-        o.PRIOR,
+        CASE o.PRISUB WHEN 1 THEN 'ALTA' WHEN 2 THEN 'MÉDIA' WHEN 3 THEN 'BAIXA' ELSE NULL END AS PRIOR,
         o.DATENT
       FROM ORDSERV o
       LEFT JOIN APLIC    a ON a.CODAPL    = o.CODAPL
@@ -200,7 +210,7 @@ async function queryEngeman(dias: number, agrupamento: "semana" | "mes"): Promis
     if (detalhe[code].length < 50) {
       detalhe[code].push({
         codord:     r.CODORD,
-        titulo:     r.DESCRICAO ?? "Sem descrição",
+        titulo:     stripRtf(r.DESCRICAO) || "Sem descrição",
         local:      r.LOCAL ?? "Não informado",
         equipamento: r.EQUIPAMENTO ?? "Não informado",
         tipo:       r.TIPO ?? "—",
@@ -334,6 +344,9 @@ export async function GET(req: NextRequest) {
   const pctPreventivas = (totalPreventivas + totalCorretivas) > 0
     ? Math.round((totalPreventivas / (totalPreventivas + totalCorretivas)) * 1000) / 10
     : 0;
+
+  // Force status.total to match totalCriadas for display consistency
+  status.total = totalCriadas;
 
   const response: OrdensResponse = {
     periodo:     dias,

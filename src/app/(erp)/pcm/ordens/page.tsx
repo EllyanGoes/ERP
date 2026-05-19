@@ -23,7 +23,16 @@ import {
   XCircle,
   Loader2,
   Circle,
+  ChevronRight,
+  Timer,
+  Cpu,
+  Tag,
+  CalendarCheck,
+  CalendarX,
+  User,
+  FileText,
 } from "lucide-react";
+import type { OSDetalhe } from "@/app/api/pcm/ordens/[codord]/route";
 import {
   ResponsiveContainer,
   LineChart,
@@ -44,6 +53,7 @@ import { cn } from "@/lib/utils";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const LS_CACHE_KEY    = "pcm_ordens_cache_v1";
+const LS_FILTER_KEY   = "pcm_ordens_filters";
 const CACHE_MAX_AGE_MS = 30 * 60 * 1000;
 
 const STATUS_CONFIG: Record<string, {
@@ -132,15 +142,182 @@ function ChartTooltip({ active, payload, label }: {
   );
 }
 
+// ── OS Detail Panel ───────────────────────────────────────────────────────────
+function OSDetailPanel({
+  codord,
+  onClose,
+}: {
+  codord: number;
+  onClose: () => void;
+}) {
+  const [detail, setDetail]     = useState<OSDetalhe | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    setDetail(null);
+    fetch(`/api/pcm/ordens/${codord}`)
+      .then((r) => {
+        if (!r.ok) throw new Error("OS não encontrada");
+        return r.json();
+      })
+      .then((j) => setDetail(j.os as OSDetalhe))
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [codord]);
+
+  const cfg = detail ? STATUS_CONFIG[detail.statord] : null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-stretch justify-end">
+      {/* Scrim */}
+      <div className="flex-1 bg-black/20" onClick={onClose} />
+
+      {/* Panel */}
+      <div className="bg-white w-full max-w-md flex flex-col shadow-2xl border-l border-gray-100 overflow-hidden animate-in slide-in-from-right duration-200">
+
+        {/* Header */}
+        <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] text-gray-400 font-mono mb-0.5">OS #{codord}</p>
+            {loading && (
+              <p className="text-sm text-gray-400 flex items-center gap-1.5">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando...
+              </p>
+            )}
+            {detail && (
+              <>
+                <h2 className="text-sm font-semibold text-gray-900 leading-snug">{detail.titulo}</h2>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  {cfg && (
+                    <span className={cn(
+                      "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border",
+                      cfg.bg, cfg.border, cfg.text,
+                    )}>
+                      <cfg.Icon className="w-3 h-3" />
+                      {detail.statusLabel}
+                    </span>
+                  )}
+                  {detail.prioridade && (
+                    <span className={cn(
+                      "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium",
+                      PRIORIDADE_CONFIG[detail.prioridade.toUpperCase()] ?? "bg-gray-100 text-gray-600"
+                    )}>
+                      {detail.prioridade}
+                    </span>
+                  )}
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                    {detail.tipo}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex-shrink-0 ml-2"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 text-red-700 text-xs rounded-lg px-3 py-2 border border-red-100">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error} — Engeman pode estar offline.
+            </div>
+          )}
+
+          {detail && (
+            <>
+              {/* ── Datas ──────────────────────────────────────── */}
+              <section>
+                <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">Datas</p>
+                <div className="space-y-2">
+                  <Row icon={CalendarCheck} label="Abertura" value={detail.datent} />
+                  {detail.datafim && (
+                    <Row icon={CalendarX} label="Conclusão" value={detail.datafim} />
+                  )}
+                  {detail.maqpar && (
+                    <Row icon={Timer} label="Início parada" value={detail.maqpar} />
+                  )}
+                  {detail.maqfun && (
+                    <Row icon={Timer} label="Retorno máquina" value={detail.maqfun} />
+                  )}
+                  {detail.horasParada > 0 && (
+                    <Row icon={Timer} label="Tempo parada" value={`${detail.horasParada.toFixed(1)}h`} />
+                  )}
+                </div>
+              </section>
+
+              {/* ── Equipamento ────────────────────────────────── */}
+              <section>
+                <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">Equipamento</p>
+                <div className="space-y-2">
+                  <Row icon={Cpu} label="Ativo" value={detail.equipamento} />
+                  {detail.tag && (
+                    <Row icon={Tag} label="TAG" value={detail.tag} mono />
+                  )}
+                  <Row icon={MapPin} label="Local" value={detail.local} />
+                </div>
+              </section>
+
+              {/* ── Responsável ────────────────────────────────── */}
+              {detail.responsavel && (
+                <section>
+                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">Responsável</p>
+                  <Row icon={User} label="Executante" value={detail.responsavel} />
+                </section>
+              )}
+
+              {/* ── Observações de fechamento ───────────────────── */}
+              {detail.observacoes && (
+                <section>
+                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-2">Observações de Fechamento</p>
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                    <div className="flex items-start gap-2">
+                      <FileText className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
+                      <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">{detail.observacoes}</p>
+                    </div>
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Simple detail row
+function Row({ icon: Icon, label, value, mono = false }: { icon: React.ElementType; label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <Icon className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] text-gray-400">{label}</p>
+        <p className={`text-xs font-medium text-gray-700 ${mono ? "font-mono" : ""}`}>{value}</p>
+      </div>
+    </div>
+  );
+}
+
 // ── Drill-down Modal ──────────────────────────────────────────────────────────
 function DrillModal({
   statusCode,
   items,
   onClose,
+  onSelectOS,
 }: {
   statusCode: string;
   items: DetalheOS[];
   onClose: () => void;
+  onSelectOS: (codord: number) => void;
 }) {
   const cfg = STATUS_CONFIG[statusCode];
 
@@ -157,7 +334,7 @@ function DrillModal({
             <div>
               <h2 className="text-base font-semibold text-gray-900">Ordens de Serviço</h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                Detalhamento por status
+                Clique em uma O.S. para ver detalhes
               </p>
             </div>
             <span
@@ -200,14 +377,15 @@ function DrillModal({
                 const osCfg = STATUS_CONFIG[os.statord];
 
                 return (
-                  <div
+                  <button
                     key={`${os.codord}-${os.datent}`}
-                    className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50/60 transition-colors"
+                    onClick={() => onSelectOS(os.codord)}
+                    className="w-full flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/40 transition-colors text-left group"
                   >
                     {/* Body */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-semibold text-gray-800 truncate">{os.titulo}</p>
+                        <p className="text-sm font-semibold text-gray-800 truncate group-hover:text-blue-700">{os.titulo}</p>
                         <span className="text-xs text-gray-400 font-mono flex-shrink-0 pt-0.5">
                           #{os.codord}
                         </span>
@@ -247,9 +425,12 @@ function DrillModal({
                         <span className="ml-auto text-[11px] text-gray-400 flex-shrink-0">
                           {os.datent}
                         </span>
+
+                        {/* Arrow hint */}
+                        <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-400 flex-shrink-0" />
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -265,9 +446,22 @@ export default function OrdensReportPage() {
   const [data, setData]           = useState<OrdensResponse | null>(null);
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [dias, setDias]           = useState(365);
-  const [agrupamento, setAgrupamento] = useState<"semana" | "mes">("semana");
+  const [dias, setDias] = useState<number>(() => {
+    if (typeof window === "undefined") return 365;
+    try {
+      const saved = JSON.parse(localStorage.getItem(LS_FILTER_KEY) ?? "{}");
+      return (saved.dias as number) || 365;
+    } catch { return 365; }
+  });
+  const [agrupamento, setAgrupamento] = useState<"semana" | "mes">(() => {
+    if (typeof window === "undefined") return "semana";
+    try {
+      const saved = JSON.parse(localStorage.getItem(LS_FILTER_KEY) ?? "{}");
+      return (saved.agrupamento as "semana" | "mes") || "semana";
+    } catch { return "semana"; }
+  });
   const [drillStatus, setDrillStatus] = useState<string | null>(null);
+  const [selectedCodord, setSelectedCodord] = useState<number | null>(null);
 
   // ── Fetch ────────────────────────────────────────────────────────────────
   const fetchData = useCallback(async (background = false) => {
@@ -297,6 +491,13 @@ export default function OrdensReportPage() {
       fetchData(false);
     }
   }, [fetchData, dias, agrupamento]);
+
+  // Persist filters to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_FILTER_KEY, JSON.stringify({ dias, agrupamento }));
+    } catch {}
+  }, [dias, agrupamento]);
 
   // ── Derived data ─────────────────────────────────────────────────────────
   const periodos   = data?.periodos   ?? [];
@@ -744,7 +945,16 @@ export default function OrdensReportPage() {
         <DrillModal
           statusCode={drillStatus}
           items={detalhe[drillStatus] ?? []}
-          onClose={() => setDrillStatus(null)}
+          onClose={() => { setDrillStatus(null); setSelectedCodord(null); }}
+          onSelectOS={(codord) => setSelectedCodord(codord)}
+        />
+      )}
+
+      {/* ── OS Detail side panel ──────────────────────────────────────────── */}
+      {selectedCodord !== null && (
+        <OSDetailPanel
+          codord={selectedCodord}
+          onClose={() => setSelectedCodord(null)}
         />
       )}
     </div>

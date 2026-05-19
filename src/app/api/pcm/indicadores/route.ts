@@ -285,15 +285,20 @@ function mockData(diasPeriodo: number): { equipamentos: IndicadorEquipamento[]; 
 
   const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
   const now = new Date();
-  // Realistic mock trend: MTBF ~470h→510h, MTTR ~2.5h→3.5h, Disp ~99.3%→99.7%
-  const mockMtbf  = [472, 495, 511, 483, 502, 488];
-  const mockMttr  = [3.2, 2.8, 3.5, 3.1, 2.6, 3.0];
-  const mockDisp  = [99.4, 99.5, 99.3, 99.6, 99.7, 99.4];
-  const tendencia: TendenciaMensal[] = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
-    const mtbf = mockMtbf[i];
-    const mttr = mockMttr[i];
-    const disp = mockDisp[i];
+  // Realistic mock trend: 12 months of data — period param controls how many months are shown
+  const mockMtbf  = [458, 472, 495, 511, 483, 502, 488, 476, 510, 495, 503, 488];
+  const mockMttr  = [3.6, 3.2, 2.8, 3.5, 3.1, 2.6, 3.0, 3.3, 2.9, 3.4, 2.7, 3.1];
+  const mockDisp  = [99.2, 99.4, 99.5, 99.3, 99.6, 99.7, 99.4, 99.3, 99.5, 99.4, 99.6, 99.4];
+  const mockFalhas = [82, 76, 68, 71, 64, 59, 73, 78, 65, 70, 61, 74];
+  // Number of months to show based on the requested period
+  const monthCount = diasPeriodo <= 30 ? 1 : diasPeriodo <= 60 ? 2 : diasPeriodo <= 90 ? 3
+                   : diasPeriodo <= 120 ? 4 : diasPeriodo <= 180 ? 6 : 12;
+  const tendencia: TendenciaMensal[] = Array.from({ length: monthCount }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (monthCount - 1) + i, 1);
+    const idx = (12 - monthCount + i) % 12;
+    const mtbf = mockMtbf[idx];
+    const mttr = mockMttr[idx];
+    const disp = mockDisp[idx];
     const conf = Math.exp(-720 / mtbf) * 100;
     return {
       mes:             `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
@@ -302,8 +307,8 @@ function mockData(diasPeriodo: number): { equipamentos: IndicadorEquipamento[]; 
       mtbfMedio:       mtbf,
       disponibilidade: disp,
       confiabilidade:  parseFloat(conf.toFixed(2)),
-      falhas:          Math.floor(60 + Math.random() * 50),
-      totalHhReparo:   +(200 + Math.random() * 300).toFixed(2),
+      falhas:          mockFalhas[idx],
+      totalHhReparo:   +(mttr * mockFalhas[idx]).toFixed(2),
     };
   });
 

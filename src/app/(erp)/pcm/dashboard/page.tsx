@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,8 @@ import {
   MinusSquare,
   X as XIcon,
   TableProperties,
+  HelpCircle,
+  Info,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -277,9 +279,11 @@ function DrillModal({
                       <span className="truncate block max-w-[160px]">{eq.localInstalacao}</span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                        eq.totalFalhas >= 5 ? "bg-red-100 text-red-700" : eq.totalFalhas >= 3 ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"
-                      }`}>{eq.totalFalhas}</span>
+                      <Link href={`/pcm/fmea/${eq.codApl}`} title="Ver FMEA">
+                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all ${
+                          eq.totalFalhas >= 5 ? "bg-red-100 text-red-700 hover:ring-red-300" : eq.totalFalhas >= 3 ? "bg-amber-100 text-amber-700 hover:ring-amber-300" : "bg-gray-100 text-gray-600 hover:ring-gray-300"
+                        }`}>{eq.totalFalhas}</span>
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <span className={`font-bold text-base ${good ? "text-green-600" : "text-red-600"}`} style={{ color: good ? metric.color : "#ef4444" }}>
@@ -300,6 +304,71 @@ function DrillModal({
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Info Panel
+// ---------------------------------------------------------------------------
+const INFO_ITEMS = [
+  {
+    icon: HelpCircle,
+    color: "text-blue-500",
+    bg: "bg-blue-50",
+    title: "Por que nem todos os ativos aparecem?",
+    body: "O relatório exibe apenas equipamentos que tiveram ao menos 1 OS corretiva fechada (STATORD = 'F') no período. Para aparecer, o ativo precisa: (1) estar cadastrado em APLIC com CODAPL válido; (2) ter ao menos uma Ordem de Serviço corretiva (CODTIPMAN 1, 2 ou 3) vinculada; (3) a OS deve estar Fechada. O filtro de Ativo/Local mostra todos os ativos ativos no cadastro, mas a tabela de indicadores só exibe os que têm histórico de falhas.",
+  },
+  {
+    icon: Info,
+    color: "text-indigo-500",
+    bg: "bg-indigo-50",
+    title: "O filtro de ativos agrupa por local?",
+    body: "Sim. O popover 'Ativo / Local' agrupa os equipamentos pelo campo LOCAPLIC.DESCRICAO (local de instalação). Expanda o local para ver seus equipamentos e selecione ou desmarque individualmente ou por grupo completo. A seleção atualiza automaticamente todos os gráficos e a tabela de indicadores.",
+  },
+  {
+    icon: Info,
+    color: "text-teal-500",
+    bg: "bg-teal-50",
+    title: "É necessário ter escala de trabalho pré-definida?",
+    body: "Não. O cálculo usa o período selecionado (ex.: 365 dias × 24 h = 8.760 h) como base para MTBF e Disponibilidade, sem depender de calendário de turnos. Se quiser calcular pela disponibilidade real do equipamento — descontando finais de semana, turnos e feriados —, seria necessário cadastrar a escala de trabalho no Engeman e incluir esse campo na consulta. Por enquanto o relatório funciona corretamente sem escala definida.",
+  },
+];
+
+function InfoPanel() {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div className="rounded-xl border border-gray-100 overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-5 py-3.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          <HelpCircle className="w-4 h-4 text-gray-400" />
+          <span className="text-sm font-medium text-gray-600">
+            Entendendo este relatório
+          </span>
+        </div>
+        <ChevronDown
+          className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="divide-y divide-gray-100 bg-white">
+          {INFO_ITEMS.map((item) => (
+            <div key={item.title} className="flex gap-4 px-5 py-4">
+              <div className={`flex-shrink-0 p-2 rounded-lg h-fit ${item.bg}`}>
+                <item.icon className={`w-4 h-4 ${item.color}`} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-800 mb-0.5">{item.title}</p>
+                <p className="text-xs text-gray-500 leading-relaxed">{item.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -612,7 +681,7 @@ export default function PCMDashboardPage() {
   return (
     <div>
       <PageHeader
-        title="Dashboard PCM"
+        title="Resultados"
         subtitle="Planejamento e Controle de Manutenção — MTBF · MTTR · Confiabilidade"
         breadcrumbs={[
           { label: "Menu" },
@@ -1025,17 +1094,19 @@ export default function PCMDashboardPage() {
                             <span className="truncate block">{eq.localInstalacao || "—"}</span>
                           </td>
                           <td className="px-3 py-3 text-center">
-                            <span
-                              className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${
-                                eq.totalFalhas >= 5
-                                  ? "bg-red-100 text-red-700"
-                                  : eq.totalFalhas >= 3
-                                  ? "bg-amber-100 text-amber-700"
-                                  : "bg-gray-100 text-gray-600"
-                              }`}
-                            >
-                              {eq.totalFalhas}
-                            </span>
+                            <Link href={`/pcm/fmea/${eq.codApl}`} title="Ver FMEA">
+                              <span
+                                className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all ${
+                                  eq.totalFalhas >= 5
+                                    ? "bg-red-100 text-red-700 hover:ring-red-300"
+                                    : eq.totalFalhas >= 3
+                                    ? "bg-amber-100 text-amber-700 hover:ring-amber-300"
+                                    : "bg-gray-100 text-gray-600 hover:ring-gray-300"
+                                }`}
+                              >
+                                {eq.totalFalhas}
+                              </span>
+                            </Link>
                           </td>
                           <td className="px-3 py-3 text-center">
                             <span
@@ -1198,6 +1269,9 @@ export default function PCMDashboardPage() {
             onClose={() => setDrillMetric(null)}
           />
         )}
+
+        {/* ── Info panel ──────────────────────────────────────────────────── */}
+        <InfoPanel />
 
         {/* Footer info */}
         {data && (
