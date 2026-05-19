@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   ChevronsUpDown,
   Settings2,
   RefreshCw,
@@ -29,7 +30,6 @@ import {
   GitBranch,
   MapPin,
   Cpu,
-  X as XIcon,
   CheckSquare,
   Square,
   MinusSquare,
@@ -47,7 +47,8 @@ import {
   Line,
   Legend,
 } from "recharts";
-import type { IndicadorEquipamento, TendenciaMensal, IndicadoresResponse } from "@/app/api/pcm/indicadores/route";
+import type { IndicadorEquipamento, IndicadoresResponse } from "@/app/api/pcm/indicadores/route";
+import type { LocalNode, AplicacoesResponse } from "@/app/api/pcm/aplicacoes/route";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -194,18 +195,20 @@ export default function PCMDashboardPage() {
   const [data, setData] = useState<IndicadoresResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false); // background refresh
-  const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("mtbf");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [localFilter, setLocalFilter] = useState("all");
   const [showTargets, setShowTargets] = useState(false);
   const [targets, setTargets] = useState<{ mtbf: number; mttr: number }>({ mtbf: 120, mttr: 4 });
   const [targetInput, setTargetInput] = useState({ mtbf: "120", mttr: "4" });
 
-  // ── Tree filter ────────────────────────────────────────────────────────────
-  const [showTree, setShowTree]           = useState(false);
-  const [treeSelected, setTreeSelected]   = useState<Set<number> | null>(null); // null = all
-  const [treeExpanded, setTreeExpanded]   = useState<Set<string>>(new Set());
+  // ── Tree popover filter ──────────────────────────────────────────────────────
+  const [showTreePopover, setShowTreePopover]   = useState(false);
+  const [treeSelected, setTreeSelected]         = useState<Set<number> | null>(null); // null = all
+  const [treeExpanded, setTreeExpanded]         = useState<Set<string>>(new Set());
+  const [treeSearch, setTreeSearch]             = useState("");
+  const [allLocais, setAllLocais]               = useState<LocalNode[]>([]);
+  const [loadingLocais, setLoadingLocais]       = useState(false);
+  const treePopoverRef                          = useRef<HTMLDivElement>(null);
 
   // Load targets from localStorage on mount
   useEffect(() => {
@@ -243,55 +246,108 @@ export default function PCMDashboardPage() {
     }
   }, [fetchData, dias]);
 
-  // Locais vindos da API (já filtrados)
-  const locations = useMemo(() => data?.locais ?? [], [data]);
-
-  // Tree: group equipamentos by localInstalacao
-  const treeData = useMemo(() => {
-    if (!data) return [] as { local: string; equips: IndicadorEquipamento[] }[];
-    const map = new Map<string, IndicadorEquipamento[]>();
-    for (const eq of data.equipamentos) {
-      const loc = eq.localInstalacao || "Sem local";
-      if (!map.has(loc)) map.set(loc, []);
-      map.get(loc)!.push(eq);
-    }
-    return Array.from(map.entries())
-      .map(([local, equips]) => ({ local, equips }))
-      .sort((a, b) => a.local.localeCompare(b.local));
-  }, [data]);
-
-  // Expand all locations by default when tree data arrives
+  // Load full application tree (all active APLIC, not just those with OS)
   useEffect(() => {
-    if (treeData.length > 0 && treeExpanded.size === 0) {
-      setTreeExpanded(new Set(treeData.map((n) => n.local)));
+    setLoadingLocais(true);
+    fetch("/api/pcm/aplicacoes")
+      .then((r) => r.json())
+      .then((json: AplicacoesResponse) => setAllLocais(json.locais))
+      .catch(() => {})
+      .finally(() => setLoadingLocais(false));
+  }, []);
+
+  // Close tree popover on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (treePopoverRef.current && !treePopoverRef.current.contains(e.target as Node)) {
+        setShowTreePopover(false);
+      }
+    }
+    if (showTreePopover) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showTreePopover]);
+
+  // Filtered tree nodes for the popover (search-filtered)
+  const treeNodes = useMemo(() => {
+    if (!treeSearch.trim()) return allLocais;
+    const q = treeSearch.toLowerCase();
+    return allLocais
+      .map((loc) => ({
+        ...loc,
+        equips: loc.equips.filter(
+          (e) => e.descricao.toLowerCase().includes(q) || e.tag.toLowerCase().includes(q)
+        ),
+      }))
+      .filter((loc) => loc.descricao.toLowerCase().includes(q) || loc.equips.length > 0);
+  }, [allLocais, treeSearch]);
+
+  // Expand matched nodes when searching
+  useEffect(() => {
+    if (treeSearch.trim()) {
+      setTreeExpanded(new Set(treeNodes.map((n) => n.descricao)));
+    }
+  }, [treeSearch, treeNodes]);
+
+  // Expand all on first load
+  useEffect(() => {
+    if (allLocais.length > 0 && treeExpanded.size === 0) {
+      setTreeExpanded(new Set(allLocais.map((n) => n.descricao)));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [treeData]);
+  }, [allLocais]);
+
+  // All codApls from the full tree (not just those with OS)
+  const allCodApls = useMemo(
+    () => new Set(allLocais.flatMap((l) => l.equips.map((e) => e.codApl))),
+    [allLocais]
+  );
+
+  // ── Tree helpers ────────────────────────────────────────────────────────────
+  function toggleTreeLocation(local: string, equips: { codApl: number }[]) {
+    const ids = equips.map((e) => e.codApl);
+    setTreeSelected((prev) => {
+      const base = prev ?? allCodApls;
+      const allSelected = ids.every((id) => base.has(id));
+      const next = new Set(base);
+      if (allSelected) {
+        ids.forEach((id) => next.delete(id));
+      } else {
+        ids.forEach((id) => next.add(id));
+      }
+      // If everything is selected, go back to null (= all)
+      return next.size === allCodApls.size ? null : next;
+    });
+  }
+
+  function toggleTreeEquip(codApl: number) {
+    setTreeSelected((prev) => {
+      const base = prev ?? new Set(allCodApls);
+      const next = new Set(base);
+      if (next.has(codApl)) {
+        next.delete(codApl);
+      } else {
+        next.add(codApl);
+      }
+      return next.size === allCodApls.size ? null : next;
+    });
+  }
+
+  function locationCheckState(equips: { codApl: number }[]): "all" | "none" | "partial" {
+    if (!treeSelected) return "all";
+    const total = equips.length;
+    const sel = equips.filter((e) => treeSelected.has(e.codApl)).length;
+    if (sel === 0) return "none";
+    if (sel === total) return "all";
+    return "partial";
+  }
 
   // Filtered + sorted equipamentos
   const equipamentosFiltrados = useMemo(() => {
     if (!data) return [];
     let list = data.equipamentos;
 
-    // Tree selection overrides localFilter dropdown
-    if (treeSelected !== null && treeSelected.size > 0) {
+    if (treeSelected !== null) {
       list = list.filter((e) => treeSelected.has(e.codApl));
-    } else if (treeSelected === null || treeSelected.size === 0) {
-      // Only apply localFilter if tree has no active selection
-      if (localFilter !== "all") {
-        list = list.filter((e) =>
-          e.localInstalacao.toLowerCase().includes(localFilter.toLowerCase())
-        );
-      }
-    }
-
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (e) =>
-          e.descricao.toLowerCase().includes(q) ||
-          e.tag.toLowerCase().includes(q)
-      );
     }
 
     list = [...list].sort((a, b) => {
@@ -307,11 +363,11 @@ export default function PCMDashboardPage() {
     });
 
     return list;
-  }, [data, search, localFilter, sortField, sortDir, treeSelected]);
+  }, [data, sortField, sortDir, treeSelected]);
 
-  // KPI averages
+  // KPI averages — reflect current tree selection
   const kpis = useMemo(() => {
-    const list = data?.equipamentos ?? [];
+    const list = equipamentosFiltrados;
     if (list.length === 0) {
       return { mtbf: 0, mttr: 0, disp: 0, conf: 0 };
     }
@@ -321,7 +377,7 @@ export default function PCMDashboardPage() {
       disp: list.reduce((s, e) => s + e.disponibilidade, 0) / list.length,
       conf: list.reduce((s, e) => s + e.confiabilidade, 0) / list.length,
     };
-  }, [data]);
+  }, [equipamentosFiltrados]);
 
   // Chart data: top 10 worst MTBF
   const barChartData = useMemo(() => {
@@ -355,52 +411,6 @@ export default function PCMDashboardPage() {
     saveTargets(t);
     setShowTargets(false);
   }
-
-  // ── Tree helpers ────────────────────────────────────────────────────────────
-  const allCodApls = useMemo(
-    () => new Set((data?.equipamentos ?? []).map((e) => e.codApl)),
-    [data]
-  );
-
-  function toggleTreeLocation(local: string, equips: IndicadorEquipamento[]) {
-    const ids = equips.map((e) => e.codApl);
-    setTreeSelected((prev) => {
-      const base = prev ?? allCodApls;
-      const allSelected = ids.every((id) => base.has(id));
-      const next = new Set(base);
-      if (allSelected) {
-        ids.forEach((id) => next.delete(id));
-      } else {
-        ids.forEach((id) => next.add(id));
-      }
-      // If everything is selected, go back to null (= all)
-      return next.size === allCodApls.size ? null : next;
-    });
-  }
-
-  function toggleTreeEquip(codApl: number) {
-    setTreeSelected((prev) => {
-      const base = prev ?? new Set(allCodApls);
-      const next = new Set(base);
-      if (next.has(codApl)) {
-        next.delete(codApl);
-      } else {
-        next.add(codApl);
-      }
-      return next.size === allCodApls.size ? null : next;
-    });
-  }
-
-  function locationCheckState(equips: IndicadorEquipamento[]): "all" | "none" | "partial" {
-    if (!treeSelected) return "all";
-    const total = equips.length;
-    const sel = equips.filter((e) => treeSelected.has(e.codApl)).length;
-    if (sel === 0) return "none";
-    if (sel === total) return "all";
-    return "partial";
-  }
-
-  const activeTreeCount = treeSelected ? treeSelected.size : allCodApls.size;
 
   // Custom tooltip for bar chart
   const CustomBarTooltip = ({ active, payload, label }: any) => {
@@ -505,136 +515,7 @@ export default function PCMDashboardPage() {
         }
       />
 
-      <div className={`flex gap-0 pb-8 ${showTree ? "pl-0" : "px-8"}`}>
-
-        {/* ── Tree Filter Panel ──────────────────────────────────────────── */}
-        {showTree && (
-          <aside className="w-72 min-w-[272px] border-r border-gray-200 bg-white flex flex-col h-[calc(100vh-120px)] sticky top-0 overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <GitBranch className="w-4 h-4 text-blue-600" />
-                <span className="text-sm font-semibold text-gray-800">Filtro por Aplicação</span>
-              </div>
-              <button
-                onClick={() => setShowTree(false)}
-                className="text-gray-400 hover:text-gray-600 p-0.5 rounded"
-              >
-                <XIcon className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-50 bg-gray-50/50">
-              <button
-                onClick={() => setTreeSelected(null)}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Selecionar todos
-              </button>
-              <span className="text-gray-300">·</span>
-              <button
-                onClick={() => setTreeSelected(new Set())}
-                className="text-xs text-gray-500 hover:text-gray-700"
-              >
-                Limpar
-              </button>
-              <span className="ml-auto text-xs text-gray-400">
-                {activeTreeCount}/{allCodApls.size}
-              </span>
-            </div>
-
-            {/* Tree nodes */}
-            <div className="overflow-y-auto flex-1 py-1">
-              {treeData.map((node) => {
-                const expanded = treeExpanded.has(node.local);
-                const checkState = locationCheckState(node.equips);
-
-                return (
-                  <div key={node.local}>
-                    {/* Location row */}
-                    <div className="flex items-center gap-1 px-2 py-1 hover:bg-gray-50 group">
-                      {/* Expand toggle */}
-                      <button
-                        onClick={() =>
-                          setTreeExpanded((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(node.local)) next.delete(node.local);
-                            else next.add(node.local);
-                            return next;
-                          })
-                        }
-                        className="p-0.5 text-gray-400 hover:text-gray-600 flex-shrink-0"
-                      >
-                        {expanded ? (
-                          <ChevronDown className="w-3.5 h-3.5" />
-                        ) : (
-                          <ChevronUp className="w-3.5 h-3.5 -rotate-90" />
-                        )}
-                      </button>
-
-                      {/* Checkbox */}
-                      <button
-                        onClick={() => toggleTreeLocation(node.local, node.equips)}
-                        className="flex-shrink-0 text-blue-600"
-                      >
-                        {checkState === "all" ? (
-                          <CheckSquare className="w-4 h-4" />
-                        ) : checkState === "partial" ? (
-                          <MinusSquare className="w-4 h-4 text-blue-400" />
-                        ) : (
-                          <Square className="w-4 h-4 text-gray-300" />
-                        )}
-                      </button>
-
-                      <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <span
-                        className="text-xs font-medium text-gray-700 truncate flex-1 cursor-pointer"
-                        onClick={() => toggleTreeLocation(node.local, node.equips)}
-                        title={node.local}
-                      >
-                        {node.local}
-                      </span>
-                      <span className="text-xs text-gray-300 flex-shrink-0 ml-1">
-                        {node.equips.length}
-                      </span>
-                    </div>
-
-                    {/* Equipment children */}
-                    {expanded && node.equips.map((eq) => {
-                      const sel = !treeSelected || treeSelected.has(eq.codApl);
-                      return (
-                        <div
-                          key={eq.codApl}
-                          className="flex items-center gap-1 pl-7 pr-2 py-0.5 hover:bg-gray-50 cursor-pointer group"
-                          onClick={() => toggleTreeEquip(eq.codApl)}
-                        >
-                          <button className="flex-shrink-0 text-blue-600">
-                            {sel ? (
-                              <CheckSquare className="w-3.5 h-3.5" />
-                            ) : (
-                              <Square className="w-3.5 h-3.5 text-gray-300" />
-                            )}
-                          </button>
-                          <Cpu className="w-3 h-3 text-blue-400 flex-shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <p className={`text-xs truncate ${sel ? "text-gray-700" : "text-gray-400"}`} title={eq.descricao}>
-                              {eq.descricao}
-                            </p>
-                            <p className="text-[10px] text-gray-400 font-mono">{eq.tag}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          </aside>
-        )}
-
-        {/* ── Main content ──────────────────────────────────────────────── */}
-        <div className={`flex-1 space-y-6 ${showTree ? "px-6" : ""}`}>
+      <div className="px-8 pb-8 space-y-6">
 
         {/* Target config panel */}
         {showTargets && (
@@ -737,23 +618,113 @@ export default function PCMDashboardPage() {
 
         {/* Filters */}
         <div className="flex items-end gap-3 flex-wrap">
-          {/* Tree toggle */}
-          <div>
-            <Label className="text-xs text-gray-500 mb-1 block">Aplicações</Label>
-            <Button
-              variant={showTree ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowTree((v) => !v)}
-              className={`gap-1.5 h-8 ${showTree ? "bg-blue-600 hover:bg-blue-700" : ""}`}
-            >
-              <GitBranch className="w-3.5 h-3.5" />
-              Árvore
-              {treeSelected !== null && treeSelected.size > 0 && (
-                <span className="ml-0.5 bg-white text-blue-600 text-[10px] font-bold rounded-full px-1.5 leading-4">
-                  {treeSelected.size}
-                </span>
-              )}
-            </Button>
+
+          {/* Tree popover filter */}
+          <div className="relative" ref={treePopoverRef}>
+            <div>
+              <Label className="text-xs text-gray-500 mb-1 block">Ativo / Local</Label>
+              <Button
+                variant={treeSelected !== null ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowTreePopover((v) => !v)}
+                className={`gap-1.5 h-8 ${treeSelected !== null ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+              >
+                <GitBranch className="w-3.5 h-3.5" />
+                Ativo / Local
+                {treeSelected !== null && treeSelected.size > 0 && (
+                  <span className="ml-0.5 bg-white text-blue-600 text-[10px] font-bold rounded-full px-1.5 leading-4">
+                    {treeSelected.size}
+                  </span>
+                )}
+              </Button>
+            </div>
+
+            {/* Popover panel */}
+            {showTreePopover && (
+              <div className="absolute top-full left-0 mt-1 z-50 bg-white rounded-xl border border-gray-200 shadow-xl w-72 flex flex-col max-h-[420px]">
+                {/* Search */}
+                <div className="p-2 border-b border-gray-100">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                    <input
+                      autoFocus
+                      className="w-full pl-8 pr-3 h-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Buscar ativo ou local..."
+                      value={treeSearch}
+                      onChange={(e) => setTreeSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-50 bg-gray-50/50">
+                  <button onClick={() => setTreeSelected(null)} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                    Todos
+                  </button>
+                  <span className="text-gray-300">·</span>
+                  <button onClick={() => setTreeSelected(new Set())} className="text-xs text-gray-500 hover:text-gray-700">
+                    Nenhum
+                  </button>
+                  <span className="ml-auto text-xs text-gray-400">
+                    {treeSelected === null ? allCodApls.size : treeSelected.size}/{allCodApls.size}
+                  </span>
+                </div>
+
+                {/* Tree */}
+                <div className="overflow-y-auto flex-1 py-1">
+                  {loadingLocais ? (
+                    <div className="flex items-center justify-center py-6 text-gray-400 text-xs gap-1">
+                      <RefreshCw className="w-3 h-3 animate-spin" /> Carregando...
+                    </div>
+                  ) : treeNodes.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-4">Nenhum resultado</p>
+                  ) : treeNodes.map((node) => {
+                    const expanded = treeExpanded.has(node.descricao);
+                    const checkState = locationCheckState(node.equips);
+                    return (
+                      <div key={node.descricao}>
+                        <div className="flex items-center gap-1 px-2 py-1 hover:bg-gray-50 group">
+                          <button
+                            onClick={() => setTreeExpanded((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(node.descricao)) next.delete(node.descricao);
+                              else next.add(node.descricao);
+                              return next;
+                            })}
+                            className="p-0.5 text-gray-400 hover:text-gray-600 flex-shrink-0"
+                          >
+                            {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                          </button>
+                          <button onClick={() => toggleTreeLocation(node.descricao, node.equips)} className="flex-shrink-0 text-blue-600">
+                            {checkState === "all" ? <CheckSquare className="w-4 h-4" /> : checkState === "partial" ? <MinusSquare className="w-4 h-4 text-blue-400" /> : <Square className="w-4 h-4 text-gray-300" />}
+                          </button>
+                          <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          <span className="text-xs font-medium text-gray-700 truncate flex-1 cursor-pointer" onClick={() => toggleTreeLocation(node.descricao, node.equips)} title={node.descricao}>
+                            {node.descricao}
+                          </span>
+                          <span className="text-xs text-gray-300 flex-shrink-0">{node.equips.length}</span>
+                        </div>
+                        {expanded && node.equips.map((eq) => {
+                          const sel = !treeSelected || treeSelected.has(eq.codApl);
+                          return (
+                            <div key={eq.codApl} className="flex items-center gap-1 pl-7 pr-2 py-0.5 hover:bg-gray-50 cursor-pointer" onClick={() => toggleTreeEquip(eq.codApl)}>
+                              <button className="flex-shrink-0 text-blue-600">
+                                {sel ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5 text-gray-300" />}
+                              </button>
+                              <Cpu className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <p className={`text-xs truncate ${sel ? "text-gray-700" : "text-gray-400"}`} title={eq.descricao}>{eq.descricao}</p>
+                                <p className="text-[10px] text-gray-400 font-mono">{eq.tag}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
@@ -774,37 +745,6 @@ export default function PCMDashboardPage() {
             </Select>
           </div>
 
-          {locations.length > 0 && (
-            <div>
-              <Label className="text-xs text-gray-500 mb-1 block">Local</Label>
-              <Select value={localFilter} onValueChange={setLocalFilter}>
-                <SelectTrigger className="w-48 h-8 text-sm">
-                  <SelectValue placeholder="Todos os locais" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os locais</SelectItem>
-                  {locations.map((l) => (
-                    <SelectItem key={l} value={l}>
-                      {l}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div className="flex-1 min-w-[200px]">
-            <Label className="text-xs text-gray-500 mb-1 block">Equipamento</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-              <Input
-                className="pl-8 h-8 text-sm"
-                placeholder="Buscar equipamento..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-          </div>
         </div>
 
         {/* Main table */}
@@ -1136,8 +1076,7 @@ export default function PCMDashboardPage() {
           </p>
         )}
 
-        </div>{/* end main content */}
-      </div>{/* end flex container */}
+      </div>
     </div>
   );
 }
