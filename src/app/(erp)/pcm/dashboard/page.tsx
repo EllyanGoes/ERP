@@ -184,16 +184,8 @@ export default function PCMDashboardPage() {
     fetchData();
   }, [fetchData]);
 
-  // Unique locations for filter
-  const locations = useMemo(() => {
-    if (!data) return [];
-    const set = new Set(
-      data.equipamentos
-        .map((e) => e.localInstalacao.split("/")[0].trim())
-        .filter(Boolean)
-    );
-    return Array.from(set).sort();
-  }, [data]);
+  // Locais vindos da API (já filtrados)
+  const locations = useMemo(() => data?.locais ?? [], [data]);
 
   // Filtered + sorted equipamentos
   const equipamentosFiltrados = useMemo(() => {
@@ -205,7 +197,7 @@ export default function PCMDashboardPage() {
       list = list.filter(
         (e) =>
           e.descricao.toLowerCase().includes(q) ||
-          e.codigo.toLowerCase().includes(q)
+          e.tag.toLowerCase().includes(q)
       );
     }
 
@@ -251,10 +243,10 @@ export default function PCMDashboardPage() {
       .sort((a, b) => a.mtbf - b.mtbf)
       .slice(0, 10)
       .map((e) => ({
-        name: e.descricao.length > 20 ? e.descricao.slice(0, 20) + "…" : e.descricao,
+        name: e.descricao.length > 22 ? e.descricao.slice(0, 22) + "…" : e.descricao,
         MTBF: e.mtbf,
         MTTR: e.mttr,
-        codigo: e.codigo,
+        tag: e.tag,
       }));
   }, [data]);
 
@@ -611,14 +603,14 @@ export default function PCMDashboardPage() {
 
                       return (
                         <tr
-                          key={eq.codigo}
+                          key={eq.codApl}
                           className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${rowBg}`}
                         >
                           <td className="px-4 py-3">
                             <p className="font-medium text-gray-800 truncate max-w-[200px]">
                               {eq.descricao}
                             </p>
-                            <p className="text-xs text-gray-400 font-mono">{eq.codigo}</p>
+                            <p className="text-xs text-gray-400 font-mono">{eq.tag}</p>
                           </td>
                           <td className="px-4 py-3 text-xs text-gray-500 hidden lg:table-cell max-w-[180px]">
                             <span className="truncate block">{eq.localInstalacao || "—"}</span>
@@ -763,13 +755,13 @@ export default function PCMDashboardPage() {
               </CardContent>
             </Card>
 
-            {/* Line chart: Monthly trend */}
+            {/* Line chart: Falhas mensais + MTTR médio */}
             <Card className="border-gray-100">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold text-gray-700">
-                  Tendência Mensal
+                  Ocorrências Mensais
                   <span className="ml-2 text-xs font-normal text-gray-400">
-                    — MTBF e MTTR médios
+                    — falhas corretivas e MTTR médio
                   </span>
                 </CardTitle>
               </CardHeader>
@@ -787,25 +779,34 @@ export default function PCMDashboardPage() {
                       tickLine={false}
                     />
                     <YAxis
+                      yAxisId="falhas"
+                      orientation="left"
+                      tick={{ fontSize: 10, fill: "#94a3b8" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      yAxisId="mttr"
+                      orientation="right"
                       tick={{ fontSize: 10, fill: "#94a3b8" }}
                       axisLine={false}
                       tickLine={false}
                       tickFormatter={(v) => `${v}h`}
                     />
                     <Tooltip content={<CustomLineTooltip />} />
-                    <Legend
-                      wrapperStyle={{ fontSize: 11, color: "#94a3b8" }}
-                    />
+                    <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
                     <Line
+                      yAxisId="falhas"
                       type="monotone"
-                      dataKey="mtbfMedio"
-                      stroke="#3b82f6"
+                      dataKey="falhas"
+                      stroke="#ef4444"
                       strokeWidth={2}
-                      dot={{ r: 3, fill: "#3b82f6" }}
-                      name="MTBF Médio (h)"
+                      dot={{ r: 3, fill: "#ef4444" }}
+                      name="Falhas"
                       activeDot={{ r: 5 }}
                     />
                     <Line
+                      yAxisId="mttr"
                       type="monotone"
                       dataKey="mttrMedio"
                       stroke="#f59e0b"

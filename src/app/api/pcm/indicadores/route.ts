@@ -3,324 +3,281 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import sql from "mssql";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+// ── Types ─────────────────────────────────────────────────────────────────────
 export interface IndicadorEquipamento {
-  codigo: string;
+  codApl: number;
+  tag: string;
   descricao: string;
   localInstalacao: string;
   totalFalhas: number;
   totalHorasReparo: number;
-  mtbf: number; // hours
-  mttr: number; // hours
-  disponibilidade: number; // 0-100
-  confiabilidade: number; // 0-100  at t=720h
+  mtbf: number;          // horas entre falhas
+  mttr: number;          // horas de reparo médio
+  disponibilidade: number; // 0–100 %
+  confiabilidade: number;  // R(t=720h) = e^(-720/MTBF) × 100
   periodoHoras: number;
 }
 
 export interface TendenciaMensal {
-  mes: string; // "YYYY-MM"
-  label: string; // "Jan/25"
-  mtbfMedio: number;
+  mes: string;    // "YYYY-MM"
+  label: string;  // "Jan/25"
   mttrMedio: number;
   falhas: number;
+  totalHhReparo: number;
 }
 
 export interface IndicadoresResponse {
   equipamentos: IndicadorEquipamento[];
   tendencia: TendenciaMensal[];
+  locais: string[];
   source: "db" | "mock";
   generatedAt: string;
 }
 
-// ---------------------------------------------------------------------------
-// Engeman SQL Server config
-// ---------------------------------------------------------------------------
+// ── Engeman SQL Server ────────────────────────────────────────────────────────
+// Banco espelho (slave) do Engeman CMMS
+// Tabelas reais confirmadas: ORDSERV, APLIC, LOCAPLIC, TIPMANUT
+// Tipos corretivos: CODTIPMAN IN (1=CRT, 2=CRP, 3=CRN)
+// Status fechada: STATORD = 'F'
+// Tempo parada: MAQPAR (início) → MAQFUN (retorno); fallback: HOREXEREA
 const dbConfig: sql.config = {
-  server: process.env.ENGEMAN_HOST ?? "192.168.0.206",
-  database: process.env.ENGEMAN_DB ?? "ENGEMAN_SLAVE",
-  user: process.env.ENGEMAN_USER ?? "sa",
+  server:   process.env.ENGEMAN_HOST ?? "192.168.0.206",
+  database: process.env.ENGEMAN_DB   ?? "ENGEMAN_SLAVE",
+  user:     process.env.ENGEMAN_USER ?? "sa",
   password: process.env.ENGEMAN_PASS ?? "Tramontin10@",
-  port: Number(process.env.ENGEMAN_PORT ?? 1433),
+  port:     Number(process.env.ENGEMAN_PORT ?? 1433),
   options: {
     encrypt: false,
     trustServerCertificate: true,
     connectTimeout: 8000,
-    requestTimeout: 15000,
+    requestTimeout: 20000,
   },
-  pool: {
-    max: 5,
-    min: 0,
-    idleTimeoutMillis: 30000,
-  },
+  pool: { max: 5, min: 0, idleTimeoutMillis: 30000 },
 };
 
-// ---------------------------------------------------------------------------
-// Main query against Engeman
-// ---------------------------------------------------------------------------
+// ── Queries ───────────────────────────────────────────────────────────────────
 async function queryEngeman(diasPeriodo: number): Promise<{
   equipamentos: IndicadorEquipamento[];
   tendencia: TendenciaMensal[];
+  locais: string[];
 }> {
   const pool = await sql.connect(dbConfig);
-
   const periodoHoras = diasPeriodo * 24;
-  const dataInicio = new Date();
-  dataInicio.setDate(dataInicio.getDate() - diasPeriodo);
 
-  // We try to detect whether the table is APLICACAO or APLICACOES,
-  // and ORDEMSERVICO or OS, by querying sys.objects first.
-  const tablesResult = await pool
-    .request()
-    .query<{ TABLE_NAME: string }>(
-      `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'`
-    );
-
-  const tables = tablesResult.recordset.map((r) => r.TABLE_NAME.toUpperCase());
-
-  const tblAplicacao = tables.includes("APLICACAO")
-    ? "APLICACAO"
-    : tables.includes("APLICACOES")
-    ? "APLICACOES"
-    : "APLICACAO";
-
-  const tblOS = tables.includes("ORDEMSERVICO")
-    ? "ORDEMSERVICO"
-    : tables.includes("OS")
-    ? "OS"
-    : tables.includes("ORDENSSERVICO")
-    ? "ORDENSSERVICO"
-    : "ORDEMSERVICO";
-
-  const tblLocal = tables.includes("LOCALINSTALACAO")
-    ? "LOCALINSTALACAO"
-    : tables.includes("LOCAL")
-    ? "LOCAL"
-    : null;
-
-  const localJoin = tblLocal
-    ? `LEFT JOIN ${tblLocal} LI ON LI.CODIGO = A.CODIGOLOCALINSTALACAO`
-    : "";
-  const localSelect = tblLocal ? "ISNULL(LI.DESCRICAO, '')" : "''";
-
-  const query = `
-    WITH OS_CORRETIVAS AS (
-      SELECT
-        OS.CODIGOAPL,
-        OS.DATAHORAABERTURA,
-        OS.DATAHORAFECHAMENTO,
-        CASE
-          WHEN OS.DATAHORAFECHAMENTO IS NOT NULL AND OS.DATAHORAABERTURA IS NOT NULL
-          THEN DATEDIFF(MINUTE, OS.DATAHORAABERTURA, OS.DATAHORAFECHAMENTO) / 60.0
-          ELSE 0
-        END AS HORAS_REPARO
-      FROM ${tblOS} OS
-      WHERE
-        OS.DATAHORAABERTURA >= @dataInicio
-        AND OS.DATAHORAFECHAMENTO IS NOT NULL
-        AND (
-          UPPER(ISNULL(OS.TIPOOS, '')) IN ('CM', 'C', 'CORRETIVA', 'COR')
-          OR UPPER(ISNULL(OS.TIPOOS, '')) LIKE '%CORRET%'
-        )
-        AND OS.CODIGOAPL IS NOT NULL
-        AND OS.CODIGOAPL <> ''
-    ),
-    INDICADORES AS (
-      SELECT
-        OC.CODIGOAPL,
-        COUNT(*) AS TOTAL_FALHAS,
-        SUM(OC.HORAS_REPARO) AS TOTAL_HORAS_REPARO
-      FROM OS_CORRETIVAS OC
-      GROUP BY OC.CODIGOAPL
-    )
-    SELECT
-      A.CODIGO,
-      A.DESCRICAO,
-      ${localSelect} AS LOCAL_INSTALACAO,
-      ISNULL(I.TOTAL_FALHAS, 0) AS TOTAL_FALHAS,
-      ISNULL(I.TOTAL_HORAS_REPARO, 0) AS TOTAL_HORAS_REPARO
-    FROM ${tblAplicacao} A
-    ${localJoin}
-    LEFT JOIN INDICADORES I ON I.CODIGOAPL = A.CODIGO
-    WHERE
-      ISNULL(A.SITUACAO, 'A') <> 'I'
-      AND ISNULL(I.TOTAL_FALHAS, 0) > 0
-    ORDER BY I.TOTAL_FALHAS DESC
-  `;
-
-  const equipResult = await pool
-    .request()
-    .input("dataInicio", sql.DateTime, dataInicio)
+  // ── 1. Indicadores por equipamento ────────────────────────────────────────
+  // MTTR = SUM(horas reparo) / nº falhas
+  // MTBF = (periodo_horas - total_horas_reparo) / nº falhas
+  // Disponibilidade = (1 - total_horas_reparo / periodo_horas) × 100
+  // Confiabilidade R(720h) = EXP(-720 / MTBF) × 100
+  //
+  // Horas de reparo por OS:
+  //   • Se MAQPAR e MAQFUN preenchidos → DATEDIFF(MINUTE, MAQPAR, MAQFUN)/60
+  //   • Caso contrário → ISNULL(HOREXEREA, 0)
+  const indResult = await pool.request()
+    .input("diasPeriodo", sql.Int, diasPeriodo)
+    .input("periodoHoras", sql.Float, periodoHoras)
     .query<{
-      CODIGO: string;
+      CODAPL: number;
+      TAG: string;
       DESCRICAO: string;
       LOCAL_INSTALACAO: string;
       TOTAL_FALHAS: number;
-      TOTAL_HORAS_REPARO: number;
-    }>(query);
+      TOTAL_HH_REPARO: number;
+      MTTR: number;
+      MTBF: number;
+      DISPONIBILIDADE: number;
+    }>(`
+      SELECT
+        a.CODAPL,
+        a.TAG,
+        RTRIM(a.DESCRICAO)                          AS DESCRICAO,
+        ISNULL(RTRIM(l.DESCRICAO), 'Não informado') AS LOCAL_INSTALACAO,
+        COUNT(*)                                     AS TOTAL_FALHAS,
 
-  const equipamentos: IndicadorEquipamento[] = equipResult.recordset.map(
-    (row) => {
-      const falhas = Number(row.TOTAL_FALHAS) || 0;
-      const horasReparo = Number(row.TOTAL_HORAS_REPARO) || 0;
-      const uptime = Math.max(0, periodoHoras - horasReparo);
-      const mtbf = falhas > 0 ? uptime / falhas : periodoHoras;
-      const mttr = falhas > 0 ? horasReparo / falhas : 0;
-      const disponibilidade =
-        periodoHoras > 0 ? (uptime / periodoHoras) * 100 : 100;
-      const confiabilidade = mtbf > 0 ? Math.exp(-720 / mtbf) * 100 : 0;
+        /* Horas totais de reparo (parada máquina) */
+        SUM(
+          CASE
+            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
+              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
+            ELSE ISNULL(o.HOREXEREA, 0)
+          END
+        ) AS TOTAL_HH_REPARO,
 
-      return {
-        codigo: row.CODIGO?.trim() ?? "",
-        descricao: row.DESCRICAO?.trim() ?? "",
-        localInstalacao: row.LOCAL_INSTALACAO?.trim() ?? "",
-        totalFalhas: falhas,
-        totalHorasReparo: Math.round(horasReparo * 10) / 10,
-        mtbf: Math.round(mtbf * 10) / 10,
-        mttr: Math.round(mttr * 10) / 10,
-        disponibilidade: Math.round(disponibilidade * 10) / 10,
-        confiabilidade: Math.round(confiabilidade * 10) / 10,
-        periodoHoras,
-      };
-    }
-  );
+        /* MTTR */
+        SUM(
+          CASE
+            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
+              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
+            ELSE ISNULL(o.HOREXEREA, 0)
+          END
+        ) / NULLIF(COUNT(*), 0) AS MTTR,
 
-  // Trend query — group by month
-  const trendQuery = `
-    SELECT
-      FORMAT(OS.DATAHORAABERTURA, 'yyyy-MM') AS MES,
-      COUNT(*) AS FALHAS,
-      AVG(
-        CASE
-          WHEN OS.DATAHORAFECHAMENTO IS NOT NULL
-          THEN DATEDIFF(MINUTE, OS.DATAHORAABERTURA, OS.DATAHORAFECHAMENTO) / 60.0
-          ELSE NULL
-        END
-      ) AS MTTR_MEDIO
-    FROM ${tblOS} OS
-    WHERE
-      OS.DATAHORAABERTURA >= @dataInicio
-      AND OS.DATAHORAFECHAMENTO IS NOT NULL
-      AND (
-        UPPER(ISNULL(OS.TIPOOS, '')) IN ('CM', 'C', 'CORRETIVA', 'COR')
-        OR UPPER(ISNULL(OS.TIPOOS, '')) LIKE '%CORRET%'
-      )
-    GROUP BY FORMAT(OS.DATAHORAABERTURA, 'yyyy-MM')
-    ORDER BY MES
-  `;
+        /* MTBF */
+        (@periodoHoras - SUM(
+          CASE
+            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
+              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
+            ELSE ISNULL(o.HOREXEREA, 0)
+          END
+        )) / NULLIF(COUNT(*), 0) AS MTBF,
 
-  const trendResult = await pool
-    .request()
-    .input("dataInicio", sql.DateTime, dataInicio)
-    .query<{ MES: string; FALHAS: number; MTTR_MEDIO: number }>(trendQuery);
+        /* Disponibilidade % */
+        (1.0 - SUM(
+          CASE
+            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
+              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
+            ELSE ISNULL(o.HOREXEREA, 0)
+          END
+        ) / @periodoHoras) * 100.0 AS DISPONIBILIDADE
 
-  const mesesAbrev = [
-    "Jan","Fev","Mar","Abr","Mai","Jun",
-    "Jul","Ago","Set","Out","Nov","Dez",
-  ];
+      FROM ORDSERV o
+      INNER JOIN APLIC a    ON a.CODAPL    = o.CODAPL
+      LEFT  JOIN LOCAPLIC l ON l.CODLOCAPL = a.CODLOCAPL
 
-  const tendencia: TendenciaMensal[] = trendResult.recordset.map((row) => {
-    const [year, month] = row.MES.split("-");
-    const monthIdx = parseInt(month, 10) - 1;
-    const mttr = Number(row.MTTR_MEDIO) || 0;
-    const falhas = Number(row.FALHAS) || 1;
-    // Estimate MTBF for this month: (720 - totalRepair) / falhas
-    const totalRepair = mttr * falhas;
-    const mtbf = falhas > 0 ? Math.max(0, (720 - totalRepair) / falhas) : 720;
+      WHERE o.CODTIPMAN IN (1, 2, 3)   -- CORRETIVA, CORRETIVA PROGRAMADA, CORRETIVA NÃO PROGRAMADA
+        AND o.STATORD = 'F'            -- Fechada
+        AND o.DATENT >= DATEADD(DAY, -@diasPeriodo, GETDATE())
+        AND o.CODAPL IS NOT NULL
 
-    return {
-      mes: row.MES,
-      label: `${mesesAbrev[monthIdx]}/${year.slice(2)}`,
-      mtbfMedio: Math.round(mtbf * 10) / 10,
-      mttrMedio: Math.round(mttr * 10) / 10,
-      falhas: Number(row.FALHAS),
-    };
-  });
+      GROUP BY a.CODAPL, a.TAG, a.DESCRICAO, l.DESCRICAO
+      HAVING COUNT(*) >= 1
+      ORDER BY TOTAL_FALHAS DESC
+    `);
+
+  // ── 2. Tendência mensal ───────────────────────────────────────────────────
+  const trendResult = await pool.request()
+    .input("diasPeriodo2", sql.Int, diasPeriodo)
+    .query<{
+      ANO: number;
+      MES: number;
+      FALHAS: number;
+      MTTR_MEDIO: number;
+      TOTAL_HH_REPARO: number;
+    }>(`
+      SELECT
+        YEAR(o.DATENT)  AS ANO,
+        MONTH(o.DATENT) AS MES,
+        COUNT(*)        AS FALHAS,
+        SUM(
+          CASE
+            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
+              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
+            ELSE ISNULL(o.HOREXEREA, 0)
+          END
+        ) / NULLIF(COUNT(*), 0) AS MTTR_MEDIO,
+        SUM(
+          CASE
+            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
+              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
+            ELSE ISNULL(o.HOREXEREA, 0)
+          END
+        ) AS TOTAL_HH_REPARO
+      FROM ORDSERV o
+      WHERE o.CODTIPMAN IN (1, 2, 3)
+        AND o.STATORD = 'F'
+        AND o.DATENT >= DATEADD(DAY, -@diasPeriodo2, GETDATE())
+      GROUP BY YEAR(o.DATENT), MONTH(o.DATENT)
+      ORDER BY ANO, MES
+    `);
+
+  // ── 3. Locais disponíveis (para filtro) ──────────────────────────────────
+  const locaisResult = await pool.request().query<{ DESCRICAO: string }>(`
+    SELECT DISTINCT RTRIM(l.DESCRICAO) AS DESCRICAO
+    FROM LOCAPLIC l
+    WHERE EXISTS (SELECT 1 FROM APLIC a WHERE a.CODLOCAPL = l.CODLOCAPL)
+    ORDER BY DESCRICAO
+  `);
 
   await pool.close();
-  return { equipamentos, tendencia };
-}
 
-// ---------------------------------------------------------------------------
-// Mock data (fallback when DB is unreachable)
-// ---------------------------------------------------------------------------
-function buildMockData(diasPeriodo: number): {
-  equipamentos: IndicadorEquipamento[];
-  tendencia: TendenciaMensal[];
-} {
-  const periodoHoras = diasPeriodo * 24;
+  const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
-  const equipamentos: IndicadorEquipamento[] = [
-    { codigo: "COMP-001", descricao: "Compressor de Ar Atlas Copco GA37", localInstalacao: "Utilidades / Sala de Compressores", totalFalhas: 3, totalHorasReparo: 9.5, mtbf: 0, mttr: 0, disponibilidade: 0, confiabilidade: 0, periodoHoras },
-    { codigo: "BOMB-003", descricao: "Bomba Centrífuga Grundfos CM10", localInstalacao: "Linha de Produção 1 / Hidráulico", totalFalhas: 5, totalHorasReparo: 18.0, mtbf: 0, mttr: 0, disponibilidade: 0, confiabilidade: 0, periodoHoras },
-    { codigo: "ESTE-002", descricao: "Esteira Transportadora Principal", localInstalacao: "Expedição / Área de Embalagem", totalFalhas: 2, totalHorasReparo: 4.0, mtbf: 0, mttr: 0, disponibilidade: 0, confiabilidade: 0, periodoHoras },
-    { codigo: "TORN-007", descricao: "Torno CNC Romi Centur 35D", localInstalacao: "Usinagem / Célula 02", totalFalhas: 4, totalHorasReparo: 14.0, mtbf: 0, mttr: 0, disponibilidade: 0, confiabilidade: 0, periodoHoras },
-    { codigo: "FRES-004", descricao: "Fresadora Universal Romi I30", localInstalacao: "Usinagem / Célula 01", totalFalhas: 1, totalHorasReparo: 2.5, mtbf: 0, mttr: 0, disponibilidade: 0, confiabilidade: 0, periodoHoras },
-    { codigo: "PONT-001", descricao: "Ponte Rolante 5t Demag", localInstalacao: "Montagem / Nave Principal", totalFalhas: 6, totalHorasReparo: 22.0, mtbf: 0, mttr: 0, disponibilidade: 0, confiabilidade: 0, periodoHoras },
-    { codigo: "SOLD-002", descricao: "Robô de Soldagem ABB IRB 1600", localInstalacao: "Soldagem / Célula Robótica", totalFalhas: 2, totalHorasReparo: 6.0, mtbf: 0, mttr: 0, disponibilidade: 0, confiabilidade: 0, periodoHoras },
-    { codigo: "GERA-001", descricao: "Gerador de Emergência Cummins 400kVA", localInstalacao: "Utilidades / Casa de Força", totalFalhas: 1, totalHorasReparo: 3.0, mtbf: 0, mttr: 0, disponibilidade: 0, confiabilidade: 0, periodoHoras },
-    { codigo: "INJET-005", descricao: "Injetora de Plástico Haitian MA900", localInstalacao: "Injeção / Área 03", totalFalhas: 7, totalHorasReparo: 28.5, mtbf: 0, mttr: 0, disponibilidade: 0, confiabilidade: 0, periodoHoras },
-    { codigo: "CONV-008", descricao: "Correia Transportadora de Granéis", localInstalacao: "Recebimento / Silo 01", totalFalhas: 3, totalHorasReparo: 10.0, mtbf: 0, mttr: 0, disponibilidade: 0, confiabilidade: 0, periodoHoras },
-  ].map((e) => {
-    const uptime = Math.max(0, periodoHoras - e.totalHorasReparo);
-    const mtbf = e.totalFalhas > 0 ? uptime / e.totalFalhas : periodoHoras;
-    const mttr = e.totalFalhas > 0 ? e.totalHorasReparo / e.totalFalhas : 0;
-    const disponibilidade = periodoHoras > 0 ? (uptime / periodoHoras) * 100 : 100;
+  const equipamentos: IndicadorEquipamento[] = indResult.recordset.map((r) => {
+    const mtbf = Math.max(r.MTBF ?? 0, 0);
     const confiabilidade = mtbf > 0 ? Math.exp(-720 / mtbf) * 100 : 0;
     return {
-      ...e,
-      mtbf: Math.round(mtbf * 10) / 10,
-      mttr: Math.round(mttr * 10) / 10,
-      disponibilidade: Math.round(disponibilidade * 10) / 10,
-      confiabilidade: Math.round(confiabilidade * 10) / 10,
+      codApl:           r.CODAPL,
+      tag:              r.TAG ?? "",
+      descricao:        r.DESCRICAO ?? "",
+      localInstalacao:  r.LOCAL_INSTALACAO ?? "Não informado",
+      totalFalhas:      r.TOTAL_FALHAS,
+      totalHorasReparo: parseFloat((r.TOTAL_HH_REPARO ?? 0).toFixed(2)),
+      mtbf:             parseFloat(mtbf.toFixed(2)),
+      mttr:             parseFloat((r.MTTR ?? 0).toFixed(2)),
+      disponibilidade:  parseFloat(Math.min(r.DISPONIBILIDADE ?? 100, 100).toFixed(2)),
+      confiabilidade:   parseFloat(confiabilidade.toFixed(2)),
+      periodoHoras,
     };
   });
 
-  const mesesAbrev = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  const now = new Date();
-  const tendencia: TendenciaMensal[] = Array.from({ length: 12 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
-    const seed = i + 1;
-    const falhas = 3 + Math.round(seed % 5);
-    const mttr = 2 + (seed % 3) * 0.8;
-    const totalRepair = mttr * falhas;
-    const mtbf = Math.max(0, (720 - totalRepair) / falhas);
-    return {
-      mes: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-      label: `${mesesAbrev[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`,
-      mtbfMedio: Math.round(mtbf * 10) / 10,
-      mttrMedio: Math.round(mttr * 10) / 10,
-      falhas,
-    };
-  });
+  const tendencia: TendenciaMensal[] = trendResult.recordset.map((r) => ({
+    mes:            `${r.ANO}-${String(r.MES).padStart(2, "0")}`,
+    label:          `${MESES[r.MES - 1]}/${String(r.ANO).slice(2)}`,
+    mttrMedio:      parseFloat((r.MTTR_MEDIO ?? 0).toFixed(2)),
+    falhas:         r.FALHAS,
+    totalHhReparo:  parseFloat((r.TOTAL_HH_REPARO ?? 0).toFixed(2)),
+  }));
 
-  return { equipamentos, tendencia };
+  const locais = locaisResult.recordset.map((r) => r.DESCRICAO).filter(Boolean);
+
+  return { equipamentos, tendencia, locais };
 }
 
-// ---------------------------------------------------------------------------
-// GET handler
-// ---------------------------------------------------------------------------
+// ── Mock (fallback quando DB inacessível) ─────────────────────────────────────
+// Equipamentos baseados nos dados reais do Engeman Tramontin
+function mockData(diasPeriodo: number): { equipamentos: IndicadorEquipamento[]; tendencia: TendenciaMensal[]; locais: string[] } {
+  const periodoHoras = diasPeriodo * 24;
+  const equipamentos: IndicadorEquipamento[] = [
+    { codApl: 269, tag: "EPA-0001", descricao: "EMPILHADEIRA BAOLI KBD30",           localInstalacao: "FROTA",                                   totalFalhas: 18, totalHorasReparo: 32.4,  mtbf: 484.9, mttr: 1.8,  disponibilidade: 99.63, confiabilidade: 22.3, periodoHoras },
+    { codApl: 505, tag: "MAR-0003", descricao: "MAROMBA 01 (BERTAN)",                 localInstalacao: "LINHA DE PRODUÇÃO 1 (SECADOR ESTUFA)",     totalFalhas: 16, totalHorasReparo: 35.1,  mtbf: 545.3, mttr: 2.2,  disponibilidade: 99.60, confiabilidade: 26.5, periodoHoras },
+    { codApl:  23, tag: "MES-0003", descricao: "MESA DE CORTE 03",                   localInstalacao: "LINHA DE PRODUÇÃO 1 (SECADOR ESTUFA)",     totalFalhas: 15, totalHorasReparo: 34.9,  mtbf: 581.7, mttr: 2.3,  disponibilidade: 99.60, confiabilidade: 28.7, periodoHoras },
+    { codApl:  20, tag: "LAM-0001", descricao: "LAMINADOR 01",                        localInstalacao: "LINHA DE PRODUÇÃO 1 (SECADOR ESTUFA)",     totalFalhas: 15, totalHorasReparo: 65.5,  mtbf: 579.6, mttr: 4.4,  disponibilidade: 99.25, confiabilidade: 28.5, periodoHoras },
+    { codApl:  84, tag: "BRT-0001", descricao: "BRITADOR MARTELO",                   localInstalacao: "CHAMOTE",                                  totalFalhas: 14, totalHorasReparo: 30.5,  mtbf: 623.5, mttr: 2.2,  disponibilidade: 99.65, confiabilidade: 31.1, periodoHoras },
+    { codApl: 129, tag: "FOR-0000", descricao: "ÁREA DO FORNO",                      localInstalacao: "QUEIMA",                                   totalFalhas: 14, totalHorasReparo: 88.8,  mtbf: 619.4, mttr: 6.3,  disponibilidade: 98.99, confiabilidade: 30.9, periodoHoras },
+    { codApl: 143, tag: "CRC-0003", descricao: "CARACOL EXTRUSOR 01",                localInstalacao: "LD FORNO",                                 totalFalhas: 11, totalHorasReparo: 201.6, mtbf: 778.0, mttr: 18.3, disponibilidade: 97.70, confiabilidade: 39.6, periodoHoras },
+    { codApl:  55, tag: "MAR-0001", descricao: "MAROMBA 1",                          localInstalacao: "LINHA DE PRODUÇÃO 1 (SECADOR ESTUFA)",     totalFalhas: 11, totalHorasReparo: 83.4,  mtbf: 788.8, mttr: 7.6,  disponibilidade: 99.05, confiabilidade: 40.2, periodoHoras },
+    { codApl: 496, tag: "EXT-0001", descricao: "EXTRATOR 01",                        localInstalacao: "ESTUFA 1",                                 totalFalhas:  9, totalHorasReparo: 24.6,  mtbf: 970.6, mttr: 2.7,  disponibilidade: 99.72, confiabilidade: 47.4, periodoHoras },
+    { codApl: 123, tag: "CPA-0001", descricao: "COMPRESSOR DE AR 1",                 localInstalacao: "ÁREA DE PRODUÇÃO",                         totalFalhas:  9, totalHorasReparo: 26.6,  mtbf: 970.4, mttr: 3.0,  disponibilidade: 99.70, confiabilidade: 47.4, periodoHoras },
+  ];
+
+  const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  const now = new Date();
+  const tendencia: TendenciaMensal[] = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+    return {
+      mes:           `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      label:         `${MESES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`,
+      mttrMedio:     +(3 + Math.random() * 4).toFixed(2),
+      falhas:        Math.floor(60 + Math.random() * 50),
+      totalHhReparo: +(200 + Math.random() * 300).toFixed(2),
+    };
+  });
+
+  const locais = Array.from(new Set(equipamentos.map((e) => e.localInstalacao)));
+  return { equipamentos, tendencia, locais };
+}
+
+// ── Handler ───────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const dias = Math.min(
-    Math.max(Number(searchParams.get("dias") ?? 365), 30),
-    730
-  );
+  const dias = parseInt(req.nextUrl.searchParams.get("dias") ?? "365", 10) || 365;
 
   try {
-    const data = await queryEngeman(dias);
+    const { equipamentos, tendencia, locais } = await queryEngeman(dias);
     const response: IndicadoresResponse = {
-      ...data,
+      equipamentos,
+      tendencia,
+      locais,
       source: "db",
       generatedAt: new Date().toISOString(),
     };
     return NextResponse.json(response);
   } catch (err) {
-    console.warn("[PCM] DB unreachable, using mock data:", (err as Error).message);
-    const mock = buildMockData(dias);
+    console.error("[PCM /api/pcm/indicadores] Engeman inacessível, usando mock:", err instanceof Error ? err.message : err);
+    const { equipamentos, tendencia, locais } = mockData(dias);
     const response: IndicadoresResponse = {
-      ...mock,
+      equipamentos,
+      tendencia,
+      locais,
       source: "mock",
       generatedAt: new Date().toISOString(),
     };
