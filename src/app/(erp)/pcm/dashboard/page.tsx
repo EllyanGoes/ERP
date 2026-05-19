@@ -25,7 +25,9 @@ import {
   TrendingUp,
   TrendingDown,
   Database,
+  ShieldCheck,
 } from "lucide-react";
+import Link from "next/link";
 import {
   BarChart,
   Bar,
@@ -314,18 +316,31 @@ export default function PCMDashboardPage() {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            {data?.source === "mock" && (
-              <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
-                <Database className="w-3 h-3" />
-                Dados simulados (DB offline)
-              </span>
+            {/* Connection status indicator */}
+            {!loading && (
+              <div
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
+                  data?.source === "db"
+                    ? "bg-green-50 border-green-200 text-green-700"
+                    : "bg-amber-50 border-amber-200 text-amber-700"
+                }`}
+              >
+                <Database className="w-3.5 h-3.5" />
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    data?.source === "db" ? "bg-green-500" : "bg-amber-500"
+                  }`}
+                />
+                {data?.source === "db" ? "Engeman online" : "Engeman offline"}
+              </div>
             )}
-            {data?.source === "db" && (
-              <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 border border-green-200 rounded-md px-2 py-1">
-                <Database className="w-3 h-3" />
-                Engeman conectado
-              </span>
-            )}
+            {/* Data quality button */}
+            <Link href="/pcm/qualidade">
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <ShieldCheck className="w-4 h-4" />
+                Qualidade dos dados
+              </Button>
+            </Link>
             <Button
               variant="outline"
               size="sm"
