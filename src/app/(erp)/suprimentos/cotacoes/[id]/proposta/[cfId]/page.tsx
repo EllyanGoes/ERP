@@ -90,7 +90,7 @@ const TIPO_FRETE_OPTIONS = [
 // ── Component ──────────────────────────────────────────────────────────────────
 type FormSnapshot = {
   contato: string; email: string; condicoesPagamento: string;
-  frete: string; tipoFrete: string; desconto: string;
+  frete: string; tipoFrete: string; desconto: string; vrDescontoInput: string;
   despesas: string; seguro: string;
   itens: ItemForm[];
 };
@@ -113,6 +113,7 @@ export default function EditPropostaPage() {
   const [frete, setFrete] = useState("");
   const [tipoFrete, setTipoFrete] = useState("");
   const [desconto, setDesconto] = useState("");
+  const [vrDescontoInput, setVrDescontoInput] = useState("");
   const [despesas, setDespesas] = useState("");
   const [seguro, setSeguro] = useState("");
   const [itens, setItens] = useState<ItemForm[]>([]);
@@ -164,6 +165,7 @@ export default function EditPropostaPage() {
       let resolvedFrete: string;
       let resolvedTipoFrete: string;
       let resolvedDesconto: string;
+      let resolvedVrDesconto: string;
       let resolvedDespesas: string;
       let resolvedSeguro: string;
       let resolvedItens: ItemForm[];
@@ -175,6 +177,7 @@ export default function EditPropostaPage() {
         resolvedFrete = cached.frete ?? (cf.frete != null ? decimalToNumber(cf.frete).toString() : "");
         resolvedTipoFrete = cached.tipoFrete ?? cf.tipoFrete ?? "";
         resolvedDesconto = cached.desconto ?? (cf.desconto != null ? decimalToNumber(cf.desconto).toString() : "");
+        resolvedVrDesconto = cached.vrDescontoInput ?? (cf.vrDesconto != null ? decimalToNumber(cf.vrDesconto).toString() : "");
         resolvedDespesas = cached.despesas ?? (cf.despesas != null ? decimalToNumber(cf.despesas).toString() : "");
         resolvedSeguro = cached.seguro ?? (cf.seguro != null ? decimalToNumber(cf.seguro).toString() : "");
         const sameItems = cached.itens?.length === apiItens.length &&
@@ -187,6 +190,7 @@ export default function EditPropostaPage() {
         resolvedFrete = cf.frete != null ? decimalToNumber(cf.frete).toString() : "";
         resolvedTipoFrete = cf.tipoFrete ?? "";
         resolvedDesconto = cf.desconto != null ? decimalToNumber(cf.desconto).toString() : "";
+        resolvedVrDesconto = cf.vrDesconto != null ? decimalToNumber(cf.vrDesconto).toString() : "";
         resolvedDespesas = cf.despesas != null ? decimalToNumber(cf.despesas).toString() : "";
         resolvedSeguro = cf.seguro != null ? decimalToNumber(cf.seguro).toString() : "";
         resolvedItens = apiItens;
@@ -198,6 +202,7 @@ export default function EditPropostaPage() {
       setFrete(resolvedFrete);
       setTipoFrete(resolvedTipoFrete);
       setDesconto(resolvedDesconto);
+      setVrDescontoInput(resolvedVrDesconto);
       setDespesas(resolvedDespesas);
       setSeguro(resolvedSeguro);
       setItens(resolvedItens);
@@ -210,6 +215,7 @@ export default function EditPropostaPage() {
         frete: resolvedFrete,
         tipoFrete: resolvedTipoFrete,
         desconto: resolvedDesconto,
+        vrDescontoInput: resolvedVrDesconto,
         despesas: resolvedDespesas,
         seguro: resolvedSeguro,
         itens: resolvedItens,
@@ -227,15 +233,15 @@ export default function EditPropostaPage() {
   // ── Auto-save ao mudar qualquer campo do formulário ───────────────────────
   useEffect(() => {
     if (loading) return;
-    saveForm({ contato, email, condicoesPagamento, frete, tipoFrete, desconto, despesas, seguro, itens });
-  }, [contato, email, condicoesPagamento, frete, tipoFrete, desconto, despesas, seguro, itens, loading, saveForm]);
+    saveForm({ contato, email, condicoesPagamento, frete, tipoFrete, desconto, vrDescontoInput, despesas, seguro, itens });
+  }, [contato, email, condicoesPagamento, frete, tipoFrete, desconto, vrDescontoInput, despesas, seguro, itens, loading, saveForm]);
 
   // ── Dirty state tracking ──────────────────────────────────────────────────
   useEffect(() => {
     if (baselineRef.current === null || loading) return;
-    const current = JSON.stringify({ contato, email, condicoesPagamento, frete, tipoFrete, desconto, despesas, seguro, itens });
+    const current = JSON.stringify({ contato, email, condicoesPagamento, frete, tipoFrete, desconto, vrDescontoInput, despesas, seguro, itens });
     setIsDirty(current !== baselineRef.current);
-  }, [contato, email, condicoesPagamento, frete, tipoFrete, desconto, despesas, seguro, itens, loading]);
+  }, [contato, email, condicoesPagamento, frete, tipoFrete, desconto, vrDescontoInput, despesas, seguro, itens, loading]);
 
   useDirtyForm(isDirty, async () => { await handleSave(); });
 
@@ -290,12 +296,27 @@ export default function EditPropostaPage() {
       return s + p * i.quantidade;
     }, 0);
 
-  const descontoVal = parseFloat(desconto) || 0;
   const freteVal = parseFloat(frete) || 0;
   const despesasVal = parseFloat(despesas) || 0;
   const seguroVal = parseFloat(seguro) || 0;
-  const vrDescontoCalc = (subtotalItens * descontoVal) / 100;
+  // vrDesconto is the source of truth; % is kept in sync
+  const vrDescontoCalc = parseFloat(vrDescontoInput) || 0;
   const totalCotacao = subtotalItens - vrDescontoCalc + freteVal + despesasVal + seguroVal;
+
+  // ── Discount two-way sync handlers ────────────────────────────────────────
+  function handleDescontoPctChange(val: string) {
+    setDesconto(val);
+    const pct = parseFloat(val) || 0;
+    const nominal = (pct * subtotalItens) / 100;
+    setVrDescontoInput(nominal > 0 || val !== "" ? nominal.toFixed(2) : "");
+  }
+
+  function handleVrDescontoChange(val: string) {
+    setVrDescontoInput(val);
+    const nominal = parseFloat(val) || 0;
+    const pct = subtotalItens > 0 ? (nominal / subtotalItens) * 100 : 0;
+    setDesconto(pct > 0 || val !== "" ? pct.toFixed(4).replace(/\.?0+$/, "") : "");
+  }
 
   // ── Save ──────────────────────────────────────────────────────────────────
   async function handleSave() {
@@ -307,7 +328,7 @@ export default function EditPropostaPage() {
         condicoesPagamento: condicoesPagamento || null,
         frete: freteVal || null,
         tipoFrete: tipoFrete || null,
-        desconto: descontoVal || null,
+        desconto: parseFloat(desconto) || null,
         vrDesconto: vrDescontoCalc || null,
         despesas: despesasVal || null,
         seguro: seguroVal || null,
@@ -461,23 +482,30 @@ export default function EditPropostaPage() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">% Desconto</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={desconto}
-                onChange={(e) => setDesconto(e.target.value)}
-                placeholder="0,00"
-                className="text-right"
-              />
+              <div className="relative">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={desconto}
+                  onChange={(e) => handleDescontoPctChange(e.target.value)}
+                  placeholder="0,00"
+                  className="text-right pr-7"
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+              </div>
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Vr Desconto</Label>
               <Input
-                value={formatBRL(vrDescontoCalc)}
-                readOnly
-                className="bg-gray-50 text-right"
+                type="number"
+                step="0.01"
+                min="0"
+                value={vrDescontoInput}
+                onChange={(e) => handleVrDescontoChange(e.target.value)}
+                placeholder="0,00"
+                className="text-right"
               />
             </div>
             <div className="space-y-1">
