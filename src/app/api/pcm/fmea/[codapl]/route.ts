@@ -113,7 +113,6 @@ async function queryFMEA(codapl: number, dias: number): Promise<FMEAResponse> {
         LEFT  JOIN LOCAPLIC l ON l.CODLOCAPL = a.CODLOCAPL
         LEFT  JOIN TIPMANUT t ON t.CODTIPMAN = o.CODTIPMAN
         WHERE o.CODAPL    = @codapl
-          AND o.CODTIPMAN IN (1, 2, 3)
           AND o.DATENT >= DATEADD(DAY, -@diasPeriodo, GETDATE())
         ORDER BY o.DATENT DESC
       `);

@@ -112,6 +112,12 @@ export default function FMEAPage() {
   const [sortKey, setSortKey]   = useState<SortKey>("datent");
   const [sortDir, setSortDir]   = useState<"asc" | "desc">("desc");
 
+  // Clear stale data immediately when navigating to a different asset
+  useEffect(() => {
+    setData(null);
+    setLoading(true);
+  }, [codapl]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -219,7 +225,7 @@ export default function FMEAPage() {
         {loading && !data && (
           <div className="flex items-center justify-center py-24 text-gray-400 gap-2">
             <Loader2 className="w-5 h-5 animate-spin" />
-            <span className="text-sm">Buscando histórico de falhas…</span>
+            <span className="text-sm">Buscando histórico de O.S…</span>
           </div>
         )}
 
@@ -271,9 +277,9 @@ export default function FMEAPage() {
             {/* ── KPIs ────────────────────────────────────────────────────── */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <Kpi
-                label="Total Falhas"
+                label="Total OS"
                 value={String(data.totalFalhas)}
-                sub="ocorrências corretivas"
+                sub="ordens de serviço"
                 color={data.totalFalhas >= 10 ? "text-red-600" : data.totalFalhas >= 5 ? "text-amber-600" : "text-gray-700"}
                 bg={data.totalFalhas >= 10 ? "bg-red-50" : data.totalFalhas >= 5 ? "bg-amber-50" : "bg-gray-50"}
                 icon={AlertTriangle}
@@ -346,8 +352,8 @@ export default function FMEAPage() {
                 {/* Table header */}
                 <div className="px-5 pt-4 pb-2 flex items-center justify-between">
                   <p className="text-sm font-semibold text-gray-700">
-                    Registro de Falhas
-                    <span className="ml-2 text-xs font-normal text-gray-400">{data.falhas.length} ocorrências</span>
+                    Registro de O.S.
+                    <span className="ml-2 text-xs font-normal text-gray-400">{data.falhas.length} ordens de serviço</span>
                   </p>
                 </div>
 
