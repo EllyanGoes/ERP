@@ -22,6 +22,7 @@ type Pedido = {
   id: string;
   numero: string;
   status: string;
+  descricao: string | null;
   valorTotal: unknown;
   dataEntregaPrevista: string | null;
   createdAt: string;
@@ -30,6 +31,7 @@ type Pedido = {
     id: string; numero: string;
     necessidade: {
       id: string; numero: string; solicitante: string | null;
+      justificativa: string | null;
       centroCusto: { nome: string } | null;
       localEstoque: { nome: string } | null;
     } | null;
@@ -73,6 +75,18 @@ const COLS: ColDef<Pedido>[] = [
     thClass: "text-left px-4 py-3 font-medium text-gray-600",
     tdClass: "px-4 py-3 text-gray-700 max-w-[200px]",
     render: (p) => <span className="line-clamp-1">{p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial}</span>,
+  },
+  {
+    id: "descricao",
+    label: "Descrição",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell",
+    tdClass: "px-4 py-3 hidden md:table-cell max-w-[220px]",
+    render: (p) => {
+      const texto = p.descricao ?? p.cotacao?.necessidade?.justificativa ?? null;
+      return texto
+        ? <span className="line-clamp-2 text-xs text-gray-600">{texto}</span>
+        : <span className="text-gray-300 text-xs">—</span>;
+    },
   },
   {
     id: "sc",

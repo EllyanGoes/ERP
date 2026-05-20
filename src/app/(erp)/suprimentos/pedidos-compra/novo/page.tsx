@@ -28,6 +28,7 @@ type ItemRow = {
 
 type FormSnapshot = {
   fornecedorId: string;
+  descricao: string;
   contato: string;
   email: string;
   frete: string;
@@ -58,6 +59,7 @@ export default function NovoPedidoCompraPage() {
 
   // Fornecedor section
   const [fornecedorId, setFornecedorIdState] = useState("");
+  const [descricao, setDescricao]            = useState("");
   const [contato, setContato]                = useState("");
   const [email, setEmail]                    = useState("");
 
@@ -84,8 +86,8 @@ export default function NovoPedidoCompraPage() {
 
   // Auto-save effect
   useEffect(() => {
-    saveForm({ fornecedorId, contato, email, frete, tipoFrete, desconto, despesas, seguro, condicoesPagamento, dataEntregaPrevista, itens });
-  }, [fornecedorId, contato, email, frete, tipoFrete, desconto, despesas, seguro, condicoesPagamento, dataEntregaPrevista, itens, saveForm]);
+    saveForm({ fornecedorId, descricao, contato, email, frete, tipoFrete, desconto, despesas, seguro, condicoesPagamento, dataEntregaPrevista, itens });
+  }, [fornecedorId, descricao, contato, email, frete, tipoFrete, desconto, despesas, seguro, condicoesPagamento, dataEntregaPrevista, itens, saveForm]);
 
   // Restore on mount
   const formRestoredRef = useRef(false);
@@ -95,6 +97,7 @@ export default function NovoPedidoCompraPage() {
     const saved = loadForm();
     if (saved) {
       if (saved.fornecedorId !== undefined) setFornecedorIdState(saved.fornecedorId);
+      if (saved.descricao   !== undefined) setDescricao(saved.descricao);
       if (saved.contato !== undefined) setContato(saved.contato);
       if (saved.email !== undefined) setEmail(saved.email);
       if (saved.frete !== undefined) setFrete(saved.frete);
@@ -174,6 +177,7 @@ export default function NovoPedidoCompraPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fornecedorId,
+          descricao: descricao.trim() || null,
           contato: contato || null,
           email:   email   || null,
           dataEntregaPrevista: dataEntregaPrevista || null,
@@ -261,6 +265,14 @@ export default function NovoPedidoCompraPage() {
               />
             </div>
 
+            <div className="space-y-1 md:col-span-3">
+              <Label className="text-xs text-gray-500">Descrição</Label>
+              <Input
+                value={descricao}
+                onChange={(e) => setDescricao(e.target.value)}
+                placeholder="Descrição do pedido (ex.: materiais para manutenção preventiva)"
+              />
+            </div>
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Contato</Label>
               <Input value={contato} onChange={(e) => setContato(e.target.value)} placeholder="Nome do contato" />

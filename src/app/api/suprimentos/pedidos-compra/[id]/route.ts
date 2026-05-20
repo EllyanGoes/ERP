@@ -123,6 +123,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           condicoesPagamento:  body.condicoesPagamento || null,
           dataEntregaPrevista: body.dataEntregaPrevista ? new Date(body.dataEntregaPrevista) : null,
           observacoes:         body.observacoes        || null,
+          descricao:           body.descricao          ?? null,
           valorTotal,
         },
       });
@@ -155,6 +156,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.dataEntregaPrevista !== undefined)
     updateData.dataEntregaPrevista = body.dataEntregaPrevista ? new Date(body.dataEntregaPrevista) : null;
   if (body.observacoes !== undefined) updateData.observacoes = body.observacoes || null;
+  if (body.descricao   !== undefined) updateData.descricao   = body.descricao?.trim() || null;
 
   const record = await prisma.pedidoCompra.update({
     where: { id: pedidoId },

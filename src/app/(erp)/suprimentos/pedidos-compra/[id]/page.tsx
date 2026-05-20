@@ -41,6 +41,7 @@ type PedidoCompra = {
   id: string;
   numero: string;
   status: string;
+  descricao: string | null;
   valorTotal: unknown;
   dataEntregaPrevista: string | null;
   observacoes: string | null;
@@ -97,6 +98,25 @@ export default function PedidoCompraDetailPage() {
   const [ctOptions,      setCtOptions]      = useState<{ id: string; numero: string; nome: string | null; necessidade: { numero: string } | null }[]>([]);
   const [ctSearching,    setCtSearching]    = useState(false);
   const ctPopoverRef = useRef<HTMLDivElement>(null);
+
+  // ── Descrição inline edit ─────────────────────────────────────────────────────
+  const [editingDescricao, setEditingDescricao] = useState(false);
+  const [descricaoEdit,    setDescricaoEdit]    = useState("");
+  const [savingDescricao,  setSavingDescricao]  = useState(false);
+
+  async function saveDescricao() {
+    if (!pedido) return;
+    setSavingDescricao(true);
+    try {
+      const res = await fetch(`/api/suprimentos/pedidos-compra/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ descricao: descricaoEdit.trim() || null }),
+      });
+      if (res.ok) { await load(); setEditingDescricao(false); }
+    } catch { /* ignore */ }
+    finally { setSavingDescricao(false); }
+  }
 
   // ── WA modal state ────────────────────────────────────────────────────────────
   const [showWAModal,    setShowWAModal]    = useState(false);
@@ -682,6 +702,67 @@ export default function PedidoCompraDetailPage() {
             </table>
           </div>
         </div>
+
+        {/* ── Descrição ──────────────────────────────────────────────────── */}
+        {(() => {
+          const hasSc = !!pedido.cotacao?.necessidade;
+          const scDescricao = pedido.cotacao?.necessidade?.justificativa ?? null;
+          const descricaoExibida = hasSc ? scDescricao : pedido.descricao;
+          const canEdit = !hasSc;
+
+          if (!descricaoExibida && !canEdit) return null;
+
+          return (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                <h2 className="font-semibold text-sm text-gray-800">Descrição</h2>
+                {hasSc ? (
+                  <span className="text-xs text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                    Herdado da SC
+                  </span>
+                ) : (
+                  !editingDescricao && (
+                    <button
+                      onClick={() => { setDescricaoEdit(pedido.descricao ?? ""); setEditingDescricao(true); }}
+                      className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      Editar
+                    </button>
+                  )
+                )}
+              </div>
+              <div className="p-4">
+                {editingDescricao ? (
+                  <div className="flex gap-2 items-start">
+                    <Input
+                      autoFocus
+                      value={descricaoEdit}
+                      onChange={(e) => setDescricaoEdit(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveDescricao(); if (e.key === "Escape") setEditingDescricao(false); }}
+                      placeholder="Descrição do pedido..."
+                      className="flex-1"
+                    />
+                    <Button size="sm" onClick={saveDescricao} disabled={savingDescricao} className="shrink-0">
+                      {savingDescricao ? <Loader2 className="w-3 h-3 animate-spin" /> : "Salvar"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditingDescricao(false)} className="shrink-0">
+                      Cancelar
+                    </Button>
+                  </div>
+                ) : descricaoExibida ? (
+                  <p className="text-sm text-gray-700">{descricaoExibida}</p>
+                ) : (
+                  <button
+                    onClick={() => { setDescricaoEdit(""); setEditingDescricao(true); }}
+                    className="text-sm text-gray-400 hover:text-gray-600 italic transition-colors"
+                  >
+                    + Adicionar descrição
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {pedido.observacoes && (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

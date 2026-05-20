@@ -13,6 +13,7 @@ export async function GET() {
           necessidade: {
             select: {
               id: true, numero: true, solicitante: true,
+              justificativa: true,
               centroCusto: { select: { nome: true } },
               localEstoque: { select: { nome: true } },
             },
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
   const {
     fornecedorId, cotacaoId, dataEntregaPrevista, observacoes, itens = [],
     frete, tipoFrete, desconto, vrDesconto, despesas, seguro,
-    condicoesPagamento, contato, email,
+    condicoesPagamento, contato, email, descricao,
   } = body;
 
   if (!fornecedorId) return NextResponse.json({ error: "Fornecedor obrigatório" }, { status: 400 });
@@ -77,6 +78,7 @@ export async function POST(req: NextRequest) {
         condicoesPagamento:  condicoesPagamento || null,
         contato:             contato?.trim() || null,
         email:               email?.trim()   || null,
+        descricao:           descricao?.trim() || null,
         itens: { create: parsedItens },
       },
       include: {
@@ -84,6 +86,22 @@ export async function POST(req: NextRequest) {
         itens: { include: { item: { select: { id: true, codigo: true, descricao: true } } } },
       },
     });
+
+    // Auto-inherit descricao from SC.justificativa when linked to a cotação
+    if (cotacaoId && !pedido.descricao) {
+      const sc = await tx.cotacaoCompra.findUnique({
+        where: { id: cotacaoId },
+        select: { necessidade: { select: { justificativa: true } } },
+      });
+      const inherited = sc?.necessidade?.justificativa?.trim();
+      if (inherited) {
+        await tx.pedidoCompra.update({
+          where: { id: pedido.id },
+          data: { descricao: inherited },
+        });
+        (pedido as { descricao?: string | null }).descricao = inherited;
+      }
+    }
 
     // Update necessidade status when a pedido is placed
     if (cotacaoId) {

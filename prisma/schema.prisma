@@ -660,6 +660,7 @@ model PedidoCompra {
   seguro              Decimal?           @db.Decimal(15, 2)
   tipoFrete           String?
   vrDesconto          Decimal?           @db.Decimal(15, 2)
+  descricao           String?
   conferencia         ConferenciaCompra?
   cotacao             CotacaoCompra?     @relation(fields: [cotacaoId], references: [id])
   fornecedor          Fornecedor         @relation(fields: [fornecedorId], references: [id])
