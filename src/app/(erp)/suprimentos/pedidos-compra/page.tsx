@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useSession } from "@/lib/session-context";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -190,11 +191,13 @@ function saveFilters(f: Filters) {
 function KanbanCard({
   p,
   isDragging,
+  isAdmin,
   onDragStart,
   onDragEnd,
 }: {
   p: Pedido;
   isDragging: boolean;
+  isAdmin: boolean;
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
 }) {
@@ -217,7 +220,7 @@ function KanbanCard({
       <div className="flex items-start justify-between gap-2 mb-2">
         <span className="font-mono text-xs font-semibold text-gray-800">{p.numero}</span>
         <div onClick={(e) => e.stopPropagation()}>
-          <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} />
+          <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} isAdmin={isAdmin} />
         </div>
       </div>
 
@@ -275,6 +278,9 @@ type ConfirmMove = { pedidoId: string; toStatus: string };
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function PedidosCompraPage() {
+  const { user } = useSession();
+  const isAdmin  = user?.perfil === "ADMIN";
+
   const [pedidos, setPedidos]   = useState<Pedido[]>([]);
   const [loading, setLoading]   = useState(true);
   const [filters, setFilters]   = useState<Filters>(loadFilters);
@@ -677,7 +683,7 @@ export default function PedidosCompraPage() {
                       <td key={col.id} className={col.tdClass}>{col.render(p)}</td>
                     ))}
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                      <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} />
+                      <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} isAdmin={isAdmin} />
                     </td>
                   </tr>
                 ))}
@@ -767,6 +773,7 @@ export default function PedidosCompraPage() {
                           key={p.id}
                           p={p}
                           isDragging={dragId === p.id}
+                          isAdmin={isAdmin}
                           onDragStart={setDragId}
                           onDragEnd={() => { setDragId(null); setDragOver(null); }}
                         />

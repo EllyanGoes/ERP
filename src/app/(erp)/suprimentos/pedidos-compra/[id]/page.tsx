@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
+import { useSession } from "@/lib/session-context";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,8 @@ const TIPO_FRETE_LABEL: Record<string, string> = {
 
 export default function PedidoCompraDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useSession();
+  const isAdmin  = user?.perfil === "ADMIN";
   const [pedido, setPedido] = useState<PedidoCompra | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -683,8 +686,8 @@ async function openWAModal() {
         {(() => {
           const hasSc = !!pedido.cotacao?.necessidade;
           const scDescricao = pedido.cotacao?.necessidade?.justificativa ?? null;
-          const descricaoExibida = hasSc ? scDescricao : pedido.descricao;
-          const canEdit = !hasSc;
+          const descricaoExibida = hasSc ? (pedido.descricao ?? scDescricao) : pedido.descricao;
+          const canEdit = !hasSc || isAdmin;
 
           if (!descricaoExibida && !canEdit) return null;
 
@@ -692,20 +695,21 @@ async function openWAModal() {
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
                 <h2 className="font-semibold text-sm text-gray-800">Descrição</h2>
-                {hasSc ? (
-                  <span className="text-xs text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
-                    Herdado da SC
-                  </span>
-                ) : (
-                  !editingDescricao && (
+                <div className="flex items-center gap-2">
+                  {hasSc && (
+                    <span className="text-xs text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                      Herdado da SC
+                    </span>
+                  )}
+                  {canEdit && !editingDescricao && (
                     <button
-                      onClick={() => { setDescricaoEdit(pedido.descricao ?? ""); setEditingDescricao(true); }}
+                      onClick={() => { setDescricaoEdit(pedido.descricao ?? scDescricao ?? ""); setEditingDescricao(true); }}
                       className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
                     >
                       Editar
                     </button>
-                  )
-                )}
+                  )}
+                </div>
               </div>
               <div className="p-4">
                 {editingDescricao ? (

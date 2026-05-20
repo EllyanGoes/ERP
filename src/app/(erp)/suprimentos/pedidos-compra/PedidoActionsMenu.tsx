@@ -10,9 +10,10 @@ type Props = {
   id: string;
   numero: string;
   status: string;
+  isAdmin?: boolean;
 };
 
-export default function PedidoActionsMenu({ id, numero, status }: Props) {
+export default function PedidoActionsMenu({ id, numero, status, isAdmin = false }: Props) {
   const router = useRouter();
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -27,8 +28,8 @@ export default function PedidoActionsMenu({ id, numero, status }: Props) {
 
   useEffect(() => { setMounted(true); }, []);
 
-  const canEdit   = ["RASCUNHO", "ENVIADO"].includes(status);
-  const canDelete = ["RASCUNHO", "ENVIADO"].includes(status);
+  const canEdit   = isAdmin || ["RASCUNHO", "ENVIADO"].includes(status);
+  const canDelete = isAdmin || ["RASCUNHO", "ENVIADO"].includes(status);
 
   function openMenu(e: React.MouseEvent) {
     e.preventDefault();

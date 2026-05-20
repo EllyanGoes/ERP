@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.pedidoCompra.findUnique({
@@ -168,11 +169,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const pedidoId = params.id;
+  const session  = await getSession();
+  const isAdmin  = session?.perfil === "ADMIN";
 
-  // Only allow deletion of RASCUNHO or ENVIADO pedidos
   const pedido = await prisma.pedidoCompra.findUnique({ where: { id: pedidoId }, select: { status: true } });
   if (!pedido) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
-  if (!["RASCUNHO", "ENVIADO"].includes(pedido.status)) {
+  if (!isAdmin && !["RASCUNHO", "ENVIADO"].includes(pedido.status)) {
     return NextResponse.json({ error: "Apenas pedidos em Rascunho ou Enviado podem ser excluídos" }, { status: 400 });
   }
 
