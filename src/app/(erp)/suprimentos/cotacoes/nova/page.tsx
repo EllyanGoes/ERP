@@ -13,6 +13,7 @@ import { useDirtyForm } from "@/lib/dirty-form-context";
 import {
   CheckSquare, Square, ChevronRight, Loader2, Search,
   X, Building2, AlertTriangle, SlidersHorizontal, EyeOff,
+  Plus, RefreshCw,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -262,9 +263,11 @@ export default function NovaCotacaoWizard() {
   }, []);
 
   // ── Load fornecedores when entering step 3 ────────────────────────────────
-  useEffect(() => {
-    if (step !== 3) return;
-    setLoadingForn(true);
+  const [refreshingForn, setRefreshingForn] = useState(false);
+
+  function loadFornecedores(isRefresh = false) {
+    if (isRefresh) setRefreshingForn(true);
+    else setLoadingForn(true);
     const selectedItems = scItems.filter((i) => selectedItemIds.has(i.id));
     const itemIds = Array.from(new Set(selectedItems.map((i) => i.itemId))).join(",");
     Promise.all([
@@ -274,7 +277,13 @@ export default function NovaCotacaoWizard() {
       setUltFornecedores(Array.isArray(ult.data) ? ult.data : []);
       const allList = Array.isArray(all) ? all : (all.data ?? []);
       setAllFornecedores(allList.filter((f: Fornecedor & { ativo?: boolean }) => f.ativo !== false));
-    }).finally(() => setLoadingForn(false));
+    }).finally(() => { setLoadingForn(false); setRefreshingForn(false); });
+  }
+
+  useEffect(() => {
+    if (step !== 3) return;
+    loadFornecedores();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, scItems, selectedItemIds]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -752,11 +761,34 @@ export default function NovaCotacaoWizard() {
                   </button>
                 ))}
               </div>
-              <div className="relative w-72 py-2">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                <input type="text" value={fornSearch} onChange={(e) => setFornSearch(e.target.value)}
-                  placeholder="Busque por CNPJ, nome fantasia, razão social..."
-                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              <div className="flex items-center gap-2 py-2">
+                {/* Novo Fornecedor — opens in new tab so the user keeps their progress */}
+                <a
+                  href="/suprimentos/fornecedores/novo"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Novo Fornecedor
+                </a>
+                {/* Refresh list */}
+                <button
+                  type="button"
+                  onClick={() => loadFornecedores(true)}
+                  disabled={refreshingForn}
+                  title="Atualizar lista"
+                  className="flex items-center justify-center w-8 h-8 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={cn("w-3.5 h-3.5", refreshingForn && "animate-spin")} />
+                </button>
+                {/* Search */}
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                  <input type="text" value={fornSearch} onChange={(e) => setFornSearch(e.target.value)}
+                    placeholder="Busque por CNPJ, nome fantasia, razão social..."
+                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
               </div>
             </div>
 
