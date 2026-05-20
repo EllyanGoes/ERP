@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
@@ -9,13 +9,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatusBadge from "@/components/shared/StatusBadge";
-import { formatDate, formatBRL, decimalToNumber } from "@/lib/utils";
+import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
+import { Search, Plus, X, ChevronDown } from "lucide-react";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
   "PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO",
 ];
+
+type FornecedorOption = {
+  id: string;
+  razaoSocial: string;
+  nomeFantasia: string | null;
+  cpfCnpj: string | null;
+};
 
 type LocalEstoque = { id: string; nome: string } | null;
 
@@ -116,11 +124,18 @@ export default function DocumentoEntradaDetailPage() {
   const [serie, setSerie] = useState("");
   const [dtEmissao, setDtEmissao] = useState("");
   const [ufOrigem, setUfOrigem] = useState("");
-  const [espDocumento, setEspDocumento] = useState("");
   const [frete, setFrete] = useState("");
   const [seguro, setSeguro] = useState("");
   const [despesas, setDespesas] = useState("");
   const [desconto, setDesconto] = useState("");
+  const [validationError, setValidationError] = useState("");
+
+  // Fornecedor search (editable)
+  const [fornecedorId, setFornecedorId] = useState("");
+  const [fornecedores, setFornecedores] = useState<FornecedorOption[]>([]);
+  const [fornSearch, setFornSearch] = useState("");
+  const [fornDropOpen, setFornDropOpen] = useState(false);
+  const fornRef = useRef<HTMLDivElement>(null);
 
   const [saving, setSaving] = useState(false);
   const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoqueOption[]>([]);
@@ -137,12 +152,12 @@ export default function DocumentoEntradaDetailPage() {
       setTipoNota(conf.tipoNota ?? "NORMAL");
       setNumeroNF(conf.numeroNF ?? "");
       setSerie(conf.serie ?? "");
-      setDtEmissao(
-        conf.dtEmissao ? conf.dtEmissao.slice(0, 10) : ""
-      );
+      setDtEmissao(conf.dtEmissao ? conf.dtEmissao.slice(0, 10) : "");
       setUfOrigem(conf.ufOrigem ?? "");
-      setEspDocumento(conf.espDocumento ?? "SPED");
       setFrete(decimalToNumber(conf.frete) > 0 ? String(decimalToNumber(conf.frete)) : "");
+      const forn = conf.fornecedor ?? conf.pedido?.fornecedor ?? null;
+      setFornecedorId(forn?.id ?? "");
+      setFornSearch(forn ? (forn.nomeFantasia || forn.razaoSocial) : "");
       setSeguro(decimalToNumber(conf.seguro) > 0 ? String(decimalToNumber(conf.seguro)) : "");
       setDespesas(decimalToNumber(conf.despesas) > 0 ? String(decimalToNumber(conf.despesas)) : "");
       setDesconto(decimalToNumber(conf.desconto) > 0 ? String(decimalToNumber(conf.desconto)) : "");
@@ -178,6 +193,22 @@ export default function DocumentoEntradaDetailPage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    fetch("/api/suprimentos/fornecedores")
+      .then((r) => r.json())
+      .then((j) => setFornecedores(j.data ?? []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!fornDropOpen) return;
+    function handle(e: MouseEvent) {
+      if (fornRef.current && !fornRef.current.contains(e.target as Node)) setFornDropOpen(false);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [fornDropOpen]);
+
   function updateEditItem(itemId: string, key: keyof EditItem, value: string) {
     setEditItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, [key]: value } : i)));
   }
@@ -199,6 +230,11 @@ export default function DocumentoEntradaDetailPage() {
   }
 
   async function salvarConferencia() {
+    setValidationError("");
+    if (!fornecedorId) { setValidationError("Fornecedor é obrigatório."); return; }
+    if (!tipoNota)     { setValidationError("Tipo é obrigatório."); return; }
+    if (!dtEmissao)    { setValidationError("DT Emissão é obrigatória."); return; }
+
     setSaving(true);
     setActionError("");
     try {
@@ -206,13 +242,13 @@ export default function DocumentoEntradaDetailPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          fornecedorId: fornecedorId || null,
           observacoes: observacoes || null,
           tipoNota: tipoNota || null,
           numeroNF: numeroNF || null,
           serie: serie || null,
           dtEmissao: dtEmissao || null,
           ufOrigem: ufOrigem || null,
-          espDocumento: espDocumento || null,
           frete: frete ? parseFloat(frete) : null,
           seguro: seguro ? parseFloat(seguro) : null,
           despesas: despesas ? parseFloat(despesas) : null,
@@ -351,9 +387,9 @@ export default function DocumentoEntradaDetailPage() {
       />
 
       <div className="px-8 pb-8 max-w-6xl space-y-6">
-        {actionError && (
+        {(actionError || validationError) && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-            {actionError}
+            {validationError || actionError}
           </div>
         )}
 
@@ -363,14 +399,19 @@ export default function DocumentoEntradaDetailPage() {
             <h2 className="font-semibold text-sm text-gray-800">Nota Fiscal</h2>
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Tipo (obrigatório) */}
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Tipo da Nota</Label>
+              <Label className="text-xs text-gray-500">Tipo <span className="text-red-500">*</span></Label>
               {nfEditable ? (
                 <select
                   value={tipoNota}
                   onChange={(e) => setTipoNota(e.target.value)}
-                  className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={cn(
+                    "w-full h-9 px-3 border rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    !tipoNota ? "border-red-300" : "border-gray-200"
+                  )}
                 >
+                  <option value="">Selecione...</option>
                   <option value="NORMAL">Normal</option>
                   <option value="COMPLEMENTAR">Complementar</option>
                   <option value="DEVOLUCAO">Devolução</option>
@@ -399,25 +440,22 @@ export default function DocumentoEntradaDetailPage() {
               )}
             </div>
 
+            {/* DT Emissão (obrigatório) */}
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">DT Emissão</Label>
+              <Label className="text-xs text-gray-500">DT Emissão <span className="text-red-500">*</span></Label>
               {nfEditable ? (
-                <Input type="date" value={dtEmissao} onChange={(e) => setDtEmissao(e.target.value)} />
+                <Input
+                  type="date"
+                  value={dtEmissao}
+                  onChange={(e) => setDtEmissao(e.target.value)}
+                  className={!dtEmissao ? "border-red-300" : ""}
+                />
               ) : (
                 <Input
                   value={conferencia.dtEmissao ? formatDate(conferencia.dtEmissao) : "—"}
                   readOnly
                   className="bg-gray-50"
                 />
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Espec. Docum.</Label>
-              {nfEditable ? (
-                <Input value={espDocumento} onChange={(e) => setEspDocumento(e.target.value)} placeholder="SPED" />
-              ) : (
-                <Input value={conferencia.espDocumento ?? "—"} readOnly className="bg-gray-50" />
               )}
             </div>
 
@@ -469,21 +507,82 @@ export default function DocumentoEntradaDetailPage() {
             )}
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Código</Label>
-              <Input value={codigoForn} readOnly className="bg-gray-50 font-mono" />
+            {/* Fornecedor search — editable when nfEditable */}
+            <div className="md:col-span-2 space-y-1">
+              <Label className="text-xs text-gray-500">
+                Fornecedor <span className="text-red-500">*</span>
+              </Label>
+              {nfEditable ? (
+                <div className="flex gap-2">
+                  <div className="relative flex-1" ref={fornRef}>
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <Input
+                      className={cn("pl-8 pr-8", !fornecedorId ? "border-red-300" : "")}
+                      placeholder="Buscar fornecedor..."
+                      value={fornSearch}
+                      onChange={(e) => {
+                        setFornSearch(e.target.value);
+                        setFornecedorId("");
+                        setFornDropOpen(true);
+                      }}
+                      onFocus={() => setFornDropOpen(true)}
+                    />
+                    {fornSearch && (
+                      <button
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        onClick={() => { setFornSearch(""); setFornecedorId(""); }}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {fornDropOpen && (
+                      <div className="absolute left-0 top-full mt-1 z-50 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto">
+                        {fornecedores
+                          .filter((f) => {
+                            const q = fornSearch.toLowerCase();
+                            return !q || (f.nomeFantasia ?? "").toLowerCase().includes(q) || f.razaoSocial.toLowerCase().includes(q) || (f.cpfCnpj ?? "").includes(q);
+                          })
+                          .slice(0, 10)
+                          .map((f) => (
+                            <button
+                              key={f.id}
+                              className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm transition-colors"
+                              onClick={() => {
+                                setFornecedorId(f.id);
+                                setFornSearch(f.nomeFantasia || f.razaoSocial);
+                                setFornDropOpen(false);
+                              }}
+                            >
+                              <span className="font-medium text-gray-800">{f.nomeFantasia || f.razaoSocial}</span>
+                              {f.cpfCnpj && <span className="ml-2 text-xs text-gray-400 font-mono">{f.cpfCnpj}</span>}
+                            </button>
+                          ))}
+                        {fornecedores.filter((f) => {
+                          const q = fornSearch.toLowerCase();
+                          return !q || (f.nomeFantasia ?? "").toLowerCase().includes(q) || f.razaoSocial.toLowerCase().includes(q);
+                        }).length === 0 && (
+                          <p className="px-3 py-2 text-sm text-gray-400">Nenhum fornecedor encontrado</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <a
+                    href="/suprimentos/fornecedores/novo"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 h-9 px-3 text-xs font-medium text-blue-600 border border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors whitespace-nowrap"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Novo
+                  </a>
+                </div>
+              ) : (
+                <Input value={fornNome} readOnly className="bg-gray-50" />
+              )}
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Loja</Label>
-              <Input value="01" readOnly className="bg-gray-50" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Nome Fornecedor</Label>
-              <Input value={fornNome} readOnly className="bg-gray-50" />
-            </div>
+
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">CNPJ</Label>
-              <Input value={fornInfo?.cpfCnpj ?? "—"} readOnly className="bg-gray-50 font-mono" />
+              <Input value={fornInfo?.cpfCnpj ?? "—"} readOnly className="bg-gray-50 font-mono text-xs" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Contato</Label>

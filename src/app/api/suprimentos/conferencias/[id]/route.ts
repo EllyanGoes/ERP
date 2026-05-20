@@ -48,6 +48,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const body = await req.json();
   const {
     itens,
+    fornecedorId,
     observacoes,
     tipoNota,
     numeroNF,
@@ -101,6 +102,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     const updateData: Record<string, unknown> = { status: "EM_CONFERENCIA" };
+    if (fornecedorId !== undefined) updateData.fornecedorId = fornecedorId || null;
     if (observacoes !== undefined) updateData.observacoes = observacoes || null;
     if (tipoNota !== undefined) updateData.tipoNota = tipoNota || null;
     if (numeroNF !== undefined) updateData.numeroNF = numeroNF || null;
