@@ -396,6 +396,68 @@ async function openWAModal() {
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{actionError}</div>
         )}
 
+        {/* ── Descrição ──────────────────────────────────────────────────── */}
+        {(() => {
+          const hasSc = !!pedido.cotacao?.necessidade;
+          const scDescricao = pedido.cotacao?.necessidade?.justificativa ?? null;
+          const descricaoExibida = hasSc ? (pedido.descricao ?? scDescricao) : pedido.descricao;
+          const canEdit = !hasSc || isAdmin;
+
+          if (!descricaoExibida && !canEdit) return null;
+
+          return (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                <h2 className="font-semibold text-sm text-gray-800">Descrição</h2>
+                <div className="flex items-center gap-2">
+                  {hasSc && (
+                    <span className="text-xs text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                      Herdado da SC
+                    </span>
+                  )}
+                  {canEdit && !editingDescricao && (
+                    <button
+                      onClick={() => { setDescricaoEdit(pedido.descricao ?? scDescricao ?? ""); setEditingDescricao(true); }}
+                      className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      Editar
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="p-4">
+                {editingDescricao ? (
+                  <div className="flex gap-2 items-start">
+                    <Input
+                      autoFocus
+                      value={descricaoEdit}
+                      onChange={(e) => setDescricaoEdit(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveDescricao(); if (e.key === "Escape") setEditingDescricao(false); }}
+                      placeholder="Descrição do pedido..."
+                      className="flex-1"
+                    />
+                    <Button size="sm" onClick={saveDescricao} disabled={savingDescricao} className="shrink-0">
+                      {savingDescricao ? <Loader2 className="w-3 h-3 animate-spin" /> : "Salvar"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditingDescricao(false)} className="shrink-0">
+                      Cancelar
+                    </Button>
+                  </div>
+                ) : descricaoExibida ? (
+                  <p className="text-sm text-gray-700">{descricaoExibida}</p>
+                ) : (
+                  <button
+                    onClick={() => { setDescricaoEdit(""); setEditingDescricao(true); }}
+                    className="text-sm text-gray-400 hover:text-gray-600 italic transition-colors"
+                  >
+                    + Adicionar descrição
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ── Seção Fornecedor ─────────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
@@ -680,68 +742,6 @@ async function openWAModal() {
             </table>
           </div>
         </div>
-
-        {/* ── Descrição ──────────────────────────────────────────────────── */}
-        {(() => {
-          const hasSc = !!pedido.cotacao?.necessidade;
-          const scDescricao = pedido.cotacao?.necessidade?.justificativa ?? null;
-          const descricaoExibida = hasSc ? (pedido.descricao ?? scDescricao) : pedido.descricao;
-          const canEdit = !hasSc || isAdmin;
-
-          if (!descricaoExibida && !canEdit) return null;
-
-          return (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-                <h2 className="font-semibold text-sm text-gray-800">Descrição</h2>
-                <div className="flex items-center gap-2">
-                  {hasSc && (
-                    <span className="text-xs text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
-                      Herdado da SC
-                    </span>
-                  )}
-                  {canEdit && !editingDescricao && (
-                    <button
-                      onClick={() => { setDescricaoEdit(pedido.descricao ?? scDescricao ?? ""); setEditingDescricao(true); }}
-                      className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      Editar
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="p-4">
-                {editingDescricao ? (
-                  <div className="flex gap-2 items-start">
-                    <Input
-                      autoFocus
-                      value={descricaoEdit}
-                      onChange={(e) => setDescricaoEdit(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") saveDescricao(); if (e.key === "Escape") setEditingDescricao(false); }}
-                      placeholder="Descrição do pedido..."
-                      className="flex-1"
-                    />
-                    <Button size="sm" onClick={saveDescricao} disabled={savingDescricao} className="shrink-0">
-                      {savingDescricao ? <Loader2 className="w-3 h-3 animate-spin" /> : "Salvar"}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setEditingDescricao(false)} className="shrink-0">
-                      Cancelar
-                    </Button>
-                  </div>
-                ) : descricaoExibida ? (
-                  <p className="text-sm text-gray-700">{descricaoExibida}</p>
-                ) : (
-                  <button
-                    onClick={() => { setDescricaoEdit(""); setEditingDescricao(true); }}
-                    className="text-sm text-gray-400 hover:text-gray-600 italic transition-colors"
-                  >
-                    + Adicionar descrição
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })()}
 
         {pedido.observacoes && (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
