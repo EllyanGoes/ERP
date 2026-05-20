@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { formatDate, cn } from "@/lib/utils";
 import { useSession } from "@/lib/session-context";
+import { useColumnOrder } from "@/lib/use-column-order";
+import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -67,6 +69,76 @@ const PRIORIDADE_LABEL: Record<number, { label: string; color: string }> = {
   4: { label: "Alta",        color: "text-orange-500" },
   5: { label: "Crítica",     color: "text-red-600" },
 };
+
+// ── Column definitions ────────────────────────────────────────────────────────
+// sortKey is needed for SortHeader in th — we define COLS with static th content
+// and the SortHeader component stays in the `<th>` for Prioridade and Data.
+// For COLS, we keep plain labels (SortHeader is a click button that changes sort,
+// it can't be inside ColDef.thClass easily — so we define separate header rendering below).
+const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
+  {
+    id: "numero",
+    label: "Número",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-28",
+    tdClass: "px-4 py-3 font-mono text-xs font-medium text-gray-900",
+    render: (n) => (
+      <span className="flex items-center gap-1">
+        {n.numero}
+        <ChevronRight className="w-3 h-3 text-gray-300" />
+      </span>
+    ),
+  },
+  {
+    id: "descricao",
+    label: "Descrição",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3",
+    render: (n) => (
+      <>
+        <p className="text-gray-800 truncate max-w-xs">{n.justificativa || <span className="text-gray-300 italic">Sem descrição</span>}</p>
+        {n.tipoCompra && <p className="text-xs text-gray-400 mt-0.5">{n.tipoCompra}</p>}
+      </>
+    ),
+  },
+  {
+    id: "solicitante",
+    label: "Solicitante",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-32",
+    tdClass: "px-4 py-3 text-gray-600 truncate",
+    render: (n) => n.solicitante || "—",
+  },
+  {
+    id: "status",
+    label: "Status",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-36",
+    tdClass: "px-4 py-3",
+    render: (n) => <StatusBadge status={n.status} />,
+  },
+  {
+    id: "prioridade",
+    label: "Prioridade",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-28",
+    tdClass: "px-4 py-3",
+    render: (n) => {
+      const prio = PRIORIDADE_LABEL[n.prioridade];
+      return prio ? <span className={cn("text-xs font-semibold", prio.color)}>{n.prioridade} — {prio.label}</span> : null;
+    },
+  },
+  {
+    id: "data",
+    label: "Data",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-32",
+    tdClass: "px-4 py-3 text-gray-500 text-xs",
+    render: (n) => n.dataNecessidade ? formatDate(n.dataNecessidade) : <span className="text-gray-300">—</span>,
+  },
+  {
+    id: "itens",
+    label: "Itens",
+    thClass: "text-center px-4 py-3 font-medium text-gray-600 w-14",
+    tdClass: "px-4 py-3 text-center text-gray-500",
+    render: (n) => n._count.itens,
+  },
+];
 
 // ── StatusFilterChip ──────────────────────────────────────────────────────────
 
@@ -543,6 +615,10 @@ export default function NecessidadesPage() {
 
   const hasFilters = search || filterStatuses.length > 0 || filterFilial;
 
+  // Column order
+  const [colOrder, setColOrder] = useColumnOrder("necessidades", NECESSIDADES_COLS.map((c) => c.id));
+  const orderedNecCols = colOrder.map((id) => NECESSIDADES_COLS.find((c) => c.id === id)).filter((c): c is ColDef<Necessidade> => c !== undefined);
+
   return (
     <div>
       <PageHeader
@@ -621,6 +697,11 @@ export default function NecessidadesPage() {
             >
               <X className="w-3 h-3" /> Limpar tudo
             </button>
+          )}
+
+          {/* Column configurator — list view only */}
+          {view === "list" && (
+            <ColumnConfigurator columns={NECESSIDADES_COLS} order={colOrder} onOrderChange={setColOrder} />
           )}
 
           {/* View toggle */}
@@ -705,62 +786,49 @@ export default function NecessidadesPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Número</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-600">Descrição</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-600 w-32">Solicitante</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Status</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">
-                          <SortHeader label="Prioridade" field="prioridade" current={sortKey} onSort={setSortKey} />
-                        </th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-600 w-32">
-                          <SortHeader label="Data" field="createdAt" current={sortKey} onSort={setSortKey} />
-                        </th>
-                        <th className="text-center px-4 py-3 font-medium text-gray-600 w-14">Itens</th>
+                        {orderedNecCols.map((col) => {
+                          if (col.id === "prioridade") {
+                            return (
+                              <th key={col.id} className={col.thClass}>
+                                <SortHeader label="Prioridade" field="prioridade" current={sortKey} onSort={setSortKey} />
+                              </th>
+                            );
+                          }
+                          if (col.id === "data") {
+                            return (
+                              <th key={col.id} className={col.thClass}>
+                                <SortHeader label="Data" field="createdAt" current={sortKey} onSort={setSortKey} />
+                              </th>
+                            );
+                          }
+                          return <th key={col.id} className={col.thClass}>{col.label}</th>;
+                        })}
                         <th className="w-12" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {group.items.map((n) => {
-                        const prio = PRIORIDADE_LABEL[n.prioridade];
-                        return (
-                          <tr
-                            key={n.id}
-                            className="hover:bg-blue-50/40 transition-colors cursor-pointer"
-                            onClick={() => router.push(`/compras/necessidades/${n.id}`)}
-                          >
-                            <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">
-                              <span className="flex items-center gap-1">
-                                {n.numero}
-                                <ChevronRight className="w-3 h-3 text-gray-300" />
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <p className="text-gray-800 truncate max-w-xs">{n.justificativa || <span className="text-gray-300 italic">Sem descrição</span>}</p>
-                              {n.tipoCompra && <p className="text-xs text-gray-400 mt-0.5">{n.tipoCompra}</p>}
-                            </td>
-                            <td className="px-4 py-3 text-gray-600 truncate">{n.solicitante || "—"}</td>
-                            <td className="px-4 py-3"><StatusBadge status={n.status} /></td>
-                            <td className="px-4 py-3">
-                              {prio && <span className={cn("text-xs font-semibold", prio.color)}>{n.prioridade} — {prio.label}</span>}
-                            </td>
-                            <td className="px-4 py-3 text-gray-500 text-xs">
-                              {n.dataNecessidade ? formatDate(n.dataNecessidade) : <span className="text-gray-300">—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-center text-gray-500">{n._count.itens}</td>
-                            <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                              {canDeleteSC(n) && (
-                                <button
-                                  onClick={() => { setDeleteItem(n); setDeleteError(""); }}
-                                  className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                                  title="Excluir"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {group.items.map((n) => (
+                        <tr
+                          key={n.id}
+                          className="hover:bg-blue-50/40 transition-colors cursor-pointer"
+                          onClick={() => router.push(`/compras/necessidades/${n.id}`)}
+                        >
+                          {orderedNecCols.map((col) => (
+                            <td key={col.id} className={col.tdClass}>{col.render(n)}</td>
+                          ))}
+                          <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            {canDeleteSC(n) && (
+                              <button
+                                onClick={() => { setDeleteItem(n); setDeleteError(""); }}
+                                className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                title="Excluir"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

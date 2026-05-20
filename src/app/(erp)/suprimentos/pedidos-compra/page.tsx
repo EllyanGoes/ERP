@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
@@ -9,9 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import PedidoActionsMenu from "./PedidoActionsMenu";
+import { useColumnOrder } from "@/lib/use-column-order";
+import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 import {
   Plus, Search, X, LayoutList, Kanban, Loader2,
   ChevronDown, ChevronRight, Calendar, Building2, ClipboardList, FileText,
+  CheckCircle2, AlertCircle, ExternalLink,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -37,6 +40,15 @@ type Pedido = {
 // ── Constants ─────────────────────────────────────────────────────────────────
 const FILTER_KEY = "erp:pedidos-compra:filters:v1";
 
+const KANBAN_TRANSITIONS: Record<string, string[]> = {
+  AGUARDANDO_PAGAMENTO: ["EM_TRANSITO", "CANCELADO"],
+  EM_TRANSITO:          ["CONFIRMADO",  "CANCELADO"],
+  CONFIRMADO:           [],
+  CANCELADO:            [],
+  RASCUNHO:             ["AGUARDANDO_PAGAMENTO", "CANCELADO"],
+  ENVIADO:              ["AGUARDANDO_PAGAMENTO", "CANCELADO"],
+};
+
 const STATUS_COLS: { key: string; label: string; color: string; bg: string; border: string }[] = [
   { key: "AGUARDANDO_PAGAMENTO", label: "Aguard. Pagamento", color: "text-yellow-700", bg: "bg-yellow-50",  border: "border-yellow-200" },
   { key: "EM_TRANSITO",          label: "Em Trânsito",       color: "text-amber-600",  bg: "bg-amber-50",   border: "border-amber-200"  },
@@ -45,6 +57,98 @@ const STATUS_COLS: { key: string; label: string; color: string; bg: string; bord
 ];
 
 const ALL_STATUSES = STATUS_COLS.map((s) => s.key);
+
+// ── Column definitions ────────────────────────────────────────────────────────
+const COLS: ColDef<Pedido>[] = [
+  {
+    id: "numero",
+    label: "Número",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 font-mono text-xs font-medium text-gray-900",
+    render: (p) => p.numero,
+  },
+  {
+    id: "fornecedor",
+    label: "Fornecedor",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-gray-700 max-w-[200px]",
+    render: (p) => <span className="line-clamp-1">{p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial}</span>,
+  },
+  {
+    id: "sc",
+    label: "SC / Solicitante",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell",
+    tdClass: "px-4 py-3 hidden md:table-cell",
+    render: (p) => {
+      const sc = p.cotacao?.necessidade;
+      const setor = sc?.centroCusto?.nome ?? sc?.localEstoque?.nome ?? null;
+      return sc ? (
+        <Link
+          href={`/compras/necessidades/${sc.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="group flex flex-col gap-0.5"
+        >
+          <span className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline">
+            <ClipboardList className="w-3 h-3 flex-shrink-0" />
+            {sc.numero}
+            <ChevronRight className="w-3 h-3 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </span>
+          {(sc.solicitante || setor) && (
+            <span className="text-xs text-gray-400 pl-4">
+              {[setor, sc.solicitante].filter(Boolean).join(" · ")}
+            </span>
+          )}
+        </Link>
+      ) : (
+        <span className="text-xs text-gray-300">—</span>
+      );
+    },
+  },
+  {
+    id: "cotacao",
+    label: "Cotação",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell",
+    tdClass: "px-4 py-3 hidden lg:table-cell",
+    render: (p) =>
+      p.cotacao ? (
+        <Link
+          href={`/suprimentos/cotacoes/${p.cotacao.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="group flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+        >
+          <FileText className="w-3 h-3 flex-shrink-0" />
+          {p.cotacao.numero}
+          <ChevronRight className="w-3 h-3 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </Link>
+      ) : (
+        <span className="text-xs text-gray-300">—</span>
+      ),
+  },
+  {
+    id: "status",
+    label: "Status",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3",
+    render: (p) => <StatusBadge status={p.status} />,
+  },
+  {
+    id: "valorTotal",
+    label: "Valor Total",
+    thClass: "text-right px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-right font-medium text-gray-900",
+    render: (p) =>
+      decimalToNumber(p.valorTotal) > 0
+        ? formatBRL(decimalToNumber(p.valorTotal))
+        : "—",
+  },
+  {
+    id: "entregaPrevista",
+    label: "Entrega Prevista",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell",
+    tdClass: "px-4 py-3 text-gray-500 text-xs hidden lg:table-cell",
+    render: (p) => p.dataEntregaPrevista ? formatDate(p.dataEntregaPrevista) : "—",
+  },
+];
 
 // ── Persist helpers ───────────────────────────────────────────────────────────
 type Filters = { search: string; statuses: string[]; view: "list" | "kanban" };
@@ -70,13 +174,33 @@ function saveFilters(f: Filters) {
 }
 
 // ── Kanban card ───────────────────────────────────────────────────────────────
-function KanbanCard({ p }: { p: Pedido }) {
+function KanbanCard({
+  p,
+  isDragging,
+  onDragStart,
+  onDragEnd,
+}: {
+  p: Pedido;
+  isDragging: boolean;
+  onDragStart: (id: string) => void;
+  onDragEnd: () => void;
+}) {
   const router = useRouter();
   const sc = p.cotacao?.necessidade;
   return (
     <div
-      className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group"
-      onClick={() => router.push(`/suprimentos/pedidos-compra/${p.id}`)}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", p.id);
+        onDragStart(p.id);
+      }}
+      onDragEnd={onDragEnd}
+      className={cn(
+        "bg-white border rounded-lg p-3 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 transition-all group select-none",
+        isDragging ? "opacity-40 border-blue-400 shadow-lg scale-95" : "border-gray-200"
+      )}
+      onClick={() => !isDragging && router.push(`/suprimentos/pedidos-compra/${p.id}`)}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <span className="font-mono text-xs font-semibold text-gray-800">{p.numero}</span>
@@ -126,12 +250,45 @@ function KanbanCard({ p }: { p: Pedido }) {
   );
 }
 
+// ── Toast type ────────────────────────────────────────────────────────────────
+type Toast = {
+  id: number;
+  type: "success" | "error";
+  message: string;
+  link?: { href: string; label: string };
+};
+
+// ── Confirm dialog type ───────────────────────────────────────────────────────
+type ConfirmMove = { pedidoId: string; toStatus: string };
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function PedidosCompraPage() {
   const [pedidos, setPedidos]   = useState<Pedido[]>([]);
   const [loading, setLoading]   = useState(true);
   const [filters, setFilters]   = useState<Filters>(loadFilters);
+
+  // Column order
+  const [colOrder, setColOrder] = useColumnOrder("pedidos-compra", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Pedido> => c !== undefined);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+
+  // Drag state
+  const [dragId,   setDragId]   = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<string | null>(null);
+  const dragCounter             = useRef<Record<string, number>>({});
+
+  // Toast
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const toastSeq            = useRef(0);
+
+  // Confirm move (for CANCELADO)
+  const [confirmMove, setConfirmMove] = useState<ConfirmMove | null>(null);
+
+  function pushToast(t: Omit<Toast, "id">, durationMs = 5000) {
+    const id = ++toastSeq.current;
+    setToasts((prev) => [...prev, { ...t, id }]);
+    setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), durationMs);
+  }
 
   function updateFilters(partial: Partial<Filters>) {
     setFilters((prev) => {
@@ -152,6 +309,88 @@ export default function PedidosCompraPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // ── Kanban drag helpers ───────────────────────────────────────────────────
+  async function moveCard(pedidoId: string, toStatus: string) {
+    // Optimistic update
+    setPedidos((prev) =>
+      prev.map((p) => (p.id === pedidoId ? { ...p, status: toStatus } : p))
+    );
+
+    try {
+      const res = await fetch(`/api/suprimentos/pedidos-compra/${pedidoId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: toStatus }),
+      });
+      const json = await res.json();
+
+      if (!res.ok) {
+        // Revert
+        await load();
+        pushToast({ type: "error", message: json.error ?? "Erro ao mover pedido." });
+        return;
+      }
+
+      const { conferenciaCreated, conferenciaId, conferenciaNumero } = json.data ?? {};
+
+      if (toStatus === "CONFIRMADO" && conferenciaCreated) {
+        pushToast({
+          type: "success",
+          message: `Doc. de Entrada ${conferenciaNumero} criado automaticamente.`,
+          link: { href: `/suprimentos/conferencias/${conferenciaId}`, label: "Abrir" },
+        });
+      } else if (toStatus === "CONFIRMADO") {
+        pushToast({
+          type: "success",
+          message: `Pedido confirmado. Doc. de Entrada ${conferenciaNumero ?? ""} já existia.`,
+          link: conferenciaId
+            ? { href: `/suprimentos/conferencias/${conferenciaId}`, label: "Abrir" }
+            : undefined,
+        });
+      } else if (toStatus === "CANCELADO") {
+        pushToast({ type: "success", message: "Pedido cancelado." });
+      } else {
+        const col = STATUS_COLS.find((c) => c.key === toStatus);
+        pushToast({ type: "success", message: `Status atualizado para "${col?.label ?? toStatus}".` });
+      }
+    } catch {
+      await load();
+      pushToast({ type: "error", message: "Falha de conexão ao mover pedido." });
+    }
+  }
+
+  function handleDrop(colKey: string) {
+    if (!dragId) return;
+    const pedido = pedidos.find((p) => p.id === dragId);
+    if (!pedido) return;
+
+    // Same column — no-op
+    if (pedido.status === colKey) {
+      setDragId(null);
+      setDragOver(null);
+      return;
+    }
+
+    // Validate transition
+    const allowed = KANBAN_TRANSITIONS[pedido.status] ?? [];
+    if (!allowed.includes(colKey)) {
+      pushToast({ type: "error", message: `Transição "${pedido.status} → ${colKey}" não permitida.` });
+      setDragId(null);
+      setDragOver(null);
+      return;
+    }
+
+    if (colKey === "CANCELADO") {
+      // Ask confirmation before cancelling
+      setConfirmMove({ pedidoId: dragId, toStatus: colKey });
+    } else {
+      moveCard(dragId, colKey);
+    }
+
+    setDragId(null);
+    setDragOver(null);
+  }
 
   // ── Filtering ─────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -279,6 +518,11 @@ export default function PedidosCompraPage() {
           {loading ? "…" : `${filtered.length} pedido${filtered.length !== 1 ? "s" : ""}`}
         </span>
 
+        {/* Column configurator — only relevant for list view */}
+        {filters.view === "list" && (
+          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
+        )}
+
         {/* View toggle */}
         <div className="ml-auto flex items-center gap-1 border border-gray-200 rounded-lg p-0.5 bg-white">
           <button
@@ -319,96 +563,27 @@ export default function PedidosCompraPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Número</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Fornecedor</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">
-                    SC / Solicitante
-                  </th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">
-                    Cotação
-                  </th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Valor Total</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">
-                    Entrega Prevista
-                  </th>
+                  {orderedCols.map((col) => (
+                    <th key={col.id} className={col.thClass}>{col.label}</th>
+                  ))}
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((p) => {
-                  const sc = p.cotacao?.necessidade;
-                  const setor = sc?.centroCusto?.nome ?? sc?.localEstoque?.nome ?? null;
-                  return (
-                    <tr
-                      key={p.id}
-                      className="hover:bg-gray-50 cursor-pointer transition-colors"
-                      onClick={() => window.location.href = `/suprimentos/pedidos-compra/${p.id}`}
-                    >
-                      <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">
-                        {p.numero}
-                      </td>
-                      <td className="px-4 py-3 text-gray-700 max-w-[200px]">
-                        <span className="line-clamp-1">
-                          {p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial}
-                        </span>
-                      </td>
-                      {/* SC column */}
-                      <td className="px-4 py-3 hidden md:table-cell">
-                        {sc ? (
-                          <Link
-                            href={`/compras/necessidades/${sc.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="group flex flex-col gap-0.5"
-                          >
-                            <span className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline">
-                              <ClipboardList className="w-3 h-3 flex-shrink-0" />
-                              {sc.numero}
-                              <ChevronRight className="w-3 h-3 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </span>
-                            {(sc.solicitante || setor) && (
-                              <span className="text-xs text-gray-400 pl-4">
-                                {[setor, sc.solicitante].filter(Boolean).join(" · ")}
-                              </span>
-                            )}
-                          </Link>
-                        ) : (
-                          <span className="text-xs text-gray-300">—</span>
-                        )}
-                      </td>
-                      {/* CT column */}
-                      <td className="px-4 py-3 hidden lg:table-cell">
-                        {p.cotacao ? (
-                          <Link
-                            href={`/suprimentos/cotacoes/${p.cotacao.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="group flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
-                          >
-                            <FileText className="w-3 h-3 flex-shrink-0" />
-                            {p.cotacao.numero}
-                            <ChevronRight className="w-3 h-3 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </Link>
-                        ) : (
-                          <span className="text-xs text-gray-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={p.status} />
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-900">
-                        {decimalToNumber(p.valorTotal) > 0
-                          ? formatBRL(decimalToNumber(p.valorTotal))
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs hidden lg:table-cell">
-                        {p.dataEntregaPrevista ? formatDate(p.dataEntregaPrevista) : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                        <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} />
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filtered.map((p) => (
+                  <tr
+                    key={p.id}
+                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    onClick={() => window.location.href = `/suprimentos/pedidos-compra/${p.id}`}
+                  >
+                    {orderedCols.map((col) => (
+                      <td key={col.id} className={col.tdClass}>{col.render(p)}</td>
+                    ))}
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} />
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -417,46 +592,156 @@ export default function PedidosCompraPage() {
         // ── Kanban view ────────────────────────────────────────────────────
         <div className="px-8 pb-8 flex-1 overflow-x-auto">
           <div className="flex gap-4 min-w-max">
-            {kanbanGroups.map((col) => (
-              <div key={col.key} className="w-72 flex-shrink-0">
-                {/* Column header */}
-                <div className={cn(
-                  "flex items-center justify-between px-3 py-2.5 rounded-t-xl border border-b-0",
-                  col.bg, col.border
-                )}>
-                  <div className="flex items-center gap-2">
-                    <span className={cn("text-xs font-semibold uppercase tracking-wide", col.color)}>
-                      {col.label}
-                    </span>
-                    <span className={cn(
-                      "text-xs font-medium px-1.5 py-0.5 rounded-full",
-                      col.bg, col.color, "border", col.border
-                    )}>
-                      {col.items.length}
-                    </span>
-                  </div>
-                  {col.items.length > 0 && (
-                    <span className="text-xs text-gray-500">
-                      {formatBRL(col.items.reduce((s, p) => s + decimalToNumber(p.valorTotal), 0))}
-                    </span>
-                  )}
-                </div>
+            {kanbanGroups.map((col) => {
+              const isOver    = dragOver === col.key;
+              const dragPedido = dragId ? pedidos.find((p) => p.id === dragId) : null;
+              const canDrop   = dragPedido
+                ? (KANBAN_TRANSITIONS[dragPedido.status] ?? []).includes(col.key)
+                : false;
 
-                {/* Column body */}
-                <div className={cn(
-                  "rounded-b-xl border min-h-[120px] p-2 space-y-2",
-                  col.border, "bg-gray-50/60"
-                )}>
-                  {col.items.length === 0 ? (
-                    <div className="flex items-center justify-center py-8 text-gray-300 text-xs">
-                      Vazio
+              return (
+                <div key={col.key} className="w-72 flex-shrink-0">
+                  {/* Column header */}
+                  <div className={cn(
+                    "flex items-center justify-between px-3 py-2.5 rounded-t-xl border border-b-0 transition-colors",
+                    col.bg, col.border
+                  )}>
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-xs font-semibold uppercase tracking-wide", col.color)}>
+                        {col.label}
+                      </span>
+                      <span className={cn(
+                        "text-xs font-medium px-1.5 py-0.5 rounded-full",
+                        col.bg, col.color, "border", col.border
+                      )}>
+                        {col.items.length}
+                      </span>
                     </div>
-                  ) : (
-                    col.items.map((p) => <KanbanCard key={p.id} p={p} />)
-                  )}
+                    {col.items.length > 0 && (
+                      <span className="text-xs text-gray-500">
+                        {formatBRL(col.items.reduce((s, p) => s + decimalToNumber(p.valorTotal), 0))}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Column body — drop target */}
+                  <div
+                    className={cn(
+                      "rounded-b-xl border min-h-[120px] p-2 space-y-2 transition-all duration-150",
+                      col.border,
+                      isOver && canDrop
+                        ? "bg-blue-50 border-blue-400 ring-2 ring-blue-300 ring-inset"
+                        : isOver && !canDrop
+                        ? "bg-red-50 border-red-300"
+                        : "bg-gray-50/60"
+                    )}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = canDrop ? "move" : "none";
+                      if (dragOver !== col.key) setDragOver(col.key);
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      dragCounter.current[col.key] = (dragCounter.current[col.key] ?? 0) + 1;
+                      setDragOver(col.key);
+                    }}
+                    onDragLeave={() => {
+                      dragCounter.current[col.key] = Math.max(0, (dragCounter.current[col.key] ?? 1) - 1);
+                      if (dragCounter.current[col.key] === 0) {
+                        setDragOver((prev) => (prev === col.key ? null : prev));
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      dragCounter.current[col.key] = 0;
+                      handleDrop(col.key);
+                    }}
+                  >
+                    {col.items.length === 0 ? (
+                      <div className={cn(
+                        "flex items-center justify-center py-8 text-xs",
+                        isOver && canDrop ? "text-blue-400" : "text-gray-300"
+                      )}>
+                        {isOver && canDrop ? "Soltar aqui" : "Vazio"}
+                      </div>
+                    ) : (
+                      col.items.map((p) => (
+                        <KanbanCard
+                          key={p.id}
+                          p={p}
+                          isDragging={dragId === p.id}
+                          onDragStart={setDragId}
+                          onDragEnd={() => { setDragId(null); setDragOver(null); }}
+                        />
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Toasts ────────────────────────────────────────────────────────── */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className={cn(
+              "flex items-center gap-3 px-4 py-3 rounded-2xl shadow-lg text-sm text-white pointer-events-auto max-w-lg animate-in fade-in slide-in-from-bottom-2",
+              t.type === "success" ? "bg-emerald-700" : "bg-red-600"
+            )}
+          >
+            {t.type === "success"
+              ? <CheckCircle2 className="w-4 h-4 shrink-0" />
+              : <AlertCircle  className="w-4 h-4 shrink-0" />}
+            <span>{t.message}</span>
+            {t.link && (
+              <Link
+                href={t.link.href}
+                className="flex items-center gap-1 underline underline-offset-2 font-medium opacity-90 hover:opacity-100 ml-1"
+              >
+                {t.link.label}
+                <ExternalLink className="w-3 h-3" />
+              </Link>
+            )}
+            <button
+              className="ml-1 opacity-60 hover:opacity-100 transition-opacity"
+              onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Confirm dialog (CANCELADO) ─────────────────────────────────────── */}
+      {confirmMove && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmMove(null)} />
+          <div className="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-base font-semibold text-gray-900 mb-2">Cancelar pedido?</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              Esta ação irá marcar o pedido como <strong>Cancelado</strong>. Deseja continuar?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                onClick={() => setConfirmMove(null)}
+              >
+                Não, manter
+              </button>
+              <button
+                className="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                onClick={() => {
+                  if (confirmMove) moveCard(confirmMove.pedidoId, confirmMove.toStatus);
+                  setConfirmMove(null);
+                }}
+              >
+                Sim, cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}

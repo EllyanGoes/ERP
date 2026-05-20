@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Plus, Search, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useColumnOrder } from "@/lib/use-column-order";
+import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 type Fornecedor = {
   id: string;
@@ -22,6 +24,73 @@ type Fornecedor = {
 };
 
 type AtivoFilter = "todos" | "ativos" | "inativos";
+
+// ── Column definitions ────────────────────────────────────────────────────────
+// (defined outside component to avoid re-creation on every render)
+// search is captured via closure inside render — we use a module-level ref trick
+// Instead we keep a module-level variable updated before render
+let _search = "";
+
+const COLS: ColDef<Fornecedor>[] = [
+  {
+    id: "razaoSocial",
+    label: "Razão Social",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 font-medium text-gray-900",
+    render: (f) => _search ? <Highlight text={f.razaoSocial} query={_search} /> : f.razaoSocial,
+  },
+  {
+    id: "nomeFantasia",
+    label: "Nome Fantasia",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-gray-500",
+    render: (f) =>
+      f.nomeFantasia
+        ? _search ? <Highlight text={f.nomeFantasia} query={_search} /> : f.nomeFantasia
+        : "—",
+  },
+  {
+    id: "cpfCnpj",
+    label: "CPF/CNPJ",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-gray-600 font-mono text-xs",
+    render: (f) =>
+      f.cpfCnpj
+        ? _search ? <Highlight text={f.cpfCnpj} query={_search} /> : f.cpfCnpj
+        : "—",
+  },
+  {
+    id: "cidadeUf",
+    label: "Cidade/UF",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-gray-600",
+    render: (f) =>
+      f.cidade && f.estado
+        ? `${f.cidade}/${f.estado}`
+        : f.cidade || f.estado || "—",
+  },
+  {
+    id: "produtos",
+    label: "Produtos",
+    thClass: "text-center px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-center text-gray-600 text-sm",
+    render: (f) => f._count.produtos,
+  },
+  {
+    id: "status",
+    label: "Status",
+    thClass: "text-center px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-center",
+    render: (f) => (
+      <span className={cn(
+        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+        f.ativo ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+      )}>
+        {f.ativo ? "Ativo" : "Inativo"}
+      </span>
+    ),
+  },
+];
 
 const ATIVO_OPTIONS: FilterOption[] = [
   { key: "todos",    label: "Todos",    color: "bg-gray-100 text-gray-600" },
@@ -75,6 +144,11 @@ export default function FornecedoresPage() {
 
   const hasFilters  = search || ativo !== "todos";
   const totalAtivos = items.filter((f) => f.ativo).length;
+
+  // Column order
+  _search = search;
+  const [colOrder, setColOrder] = useColumnOrder("fornecedores", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Fornecedor> => c !== undefined);
 
   return (
     <div>
@@ -146,6 +220,8 @@ export default function FornecedoresPage() {
               Limpar filtros
             </button>
           )}
+
+          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
         </div>
 
         {/* Table */}
@@ -174,12 +250,9 @@ export default function FornecedoresPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Razão Social</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Nome Fantasia</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">CPF/CNPJ</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Cidade/UF</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Produtos</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
+                  {orderedCols.map((col) => (
+                    <th key={col.id} className={col.thClass}>{col.label}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -189,39 +262,9 @@ export default function FornecedoresPage() {
                     className="hover:bg-blue-50/40 transition-colors cursor-pointer"
                     onClick={() => router.push(`/suprimentos/fornecedores/${f.id}`)}
                   >
-                    <td className="px-4 py-3 font-medium text-gray-900">
-                      {search ? <Highlight text={f.razaoSocial} query={search} /> : f.razaoSocial}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {f.nomeFantasia
-                        ? search
-                          ? <Highlight text={f.nomeFantasia} query={search} />
-                          : f.nomeFantasia
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 font-mono text-xs">
-                      {f.cpfCnpj
-                        ? search
-                          ? <Highlight text={f.cpfCnpj} query={search} />
-                          : f.cpfCnpj
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {f.cidade && f.estado
-                        ? `${f.cidade}/${f.estado}`
-                        : f.cidade || f.estado || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600 text-sm">
-                      {f._count.produtos}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={cn(
-                        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                        f.ativo ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                      )}>
-                        {f.ativo ? "Ativo" : "Inativo"}
-                      </span>
-                    </td>
+                    {orderedCols.map((col) => (
+                      <td key={col.id} className={col.tdClass}>{col.render(f)}</td>
+                    ))}
                   </tr>
                 ))}
               </tbody>

@@ -6,6 +6,8 @@ import PageHeader from "@/components/shared/PageHeader";
 import FilterDropdown, { FilterOption } from "@/components/shared/FilterDropdown";
 import { Search, X, Loader2, Package, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useColumnOrder } from "@/lib/use-column-order";
+import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type EstoqueItem = {
@@ -42,6 +44,80 @@ type LocalEstoque = { id: string; nome: string };
 function toNum(v: unknown) { return parseFloat(String(v ?? 0)); }
 
 type SituacaoFilter = "todos" | "baixo" | "normal" | "acima";
+
+// ── Column definitions ────────────────────────────────────────────────────────
+const COLS: ColDef<ProdutoRow>[] = [
+  {
+    id: "codigo",
+    label: "Código",
+    thClass: "text-left px-4 py-2.5 font-medium",
+    tdClass: "px-4 py-3",
+    render: (p) => (
+      <Link href={`/suprimentos/produtos/${p.itemId}`} className="font-mono text-xs text-blue-600 hover:underline">
+        {p.codigo}
+      </Link>
+    ),
+  },
+  {
+    id: "descricao",
+    label: "Descrição",
+    thClass: "text-left px-4 py-2.5 font-medium",
+    tdClass: "px-4 py-3 font-medium text-gray-900",
+    render: (p) => p.descricao,
+  },
+  {
+    id: "qtdTotal",
+    label: "Qtd. Total",
+    thClass: "text-right px-4 py-2.5 font-medium",
+    tdClass: "px-4 py-3 text-right",
+    render: (p) => {
+      const abaixo = p.minTotal > 0 && p.qtdTotal < p.minTotal;
+      return (
+        <>
+          <span className={cn("font-bold text-base", abaixo ? "text-red-600" : "text-gray-900")}>
+            {p.qtdTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+          </span>
+          <span className="text-xs text-gray-400 ml-1">{p.unidade}</span>
+        </>
+      );
+    },
+  },
+  {
+    id: "minimo",
+    label: "Mínimo",
+    thClass: "text-right px-4 py-2.5 font-medium",
+    tdClass: "px-4 py-3 text-right text-gray-500 text-sm",
+    render: (p) => p.minTotal > 0 ? p.minTotal.toLocaleString("pt-BR") : "—",
+  },
+  {
+    id: "maximo",
+    label: "Máximo",
+    thClass: "text-right px-4 py-2.5 font-medium",
+    tdClass: "px-4 py-3 text-right text-gray-500 text-sm",
+    render: (p) => p.maxTotal !== null ? p.maxTotal.toLocaleString("pt-BR") : "—",
+  },
+  {
+    id: "situacao",
+    label: "Situação",
+    thClass: "text-center px-4 py-2.5 font-medium",
+    tdClass: "px-4 py-3 text-center",
+    render: (p) => {
+      const abaixo = p.minTotal > 0 && p.qtdTotal < p.minTotal;
+      const acima  = p.maxTotal !== null && p.qtdTotal > p.maxTotal;
+      if (abaixo) return (
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
+          <AlertTriangle className="w-3 h-3" /> Baixo
+        </span>
+      );
+      if (acima) return (
+        <span className="text-xs font-medium text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">Acima máx.</span>
+      );
+      return (
+        <span className="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">Normal</span>
+      );
+    },
+  },
+];
 
 const SITUACAO_OPTIONS: FilterOption[] = [
   { key: "todos",  label: "Todas",      color: "bg-gray-100 text-gray-600" },
@@ -142,6 +218,10 @@ export default function EstoquePage() {
   const hasFilters  = search || localId !== "todos" || situacao !== "todos";
   const totalUnique = productMap.size; // after local filter
 
+  // Column order
+  const [colOrder, setColOrder] = useColumnOrder("estoque", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<ProdutoRow> => c !== undefined);
+
   const localOptions: FilterOption[] = [
     { key: "todos", label: "Todos os locais", color: "bg-gray-100 text-gray-600" },
     ...locais.map((l) => ({ key: l.id, label: l.nome, color: "bg-emerald-100 text-emerald-700" })),
@@ -209,6 +289,8 @@ export default function EstoquePage() {
               <X className="w-3 h-3" /> Limpar filtros
             </button>
           )}
+
+          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
         </div>
 
         {/* Table */}
@@ -228,18 +310,14 @@ export default function EstoquePage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr className="text-xs text-gray-400 uppercase tracking-wide">
-                  <th className="text-left px-4 py-2.5 font-medium">Código</th>
-                  <th className="text-left px-4 py-2.5 font-medium">Descrição</th>
-                  <th className="text-right px-4 py-2.5 font-medium">Qtd. Total</th>
-                  <th className="text-right px-4 py-2.5 font-medium">Mínimo</th>
-                  <th className="text-right px-4 py-2.5 font-medium">Máximo</th>
-                  <th className="text-center px-4 py-2.5 font-medium">Situação</th>
+                  {orderedCols.map((col) => (
+                    <th key={col.id} className={col.thClass}>{col.label}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.map((p) => {
                   const abaixo = p.minTotal > 0 && p.qtdTotal < p.minTotal;
-                  const acima  = p.maxTotal !== null && p.qtdTotal > p.maxTotal;
                   return (
                     <tr
                       key={p.itemId}
@@ -249,35 +327,9 @@ export default function EstoquePage() {
                         !p.ativo && "opacity-50"
                       )}
                     >
-                      <td className="px-4 py-3">
-                        <Link href={`/suprimentos/produtos/${p.itemId}`} className="font-mono text-xs text-blue-600 hover:underline">
-                          {p.codigo}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{p.descricao}</td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={cn("font-bold text-base", abaixo ? "text-red-600" : "text-gray-900")}>
-                          {p.qtdTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                        </span>
-                        <span className="text-xs text-gray-400 ml-1">{p.unidade}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-500 text-sm">
-                        {p.minTotal > 0 ? p.minTotal.toLocaleString("pt-BR") : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-500 text-sm">
-                        {p.maxTotal !== null ? p.maxTotal.toLocaleString("pt-BR") : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {abaixo ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
-                            <AlertTriangle className="w-3 h-3" /> Baixo
-                          </span>
-                        ) : acima ? (
-                          <span className="text-xs font-medium text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">Acima máx.</span>
-                        ) : (
-                          <span className="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">Normal</span>
-                        )}
-                      </td>
+                      {orderedCols.map((col) => (
+                        <td key={col.id} className={col.tdClass}>{col.render(p)}</td>
+                      ))}
                     </tr>
                   );
                 })}

@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MODULOS } from "@/lib/modules";
+import { useColumnOrder } from "@/lib/use-column-order";
+import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -49,6 +51,68 @@ function Avatar({ u }: { u: Usuario }) {
       {initials}
     </div>
   );
+}
+
+// ── Column definition factory (needs toggleAtivo from component scope) ────────
+function makeUsuariosCols(toggleAtivo: (u: Usuario) => void): ColDef<Usuario>[] {
+  return [
+    {
+      id: "usuario",
+      label: "Usuário",
+      thClass: "text-left px-4 py-3 font-medium",
+      tdClass: "px-4 py-3",
+      render: (u) => (
+        <div className="flex items-center gap-3">
+          <Avatar u={u} />
+          <div>
+            <p className="font-medium text-gray-900">{u.nome}</p>
+            <p className="text-xs text-gray-400">{u.email}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "perfil",
+      label: "Perfil",
+      thClass: "text-left px-4 py-3 font-medium",
+      tdClass: "px-4 py-3",
+      render: (u) => (
+        <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium", PERFIL_COLOR[u.perfil])}>
+          {u.perfil === "ADMIN" ? <ShieldCheck className="w-3 h-3" /> : <User className="w-3 h-3" />}
+          {PERFIL_LABEL[u.perfil]}
+        </span>
+      ),
+    },
+    {
+      id: "modulos",
+      label: "Módulos",
+      thClass: "text-left px-4 py-3 font-medium",
+      tdClass: "px-4 py-3 text-gray-500 text-xs max-w-[200px]",
+      render: (u) =>
+        u.perfil === "ADMIN"
+          ? <span className="text-blue-600 font-medium">Todos</span>
+          : u.permissoes.length === 0
+          ? <span className="text-gray-400">Nenhum</span>
+          : <span className="truncate block">{getModulesLabel(u)}</span>,
+    },
+    {
+      id: "status",
+      label: "Status",
+      thClass: "text-center px-4 py-3 font-medium",
+      tdClass: "px-4 py-3 text-center",
+      render: (u) => (
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleAtivo(u); }}
+          className={cn(
+            "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80",
+            u.ativo ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"
+          )}
+        >
+          {u.ativo ? "Ativo" : "Inativo"}
+        </button>
+      ),
+    },
+  ];
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -95,6 +159,11 @@ export default function UsuariosPage() {
     await load();
     setDeleting(false);
   }
+
+  // Column order (only relevant for list view)
+  const COLS = makeUsuariosCols(toggleAtivo);
+  const [colOrder, setColOrder] = useColumnOrder("usuarios", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Usuario> => c !== undefined);
 
   const filtered     = users.filter((u) =>
     u.nome.toLowerCase().includes(search.toLowerCase()) ||
@@ -186,6 +255,9 @@ export default function UsuariosPage() {
               />
             </div>
           )}
+          {tabView === "lista" && (
+            <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
+          )}
         </div>
 
         {/* ── Lista View ──────────────────────────────────────────── */}
@@ -194,58 +266,26 @@ export default function UsuariosPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium">Usuário</th>
-                  <th className="text-left px-4 py-3 font-medium">Perfil</th>
-                  <th className="text-left px-4 py-3 font-medium">Módulos</th>
-                  <th className="text-center px-4 py-3 font-medium">Status</th>
+                  {orderedCols.map((col) => (
+                    <th key={col.id} className={col.thClass}>{col.label}</th>
+                  ))}
                   <th className="w-24" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {loading ? (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400 text-sm">Carregando...</td></tr>
+                  <tr><td colSpan={orderedCols.length + 1} className="px-4 py-12 text-center text-gray-400 text-sm">Carregando...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400 text-sm">Nenhum usuário encontrado</td></tr>
+                  <tr><td colSpan={orderedCols.length + 1} className="px-4 py-12 text-center text-gray-400 text-sm">Nenhum usuário encontrado</td></tr>
                 ) : filtered.map((u) => (
                   <tr
                     key={u.id}
                     className="hover:bg-gray-50 cursor-pointer"
                     onClick={() => router.push(`/admin/usuarios/${u.id}`)}
                   >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <Avatar u={u} />
-                        <div>
-                          <p className="font-medium text-gray-900">{u.nome}</p>
-                          <p className="text-xs text-gray-400">{u.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium", PERFIL_COLOR[u.perfil])}>
-                        {u.perfil === "ADMIN" ? <ShieldCheck className="w-3 h-3" /> : <User className="w-3 h-3" />}
-                        {PERFIL_LABEL[u.perfil]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs max-w-[200px]">
-                      {u.perfil === "ADMIN"
-                        ? <span className="text-blue-600 font-medium">Todos</span>
-                        : u.permissoes.length === 0
-                        ? <span className="text-gray-400">Nenhum</span>
-                        : <span className="truncate block">{getModulesLabel(u)}</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleAtivo(u); }}
-                        className={cn(
-                          "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80",
-                          u.ativo ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"
-                        )}
-                      >
-                        {u.ativo ? "Ativo" : "Inativo"}
-                      </button>
-                    </td>
+                    {orderedCols.map((col) => (
+                      <td key={col.id} className={col.tdClass}>{col.render(u)}</td>
+                    ))}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
                         <Button

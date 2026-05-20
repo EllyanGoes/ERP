@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useColumnOrder } from "@/lib/use-column-order";
+import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -47,6 +49,82 @@ const emptyForm: Form = {
   cep: "", logradouro: "", numero: "", complemento: "",
   bairro: "", cidade: "", estado: "", ativo: true,
 };
+
+// ── Column definitions ────────────────────────────────────────────────────────
+const COLS: ColDef<Filial>[] = [
+  {
+    id: "razaoSocial",
+    label: "Razão Social",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 font-medium text-gray-900",
+    render: (f) => f.razaoSocial,
+  },
+  {
+    id: "nomeFantasia",
+    label: "Nome Fantasia",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-gray-500",
+    render: (f) => f.nomeFantasia || <span className="text-gray-300">—</span>,
+  },
+  {
+    id: "cnpj",
+    label: "CNPJ",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-36",
+    tdClass: "px-4 py-3 font-mono text-xs text-gray-600",
+    render: (f) => f.cnpj || <span className="text-gray-300">—</span>,
+  },
+  {
+    id: "endereco",
+    label: "Endereço",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-28",
+    tdClass: "px-4 py-3 text-gray-500",
+    render: (f) =>
+      f.cidade || f.estado
+        ? <span>{f.cidade}{f.cidade && f.estado ? " / " : ""}{f.estado}</span>
+        : <span className="text-gray-300">—</span>,
+  },
+  {
+    id: "telefone",
+    label: "Telefone",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-32",
+    tdClass: "px-4 py-3 text-gray-500",
+    render: (f) => f.telefone || <span className="text-gray-300">—</span>,
+  },
+  {
+    id: "locais",
+    label: "Locais",
+    thClass: "text-center px-4 py-3 font-medium text-gray-600 w-20",
+    tdClass: "px-4 py-3 text-center",
+    render: (f) =>
+      f._count.locaisEstoque > 0 ? (
+        <Link
+          href={`/suprimentos/locais-estoque?filialId=${f.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline text-xs font-medium"
+          title="Ver locais de estoque desta filial"
+        >
+          <MapPin className="w-3.5 h-3.5" />
+          {f._count.locaisEstoque}
+        </Link>
+      ) : (
+        <span className="text-gray-300 text-xs">0</span>
+      ),
+  },
+  {
+    id: "ativo",
+    label: "Ativo",
+    thClass: "text-center px-4 py-3 font-medium text-gray-600 w-20",
+    tdClass: "px-4 py-3 text-center",
+    render: (f) => (
+      <span className={cn(
+        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+        f.ativo ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
+      )}>
+        {f.ativo ? "Ativo" : "Inativo"}
+      </span>
+    ),
+  },
+];
 
 // ── Field helper ──────────────────────────────────────────────────────────────
 
@@ -290,6 +368,10 @@ export default function FiliaisPage() {
   const ativos   = filiais.filter((f) => f.ativo).length;
   const inativos = filiais.filter((f) => !f.ativo).length;
 
+  // Column order
+  const [colOrder, setColOrder] = useColumnOrder("filiais", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Filial> => c !== undefined);
+
   return (
     <div>
       <PageHeader
@@ -343,6 +425,7 @@ export default function FiliaisPage() {
             <option value="true">Ativas</option>
             <option value="false">Inativas</option>
           </select>
+          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
         </div>
 
         {/* Table */}
@@ -359,52 +442,18 @@ export default function FiliaisPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Razão Social</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Nome Fantasia</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">CNPJ</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Endereço</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-32">Telefone</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600 w-20">Locais</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600 w-20">Ativo</th>
+                  {orderedCols.map((col) => (
+                    <th key={col.id} className={col.thClass}>{col.label}</th>
+                  ))}
                   <th className="text-center px-4 py-3 font-medium text-gray-600 w-20">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filiais.map((f) => (
                   <tr key={f.id} className="hover:bg-gray-50/60 transition-colors">
-                    <td className="px-4 py-3 font-medium text-gray-900">{f.razaoSocial}</td>
-                    <td className="px-4 py-3 text-gray-500">{f.nomeFantasia || <span className="text-gray-300">—</span>}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-600">{f.cnpj || <span className="text-gray-300">—</span>}</td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {f.cidade || f.estado
-                        ? <span>{f.cidade}{f.cidade && f.estado ? " / " : ""}{f.estado}</span>
-                        : <span className="text-gray-300">—</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">{f.telefone || <span className="text-gray-300">—</span>}</td>
-                    <td className="px-4 py-3 text-center">
-                      {f._count.locaisEstoque > 0 ? (
-                        <Link
-                          href={`/suprimentos/locais-estoque?filialId=${f.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline text-xs font-medium"
-                          title="Ver locais de estoque desta filial"
-                        >
-                          <MapPin className="w-3.5 h-3.5" />
-                          {f._count.locaisEstoque}
-                        </Link>
-                      ) : (
-                        <span className="text-gray-300 text-xs">0</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={cn(
-                        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                        f.ativo ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
-                      )}>
-                        {f.ativo ? "Ativo" : "Inativo"}
-                      </span>
-                    </td>
+                    {orderedCols.map((col) => (
+                      <td key={col.id} className={col.tdClass}>{col.render(f)}</td>
+                    ))}
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <button onClick={(e) => openEdit(f, e)} className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Editar">

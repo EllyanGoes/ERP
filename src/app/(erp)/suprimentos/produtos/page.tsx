@@ -9,6 +9,8 @@ import Link from "next/link";
 import { Plus, Search, X, Loader2, AlertTriangle, Trash2 } from "lucide-react";
 import { formatBRL, decimalToNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { useColumnOrder } from "@/lib/use-column-order";
+import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 type TipoProduto = { id: string; nome: string };
 
@@ -26,6 +28,95 @@ type Produto = {
 };
 
 type AtivoFilter = "todos" | "ativos" | "inativos";
+
+// ── Column definitions ────────────────────────────────────────────────────────
+let _prodSearch = "";
+
+const COLS: ColDef<Produto>[] = [
+  {
+    id: "codigo",
+    label: "Código",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 font-mono text-xs text-gray-700",
+    render: (item) => _prodSearch ? <Highlight text={item.codigo} query={_prodSearch} /> : item.codigo,
+  },
+  {
+    id: "descricao",
+    label: "Descrição",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 font-medium text-gray-900",
+    render: (item) => _prodSearch ? <Highlight text={item.descricao} query={_prodSearch} /> : item.descricao,
+  },
+  {
+    id: "tipoProduto",
+    label: "Tipo de Produto",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-gray-600",
+    render: (item) =>
+      item.tipoProduto
+        ? <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-md">{item.tipoProduto.nome}</span>
+        : <span className="text-gray-400">—</span>,
+  },
+  {
+    id: "unidade",
+    label: "Unidade",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-gray-600",
+    render: (item) => item.unidade?.sigla || item.unidadeMedida,
+  },
+  {
+    id: "estoque",
+    label: "Estoque",
+    thClass: "text-right px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-right text-gray-700",
+    render: (item) => {
+      const estoqueTotal = item.estoqueItems.reduce(
+        (s, e) => s + decimalToNumber(e.quantidadeAtual), 0
+      );
+      return item.estoqueItems.length > 0
+        ? estoqueTotal.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })
+        : "—";
+    },
+  },
+  {
+    id: "custoMedio",
+    label: "Custo Médio",
+    thClass: "text-right px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-right text-gray-700",
+    render: (item) =>
+      item.precoCusto
+        ? <span title="Custo Médio Ponderado Móvel (atualizado a cada entrada)">{formatBRL(decimalToNumber(item.precoCusto))}</span>
+        : <span className="text-gray-400 text-xs">Sem entradas</span>,
+  },
+  {
+    id: "custoTotal",
+    label: "Custo Total",
+    thClass: "text-right px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-right",
+    render: (item) => {
+      const estoqueTotal = item.estoqueItems.reduce(
+        (s, e) => s + decimalToNumber(e.quantidadeAtual), 0
+      );
+      return item.precoCusto && estoqueTotal > 0
+        ? <span className="font-semibold text-blue-700">{formatBRL(decimalToNumber(item.precoCusto) * estoqueTotal)}</span>
+        : <span className="text-gray-300">—</span>;
+    },
+  },
+  {
+    id: "status",
+    label: "Status",
+    thClass: "text-center px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-center",
+    render: (item) => (
+      <span className={cn(
+        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+        item.ativo ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+      )}>
+        {item.ativo ? "Ativo" : "Inativo"}
+      </span>
+    ),
+  },
+];
 
 const ATIVO_OPTIONS: FilterOption[] = [
   { key: "todos",    label: "Todos",    color: "bg-gray-100 text-gray-600" },
@@ -97,6 +188,11 @@ export default function ProdutosPage() {
 
   const hasFilters   = search || tipoProdutoId !== "todos" || ativo !== "todos";
   const deletingItem = items.find((i) => i.id === deleteId);
+
+  // Column order
+  _prodSearch = search;
+  const [colOrder, setColOrder] = useColumnOrder("produtos", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Produto> => c !== undefined);
 
   // Build tipo produto filter options dynamically
   const tipoProdutoOptions: FilterOption[] = [
@@ -220,6 +316,8 @@ export default function ProdutosPage() {
               Limpar filtros
             </button>
           )}
+
+          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
         </div>
 
         {/* Table */}
@@ -243,80 +341,36 @@ export default function ProdutosPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Código</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Descrição</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Tipo de Produto</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Unidade</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Estoque</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Custo Médio</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Custo Total</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
+                  {orderedCols.map((col) => (
+                    <th key={col.id} className={col.thClass}>{col.label}</th>
+                  ))}
                   <th className="text-center px-4 py-3 font-medium text-gray-600">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {items.map((item) => {
-                  const estoqueTotal = item.estoqueItems.reduce(
-                    (s, e) => s + decimalToNumber(e.quantidadeAtual), 0
-                  );
-                  return (
-                    <tr
-                      key={item.id}
-                      className="hover:bg-blue-50/40 transition-colors cursor-pointer"
-                      onClick={(e) => {
-                        if ((e.target as HTMLElement).closest("button, a")) return;
-                        router.push(`/suprimentos/produtos/${item.id}`);
-                      }}
-                    >
-                      <td className="px-4 py-3 font-mono text-xs text-gray-700">
-                        {search ? <Highlight text={item.codigo} query={search} /> : item.codigo}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        {search ? <Highlight text={item.descricao} query={search} /> : item.descricao}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {item.tipoProduto
-                          ? <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-md">{item.tipoProduto.nome}</span>
-                          : <span className="text-gray-400">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {item.unidade?.sigla || item.unidadeMedida}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-700">
-                        {item.estoqueItems.length > 0
-                          ? estoqueTotal.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-700">
-                        {item.precoCusto
-                          ? <span title="Custo Médio Ponderado Móvel (atualizado a cada entrada)">{formatBRL(decimalToNumber(item.precoCusto))}</span>
-                          : <span className="text-gray-400 text-xs">Sem entradas</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {item.precoCusto && estoqueTotal > 0
-                          ? <span className="font-semibold text-blue-700">{formatBRL(decimalToNumber(item.precoCusto) * estoqueTotal)}</span>
-                          : <span className="text-gray-300">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={cn(
-                          "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                          item.ativo ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                        )}>
-                          {item.ativo ? "Ativo" : "Inativo"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <Button
-                          variant="ghost" size="sm"
-                          className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
-                          onClick={(e) => { e.stopPropagation(); setDeleteId(item.id); setDeleteError(null); }}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {items.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="hover:bg-blue-50/40 transition-colors cursor-pointer"
+                    onClick={(e) => {
+                      if ((e.target as HTMLElement).closest("button, a")) return;
+                      router.push(`/suprimentos/produtos/${item.id}`);
+                    }}
+                  >
+                    {orderedCols.map((col) => (
+                      <td key={col.id} className={col.tdClass}>{col.render(item)}</td>
+                    ))}
+                    <td className="px-4 py-3 text-center">
+                      <Button
+                        variant="ghost" size="sm"
+                        className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                        onClick={(e) => { e.stopPropagation(); setDeleteId(item.id); setDeleteError(null); }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
             <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50 text-xs text-gray-400">

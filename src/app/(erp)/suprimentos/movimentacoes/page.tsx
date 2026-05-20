@@ -16,6 +16,8 @@ import {
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
 import { cn } from "@/lib/utils";
+import { useColumnOrder } from "@/lib/use-column-order";
+import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type MovItem = {
@@ -57,6 +59,101 @@ type LinhaItem = {
   stockInfo: { exists: boolean; quantidadeAtual: number } | null;
   stockLoading: boolean;
 };
+
+// ── Column definitions (inner items table) ────────────────────────────────────
+// isEntrada is needed in some render fns — handled via module-level variable
+let _movIsEntrada = false;
+
+const MOV_COLS: ColDef<MovItem>[] = [
+  {
+    id: "codigo",
+    label: "Código",
+    thClass: "text-left px-6 py-2 font-medium",
+    tdClass: "px-6 py-2.5",
+    render: (it) => (
+      <Link href={`/suprimentos/produtos/${it.item.id}`} className="font-mono text-xs text-blue-600 hover:underline">
+        {it.item.codigo}
+      </Link>
+    ),
+  },
+  {
+    id: "descricao",
+    label: "Descrição",
+    thClass: "text-left px-4 py-2 font-medium",
+    tdClass: "px-4 py-2.5 text-gray-800",
+    render: (it) => it.item.descricao,
+  },
+  {
+    id: "local",
+    label: "Local",
+    thClass: "text-left px-4 py-2 font-medium",
+    tdClass: "px-4 py-2.5 text-xs text-gray-500",
+    render: (it) => it.localEstoque?.nome ?? <span className="text-gray-300">—</span>,
+  },
+  {
+    id: "quantidade",
+    label: "Quantidade",
+    thClass: "text-right px-4 py-2 font-medium",
+    tdClass: "px-4 py-2.5 text-right font-semibold",
+    render: (it) => {
+      const isEntra = _movIsEntrada;
+      const un = it.item.unidade?.sigla || it.item.unidadeMedida;
+      return (
+        <span className={isEntra ? "text-emerald-600" : "text-red-600"}>
+          {isEntra ? "+" : "−"}{toNum(it.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+          <span className="text-xs font-normal text-gray-400 ml-1">{un}</span>
+        </span>
+      );
+    },
+  },
+  {
+    id: "custoUnit",
+    label: "Custo Unit.",
+    thClass: "text-right px-4 py-2 font-medium",
+    tdClass: "px-4 py-2.5 text-right text-xs text-gray-500",
+    render: (it) => {
+      const vUnit = it.valorUnitario ? toNum(it.valorUnitario) : null;
+      return vUnit !== null
+        ? vUnit.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+        : <span className="text-gray-300">—</span>;
+    },
+  },
+  {
+    id: "saldoAntes",
+    label: "Saldo Antes",
+    thClass: "text-right px-4 py-2 font-medium",
+    tdClass: "px-4 py-2.5 text-right text-gray-400 text-xs",
+    render: (it) => toNum(it.saldoAntes).toLocaleString("pt-BR", { maximumFractionDigits: 3 }),
+  },
+  {
+    id: "saldoDepois",
+    label: "Saldo Depois",
+    thClass: "text-right px-4 py-2 font-medium",
+    tdClass: "px-4 py-2.5 text-right text-gray-700 text-sm font-medium",
+    render: (it) => toNum(it.saldoDepois).toLocaleString("pt-BR", { maximumFractionDigits: 3 }),
+  },
+  {
+    id: "origem",
+    label: "Origem",
+    thClass: "text-left px-4 py-2 font-medium",
+    tdClass: "px-4 py-2.5",
+    render: (it) =>
+      it.pedidoVendaItemId || it.conferenciaItemId ? (
+        <span className="inline-flex items-center gap-1 text-xs font-medium bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+          <RefreshCw className="w-3 h-3" />Auto
+        </span>
+      ) : (
+        <span className="text-xs text-gray-400">Manual</span>
+      ),
+  },
+  {
+    id: "obs",
+    label: "Obs.",
+    thClass: "text-left px-4 py-2 font-medium",
+    tdClass: "px-4 py-2.5 text-xs text-gray-400 max-w-[140px] truncate",
+    render: (it) => it.observacoes || "—",
+  },
+];
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const TIPO_FILTER_OPTIONS: FilterOption[] = [
@@ -492,6 +589,10 @@ export default function MovimentacoesPage() {
     );
   }
 
+  // Column order
+  const [colOrder, setColOrder] = useColumnOrder("movimentacoes", MOV_COLS.map((c) => c.id));
+  const orderedMovCols = colOrder.map((id) => MOV_COLS.find((c) => c.id === id)).filter((c): c is ColDef<MovItem> => c !== undefined);
+
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div>
@@ -563,6 +664,8 @@ export default function MovimentacoesPage() {
               <X className="w-3 h-3" /> Limpar
             </button>
           )}
+
+          <ColumnConfigurator columns={MOV_COLS} order={colOrder} onOrderChange={setColOrder} />
         </div>
 
         {/* List */}
@@ -648,62 +751,24 @@ export default function MovimentacoesPage() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-gray-50 text-xs text-gray-400 uppercase tracking-wide">
-                            <th className="text-left px-6 py-2 font-medium">Código</th>
-                            <th className="text-left px-4 py-2 font-medium">Descrição</th>
-                            <th className="text-left px-4 py-2 font-medium">Local</th>
-                            <th className="text-right px-4 py-2 font-medium">Quantidade</th>
-                            {isEntra && <th className="text-right px-4 py-2 font-medium">Custo Unit.</th>}
-                            <th className="text-right px-4 py-2 font-medium">Saldo Antes</th>
-                            <th className="text-right px-4 py-2 font-medium">Saldo Depois</th>
-                            <th className="text-left px-4 py-2 font-medium">Origem</th>
-                            <th className="text-left px-4 py-2 font-medium">Obs.</th>
+                            {orderedMovCols
+                              .filter((col) => col.id !== "custoUnit" || isEntra)
+                              .map((col) => (
+                                <th key={col.id} className={col.thClass}>{col.label}</th>
+                              ))}
                             <th className="w-16" />
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                           {lote.itens.map((it) => {
-                            const un = it.item.unidade?.sigla || it.item.unidadeMedida;
-                            const vUnit = it.valorUnitario ? toNum(it.valorUnitario) : null;
+                            _movIsEntrada = isEntra;
                             return (
                               <tr key={it.id} className="group/row hover:bg-gray-50">
-                                <td className="px-6 py-2.5">
-                                  <Link href={`/suprimentos/produtos/${it.item.id}`} className="font-mono text-xs text-blue-600 hover:underline">
-                                    {it.item.codigo}
-                                  </Link>
-                                </td>
-                                <td className="px-4 py-2.5 text-gray-800">{it.item.descricao}</td>
-                                <td className="px-4 py-2.5 text-xs text-gray-500">
-                                  {it.localEstoque?.nome ?? <span className="text-gray-300">—</span>}
-                                </td>
-                                <td className={cn("px-4 py-2.5 text-right font-semibold", isEntra ? "text-emerald-600" : "text-red-600")}>
-                                  {isEntra ? "+" : "−"}{toNum(it.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                                  <span className="text-xs font-normal text-gray-400 ml-1">{un}</span>
-                                </td>
-                                {isEntra && (
-                                  <td className="px-4 py-2.5 text-right text-xs text-gray-500">
-                                    {vUnit !== null
-                                      ? vUnit.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-                                      : <span className="text-gray-300">—</span>}
-                                  </td>
-                                )}
-                                <td className="px-4 py-2.5 text-right text-gray-400 text-xs">
-                                  {toNum(it.saldoAntes).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                                </td>
-                                <td className="px-4 py-2.5 text-right text-gray-700 text-sm font-medium">
-                                  {toNum(it.saldoDepois).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                                </td>
-                                <td className="px-4 py-2.5">
-                                  {(it.pedidoVendaItemId || it.conferenciaItemId) ? (
-                                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
-                                      <RefreshCw className="w-3 h-3" />Auto
-                                    </span>
-                                  ) : (
-                                    <span className="text-xs text-gray-400">Manual</span>
-                                  )}
-                                </td>
-                                <td className="px-4 py-2.5 text-xs text-gray-400 max-w-[140px] truncate">
-                                  {it.observacoes || "—"}
-                                </td>
+                                {orderedMovCols
+                                  .filter((col) => col.id !== "custoUnit" || isEntra)
+                                  .map((col) => (
+                                    <td key={col.id} className={col.tdClass}>{col.render(it)}</td>
+                                  ))}
                                 <td className="px-3 py-2.5">
                                   <div className="flex items-center justify-end gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
                                     <button

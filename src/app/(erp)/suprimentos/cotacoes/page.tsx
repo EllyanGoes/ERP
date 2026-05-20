@@ -21,6 +21,8 @@ import {
   LayoutList, Kanban, Search, ArrowUpDown, ChevronDown, Check,
   AlertTriangle,
 } from "lucide-react";
+import { useColumnOrder } from "@/lib/use-column-order";
+import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 // ── Drag & Drop helpers ───────────────────────────────────────────────────────
 
@@ -75,6 +77,82 @@ const SORT_OPTIONS = [
   { value: "numero_asc",     label: "Número ↑" },
   { value: "numero_desc",    label: "Número ↓" },
 ];
+
+// ── Column definitions ────────────────────────────────────────────────────────
+// Helper functions referenced in render are defined at module scope below the component,
+// so we define COLS inside the component instead.
+// We use a factory so we can pass the helper fns.
+function makeCotacoesCols(
+  getQtdProdutos: (c: CotacaoItem) => number,
+  getRespondidas: (c: CotacaoItem) => number,
+  getDescartadas: (c: CotacaoItem) => number,
+): ColDef<CotacaoItem>[] {
+  return [
+    {
+      id: "status",
+      label: "Status",
+      thClass: "text-left px-4 py-3 font-medium text-gray-600",
+      tdClass: "px-4 py-3",
+      render: (c) => {
+        const badge = STATUS_BADGE[c.status] ?? { label: c.status, cls: "bg-gray-100 text-gray-700" };
+        return (
+          <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium", badge.cls)}>
+            {badge.label}
+          </span>
+        );
+      },
+    },
+    {
+      id: "numero",
+      label: "Num. Cotação",
+      thClass: "text-left px-4 py-3 font-medium text-gray-600",
+      tdClass: "px-4 py-3 font-mono text-xs font-medium text-gray-900",
+      render: (c) => c.numero,
+    },
+    {
+      id: "apelido",
+      label: "Apelido",
+      thClass: "text-left px-4 py-3 font-medium text-gray-600",
+      tdClass: "px-4 py-3 text-gray-600",
+      render: (c) => c.nome || "—",
+    },
+    {
+      id: "data",
+      label: "Data",
+      thClass: "text-left px-4 py-3 font-medium text-gray-600",
+      tdClass: "px-4 py-3 text-gray-600 text-xs",
+      render: (c) => formatDate(c.createdAt),
+    },
+    {
+      id: "produtos",
+      label: "Produtos",
+      thClass: "text-center px-4 py-3 font-medium text-gray-600",
+      tdClass: "px-4 py-3 text-center text-gray-600",
+      render: (c) => getQtdProdutos(c),
+    },
+    {
+      id: "fornecedores",
+      label: "Fornecedores",
+      thClass: "text-center px-4 py-3 font-medium text-gray-600",
+      tdClass: "px-4 py-3 text-center text-gray-600",
+      render: (c) => c._count.fornecedores,
+    },
+    {
+      id: "respondidas",
+      label: "Respondidas",
+      thClass: "text-center px-4 py-3 font-medium text-gray-600",
+      tdClass: "px-4 py-3 text-center",
+      render: (c) => <span className="text-green-700 font-medium">{getRespondidas(c)}</span>,
+    },
+    {
+      id: "descartadas",
+      label: "Descartadas",
+      thClass: "text-center px-4 py-3 font-medium text-gray-600",
+      tdClass: "px-4 py-3 text-center",
+      render: (c) => <span className="text-red-600 font-medium">{getDescartadas(c)}</span>,
+    },
+  ];
+}
 
 // ── StatusFilterChip ──────────────────────────────────────────────────────────
 function StatusFilterChip({
@@ -377,6 +455,11 @@ export default function CotacoesPage() {
     return c.fornecedores.filter((f) => f.status === "RECUSADA").length;
   }
 
+  // Column order
+  const COLS = makeCotacoesCols(getQtdProdutos, getRespondidas, getDescartadas);
+  const [colOrder, setColOrder] = useColumnOrder("cotacoes", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<CotacaoItem> => c !== undefined);
+
   // ── Filtered & sorted ─────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let list = [...cotacoes];
@@ -477,6 +560,11 @@ export default function CotacoesPage() {
             >
               <X className="w-3 h-3" /> Limpar tudo
             </button>
+          )}
+
+          {/* Column configurator — list view only */}
+          {view === "list" && (
+            <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
           )}
 
           {/* View toggle */}
@@ -607,70 +695,49 @@ export default function CotacoesPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Num. Cotação</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Apelido</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Data</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Produtos</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Fornecedores</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Respondidas</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Descartadas</th>
+                  {orderedCols.map((col) => (
+                    <th key={col.id} className={col.thClass}>{col.label}</th>
+                  ))}
                   <th className="px-4 py-3 w-12" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((c) => {
-                  const badge = STATUS_BADGE[c.status] ?? { label: c.status, cls: "bg-gray-100 text-gray-700" };
-                  return (
-                    <tr
-                      key={c.id}
-                      className="hover:bg-blue-50/40 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/suprimentos/cotacoes/${c.id}`)}
-                    >
-                      <td className="px-4 py-3">
-                        <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium", badge.cls)}>
-                          {badge.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">{c.numero}</td>
-                      <td className="px-4 py-3 text-gray-600">{c.nome || "—"}</td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">{formatDate(c.createdAt)}</td>
-                      <td className="px-4 py-3 text-center text-gray-600">{getQtdProdutos(c)}</td>
-                      <td className="px-4 py-3 text-center text-gray-600">{c._count.fornecedores}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="text-green-700 font-medium">{getRespondidas(c)}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="text-red-600 font-medium">{getDescartadas(c)}</span>
-                      </td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push(`/suprimentos/cotacoes/${c.id}`)}>
-                              <Pencil className="h-4 w-4 mr-2" /> Editar
+                {filtered.map((c) => (
+                  <tr
+                    key={c.id}
+                    className="hover:bg-blue-50/40 transition-colors cursor-pointer"
+                    onClick={() => router.push(`/suprimentos/cotacoes/${c.id}`)}
+                  >
+                    {orderedCols.map((col) => (
+                      <td key={col.id} className={col.tdClass}>{col.render(c)}</td>
+                    ))}
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => router.push(`/suprimentos/cotacoes/${c.id}`)}>
+                            <Pencil className="h-4 w-4 mr-2" /> Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => router.push(`/suprimentos/cotacoes/${c.id}/analise`)}>
+                            <BarChart3 className="h-4 w-4 mr-2" /> Analisar
+                          </DropdownMenuItem>
+                          {canDelete(c) && (
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-600"
+                              onClick={() => setDeleteTarget({ id: c.id, numero: c.numero })}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" /> Excluir
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => router.push(`/suprimentos/cotacoes/${c.id}/analise`)}>
-                              <BarChart3 className="h-4 w-4 mr-2" /> Analisar
-                            </DropdownMenuItem>
-                            {canDelete(c) && (
-                              <DropdownMenuItem
-                                className="text-red-600 focus:text-red-600"
-                                onClick={() => setDeleteTarget({ id: c.id, numero: c.numero })}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" /> Excluir
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
-                    </tr>
-                  );
-                })}
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

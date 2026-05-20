@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import {
   UserCheck, Plus, Search, Loader2, Phone,
 } from "lucide-react";
+import { useColumnOrder } from "@/lib/use-column-order";
+import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -25,6 +27,91 @@ type Colaborador = {
   filiais:      Filial[];
   usuario:      UsuarioMin | null;
 };
+
+// ── Column definitions ────────────────────────────────────────────────────────
+const COLS: ColDef<Colaborador>[] = [
+  {
+    id: "nome",
+    label: "Nome",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 font-medium text-gray-900",
+    render: (c) => c.nome,
+  },
+  {
+    id: "cpf",
+    label: "CPF",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-32",
+    tdClass: "px-4 py-3 font-mono text-xs text-gray-600",
+    render: (c) => c.cpf || <span className="text-gray-300">—</span>,
+  },
+  {
+    id: "cargo",
+    label: "Cargo",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-gray-500",
+    render: (c) => c.cargo || <span className="text-gray-300">—</span>,
+  },
+  {
+    id: "departamento",
+    label: "Departamento",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-gray-500",
+    render: (c) => c.departamento || <span className="text-gray-300">—</span>,
+  },
+  {
+    id: "filial",
+    label: "Filial",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-gray-500",
+    render: (c) =>
+      c.filiais.length > 0
+        ? c.filiais.map((f) => f.nomeFantasia || f.razaoSocial).join(", ")
+        : <span className="text-gray-300">—</span>,
+  },
+  {
+    id: "usuario",
+    label: "Usuário",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3",
+    render: (c) =>
+      c.usuario ? (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+          {c.usuario.nome}
+        </span>
+      ) : (
+        <span className="text-gray-300 text-xs">—</span>
+      ),
+  },
+  {
+    id: "telefone",
+    label: "WhatsApp",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-32",
+    tdClass: "px-4 py-3",
+    render: (c) =>
+      c.telefone ? (
+        <span className="flex items-center gap-1.5 text-xs text-gray-600 font-mono">
+          <Phone className="w-3 h-3 text-emerald-500 shrink-0" />
+          {c.telefone}
+        </span>
+      ) : (
+        <span className="text-gray-300 text-xs">—</span>
+      ),
+  },
+  {
+    id: "ativo",
+    label: "Ativo",
+    thClass: "text-center px-4 py-3 font-medium text-gray-600 w-20",
+    tdClass: "px-4 py-3 text-center",
+    render: (c) => (
+      <span className={cn(
+        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+        c.ativo ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
+      )}>
+        {c.ativo ? "Ativo" : "Inativo"}
+      </span>
+    ),
+  },
+];
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -56,6 +143,10 @@ export default function ColaboradoresPage() {
 
   const ativos   = colaboradores.filter((c) => c.ativo).length;
   const inativos = colaboradores.filter((c) => !c.ativo).length;
+
+  // Column order
+  const [colOrder, setColOrder] = useColumnOrder("colaboradores", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Colaborador> => c !== undefined);
 
   return (
     <div>
@@ -112,6 +203,7 @@ export default function ColaboradoresPage() {
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
           </div>
+          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
           <select
             value={filtroAtivo}
             onChange={(e) => setFiltroAtivo(e.target.value as "" | "true" | "false")}
@@ -139,14 +231,9 @@ export default function ColaboradoresPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Nome</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-32">CPF</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Cargo</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Departamento</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Filial</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Usuário</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-32">WhatsApp</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600 w-20">Ativo</th>
+                  {orderedCols.map((col) => (
+                    <th key={col.id} className={col.thClass}>{col.label}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -156,49 +243,9 @@ export default function ColaboradoresPage() {
                     onClick={() => window.location.href = `/empresa/colaboradores/${c.id}`}
                     className="hover:bg-gray-50/60 cursor-pointer transition-colors"
                   >
-                    <td className="px-4 py-3 font-medium text-gray-900">{c.nome}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-600">
-                      {c.cpf || <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {c.cargo || <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {c.departamento || <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {c.filiais.length > 0
-                        ? c.filiais.map((f) => f.nomeFantasia || f.razaoSocial).join(", ")
-                        : <span className="text-gray-300">—</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3">
-                      {c.usuario ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                          {c.usuario.nome}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300 text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {c.telefone ? (
-                        <span className="flex items-center gap-1.5 text-xs text-gray-600 font-mono">
-                          <Phone className="w-3 h-3 text-emerald-500 shrink-0" />
-                          {c.telefone}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300 text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={cn(
-                        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                        c.ativo ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
-                      )}>
-                        {c.ativo ? "Ativo" : "Inativo"}
-                      </span>
-                    </td>
+                    {orderedCols.map((col) => (
+                      <td key={col.id} className={col.tdClass}>{col.render(c)}</td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
