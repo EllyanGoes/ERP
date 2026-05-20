@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -85,7 +85,6 @@ const TIPO_FRETE_LABEL: Record<string, string> = {
 
 export default function PedidoCompraDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const [pedido, setPedido] = useState<PedidoCompra | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -220,26 +219,7 @@ export default function PedidoCompraDetailPage() {
     }
   }
 
-  async function registrarConferencia() {
-    setActioning(true);
-    setActionError("");
-    try {
-      const res = await fetch("/api/suprimentos/conferencias", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pedidoId: id }),
-      });
-      const json = await res.json();
-      if (!res.ok) { setActionError(json.error || "Erro ao criar conferência"); return; }
-      router.push(`/suprimentos/conferencias/${json.data.id}`);
-    } catch {
-      setActionError("Erro de conexão");
-    } finally {
-      setActioning(false);
-    }
-  }
-
-  async function openWAModal() {
+async function openWAModal() {
     setShowWAModal(true);
     setWAAprovadorId("");
     setWAUserSearch("");
@@ -398,11 +378,11 @@ export default function PedidoCompraDetailPage() {
 
             {/* Gerar Doc. Entrada */}
             {!pedido.conferencia && pedido.status !== "CANCELADO" && (
-              <Button size="sm" className="gap-1.5" onClick={registrarConferencia} disabled={actioning}>
-                {actioning
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : <FileInput className="w-3.5 h-3.5" />}
-                Gerar Doc. Entrada
+              <Button size="sm" className="gap-1.5" asChild>
+                <a href={`/suprimentos/conferencias/novo?pedidoId=${id}`} target="_blank" rel="noopener noreferrer">
+                  <FileInput className="w-3.5 h-3.5" />
+                  Gerar Doc. Entrada
+                </a>
               </Button>
             )}
           </div>
@@ -423,10 +403,6 @@ export default function PedidoCompraDetailPage() {
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Código fornecedor</Label>
               <Input value={codigoForn} readOnly className="font-mono bg-gray-50" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Loja</Label>
-              <Input value="01" readOnly className="bg-gray-50" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Nome Fornecedor</Label>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -81,7 +81,8 @@ function emptyRow(): ItemRow {
 }
 
 export default function NovoDocumentoEntradaPage() {
-  const router = useRouter();
+  const router       = useRouter();
+  const searchParams = useSearchParams();
 
   // Documento fields
   const [tipoDocumento, setTipoDocumento] = useState<"NF" | "SN">("NF");
@@ -164,6 +165,30 @@ export default function NovoDocumentoEntradaPage() {
     const t = setTimeout(() => searchPedidos(pedidoSearch), 300);
     return () => clearTimeout(t);
   }, [pedidoSearch, searchPedidos]);
+
+  // Auto-fill from pedidoId URL param
+  useEffect(() => {
+    const pedidoId = searchParams.get("pedidoId");
+    if (!pedidoId) return;
+    fetch(`/api/suprimentos/pedidos-compra/${pedidoId}`)
+      .then((r) => r.json())
+      .then((j) => {
+        const pc = j.data;
+        if (!pc) return;
+        selectPedido({
+          id: pc.id,
+          numero: pc.numero,
+          fornecedor: { id: pc.fornecedor.id, razaoSocial: pc.fornecedor.razaoSocial, nomeFantasia: pc.fornecedor.nomeFantasia },
+          itens: pc.itens.map((i: { id: string; quantidade: unknown; item: { id: string; codigo: string; descricao: string; unidadeMedida: string } }) => ({
+            id: i.id,
+            quantidade: i.quantidade,
+            item: i.item,
+          })),
+        });
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Close PC popover on outside click
   useEffect(() => {

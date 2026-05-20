@@ -87,9 +87,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ data: conferencia }, { status: 201 });
   }
 
-  // ── Path B: Standalone Doc. Entrada ───────────────────────────────────────
+  // ── Path B: Full-form Doc. Entrada ────────────────────────────────────────
   const {
     fornecedorId,
+    pedidoId: linkedPedidoId,
     tipoNota,
     numeroNF,
     serie,
@@ -140,6 +141,7 @@ export async function POST(req: NextRequest) {
         numero,
         status: "PENDENTE",
         fornecedorId,
+        pedidoId: linkedPedidoId || null,
         tipoNota: tipoNota || "NORMAL",
         numeroNF: numeroNF || null,
         serie: serie || null,
@@ -177,6 +179,13 @@ export async function POST(req: NextRequest) {
         },
       },
     });
+
+    if (linkedPedidoId) {
+      await tx.pedidoCompra.update({
+        where: { id: linkedPedidoId },
+        data: { status: "CONFIRMADO" },
+      });
+    }
 
     return record;
   });

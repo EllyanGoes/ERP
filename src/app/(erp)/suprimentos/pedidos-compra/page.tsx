@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -199,7 +198,6 @@ function KanbanCard({
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
 }) {
-  const router = useRouter();
   const sc = p.cotacao?.necessidade;
   return (
     <div
@@ -214,7 +212,7 @@ function KanbanCard({
         "bg-white border rounded-lg p-3 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 transition-all group select-none",
         isDragging ? "opacity-40 border-blue-400 shadow-lg scale-95" : "border-gray-200"
       )}
-      onClick={() => !isDragging && router.push(`/suprimentos/pedidos-compra/${p.id}`)}
+      onClick={() => !isDragging && window.open(`/suprimentos/pedidos-compra/${p.id}`, "_blank")}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <span className="font-mono text-xs font-semibold text-gray-800">{p.numero}</span>
@@ -588,7 +586,7 @@ export default function PedidosCompraPage() {
                   <tr
                     key={p.id}
                     className="hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => window.location.href = `/suprimentos/pedidos-compra/${p.id}`}
+                    onClick={() => window.open(`/suprimentos/pedidos-compra/${p.id}`, "_blank")}
                   >
                     {orderedCols.map((col) => (
                       <td key={col.id} className={col.tdClass}>{col.render(p)}</td>
