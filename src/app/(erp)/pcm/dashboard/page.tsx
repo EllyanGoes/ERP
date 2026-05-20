@@ -40,6 +40,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import {
+  Tooltip as UITooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import {
   XAxis,
   YAxis,
   Tooltip,
@@ -402,6 +408,7 @@ function KpiCard({
   color,
   bg,
   trend,
+  info,
 }: {
   title: string;
   value: string;
@@ -410,15 +417,30 @@ function KpiCard({
   color: string;
   bg: string;
   trend?: "up" | "down" | null;
+  info?: React.ReactNode;
 }) {
   return (
     <Card className="border-gray-100">
       <CardContent className="pt-5 pb-4">
         <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-              {title}
-            </p>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                {title}
+              </p>
+              {info && (
+                <TooltipProvider>
+                  <UITooltip>
+                    <TooltipTrigger className="text-gray-400 hover:text-gray-600 flex-shrink-0 cursor-default">
+                      <Info className="w-3.5 h-3.5" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs leading-relaxed">
+                      {info}
+                    </TooltipContent>
+                  </UITooltip>
+                </TooltipProvider>
+              )}
+            </div>
             <div className="flex items-baseline gap-1.5 mt-1">
               <p className={`text-2xl font-bold ${color}`}>{value}</p>
               {trend === "up" && <TrendingUp className="w-4 h-4 text-green-500" />}
@@ -426,7 +448,7 @@ function KpiCard({
             </div>
             <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
           </div>
-          <div className={`p-2 rounded-lg ${bg}`}>
+          <div className={`p-2 rounded-lg ${bg} flex-shrink-0 ml-2`}>
             <Icon className={`w-5 h-5 ${color}`} />
           </div>
         </div>
@@ -1030,6 +1052,13 @@ export default function PCMDashboardPage() {
             color={kpis.mtbf >= targets.mtbf ? "text-blue-600" : "text-red-600"}
             bg={kpis.mtbf >= targets.mtbf ? "bg-blue-50" : "bg-red-50"}
             trend={kpis.mtbf >= targets.mtbf ? "up" : "down"}
+            info={
+              <span>
+                <strong>MTBF</strong> — Tempo Médio Entre Falhas<br />
+                Fórmula: (Período − Horas Prev. − Horas Corr.) ÷ Nº Falhas<br />
+                Considera apenas OS corretivas fechadas. Paradas preventivas são subtraídas do período para refletir o tempo real de disponibilidade.
+              </span>
+            }
           />
           <KpiCard
             title="Média MTTR"
@@ -1039,6 +1068,13 @@ export default function PCMDashboardPage() {
             color={kpis.mttr <= targets.mttr ? "text-green-600" : "text-red-600"}
             bg={kpis.mttr <= targets.mttr ? "bg-green-50" : "bg-red-50"}
             trend={kpis.mttr <= targets.mttr ? "up" : "down"}
+            info={
+              <span>
+                <strong>MTTR</strong> — Tempo Médio Para Reparar<br />
+                Fórmula: Horas Corretivas ÷ Nº Falhas<br />
+                Quanto menor, mais ágil a equipe de manutenção na resolução das quebras.
+              </span>
+            }
           />
           <KpiCard
             title="Disponibilidade Média"
@@ -1048,15 +1084,29 @@ export default function PCMDashboardPage() {
             color={kpis.disp >= 95 ? "text-green-600" : kpis.disp >= 85 ? "text-amber-600" : "text-red-600"}
             bg={kpis.disp >= 95 ? "bg-green-50" : kpis.disp >= 85 ? "bg-amber-50" : "bg-red-50"}
             trend={kpis.disp >= 90 ? "up" : "down"}
+            info={
+              <span>
+                <strong>Disponibilidade</strong><br />
+                Fórmula: (1 − (Horas Prev. + Horas Corr.) ÷ Período) × 100<br />
+                Representa o percentual do período em que o equipamento estava operacional — sem paradas preventivas nem corretivas.
+              </span>
+            }
           />
           <KpiCard
             title="Confiabilidade Média"
             value={fmtPct(kpis.conf)}
-            subtitle="R(t) = e^(-24/MTBF) — probabilidade de 24h sem falha"
+            subtitle="Probabilidade de operar 24h sem falha"
             icon={Activity}
             color={kpis.conf >= 60 ? "text-blue-600" : "text-amber-600"}
             bg={kpis.conf >= 60 ? "bg-blue-50" : "bg-amber-50"}
             trend={kpis.conf >= 60 ? "up" : "down"}
+            info={
+              <span>
+                <strong>Confiabilidade R(24h)</strong><br />
+                Fórmula: e^(−24 ÷ MTBF) × 100<br />
+                Probabilidade de o equipamento operar 24h consecutivas sem falha. Ex.: MTBF=100h → R(24h) ≈ 79%.
+              </span>
+            }
           />
         </div>
 

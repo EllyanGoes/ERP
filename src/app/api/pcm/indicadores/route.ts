@@ -55,14 +55,17 @@ async function queryEngeman(diasPeriodo: number): Promise<{
   const periodoHoras = diasPeriodo * 24;
 
   // ── 1. Indicadores por equipamento ────────────────────────────────────────
-  // MTTR = SUM(horas reparo) / nº falhas
-  // MTBF = (periodo_horas - total_horas_reparo) / nº falhas
-  // Disponibilidade = (1 - total_horas_reparo / periodo_horas) × 100
-  // Confiabilidade R(720h) = EXP(-720 / MTBF) × 100
+  // Fórmula correta (NBR 5462 / referência Tractian/SKF):
+  //   Tempo de Disponibilidade = período − horas preventiva
+  //   MTBF  = (Disponibilidade − horas corretiva) / nº falhas
+  //         = (período − hh_prev − hh_corr) / nº falhas
+  //   MTTR  = horas corretiva / nº falhas
+  //   Disponibilidade % = (1 − (hh_prev + hh_corr) / período) × 100
+  //   Confiabilidade R(24h) = e^(-24/MTBF) × 100  (prob. de operar 24h sem falha)
   //
-  // Horas de reparo por OS:
-  //   • Se MAQPAR e MAQFUN preenchidos → DATEDIFF(MINUTE, MAQPAR, MAQFUN)/60
-  //   • Caso contrário → ISNULL(HOREXEREA, 0)
+  // Horas de parada por OS (prioridade):
+  //   1. MAQPAR → MAQFUN (tempo real de parada de máquina)
+  //   2. HOREXEREA fallback
   const indResult = await pool.request()
     .input("diasPeriodo", sql.Int, diasPeriodo)
     .input("periodoHoras", sql.Float, periodoHoras)
@@ -77,60 +80,56 @@ async function queryEngeman(diasPeriodo: number): Promise<{
       MTBF: number;
       DISPONIBILIDADE: number;
     }>(`
+      WITH OS AS (
+        SELECT
+          o.CODAPL,
+          o.CODTIPMAN,
+          CASE
+            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
+              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
+            ELSE ISNULL(o.HOREXEREA, 0)
+          END AS HH
+        FROM ORDSERV o
+        WHERE o.DATENT >= DATEADD(DAY, -@diasPeriodo, GETDATE())
+          AND o.CODAPL IS NOT NULL
+          AND o.CODTIPMAN IS NOT NULL
+          AND o.STATORD = 'F'
+      )
       SELECT
         a.CODAPL,
         CAST(a.CODAPL AS VARCHAR(20))               AS TAG,
         RTRIM(a.DESCRICAO)                          AS DESCRICAO,
         ISNULL(RTRIM(l.DESCRICAO), 'Não informado') AS LOCAL_INSTALACAO,
-        COUNT(*)                                     AS TOTAL_FALHAS,
 
-        /* Horas totais de reparo (parada máquina) */
-        SUM(
-          CASE
-            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
-              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
-            ELSE ISNULL(o.HOREXEREA, 0)
-          END
-        ) AS TOTAL_HH_REPARO,
+        /* Falhas = apenas OS corretivas */
+        COUNT(CASE WHEN os.CODTIPMAN IN (1,2,3) THEN 1 END) AS TOTAL_FALHAS,
 
-        /* MTTR */
-        SUM(
-          CASE
-            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
-              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
-            ELSE ISNULL(o.HOREXEREA, 0)
-          END
-        ) / NULLIF(COUNT(*), 0) AS MTTR,
+        /* Horas corretivas (para MTTR) */
+        SUM(CASE WHEN os.CODTIPMAN IN (1,2,3) THEN os.HH ELSE 0.0 END) AS TOTAL_HH_REPARO,
 
-        /* MTBF */
-        (@periodoHoras - SUM(
-          CASE
-            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
-              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
-            ELSE ISNULL(o.HOREXEREA, 0)
-          END
-        )) / NULLIF(COUNT(*), 0) AS MTBF,
+        /* MTTR = hh_corretivo / falhas */
+        SUM(CASE WHEN os.CODTIPMAN IN (1,2,3) THEN os.HH ELSE 0.0 END) /
+          NULLIF(COUNT(CASE WHEN os.CODTIPMAN IN (1,2,3) THEN 1 END), 0) AS MTTR,
 
-        /* Disponibilidade % */
-        (1.0 - SUM(
-          CASE
-            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
-              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
-            ELSE ISNULL(o.HOREXEREA, 0)
-          END
+        /* MTBF = (período − hh_preventiva − hh_corretiva) / falhas */
+        (
+          @periodoHoras
+          - SUM(CASE WHEN os.CODTIPMAN NOT IN (1,2,3) THEN os.HH ELSE 0.0 END)
+          - SUM(CASE WHEN os.CODTIPMAN IN (1,2,3)     THEN os.HH ELSE 0.0 END)
+        ) / NULLIF(COUNT(CASE WHEN os.CODTIPMAN IN (1,2,3) THEN 1 END), 0) AS MTBF,
+
+        /* Disponibilidade = (1 − (hh_prev + hh_corr) / período) × 100 */
+        (1.0 - (
+          SUM(CASE WHEN os.CODTIPMAN NOT IN (1,2,3) THEN os.HH ELSE 0.0 END)
+          + SUM(CASE WHEN os.CODTIPMAN IN (1,2,3)   THEN os.HH ELSE 0.0 END)
         ) / @periodoHoras) * 100.0 AS DISPONIBILIDADE
 
-      FROM ORDSERV o
-      INNER JOIN APLIC a    ON a.CODAPL    = o.CODAPL
+      FROM OS os
+      INNER JOIN APLIC    a ON a.CODAPL    = os.CODAPL
       LEFT  JOIN LOCAPLIC l ON l.CODLOCAPL = a.CODLOCAPL
 
-      WHERE o.CODTIPMAN IN (1, 2, 3)   -- CORRETIVA, CORRETIVA PROGRAMADA, CORRETIVA NÃO PROGRAMADA
-        AND o.STATORD = 'F'            -- Fechada
-        AND o.DATENT >= DATEADD(DAY, -@diasPeriodo, GETDATE())
-        AND o.CODAPL IS NOT NULL
-
       GROUP BY a.CODAPL, a.DESCRICAO, l.DESCRICAO
-      HAVING COUNT(*) >= 1
+      HAVING COUNT(CASE WHEN os.CODTIPMAN IN (1,2,3) THEN 1 END) >= 1
       ORDER BY TOTAL_FALHAS DESC
     `);
 
@@ -147,58 +146,54 @@ async function queryEngeman(diasPeriodo: number): Promise<{
       MTBF_MEDIO: number;
       DISPONIBILIDADE: number;
     }>(`
+      WITH OS2 AS (
+        SELECT
+          YEAR(o.DATENT)  AS ANO,
+          MONTH(o.DATENT) AS MES,
+          o.CODTIPMAN,
+          CASE
+            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
+              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
+            ELSE ISNULL(o.HOREXEREA, 0)
+          END AS HH
+        FROM ORDSERV o
+        WHERE o.DATENT >= DATEADD(DAY, -@diasPeriodo2, GETDATE())
+          AND o.CODTIPMAN IS NOT NULL
+          AND o.STATORD = 'F'
+      )
       SELECT
-        YEAR(o.DATENT)  AS ANO,
-        MONTH(o.DATENT) AS MES,
-        COUNT(*)        AS FALHAS,
+        ANO,
+        MES,
+
+        /* Falhas = apenas corretivas */
+        COUNT(CASE WHEN CODTIPMAN IN (1,2,3) THEN 1 END) AS FALHAS,
 
         /* MTTR */
-        SUM(
-          CASE
-            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
-              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
-            ELSE ISNULL(o.HOREXEREA, 0)
-          END
-        ) / NULLIF(COUNT(*), 0) AS MTTR_MEDIO,
+        SUM(CASE WHEN CODTIPMAN IN (1,2,3) THEN HH ELSE 0.0 END) /
+          NULLIF(COUNT(CASE WHEN CODTIPMAN IN (1,2,3) THEN 1 END), 0) AS MTTR_MEDIO,
 
-        /* Total horas de reparo */
-        SUM(
-          CASE
-            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
-              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
-            ELSE ISNULL(o.HOREXEREA, 0)
-          END
-        ) AS TOTAL_HH_REPARO,
+        /* Horas corretivas */
+        SUM(CASE WHEN CODTIPMAN IN (1,2,3) THEN HH ELSE 0.0 END) AS TOTAL_HH_REPARO,
 
-        /* Horas do mês = dias do mês × 24 */
-        DAY(EOMONTH(DATEFROMPARTS(YEAR(o.DATENT), MONTH(o.DATENT), 1))) * 24.0 AS HORAS_MES,
+        /* Horas do mês */
+        DAY(EOMONTH(DATEFROMPARTS(ANO, MES, 1))) * 24.0 AS HORAS_MES,
 
-        /* MTBF mensal = (horas_mês − hh_reparo) / falhas */
+        /* MTBF = (horas_mês − hh_prev − hh_corr) / falhas */
         (
-          DAY(EOMONTH(DATEFROMPARTS(YEAR(o.DATENT), MONTH(o.DATENT), 1))) * 24.0
-          - SUM(
-              CASE
-                WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
-                  THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
-                ELSE ISNULL(o.HOREXEREA, 0)
-              END
-            )
-        ) / NULLIF(COUNT(*), 0) AS MTBF_MEDIO,
+          DAY(EOMONTH(DATEFROMPARTS(ANO, MES, 1))) * 24.0
+          - SUM(CASE WHEN CODTIPMAN NOT IN (1,2,3) THEN HH ELSE 0.0 END)
+          - SUM(CASE WHEN CODTIPMAN IN (1,2,3)     THEN HH ELSE 0.0 END)
+        ) / NULLIF(COUNT(CASE WHEN CODTIPMAN IN (1,2,3) THEN 1 END), 0) AS MTBF_MEDIO,
 
-        /* Disponibilidade = (1 − hh_reparo / horas_mês) × 100 */
-        (1.0 - SUM(
-          CASE
-            WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
-              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
-            ELSE ISNULL(o.HOREXEREA, 0)
-          END
-        ) / (DAY(EOMONTH(DATEFROMPARTS(YEAR(o.DATENT), MONTH(o.DATENT), 1))) * 24.0)) * 100.0 AS DISPONIBILIDADE
+        /* Disponibilidade = (1 − (hh_prev + hh_corr) / horas_mês) × 100 */
+        (1.0 - (
+          SUM(CASE WHEN CODTIPMAN NOT IN (1,2,3) THEN HH ELSE 0.0 END)
+          + SUM(CASE WHEN CODTIPMAN IN (1,2,3)   THEN HH ELSE 0.0 END)
+        ) / (DAY(EOMONTH(DATEFROMPARTS(ANO, MES, 1))) * 24.0)) * 100.0 AS DISPONIBILIDADE
 
-      FROM ORDSERV o
-      WHERE o.CODTIPMAN IN (1, 2, 3)
-        AND o.STATORD = 'F'
-        AND o.DATENT >= DATEADD(DAY, -@diasPeriodo2, GETDATE())
-      GROUP BY YEAR(o.DATENT), MONTH(o.DATENT)
+      FROM OS2
+      GROUP BY ANO, MES
+      HAVING COUNT(CASE WHEN CODTIPMAN IN (1,2,3) THEN 1 END) >= 1
       ORDER BY ANO, MES
     `);
 
