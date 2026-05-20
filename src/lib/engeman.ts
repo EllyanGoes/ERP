@@ -20,7 +20,7 @@ export async function getEngemanConfig(overrides?: Partial<sql.config>): Promise
   }
 
   return {
-    server:   cfg("db_engeman_host",     "ENGEMAN_HOST", "192.168.0.206"),
+    server:   cfg("db_engeman_host",     "ENGEMAN_HOST", "cc210d78ed89.sn.mynetname.net"),
     database: cfg("db_engeman_name",     "ENGEMAN_DB",   "ENGEMAN_SLAVE"),
     user:     cfg("db_engeman_user",     "ENGEMAN_USER", "sa"),
     password: cfg("db_engeman_password", "ENGEMAN_PASS", ""),
