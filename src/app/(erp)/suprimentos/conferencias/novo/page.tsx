@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
@@ -80,6 +81,101 @@ function emptyRow(): ItemRow {
   };
 }
 
+/* Portal-based product search cell — avoids clipping by overflow-x-auto */
+function ProdSearchCell({
+  rowKey,
+  value,
+  produtos,
+  onSelect,
+  onClear,
+}: {
+  rowKey: string;
+  value: string;
+  produtos: Produto[];
+  onSelect: (key: string, p: Produto) => void;
+  onClear: (key: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => { setQuery(value); }, [value]);
+
+  function openDrop() {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: Math.max(r.width, 288) });
+    }
+    setOpen(true);
+  }
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase();
+    return produtos.filter((p) => p.descricao.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q)).slice(0, 12);
+  }, [produtos, query]);
+
+  const dropdown = open && mounted && pos
+    ? createPortal(
+        <div
+          className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+          style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: 220, overflowY: "auto" }}
+        >
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-gray-400 italic">Nenhum resultado.</p>
+          ) : filtered.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onMouseDown={() => {
+                onSelect(rowKey, p);
+                setQuery(p.descricao);
+                setOpen(false);
+              }}
+              className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-0"
+            >
+              <span className="font-mono text-gray-500 mr-2">{p.codigo}</span>
+              <span className="font-medium text-gray-900">{p.descricao}</span>
+            </button>
+          ))}
+        </div>,
+        document.body
+      )
+    : null;
+
+  useEffect(() => {
+    if (!open) return;
+    function handle(e: MouseEvent) {
+      if (inputRef.current && !inputRef.current.closest("td")?.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="text"
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          openDrop();
+          if (!e.target.value) onClear(rowKey);
+        }}
+        onFocus={openDrop}
+        placeholder="Buscar produto..."
+        className="w-full h-8 px-2 text-xs border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      {dropdown}
+    </>
+  );
+}
+
 export default function NovoDocumentoEntradaPage() {
   const router       = useRouter();
   const searchParams = useSearchParams();
@@ -113,7 +209,6 @@ export default function NovoDocumentoEntradaPage() {
   const [produtos, setProdutos]                 = useState<Produto[]>([]);
   const [locaisEstoque, setLocaisEstoque]       = useState<LocalEstoque[]>([]);
   const [prodSearchMap, setProdSearchMap]       = useState<Record<string, string>>({});
-  const [prodDropMap, setProdDropMap]           = useState<Record<string, boolean>>({});
 
   // Totals
   const [frete, setFrete]       = useState("");
@@ -280,7 +375,6 @@ export default function NovoDocumentoEntradaPage() {
       )
     );
     setProdSearchMap((prev) => ({ ...prev, [key]: p.descricao }));
-    setProdDropMap((prev) => ({ ...prev, [key]: false }));
   }
 
   function addRow() {
@@ -679,7 +773,7 @@ export default function NovoDocumentoEntradaPage() {
                     const qtd   = parseFloat(row.quantidadePedida) || 0;
                     const unit  = parseFloat(row.vlrUnitario) || 0;
                     const total = qtd * unit;
-                    const prodSearch = prodSearchMap[row._key] ?? row.descricao;
+                    const prodSearch = prodSearchMap[row._key] ?? row.descricao ?? "";
 
                     return (
                       <tr key={row._key} className="hover:bg-gray-50">
@@ -687,52 +781,17 @@ export default function NovoDocumentoEntradaPage() {
 
                         {/* Produto */}
                         <td className="px-3 py-2">
-                          <div className="relative">
-                            <Input
-                              value={prodSearch}
-                              onChange={(e) => {
-                                setProdSearchMap((prev) => ({ ...prev, [row._key]: e.target.value }));
-                                setProdDropMap((prev) => ({ ...prev, [row._key]: true }));
-                                if (!e.target.value) {
-                                  updateItem(row._key, "itemId", "");
-                                  updateItem(row._key, "descricao", "");
-                                }
-                              }}
-                              onFocus={() => setProdDropMap((prev) => ({ ...prev, [row._key]: true }))}
-                              placeholder="Buscar produto..."
-                              className="text-xs h-8"
-                            />
-                            {prodDropMap[row._key] && (
-                              <div className="absolute z-50 mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-48 overflow-y-auto">
-                                {produtos
-                                  .filter((p) => {
-                                    const q = (prodSearch || "").toLowerCase();
-                                    return (
-                                      p.descricao.toLowerCase().includes(q) ||
-                                      p.codigo.toLowerCase().includes(q)
-                                    );
-                                  })
-                                  .slice(0, 10)
-                                  .map((p) => (
-                                    <button
-                                      key={p.id}
-                                      type="button"
-                                      onMouseDown={() => selectProduto(row._key, p)}
-                                      className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-0"
-                                    >
-                                      <span className="font-mono text-gray-500 mr-2">{p.codigo}</span>
-                                      <span className="font-medium text-gray-900">{p.descricao}</span>
-                                    </button>
-                                  ))}
-                                {produtos.filter((p) => {
-                                  const q = (prodSearch || "").toLowerCase();
-                                  return p.descricao.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q);
-                                }).length === 0 && (
-                                  <p className="px-3 py-2 text-xs text-gray-400 italic">Nenhum resultado.</p>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                          <ProdSearchCell
+                            rowKey={row._key}
+                            value={prodSearch}
+                            produtos={produtos}
+                            onSelect={selectProduto}
+                            onClear={(key) => {
+                              updateItem(key, "itemId", "");
+                              updateItem(key, "descricao", "");
+                              setProdSearchMap((prev) => ({ ...prev, [key]: "" }));
+                            }}
+                          />
                         </td>
 
                         {/* Local Estoque */}

@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ChevronRight, Loader2, Save, Filter, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
+import { createPortal } from "react-dom";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 type LocalEstoqueOpt = { id: string; nome: string };
 type ColaboradorOpt  = { id: string; nome: string; setorId: string | null };
@@ -28,6 +31,125 @@ function toNum(v: unknown) { return v == null ? 0 : parseFloat(String(v)); }
 const ACTIVE_TAB_CLS = "border-b-2 border-indigo-600 text-indigo-700 font-medium";
 const INACTIVE_TAB_CLS = "border-b-2 border-transparent text-gray-500 hover:text-gray-800";
 
+/* Portal-based select for dropdowns that need to escape overflow-hidden/auto containers */
+function PortalSelect<T extends { id: string }>({
+  options,
+  value,
+  onChange,
+  placeholder,
+  getLabel,
+  error,
+}: {
+  options: T[];
+  value: string;
+  onChange: (id: string) => void;
+  placeholder: string;
+  getLabel: (item: T) => string;
+  error?: boolean;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  const selected = options.find((o) => o.id === value);
+
+  function openDropdown() {
+    if (containerRef.current) {
+      const r = containerRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX, width: r.width });
+    }
+    setOpen(true);
+    setQuery("");
+  }
+
+  const filtered = options.filter((o) =>
+    !query || getLabel(o).toLowerCase().includes(query.toLowerCase())
+  );
+
+  const dropdown = open && mounted && pos
+    ? createPortal(
+        <div
+          className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+          style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: 220 }}
+        >
+          <div className="p-1.5 border-b border-gray-100">
+            <input
+              autoFocus
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar..."
+              className="w-full px-2 py-1 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            />
+          </div>
+          <div className="overflow-y-auto" style={{ maxHeight: 160 }}>
+            <button
+              type="button"
+              onMouseDown={() => { onChange(""); setOpen(false); }}
+              className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 border-b border-gray-50"
+            >
+              {placeholder}
+            </button>
+            {filtered.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onMouseDown={() => { onChange(o.id); setOpen(false); }}
+                className={cn(
+                  "w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0",
+                  value === o.id && "bg-indigo-50 text-indigo-700"
+                )}
+              >
+                {getLabel(o)}
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-3 py-2 text-sm text-gray-400 italic">Nenhum resultado.</p>
+            )}
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
+
+  useEffect(() => {
+    if (!open) return;
+    function handle(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={openDropdown}
+        className={cn(
+          "w-full h-9 px-3 text-sm text-left border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 flex items-center justify-between",
+          error ? "border-red-300" : "border-gray-200",
+          !selected && "text-gray-400"
+        )}
+      >
+        <span className={selected ? "text-gray-900" : "text-gray-400"}>
+          {selected ? getLabel(selected) : placeholder}
+        </span>
+        <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {dropdown}
+    </div>
+  );
+}
+
 export default function NovoInventarioPage() {
   useTabTitle("Novo Inventário de Materiais");
   const router       = useRouter();
@@ -38,22 +160,20 @@ export default function NovoInventarioPage() {
   const [data,           setData]           = useState(() => new Date().toISOString().split("T")[0]);
   const [tipo,           setTipo]           = useState("TOTAL");
   const [observacoes,    setObservacoes]    = useState("");
+  const [submitted,      setSubmitted]      = useState(false);
 
   const [activeTab, setActiveTab] = useState<"filtros" | "amostragem">("filtros");
 
-  // Filtros de amostragem
   const [filtroLocalizacao, setFiltroLocalizacao] = useState("");
   const [filtroClasse,      setFiltroClasse]      = useState("");
   const [filtroGrupo,       setFiltroGrupo]       = useState("");
   const [filtroMaterial,    setFiltroMaterial]    = useState("");
 
-  // Amostragem rows
   const [rows, setRows] = useState<SampleRow[]>([]);
 
-  // Options
-  const [locais,       setLocais]       = useState<LocalEstoqueOpt[]>([]);
+  const [locais,        setLocais]        = useState<LocalEstoqueOpt[]>([]);
   const [colaboradores, setColaboradores] = useState<ColaboradorOpt[]>([]);
-  const [estoqueItens, setEstoqueItens]  = useState<EstoqueItemOpt[]>([]);
+  const [estoqueItens,  setEstoqueItens]  = useState<EstoqueItemOpt[]>([]);
 
   const [saving,    setSaving]    = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -70,7 +190,6 @@ export default function NovoInventarioPage() {
 
   useEffect(() => { loadOptions(); }, [loadOptions]);
 
-  // Load estoque do almoxarifado selecionado
   useEffect(() => {
     if (!localEstoqueId) { setEstoqueItens([]); return; }
     fetch(`/api/suprimentos/locais-estoque/${localEstoqueId}`)
@@ -109,6 +228,7 @@ export default function NovoInventarioPage() {
   }
 
   async function handleSave(statusFinal: "RASCUNHO" | "EM_ANDAMENTO") {
+    setSubmitted(true);
     if (!localEstoqueId) { setSaveError("Almoxarifado é obrigatório"); return; }
     if (!data) { setSaveError("Data é obrigatória"); return; }
     setSaving(true); setSaveError("");
@@ -127,7 +247,6 @@ export default function NovoInventarioPage() {
       if (!res.ok) { setSaveError((await res.json()).error || "Erro ao salvar"); setSaving(false); return; }
       const { data: created } = await res.json();
 
-      // Save items if any
       if (rows.length > 0) {
         await fetch(`/api/suprimentos/inventarios-materiais/${created.id}`, {
           method: "PATCH",
@@ -160,6 +279,7 @@ export default function NovoInventarioPage() {
 
   return (
     <div>
+      {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 px-8 pt-6 pb-2 text-sm text-gray-500">
         <Link href="/suprimentos/inventarios-materiais" className="hover:text-gray-800 transition-colors flex items-center gap-1">
           <ArrowLeft className="w-3.5 h-3.5" />Inventário de Materiais
@@ -169,83 +289,120 @@ export default function NovoInventarioPage() {
       </div>
 
       <div className="px-8 pb-8 space-y-6 max-w-4xl">
-        {/* Header card */}
-        <div className="rounded-xl border border-gray-200 p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Inventário de Materiais</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div>
-              <Label className="text-xs mb-1 block">Almoxarifado <span className="text-red-500">*</span></Label>
-              <select value={localEstoqueId} onChange={(e) => setLocalEstoqueId(e.target.value)}
-                className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400">
-                <option value="">Selecione...</option>
-                {locais.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
-              </select>
-            </div>
-            <div>
-              <Label className="text-xs mb-1 block">Funcionário</Label>
-              <select value={colaboradorId} onChange={(e) => setColaboradorId(e.target.value)}
-                className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400">
-                <option value="">Selecione...</option>
-                {colaboradores.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </select>
-            </div>
-            <div>
-              <Label className="text-xs mb-1 block">Data do Inventário <span className="text-red-500">*</span></Label>
-              <Input type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-8 text-sm" />
-            </div>
-            <div>
-              <Label className="text-xs mb-1 block">Tipo do Inventário</Label>
-              <select value={tipo} onChange={(e) => setTipo(e.target.value)}
-                className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400">
-                <option value="TOTAL">Total</option>
-                <option value="PARCIAL">Parcial</option>
-                <option value="CICLICO">Cíclico</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <Label className="text-xs mb-1 block">Observações</Label>
-            <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={2}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none" />
-          </div>
-        </div>
 
-        {/* Tabs */}
-        <div className="rounded-xl border border-gray-200 overflow-hidden">
+        {/* ── Dados do Inventário ──────────────────────────────────────── */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Dados do Inventário</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">
+                  Almoxarifado <span className="text-red-500">*</span>
+                </Label>
+                <PortalSelect
+                  options={locais}
+                  value={localEstoqueId}
+                  onChange={setLocalEstoqueId}
+                  placeholder="Selecione..."
+                  getLabel={(l) => l.nome}
+                  error={submitted && !localEstoqueId}
+                />
+                {submitted && !localEstoqueId && (
+                  <p className="text-xs text-red-500">Campo obrigatório</p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Responsável</Label>
+                <ComboboxWithCreate
+                  options={colaboradores.map((c) => ({ value: c.id, label: c.nome }))}
+                  value={colaboradorId}
+                  onChange={setColaboradorId}
+                  placeholder="Buscar colaborador..."
+                  allowNone
+                  createHref="/empresa/colaboradores/novo"
+                  createLabel="colaborador"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">
+                  Data do Inventário <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  type="date"
+                  value={data}
+                  onChange={(e) => setData(e.target.value)}
+                  className={cn("h-9", submitted && !data && "border-red-300")}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Tipo do Inventário</Label>
+                <select
+                  value={tipo}
+                  onChange={(e) => setTipo(e.target.value)}
+                  className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="TOTAL">Total</option>
+                  <option value="PARCIAL">Parcial</option>
+                  <option value="CICLICO">Cíclico</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">Observações</Label>
+              <textarea
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Amostragem ───────────────────────────────────────────────── */}
+        <Card className="overflow-hidden">
           <div className="border-b border-gray-100 px-4">
             <nav className="flex gap-0">
               {([
-                { key: "filtros",    label: "Filtros de Amostragem do Inventário" },
-                { key: "amostragem", label: `Amostragem do Inventário${rows.length > 0 ? ` (${rows.length})` : ""}` },
+                { key: "filtros",    label: "Filtros de Amostragem" },
+                { key: "amostragem", label: `Amostragem${rows.length > 0 ? ` (${rows.length})` : ""}` },
               ] as const).map((t) => (
-                <button key={t.key} onClick={() => setActiveTab(t.key)}
-                  className={cn("px-4 py-3 text-sm transition-colors", activeTab === t.key ? ACTIVE_TAB_CLS : INACTIVE_TAB_CLS)}>
+                <button
+                  key={t.key}
+                  onClick={() => setActiveTab(t.key)}
+                  className={cn("px-4 py-3 text-sm transition-colors", activeTab === t.key ? ACTIVE_TAB_CLS : INACTIVE_TAB_CLS)}
+                >
                   {t.label}
                 </button>
               ))}
             </nav>
           </div>
 
-          {/* Filtros tab */}
           {activeTab === "filtros" && (
             <div className="p-6 space-y-4">
               <p className="text-xs text-gray-400">Defina os filtros para selecionar os materiais que serão inventariados.</p>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-xs mb-1 block">Localização de Material</Label>
-                  <Input value={filtroLocalizacao} onChange={(e) => setFiltroLocalizacao(e.target.value)} placeholder="Ex: A1-01" className="h-8 text-sm" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-500">Localização de Material</Label>
+                  <Input value={filtroLocalizacao} onChange={(e) => setFiltroLocalizacao(e.target.value)} placeholder="Ex: A1-01" className="h-9" />
                 </div>
-                <div>
-                  <Label className="text-xs mb-1 block">Classe de Material</Label>
-                  <Input value={filtroClasse} onChange={(e) => setFiltroClasse(e.target.value)} placeholder="Classe" className="h-8 text-sm" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-500">Classe de Material</Label>
+                  <Input value={filtroClasse} onChange={(e) => setFiltroClasse(e.target.value)} placeholder="Classe" className="h-9" />
                 </div>
-                <div>
-                  <Label className="text-xs mb-1 block">Grupo de Material</Label>
-                  <Input value={filtroGrupo} onChange={(e) => setFiltroGrupo(e.target.value)} placeholder="Grupo" className="h-8 text-sm" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-500">Grupo de Material</Label>
+                  <Input value={filtroGrupo} onChange={(e) => setFiltroGrupo(e.target.value)} placeholder="Grupo" className="h-9" />
                 </div>
-                <div>
-                  <Label className="text-xs mb-1 block">Material</Label>
-                  <Input value={filtroMaterial} onChange={(e) => setFiltroMaterial(e.target.value)} placeholder="Código ou descrição" className="h-8 text-sm" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-500">Material</Label>
+                  <Input value={filtroMaterial} onChange={(e) => setFiltroMaterial(e.target.value)} placeholder="Código ou descrição" className="h-9" />
                 </div>
               </div>
               <div className="flex gap-3 pt-2">
@@ -253,21 +410,27 @@ export default function NovoInventarioPage() {
                   <Filter className="w-3.5 h-3.5 mr-1.5" />Filtrar Amostragem
                 </Button>
                 <Button size="sm" variant="outline" onClick={handleFiltrarPendentes} disabled={!localEstoqueId}>
-                  <Filter className="w-3.5 h-3.5 mr-1.5" />Filtrar materiais com saldo
+                  <Filter className="w-3.5 h-3.5 mr-1.5" />Materiais com saldo
                 </Button>
               </div>
-              {!localEstoqueId && <p className="text-xs text-amber-600">Selecione um almoxarifado para usar os filtros.</p>}
+              {!localEstoqueId && (
+                <p className="text-xs text-amber-600">Selecione um almoxarifado para usar os filtros.</p>
+              )}
             </div>
           )}
 
-          {/* Amostragem tab */}
           {activeTab === "amostragem" && (
             <div>
               <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
                 <p className="text-xs text-gray-500">{rows.length} material(is) na amostragem</p>
-                <Button size="sm" variant="outline" onClick={() => setRows(p => [...p, {
-                  _key: Math.random().toString(36).slice(2), itemId: "", item: null, localizacao: "", saldoSistema: "0",
-                }])}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setRows(p => [...p, {
+                    _key: Math.random().toString(36).slice(2),
+                    itemId: "", item: null, localizacao: "", saldoSistema: "0",
+                  }])}
+                >
                   <Plus className="w-3.5 h-3.5 mr-1" />Adicionar
                 </Button>
               </div>
@@ -305,13 +468,26 @@ export default function NovoInventarioPage() {
                             {r.item?.unidade?.sigla ?? r.item?.unidadeMedida ?? "—"}
                           </td>
                           <td className="px-4 py-2.5">
-                            <Input value={r.localizacao} onChange={(e) => updateRow(r._key, "localizacao", e.target.value)} className="h-7 text-xs w-28" />
+                            <Input
+                              value={r.localizacao}
+                              onChange={(e) => updateRow(r._key, "localizacao", e.target.value)}
+                              className="h-7 text-xs w-28"
+                            />
                           </td>
                           <td className="px-4 py-2.5 text-right">
-                            <Input type="number" step="0.001" value={r.saldoSistema} onChange={(e) => updateRow(r._key, "saldoSistema", e.target.value)} className="h-7 text-xs w-24 ml-auto" />
+                            <Input
+                              type="number"
+                              step="0.001"
+                              value={r.saldoSistema}
+                              onChange={(e) => updateRow(r._key, "saldoSistema", e.target.value)}
+                              className="h-7 text-xs w-24 ml-auto"
+                            />
                           </td>
                           <td className="px-4 py-2.5 text-center">
-                            <button onClick={() => setRows(p => p.filter(x => x._key !== r._key))} className="text-red-400 hover:text-red-600">
+                            <button
+                              onClick={() => setRows(p => p.filter(x => x._key !== r._key))}
+                              className="text-red-400 hover:text-red-600"
+                            >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </td>
@@ -323,18 +499,30 @@ export default function NovoInventarioPage() {
               )}
             </div>
           )}
-        </div>
+        </Card>
 
         {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+
         <div className="flex items-center gap-3">
-          <Button onClick={() => handleSave("EM_ANDAMENTO")} disabled={saving || !localEstoqueId || !data}>
+          <Button
+            onClick={() => handleSave("EM_ANDAMENTO")}
+            disabled={saving || !localEstoqueId || !data}
+          >
             {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
             Iniciar Inventário
           </Button>
-          <Button variant="outline" onClick={() => handleSave("RASCUNHO")} disabled={saving || !localEstoqueId || !data}>
+          <Button
+            variant="outline"
+            onClick={() => handleSave("RASCUNHO")}
+            disabled={saving || !localEstoqueId || !data}
+          >
             Salvar Rascunho
           </Button>
-          <Button variant="ghost" onClick={() => router.push("/suprimentos/inventarios-materiais")} disabled={saving}>
+          <Button
+            variant="ghost"
+            onClick={() => router.push("/suprimentos/inventarios-materiais")}
+            disabled={saving}
+          >
             Cancelar
           </Button>
         </div>
