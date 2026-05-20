@@ -24,6 +24,16 @@ export interface DetalheOS {
   datent: string;  // "YYYY-MM-DD HH:mm"
 }
 
+export interface AplicacaoEmAberto {
+  codApl: number | null;
+  equipamento: string;
+  local: string;
+  emAberto: number;
+  emEspera: number;
+  emProgresso: number;
+  total: number;
+}
+
 export interface OrdensResponse {
   periodo: number;
   agrupamento: string;
@@ -38,7 +48,8 @@ export interface OrdensResponse {
     canceladas: number;
     total: number;
   };
-  detalhe: Record<string, DetalheOS[]>;  // keyed by status code "A","F","E","C"
+  detalhe: Record<string, DetalheOS[]>;
+  aplicacoesEmAberto: AplicacaoEmAberto[];
   source: "db";
   generatedAt: string;
 }
@@ -85,6 +96,7 @@ async function queryEngeman(dias: number, agrupamento: "semana" | "mes"): Promis
   periodos: PeriodoOS[];
   status: OrdensResponse["status"];
   detalhe: Record<string, DetalheOS[]>;
+  aplicacoesEmAberto: AplicacaoEmAberto[];
 }> {
   const pool = await sql.connect(await getEngemanConfig());
 
@@ -161,6 +173,33 @@ async function queryEngeman(dias: number, agrupamento: "semana" | "mes"): Promis
       ORDER BY ISNULL(o.STATORD,'A'), o.DATENT DESC
     `);
 
+  // ── 4. Aplicações com OS em aberto (backlog atual) ──────────────────────
+  const aplicacoesResult = await pool.request()
+    .query<{
+      CODAPL: number | null;
+      EQUIPAMENTO: string;
+      LOCAL: string;
+      EM_ABERTO: number;
+      EM_ESPERA: number;
+      EM_PROGRESSO: number;
+      TOTAL: number;
+    }>(`
+      SELECT
+        a.CODAPL,
+        RTRIM(ISNULL(a.DESCRICAO, 'Sem descrição'))   AS EQUIPAMENTO,
+        ISNULL(RTRIM(l.DESCRICAO), 'Sem local')        AS LOCAL,
+        SUM(CASE WHEN ISNULL(o.STATORD,'A') = 'A' THEN 1 ELSE 0 END) AS EM_ABERTO,
+        SUM(CASE WHEN ISNULL(o.STATORD,'A') = 'E' THEN 1 ELSE 0 END) AS EM_ESPERA,
+        SUM(CASE WHEN ISNULL(o.STATORD,'A') = 'P' THEN 1 ELSE 0 END) AS EM_PROGRESSO,
+        COUNT(*) AS TOTAL
+      FROM ORDSERV o
+      LEFT JOIN APLIC    a ON a.CODAPL    = o.CODAPL
+      LEFT JOIN LOCAPLIC l ON l.CODLOCAPL = a.CODLOCAPL
+      WHERE ISNULL(o.STATORD, 'A') IN ('A', 'E', 'P')
+      GROUP BY a.CODAPL, a.DESCRICAO, l.DESCRICAO
+      ORDER BY TOTAL DESC
+    `);
+
   await pool.close();
 
   // ── Build periodos ───────────────────────────────────────────────────────
@@ -207,7 +246,17 @@ async function queryEngeman(dias: number, agrupamento: "semana" | "mes"): Promis
     }
   }
 
-  return { periodos, status, detalhe };
+  const aplicacoesEmAberto: AplicacaoEmAberto[] = aplicacoesResult.recordset.map((r) => ({
+    codApl:      r.CODAPL,
+    equipamento: r.EQUIPAMENTO,
+    local:       r.LOCAL,
+    emAberto:    r.EM_ABERTO,
+    emEspera:    r.EM_ESPERA,
+    emProgresso: r.EM_PROGRESSO,
+    total:       r.TOTAL,
+  }));
+
+  return { periodos, status, detalhe, aplicacoesEmAberto };
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -219,12 +268,14 @@ export async function GET(req: NextRequest) {
   let periodos: PeriodoOS[];
   let status: OrdensResponse["status"];
   let detalhe: Record<string, DetalheOS[]>;
+  let aplicacoesEmAberto: AplicacaoEmAberto[] = [];
 
   try {
     const result = await queryEngeman(dias, agrupamento);
-    periodos = result.periodos;
-    status   = result.status;
-    detalhe  = result.detalhe;
+    periodos             = result.periodos;
+    status               = result.status;
+    detalhe              = result.detalhe;
+    aplicacoesEmAberto   = result.aplicacoesEmAberto;
   } catch (err) {
     console.error("[PCM /api/pcm/ordens] Engeman inacessível:", err instanceof Error ? err.message : err);
     return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
@@ -262,6 +313,7 @@ export async function GET(req: NextRequest) {
     periodos,
     status,
     detalhe,
+    aplicacoesEmAberto,
     source: "db",
     generatedAt: new Date().toISOString(),
   };

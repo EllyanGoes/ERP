@@ -48,11 +48,11 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import type { OrdensResponse, DetalheOS } from "@/app/api/pcm/ordens/route";
+import type { OrdensResponse, DetalheOS, AplicacaoEmAberto } from "@/app/api/pcm/ordens/route";
 import { cn } from "@/lib/utils";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const LS_CACHE_KEY    = "pcm_ordens_cache_v1";
+const LS_CACHE_KEY    = "pcm_ordens_cache_v2";
 const LS_FILTER_KEY   = "pcm_ordens_filters";
 const CACHE_MAX_AGE_MS = 30 * 60 * 1000;
 
@@ -494,6 +494,7 @@ export default function OrdensReportPage() {
   const [engemanOffline, setEngemanOffline] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [drillStatus, setDrillStatus] = useState<string | null>(null);
+  const [drillEquip, setDrillEquip]   = useState<string | null>(null);
   const [selectedCodord, setSelectedCodord] = useState<number | null>(null);
 
   // ── Fetch ────────────────────────────────────────────────────────────────
@@ -542,9 +543,10 @@ export default function OrdensReportPage() {
   }, [dias, agrupamento]);
 
   // ── Derived data ─────────────────────────────────────────────────────────
-  const periodos   = data?.periodos   ?? [];
-  const statusData = data?.status;
-  const detalhe    = data?.detalhe    ?? {};
+  const periodos             = data?.periodos             ?? [];
+  const statusData           = data?.status;
+  const detalhe              = data?.detalhe              ?? {};
+  const aplicacoesEmAberto   = data?.aplicacoesEmAberto   ?? [];
 
   // Pie chart data — only show slices with count > 0
   const pieData = [
@@ -977,6 +979,98 @@ export default function OrdensReportPage() {
               </CardContent>
             </Card>
 
+            {/* ── Aplicações com OS em Aberto ───────────────────────────── */}
+            {aplicacoesEmAberto.length > 0 && (
+              <Card className="border-gray-100">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    Aplicações com O.S. em Aberto
+                    <span className="text-xs font-normal text-gray-400">
+                      — backlog atual ({aplicacoesEmAberto.length} equipamento{aplicacoesEmAberto.length !== 1 ? "s" : ""})
+                    </span>
+                    <span className="ml-auto text-xs font-normal text-gray-400">
+                      clique para ver as ordens
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-100">
+                        <tr className="text-xs text-gray-400 uppercase tracking-wide">
+                          <th className="text-left px-4 py-2.5 font-medium">#</th>
+                          <th className="text-left px-4 py-2.5 font-medium">Equipamento</th>
+                          <th className="text-left px-4 py-2.5 font-medium">Local</th>
+                          <th className="text-center px-3 py-2.5 font-medium">Em Aberto</th>
+                          <th className="text-center px-3 py-2.5 font-medium">Em Espera</th>
+                          <th className="text-center px-3 py-2.5 font-medium">Em Progresso</th>
+                          <th className="text-center px-3 py-2.5 font-medium">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {aplicacoesEmAberto.map((apl: AplicacaoEmAberto, idx: number) => (
+                          <tr
+                            key={apl.codApl ?? idx}
+                            className="hover:bg-blue-50/40 transition-colors group"
+                          >
+                            <td className="px-4 py-2.5 text-xs text-gray-400 font-mono">{idx + 1}</td>
+                            <td className="px-4 py-2.5">
+                              <p className="text-sm font-medium text-gray-800 group-hover:text-blue-700">{apl.equipamento}</p>
+                              {apl.codApl && <p className="text-[11px] text-gray-400 font-mono">TAG {apl.codApl}</p>}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <div className="flex items-center gap-1 text-xs text-gray-500">
+                                <MapPin className="w-3 h-3 shrink-0 text-gray-300" />
+                                {apl.local}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              {apl.emAberto > 0 ? (
+                                <button
+                                  onClick={() => { setDrillStatus("A"); setDrillEquip(apl.equipamento); }}
+                                  className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                                >
+                                  {apl.emAberto}
+                                </button>
+                              ) : <span className="text-gray-200">—</span>}
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              {apl.emEspera > 0 ? (
+                                <button
+                                  onClick={() => { setDrillStatus("E"); setDrillEquip(apl.equipamento); }}
+                                  className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+                                >
+                                  {apl.emEspera}
+                                </button>
+                              ) : <span className="text-gray-200">—</span>}
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              {apl.emProgresso > 0 ? (
+                                <button
+                                  onClick={() => { setDrillStatus("P"); setDrillEquip(apl.equipamento); }}
+                                  className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
+                                >
+                                  {apl.emProgresso}
+                                </button>
+                              ) : <span className="text-gray-200">—</span>}
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <button
+                                onClick={() => { setDrillStatus("A"); setDrillEquip(apl.equipamento); }}
+                                className="inline-flex items-center justify-center min-w-[32px] px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                              >
+                                {apl.total}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Footer */}
             <p className="text-xs text-gray-400 text-right">
               Atualizado em{" "}
@@ -991,8 +1085,10 @@ export default function OrdensReportPage() {
       {drillStatus !== null && data && (
         <DrillModal
           statusCode={drillStatus}
-          items={detalhe[drillStatus] ?? []}
-          onClose={() => { setDrillStatus(null); setSelectedCodord(null); }}
+          items={(detalhe[drillStatus] ?? []).filter((os) =>
+            drillEquip ? os.equipamento === drillEquip : true
+          )}
+          onClose={() => { setDrillStatus(null); setDrillEquip(null); setSelectedCodord(null); }}
           onSelectOS={(codord) => setSelectedCodord(codord)}
         />
       )}
