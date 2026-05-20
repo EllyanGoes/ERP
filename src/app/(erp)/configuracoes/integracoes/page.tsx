@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
   Loader2, Save, Eye, EyeOff, CheckCircle2, AlertCircle,
-  RefreshCw, ChevronDown, MessageCircle, Wifi, WifiOff, HelpCircle,
+  RefreshCw, ChevronDown, MessageCircle, Wifi, WifiOff, HelpCircle, Database,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -30,6 +30,11 @@ type Config = {
   wa_zapi_instance_id:    string | null;
   wa_zapi_token:          string | null;
   wa_zapi_security_token: string | null;
+  // DB Engeman
+  db_engeman_host:        string | null;
+  db_engeman_name:        string | null;
+  db_engeman_user:        string | null;
+  db_engeman_password:    string | null;
 };
 
 const PROVIDERS: { id: Provider; label: string; sub: string }[] = [
@@ -146,7 +151,19 @@ export default function IntegracoesPage() {
   const [zapiToken,      setZapiToken]      = useState("");
   const [zapiSecurity,   setZapiSecurity]   = useState("");
 
+  // DB Engeman
+  const [dbEngemanOpen,     setDbEngemanOpen]     = useState(false);
+  const [dbEngemanHost,     setDbEngemanHost]     = useState("");
+  const [dbEngemanName,     setDbEngemanName]     = useState("");
+  const [dbEngemanUser,     setDbEngemanUser]     = useState("");
+  const [dbEngemanPassword, setDbEngemanPassword] = useState("");
+  const [dbEngemanStatus,   setDbEngemanStatus]   = useState<ConnStatus>("idle");
+  const [dbEngemanDirty,    setDbEngemanDirty]    = useState(false);
+  const [dbEngemanSaving,   setDbEngemanSaving]   = useState(false);
+  const [dbEngemanSaveMsg,  setDbEngemanSaveMsg]  = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
   function mark() { setDirty(true); setSaveMsg(null); }
+  function markDb() { setDbEngemanDirty(true); setDbEngemanSaveMsg(null); }
 
   // ── Load ─────────────────────────────────────────────────────────────────────
   const loadConfig = useCallback(async () => {
@@ -164,6 +181,14 @@ export default function IntegracoesPage() {
       setZapiInstanceId(cfg.wa_zapi_instance_id ?? "");
       setZapiToken(cfg.wa_zapi_token ?? "");
       setZapiSecurity(cfg.wa_zapi_security_token ?? "");
+
+      // Engeman
+      setDbEngemanHost(cfg.db_engeman_host ?? "");
+      setDbEngemanName(cfg.db_engeman_name ?? "");
+      setDbEngemanUser(cfg.db_engeman_user ?? "");
+      setDbEngemanPassword(cfg.db_engeman_password ?? "");
+      const hasEngeman = !!(cfg.db_engeman_host && cfg.db_engeman_name && cfg.db_engeman_user);
+      setDbEngemanStatus(hasEngeman ? "ok" : "unconfigured");
 
       const hasCreds =
         prov === "evolution" ? !!(cfg.wa_evolution_url && cfg.wa_evolution_instance && cfg.wa_evolution_apikey) :
@@ -232,6 +257,35 @@ export default function IntegracoesPage() {
       setSaveMsg({ type: "err", text: "Erro de conexão." });
     } finally {
       setSaving(false);
+    }
+  }
+
+  // ── Save Engeman ─────────────────────────────────────────────────────────────
+  async function handleSaveEngeman() {
+    setDbEngemanSaving(true); setDbEngemanSaveMsg(null);
+    try {
+      const res = await fetch("/api/configuracoes/integracoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          db_engeman_host:     dbEngemanHost.trim()     || null,
+          db_engeman_name:     dbEngemanName.trim()     || null,
+          db_engeman_user:     dbEngemanUser.trim()     || null,
+          db_engeman_password: dbEngemanPassword.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        setDbEngemanSaveMsg({ type: "err", text: (await res.json()).error || "Erro ao salvar" });
+        return;
+      }
+      setDbEngemanSaveMsg({ type: "ok", text: "Credenciais salvas com sucesso!" });
+      setDbEngemanDirty(false);
+      const hasAll = !!(dbEngemanHost && dbEngemanName && dbEngemanUser);
+      setDbEngemanStatus(hasAll ? "ok" : "unconfigured");
+    } catch {
+      setDbEngemanSaveMsg({ type: "err", text: "Erro de conexão." });
+    } finally {
+      setDbEngemanSaving(false);
     }
   }
 
@@ -494,6 +548,115 @@ export default function IntegracoesPage() {
                 </Button>
                 <Button size="sm" onClick={handleSave} disabled={saving || testing || !dirty}>
                   {saving
+                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Salvando...</>
+                    : <><Save className="w-3.5 h-3.5 mr-1.5" />Salvar</>}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── DB Engeman ───────────────────────────────────────────────────── */}
+        <div className={cn(
+          "bg-white rounded-2xl border transition-all duration-200",
+          dbEngemanOpen ? "border-gray-300 shadow-sm" : "border-gray-200"
+        )}>
+          <button
+            type="button"
+            onClick={() => setDbEngemanOpen((p) => !p)}
+            className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-gray-50/60 transition-colors rounded-2xl"
+          >
+            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+              <Database className="w-5 h-5 text-blue-600" />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-semibold text-gray-900 text-sm">DB Engeman Slave</p>
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border bg-blue-50 text-blue-600 border-blue-100">
+                  SQL Server
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Acesso somente leitura ao banco de dados do Engeman (manutenção)
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0">
+              <StatusPill status={dbEngemanStatus} />
+              <ChevronDown className={cn("w-4 h-4 text-gray-400 transition-transform duration-200", dbEngemanOpen && "rotate-180")} />
+            </div>
+          </button>
+
+          {dbEngemanOpen && (
+            <div className="px-5 pb-5 space-y-4 border-t border-gray-100">
+              <div className="pt-4" />
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Conexão</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <PlainField
+                    label="Host / IP"
+                    description="Endereço do servidor SQL Server"
+                    value={dbEngemanHost}
+                    onChange={(v) => { setDbEngemanHost(v); markDb(); }}
+                    placeholder="192.168.0.206"
+                  />
+                  <PlainField
+                    label="Banco de Dados"
+                    value={dbEngemanName}
+                    onChange={(v) => { setDbEngemanName(v); markDb(); }}
+                    placeholder="ENGEMAN_SLAVE"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Autenticação</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <PlainField
+                    label="Usuário"
+                    value={dbEngemanUser}
+                    onChange={(v) => { setDbEngemanUser(v); markDb(); }}
+                    placeholder="sa"
+                  />
+                  <SecretField
+                    label="Senha"
+                    value={dbEngemanPassword}
+                    onChange={(v) => { setDbEngemanPassword(v); markDb(); }}
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+
+              {dbEngemanSaveMsg && (
+                <div className={cn(
+                  "flex items-center gap-2 px-4 py-3 rounded-xl text-sm border",
+                  dbEngemanSaveMsg.type === "ok"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : "bg-red-50 border-red-200 text-red-700"
+                )}>
+                  {dbEngemanSaveMsg.type === "ok"
+                    ? <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    : <AlertCircle  className="w-4 h-4 shrink-0" />}
+                  <span>{dbEngemanSaveMsg.text}</span>
+                </div>
+              )}
+
+              {dbEngemanDirty && !dbEngemanSaveMsg && (
+                <p className="text-xs text-amber-600 font-medium flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                  Alterações não salvas
+                </p>
+              )}
+
+              <div className="flex justify-end pt-1">
+                <Button
+                  size="sm"
+                  onClick={handleSaveEngeman}
+                  disabled={dbEngemanSaving || !dbEngemanDirty}
+                >
+                  {dbEngemanSaving
                     ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Salvando...</>
                     : <><Save className="w-3.5 h-3.5 mr-1.5" />Salvar</>}
                 </Button>
