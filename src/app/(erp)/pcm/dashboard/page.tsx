@@ -1052,7 +1052,7 @@ export default function PCMDashboardPage() {
           <KpiCard
             title="Confiabilidade Média"
             value={fmtPct(kpis.conf)}
-            subtitle="R(t) = e^(-720/MTBF) em 720h"
+            subtitle="R(t) = e^(-24/MTBF) — probabilidade de 24h sem falha"
             icon={Activity}
             color={kpis.conf >= 60 ? "text-blue-600" : "text-amber-600"}
             bg={kpis.conf >= 60 ? "bg-blue-50" : "bg-amber-50"}

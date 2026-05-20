@@ -216,7 +216,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
 
   const equipamentos: IndicadorEquipamento[] = indResult.recordset.map((r) => {
     const mtbf = Math.max(r.MTBF ?? 0, 0);
-    const confiabilidade = mtbf > 0 ? Math.exp(-720 / mtbf) * 100 : 0;
+    const confiabilidade = mtbf > 0 ? Math.exp(-24 / mtbf) * 100 : 0;
     return {
       codApl:           r.CODAPL,
       tag:              r.TAG ?? "",
@@ -235,7 +235,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
   const tendencia: TendenciaMensal[] = trendResult.recordset.map((r) => {
     const mtbf = Math.max(r.MTBF_MEDIO ?? 0, 0);
     const disp = Math.min(Math.max(r.DISPONIBILIDADE ?? 100, 0), 100);
-    const conf = mtbf > 0 ? Math.exp(-720 / mtbf) * 100 : 0;
+    const conf = mtbf > 0 ? Math.exp(-24 / mtbf) * 100 : 0;
     return {
       mes:             `${r.ANO}-${String(r.MES).padStart(2, "0")}`,
       label:           `${MESES[r.MES - 1]}/${String(r.ANO).slice(2)}`,

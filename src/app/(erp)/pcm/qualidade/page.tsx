@@ -242,7 +242,7 @@ export default function QualidadeDadosPage() {
             <p className="text-xs text-blue-700">
               <strong>MTBF</strong> = (período total − horas de reparo) ÷ nº de falhas &nbsp;|&nbsp;
               <strong>MTTR</strong> = horas de reparo ÷ nº de falhas &nbsp;|&nbsp;
-              <strong>Confiabilidade</strong> R(720h) = e<sup>−720/MTBF</sup>
+              <strong>Confiabilidade</strong> R(24h) = e<sup>−24/MTBF</sup> — probabilidade de operar 24h sem falha
             </p>
             <p className="text-xs text-blue-700">
               O tempo de reparo é lido de <strong>MAQPAR → MAQFUN</strong> (hora parada → hora retorno).
