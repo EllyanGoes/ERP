@@ -16,8 +16,9 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Filial   = { id: string; razaoSocial: string; nomeFantasia: string | null };
-type Usuario  = { id: string; nome: string; email: string };
+type Filial    = { id: string; razaoSocial: string; nomeFantasia: string | null };
+type Usuario   = { id: string; nome: string; email: string };
+type SetorOpt  = { id: string; nome: string; ativo: boolean };
 type EtapaInfo = { id: string; ordem: number; nome: string | null; fluxo: { id: string; nome: string } };
 
 type Colaborador = {
@@ -28,7 +29,8 @@ type Colaborador = {
   email:           string | null;
   telefone:        string | null;
   cargo:           string | null;
-  departamento:    string | null;
+  setorId:         string | null;
+  setor:           { id: string; nome: string } | null;
   dataAdmissao:    string | null;
   dataDemissao:    string | null;
   filiais:         Filial[];
@@ -88,7 +90,7 @@ export default function ColaboradorDetailPage() {
   const [eEmail,        setEEmail]        = useState("");
   const [eTelefone,     setETelefone]     = useState("");
   const [eCargo,        setECargo]        = useState("");
-  const [eDepartamento, setEDepartamento] = useState("");
+  const [eSetorId,      setESetorId]      = useState("");
   const [eDataAdmissao, setEDataAdmissao] = useState("");
   const [eDataDemissao, setEDataDemissao] = useState("");
   const [eFilialIds,    setEFilialIds]    = useState<string[]>([]);
@@ -99,6 +101,7 @@ export default function ColaboradorDetailPage() {
   // Options
   const [filiais,  setFiliais]  = useState<Filial[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [setores,  setSetores]  = useState<SetorOpt[]>([]);
 
   // Delete
   const [showDelete,    setShowDelete]    = useState(false);
@@ -131,7 +134,7 @@ export default function ColaboradorDetailPage() {
     setEEmail(colaborador.email ?? "");
     setETelefone(colaborador.telefone ?? "");
     setECargo(colaborador.cargo ?? "");
-    setEDepartamento(colaborador.departamento ?? "");
+    setESetorId(colaborador.setorId ?? "");
     setEDataAdmissao(colaborador.dataAdmissao ? colaborador.dataAdmissao.slice(0, 10) : "");
     setEDataDemissao(colaborador.dataDemissao ? colaborador.dataDemissao.slice(0, 10) : "");
     setEFilialIds(colaborador.filiais.map((f) => f.id));
@@ -149,13 +152,16 @@ export default function ColaboradorDetailPage() {
       .then((r) => r.json())
       .then((j) => {
         const list: Usuario[] = Array.isArray(j) ? j : (j.data ?? []);
-        // Include current usuario even if already linked elsewhere
         setUsuarios(list);
       });
+    fetch("/api/empresa/setores")
+      .then((r) => r.json())
+      .then((j) => setSetores(Array.isArray(j) ? j : []));
   }
 
   async function saveEdit() {
-    if (!eNome.trim()) { setEditError("Nome é obrigatório"); return; }
+    if (!eNome.trim())  { setEditError("Nome é obrigatório"); return; }
+    if (!eSetorId)      { setEditError("Setor é obrigatório"); return; }
     setSaving(true); setEditError("");
     try {
       const res = await fetch(`/api/empresa/colaboradores/${id}`, {
@@ -168,7 +174,7 @@ export default function ColaboradorDetailPage() {
           email:        eEmail.trim() || null,
           telefone:     eTelefone.trim() || null,
           cargo:        eCargo.trim()   || null,
-          departamento: eDepartamento.trim() || null,
+          setorId:      eSetorId       || null,
           dataAdmissao: eDataAdmissao || null,
           dataDemissao: eDataDemissao || null,
           filialIds:    eFilialIds,
@@ -267,8 +273,17 @@ export default function ColaboradorDetailPage() {
                 <Field label="Cargo">
                   <Input value={eCargo} onChange={(e) => setECargo(e.target.value)} />
                 </Field>
-                <Field label="Departamento">
-                  <Input value={eDepartamento} onChange={(e) => setEDepartamento(e.target.value)} />
+                <Field label="Setor" required>
+                  <select
+                    value={eSetorId}
+                    onChange={(e) => setESetorId(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  >
+                    <option value="">Selecione o setor</option>
+                    {setores.filter((s) => s.ativo).map((s) => (
+                      <option key={s.id} value={s.id}>{s.nome}</option>
+                    ))}
+                  </select>
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -339,7 +354,7 @@ export default function ColaboradorDetailPage() {
             <Button variant="outline" onClick={() => setEditMode(false)} disabled={saving}>
               <X className="w-4 h-4 mr-1" /> Cancelar
             </Button>
-            <Button onClick={saveEdit} disabled={saving || !eNome.trim()}>
+            <Button onClick={saveEdit} disabled={saving || !eNome.trim() || !eSetorId}>
               {saving ? (
                 <><Loader2 className="w-4 h-4 animate-spin mr-1" />Salvando...</>
               ) : (
@@ -421,7 +436,7 @@ export default function ColaboradorDetailPage() {
           <CardHeader className="pb-3"><CardTitle className="text-base">Dados Funcionais</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
             <InfoField label="Cargo">{colaborador.cargo}</InfoField>
-            <InfoField label="Departamento">{colaborador.departamento}</InfoField>
+            <InfoField label="Setor">{colaborador.setor?.nome}</InfoField>
             <InfoField label="Data de Admissão">
               {colaborador.dataAdmissao ? formatDate(colaborador.dataAdmissao) : null}
             </InfoField>

@@ -29,7 +29,9 @@ export async function PATCH(
     for (const item of itens) {
       const preco = item.precoUnitario != null ? parseFloat(String(item.precoUnitario)) : null;
       const qtd = item.quantidade != null ? parseFloat(String(item.quantidade)) : undefined;
-      const subtotal = preco != null && qtd != null ? preco * qtd : null;
+      const pctDesc = item.desconto != null ? parseFloat(String(item.desconto)) : 0;
+      const bruto = preco != null && qtd != null ? preco * qtd : null;
+      const subtotal = bruto != null ? bruto * (1 - pctDesc / 100) : null;
 
       await prisma.cotacaoFornecedorItem.update({
         where: { id: item.id },
@@ -39,6 +41,7 @@ export async function PATCH(
           ...(item.disponivel !== undefined ? { disponivel: item.disponivel } : {}),
           ...(item.situacao !== undefined ? { situacao: item.situacao } : {}),
           ...(item.qtdDisponivel != null ? { qtdDisponivel: parseFloat(String(item.qtdDisponivel)) } : {}),
+          ...(item.desconto !== undefined ? { desconto: pctDesc || null } : {}),
           subtotal: item.disponivel !== false ? subtotal : 0,
         },
       });

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 const include = {
   filiais: true,
   usuario: { select: { id: true, nome: true, email: true } },
+  setor:   { select: { id: true, nome: true } },
 } as const;
 
 export async function GET(

@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   MapPin, Package, AlertTriangle, ChevronRight, ArrowLeft,
   Pencil, Trash2, Save, X, Loader2, Plus, Hash, CheckCircle2, Circle,
+  ClipboardList, ClipboardCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -301,6 +302,14 @@ export default function LocalEstoqueDetailPage() {
             </>
           ) : (
             <>
+              <Button size="sm" variant="outline" className="text-teal-700 hover:bg-teal-50 border-teal-200"
+                onClick={() => router.push(`/suprimentos/requisicoes-materiais/nova?localEstoqueId=${local.id}`)}>
+                <ClipboardList className="w-4 h-4 mr-1" />Req/Dev
+              </Button>
+              <Button size="sm" variant="outline" className="text-indigo-700 hover:bg-indigo-50 border-indigo-200"
+                onClick={() => router.push(`/suprimentos/inventarios-materiais/nova?localEstoqueId=${local.id}`)}>
+                <ClipboardCheck className="w-4 h-4 mr-1" />Inventário
+              </Button>
               <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>
                 <Pencil className="w-4 h-4 mr-1" />Editar
               </Button>

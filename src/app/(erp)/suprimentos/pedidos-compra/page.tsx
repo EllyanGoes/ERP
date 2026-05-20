@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session-context";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
@@ -201,6 +202,7 @@ function KanbanCard({
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
 }) {
+  const router = useRouter();
   const sc = p.cotacao?.necessidade;
   return (
     <div
@@ -215,7 +217,7 @@ function KanbanCard({
         "bg-white border rounded-lg p-3 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 transition-all group select-none",
         isDragging ? "opacity-40 border-blue-400 shadow-lg scale-95" : "border-gray-200"
       )}
-      onClick={() => !isDragging && window.open(`/suprimentos/pedidos-compra/${p.id}`, "_blank")}
+      onClick={() => !isDragging && router.push(`/suprimentos/pedidos-compra/${p.id}`)}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <span className="font-mono text-xs font-semibold text-gray-800">{p.numero}</span>
@@ -278,6 +280,7 @@ type ConfirmMove = { pedidoId: string; toStatus: string };
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function PedidosCompraPage() {
+  const router   = useRouter();
   const { user } = useSession();
   const isAdmin  = user?.perfil === "ADMIN";
 
@@ -677,7 +680,7 @@ export default function PedidosCompraPage() {
                   <tr
                     key={p.id}
                     className="hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => window.open(`/suprimentos/pedidos-compra/${p.id}`, "_blank")}
+                    onClick={() => router.push(`/suprimentos/pedidos-compra/${p.id}`)}
                   >
                     {orderedCols.map((col) => (
                       <td key={col.id} className={col.tdClass}>{col.render(p)}</td>

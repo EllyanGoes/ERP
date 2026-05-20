@@ -1,0 +1,57 @@
+export const dynamic = "force-dynamic";
+
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const setor = await prisma.setor.findUnique({
+    where: { id: params.id },
+    include: { _count: { select: { colaboradores: true } } },
+  });
+
+  if (!setor) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
+  return NextResponse.json(setor);
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const body = await req.json();
+  const { nome, descricao, ativo } = body;
+
+  const data: Record<string, unknown> = {};
+  if (nome !== undefined) {
+    if (!nome?.trim()) return NextResponse.json({ error: "Nome é obrigatório" }, { status: 400 });
+    data.nome = nome.trim();
+  }
+  if (descricao !== undefined) data.descricao = descricao?.trim() || null;
+  if (ativo !== undefined) data.ativo = ativo;
+
+  const setor = await prisma.setor.update({
+    where: { id: params.id },
+    data,
+    include: { _count: { select: { colaboradores: true } } },
+  });
+
+  return NextResponse.json(setor);
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const count = await prisma.colaborador.count({ where: { setorId: params.id } });
+  if (count > 0) {
+    return NextResponse.json(
+      { error: `Setor possui ${count} colaborador(es) vinculado(s)` },
+      { status: 409 }
+    );
+  }
+
+  await prisma.setor.delete({ where: { id: params.id } });
+  return NextResponse.json({ ok: true });
+}

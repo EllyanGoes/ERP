@@ -32,6 +32,7 @@ type ItemForm = {
   itemId: string;
   quantidade: number;
   precoUnitario: string;
+  desconto: string;
   situacao: string;
   item: {
     id: string;
@@ -70,6 +71,7 @@ type PropostaData = {
     subtotal: unknown;
     disponivel: boolean;
     situacao: string | null;
+    desconto: unknown;
     item: { id: string; codigo: string; descricao: string; unidadeMedida: string };
   }>;
   cotacao: {
@@ -92,7 +94,7 @@ type FormSnapshot = {
   contato: string; email: string; condicoesPagamento: string;
   frete: string; tipoFrete: string; desconto: string; vrDescontoInput: string;
   despesas: string; seguro: string;
-  itens: ItemForm[];
+  itens: ItemForm[]; // ItemForm already includes desconto
 };
 
 export default function EditPropostaPage() {
@@ -153,6 +155,7 @@ export default function EditPropostaPage() {
         id: i.id, itemId: i.itemId,
         quantidade: decimalToNumber(i.quantidade),
         precoUnitario: i.precoUnitario != null ? decimalToNumber(i.precoUnitario).toString() : "",
+        desconto: i.desconto != null ? decimalToNumber(i.desconto).toString() : "",
         situacao: i.situacao ?? "CONSIDERA",
         item: i.item,
       }));
@@ -296,12 +299,22 @@ export default function EditPropostaPage() {
       return s + p * i.quantidade;
     }, 0);
 
+  const descontoTotalItens = itens
+    .filter((i) => i.situacao === "CONSIDERA")
+    .reduce((s, i) => {
+      const p = parseFloat(i.precoUnitario) || 0;
+      const pct = parseFloat(i.desconto) || 0;
+      return s + (p * i.quantidade * pct) / 100;
+    }, 0);
+
+  const subtotalAposDescontoItens = subtotalItens - descontoTotalItens;
+
   const freteVal = parseFloat(frete) || 0;
   const despesasVal = parseFloat(despesas) || 0;
   const seguroVal = parseFloat(seguro) || 0;
   // vrDesconto is the source of truth; % is kept in sync
   const vrDescontoCalc = parseFloat(vrDescontoInput) || 0;
-  const totalCotacao = subtotalItens - vrDescontoCalc + freteVal + despesasVal + seguroVal;
+  const totalCotacao = subtotalAposDescontoItens - vrDescontoCalc + freteVal + despesasVal + seguroVal;
 
   // ── Discount two-way sync handlers ────────────────────────────────────────
   function handleDescontoPctChange(val: string) {
@@ -336,6 +349,7 @@ export default function EditPropostaPage() {
           id: i.id,
           quantidade: i.quantidade,
           precoUnitario: parseFloat(i.precoUnitario) || 0,
+          desconto: parseFloat(i.desconto) || null,
           disponivel: i.situacao === "CONSIDERA",
           situacao: i.situacao,
         })),
@@ -604,13 +618,16 @@ export default function EditPropostaPage() {
                   <th className="text-left px-4 py-2 font-medium text-gray-600 w-36">Situação</th>
                   <th className="text-right px-4 py-2 font-medium text-gray-600">Quantidade</th>
                   <th className="text-right px-4 py-2 font-medium text-gray-600 w-36">Preço Unitário</th>
+                  <th className="text-right px-4 py-2 font-medium text-gray-600 w-24">% Desc.</th>
                   <th className="text-right px-4 py-2 font-medium text-gray-600">Total Item</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {itens.map((item, idx) => {
                   const preco = parseFloat(item.precoUnitario) || 0;
-                  const totalItem = item.situacao === "CONSIDERA" ? preco * item.quantidade : 0;
+                  const pctDesc = parseFloat(item.desconto) || 0;
+                  const bruto = preco * item.quantidade;
+                  const totalItem = item.situacao === "CONSIDERA" ? bruto - (bruto * pctDesc) / 100 : 0;
                   const isNaoConsidera = item.situacao === "NAO_CONSIDERA";
 
                   return (
@@ -657,6 +674,28 @@ export default function EditPropostaPage() {
                           placeholder="0,00"
                         />
                       </td>
+                      <td className="px-4 py-2">
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            disabled={isNaoConsidera}
+                            value={item.desconto}
+                            onChange={(e) =>
+                              setItens((prev) =>
+                                prev.map((it, i) =>
+                                  i === idx ? { ...it, desconto: e.target.value } : it
+                                )
+                              )
+                            }
+                            className="text-right h-8 pr-6"
+                            placeholder="0"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-2 text-right font-medium text-gray-800">
                         {isNaoConsidera ? "—" : formatBRL(totalItem)}
                       </td>
@@ -665,15 +704,37 @@ export default function EditPropostaPage() {
                 })}
                 {itens.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-4 text-center text-gray-400 text-sm">
+                    <td colSpan={8} className="px-4 py-4 text-center text-gray-400 text-sm">
                       Nenhum item na proposta
                     </td>
                   </tr>
                 )}
               </tbody>
               <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+                {descontoTotalItens > 0 && (
+                  <tr className="text-sm">
+                    <td colSpan={6} className="px-4 py-1.5 text-right text-gray-500">
+                      Desconto Total Itens
+                    </td>
+                    <td />
+                    <td className="px-4 py-1.5 text-right text-red-600 font-medium">
+                      -{formatBRL(descontoTotalItens)}
+                    </td>
+                  </tr>
+                )}
+                {vrDescontoCalc > 0 && (
+                  <tr className="text-sm">
+                    <td colSpan={6} className="px-4 py-1.5 text-right text-gray-500">
+                      Desconto Global Total
+                    </td>
+                    <td />
+                    <td className="px-4 py-1.5 text-right text-red-600 font-medium">
+                      -{formatBRL(vrDescontoCalc)}
+                    </td>
+                  </tr>
+                )}
                 <tr>
-                  <td colSpan={5} className="px-4 py-2 text-right font-semibold text-gray-700 text-sm">
+                  <td colSpan={6} className="px-4 py-2 text-right font-semibold text-gray-700 text-sm">
                     Total da cotação
                   </td>
                   <td />

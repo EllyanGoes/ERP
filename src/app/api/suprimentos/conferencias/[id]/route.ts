@@ -30,6 +30,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
           email: true,
         },
       },
+      localEstoque: { select: { id: true, nome: true } },
       itens: {
         include: {
           item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } },
@@ -49,6 +50,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const {
     itens,
     fornecedorId,
+    localEstoqueId,
+    modoLocalEstoque,
     observacoes,
     tipoNota,
     numeroNF,
@@ -72,6 +75,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const vlrTot = item.vlrTotal != null ? parseFloat(String(item.vlrTotal)) : undefined;
         const vlrIPI = item.vlrIPI != null ? parseFloat(String(item.vlrIPI)) : undefined;
         const vlrICMS = item.vlrICMS != null ? parseFloat(String(item.vlrICMS)) : undefined;
+        const itemDesconto = item.desconto != null ? parseFloat(String(item.desconto)) : undefined;
 
         // Get pedida to determine divergencia
         const ci = await tx.conferenciaCompraItem.findUnique({
@@ -96,6 +100,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             ...(item.codFiscal !== undefined ? { codFiscal: item.codFiscal || null } : {}),
             ...(item.tpOper !== undefined ? { tpOper: item.tpOper || null } : {}),
             ...(item.localEstoqueId !== undefined ? { localEstoqueId: item.localEstoqueId || null } : {}),
+            ...(itemDesconto !== undefined ? { desconto: itemDesconto || null } : {}),
           },
         });
       }
@@ -103,6 +108,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const updateData: Record<string, unknown> = { status: "EM_CONFERENCIA" };
     if (fornecedorId !== undefined) updateData.fornecedorId = fornecedorId || null;
+    if (localEstoqueId !== undefined) updateData.localEstoqueId = localEstoqueId || null;
+    if (modoLocalEstoque !== undefined) updateData.modoLocalEstoque = modoLocalEstoque || "POR_ITEM";
     if (observacoes !== undefined) updateData.observacoes = observacoes || null;
     if (tipoNota !== undefined) updateData.tipoNota = tipoNota || null;
     if (numeroNF !== undefined) updateData.numeroNF = numeroNF || null;
@@ -150,6 +157,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           email: true,
         },
       },
+      localEstoque: { select: { id: true, nome: true } },
       itens: {
         include: {
           item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } },

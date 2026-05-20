@@ -136,7 +136,8 @@ type FormSnapshot = {
   descricao: string;
   prioridade: number;
   entregaDesejada: string;
-  solicitante: string;
+  colaboradorId: string;
+  setorId: string;
   tipoCompra: string;
   motivo: string;
   localEstoqueId: string;
@@ -147,6 +148,9 @@ type FormSnapshot = {
   observacoes: string;
   itens: ItemRow[];
 };
+
+type ColaboradorOpt = { id: string; nome: string; setorId: string | null };
+type SetorOpt       = { id: string; nome: string; ativo: boolean };
 
 export default function EditarSolicitacaoPage() {
   const { id }  = useParams<{ id: string }>();
@@ -166,7 +170,8 @@ export default function EditarSolicitacaoPage() {
   const [descricao,             setDescricao]             = useState("");
   const [prioridade,            setPrioridade]            = useState(3);
   const [entregaDesejada,       setEntregaDesejada]       = useState("");
-  const [solicitante,           setSolicitante]           = useState("");
+  const [colaboradorId,         setColaboradorId]         = useState("");
+  const [setorId,               setSetorId]               = useState("");
   const [tipoCompra,            setTipoCompra]            = useState("");
   const [motivo,                setMotivo]                = useState("");
   const [localEstoqueId,        setLocalEstoqueId]        = useState("");
@@ -177,11 +182,13 @@ export default function EditarSolicitacaoPage() {
   const [observacoes,           setObservacoes]           = useState("");
   const [itens,                 setItens]                 = useState<ItemRow[]>([]);
 
-  const [filiais,      setFiliais]      = useState<Filial[]>([]);
-  const [locaisEstoque,setLocaisEstoque]= useState<LocalEstoque[]>([]);
-  const [centrosCusto, setCentrosCusto] = useState<CentroCusto[]>([]);
-  const [itemOptions,  setItemOptions]  = useState<ItemOption[]>([]);
-  const [itemUnidades, setItemUnidades] = useState<Map<string, UnidadeOption[]>>(new Map());
+  const [filiais,       setFiliais]       = useState<Filial[]>([]);
+  const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoque[]>([]);
+  const [centrosCusto,  setCentrosCusto]  = useState<CentroCusto[]>([]);
+  const [itemOptions,   setItemOptions]   = useState<ItemOption[]>([]);
+  const [colaboradores, setColaboradores] = useState<ColaboradorOpt[]>([]);
+  const [setores,       setSetores]       = useState<SetorOpt[]>([]);
+  const [itemUnidades,  setItemUnidades]  = useState<Map<string, UnidadeOption[]>>(new Map());
 
   // Load record
   useEffect(() => {
@@ -196,7 +203,8 @@ export default function EditarSolicitacaoPage() {
         setDescricao(cached.descricao ?? data.justificativa ?? "");
         setPrioridade(cached.prioridade ?? data.prioridade ?? 3);
         setEntregaDesejada(cached.entregaDesejada ?? (data.dataNecessidade ? data.dataNecessidade.slice(0, 10) : ""));
-        setSolicitante(cached.solicitante ?? data.solicitante ?? "");
+        setColaboradorId(cached.colaboradorId ?? data.colaboradorId ?? "");
+        setSetorId(cached.setorId ?? data.setorId ?? "");
         setTipoCompra(cached.tipoCompra ?? data.tipoCompra ?? "");
         setMotivo(cached.motivo ?? data.motivo ?? "");
         setLocalEstoqueId(cached.localEstoqueId ?? data.localEstoqueId ?? "");
@@ -214,7 +222,8 @@ export default function EditarSolicitacaoPage() {
         setDescricao(data.justificativa ?? "");
         setPrioridade(data.prioridade ?? 3);
         setEntregaDesejada(data.dataNecessidade ? data.dataNecessidade.slice(0, 10) : "");
-        setSolicitante(data.solicitante ?? "");
+        setColaboradorId(data.colaboradorId ?? "");
+        setSetorId(data.setorId ?? "");
         setTipoCompra(data.tipoCompra ?? "");
         setMotivo(data.motivo ?? "");
         setLocalEstoqueId(data.localEstoqueId ?? "");
@@ -240,7 +249,8 @@ export default function EditarSolicitacaoPage() {
         descricao: data.justificativa ?? "",
         prioridade: data.prioridade ?? 3,
         entregaDesejada: data.dataNecessidade ? data.dataNecessidade.slice(0, 10) : "",
-        solicitante: data.solicitante ?? "",
+        colaboradorId: data.colaboradorId ?? "",
+        setorId: data.setorId ?? "",
         tipoCompra: data.tipoCompra ?? "",
         motivo: data.motivo ?? "",
         localEstoqueId: data.localEstoqueId ?? "",
@@ -262,13 +272,15 @@ export default function EditarSolicitacaoPage() {
     fetch("/api/empresa/filiais?ativo=true").then((r) => r.json()).then((j) => setFiliais(Array.isArray(j) ? j : []));
     fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json()).then((j) => setCentrosCusto(Array.isArray(j) ? j : []));
     fetch("/api/suprimentos/produtos").then((r) => r.json()).then((j) => setItemOptions(Array.isArray(j) ? j : j.data ?? []));
+    fetch("/api/empresa/colaboradores?ativo=true").then((r) => r.json()).then((j) => setColaboradores(Array.isArray(j) ? j : []));
+    fetch("/api/empresa/setores?ativo=true").then((r) => r.json()).then((j) => setSetores(Array.isArray(j) ? j : []));
   }, []);
 
   // Auto-save form state to sessionStorage on every change
   useEffect(() => {
     if (!ready) return;
-    saveForm({ filialId, descricao, prioridade, entregaDesejada, solicitante, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens });
-  }, [filialId, descricao, prioridade, entregaDesejada, solicitante, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens, ready, saveForm]);
+    saveForm({ filialId, descricao, prioridade, entregaDesejada, colaboradorId, setorId, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens });
+  }, [filialId, descricao, prioridade, entregaDesejada, colaboradorId, setorId, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens, ready, saveForm]);
 
   const loadLocais = useCallback(async (fId: string) => {
     if (!fId) { setLocaisEstoque([]); return; }
@@ -315,7 +327,7 @@ export default function EditarSolicitacaoPage() {
     else { const item = itemOptions.find((o) => o.id === itemId); updateRow(i, "unidade", item?.unidade?.sigla ?? ""); }
   }
 
-  const currentJson = JSON.stringify({ filialId, descricao, prioridade, entregaDesejada, solicitante, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens });
+  const currentJson = JSON.stringify({ filialId, descricao, prioridade, entregaDesejada, colaboradorId, setorId, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens });
   const isDirty = baselineRef.current !== null && currentJson !== baselineRef.current;
 
   async function handleSaveOnly() {
@@ -330,7 +342,10 @@ export default function EditarSolicitacaoPage() {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           filialId, justificativa: descricao.trim(), prioridade,
-          dataNecessidade: entregaDesejada || null, solicitante: solicitante.trim() || null,
+          dataNecessidade: entregaDesejada || null,
+          colaboradorId: colaboradorId || null,
+          setorId: setorId || null,
+          solicitante: colaboradores.find((c) => c.id === colaboradorId)?.nome?.trim() || null,
           tipoCompra: tipoCompra.trim() || null, motivo: motivo.trim() || null,
           localEstoqueId: localEstoqueId || null, centroCustoId: centroCustoId || null,
           categoria: categoria.trim() || null, projeto: projeto.trim() || null,
@@ -412,10 +427,30 @@ export default function EditarSolicitacaoPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div className="space-y-1.5">
                 <Label>Solicitante <span className="text-red-500">*</span></Label>
-                <Input value={solicitante} onChange={(e) => setSolicitante(e.target.value)} placeholder="Nome do solicitante" />
+                <SelectField
+                  options={colaboradores}
+                  value={colaboradorId}
+                  onChange={(v) => {
+                    setColaboradorId(v);
+                    const col = colaboradores.find((c) => c.id === v);
+                    if (col?.setorId) setSetorId(col.setorId);
+                  }}
+                  placeholder="Selecionar colaborador..."
+                  getLabel={(c) => c.nome}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Setor <span className="text-red-500">*</span></Label>
+                <SelectField
+                  options={setores.filter((s) => s.ativo)}
+                  value={setorId}
+                  onChange={setSetorId}
+                  placeholder="Selecionar setor..."
+                  getLabel={(s) => s.nome}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Tipo de compra</Label>

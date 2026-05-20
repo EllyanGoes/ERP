@@ -73,6 +73,8 @@ export async function POST(req: NextRequest) {
         numero,
         status:               "RASCUNHO",
         solicitante:          body.solicitante?.trim()           || null,
+        colaboradorId:        body.colaboradorId                 || null,
+        setorId:              body.setorId                       || null,
         justificativa:        body.justificativa?.trim()         || null,
         dataNecessidade:      body.dataNecessidade ? new Date(body.dataNecessidade) : null,
         observacoes:          body.observacoes?.trim()           || null,

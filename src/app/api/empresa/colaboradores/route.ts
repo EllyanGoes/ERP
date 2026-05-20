@@ -11,7 +11,7 @@ const schema = z.object({
   email: z.string().optional().nullable(),
   telefone: z.string().optional().nullable(),
   cargo: z.string().optional().nullable(),
-  departamento: z.string().optional().nullable(),
+  setorId: z.string().optional().nullable(),
   dataAdmissao: z.string().optional().nullable(),
   dataDemissao: z.string().optional().nullable(),
   filialIds: z.array(z.string()).optional(),
@@ -35,7 +35,6 @@ export async function GET(req: NextRequest) {
                 { nome: { contains: search, mode: "insensitive" } },
                 { cpf: { contains: search, mode: "insensitive" } },
                 { cargo: { contains: search, mode: "insensitive" } },
-                { departamento: { contains: search, mode: "insensitive" } },
                 { email: { contains: search, mode: "insensitive" } },
               ],
             }
@@ -47,6 +46,7 @@ export async function GET(req: NextRequest) {
     include: {
       filiais: true,
       usuario: { select: { id: true, nome: true, email: true } },
+      setor:   { select: { id: true, nome: true } },
     },
     orderBy: { nome: "asc" },
   })
@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
       include: {
         filiais: true,
         usuario: { select: { id: true, nome: true, email: true } },
+        setor:   { select: { id: true, nome: true } },
       },
     })
     return NextResponse.json(colaborador, { status: 201 })

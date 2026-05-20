@@ -13,8 +13,9 @@ import { Loader2, Save, X } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Filial   = { id: string; razaoSocial: string; nomeFantasia: string | null };
-type Usuario  = { id: string; nome: string; email: string };
+type Filial    = { id: string; razaoSocial: string; nomeFantasia: string | null };
+type Usuario   = { id: string; nome: string; email: string };
+type SetorOpt  = { id: string; nome: string; ativo: boolean };
 
 // ── Field helper ──────────────────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ export default function NovoColaboradorPage() {
 
   const [filiais,   setFiliais]   = useState<Filial[]>([]);
   const [usuarios,  setUsuarios]  = useState<Usuario[]>([]);
+  const [setores,   setSetores]   = useState<SetorOpt[]>([]);
 
   const [nome,         setNome]         = useState("");
   const [cpf,          setCpf]          = useState("");
@@ -47,7 +49,7 @@ export default function NovoColaboradorPage() {
   const [email,        setEmail]        = useState("");
   const [telefone,     setTelefone]     = useState("");
   const [cargo,        setCargo]        = useState("");
-  const [departamento, setDepartamento] = useState("");
+  const [setorId,      setSetorId]      = useState("");
   const [dataAdmissao, setDataAdmissao] = useState("");
   const [filialIds,    setFilialIds]    = useState<string[]>([]);
   const [usuarioId,    setUsuarioId]    = useState("");
@@ -61,17 +63,20 @@ export default function NovoColaboradorPage() {
     fetch("/api/empresa/filiais?ativo=true")
       .then((r) => r.json())
       .then((j) => setFiliais(Array.isArray(j) ? j : []));
-    // Load users that don't have a colaborador yet
     fetch("/api/configuracoes/usuarios")
       .then((r) => r.json())
       .then((j) => {
         const list: Usuario[] = Array.isArray(j) ? j : (j.data ?? []);
         setUsuarios(list);
       });
+    fetch("/api/empresa/setores")
+      .then((r) => r.json())
+      .then((j) => setSetores(Array.isArray(j) ? j : []));
   }, []);
 
   async function handleSave() {
     if (!nome.trim()) { setError("Nome é obrigatório"); return; }
+    if (!setorId)     { setError("Setor é obrigatório"); return; }
     setSaving(true); setError("");
     try {
       const res = await fetch("/api/empresa/colaboradores", {
@@ -84,7 +89,7 @@ export default function NovoColaboradorPage() {
           email:        email.trim() || null,
           telefone:     telefone.trim() || null,
           cargo:        cargo.trim()   || null,
-          departamento: departamento.trim() || null,
+          setorId:      setorId       || null,
           dataAdmissao: dataAdmissao || null,
           filialIds,
           usuarioId:    usuarioId    || null,
@@ -188,12 +193,17 @@ export default function NovoColaboradorPage() {
                   placeholder="Ex: Analista de Compras"
                 />
               </Field>
-              <Field label="Departamento">
-                <Input
-                  value={departamento}
-                  onChange={(e) => setDepartamento(e.target.value)}
-                  placeholder="Ex: Suprimentos"
-                />
+              <Field label="Setor" required>
+                <select
+                  value={setorId}
+                  onChange={(e) => setSetorId(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  <option value="">Selecione o setor</option>
+                  {setores.filter((s) => s.ativo).map((s) => (
+                    <option key={s.id} value={s.id}>{s.nome}</option>
+                  ))}
+                </select>
               </Field>
             </div>
 
@@ -281,7 +291,7 @@ export default function NovoColaboradorPage() {
               <X className="w-4 h-4 mr-1" /> Cancelar
             </Link>
           </Button>
-          <Button onClick={handleSave} disabled={saving || !nome.trim()}>
+          <Button onClick={handleSave} disabled={saving || !nome.trim() || !setorId}>
             {saving ? (
               <><Loader2 className="w-4 h-4 animate-spin mr-1" />Salvando...</>
             ) : (

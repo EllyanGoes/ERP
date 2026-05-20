@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useSession } from "@/lib/session-context";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
@@ -86,6 +86,7 @@ const TIPO_FRETE_LABEL: Record<string, string> = {
 
 export default function PedidoCompraDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router  = useRouter();
   const { user } = useSession();
   const isAdmin  = user?.perfil === "ADMIN";
   const [pedido, setPedido] = useState<PedidoCompra | null>(null);
@@ -381,11 +382,9 @@ async function openWAModal() {
 
             {/* Gerar Doc. Entrada */}
             {!pedido.conferencia && pedido.status !== "CANCELADO" && (
-              <Button size="sm" className="gap-1.5" asChild>
-                <a href={`/suprimentos/conferencias/novo?pedidoId=${id}`} target="_blank" rel="noopener noreferrer">
-                  <FileInput className="w-3.5 h-3.5" />
-                  Gerar Doc. Entrada
-                </a>
+              <Button size="sm" className="gap-1.5" onClick={() => router.push(`/suprimentos/conferencias/novo?pedidoId=${id}`)}>
+                <FileInput className="w-3.5 h-3.5" />
+                Gerar Doc. Entrada
               </Button>
             )}
           </div>

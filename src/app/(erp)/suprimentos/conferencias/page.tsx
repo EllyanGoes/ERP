@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -121,12 +122,13 @@ const COLS: ColDef<ConferenciaRow>[] = [
 
 // ── Kanban Card ───────────────────────────────────────────────────────────────
 function KanbanCard({ doc }: { doc: ConferenciaRow }) {
+  const router = useRouter();
   const forn = getFornecedorNome(doc);
   const valor = calcValorTotal(doc);
   return (
     <div
       className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm cursor-pointer hover:shadow-md hover:border-blue-300 transition-all"
-      onClick={() => window.open(`/suprimentos/conferencias/${doc.id}`, "_blank")}
+      onClick={() => router.push(`/suprimentos/conferencias/${doc.id}`)}
     >
       <span className="font-mono text-xs font-semibold text-gray-800">{doc.numero}</span>
       {doc.pedido && (
@@ -151,6 +153,7 @@ function KanbanCard({ doc }: { doc: ConferenciaRow }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function DocumentosEntradaPage() {
+  const router = useRouter();
   const [docs, setDocs]       = useState<ConferenciaRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<Filters>(loadFilters);
@@ -349,7 +352,7 @@ export default function DocumentosEntradaPage() {
                   <tr
                     key={doc.id}
                     className="hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => window.open(`/suprimentos/conferencias/${doc.id}`, "_blank")}
+                    onClick={() => router.push(`/suprimentos/conferencias/${doc.id}`)}
                   >
                     {orderedCols.map((col) => (
                       <td key={col.id} className={col.tdClass}>{col.render(doc)}</td>
@@ -357,7 +360,6 @@ export default function DocumentosEntradaPage() {
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <Link
                         href={`/suprimentos/conferencias/${doc.id}`}
-                        target="_blank"
                         className="text-blue-600 hover:underline text-xs"
                       >
                         Ver

@@ -9,6 +9,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       filial:       { select: { id: true, razaoSocial: true, nomeFantasia: true } },
       localEstoque: { select: { id: true, nome: true } },
       centroCusto:  { select: { id: true, codigo: true, nome: true } },
+      colaborador:  { select: { id: true, nome: true } },
+      setor:        { select: { id: true, nome: true } },
       itens: {
         include: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } } },
       },
@@ -42,6 +44,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const updateData: Record<string, unknown> = {};
 
     if (body.solicitante        !== undefined) updateData.solicitante        = body.solicitante?.trim()        || null;
+    if (body.colaboradorId      !== undefined) updateData.colaboradorId      = body.colaboradorId              || null;
+    if (body.setorId            !== undefined) updateData.setorId            = body.setorId                    || null;
     if (body.justificativa      !== undefined) updateData.justificativa      = body.justificativa?.trim()      || null;
     if (body.dataNecessidade    !== undefined) updateData.dataNecessidade    = body.dataNecessidade ? new Date(body.dataNecessidade) : null;
     if (body.observacoes        !== undefined) updateData.observacoes        = body.observacoes?.trim()        || null;
@@ -75,6 +79,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         filial:       { select: { id: true, razaoSocial: true, nomeFantasia: true } },
         localEstoque: { select: { id: true, nome: true } },
         centroCusto:  { select: { id: true, codigo: true, nome: true } },
+        colaborador:  { select: { id: true, nome: true } },
+        setor:        { select: { id: true, nome: true } },
         itens: {
           include: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } } },
         },

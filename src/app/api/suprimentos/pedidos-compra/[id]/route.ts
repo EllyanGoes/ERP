@@ -79,13 +79,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (body.edit === true) {
     // Full edit mode: delete all existing items, create new ones, update all fields
-    const itens: Array<{ itemId: string; quantidade: number; precoUnitario: number; situacao?: string }> =
+    const itens: Array<{ itemId: string; quantidade: number; precoUnitario: number; desconto?: number | null; situacao?: string }> =
       body.itens ?? [];
 
     const subtotal = itens.reduce((s, it) => {
       const situacao = it.situacao ?? "CONSIDERA";
       if (situacao !== "CONSIDERA") return s;
-      return s + (Number(it.quantidade) || 0) * (Number(it.precoUnitario) || 0);
+      const bruto = (Number(it.quantidade) || 0) * (Number(it.precoUnitario) || 0);
+      const pct   = Number(it.desconto) || 0;
+      return s + bruto - (bruto * pct) / 100;
     }, 0);
 
     const descontoVal  = Number(body.desconto)  || 0;
@@ -99,14 +101,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       await tx.pedidoCompraItem.deleteMany({ where: { pedidoId } });
 
       await tx.pedidoCompraItem.createMany({
-        data: itens.map((it) => ({
-          pedidoId,
-          itemId:       it.itemId,
-          quantidade:   Number(it.quantidade),
-          precoUnitario: Number(it.precoUnitario) || 0,
-          valorTotal:   (Number(it.quantidade) || 0) * (Number(it.precoUnitario) || 0),
-          situacao:     (it.situacao ?? "CONSIDERA") as string,
-        })),
+        data: itens.map((it) => {
+          const qtd    = Number(it.quantidade) || 0;
+          const preco  = Number(it.precoUnitario) || 0;
+          const pct    = Number(it.desconto) || 0;
+          const bruto  = qtd * preco;
+          return {
+            pedidoId,
+            itemId:        it.itemId,
+            quantidade:    qtd,
+            precoUnitario: preco,
+            valorTotal:    bruto - (bruto * pct) / 100,
+            situacao:      (it.situacao ?? "CONSIDERA") as string,
+            desconto:      pct || null,
+          };
+        }),
       });
 
       return tx.pedidoCompra.update({

@@ -42,6 +42,7 @@ type ConferenciaItem = {
   tpOper: string | null;
   localEstoqueId: string | null;
   localEstoque: LocalEstoque;
+  desconto: unknown;
   item: { id: string; codigo: string; descricao: string; unidadeMedida: string };
 };
 
@@ -74,6 +75,9 @@ type Conferencia = {
   desconto: unknown;
   vrTotal: unknown;
   pedidoId: string | null;
+  localEstoqueId: string | null;
+  modoLocalEstoque: string | null;
+  localEstoque: { id: string; nome: string } | null;
   pedido: {
     id: string;
     numero: string;
@@ -95,6 +99,7 @@ type EditItem = {
   codFiscal: string;
   tpOper: string;
   localEstoqueId: string;
+  desconto: string;
 };
 
 type LocalEstoqueOption = { id: string; nome: string };
@@ -130,6 +135,10 @@ export default function DocumentoEntradaDetailPage() {
   const [desconto, setDesconto] = useState("");
   const [validationError, setValidationError] = useState("");
 
+  // Local de estoque (header-level)
+  const [modoLocalEstoque, setModoLocalEstoque] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
+  const [localEstoqueGlobalId, setLocalEstoqueGlobalId] = useState("");
+
   // Fornecedor search (editable)
   const [fornecedorId, setFornecedorId] = useState("");
   const [fornecedores, setFornecedores] = useState<FornecedorOption[]>([]);
@@ -158,10 +167,15 @@ export default function DocumentoEntradaDetailPage() {
       const forn = conf.fornecedor ?? conf.pedido?.fornecedor ?? null;
       setFornecedorId(forn?.id ?? "");
       setFornSearch(forn ? (forn.nomeFantasia || forn.razaoSocial) : "");
+      const modo = (conf.modoLocalEstoque === "GLOBAL" ? "GLOBAL" : "POR_ITEM") as "GLOBAL" | "POR_ITEM";
+      setModoLocalEstoque(modo);
+      setLocalEstoqueGlobalId(conf.localEstoqueId ?? "");
       setSeguro(decimalToNumber(conf.seguro) > 0 ? String(decimalToNumber(conf.seguro)) : "");
       setDespesas(decimalToNumber(conf.despesas) > 0 ? String(decimalToNumber(conf.despesas)) : "");
       setDesconto(decimalToNumber(conf.desconto) > 0 ? String(decimalToNumber(conf.desconto)) : "");
 
+      const resolvedModo = conf.modoLocalEstoque === "GLOBAL" ? "GLOBAL" : "POR_ITEM";
+      const globalLocalId = conf.localEstoqueId ?? "";
       setEditItems(
         conf.itens.map((i) => ({
           id: i.id,
@@ -174,7 +188,8 @@ export default function DocumentoEntradaDetailPage() {
           tipoEntrada: i.tipoEntrada ?? "",
           codFiscal: i.codFiscal ?? "",
           tpOper: i.tpOper ?? "",
-          localEstoqueId: i.localEstoqueId ?? "",
+          localEstoqueId: resolvedModo === "GLOBAL" ? globalLocalId : (i.localEstoqueId ?? ""),
+          desconto: decimalToNumber(i.desconto) > 0 ? String(decimalToNumber(i.desconto)) : "",
         }))
       );
     } catch {
@@ -213,16 +228,32 @@ export default function DocumentoEntradaDetailPage() {
     setEditItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, [key]: value } : i)));
   }
 
-  // Auto-calc vlrTotal when vlrUnitario or quantidadeRecebida changes
-  function updateItemAndCalc(itemId: string, key: "vlrUnitario" | "quantidadeRecebida", value: string) {
+  function handleModoChange(novo: "GLOBAL" | "POR_ITEM") {
+    setModoLocalEstoque(novo);
+    if (novo === "GLOBAL") {
+      // propagate current global to all items
+      setEditItems((prev) => prev.map((i) => ({ ...i, localEstoqueId: localEstoqueGlobalId })));
+    }
+  }
+
+  function handleGlobalLocalChange(localId: string) {
+    setLocalEstoqueGlobalId(localId);
+    // propagate to all items immediately
+    setEditItems((prev) => prev.map((i) => ({ ...i, localEstoqueId: localId })));
+  }
+
+  // Auto-calc vlrTotal when vlrUnitario, quantidadeRecebida, or desconto changes
+  function updateItemAndCalc(itemId: string, key: "vlrUnitario" | "quantidadeRecebida" | "desconto", value: string) {
     setEditItems((prev) =>
       prev.map((i) => {
         if (i.id !== itemId) return i;
         const updated = { ...i, [key]: value };
-        const qtd = parseFloat(key === "quantidadeRecebida" ? value : i.quantidadeRecebida) || 0;
+        const qtd  = parseFloat(key === "quantidadeRecebida" ? value : i.quantidadeRecebida) || 0;
         const unit = parseFloat(key === "vlrUnitario" ? value : i.vlrUnitario) || 0;
+        const pct  = parseFloat(key === "desconto" ? value : i.desconto) || 0;
         if (qtd > 0 && unit > 0) {
-          updated.vlrTotal = (qtd * unit).toFixed(2);
+          const bruto = qtd * unit;
+          updated.vlrTotal = (bruto - (bruto * pct) / 100).toFixed(2);
         }
         return updated;
       })
@@ -243,6 +274,8 @@ export default function DocumentoEntradaDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fornecedorId: fornecedorId || null,
+          localEstoqueId: modoLocalEstoque === "GLOBAL" ? (localEstoqueGlobalId || null) : null,
+          modoLocalEstoque,
           observacoes: observacoes || null,
           tipoNota: tipoNota || null,
           numeroNF: numeroNF || null,
@@ -265,6 +298,7 @@ export default function DocumentoEntradaDetailPage() {
             codFiscal: i.codFiscal || null,
             tpOper: i.tpOper || null,
             localEstoqueId: i.localEstoqueId || null,
+            desconto: i.desconto ? parseFloat(i.desconto) : null,
           })),
         }),
       });
@@ -354,7 +388,22 @@ export default function DocumentoEntradaDetailPage() {
   const codigoForn = fornInfo ? fornInfo.id.slice(-8).toUpperCase() : "—";
 
   // Totals
-  const vlrMercadoria = conferencia.itens.reduce((s, i) => s + decimalToNumber(i.vlrTotal), 0);
+  const vlrMercadoria = isEditable
+    ? editItems.reduce((s, i) => s + (parseFloat(i.vlrTotal) || 0), 0)
+    : conferencia.itens.reduce((s, i) => s + decimalToNumber(i.vlrTotal), 0);
+  const descontoTotalItens = isEditable
+    ? editItems.reduce((s, ei) => {
+        const unit = parseFloat(ei.vlrUnitario) || 0;
+        const qtd  = parseFloat(ei.quantidadeRecebida) || 0;
+        const pct  = parseFloat(ei.desconto) || 0;
+        return s + (unit * qtd * pct) / 100;
+      }, 0)
+    : conferencia.itens.reduce((s, i) => {
+        const unit = decimalToNumber(i.vlrUnitario);
+        const qtd  = decimalToNumber(i.quantidadeRecebida);
+        const pct  = decimalToNumber(i.desconto);
+        return s + (unit * qtd * pct) / 100;
+      }, 0);
   const freteNum = decimalToNumber(conferencia.frete);
   const seguroNum = decimalToNumber(conferencia.seguro);
   const despesasNum = decimalToNumber(conferencia.despesas);
@@ -595,7 +644,82 @@ export default function DocumentoEntradaDetailPage() {
           </div>
         </div>
 
-        {/* ── Seção 3: Itens ───────────────────────────────────────────────── */}
+        {/* ── Seção 3: Local de Estoque ────────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+            <h2 className="font-semibold text-sm text-gray-800">Local de Estoque</h2>
+          </div>
+          <div className="p-4 flex flex-col md:flex-row md:items-end gap-4">
+            {/* Mode toggle */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">Modo de entrada</Label>
+              <div className="flex items-center border border-gray-200 rounded-lg p-0.5 bg-gray-50 w-fit">
+                <button
+                  type="button"
+                  onClick={() => nfEditable && handleModoChange("GLOBAL")}
+                  className={cn(
+                    "px-4 py-1.5 rounded-md text-xs font-medium transition-colors",
+                    modoLocalEstoque === "GLOBAL"
+                      ? "bg-white text-blue-700 shadow-sm border border-blue-200"
+                      : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  Global
+                </button>
+                <button
+                  type="button"
+                  onClick={() => nfEditable && handleModoChange("POR_ITEM")}
+                  className={cn(
+                    "px-4 py-1.5 rounded-md text-xs font-medium transition-colors",
+                    modoLocalEstoque === "POR_ITEM"
+                      ? "bg-white text-blue-700 shadow-sm border border-blue-200"
+                      : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  Por Item
+                </button>
+              </div>
+            </div>
+
+            {/* Global local selector */}
+            {modoLocalEstoque === "GLOBAL" && (
+              <div className="space-y-1.5 flex-1 max-w-xs">
+                <Label className="text-xs text-gray-500">
+                  Local de Estoque <span className="text-red-500">*</span>
+                </Label>
+                {nfEditable ? (
+                  <select
+                    value={localEstoqueGlobalId}
+                    onChange={(e) => handleGlobalLocalChange(e.target.value)}
+                    className={cn(
+                      "w-full h-9 px-3 border rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+                      !localEstoqueGlobalId ? "border-red-300" : "border-gray-200"
+                    )}
+                  >
+                    <option value="">Selecionar local...</option>
+                    {locaisEstoque.map((l) => (
+                      <option key={l.id} value={l.id}>{l.nome}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <Input
+                    value={locaisEstoque.find((l) => l.id === localEstoqueGlobalId)?.nome ?? "—"}
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                )}
+              </div>
+            )}
+
+            {modoLocalEstoque === "POR_ITEM" && (
+              <p className="text-xs text-gray-400 pb-1.5">
+                O local de estoque será definido individualmente para cada item na tabela abaixo.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* ── Seção 4: Itens ───────────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Itens</CardTitle>
@@ -608,11 +732,14 @@ export default function DocumentoEntradaDetailPage() {
                     <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">#NF</th>
                     <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">Produto</th>
                     <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">Descrição</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">Local Estoque</th>
+                    {modoLocalEstoque === "POR_ITEM" && (
+                      <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">Local Estoque</th>
+                    )}
                     <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">U.M.</th>
                     <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Qtd. Pedida</th>
                     <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Qtd. Recebida</th>
                     <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Vlr. Unit.</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">% Desc.</th>
                     <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Vlr. Total</th>
                     <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Vlr. IPI</th>
                     <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Vlr. ICMS</th>
@@ -636,23 +763,25 @@ export default function DocumentoEntradaDetailPage() {
                         <td className="px-3 py-2 font-mono text-xs text-gray-500">{item.item.codigo}</td>
                         <td className="px-3 py-2 text-xs text-gray-800 max-w-[200px]">{item.item.descricao}</td>
 
-                        {/* Local Estoque */}
-                        <td className="px-3 py-2">
-                          {isEditable && ei ? (
-                            <select
-                              value={ei.localEstoqueId}
-                              onChange={(e) => updateEditItem(item.id, "localEstoqueId", e.target.value)}
-                              className="w-full h-7 px-2 border border-gray-200 rounded text-xs bg-white focus:outline-none"
-                            >
-                              <option value="">Global</option>
-                              {locaisEstoque.map((l) => (
-                                <option key={l.id} value={l.id}>{l.nome}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className="text-xs text-gray-600">{localNome ?? "Global"}</span>
-                          )}
-                        </td>
+                        {/* Local Estoque — only shown in Por Item mode */}
+                        {modoLocalEstoque === "POR_ITEM" && (
+                          <td className="px-3 py-2">
+                            {isEditable && ei ? (
+                              <select
+                                value={ei.localEstoqueId}
+                                onChange={(e) => updateEditItem(item.id, "localEstoqueId", e.target.value)}
+                                className="w-full h-7 px-2 border border-gray-200 rounded text-xs bg-white focus:outline-none"
+                              >
+                                <option value="">—</option>
+                                {locaisEstoque.map((l) => (
+                                  <option key={l.id} value={l.id}>{l.nome}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-xs text-gray-600">{localNome ?? "—"}</span>
+                            )}
+                          </td>
+                        )}
 
                         <td className="px-3 py-2 text-xs text-gray-500">{item.item.unidadeMedida}</td>
 
@@ -694,6 +823,30 @@ export default function DocumentoEntradaDetailPage() {
                             <span className="block text-right text-xs text-gray-700">
                               {decimalToNumber(item.vlrUnitario) > 0
                                 ? formatBRL(decimalToNumber(item.vlrUnitario))
+                                : "—"}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* % Desc. */}
+                        <td className="px-3 py-2">
+                          {isEditable && ei ? (
+                            <div className="relative w-20 ml-auto">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max="100"
+                                className="w-20 text-right h-7 text-xs pr-5"
+                                value={ei.desconto}
+                                onChange={(e) => updateItemAndCalc(item.id, "desconto", e.target.value)}
+                              />
+                              <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                            </div>
+                          ) : (
+                            <span className="block text-right text-xs text-gray-700">
+                              {decimalToNumber(item.desconto) > 0
+                                ? `${decimalToNumber(item.desconto)}%`
                                 : "—"}
                             </span>
                           )}
@@ -839,7 +992,15 @@ export default function DocumentoEntradaDetailPage() {
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Desconto</Label>
+              <Label className="text-xs text-gray-500">Desc. Total Itens</Label>
+              <Input
+                value={descontoTotalItens > 0 ? formatBRL(descontoTotalItens) : "—"}
+                readOnly
+                className="bg-gray-50 text-right text-red-600"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Desc. Global (NF)</Label>
               {nfEditable ? (
                 <Input
                   type="number"

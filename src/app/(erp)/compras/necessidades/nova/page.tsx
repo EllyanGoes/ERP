@@ -30,6 +30,8 @@ type LocalEstoque  = { id: string; nome: string };
 type CentroCusto   = { id: string; codigo: string; nome: string };
 type ItemOption    = { id: string; codigo: string; descricao: string; unidade: { sigla: string } | null; estoqueItems?: Array<{ quantidadeAtual: number | string | null }> };
 type UnidadeOption = { id: string; sigla: string; nome: string; isPrincipal: boolean };
+type ColaboradorOpt = { id: string; nome: string; setorId: string | null; setor: { id: string; nome: string } | null };
+type SetorOpt      = { id: string; nome: string; ativo: boolean };
 
 type ItemRow = { itemId: string; quantidade: string; unidade: string; observacao: string };
 
@@ -326,7 +328,8 @@ type FormSnapshot = {
   descricao: string;
   prioridade: number;
   entregaDesejada: string;
-  solicitante: string;
+  colaboradorId: string;
+  setorId: string;
   tipoCompra: string;
   motivo: string;
   localEstoqueId: string;
@@ -349,7 +352,8 @@ export default function NovasolicitacaoPage() {
   const [descricao,             setDescricao]             = useState("");
   const [prioridade,            setPrioridade]            = useState(3);
   const [entregaDesejada,       setEntregaDesejada]       = useState("");
-  const [solicitante,           setSolicitante]           = useState("");
+  const [colaboradorId,         setColaboradorId]         = useState("");
+  const [setorId,               setSetorId]               = useState("");
   const [tipoCompra,            setTipoCompra]            = useState("");
   const [motivo,                setMotivo]                = useState("");
   const [localEstoqueId,        setLocalEstoqueId]        = useState("");
@@ -377,6 +381,8 @@ export default function NovasolicitacaoPage() {
   const [locaisEstoque,  setLocaisEstoque]  = useState<LocalEstoque[]>([]);
   const [centrosCusto,   setCentrosCusto]   = useState<CentroCusto[]>([]);
   const [itemOptions,    setItemOptions]    = useState<ItemOption[]>([]);
+  const [colaboradores,  setColaboradores]  = useState<ColaboradorOpt[]>([]);
+  const [setores,        setSetores]        = useState<SetorOpt[]>([]);
   // Map itemId → list of units pre-registered for that product
   const [itemUnidades,   setItemUnidades]   = useState<Map<string, UnidadeOption[]>>(new Map());
 
@@ -389,7 +395,8 @@ export default function NovasolicitacaoPage() {
       setDescricao(saved.descricao ?? "");
       setPrioridade(saved.prioridade ?? 3);
       setEntregaDesejada(saved.entregaDesejada ?? "");
-      setSolicitante(saved.solicitante ?? user?.nome ?? "");
+      setColaboradorId(saved.colaboradorId ?? "");
+      setSetorId(saved.setorId ?? "");
       setTipoCompra(saved.tipoCompra ?? "");
       setMotivo(saved.motivo ?? "");
       setLocalEstoqueId(saved.localEstoqueId ?? "");
@@ -399,8 +406,6 @@ export default function NovasolicitacaoPage() {
       setClassificacaoAuxiliar(saved.classificacaoAuxiliar ?? "");
       setObservacoes(saved.observacoes ?? "");
       setItens(saved.itens ?? [{ itemId: "", quantidade: "1", unidade: "", observacao: "" }]);
-    } else if (!formRestoredRef.current && user?.nome) {
-      setSolicitante(user.nome);
     }
   }, []); // eslint-disable-line
 
@@ -408,12 +413,14 @@ export default function NovasolicitacaoPage() {
     fetch("/api/empresa/filiais?ativo=true").then((r) => r.json()).then((j) => setFiliais(Array.isArray(j) ? j : []));
     fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json()).then((j) => setCentrosCusto(Array.isArray(j) ? j : []));
     fetch("/api/suprimentos/produtos").then((r) => r.json()).then((j) => setItemOptions(Array.isArray(j) ? j : j.data ?? []));
+    fetch("/api/empresa/colaboradores?ativo=true").then((r) => r.json()).then((j) => setColaboradores(Array.isArray(j) ? j : []));
+    fetch("/api/empresa/setores?ativo=true").then((r) => r.json()).then((j) => setSetores(Array.isArray(j) ? j : []));
   }, []);
 
   // Auto-save form state to sessionStorage on every change
   useEffect(() => {
-    saveForm({ filialId, descricao, prioridade, entregaDesejada, solicitante, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens });
-  }, [filialId, descricao, prioridade, entregaDesejada, solicitante, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens, saveForm]);
+    saveForm({ filialId, descricao, prioridade, entregaDesejada, colaboradorId, setorId, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens });
+  }, [filialId, descricao, prioridade, entregaDesejada, colaboradorId, setorId, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens, saveForm]);
 
   const loadLocais = useCallback(async (fId: string) => {
     if (!fId) { setLocaisEstoque([]); setLocalEstoqueId(""); return; }
@@ -444,9 +451,9 @@ export default function NovasolicitacaoPage() {
     setDescricao(""); setPrioridade(3); setEntregaDesejada(""); setTipoCompra("");
     setMotivo(""); setLocalEstoqueId(""); setCentroCustoId(""); setCategoria("");
     setProjeto(""); setClassificacaoAuxiliar(""); setObservacoes("");
+    setColaboradorId(""); setSetorId("");
     setItens([{ itemId: "", quantidade: "1", unidade: "", observacao: "" }]);
     setServerError("");
-    if (user?.nome) setSolicitante(user.nome);
   }
 
   function addRow() { setItens((p) => [...p, { itemId: "", quantidade: "1", unidade: "", observacao: "" }]); }
@@ -478,7 +485,10 @@ export default function NovasolicitacaoPage() {
         body: JSON.stringify({
           filialId, justificativa: descricao.trim(), prioridade,
           dataNecessidade: entregaDesejada || null,
-          solicitante: solicitante.trim() || null, tipoCompra: tipoCompra.trim() || null,
+          colaboradorId: colaboradorId || null,
+          setorId: setorId || null,
+          solicitante: colaboradores.find((c) => c.id === colaboradorId)?.nome?.trim() || null,
+          tipoCompra: tipoCompra.trim() || null,
           motivo: motivo.trim() || null, localEstoqueId: localEstoqueId || null,
           centroCustoId: centroCustoId || null, categoria: categoria.trim() || null,
           projeto: projeto.trim() || null, classificacaoAuxiliar: classificacaoAuxiliar.trim() || null,
@@ -502,6 +512,8 @@ export default function NovasolicitacaoPage() {
     setSubmitted(true);
     if (!filialId) { setServerError("Filial é obrigatória"); return; }
     if (!localEstoqueId) { setServerError("Local de Estoque é obrigatório"); return; }
+    if (!colaboradorId) { setServerError("Solicitante é obrigatório"); return; }
+    if (!setorId) { setServerError("Setor é obrigatório"); return; }
     if (!motivo.trim()) { setServerError("Motivo de compra é obrigatório"); return; }
     const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade) > 0);
     if (validItens.length === 0) { setServerError("Adicione pelo menos um item com quantidade válida"); return; }
@@ -574,10 +586,34 @@ export default function NovasolicitacaoPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div className="space-y-1.5">
                 <Label>Solicitante <span className="text-red-500">*</span></Label>
-                <Input value={solicitante} onChange={(e) => setSolicitante(e.target.value)} placeholder="Nome do solicitante" />
+                <SearchableSelect
+                  options={colaboradores}
+                  value={colaboradorId}
+                  onChange={(v) => {
+                    setColaboradorId(v);
+                    const col = colaboradores.find((c) => c.id === v);
+                    if (col?.setorId) setSetorId(col.setorId);
+                    else if (!v) setSetorId("");
+                  }}
+                  placeholder="Buscar colaborador..."
+                  getLabel={(c) => c.nome}
+                  error={submitted && !colaboradorId}
+                />
+                {submitted && !colaboradorId && <p className="text-xs text-red-500">Solicitante é obrigatório</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Setor <span className="text-red-500">*</span></Label>
+                <SelectField
+                  options={setores.filter((s) => s.ativo)}
+                  value={setorId}
+                  onChange={setSetorId}
+                  placeholder="Selecionar setor..."
+                  getLabel={(s) => s.nome}
+                />
+                {submitted && !setorId && <p className="text-xs text-red-500">Setor é obrigatório</p>}
               </div>
               <div className="space-y-1.5">
                 <Label>Tipo de compra</Label>

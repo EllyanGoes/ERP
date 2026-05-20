@@ -23,6 +23,7 @@ type ItemRow = {
   itemId: string;
   quantidade: string;
   precoUnitario: string;
+  desconto: string;
   situacao: "CONSIDERA" | "NAO_CONSIDERA";
 };
 
@@ -80,7 +81,7 @@ export default function EditarPedidoCompraPage() {
 
   // Items
   const [itens, setItens] = useState<ItemRow[]>([
-    { itemId: "", quantidade: "1", precoUnitario: "", situacao: "CONSIDERA" },
+    { itemId: "", quantidade: "1", precoUnitario: "", desconto: "", situacao: "CONSIDERA" },
   ]);
 
   // Form state
@@ -162,12 +163,14 @@ export default function EditarPedidoCompraPage() {
             item: { id: string };
             quantidade: unknown;
             precoUnitario: unknown;
+            desconto?: unknown;
             situacao?: string;
           }) => ({
-            itemId:       it.item.id,
-            quantidade:   String(decimalToNumber(it.quantidade)),
+            itemId:        it.item.id,
+            quantidade:    String(decimalToNumber(it.quantidade)),
             precoUnitario: String(decimalToNumber(it.precoUnitario)),
-            situacao:     (it.situacao === "NAO_CONSIDERA" ? "NAO_CONSIDERA" : "CONSIDERA") as ItemRow["situacao"],
+            desconto:      it.desconto != null ? String(decimalToNumber(it.desconto)) : "",
+            situacao:      (it.situacao === "NAO_CONSIDERA" ? "NAO_CONSIDERA" : "CONSIDERA") as ItemRow["situacao"],
           })));
         }
       }
@@ -179,13 +182,14 @@ export default function EditarPedidoCompraPage() {
       const baseDespesasNum     = cf ? decimalToNumber(cf.despesas) : 0;
       const baseSeguroNum       = cf ? decimalToNumber(cf.seguro)   : 0;
       const baselineItens = Array.isArray(pedido.itens) && pedido.itens.length > 0
-        ? pedido.itens.map((it: { item: { id: string }; quantidade: unknown; precoUnitario: unknown; situacao?: string }) => ({
+        ? pedido.itens.map((it: { item: { id: string }; quantidade: unknown; precoUnitario: unknown; desconto?: unknown; situacao?: string }) => ({
             itemId:        it.item.id,
             quantidade:    String(decimalToNumber(it.quantidade)),
             precoUnitario: String(decimalToNumber(it.precoUnitario)),
+            desconto:      it.desconto != null ? String(decimalToNumber(it.desconto)) : "",
             situacao:      (it.situacao === "NAO_CONSIDERA" ? "NAO_CONSIDERA" : "CONSIDERA") as ItemRow["situacao"],
           }))
-        : [{ itemId: "", quantidade: "1", precoUnitario: "", situacao: "CONSIDERA" as ItemRow["situacao"] }];
+        : [{ itemId: "", quantidade: "1", precoUnitario: "", desconto: "", situacao: "CONSIDERA" as ItemRow["situacao"] }];
       baselineRef.current = JSON.stringify({
         fornecedorId:        pedido.fornecedor?.id ?? "",
         contato:             pedido.contato ?? pedido.fornecedor?.contato ?? "",
@@ -218,7 +222,7 @@ export default function EditarPedidoCompraPage() {
   }
 
   function addRow() {
-    setItens((p) => [...p, { itemId: "", quantidade: "1", precoUnitario: "", situacao: "CONSIDERA" }]);
+    setItens((p) => [...p, { itemId: "", quantidade: "1", precoUnitario: "", desconto: "", situacao: "CONSIDERA" }]);
   }
   function removeRow(i: number) {
     setItens((p) => p.filter((_, idx) => idx !== i));
@@ -234,12 +238,21 @@ export default function EditarPedidoCompraPage() {
     .filter((i) => i.situacao === "CONSIDERA")
     .reduce((s, i) => s + (parseFloat(i.quantidade) || 0) * (parseFloat(i.precoUnitario) || 0), 0);
 
+  const descontoTotalItens = itens
+    .filter((i) => i.situacao === "CONSIDERA")
+    .reduce((s, i) => {
+      const bruto = (parseFloat(i.quantidade) || 0) * (parseFloat(i.precoUnitario) || 0);
+      return s + (bruto * (parseFloat(i.desconto) || 0)) / 100;
+    }, 0);
+
+  const subtotalAposDescontoItens = subtotalItens - descontoTotalItens;
+
   const descontoVal    = parseFloat(desconto)  || 0;
   const freteVal       = parseFloat(frete)     || 0;
   const despesasVal    = parseFloat(despesas)  || 0;
   const seguroVal      = parseFloat(seguro)    || 0;
-  const vrDescontoCalc = (subtotalItens * descontoVal) / 100;
-  const totalCotacao   = subtotalItens - vrDescontoCalc + freteVal + despesasVal + seguroVal;
+  const vrDescontoCalc = (subtotalAposDescontoItens * descontoVal) / 100;
+  const totalCotacao   = subtotalAposDescontoItens - vrDescontoCalc + freteVal + despesasVal + seguroVal;
 
   const selectedForn = fornecedores.find((f) => f.id === fornecedorId);
   const fornNome     = selectedForn ? (selectedForn.nomeFantasia || selectedForn.razaoSocial) : "";
@@ -275,10 +288,11 @@ export default function EditarPedidoCompraPage() {
           dataEntregaPrevista: dataEntregaPrevista || null,
           observacoes:        observacoes        || null,
           itens: validItens.map((row) => ({
-            itemId:       row.itemId,
-            quantidade:   parseFloat(row.quantidade),
+            itemId:        row.itemId,
+            quantidade:    parseFloat(row.quantidade),
             precoUnitario: parseFloat(row.precoUnitario) || 0,
-            situacao:     row.situacao,
+            desconto:      parseFloat(row.desconto) || null,
+            situacao:      row.situacao,
           })),
         }),
       });
@@ -500,17 +514,20 @@ export default function EditarPedidoCompraPage() {
                   <th className="text-left px-4 py-2 font-medium text-gray-600 w-36">Situação</th>
                   <th className="text-right px-4 py-2 font-medium text-gray-600 w-28">Quantidade</th>
                   <th className="text-right px-4 py-2 font-medium text-gray-600 w-36">Preço Unitário</th>
+                  <th className="text-right px-4 py-2 font-medium text-gray-600 w-24">% Desc.</th>
                   <th className="text-right px-4 py-2 font-medium text-gray-600 w-28">Total Item</th>
                   <th className="w-10" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {itens.map((row, i) => {
-                  const opt   = itemOptions.find((o) => o.id === row.itemId);
-                  const preco = parseFloat(row.precoUnitario) || 0;
-                  const qtd   = parseFloat(row.quantidade)   || 0;
-                  const total = row.situacao === "CONSIDERA" ? preco * qtd : 0;
-                  const isNao = row.situacao === "NAO_CONSIDERA";
+                  const opt    = itemOptions.find((o) => o.id === row.itemId);
+                  const preco  = parseFloat(row.precoUnitario) || 0;
+                  const qtd    = parseFloat(row.quantidade)    || 0;
+                  const pctDesc = parseFloat(row.desconto)     || 0;
+                  const bruto  = preco * qtd;
+                  const total  = row.situacao === "CONSIDERA" ? bruto - (bruto * pctDesc) / 100 : 0;
+                  const isNao  = row.situacao === "NAO_CONSIDERA";
 
                   return (
                     <tr key={i} className={cn("hover:bg-gray-50", isNao && "opacity-50")}>
@@ -560,6 +577,19 @@ export default function EditarPedidoCompraPage() {
                           className="text-right h-8"
                         />
                       </td>
+                      <td className="px-4 py-2">
+                        <div className="relative">
+                          <Input
+                            type="number" step="0.01" min="0" max="100"
+                            disabled={isNao}
+                            value={row.desconto}
+                            onChange={(e) => updateRow(i, "desconto", e.target.value)}
+                            placeholder="0"
+                            className="text-right h-8 pr-6"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-2 text-right font-medium text-gray-800">
                         {isNao ? "—" : formatBRL(total)}
                       </td>
@@ -579,8 +609,32 @@ export default function EditarPedidoCompraPage() {
                 })}
               </tbody>
               <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+                {descontoTotalItens > 0 && (
+                  <tr className="text-sm">
+                    <td colSpan={6} className="px-4 py-1.5 text-right text-gray-500">
+                      Desconto Total Itens
+                    </td>
+                    <td />
+                    <td className="px-4 py-1.5 text-right text-red-600 font-medium">
+                      -{formatBRL(descontoTotalItens)}
+                    </td>
+                    <td />
+                  </tr>
+                )}
+                {vrDescontoCalc > 0 && (
+                  <tr className="text-sm">
+                    <td colSpan={6} className="px-4 py-1.5 text-right text-gray-500">
+                      Desconto Global Total
+                    </td>
+                    <td />
+                    <td className="px-4 py-1.5 text-right text-red-600 font-medium">
+                      -{formatBRL(vrDescontoCalc)}
+                    </td>
+                    <td />
+                  </tr>
+                )}
                 <tr>
-                  <td colSpan={5} className="px-4 py-2 text-right font-semibold text-gray-700 text-sm">
+                  <td colSpan={6} className="px-4 py-2 text-right font-semibold text-gray-700 text-sm">
                     Total da cotação
                   </td>
                   <td />

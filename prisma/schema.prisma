@@ -63,15 +63,17 @@ model AprovacaoSC {
 }
 
 model CentroCusto {
-  id                 String              @id @default(cuid())
-  codigo             String              @unique
+  id                 String                   @id @default(cuid())
+  codigo             String                   @unique
   nome               String
   grupoCentroCustoId String?
-  ativo              Boolean             @default(true)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime @updatedAt
-  grupoCentroCusto   GrupoCentroCusto?   @relation(fields: [grupoCentroCustoId], references: [id])
+  ativo              Boolean                  @default(true)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  grupoCentroCusto   GrupoCentroCusto?        @relation(fields: [grupoCentroCustoId], references: [id])
   necessidadesCompra NecessidadeCompra[]
+  requisicoesCompra  RequisicaoMaterial[]
+  itensRequisicao    RequisicaoMaterialItem[]
 
   @@index([grupoCentroCustoId])
 }
@@ -112,7 +114,7 @@ model Colaborador {
   email          String?
   telefone       String?
   cargo          String?
-  departamento   String?
+  setorId        String?
   dataAdmissao   DateTime?
   dataDemissao   DateTime?
   usuarioId      String?          @unique
@@ -120,9 +122,26 @@ model Colaborador {
   observacoes    String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime @updatedAt
-  etapasAprovacao AprovacaoEtapa[]
-  usuario         Usuario?         @relation(fields: [usuarioId], references: [id])
-  filiais         Filial[]
+  etapasAprovacao            AprovacaoEtapa[]
+  usuario                    Usuario?            @relation(fields: [usuarioId], references: [id])
+  filiais                    Filial[]
+  setor                      Setor?              @relation(fields: [setorId], references: [id])
+  solicitacoesCompra         NecessidadeCompra[]
+  requisicoesComoSolicitante RequisicaoMaterial[] @relation("RM_Solicitante")
+  requisicoesComoAlmoxarife  RequisicaoMaterial[] @relation("RM_Almoxarife")
+  inventarios                InventarioMaterial[]
+}
+
+model Setor {
+  id                   String               @id @default(cuid())
+  nome                 String
+  descricao            String?
+  ativo                Boolean              @default(true)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  colaboradores        Colaborador[]
+  solicitacoesCompra   NecessidadeCompra[]
+  requisicoesMateriais RequisicaoMaterial[]
 }
 
 model CondicaoPagamento {
@@ -154,6 +173,8 @@ model ConferenciaCompra {
   ufOrigem              String?
   espDocumento          String?                 @default("SPED")
   fornecedorId          String?
+  localEstoqueId        String?
+  modoLocalEstoque      String?                 @default("POR_ITEM")
   // Financeiro
   frete                 Decimal?                @db.Decimal(15, 2)
   tipoFrete             String?
@@ -165,6 +186,7 @@ model ConferenciaCompra {
   updatedAt             DateTime                @updatedAt
   pedido                PedidoCompra?           @relation(fields: [pedidoId], references: [id])
   fornecedor            Fornecedor?             @relation(fields: [fornecedorId], references: [id])
+  localEstoque          LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
   itens                 ConferenciaCompraItem[]
 
   @@index([status])
@@ -188,6 +210,7 @@ model ConferenciaCompraItem {
   tipoEntrada         String?
   codFiscal           String?
   tpOper              String?
+  desconto            Decimal?              @db.Decimal(15, 4)
   conferencia         ConferenciaCompra     @relation(fields: [conferenciaId], references: [id], onDelete: Cascade)
   item                Item                  @relation(fields: [itemId], references: [id])
   localEstoque        LocalEstoque?         @relation(fields: [localEstoqueId], references: [id])
@@ -333,6 +356,7 @@ model CotacaoFornecedorItem {
   disponivel          Boolean           @default(true)
   qtdDisponivel       Decimal?          @db.Decimal(15, 3)
   situacao            String?           @default("CONSIDERA")
+  desconto            Decimal?          @db.Decimal(15, 4)
   cotacaoFornecedor   CotacaoFornecedor @relation(fields: [cotacaoFornecedorId], references: [id], onDelete: Cascade)
   item                Item              @relation(fields: [itemId], references: [id])
 }
@@ -494,14 +518,16 @@ model Item {
   conferenciaCompraItens ConferenciaCompraItem[]
   cotacaoFornecedorItens CotacaoFornecedorItem[]
   estoqueItems           EstoqueItem[]
-  tipoProduto            TipoProduto?            @relation(fields: [tipoProdutoId], references: [id])
-  unidade                Unidade?                @relation(fields: [unidadeId], references: [id])
+  tipoProduto            TipoProduto?             @relation(fields: [tipoProdutoId], references: [id])
+  unidade                Unidade?                 @relation(fields: [unidadeId], references: [id])
   itemUnidades           ItemUnidade[]
   movimentacoes          MovimentacaoEstoque[]
   necessidadeCompraItens NecessidadeCompraItem[]
   pedidoCompraItens      PedidoCompraItem[]
   pedidoVendaItens       PedidoVendaItem[]
   produtosFornecedor     ProdutoFornecedor[]
+  itensRequisicao        RequisicaoMaterialItem[]
+  itensInventario        InventarioMaterialItem[]
 
   @@index([codigo])
   @@index([tipo])
@@ -541,19 +567,22 @@ model LancamentoCaixa {
 }
 
 model LocalEstoque {
-  id                  String                @id @default(cuid())
-  nome                String
-  descricao           String?
-  ativo               Boolean               @default(true)
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime @updatedAt
-  filialId            String?
-  enderecos          EnderecoEstoque[]
-  estoqueItens       EstoqueItem[]
-  filial             Filial?               @relation(fields: [filialId], references: [id])
-  movimentacoes      MovimentacaoEstoque[]
-  necessidadesCompra NecessidadeCompra[]
-  docEntradaItens    ConferenciaCompraItem[]
+  id                   String                  @id @default(cuid())
+  nome                 String
+  descricao            String?
+  ativo                Boolean                 @default(true)
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  filialId             String?
+  enderecos            EnderecoEstoque[]
+  estoqueItens         EstoqueItem[]
+  filial               Filial?                 @relation(fields: [filialId], references: [id])
+  movimentacoes        MovimentacaoEstoque[]
+  necessidadesCompra   NecessidadeCompra[]
+  docEntradaItens      ConferenciaCompraItem[]
+  docEntradas          ConferenciaCompra[]
+  requisicoesMateriais RequisicaoMaterial[]
+  inventariosMateriais InventarioMaterial[]
 }
 
 model LoteMovimentacao {
@@ -601,6 +630,8 @@ model NecessidadeCompra {
   numero                String                  @unique
   status                StatusNecessidade       @default(RASCUNHO)
   solicitante           String?
+  colaboradorId         String?
+  setorId               String?
   justificativa         String?
   dataNecessidade       DateTime?
   observacoes           String?
@@ -621,8 +652,10 @@ model NecessidadeCompra {
   aprovacoes            AprovacaoSC[]
   cotacoes              CotacaoCompra[]
   centroCusto           CentroCusto?            @relation(fields: [centroCustoId], references: [id])
+  colaborador           Colaborador?            @relation(fields: [colaboradorId], references: [id])
   filial                Filial?                 @relation(fields: [filialId], references: [id])
   localEstoque          LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
+  setor                 Setor?                  @relation(fields: [setorId], references: [id])
   itens                 NecessidadeCompraItem[]
 
   @@index([status])
@@ -677,6 +710,8 @@ model PedidoCompraItem {
   quantidade    Decimal      @db.Decimal(15, 3)
   precoUnitario Decimal      @db.Decimal(15, 2)
   valorTotal    Decimal      @db.Decimal(15, 2)
+  situacao      String?      @default("CONSIDERA")
+  desconto      Decimal?     @db.Decimal(15, 4)
   item          Item         @relation(fields: [itemId], references: [id])
   pedido        PedidoCompra @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 }
@@ -952,4 +987,111 @@ enum UnidadeMedida {
   CX
   PC
   HR
+}
+
+// ── Req/Dev de Materiais ──────────────────────────────────────────────────────
+
+model RequisicaoMaterial {
+  id             String                   @id @default(cuid())
+  numero         String                   @unique
+  tipo           TipoRequisicaoMaterial   @default(REQUISICAO)
+  status         StatusRequisicaoMaterial @default(RASCUNHO)
+  localEstoqueId String
+  colaboradorId  String?
+  setorId        String?
+  almoxarifeId   String?
+  os             String?
+  centroCustoId  String?
+  contaContabil  String?
+  data           DateTime                 @default(now())
+  observacoes    String?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  localEstoque   LocalEstoque             @relation(fields: [localEstoqueId], references: [id])
+  colaborador    Colaborador?             @relation("RM_Solicitante", fields: [colaboradorId], references: [id])
+  setor          Setor?                   @relation(fields: [setorId], references: [id])
+  almoxarife     Colaborador?             @relation("RM_Almoxarife", fields: [almoxarifeId], references: [id])
+  centroCusto    CentroCusto?             @relation(fields: [centroCustoId], references: [id])
+  itens          RequisicaoMaterialItem[]
+
+  @@index([status])
+  @@index([localEstoqueId])
+}
+
+model RequisicaoMaterialItem {
+  id            String             @id @default(cuid())
+  requisicaoId  String
+  itemId        String
+  quantidade    Decimal            @db.Decimal(15, 3)
+  unidade       String?
+  localizacao   String?
+  centroCustoId String?
+  contaContabil String?
+  os            String?
+  requisicaoRef String?
+  requisicao    RequisicaoMaterial @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
+  item          Item               @relation(fields: [itemId], references: [id])
+  centroCusto   CentroCusto?       @relation(fields: [centroCustoId], references: [id])
+
+  @@index([requisicaoId])
+}
+
+// ── Inventário de Materiais ───────────────────────────────────────────────────
+
+model InventarioMaterial {
+  id             String                   @id @default(cuid())
+  numero         String                   @unique
+  localEstoqueId String
+  colaboradorId  String?
+  data           DateTime
+  tipo           TipoInventarioMaterial   @default(TOTAL)
+  status         StatusInventarioMaterial @default(RASCUNHO)
+  observacoes    String?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  localEstoque   LocalEstoque             @relation(fields: [localEstoqueId], references: [id])
+  colaborador    Colaborador?             @relation(fields: [colaboradorId], references: [id])
+  itens          InventarioMaterialItem[]
+
+  @@index([status])
+  @@index([localEstoqueId])
+}
+
+model InventarioMaterialItem {
+  id           String             @id @default(cuid())
+  inventarioId String
+  itemId       String
+  localizacao  String?
+  saldoSistema Decimal            @db.Decimal(15, 3)
+  saldoFisico  Decimal?           @db.Decimal(15, 3)
+  diferenca    Decimal?           @db.Decimal(15, 3)
+  inventario   InventarioMaterial @relation(fields: [inventarioId], references: [id], onDelete: Cascade)
+  item         Item               @relation(fields: [itemId], references: [id])
+
+  @@index([inventarioId])
+}
+
+enum TipoRequisicaoMaterial {
+  REQUISICAO
+  DEVOLUCAO
+}
+
+enum StatusRequisicaoMaterial {
+  RASCUNHO
+  ABERTA
+  ATENDIDA
+  CANCELADA
+}
+
+enum TipoInventarioMaterial {
+  TOTAL
+  PARCIAL
+  CICLICO
+}
+
+enum StatusInventarioMaterial {
+  RASCUNHO
+  EM_ANDAMENTO
+  CONCLUIDO
+  CANCELADO
 }

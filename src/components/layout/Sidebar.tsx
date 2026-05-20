@@ -19,6 +19,7 @@ import {
   Building2,
   Truck,
   ClipboardList,
+  ClipboardCheck,
   PackageSearch,
   ShoppingBag,
   CreditCard,
@@ -50,6 +51,7 @@ import {
   Factory,
   Wrench,
   Users2,
+  Layers,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -64,7 +66,7 @@ interface NavItem {
 }
 
 interface SubSection {
-  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações" | "Aprovações" | "Manutenção";
+  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações" | "Aprovações" | "Manutenção" | "Geral";
   items: NavItem[];
 }
 
@@ -84,10 +86,11 @@ const mainModules: Module[] = [
     icon: Building2,
     sections: [
       {
-        kind: "Comercial",
+        kind: "Geral",
         items: [
           { href: "/empresa/filiais",        label: "Filiais",        icon: GitBranch },
           { href: "/empresa/colaboradores",  label: "Colaboradores",  icon: UserCheck },
+          { href: "/empresa/setores",        label: "Setores",        icon: Layers },
           { href: "/clientes",               label: "Clientes",       icon: Users },
         ],
       },
@@ -132,8 +135,10 @@ const mainModules: Module[] = [
       {
         kind: "Estoque",
         items: [
-          { href: "/suprimentos/estoque",       label: "Posição de Estoque", icon: PackageSearch },
-          { href: "/suprimentos/movimentacoes", label: "Movimentações",      icon: ArrowLeftRight },
+          { href: "/suprimentos/estoque",                  label: "Posição de Estoque",  icon: PackageSearch },
+          { href: "/suprimentos/movimentacoes",            label: "Movimentações",       icon: ArrowLeftRight },
+          { href: "/suprimentos/requisicoes-materiais",    label: "Req/Dev de Materiais", icon: ClipboardList },
+          { href: "/suprimentos/inventarios-materiais",    label: "Inventário",          icon: ClipboardCheck },
         ],
       },
       {
@@ -263,6 +268,7 @@ const kindStyle: Record<SubSection["kind"], string> = {
   Relatórios:         "text-rose-500",
   Sistema:            "text-gray-400",
   Comercial:          "text-blue-500",
+  Geral:              "text-blue-500",
   Compras:            "text-amber-500",
   Financeiro:         "text-emerald-600",
   Configurações:      "text-purple-500",
