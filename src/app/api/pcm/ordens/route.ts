@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import sql from "mssql";
+import { getEngemanConfig } from "@/lib/engeman";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface PeriodoOS {
@@ -42,21 +43,6 @@ export interface OrdensResponse {
   generatedAt: string;
 }
 
-// ── DB config ─────────────────────────────────────────────────────────────────
-const dbConfig: sql.config = {
-  server:   process.env.ENGEMAN_HOST ?? "192.168.0.206",
-  database: process.env.ENGEMAN_DB   ?? "ENGEMAN_SLAVE",
-  user:     process.env.ENGEMAN_USER ?? "sa",
-  password: process.env.ENGEMAN_PASS ?? "Tramontin10@",
-  port:     Number(process.env.ENGEMAN_PORT ?? 1433),
-  options: {
-    encrypt: false,
-    trustServerCertificate: true,
-    connectTimeout: 8000,
-    requestTimeout: 20000,
-  },
-  pool: { max: 5, min: 0, idleTimeoutMillis: 30000 },
-};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const MESES_ABREV = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
@@ -100,7 +86,7 @@ async function queryEngeman(dias: number, agrupamento: "semana" | "mes"): Promis
   status: OrdensResponse["status"];
   detalhe: Record<string, DetalheOS[]>;
 }> {
-  const pool = await sql.connect(dbConfig);
+  const pool = await sql.connect(await getEngemanConfig());
 
   // ── 1. Períodos agrupados ────────────────────────────────────────────────
   // Corretivas = CODTIPMAN IN (1,2,3)  → CRT, CRP, CRN

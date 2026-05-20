@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import sql from "mssql";
+import { getEngemanConfig } from "@/lib/engeman";
 
 export interface OsSemEquipamento {
   codord: number;
@@ -42,18 +43,9 @@ export interface QualidadeResponse {
   generatedAt: string;
 }
 
-const dbConfig: sql.config = {
-  server:   process.env.ENGEMAN_HOST ?? "192.168.0.206",
-  database: process.env.ENGEMAN_DB   ?? "ENGEMAN_SLAVE",
-  user:     process.env.ENGEMAN_USER ?? "sa",
-  password: process.env.ENGEMAN_PASS ?? "Tramontin10@",
-  port:     Number(process.env.ENGEMAN_PORT ?? 1433),
-  options: { encrypt: false, trustServerCertificate: true, connectTimeout: 8000, requestTimeout: 20000 },
-  pool: { max: 3, min: 0, idleTimeoutMillis: 30000 },
-};
 
 async function queryQualidade(dias: number): Promise<Omit<QualidadeResponse, "source" | "generatedAt">> {
-  const pool = await sql.connect(dbConfig);
+  const pool = await sql.connect(await getEngemanConfig());
   const q = async <T>(query: string) =>
     (await pool.request().input("dias", sql.Int, dias).query<T>(query)).recordset;
 

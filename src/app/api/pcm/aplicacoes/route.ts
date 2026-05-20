@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import sql from "mssql";
+import { getEngemanConfig } from "@/lib/engeman";
 
 export interface AplicacaoNode {
   codApl: number;
@@ -22,19 +23,10 @@ export interface AplicacoesResponse {
   source: "db";
 }
 
-const dbConfig: sql.config = {
-  server:   process.env.ENGEMAN_HOST ?? "192.168.0.206",
-  database: process.env.ENGEMAN_DB   ?? "ENGEMAN_SLAVE",
-  user:     process.env.ENGEMAN_USER ?? "sa",
-  password: process.env.ENGEMAN_PASS ?? "Tramontin10@",
-  port:     Number(process.env.ENGEMAN_PORT ?? 1433),
-  options: { encrypt: false, trustServerCertificate: true, connectTimeout: 8000, requestTimeout: 15000 },
-  pool: { max: 3, min: 0, idleTimeoutMillis: 30000 },
-};
 
 export async function GET() {
   try {
-    const pool = await sql.connect(dbConfig);
+    const pool = await sql.connect(await getEngemanConfig());
     const result = await pool.request().query<{
       CODAPL: number; TAG: string; DESCRICAO: string;
       CODLOCAPL: number | null; LOCAL: string; ATIVO: string;

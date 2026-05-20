@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import sql from "mssql";
+import { getEngemanConfig } from "@/lib/engeman";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface IndicadorEquipamento {
@@ -43,20 +44,6 @@ export interface IndicadoresResponse {
 // Tipos corretivos: CODTIPMAN IN (1=CRT, 2=CRP, 3=CRN)
 // Status fechada: STATORD = 'F'
 // Tempo parada: MAQPAR (início) → MAQFUN (retorno); fallback: HOREXEREA
-const dbConfig: sql.config = {
-  server:   process.env.ENGEMAN_HOST ?? "192.168.0.206",
-  database: process.env.ENGEMAN_DB   ?? "ENGEMAN_SLAVE",
-  user:     process.env.ENGEMAN_USER ?? "sa",
-  password: process.env.ENGEMAN_PASS ?? "Tramontin10@",
-  port:     Number(process.env.ENGEMAN_PORT ?? 1433),
-  options: {
-    encrypt: false,
-    trustServerCertificate: true,
-    connectTimeout: 8000,
-    requestTimeout: 20000,
-  },
-  pool: { max: 5, min: 0, idleTimeoutMillis: 30000 },
-};
 
 // ── Queries ───────────────────────────────────────────────────────────────────
 async function queryEngeman(diasPeriodo: number): Promise<{
@@ -64,7 +51,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
   tendencia: TendenciaMensal[];
   locais: string[];
 }> {
-  const pool = await sql.connect(dbConfig);
+  const pool = await sql.connect(await getEngemanConfig());
   const periodoHoras = diasPeriodo * 24;
 
   // ── 1. Indicadores por equipamento ────────────────────────────────────────
