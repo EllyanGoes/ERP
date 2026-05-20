@@ -13,6 +13,7 @@ import { decimalToNumber, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { Link2, X, Plus, Trash2, Search, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -193,9 +194,6 @@ export default function NovoDocumentoEntradaPage() {
   // Fornecedor
   const [fornecedores, setFornecedores]   = useState<Fornecedor[]>([]);
   const [fornecedorId, setFornecedorId]   = useState("");
-  const [fornSearch, setFornSearch]       = useState("");
-  const [fornDropOpen, setFornDropOpen]   = useState(false);
-  const fornRef = useRef<HTMLDivElement>(null);
 
   // Pedido vinculado — button in header
   const [vinculadoPedido, setVinculadoPedido] = useState<PedidoOption | null>(null);
@@ -296,16 +294,6 @@ export default function NovoDocumentoEntradaPage() {
     return () => document.removeEventListener("mousedown", handle);
   }, [pcPopoverOpen]);
 
-  // Close fornecedor dropdown on outside click
-  useEffect(() => {
-    function handle(e: MouseEvent) {
-      if (fornRef.current && !fornRef.current.contains(e.target as Node)) {
-        setFornDropOpen(false);
-      }
-    }
-    if (fornDropOpen) document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, [fornDropOpen]);
 
   // Clear NF-specific fields when switching to SN
   useEffect(() => {
@@ -321,8 +309,6 @@ export default function NovoDocumentoEntradaPage() {
 
   function selectFornecedor(f: Fornecedor) {
     setFornecedorId(f.id);
-    setFornSearch(f.nomeFantasia || f.razaoSocial);
-    setFornDropOpen(false);
   }
 
   function selectPedido(p: PedidoOption) {
@@ -664,69 +650,23 @@ export default function NovoDocumentoEntradaPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1.5 md:col-span-2" ref={fornRef}>
+              <div className="space-y-1.5 md:col-span-2">
                 <Label className="text-xs text-gray-500">
                   Fornecedor <span className="text-red-500">*</span>
                 </Label>
-                <div className="relative">
-                  <Input
-                    value={fornSearch}
-                    onChange={(e) => {
-                      setFornSearch(e.target.value);
-                      setFornDropOpen(true);
-                      if (!e.target.value) setFornecedorId("");
-                    }}
-                    onFocus={() => setFornDropOpen(true)}
-                    placeholder="Buscar no cadastro de fornecedores..."
-                    className={!fornecedorId && fornSearch ? "border-red-300" : ""}
-                  />
-                  {/* Linked indicator */}
-                  {fornecedorId && (
-                    <Link2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-blue-400 pointer-events-none" />
-                  )}
-
-                  {fornDropOpen && fornSearch && (
-                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
-                      {fornecedores
-                        .filter((f) => {
-                          const q = fornSearch.toLowerCase();
-                          return (
-                            f.razaoSocial.toLowerCase().includes(q) ||
-                            (f.nomeFantasia?.toLowerCase().includes(q) ?? false) ||
-                            (f.cpfCnpj?.includes(q) ?? false)
-                          );
-                        })
-                        .slice(0, 10)
-                        .map((f) => (
-                          <button
-                            key={f.id}
-                            type="button"
-                            onMouseDown={() => selectFornecedor(f)}
-                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
-                          >
-                            <span className="font-medium text-gray-900">
-                              {f.nomeFantasia || f.razaoSocial}
-                            </span>
-                            {f.nomeFantasia && (
-                              <span className="text-gray-400 text-xs ml-2">{f.razaoSocial}</span>
-                            )}
-                            {f.cpfCnpj && (
-                              <span className="text-gray-300 text-xs ml-2 font-mono">{f.cpfCnpj}</span>
-                            )}
-                          </button>
-                        ))}
-                      {fornecedores.filter((f) => {
-                        const q = fornSearch.toLowerCase();
-                        return (
-                          f.razaoSocial.toLowerCase().includes(q) ||
-                          (f.nomeFantasia?.toLowerCase().includes(q) ?? false)
-                        );
-                      }).length === 0 && (
-                        <p className="px-4 py-3 text-sm text-gray-400 italic">Nenhum resultado.</p>
-                      )}
-                    </div>
-                  )}
-                </div>
+                <ComboboxWithCreate
+                  options={fornecedores.map((f) => ({
+                    value: f.id,
+                    label: f.nomeFantasia || f.razaoSocial,
+                    code: f.cpfCnpj ?? undefined,
+                  }))}
+                  value={fornecedorId}
+                  onChange={setFornecedorId}
+                  allowNone={false}
+                  placeholder="Selecionar fornecedor..."
+                  createHref="/suprimentos/fornecedores/novo"
+                  createLabel="fornecedor"
+                />
               </div>
 
               {selectedFornecedor && (

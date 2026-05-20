@@ -390,8 +390,7 @@ export default function NovoPedidoCompraPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600">Produto</th>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600">Descrição</th>
+                  <th className="text-left px-4 py-2 font-medium text-gray-600 min-w-[320px]">Produto</th>
                   <th className="text-left px-4 py-2 font-medium text-gray-600">U.M.</th>
                   <th className="text-left px-4 py-2 font-medium text-gray-600 w-36">Situação</th>
                   <th className="text-right px-4 py-2 font-medium text-gray-600 w-28">Quantidade</th>
@@ -410,7 +409,7 @@ export default function NovoPedidoCompraPage() {
 
                   return (
                     <tr key={i} className={cn("hover:bg-gray-50", isNao && "opacity-50")}>
-                      <td className="px-4 py-2 w-44">
+                      <td className="px-4 py-2 min-w-[320px]">
                         <ComboboxWithCreate
                           options={itemOptions.map((o) => ({ value: o.id, label: `[${o.codigo}] ${o.descricao}` }))}
                           value={row.itemId}
@@ -422,7 +421,6 @@ export default function NovoPedidoCompraPage() {
                           createLabel="produto"
                         />
                       </td>
-                      <td className="px-4 py-2 text-gray-600 text-xs">{opt?.descricao ?? "—"}</td>
                       <td className="px-4 py-2 text-gray-500 text-xs">{opt?.unidadeMedida ?? "—"}</td>
                       <td className="px-4 py-2">
                         <Select
@@ -476,7 +474,7 @@ export default function NovoPedidoCompraPage() {
               </tbody>
               <tfoot className="border-t-2 border-gray-200 bg-gray-50">
                 <tr>
-                  <td colSpan={5} className="px-4 py-2 text-right font-semibold text-gray-700 text-sm">
+                  <td colSpan={4} className="px-4 py-2 text-right font-semibold text-gray-700 text-sm">
                     Total da cotação
                   </td>
                   <td />
