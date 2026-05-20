@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { generateDocNumber } from "@/lib/utils";
+import { generateSimpleDocNumber } from "@/lib/utils";
 
 export async function GET() {
   const data = await prisma.conferenciaCompra.findMany({
@@ -51,11 +51,11 @@ export async function POST(req: NextRequest) {
 
     const conferencia = await prisma.$transaction(async (tx) => {
       const seq = await tx.sequencia.upsert({
-        where: { prefixo: "CF" },
-        create: { prefixo: "CF", ultimo: 1 },
+        where: { prefixo: "DE" },
+        create: { prefixo: "DE", ultimo: 1 },
         update: { ultimo: { increment: 1 } },
       });
-      const numero = generateDocNumber("CF", seq.ultimo);
+      const numero = generateSimpleDocNumber("DE", seq.ultimo);
 
       const record = await tx.conferenciaCompra.create({
         data: {
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
       create: { prefixo: "DE", ultimo: 1 },
       update: { ultimo: { increment: 1 } },
     });
-    const numero = generateDocNumber("DE", seq.ultimo);
+    const numero = generateSimpleDocNumber("DE", seq.ultimo);
 
     const record = await tx.conferenciaCompra.create({
       data: {

@@ -13,7 +13,7 @@ import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurat
 import {
   Plus, Search, X, LayoutList, Kanban, Loader2,
   ChevronDown, ChevronRight, Calendar, Building2, ClipboardList, FileText,
-  CheckCircle2, AlertCircle, ExternalLink,
+  CheckCircle2, AlertCircle, ExternalLink, Download,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -438,6 +438,80 @@ export default function PedidosCompraPage() {
     [filtered, filters.statuses]
   );
 
+  // ── PDF export ────────────────────────────────────────────────────────────
+  async function downloadPDF() {
+    const { default: jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+    // Header
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Pedidos de Compra", 14, 16);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(120);
+    const filterLabel = filters.statuses.length === ALL_STATUSES.length
+      ? "Todos os status"
+      : filters.statuses.map((s) => STATUS_COLS.find((c) => c.key === s)?.label ?? s).join(", ");
+    doc.text(`Filtro: ${filterLabel}${filters.search ? `  |  Busca: "${filters.search}"` : ""}`, 14, 22);
+    doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}  |  ${filtered.length} pedido(s)`, 14, 27);
+    doc.setTextColor(0);
+
+    const STATUS_LABEL: Record<string, string> = {
+      AGUARDANDO_PAGAMENTO: "Aguard. Pgto",
+      EM_TRANSITO:          "Em Trânsito",
+      CONFIRMADO:           "Confirmado",
+      CANCELADO:            "Cancelado",
+      RASCUNHO:             "Rascunho",
+      ENVIADO:              "Enviado",
+    };
+
+    autoTable(doc, {
+      startY: 32,
+      head: [["Número", "Fornecedor", "Descrição", "SC / Solicitante", "Cotação", "Status", "Valor Total", "Entrega Prevista"]],
+      body: filtered.map((p) => {
+        const sc = p.cotacao?.necessidade;
+        const descricao = p.descricao ?? sc?.justificativa ?? "";
+        const scLabel = sc ? `${sc.numero}${sc.solicitante ? ` · ${sc.solicitante}` : ""}` : "—";
+        return [
+          p.numero,
+          p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial,
+          descricao || "—",
+          scLabel,
+          p.cotacao?.numero ?? "—",
+          STATUS_LABEL[p.status] ?? p.status,
+          formatBRL(decimalToNumber(p.valorTotal)),
+          p.dataEntregaPrevista ? formatDate(p.dataEntregaPrevista) : "—",
+        ];
+      }),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 22, fontStyle: "bold" },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 55 },
+        3: { cellWidth: 38 },
+        4: { cellWidth: 22 },
+        5: { cellWidth: 26 },
+        6: { cellWidth: 24, halign: "right" },
+        7: { cellWidth: 24 },
+      },
+      margin: { left: 14, right: 14 },
+    });
+
+    // Total
+    const totalGeral = filtered.reduce((s, p) => s + decimalToNumber(p.valorTotal), 0);
+    const finalY = (doc as InstanceType<typeof jsPDF> & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Total geral: ${formatBRL(totalGeral)}`, doc.internal.pageSize.width - 14, finalY, { align: "right" });
+
+    doc.save(`pedidos-compra-${new Date().toISOString().slice(0, 10)}.pdf`);
+  }
+
   return (
     <div className="flex flex-col h-full">
       <PageHeader
@@ -534,6 +608,17 @@ export default function PedidosCompraPage() {
         {filters.view === "list" && (
           <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
         )}
+
+        {/* PDF download */}
+        <button
+          onClick={downloadPDF}
+          disabled={loading || filtered.length === 0}
+          className="flex items-center gap-1.5 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700"
+          title="Baixar PDF dos pedidos filtrados"
+        >
+          <Download className="w-3.5 h-3.5" />
+          PDF
+        </button>
 
         {/* View toggle */}
         <div className="ml-auto flex items-center gap-1 border border-gray-200 rounded-lg p-0.5 bg-white">
