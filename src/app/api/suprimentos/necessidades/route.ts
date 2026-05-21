@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
       filial:       { select: { id: true, razaoSocial: true } },
       localEstoque: { select: { id: true, nome: true } },
       centroCusto:  { select: { id: true, codigo: true, nome: true } },
+      setor:        { select: { id: true, nome: true } },
       _count:       { select: { itens: true } },
       cotacoes: {
         select: {

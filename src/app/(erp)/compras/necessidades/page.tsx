@@ -28,6 +28,7 @@ type Necessidade = {
   tipoCompra: string | null; motivo: string | null;
   filial: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
   localEstoque: { id: string; nome: string } | null;
+  setor: { id: string; nome: string } | null;
   _count: { itens: number };
   cotacoes?: Array<{ id: string; status: string; pedidos: Array<{ id: string; status: string }> }>;
 };
@@ -106,6 +107,13 @@ const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
     thClass: "text-left px-4 py-3 font-medium text-gray-600 w-32",
     tdClass: "px-4 py-3 text-gray-600 truncate",
     render: (n) => n.solicitante || "—",
+  },
+  {
+    id: "setor",
+    label: "Setor Solicitante",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-36",
+    tdClass: "px-4 py-3 text-gray-600 truncate text-sm",
+    render: (n) => n.setor?.nome ?? <span className="text-gray-300">—</span>,
   },
   {
     id: "status",
@@ -368,6 +376,9 @@ function KanbanCard({ n, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
         )}
         {n.solicitante && (
           <p className="text-xs text-gray-500 truncate">👤 {n.solicitante}</p>
+        )}
+        {n.setor && (
+          <p className="text-xs text-gray-500 truncate">🏢 {n.setor.nome}</p>
         )}
       </div>
 
