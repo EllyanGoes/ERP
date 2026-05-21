@@ -113,7 +113,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
       )
       SELECT
         a.CODAPL,
-        CAST(a.CODAPL AS VARCHAR(20))               AS TAG,
+        RTRIM(ISNULL(a.TAG, CAST(a.CODAPL AS VARCHAR(20)))) AS TAG,
         RTRIM(a.DESCRICAO)                          AS DESCRICAO,
         ISNULL(RTRIM(l.DESCRICAO), 'Não informado') AS LOCAL_INSTALACAO,
 

@@ -28,7 +28,7 @@ import {
   Database,
   ShieldCheck,
   GitBranch,
-  MapPin,
+  Layers,
   Cpu,
   CheckSquare,
   Square,
@@ -56,7 +56,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { IndicadorEquipamento, TendenciaMensal, IndicadoresResponse } from "@/app/api/pcm/indicadores/route";
-import type { LocalNode, AplicacoesResponse } from "@/app/api/pcm/aplicacoes/route";
+import type { GrupoNode, AplicacoesResponse } from "@/app/api/pcm/aplicacoes/route";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -347,8 +347,8 @@ const INFO_ITEMS = [
     icon: Info,
     color: "text-indigo-500",
     bg: "bg-indigo-50",
-    title: "O filtro de ativos agrupa por local?",
-    body: "Sim. O popover 'Ativo / Local' agrupa os equipamentos pelo campo LOCAPLIC.DESCRICAO (local de instalação). Expanda o local para ver seus equipamentos e selecione ou desmarque individualmente ou por grupo completo. A seleção atualiza automaticamente todos os gráficos e a tabela de indicadores.",
+    title: "Como funciona o filtro de Aplicação?",
+    body: "O popover 'Aplicação' agrupa os equipamentos pelo campo TAGGRU do Engeman — cada grupo raiz (ex.: 'PLANTA FABRIL') reúne todas as suas aplicações filhas. Cada item exibe TAG e Descrição. Selecione ou desmarque por grupo inteiro ou individualmente; a seleção atualiza automaticamente todos os gráficos e a tabela de indicadores.",
   },
   {
     icon: Info,
@@ -511,12 +511,9 @@ export default function PCMDashboardPage() {
   const [treeSelected, setTreeSelected]         = useState<Set<number> | null>(null); // null = all
   const [treeExpanded, setTreeExpanded]         = useState<Set<string>>(new Set());
   const [treeSearch, setTreeSearch]             = useState("");
-  const [allLocais, setAllLocais]               = useState<LocalNode[]>([]);
+  const [allGrupos, setAllGrupos]               = useState<GrupoNode[]>([]);
   const [loadingLocais, setLoadingLocais]       = useState(false);
   const treePopoverRef                          = useRef<HTMLDivElement>(null);
-
-  // ── Status aplicação filter ──────────────────────────────────────────────────
-  const [statusAplicacao, setStatusAplicacao] = useState<"ativas" | "inativas" | "todas">("ativas");
 
   // Load targets from localStorage on mount
   useEffect(() => {
@@ -565,20 +562,15 @@ export default function PCMDashboardPage() {
     }
   }, [fetchData, dias]);
 
-  // Load full application tree (all active APLIC, not just those with OS)
+  // Load full application tree — grouped by TAGGRU root group
   useEffect(() => {
     setLoadingLocais(true);
     fetch("/api/pcm/aplicacoes")
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((json: AplicacoesResponse) => setAllLocais(json.locais))
+      .then((json: AplicacoesResponse) => setAllGrupos(json.grupos))
       .catch(() => {})
       .finally(() => setLoadingLocais(false));
   }, []);
-
-  // Reset tree selection when status filter changes (different set of apps)
-  useEffect(() => {
-    setTreeSelected(null);
-  }, [statusAplicacao]);
 
   // Close tree popover on outside click
   useEffect(() => {
@@ -591,43 +583,29 @@ export default function PCMDashboardPage() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [showTreePopover]);
 
-  // Map codApl → ativo for cross-referencing with indicator data
-  const ativoMap = useMemo(
-    () => new Map(allLocais.flatMap((l) => l.equips.map((e) => [e.codApl, e.ativo]))),
-    [allLocais]
-  );
-
-  // Locais filtered by ativo status (for tree and allCodApls)
-  const locaisFiltradosPorStatus = useMemo(() => {
-    if (statusAplicacao === "todas") return allLocais;
-    const wantAtivo = statusAplicacao === "ativas";
-    return allLocais
-      .map((loc) => ({
-        ...loc,
-        equips: loc.equips.filter((e) => e.ativo === wantAtivo),
-      }))
-      .filter((loc) => loc.equips.length > 0);
-  }, [allLocais, statusAplicacao]);
-
-  // All codApls from the status-filtered tree (not just those with OS)
+  // All codApls from groups tree
   const allCodApls = useMemo(
-    () => new Set(locaisFiltradosPorStatus.flatMap((l) => l.equips.map((e) => e.codApl))),
-    [locaisFiltradosPorStatus]
+    () => new Set(allGrupos.flatMap((g) => g.equips.map((e) => e.codApl))),
+    [allGrupos]
   );
 
-  // Filtered tree nodes for the popover (search-filtered, already status-filtered)
+  // Tree nodes filtered by search
   const treeNodes = useMemo(() => {
-    if (!treeSearch.trim()) return locaisFiltradosPorStatus;
+    if (!treeSearch.trim()) return allGrupos;
     const q = treeSearch.toLowerCase();
-    return locaisFiltradosPorStatus
-      .map((loc) => ({
-        ...loc,
-        equips: loc.equips.filter(
+    return allGrupos
+      .map((grp) => ({
+        ...grp,
+        equips: grp.equips.filter(
           (e) => e.descricao.toLowerCase().includes(q) || e.tag.toLowerCase().includes(q)
         ),
       }))
-      .filter((loc) => loc.descricao.toLowerCase().includes(q) || loc.equips.length > 0);
-  }, [locaisFiltradosPorStatus, treeSearch]);
+      .filter((grp) =>
+        grp.descricao.toLowerCase().includes(q) ||
+        grp.gruTag.toLowerCase().includes(q) ||
+        grp.equips.length > 0
+      );
+  }, [allGrupos, treeSearch]);
 
   // Expand matched nodes when searching
   useEffect(() => {
@@ -636,13 +614,13 @@ export default function PCMDashboardPage() {
     }
   }, [treeSearch, treeNodes]);
 
-  // Expand all on first load
+  // Expand all groups on first load
   useEffect(() => {
-    if (allLocais.length > 0 && treeExpanded.size === 0) {
-      setTreeExpanded(new Set(allLocais.map((n) => n.descricao)));
+    if (allGrupos.length > 0 && treeExpanded.size === 0) {
+      setTreeExpanded(new Set(allGrupos.map((g) => g.descricao)));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allLocais]);
+  }, [allGrupos]);
 
   // ── Tree helpers ────────────────────────────────────────────────────────────
   function toggleTreeLocation(local: string, equips: { codApl: number }[]) {
@@ -688,16 +666,6 @@ export default function PCMDashboardPage() {
     if (!data) return [];
     let list = data.equipamentos;
 
-    // Filter by ativo status (only applies when ativoMap is populated from Engeman)
-    if (ativoMap.size > 0 && statusAplicacao !== "todas") {
-      const wantAtivo = statusAplicacao === "ativas";
-      list = list.filter((e) => {
-        const ativo = ativoMap.get(e.codApl);
-        // If not in map (unknown), include only in "ativas" (safer default)
-        return ativo === undefined ? wantAtivo : ativo === wantAtivo;
-      });
-    }
-
     if (treeSelected !== null) {
       list = list.filter((e) => treeSelected.has(e.codApl));
     }
@@ -715,7 +683,7 @@ export default function PCMDashboardPage() {
     });
 
     return list;
-  }, [data, sortField, sortDir, treeSelected, ativoMap, statusAplicacao]);
+  }, [data, sortField, sortDir, treeSelected]);
 
   // KPI averages — reflect current tree selection
   const kpis = useMemo(() => {
@@ -896,10 +864,10 @@ export default function PCMDashboardPage() {
         {/* Filters */}
         <div className="flex items-end gap-3 flex-wrap">
 
-          {/* Tree popover filter */}
+          {/* Tree popover filter — Aplicações agrupadas por TAGGRU */}
           <div className="relative" ref={treePopoverRef}>
             <div>
-              <Label className="text-xs text-gray-500 mb-1 block">Ativo / Local</Label>
+              <Label className="text-xs text-gray-500 mb-1 block">Aplicação</Label>
               <Button
                 variant={treeSelected !== null ? "default" : "outline"}
                 size="sm"
@@ -907,7 +875,7 @@ export default function PCMDashboardPage() {
                 className={`gap-1.5 h-8 ${treeSelected !== null ? "bg-blue-600 hover:bg-blue-700" : ""}`}
               >
                 <GitBranch className="w-3.5 h-3.5" />
-                Ativo / Local
+                Aplicação
                 {treeSelected !== null && treeSelected.size > 0 && (
                   <span className="ml-0.5 bg-white text-blue-600 text-[10px] font-bold rounded-full px-1.5 leading-4">
                     {treeSelected.size}
@@ -918,7 +886,7 @@ export default function PCMDashboardPage() {
 
             {/* Popover panel */}
             {showTreePopover && (
-              <div className="absolute top-full left-0 mt-1 z-50 bg-white rounded-xl border border-gray-200 shadow-xl w-72 flex flex-col max-h-[420px]">
+              <div className="absolute top-full left-0 mt-1 z-50 bg-white rounded-xl border border-gray-200 shadow-xl w-80 flex flex-col max-h-[440px]">
                 {/* Search */}
                 <div className="p-2 border-b border-gray-100">
                   <div className="relative">
@@ -926,7 +894,7 @@ export default function PCMDashboardPage() {
                     <input
                       autoFocus
                       className="w-full pl-8 pr-3 h-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Buscar ativo ou local..."
+                      placeholder="Buscar por TAG ou nome..."
                       value={treeSearch}
                       onChange={(e) => setTreeSearch(e.target.value)}
                     />
@@ -947,7 +915,7 @@ export default function PCMDashboardPage() {
                   </span>
                 </div>
 
-                {/* Tree */}
+                {/* Tree — agrupado por TAGGRU root */}
                 <div className="overflow-y-auto flex-1 py-1">
                   {loadingLocais ? (
                     <div className="flex items-center justify-center py-6 text-gray-400 text-xs gap-1">
@@ -955,33 +923,36 @@ export default function PCMDashboardPage() {
                     </div>
                   ) : treeNodes.length === 0 ? (
                     <p className="text-xs text-gray-400 text-center py-4">Nenhum resultado</p>
-                  ) : treeNodes.map((node) => {
-                    const expanded = treeExpanded.has(node.descricao);
-                    const checkState = locationCheckState(node.equips);
+                  ) : treeNodes.map((grp) => {
+                    const expanded = treeExpanded.has(grp.descricao);
+                    const checkState = locationCheckState(grp.equips);
                     return (
-                      <div key={node.descricao}>
+                      <div key={grp.gruTag}>
+                        {/* Grupo header */}
                         <div className="flex items-center gap-1 px-2 py-1 hover:bg-gray-50 group">
                           <button
                             onClick={() => setTreeExpanded((prev) => {
                               const next = new Set(prev);
-                              if (next.has(node.descricao)) next.delete(node.descricao);
-                              else next.add(node.descricao);
+                              if (next.has(grp.descricao)) next.delete(grp.descricao);
+                              else next.add(grp.descricao);
                               return next;
                             })}
                             className="p-0.5 text-gray-400 hover:text-gray-600 flex-shrink-0"
                           >
                             {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                           </button>
-                          <button onClick={() => toggleTreeLocation(node.descricao, node.equips)} className="flex-shrink-0 text-blue-600">
+                          <button onClick={() => toggleTreeLocation(grp.descricao, grp.equips)} className="flex-shrink-0 text-blue-600">
                             {checkState === "all" ? <CheckSquare className="w-4 h-4" /> : checkState === "partial" ? <MinusSquare className="w-4 h-4 text-blue-400" /> : <Square className="w-4 h-4 text-gray-300" />}
                           </button>
-                          <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                          <span className="text-xs font-medium text-gray-700 truncate flex-1 cursor-pointer" onClick={() => toggleTreeLocation(node.descricao, node.equips)} title={node.descricao}>
-                            {node.descricao}
-                          </span>
-                          <span className="text-xs text-gray-300 flex-shrink-0">{node.equips.length}</span>
+                          <Layers className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
+                          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => toggleTreeLocation(grp.descricao, grp.equips)}>
+                            <p className="text-xs font-semibold text-gray-700 truncate" title={grp.descricao}>{grp.descricao}</p>
+                            <p className="text-[10px] text-gray-400 font-mono">{grp.gruTag}</p>
+                          </div>
+                          <span className="text-xs text-gray-300 flex-shrink-0">{grp.equips.length}</span>
                         </div>
-                        {expanded && node.equips.map((eq) => {
+                        {/* Aplicações do grupo */}
+                        {expanded && grp.equips.map((eq) => {
                           const sel = !treeSelected || treeSelected.has(eq.codApl);
                           return (
                             <div key={eq.codApl} className="flex items-center gap-1 pl-7 pr-2 py-0.5 hover:bg-gray-50 cursor-pointer" onClick={() => toggleTreeEquip(eq.codApl)}>
@@ -991,7 +962,7 @@ export default function PCMDashboardPage() {
                               <Cpu className="w-3 h-3 text-blue-400 flex-shrink-0" />
                               <div className="min-w-0 flex-1">
                                 <p className={`text-xs truncate ${sel ? "text-gray-700" : "text-gray-400"}`} title={eq.descricao}>{eq.descricao}</p>
-                                <p className="text-[10px] text-gray-400 font-mono">{eq.tag}</p>
+                                <p className="text-[10px] text-indigo-400 font-mono">{eq.tag}</p>
                               </div>
                             </div>
                           );
@@ -1022,23 +993,6 @@ export default function PCMDashboardPage() {
             </Select>
           </div>
 
-          {/* Situação das aplicações */}
-          <div>
-            <Label className="text-xs text-gray-500 mb-1 block">Situação</Label>
-            <Select
-              value={statusAplicacao}
-              onValueChange={(v) => setStatusAplicacao(v as "ativas" | "inativas" | "todas")}
-            >
-              <SelectTrigger className="w-44 h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ativas">Somente Ativas</SelectItem>
-                <SelectItem value="inativas">Somente Inativas</SelectItem>
-                <SelectItem value="todas">Ativas + Inativas</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
         </div>
 
@@ -1095,16 +1049,16 @@ export default function PCMDashboardPage() {
           <KpiCard
             title="Confiabilidade Média"
             value={fmtPct(kpis.conf)}
-            subtitle="Probabilidade de operar 24h sem falha"
+            subtitle="Probabilidade de operar 90 dias sem falha"
             icon={Activity}
             color={kpis.conf >= 60 ? "text-blue-600" : "text-amber-600"}
             bg={kpis.conf >= 60 ? "bg-blue-50" : "bg-amber-50"}
             trend={kpis.conf >= 60 ? "up" : "down"}
             info={
               <span>
-                <strong>Confiabilidade R(24h)</strong><br />
-                Fórmula: e^(−24 ÷ MTBF) × 100<br />
-                Probabilidade de o equipamento operar 24h consecutivas sem falha. Ex.: MTBF=100h → R(24h) ≈ 79%.
+                <strong>Confiabilidade R(90d)</strong><br />
+                Fórmula Engeman: EXP(−n ÷ 8760 × 2160) × 100<br />
+                Onde n = OS com defeito registrado (DEFCAU=&apos;S&apos;) nos últimos 365 dias. Probabilidade de operar 90 dias sem falha.
               </span>
             }
           />
