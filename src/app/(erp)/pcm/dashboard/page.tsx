@@ -56,7 +56,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { IndicadorEquipamento, TendenciaMensal, IndicadoresResponse } from "@/app/api/pcm/indicadores/route";
-import type { GrupoNode, SubgrupoNode, AplicacoesResponse } from "@/app/api/pcm/aplicacoes/route";
+import type { TreeNode, AplicacoesResponse } from "@/app/api/pcm/aplicacoes/route";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -408,6 +408,143 @@ function InfoPanel() {
 }
 
 // ---------------------------------------------------------------------------
+// Recursive tree helpers (pure — no React hooks)
+// ---------------------------------------------------------------------------
+function getDescendantLeaves(node: TreeNode): TreeNode[] {
+  if (node.isLeaf) return [node];
+  return node.children.flatMap(getDescendantLeaves);
+}
+
+function collectAllLeaves(nodes: TreeNode[]): TreeNode[] {
+  return nodes.flatMap(getDescendantLeaves);
+}
+
+/** Recursive search filter: keeps a node if it or any descendant matches q */
+function filterTreeNodes(nodes: TreeNode[], q: string): TreeNode[] {
+  return nodes.flatMap((n) => {
+    const selfMatch =
+      n.descricao.toLowerCase().includes(q) || n.tag.toLowerCase().includes(q);
+    if (n.isLeaf) return selfMatch ? [n] : [];
+    const filteredChildren = filterTreeNodes(n.children, q);
+    if (selfMatch || filteredChildren.length > 0) {
+      return [{ ...n, children: selfMatch ? n.children : filteredChildren }];
+    }
+    return [];
+  });
+}
+
+// ---------------------------------------------------------------------------
+// TreeNodeRow — recursive tree item
+// ---------------------------------------------------------------------------
+const DEPTH_ICONS = [Layers, GitBranch, GitBranch, GitBranch];
+const DEPTH_TAG_COLOR = ["text-indigo-400", "text-blue-300", "text-teal-300", "text-gray-300"];
+const DEPTH_ICON_COLOR = ["text-indigo-500", "text-blue-400", "text-teal-400", "text-gray-400"];
+const DEPTH_LABEL_WEIGHT = ["font-bold text-gray-800", "font-semibold text-gray-700", "font-medium text-gray-600", "font-normal text-gray-500"];
+
+interface TreeRowProps {
+  node: TreeNode;
+  depth: number;
+  expanded: Set<string>;
+  setExpanded: React.Dispatch<React.SetStateAction<Set<string>>>;
+  selected: Set<number> | null;
+  onToggleGroup: (node: TreeNode) => void;
+  onToggleLeaf: (codApl: number) => void;
+}
+
+function TreeNodeRow({
+  node, depth, expanded, setExpanded, selected, onToggleGroup, onToggleLeaf,
+}: TreeRowProps) {
+  const leaves   = getDescendantLeaves(node);
+  const isOpen   = expanded.has(node.taggru);
+
+  const checkState = (() => {
+    if (!selected) return "all";
+    const sel = leaves.filter((l) => selected.has(l.codApl)).length;
+    if (sel === 0) return "none";
+    if (sel === leaves.length) return "all";
+    return "partial";
+  })();
+
+  const indent = 8 + depth * 18; // px
+  const IconComp  = depth < DEPTH_ICONS.length ? DEPTH_ICONS[depth] : GitBranch;
+  const iconColor = depth < DEPTH_ICON_COLOR.length ? DEPTH_ICON_COLOR[depth] : "text-gray-400";
+  const tagColor  = depth < DEPTH_TAG_COLOR.length  ? DEPTH_TAG_COLOR[depth]  : "text-gray-300";
+  const labelCls  = depth < DEPTH_LABEL_WEIGHT.length ? DEPTH_LABEL_WEIGHT[depth] : "font-normal text-gray-500";
+  const iconSize  = depth === 0 ? "w-3.5 h-3.5" : "w-3 h-3";
+  const chevSize  = depth === 0 ? "w-3.5 h-3.5" : "w-3 h-3";
+  const checkSize = depth === 0 ? "w-4 h-4" : "w-3.5 h-3.5";
+
+  if (node.isLeaf) {
+    const sel = !selected || selected.has(node.codApl);
+    return (
+      <div
+        className="flex items-center gap-1 pr-2 py-0.5 hover:bg-gray-50 cursor-pointer"
+        style={{ paddingLeft: `${indent + 20}px` }}
+        onClick={() => onToggleLeaf(node.codApl)}
+      >
+        <button className="flex-shrink-0 text-blue-500" onClick={(e) => { e.stopPropagation(); onToggleLeaf(node.codApl); }}>
+          {sel ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3 text-gray-300" />}
+        </button>
+        <Cpu className="w-3 h-3 text-gray-400 flex-shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className={`text-xs truncate ${sel ? "text-gray-700" : "text-gray-400"}`} title={node.descricao}>{node.descricao}</p>
+          <p className="text-[10px] text-blue-400 font-mono">{node.tag}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div
+        className="flex items-center gap-1 pr-2 py-0.5 hover:bg-gray-50"
+        style={{ paddingLeft: `${indent}px` }}
+      >
+        <button
+          className={`p-0.5 text-gray-400 hover:text-gray-600 flex-shrink-0`}
+          onClick={() => setExpanded((prev) => {
+            const next = new Set(prev);
+            if (next.has(node.taggru)) next.delete(node.taggru);
+            else next.add(node.taggru);
+            return next;
+          })}
+        >
+          {isOpen
+            ? <ChevronDown className={chevSize} />
+            : <ChevronRight className={chevSize} />}
+        </button>
+        <button className={`flex-shrink-0 text-blue-600`} onClick={() => onToggleGroup(node)}>
+          {checkState === "all"
+            ? <CheckSquare className={checkSize} />
+            : checkState === "partial"
+              ? <MinusSquare className={`${checkSize} text-blue-400`} />
+              : <Square className={`${checkSize} text-gray-300`} />}
+        </button>
+        <IconComp className={`${iconSize} ${iconColor} flex-shrink-0`} />
+        <div className="min-w-0 flex-1 cursor-pointer" onClick={() => onToggleGroup(node)}>
+          <p className={`text-xs ${labelCls} truncate`} title={node.descricao}>{node.descricao}</p>
+          <p className={`text-[10px] font-mono ${tagColor}`}>{node.tag}</p>
+        </div>
+        <span className="text-[10px] text-gray-300 flex-shrink-0 ml-1">{leaves.length}</span>
+      </div>
+
+      {isOpen && node.children.map((child) => (
+        <TreeNodeRow
+          key={child.taggru}
+          node={child}
+          depth={depth + 1}
+          expanded={expanded}
+          setExpanded={setExpanded}
+          selected={selected}
+          onToggleGroup={onToggleGroup}
+          onToggleLeaf={onToggleLeaf}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 function KpiCard({
@@ -521,7 +658,7 @@ export default function PCMDashboardPage() {
   const [treeSelected, setTreeSelected]         = useState<Set<number> | null>(null); // null = all
   const [treeExpanded, setTreeExpanded]         = useState<Set<string>>(new Set());
   const [treeSearch, setTreeSearch]             = useState("");
-  const [allGrupos, setAllGrupos]               = useState<GrupoNode[]>([]);
+  const [allTree, setAllTree]                   = useState<TreeNode[]>([]);
   const [loadingLocais, setLoadingLocais]       = useState(false);
   const treePopoverRef                          = useRef<HTMLDivElement>(null);
 
@@ -572,12 +709,12 @@ export default function PCMDashboardPage() {
     }
   }, [fetchData, dias]);
 
-  // Load full application tree — grouped by TAGGRU root group
+  // Load full application tree (all TAGGRU levels)
   useEffect(() => {
     setLoadingLocais(true);
     fetch("/api/pcm/aplicacoes")
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((json: AplicacoesResponse) => setAllGrupos(json.grupos))
+      .then((json: AplicacoesResponse) => setAllTree(json.tree))
       .catch(() => {})
       .finally(() => setLoadingLocais(false));
   }, []);
@@ -593,100 +730,61 @@ export default function PCMDashboardPage() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [showTreePopover]);
 
-  // All codApls — flatten área → subgrupo → equips
+  // All leaf codApls — recursively from full tree
   const allCodApls = useMemo(
-    () => new Set(allGrupos.flatMap((g) => g.subgrupos.flatMap((s) => s.equips.map((e) => e.codApl)))),
-    [allGrupos]
+    () => new Set(collectAllLeaves(allTree).map((l) => l.codApl)),
+    [allTree]
   );
 
-  // Tree nodes filtered by search (3 levels)
-  const treeNodes = useMemo((): GrupoNode[] => {
-    if (!treeSearch.trim()) return allGrupos;
-    const q = treeSearch.toLowerCase();
-    return allGrupos
-      .map((grp) => ({
-        ...grp,
-        subgrupos: grp.subgrupos
-          .map((sub) => ({
-            ...sub,
-            equips: sub.equips.filter(
-              (e) => e.descricao.toLowerCase().includes(q) || e.tag.toLowerCase().includes(q)
-            ),
-          }))
-          .filter(
-            (sub) =>
-              sub.descricao.toLowerCase().includes(q) ||
-              sub.gruTag.toLowerCase().includes(q) ||
-              sub.equips.length > 0
-          ),
-      }))
-      .filter(
-        (grp) =>
-          grp.descricao.toLowerCase().includes(q) ||
-          grp.gruTag.toLowerCase().includes(q) ||
-          grp.subgrupos.length > 0
-      );
-  }, [allGrupos, treeSearch]);
+  // Tree nodes filtered by search — recursive through all levels
+  const treeNodes = useMemo((): TreeNode[] => {
+    if (!treeSearch.trim()) return allTree;
+    return filterTreeNodes(allTree, treeSearch.toLowerCase());
+  }, [allTree, treeSearch]);
 
-  // Expand matched areas AND subgrupos when searching
+  // Expand all non-leaf nodes that appear in search results
   useEffect(() => {
     if (treeSearch.trim()) {
       const keys = new Set<string>();
-      treeNodes.forEach((grp) => {
-        keys.add(grp.gruTag);
-        grp.subgrupos.forEach((sub) => {
-          if (sub.equips.length > 0) keys.add(sub.gruTag);
-        });
-      });
+      function collectKeys(nodes: TreeNode[]) {
+        for (const n of nodes) {
+          if (!n.isLeaf) { keys.add(n.taggru); collectKeys(n.children); }
+        }
+      }
+      collectKeys(treeNodes);
       setTreeExpanded(keys);
     }
   }, [treeSearch, treeNodes]);
 
-  // Expand all areas (but not subgrupos) on first load
+  // Expand top-level (depth-0) nodes on first load
   useEffect(() => {
-    if (allGrupos.length > 0 && treeExpanded.size === 0) {
-      setTreeExpanded(new Set(allGrupos.map((g) => g.gruTag)));
+    if (allTree.length > 0 && treeExpanded.size === 0) {
+      setTreeExpanded(new Set(allTree.map((n) => n.taggru)));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allGrupos]);
+  }, [allTree]);
 
   // ── Tree helpers ────────────────────────────────────────────────────────────
-  function toggleTreeLocation(local: string, equips: { codApl: number }[]) {
-    const ids = equips.map((e) => e.codApl);
+  function toggleGroup(node: TreeNode) {
+    const ids = getDescendantLeaves(node).map((l) => l.codApl);
     setTreeSelected((prev) => {
       const base = prev ?? allCodApls;
-      const allSelected = ids.every((id) => base.has(id));
+      const allSel = ids.every((id) => base.has(id));
       const next = new Set(base);
-      if (allSelected) {
-        ids.forEach((id) => next.delete(id));
-      } else {
-        ids.forEach((id) => next.add(id));
-      }
-      // If everything is selected, go back to null (= all)
+      if (allSel) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
       return next.size === allCodApls.size ? null : next;
     });
   }
 
-  function toggleTreeEquip(codApl: number) {
+  function toggleLeaf(codApl: number) {
     setTreeSelected((prev) => {
       const base = prev ?? new Set(allCodApls);
       const next = new Set(base);
-      if (next.has(codApl)) {
-        next.delete(codApl);
-      } else {
-        next.add(codApl);
-      }
+      if (next.has(codApl)) next.delete(codApl);
+      else next.add(codApl);
       return next.size === allCodApls.size ? null : next;
     });
-  }
-
-  function locationCheckState(equips: { codApl: number }[]): "all" | "none" | "partial" {
-    if (!treeSelected) return "all";
-    const total = equips.length;
-    const sel = equips.filter((e) => treeSelected.has(e.codApl)).length;
-    if (sel === 0) return "none";
-    if (sel === total) return "all";
-    return "partial";
   }
 
   // Filtered + sorted equipamentos
@@ -944,7 +1042,7 @@ export default function PCMDashboardPage() {
                   </span>
                 </div>
 
-                {/* Árvore 3 níveis: Área → Sub-sistema → Equipamento */}
+                {/* Árvore recursiva — todos os níveis do TAGGRU */}
                 <div className="overflow-y-auto flex-1 py-1">
                   {loadingLocais ? (
                     <div className="flex items-center justify-center py-6 text-gray-400 text-xs gap-1">
@@ -952,88 +1050,18 @@ export default function PCMDashboardPage() {
                     </div>
                   ) : treeNodes.length === 0 ? (
                     <p className="text-xs text-gray-400 text-center py-4">Nenhum resultado</p>
-                  ) : treeNodes.map((grp) => {
-                    const areaExpanded = treeExpanded.has(grp.gruTag);
-                    const areaEquips   = grp.subgrupos.flatMap((s) => s.equips);
-                    const areaCheck    = locationCheckState(areaEquips);
-                    const areaTotal    = areaEquips.length;
-                    return (
-                      <div key={grp.gruTag}>
-                        {/* ── Nível 1: Área ── */}
-                        <div className="flex items-center gap-1 px-2 py-1 hover:bg-gray-50">
-                          <button
-                            onClick={() => setTreeExpanded((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(grp.gruTag)) next.delete(grp.gruTag);
-                              else next.add(grp.gruTag);
-                              return next;
-                            })}
-                            className="p-0.5 text-gray-400 hover:text-gray-600 flex-shrink-0"
-                          >
-                            {areaExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                          </button>
-                          <button onClick={() => toggleTreeLocation(grp.gruTag, areaEquips)} className="flex-shrink-0 text-blue-600">
-                            {areaCheck === "all" ? <CheckSquare className="w-4 h-4" /> : areaCheck === "partial" ? <MinusSquare className="w-4 h-4 text-blue-400" /> : <Square className="w-4 h-4 text-gray-300" />}
-                          </button>
-                          <Layers className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
-                          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => toggleTreeLocation(grp.gruTag, areaEquips)}>
-                            <p className="text-xs font-bold text-gray-800 truncate" title={grp.descricao}>{grp.descricao}</p>
-                            <p className="text-[10px] text-indigo-400 font-mono">{grp.gruTag}</p>
-                          </div>
-                          <span className="text-[10px] text-gray-300 flex-shrink-0">{areaTotal}</span>
-                        </div>
-
-                        {/* ── Nível 2: Sub-sistema ── */}
-                        {areaExpanded && grp.subgrupos.map((sub: SubgrupoNode) => {
-                          const subExpanded = treeExpanded.has(sub.gruTag);
-                          const subCheck    = locationCheckState(sub.equips);
-                          return (
-                            <div key={sub.gruTag}>
-                              <div className="flex items-center gap-1 pl-5 pr-2 py-0.5 hover:bg-gray-50">
-                                <button
-                                  onClick={() => setTreeExpanded((prev) => {
-                                    const next = new Set(prev);
-                                    if (next.has(sub.gruTag)) next.delete(sub.gruTag);
-                                    else next.add(sub.gruTag);
-                                    return next;
-                                  })}
-                                  className="p-0.5 text-gray-400 hover:text-gray-600 flex-shrink-0"
-                                >
-                                  {subExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                                </button>
-                                <button onClick={() => toggleTreeLocation(sub.gruTag, sub.equips)} className="flex-shrink-0 text-blue-500">
-                                  {subCheck === "all" ? <CheckSquare className="w-3.5 h-3.5" /> : subCheck === "partial" ? <MinusSquare className="w-3.5 h-3.5 text-blue-400" /> : <Square className="w-3.5 h-3.5 text-gray-300" />}
-                                </button>
-                                <GitBranch className="w-3 h-3 text-blue-300 flex-shrink-0" />
-                                <div className="min-w-0 flex-1 cursor-pointer" onClick={() => toggleTreeLocation(sub.gruTag, sub.equips)}>
-                                  <p className="text-xs font-medium text-gray-700 truncate" title={sub.descricao}>{sub.descricao}</p>
-                                  <p className="text-[10px] text-blue-300 font-mono">{sub.gruTag}</p>
-                                </div>
-                                <span className="text-[10px] text-gray-300 flex-shrink-0">{sub.equips.length}</span>
-                              </div>
-
-                              {/* ── Nível 3: Equipamento ── */}
-                              {subExpanded && sub.equips.map((eq) => {
-                                const sel = !treeSelected || treeSelected.has(eq.codApl);
-                                return (
-                                  <div key={eq.codApl} className="flex items-center gap-1 pl-11 pr-2 py-0.5 hover:bg-gray-50 cursor-pointer" onClick={() => toggleTreeEquip(eq.codApl)}>
-                                    <button className="flex-shrink-0 text-blue-500">
-                                      {sel ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3 text-gray-300" />}
-                                    </button>
-                                    <Cpu className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                                    <div className="min-w-0 flex-1">
-                                      <p className={`text-xs truncate ${sel ? "text-gray-700" : "text-gray-400"}`} title={eq.descricao}>{eq.descricao}</p>
-                                      <p className="text-[10px] text-blue-400 font-mono">{eq.tag}</p>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
+                  ) : treeNodes.map((node) => (
+                    <TreeNodeRow
+                      key={node.taggru}
+                      node={node}
+                      depth={0}
+                      expanded={treeExpanded}
+                      setExpanded={setTreeExpanded}
+                      selected={treeSelected}
+                      onToggleGroup={toggleGroup}
+                      onToggleLeaf={toggleLeaf}
+                    />
+                  ))}
                 </div>
               </div>
             )}

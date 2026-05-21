@@ -4,156 +4,122 @@ import { NextResponse } from "next/server";
 import sql from "mssql";
 import { getEngemanConfig } from "@/lib/engeman";
 
-export interface AplicacaoNode {
-  codApl: number;
-  tag: string;       // coluna TAG do APLIC (ex.: "ALI-0001")
+// ── Tree node ──────────────────────────────────────────────────────────────────
+// Each APLIC row IS a node in the Engeman hierarchy.
+// TAGGRU stores the node's own hierarchical address (e.g. "001.001.003.").
+// The immediate parent has TAGGRU = address minus last segment.
+// isLeaf = true when no other active node's parent address points here.
+export interface TreeNode {
+  codApl:   number;
+  tag:      string;
   descricao: string;
-  ativo: boolean;
-}
-
-export interface SubgrupoNode {
-  gruTag: string;    // TAG do sub-sistema nível 3 (ex.: "LNP-0001")
-  descricao: string; // Nome do sub-sistema  (ex.: "LINHA DE PRODUÇÃO 01")
-  equips: AplicacaoNode[];
-}
-
-export interface GrupoNode {
-  gruTag: string;    // TAG da área nível 2  (ex.: "PRD-0000")
-  descricao: string; // Nome da área         (ex.: "ÁREA DE PRODUÇÃO")
-  subgrupos: SubgrupoNode[];
-}
-
-// Mantido por compatibilidade com imports antigos
-export interface LocalNode {
-  codLocapl: number | null;
-  descricao: string;
-  equips: AplicacaoNode[];
+  taggru:   string;
+  isLeaf:   boolean;
+  children: TreeNode[];
 }
 
 export interface AplicacoesResponse {
-  grupos: GrupoNode[];
-  total: number;
-  source: "db";
+  tree:      TreeNode[];  // starts at level 2 (areas); level-1 root is stripped
+  leafCount: number;
+  source:    "db";
 }
 
+// ── Pure helpers ───────────────────────────────────────────────────────────────
+
+/** TAGGRU of the immediate parent ("001.001.003." → "001.001.") */
+function parentTaggru(tg: string): string | null {
+  const s = tg.endsWith(".") ? tg.slice(0, -1) : tg;
+  const i = s.lastIndexOf(".");
+  if (i < 0) return null;
+  return s.slice(0, i + 1);
+}
+
+/** Number of dot-separated segments ("001.001.003." → 3) */
+function depth(tg: string): number {
+  return (tg.match(/\./g) ?? []).length;
+}
+
+function sortTree(nodes: TreeNode[]) {
+  nodes.sort((a, b) => a.descricao.localeCompare(b.descricao, "pt-BR"));
+  for (const n of nodes) sortTree(n.children);
+}
+
+function countLeaves(nodes: TreeNode[]): number {
+  return nodes.reduce((s, n) => s + (n.isLeaf ? 1 : countLeaves(n.children)), 0);
+}
+
+// ── Handler ────────────────────────────────────────────────────────────────────
 export async function GET() {
   try {
     const pool = await sql.connect(await getEngemanConfig());
 
-    // Extrai prefixo de nível 2 (área) e nível 3 (sub-sistema) para cada aplicação
-    // e resolve os nomes fazendo join com a própria tabela APLIC.
-    //
-    // Exemplos de TAGGRU:
-    //   '001.'           → nível 1 (raiz – PLF-0000, ignorado)
-    //   '001.001.'       → nível 2 = área (PRD-0000)
-    //   '001.001.001.'   → nível 3 = sub-sistema (LNP-0001)
-    //   '001.001.001.001.002.001.' → folha → grupo em nível 3, sub-sistema em nível 3
     const result = await pool.request().query<{
-      CODAPL: number;
-      TAG: string;
+      CODAPL:    number;
+      TAG:       string;
       DESCRICAO: string;
-      ATIVO: string;
-      GRU2_TAG: string;
-      GRU2_NOME: string;
-      GRU3_TAG: string;
-      GRU3_NOME: string;
+      TAGGRU:    string | null;
     }>(`
-      WITH PREFIXES AS (
-        SELECT
-          a.CODAPL,
-          RTRIM(ISNULL(a.TAG, CAST(a.CODAPL AS VARCHAR(20))))  AS TAG,
-          RTRIM(ISNULL(a.DESCRICAO, 'Sem descrição'))          AS DESCRICAO,
-          ISNULL(a.ATIVO, 'N')                                 AS ATIVO,
-
-          /* ── Prefixo nível 2 (área): até o 2º ponto ── */
-          CASE
-            WHEN a.TAGGRU IS NULL THEN NULL
-            WHEN CHARINDEX('.', a.TAGGRU, CHARINDEX('.', a.TAGGRU) + 1) > 0
-              THEN LEFT(a.TAGGRU, CHARINDEX('.', a.TAGGRU, CHARINDEX('.', a.TAGGRU) + 1))
-            ELSE a.TAGGRU   -- nível 1: usa o próprio
-          END AS GRU2_PREFIX,
-
-          /* ── Prefixo nível 3 (sub-sistema): até o 3º ponto ── */
-          CASE
-            WHEN a.TAGGRU IS NULL THEN NULL
-            WHEN CHARINDEX('.', a.TAGGRU,
-                   CHARINDEX('.', a.TAGGRU, CHARINDEX('.', a.TAGGRU) + 1) + 1) > 0
-              THEN LEFT(a.TAGGRU,
-                     CHARINDEX('.', a.TAGGRU,
-                       CHARINDEX('.', a.TAGGRU, CHARINDEX('.', a.TAGGRU) + 1) + 1))
-            WHEN CHARINDEX('.', a.TAGGRU, CHARINDEX('.', a.TAGGRU) + 1) > 0
-              THEN a.TAGGRU   -- nível 2: usa o próprio
-            ELSE a.TAGGRU     -- nível 1: usa o próprio
-          END AS GRU3_PREFIX
-
-        FROM APLIC a
-        WHERE a.ATIVO = 'S'
-      )
       SELECT
-        p.CODAPL,
-        p.TAG,
-        p.DESCRICAO,
-        p.ATIVO,
-
-        /* Área (nível 2) */
-        ISNULL(RTRIM(g2.TAG),        'SEM-AREA')       AS GRU2_TAG,
-        ISNULL(RTRIM(g2.DESCRICAO),  'Sem Área')       AS GRU2_NOME,
-
-        /* Sub-sistema (nível 3) */
-        ISNULL(RTRIM(g3.TAG),        ISNULL(p.GRU3_PREFIX, 'SEM-SUB')) AS GRU3_TAG,
-        ISNULL(RTRIM(g3.DESCRICAO),  ISNULL(p.GRU3_PREFIX, 'Sem Subgrupo')) AS GRU3_NOME
-
-      FROM PREFIXES p
-      LEFT JOIN APLIC g2 ON g2.TAGGRU = p.GRU2_PREFIX AND g2.ATIVO = 'S'
-      LEFT JOIN APLIC g3 ON g3.TAGGRU = p.GRU3_PREFIX AND g3.ATIVO = 'S'
-      ORDER BY GRU2_NOME, GRU3_NOME, p.TAG
+        a.CODAPL,
+        RTRIM(ISNULL(a.TAG,       CAST(a.CODAPL AS VARCHAR(20)))) AS TAG,
+        RTRIM(ISNULL(a.DESCRICAO, 'Sem descrição'))                AS DESCRICAO,
+        a.TAGGRU
+      FROM APLIC a
+      WHERE a.ATIVO = 'S'
+      ORDER BY a.TAGGRU, a.TAG
     `);
 
     await pool.close();
 
-    // ── Agrupamento em memória ────────────────────────────────────────────────
-    const areaMap = new Map<string, GrupoNode>();
+    // ── 1. Build node map keyed by TAGGRU (unique positional address) ──────────
+    const nodeMap = new Map<string, TreeNode>();
 
     for (const r of result.recordset) {
-      // Garante área
-      if (!areaMap.has(r.GRU2_TAG)) {
-        areaMap.set(r.GRU2_TAG, {
-          gruTag: r.GRU2_TAG,
-          descricao: r.GRU2_NOME,
-          subgrupos: [],
-        });
-      }
-      const area = areaMap.get(r.GRU2_TAG)!;
-
-      // Garante sub-grupo
-      let sub = area.subgrupos.find((s) => s.gruTag === r.GRU3_TAG);
-      if (!sub) {
-        sub = { gruTag: r.GRU3_TAG, descricao: r.GRU3_NOME, equips: [] };
-        area.subgrupos.push(sub);
-      }
-
-      sub.equips.push({
-        codApl:   r.CODAPL,
-        tag:      r.TAG,
+      const tg = r.TAGGRU?.trim() ?? null;
+      if (!tg) continue;                       // skip rows with no TAGGRU
+      if (nodeMap.has(tg)) continue;           // each position is unique
+      nodeMap.set(tg, {
+        codApl:    r.CODAPL,
+        tag:       r.TAG,
         descricao: r.DESCRICAO,
-        ativo:    r.ATIVO === "S",
+        taggru:    tg,
+        isLeaf:    true,
+        children:  [],
       });
     }
 
-    // "Sem Área" vai por último
-    const grupos = Array.from(areaMap.values()).sort((a, b) => {
-      if (a.gruTag === "SEM-AREA") return 1;
-      if (b.gruTag === "SEM-AREA") return -1;
-      return a.descricao.localeCompare(b.descricao);
-    });
+    // ── 2. Wire parent ↔ child ─────────────────────────────────────────────────
+    const roots: TreeNode[] = [];
+
+    for (const node of nodeMap.values()) {
+      const pTg = parentTaggru(node.taggru);
+      if (pTg && nodeMap.has(pTg)) {
+        const parent = nodeMap.get(pTg)!;
+        parent.isLeaf = false;
+        parent.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+
+    // ── 3. Sort every level ────────────────────────────────────────────────────
+    sortTree(roots);
+
+    // ── 4. Strip level-1 root (e.g. "PLANTA FABRIL") → expose its children ────
+    const tree = roots.flatMap((r) =>
+      depth(r.taggru) <= 1 ? r.children : [r]
+    );
 
     return NextResponse.json({
-      grupos,
-      total: result.recordset.length,
+      tree,
+      leafCount: countLeaves(tree),
       source: "db",
     } satisfies AplicacoesResponse);
   } catch (err) {
-    console.error("[PCM /api/pcm/aplicacoes] Engeman inacessível:", err instanceof Error ? err.message : err);
+    console.error(
+      "[PCM /api/pcm/aplicacoes] Engeman inacessível:",
+      err instanceof Error ? err.message : err
+    );
     return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
   }
 }
