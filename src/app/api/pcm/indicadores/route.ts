@@ -56,9 +56,10 @@ async function queryEngeman(diasPeriodo: number): Promise<{
   const periodoHoras = diasPeriodo * 24;
 
   // ── 1. Indicadores por equipamento ────────────────────────────────────────
-  // Fórmula Engeman-nativa:
+  // Fórmula Engeman-nativa (usando período selecionado como base de tempo):
   //   Falha confirmada = OS com REGSERV.CODDEF IS NOT NULL (defeito registrado)
-  //   MTBF  = (MAX(DATPRO) − MIN(DATPRO) em horas) / COUNT(DISTINCT CODORD)
+  //   MTBF  = periodoHoras / COUNT(DISTINCT CODORD)
+  //           (tempo total do período ÷ nº de falhas — padrão confiabilidade)
   //   MTTR  = horas totais de reparo / nº de OS  (MAQPAR→MAQFUN ou HOREXEREA)
   //   Disponibilidade % = MTBF / (MTBF + MTTR) × 100
   //   Confiabilidade R(24h) = e^(-24/MTBF) × 100
@@ -67,6 +68,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
   // CODFIL NOT IN (0) = exclui filial zero (padrão do sistema)
   const indResult = await pool.request()
     .input("diasPeriodo", sql.Int, diasPeriodo)
+    .input("periodoHoras", sql.Float, periodoHoras)
     .query<{
       CODAPL: number;
       TAG: string;
@@ -82,7 +84,6 @@ async function queryEngeman(diasPeriodo: number): Promise<{
         SELECT
           o.CODAPL,
           o.CODORD,
-          o.DATPRO,
           CASE
             WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
               THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
@@ -101,7 +102,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
         RTRIM(a.DESCRICAO)                          AS DESCRICAO,
         ISNULL(RTRIM(l.DESCRICAO), 'Não informado') AS LOCAL_INSTALACAO,
 
-        /* Falhas = OS distintas com defeito registrado */
+        /* Falhas = OS distintas com defeito registrado no período */
         COUNT(DISTINCT f.CODORD) AS TOTAL_FALHAS,
 
         /* Horas totais de reparo */
@@ -110,27 +111,15 @@ async function queryEngeman(diasPeriodo: number): Promise<{
         /* MTTR = horas totais / nº falhas */
         SUM(f.HH_REPARO) / NULLIF(COUNT(DISTINCT f.CODORD), 0) AS MTTR,
 
-        /* MTBF = (MAX(DATPRO) - MIN(DATPRO) em horas) / nº falhas */
-        ROUND(DATEDIFF(MINUTE, MIN(f.DATPRO), MAX(f.DATPRO)) / 60.0, 2) /
-          NULLIF(COUNT(DISTINCT f.CODORD), 0) AS MTBF,
+        /* MTBF = período total (h) / nº falhas — considera o período selecionado */
+        @periodoHoras / NULLIF(COUNT(DISTINCT f.CODORD), 0) AS MTBF,
 
         /* Disponibilidade = MTBF / (MTBF + MTTR) × 100 */
-        CASE
-          WHEN (
-            ROUND(DATEDIFF(MINUTE, MIN(f.DATPRO), MAX(f.DATPRO)) / 60.0, 2) /
-              NULLIF(COUNT(DISTINCT f.CODORD), 0)
-            + SUM(f.HH_REPARO) / NULLIF(COUNT(DISTINCT f.CODORD), 0)
-          ) > 0
-          THEN (
-            ROUND(DATEDIFF(MINUTE, MIN(f.DATPRO), MAX(f.DATPRO)) / 60.0, 2) /
-              NULLIF(COUNT(DISTINCT f.CODORD), 0)
-          ) / (
-            ROUND(DATEDIFF(MINUTE, MIN(f.DATPRO), MAX(f.DATPRO)) / 60.0, 2) /
-              NULLIF(COUNT(DISTINCT f.CODORD), 0)
-            + SUM(f.HH_REPARO) / NULLIF(COUNT(DISTINCT f.CODORD), 0)
-          ) * 100.0
-          ELSE 100.0
-        END AS DISPONIBILIDADE
+        (@periodoHoras / NULLIF(COUNT(DISTINCT f.CODORD), 0)) /
+          NULLIF(
+            (@periodoHoras / NULLIF(COUNT(DISTINCT f.CODORD), 0))
+            + (SUM(f.HH_REPARO) / NULLIF(COUNT(DISTINCT f.CODORD), 0)),
+          0) * 100.0 AS DISPONIBILIDADE
 
       FROM FALHAS f
       INNER JOIN APLIC    a ON a.CODAPL    = f.CODAPL
@@ -142,7 +131,8 @@ async function queryEngeman(diasPeriodo: number): Promise<{
     `);
 
   // ── 2. Tendência mensal ───────────────────────────────────────────────────
-  // Mesma lógica da fórmula Engeman-nativa, agrupada por mês de DATPRO
+  // Para cada mês, o "período" é o total de horas daquele mês calendário.
+  // MTBF_MEDIO = horas_mês / falhas_mês  (consistente com a query por equipamento)
   const trendResult = await pool.request()
     .input("diasPeriodo2", sql.Int, diasPeriodo)
     .query<{
@@ -160,7 +150,6 @@ async function queryEngeman(diasPeriodo: number): Promise<{
           YEAR(o.DATPRO)  AS ANO,
           MONTH(o.DATPRO) AS MES,
           o.CODORD,
-          o.DATPRO,
           CASE
             WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
               THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
@@ -186,30 +175,19 @@ async function queryEngeman(diasPeriodo: number): Promise<{
         /* Horas totais */
         SUM(HH_REPARO) AS TOTAL_HH_REPARO,
 
-        /* Horas calendário do mês */
+        /* Horas calendário do mês (período do mês) */
         DAY(EOMONTH(DATEFROMPARTS(ANO, MES, 1))) * 24.0 AS HORAS_MES,
 
-        /* MTBF = (MAX(DATPRO) - MIN(DATPRO) em horas) / nº falhas no mês */
-        ROUND(DATEDIFF(MINUTE, MIN(DATPRO), MAX(DATPRO)) / 60.0, 2) /
+        /* MTBF = horas_mês / nº falhas — usa o período do mês como base */
+        (DAY(EOMONTH(DATEFROMPARTS(ANO, MES, 1))) * 24.0) /
           NULLIF(COUNT(DISTINCT CODORD), 0) AS MTBF_MEDIO,
 
         /* Disponibilidade = MTBF / (MTBF + MTTR) × 100 */
-        CASE
-          WHEN (
-            ROUND(DATEDIFF(MINUTE, MIN(DATPRO), MAX(DATPRO)) / 60.0, 2) /
-              NULLIF(COUNT(DISTINCT CODORD), 0)
-            + SUM(HH_REPARO) / NULLIF(COUNT(DISTINCT CODORD), 0)
-          ) > 0
-          THEN (
-            ROUND(DATEDIFF(MINUTE, MIN(DATPRO), MAX(DATPRO)) / 60.0, 2) /
-              NULLIF(COUNT(DISTINCT CODORD), 0)
-          ) / (
-            ROUND(DATEDIFF(MINUTE, MIN(DATPRO), MAX(DATPRO)) / 60.0, 2) /
-              NULLIF(COUNT(DISTINCT CODORD), 0)
-            + SUM(HH_REPARO) / NULLIF(COUNT(DISTINCT CODORD), 0)
-          ) * 100.0
-          ELSE 100.0
-        END AS DISPONIBILIDADE
+        ((DAY(EOMONTH(DATEFROMPARTS(ANO, MES, 1))) * 24.0) / NULLIF(COUNT(DISTINCT CODORD), 0)) /
+          NULLIF(
+            ((DAY(EOMONTH(DATEFROMPARTS(ANO, MES, 1))) * 24.0) / NULLIF(COUNT(DISTINCT CODORD), 0))
+            + (SUM(HH_REPARO) / NULLIF(COUNT(DISTINCT CODORD), 0)),
+          0) * 100.0 AS DISPONIBILIDADE
 
       FROM FALHAS2
       GROUP BY ANO, MES
