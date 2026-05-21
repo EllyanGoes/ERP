@@ -11,7 +11,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       estoqueItems: {
         include: { localEstoque: true },
       },
-      fornecedores: {
+      produtosFornecedor: {
         include: { fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
       },
       movimentacoes: {
@@ -29,7 +29,10 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   });
 
   if (!item) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
-  return NextResponse.json({ data: item });
+
+  // Alias produtosFornecedor → fornecedores for frontend compatibility
+  const { produtosFornecedor, ...rest } = item;
+  return NextResponse.json({ data: { ...rest, fornecedores: produtosFornecedor } });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -47,20 +50,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.ativo !== undefined) updateData.ativo = body.ativo;
   if (body.observacoes !== undefined) updateData.observacoes = body.observacoes || null;
 
-  const item = await prisma.item.update({
+  const updated = await prisma.item.update({
     where: { id: params.id },
     data: updateData,
     include: {
       tipoProduto: true,
       unidade: true,
       estoqueItems: { include: { localEstoque: true } },
-      fornecedores: {
+      produtosFornecedor: {
         include: { fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
       },
     },
   });
 
-  return NextResponse.json({ data: item });
+  const { produtosFornecedor, ...rest } = updated;
+  return NextResponse.json({ data: { ...rest, fornecedores: produtosFornecedor } });
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
@@ -70,11 +74,11 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       include: {
         _count: {
           select: {
-            pedidoItens: true,
-            necessidadeItens: true,
+            pedidoVendaItens: true,
+            necessidadeCompraItens: true,
             cotacaoFornecedorItens: true,
             pedidoCompraItens: true,
-            conferenciaItens: true,
+            conferenciaCompraItens: true,
           },
         },
       },
@@ -83,11 +87,11 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     if (!item) return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 });
 
     const total =
-      item._count.pedidoItens +
-      item._count.necessidadeItens +
+      item._count.pedidoVendaItens +
+      item._count.necessidadeCompraItens +
       item._count.cotacaoFornecedorItens +
       item._count.pedidoCompraItens +
-      item._count.conferenciaItens;
+      item._count.conferenciaCompraItens;
 
     if (total > 0) {
       return NextResponse.json(
