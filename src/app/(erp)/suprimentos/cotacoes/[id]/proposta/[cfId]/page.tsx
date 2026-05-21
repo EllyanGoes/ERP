@@ -472,137 +472,6 @@ export default function EditPropostaPage() {
           </div>
         </div>
 
-        {/* ── Seção Cotação ─────────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-sm text-gray-800">Cotação</h2>
-          </div>
-          <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Total itens</Label>
-              <Input
-                value={totalItens.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                readOnly
-                className="bg-gray-50 text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Total Cotação</Label>
-              <Input
-                value={formatBRL(totalCotacao)}
-                readOnly
-                className="bg-gray-50 text-right font-semibold"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">% Desconto</Label>
-              <div className="relative">
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  value={desconto}
-                  onChange={(e) => handleDescontoPctChange(e.target.value)}
-                  placeholder="0,00"
-                  className="text-right pr-7"
-                />
-                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Vr Desconto</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={vrDescontoInput}
-                onChange={(e) => handleVrDescontoChange(e.target.value)}
-                placeholder="0,00"
-                className="text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Frete</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={frete}
-                onChange={(e) => setFrete(e.target.value)}
-                placeholder="0,00"
-                className="text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Tipo Frete</Label>
-              <Select value={tipoFrete} onValueChange={setTipoFrete}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIPO_FRETE_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs text-gray-500">Condição pagamento</Label>
-                <button
-                  type="button"
-                  onClick={() => { setShowNovaCondicao(true); setNovaCondicaoNome(""); setNovaCondicaoDesc(""); setErroCondicao(""); }}
-                  className="flex items-center gap-0.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
-                  title="Nova condição de pagamento"
-                >
-                  <Plus className="w-3 h-3" /> Nova
-                </button>
-              </div>
-              <Select
-                value={condicoesPagamento || "__none__"}
-                onValueChange={(v) => setCondicoesPagamento(v === "__none__" ? "" : v)}
-              >
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Selecionar condição..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— Nenhuma —</SelectItem>
-                  {condicoesList.map((c) => (
-                    <SelectItem key={c.id} value={c.nome}>
-                      {c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Despesas</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={despesas}
-                onChange={(e) => setDespesas(e.target.value)}
-                placeholder="0,00"
-                className="text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Seguro</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={seguro}
-                onChange={(e) => setSeguro(e.target.value)}
-                placeholder="0,00"
-                className="text-right"
-              />
-            </div>
-          </div>
-        </div>
-
         {/* ── Itens da cotação ──────────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
@@ -744,6 +613,137 @@ export default function EditPropostaPage() {
                 </tr>
               </tfoot>
             </table>
+          </div>
+        </div>
+
+        {/* ── Seção Cotação ─────────────────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+            <h2 className="font-semibold text-sm text-gray-800">Cotação</h2>
+          </div>
+          <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Total itens</Label>
+              <Input
+                value={totalItens.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                readOnly
+                className="bg-gray-50 text-right"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Total Cotação</Label>
+              <Input
+                value={formatBRL(totalCotacao)}
+                readOnly
+                className="bg-gray-50 text-right font-semibold"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">% Desconto</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={desconto}
+                  onChange={(e) => handleDescontoPctChange(e.target.value)}
+                  placeholder="0,00"
+                  className="text-right pr-7"
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Vr Desconto</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={vrDescontoInput}
+                onChange={(e) => handleVrDescontoChange(e.target.value)}
+                placeholder="0,00"
+                className="text-right"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Frete</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={frete}
+                onChange={(e) => setFrete(e.target.value)}
+                placeholder="0,00"
+                className="text-right"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Tipo Frete</Label>
+              <Select value={tipoFrete} onValueChange={setTipoFrete}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIPO_FRETE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-gray-500">Condição pagamento</Label>
+                <button
+                  type="button"
+                  onClick={() => { setShowNovaCondicao(true); setNovaCondicaoNome(""); setNovaCondicaoDesc(""); setErroCondicao(""); }}
+                  className="flex items-center gap-0.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                  title="Nova condição de pagamento"
+                >
+                  <Plus className="w-3 h-3" /> Nova
+                </button>
+              </div>
+              <Select
+                value={condicoesPagamento || "__none__"}
+                onValueChange={(v) => setCondicoesPagamento(v === "__none__" ? "" : v)}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Selecionar condição..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Nenhuma —</SelectItem>
+                  {condicoesList.map((c) => (
+                    <SelectItem key={c.id} value={c.nome}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Despesas</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={despesas}
+                onChange={(e) => setDespesas(e.target.value)}
+                placeholder="0,00"
+                className="text-right"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Seguro</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={seguro}
+                onChange={(e) => setSeguro(e.target.value)}
+                placeholder="0,00"
+                className="text-right"
+              />
+            </div>
           </div>
         </div>
 
