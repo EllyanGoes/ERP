@@ -91,7 +91,7 @@ export async function GET() {
     // ── 2. Wire parent ↔ child ─────────────────────────────────────────────────
     const roots: TreeNode[] = [];
 
-    for (const node of nodeMap.values()) {
+    for (const node of Array.from(nodeMap.values())) {
       const pTg = parentTaggru(node.taggru);
       if (pTg && nodeMap.has(pTg)) {
         const parent = nodeMap.get(pTg)!;

@@ -746,11 +746,11 @@ export default function PCMDashboardPage() {
   useEffect(() => {
     if (treeSearch.trim()) {
       const keys = new Set<string>();
-      function collectKeys(nodes: TreeNode[]) {
+      const collectKeys = (nodes: TreeNode[]) => {
         for (const n of nodes) {
           if (!n.isLeaf) { keys.add(n.taggru); collectKeys(n.children); }
         }
-      }
+      };
       collectKeys(treeNodes);
       setTreeExpanded(keys);
     }
@@ -1013,7 +1013,7 @@ export default function PCMDashboardPage() {
 
             {/* Popover panel */}
             {showTreePopover && (
-              <div className="absolute top-full left-0 mt-1 z-50 bg-white rounded-xl border border-gray-200 shadow-xl w-80 flex flex-col max-h-[440px]">
+              <div className="absolute top-full left-0 mt-1 z-50 bg-white rounded-xl border border-gray-200 shadow-xl w-[420px] flex flex-col max-h-[600px]">
                 {/* Search */}
                 <div className="p-2 border-b border-gray-100">
                   <div className="relative">
@@ -1028,15 +1028,46 @@ export default function PCMDashboardPage() {
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-50 bg-gray-50/50">
+                {/* Actions — seleção + expand/collapse */}
+                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-100 bg-gray-50/60">
+                  {/* Seleção */}
                   <button onClick={() => setTreeSelected(null)} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
                     Todos
                   </button>
-                  <span className="text-gray-300">·</span>
+                  <span className="text-gray-200">|</span>
                   <button onClick={() => setTreeSelected(new Set())} className="text-xs text-gray-500 hover:text-gray-700">
                     Nenhum
                   </button>
+
+                  {/* Separador */}
+                  <span className="text-gray-200">|</span>
+
+                  {/* Expand / Collapse */}
+                  <button
+                    onClick={() => {
+                      const keys = new Set<string>();
+                      const collectAll = (nodes: TreeNode[]) => {
+                        for (const n of nodes) {
+                          if (!n.isLeaf) { keys.add(n.taggru); collectAll(n.children); }
+                        }
+                      };
+                      collectAll(allTree);
+                      setTreeExpanded(keys);
+                    }}
+                    className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-0.5"
+                  >
+                    <ChevronDown className="w-3 h-3" />
+                    Abrir todos
+                  </button>
+                  <span className="text-gray-200">|</span>
+                  <button
+                    onClick={() => setTreeExpanded(new Set())}
+                    className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-0.5"
+                  >
+                    <ChevronRight className="w-3 h-3" />
+                    Recolher
+                  </button>
+
                   <span className="ml-auto text-xs text-gray-400">
                     {treeSelected === null ? allCodApls.size : treeSelected.size}/{allCodApls.size}
                   </span>
