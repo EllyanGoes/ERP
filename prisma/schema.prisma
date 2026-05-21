@@ -651,6 +651,7 @@ model NecessidadeCompra {
   tipoCompra            String?
   aprovacoes            AprovacaoSC[]
   cotacoes              CotacaoCompra[]
+  pedidosCompra         PedidoCompra[]
   centroCusto           CentroCusto?            @relation(fields: [centroCustoId], references: [id])
   colaborador           Colaborador?            @relation(fields: [colaboradorId], references: [id])
   filial                Filial?                 @relation(fields: [filialId], references: [id])
@@ -677,6 +678,7 @@ model PedidoCompra {
   id                  String             @id @default(cuid())
   numero              String             @unique
   cotacaoId           String?
+  necessidadeId       String?
   fornecedorId        String
   status              StatusPedidoCompra @default(RASCUNHO)
   valorTotal          Decimal            @default(0) @db.Decimal(15, 2)
@@ -696,11 +698,13 @@ model PedidoCompra {
   descricao           String?
   conferencia         ConferenciaCompra?
   cotacao             CotacaoCompra?     @relation(fields: [cotacaoId], references: [id])
+  necessidade         NecessidadeCompra? @relation(fields: [necessidadeId], references: [id])
   fornecedor          Fornecedor         @relation(fields: [fornecedorId], references: [id])
   itens               PedidoCompraItem[]
 
   @@index([fornecedorId])
   @@index([status])
+  @@index([necessidadeId])
 }
 
 model PedidoCompraItem {

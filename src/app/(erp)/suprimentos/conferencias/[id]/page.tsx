@@ -118,6 +118,7 @@ export default function DocumentoEntradaDetailPage() {
   const [actionError, setActionError] = useState("");
   const [actioning, setActioning] = useState(false);
   const [autoVinculoMsg, setAutoVinculoMsg] = useState<string | null>(null);
+  const [scAtendidaMsg, setScAtendidaMsg] = useState<{ numero: string; status: string }[] | null>(null);
 
   const [editItems, setEditItems] = useState<EditItem[]>([]);
   const [responsavel, setResponsavel] = useState("");
@@ -338,6 +339,10 @@ export default function DocumentoEntradaDetailPage() {
         );
         setTimeout(() => setAutoVinculoMsg(null), 7000);
       }
+      if (json.scAtualizadas?.length > 0) {
+        setScAtendidaMsg(json.scAtualizadas);
+        setTimeout(() => setScAtendidaMsg(null), 10000);
+      }
     } catch {
       setActionError("Erro de conexão");
     } finally {
@@ -413,6 +418,33 @@ export default function DocumentoEntradaDetailPage() {
 
   return (
     <div>
+      {/* SC atendida toast */}
+      {scAtendidaMsg && scAtendidaMsg.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2 max-w-lg w-full px-4">
+          <div className="flex items-start gap-3 bg-blue-700 text-white text-sm px-5 py-4 rounded-2xl shadow-lg">
+            <div className="flex-1">
+              <p className="font-semibold mb-1">
+                {scAtendidaMsg.length === 1
+                  ? "Solicitação de Compras atualizada"
+                  : `${scAtendidaMsg.length} Solicitações de Compras atualizadas`}
+              </p>
+              <ul className="space-y-0.5">
+                {scAtendidaMsg.map((sc) => (
+                  <li key={sc.numero} className="flex items-center gap-2 text-blue-100">
+                    <span className="font-mono font-bold text-white">{sc.numero}</span>
+                    <span>→</span>
+                    <span className={sc.status === "TOTALMENTE_ATENDIDA" ? "text-emerald-300 font-medium" : "text-amber-300 font-medium"}>
+                      {sc.status === "TOTALMENTE_ATENDIDA" ? "Totalmente Atendida" : "Parcialmente Atendida"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <button onClick={() => setScAtendidaMsg(null)} className="opacity-70 hover:opacity-100 shrink-0 mt-0.5">✕</button>
+          </div>
+        </div>
+      )}
+
       {/* Auto-vínculo toast */}
       {autoVinculoMsg && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 bg-emerald-700 text-white text-sm px-5 py-3 rounded-2xl shadow-lg max-w-lg">

@@ -116,6 +116,101 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       },
     });
 
+    // Track which SCs were updated (for user notification)
+    const scAtualizadas: Array<{ numero: string; status: string }> = [];
+
+    // Helper: compute and update SC status given a necessidadeId
+    async function atualizarStatusSC(necessidadeId: string) {
+      const necessidade = await tx.necessidadeCompra.findUnique({
+        where: { id: necessidadeId },
+        select: {
+          numero: true,
+          status: true,
+          itens: { select: { itemId: true, quantidade: true } },
+        },
+      });
+      if (!necessidade) return;
+      // Only update if SC is in a relevant status
+      const statusElegiveis = ["EM_COTACAO", "APROVADA", "PARCIALMENTE_ATENDIDA", "TOTALMENTE_ATENDIDA"];
+      if (!statusElegiveis.includes(necessidade.status)) return;
+
+      const scItems = necessidade.itens;
+      if (scItems.length === 0) return;
+
+      // Find ALL pedidos linked to this SC (direct or via cotação)
+      const pedidosDiretos = await tx.pedidoCompra.findMany({
+        where: { necessidadeId, status: "RECEBIDO" },
+        select: { id: true },
+      });
+      const cotacoesDaSc = await tx.cotacaoCompra.findMany({
+        where: { necessidadeId },
+        select: { id: true },
+      });
+      const cotacaoIds = cotacoesDaSc.map((c) => c.id);
+      const pedidosDeCotacao = cotacaoIds.length > 0
+        ? await tx.pedidoCompra.findMany({
+            where: { cotacaoId: { in: cotacaoIds }, status: "RECEBIDO" },
+            select: { id: true },
+          })
+        : [];
+
+      const todosPedidoIds = [
+        ...pedidosDiretos.map((p) => p.id),
+        ...pedidosDeCotacao.map((p) => p.id),
+      ];
+
+      // Collect received quantities from concluded conferências
+      const confsConcluidas = todosPedidoIds.length > 0
+        ? await tx.conferenciaCompra.findMany({
+            where: {
+              pedidoId: { in: todosPedidoIds },
+              status: { in: ["CONCLUIDA", "DIVERGENCIA"] },
+            },
+            select: {
+              itens: { select: { itemId: true, quantidadeRecebida: true } },
+            },
+          })
+        : [];
+
+      const recebidoMap = new Map<string, number>();
+      for (const conf of confsConcluidas) {
+        for (const ci of conf.itens) {
+          const prev = recebidoMap.get(ci.itemId) ?? 0;
+          recebidoMap.set(ci.itemId, prev + parseFloat(String(ci.quantidadeRecebida ?? 0)));
+        }
+      }
+      // Also include items being concluded in THIS conferência
+      for (const ci of conferencia.itens) {
+        const prev = recebidoMap.get(ci.itemId) ?? 0;
+        recebidoMap.set(ci.itemId, prev + parseFloat(String(ci.quantidadeRecebida ?? 0)));
+      }
+
+      // Check how many SC items are fully covered
+      let totalAtendidos = 0;
+      for (const scItem of scItems) {
+        const recebido = recebidoMap.get(scItem.itemId) ?? 0;
+        const necessario = parseFloat(String(scItem.quantidade));
+        if (recebido >= necessario - 0.001) totalAtendidos++;
+      }
+
+      // Determine new status
+      const algumAtendido = scItems.some((si) => (recebidoMap.get(si.itemId) ?? 0) > 0.001);
+      const novoStatus =
+        totalAtendidos >= scItems.length
+          ? "TOTALMENTE_ATENDIDA"
+          : algumAtendido
+          ? "PARCIALMENTE_ATENDIDA"
+          : null;
+
+      if (novoStatus) {
+        await tx.necessidadeCompra.update({
+          where: { id: necessidadeId },
+          data: { status: novoStatus },
+        });
+        scAtualizadas.push({ numero: necessidade.numero, status: novoStatus });
+      }
+    }
+
     // Update pedido to RECEBIDO (only if linked to a pedido)
     if (conferencia.pedidoId) {
       await tx.pedidoCompra.update({
@@ -123,99 +218,33 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         data: { status: "RECEBIDO" },
       });
 
-      // ── Cascade SC (NecessidadeCompra) status ─────────────────────────────
       const pedido = await tx.pedidoCompra.findUnique({
         where: { id: conferencia.pedidoId },
-        select: {
-          cotacaoId: true,
-          itens: { select: { itemId: true, quantidade: true } },
-        },
+        select: { cotacaoId: true, necessidadeId: true },
       });
 
+      // Collect unique SC IDs to update
+      const necessidadeIds = new Set<string>();
+
+      // 1. Direct PC → SC link (new field)
+      if (pedido?.necessidadeId) {
+        necessidadeIds.add(pedido.necessidadeId);
+      }
+
+      // 2. PC → Cotação → SC link (existing path)
       if (pedido?.cotacaoId) {
         const cotacao = await tx.cotacaoCompra.findUnique({
           where: { id: pedido.cotacaoId },
-          select: {
-            necessidadeId: true,
-            necessidade: {
-              select: {
-                itens: { select: { itemId: true, quantidade: true } },
-              },
-            },
-          },
+          select: { necessidadeId: true },
         });
-
-        if (cotacao?.necessidadeId && cotacao.necessidade) {
-          const necessidadeId = cotacao.necessidadeId;
-          const scItems = cotacao.necessidade.itens;
-          const scItemIds = new Set(scItems.map((i) => i.itemId));
-
-          // Build a map of itemId → total received across ALL conferencias for
-          // pedidos linked to this cotação
-          const pedidosDaCotacao = await tx.pedidoCompra.findMany({
-            where: { cotacaoId: pedido.cotacaoId, status: "RECEBIDO" },
-            select: { id: true },
-          });
-          const pedidoIds = pedidosDaCotacao.map((p) => p.id);
-
-          const confsConcluidas = await tx.conferenciaCompra.findMany({
-            where: {
-              pedidoId: { in: pedidoIds },
-              status: { in: ["CONCLUIDA", "DIVERGENCIA"] },
-            },
-            select: {
-              itens: { select: { itemId: true, quantidadeRecebida: true } },
-            },
-          });
-
-          // Sum received per itemId
-          const recebidoMap = new Map<string, number>();
-          for (const conf of confsConcluidas) {
-            for (const ci of conf.itens) {
-              const prev = recebidoMap.get(ci.itemId) ?? 0;
-              recebidoMap.set(
-                ci.itemId,
-                prev + parseFloat(String(ci.quantidadeRecebida ?? 0))
-              );
-            }
-          }
-          // Also include current conferencia items being concluded now
-          for (const ci of conferencia.itens) {
-            const prev = recebidoMap.get(ci.itemId) ?? 0;
-            recebidoMap.set(
-              ci.itemId,
-              prev + parseFloat(String(ci.quantidadeRecebida ?? 0))
-            );
-          }
-
-          // Check coverage: every SC item needs qtd received >= qtd necessidade
-          let totalAtendidos = 0;
-          for (const scItem of scItems) {
-            const recebido = recebidoMap.get(scItem.itemId) ?? 0;
-            const necessario = parseFloat(String(scItem.quantidade));
-            if (recebido >= necessario - 0.001) totalAtendidos++;
-          }
-
-          const novoStatus =
-            scItemIds.size > 0 && totalAtendidos >= scItemIds.size
-              ? "TOTALMENTE_ATENDIDA"
-              : "PARCIALMENTE_ATENDIDA";
-
-          await tx.necessidadeCompra.updateMany({
-            where: {
-              id: necessidadeId,
-              status: {
-                in: [
-                  "EM_COTACAO",
-                  "APROVADA",
-                  "PARCIALMENTE_ATENDIDA",
-                  "TOTALMENTE_ATENDIDA",
-                ],
-              },
-            },
-            data: { status: novoStatus },
-          });
+        if (cotacao?.necessidadeId) {
+          necessidadeIds.add(cotacao.necessidadeId);
         }
+      }
+
+      // Update each unique SC
+      for (const necessidadeId of necessidadeIds) {
+        await atualizarStatusSC(necessidadeId);
       }
     }
 
@@ -238,12 +267,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     }
 
-    return { conferencia: updatedConferencia, movimentacoesCriadas, autoVinculos };
+    return { conferencia: updatedConferencia, movimentacoesCriadas, autoVinculos, scAtualizadas };
   });
 
   return NextResponse.json({
     data: result.conferencia,
     movimentacoesCriadas: result.movimentacoesCriadas,
     autoVinculos: result.autoVinculos,
+    scAtualizadas: result.scAtualizadas,
   });
 }

@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Make --sidebar-width animatable so the content margin transitions in sync with the sidebar */
+@property --sidebar-width {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 64px;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

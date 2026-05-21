@@ -391,11 +391,11 @@ export default function NovaRequisicaoPage() {
     const sData  = await sRes.json();
     const ccData = await ccRes.json();
     const itData = await itRes.json();
-    setLocais(       Array.isArray(lData)      ? lData      : lData.data  ?? []);
-    setColaboradores(Array.isArray(cData.data) ? cData.data : []);
-    setSetores(      sData.data  ?? []);
-    setCentros(      ccData.data ?? []);
-    setItensCat(     Array.isArray(itData.data) ? itData.data : []);
+    setLocais(       Array.isArray(lData)  ? lData  : lData.data  ?? []);
+    setColaboradores(Array.isArray(cData)  ? cData  : cData.data  ?? []);
+    setSetores(      Array.isArray(sData)  ? sData  : sData.data  ?? []);
+    setCentros(      Array.isArray(ccData) ? ccData : ccData.data ?? []);
+    setItensCat(     Array.isArray(itData) ? itData : itData.data ?? []);
   }, []);
 
   useEffect(() => { loadOptions(); }, [loadOptions]);

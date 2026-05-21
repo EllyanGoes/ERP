@@ -35,3 +35,40 @@ export async function getEngemanConfig(overrides?: Partial<sql.config>): Promise
     ...overrides,
   };
 }
+
+/**
+ * Returns the list of CODTIPMAN values that classify as "corretiva"
+ * in the connected Engeman database.
+ *
+ * Priority:
+ *   1. Stored config key `pcm_tipos_corretivos` (comma-separated CODTIPMAN)
+ *   2. Auto-detect from TIPMANUT: types whose DESCRICAO contains "CORRETIV" (case-insensitive)
+ */
+export async function getCorretivoCodes(pool: sql.ConnectionPool): Promise<number[]> {
+  const config = await prisma.configuracao.findUnique({
+    where: { chave: "pcm_tipos_corretivos" },
+  });
+  if (config?.valor?.trim()) {
+    const codes = config.valor
+      .split(",")
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    if (codes.length > 0) return codes;
+  }
+  // Auto-detect from TIPMANUT description
+  const result = await pool
+    .request()
+    .query<{ CODTIPMAN: number }>(
+      `SELECT CODTIPMAN FROM TIPMANUT WHERE UPPER(DESCRICAO) LIKE '%CORRETIV%' ORDER BY CODTIPMAN`
+    );
+  return result.recordset.map((r) => r.CODTIPMAN);
+}
+
+/**
+ * Builds a safe SQL IN-list string from an array of integers.
+ * Values come from our own DB so there is no injection risk.
+ * Returns "(0)" (matches nothing) when the array is empty.
+ */
+export function inList(codes: number[]): string {
+  return codes.length > 0 ? `(${codes.join(",")})` : "(0)";
+}

@@ -19,7 +19,7 @@ export default async function ErpLayout({ children }: { children: React.ReactNod
           <div className="flex h-screen bg-gray-50">
             <Sidebar />
             <div
-              className="flex flex-col flex-1 overflow-hidden transition-all duration-200"
+              className="flex flex-col flex-1 overflow-hidden transition-[margin-left] duration-200"
               style={{ marginLeft: "var(--sidebar-width, 64px)" }}
             >
               <TabBar />

@@ -38,6 +38,15 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         include: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } } },
       },
       conferencia: { select: { id: true, numero: true, status: true } },
+      necessidade: {
+        select: {
+          id: true, numero: true, solicitante: true,
+          justificativa: true,
+          centroCusto:  { select: { nome: true } },
+          localEstoque: { select: { nome: true } },
+          setor:        { select: { nome: true } },
+        },
+      },
     },
   });
 
@@ -139,6 +148,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       });
     });
 
+    return NextResponse.json({ data: record });
+  }
+
+  // Vincular / desvincular SC (necessidade)
+  if (body.vincularNecessidade !== undefined) {
+    const necessidadeId = body.vincularNecessidade as string | null;
+    const record = await prisma.pedidoCompra.update({
+      where: { id: pedidoId },
+      data: { necessidadeId: necessidadeId || null },
+    });
     return NextResponse.json({ data: record });
   }
 

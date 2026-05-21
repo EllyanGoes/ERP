@@ -38,6 +38,14 @@ type CotacaoFornecedor = {
   propostaNumero: number;
 };
 
+type NecessidadeMin = {
+  id: string; numero: string; solicitante: string | null;
+  justificativa: string | null;
+  centroCusto:  { nome: string } | null;
+  localEstoque: { nome: string } | null;
+  setor:        { nome: string } | null;
+};
+
 type PedidoCompra = {
   id: string;
   numero: string;
@@ -47,13 +55,16 @@ type PedidoCompra = {
   dataEntregaPrevista: string | null;
   observacoes: string | null;
   cotacaoId: string | null;
+  necessidadeId: string | null;
+  necessidade: NecessidadeMin | null;
   cotacao: {
     id: string; numero: string; nome: string | null;
     necessidade: {
       id: string; numero: string; solicitante: string | null;
       justificativa: string | null;
-      centroCusto: { nome: string } | null;
+      centroCusto:  { nome: string } | null;
       localEstoque: { nome: string } | null;
+      setor:        { nome: string } | null;
       itens: Array<{ quantidade: unknown; item: { descricao: string } }>;
     } | null;
   } | null;
@@ -102,6 +113,13 @@ export default function PedidoCompraDetailPage() {
   const [ctSearching,    setCtSearching]    = useState(false);
   const ctPopoverRef = useRef<HTMLDivElement>(null);
 
+  // ── Vincular SC popover ───────────────────────────────────────────────────────
+  const [scPopoverOpen,  setScPopoverOpen]  = useState(false);
+  const [scSearch,       setScSearch]       = useState("");
+  const [scOptions,      setScOptions]      = useState<NecessidadeMin[]>([]);
+  const [scSearching,    setScSearching]    = useState(false);
+  const scPopoverRef = useRef<HTMLDivElement>(null);
+
   // ── Descrição inline edit ─────────────────────────────────────────────────────
   const [editingDescricao, setEditingDescricao] = useState(false);
   const [descricaoEdit,    setDescricaoEdit]    = useState("");
@@ -141,6 +159,16 @@ export default function PedidoCompraDetailPage() {
     return () => document.removeEventListener("mousedown", handle);
   }, [ctPopoverOpen]);
 
+  // Close SC popover on outside click
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (scPopoverRef.current && !scPopoverRef.current.contains(e.target as Node))
+        setScPopoverOpen(false);
+    }
+    if (scPopoverOpen) document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [scPopoverOpen]);
+
   // Search cotações while typing
   useEffect(() => {
     if (!ctSearch.trim()) { setCtOptions([]); return; }
@@ -160,6 +188,27 @@ export default function PedidoCompraDetailPage() {
     return () => clearTimeout(t);
   }, [ctSearch]);
 
+  // Search necessidades (SC) while typing
+  useEffect(() => {
+    if (!scSearch.trim()) { setScOptions([]); return; }
+    const t = setTimeout(async () => {
+      setScSearching(true);
+      try {
+        const res  = await fetch(`/api/suprimentos/necessidades`);
+        const json = await res.json();
+        const q    = scSearch.toLowerCase();
+        const list = ((json.data ?? []) as NecessidadeMin[]).filter((n) =>
+          n.numero.toLowerCase().includes(q) ||
+          (n.solicitante ?? "").toLowerCase().includes(q) ||
+          (n.justificativa ?? "").toLowerCase().includes(q)
+        );
+        setScOptions(list.slice(0, 10));
+      } catch { /* ignore */ }
+      finally { setScSearching(false); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [scSearch]);
+
   async function vincularCotacao(cotacaoId: string | null) {
     setActioning(true);
     try {
@@ -173,6 +222,24 @@ export default function PedidoCompraDetailPage() {
         setCtPopoverOpen(false);
         setCtSearch("");
         setCtOptions([]);
+      }
+    } catch { /* ignore */ }
+    finally { setActioning(false); }
+  }
+
+  async function vincularNecessidade(necessidadeId: string | null) {
+    setActioning(true);
+    try {
+      const res = await fetch(`/api/suprimentos/pedidos-compra/${id}`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ vincularNecessidade: necessidadeId }),
+      });
+      if (res.ok) {
+        await load();
+        setScPopoverOpen(false);
+        setScSearch("");
+        setScOptions([]);
       }
     } catch { /* ignore */ }
     finally { setActioning(false); }
@@ -244,7 +311,7 @@ async function openWAModal() {
   function buildWAMessage() {
     if (!pedido) return "";
     const cf  = pedido.cotacaoFornecedor;
-    const sc  = pedido.cotacao?.necessidade ?? null;
+    const sc  = pedido.necessidade ?? pedido.cotacao?.necessidade ?? null;
     const total = calcTotal();
 
     const itensLines = pedido.itens.map((it, i) => {
@@ -454,6 +521,145 @@ async function openWAModal() {
                   </button>
                 )}
               </div>
+            </div>
+          );
+        })()}
+
+        {/* ── Solicitação de Compras ────────────────────────────────────── */}
+        {(() => {
+          const sc = pedido.necessidade ?? pedido.cotacao?.necessidade ?? null;
+          return (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
+                <h2 className="font-semibold text-sm text-gray-800">Solicitação de Compras</h2>
+
+                <div className="flex items-center gap-2 ml-auto">
+                  {/* Link to SC */}
+                  {sc && (
+                    <Link
+                      href={`/compras/necessidades/${sc.id}`}
+                      className="flex items-center gap-1 text-xs text-indigo-600 hover:underline font-medium"
+                    >
+                      <FileText className="w-3 h-3" />
+                      {sc.numero}
+                      {sc.solicitante && (
+                        <span className="text-gray-400 font-normal ml-1">· {sc.solicitante}</span>
+                      )}
+                    </Link>
+                  )}
+
+                  {/* Vincular / desvincular SC button (only for directly linked) */}
+                  <div className="relative" ref={scPopoverRef}>
+                    {pedido.necessidade ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs text-gray-400 hover:text-red-500 gap-1"
+                        onClick={() => vincularNecessidade(null)}
+                        disabled={actioning}
+                        title="Desvincular SC"
+                      >
+                        <X className="w-3 h-3" /> Desvincular SC
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2.5 text-xs gap-1.5"
+                        onClick={() => { setScPopoverOpen((v) => !v); setScSearch(""); setScOptions([]); }}
+                        disabled={actioning}
+                      >
+                        <Link2 className="w-3 h-3" /> Vincular SC
+                      </Button>
+                    )}
+
+                    {/* Popover de busca SC */}
+                    {scPopoverOpen && (
+                      <div className="absolute right-0 top-full mt-2 z-50 w-80 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
+                        <div className="p-3 border-b border-gray-100">
+                          <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                            <input
+                              autoFocus
+                              type="text"
+                              value={scSearch}
+                              onChange={(e) => setScSearch(e.target.value)}
+                              placeholder="Buscar SC… (número, solicitante…)"
+                              className="w-full pl-8 pr-3 h-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                          </div>
+                        </div>
+                        <div className="max-h-52 overflow-y-auto">
+                          {scSearching ? (
+                            <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-gray-400">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando…
+                            </div>
+                          ) : scOptions.length === 0 ? (
+                            <p className="px-4 py-3 text-xs text-gray-400 italic text-center">
+                              {scSearch.trim() ? "Nenhuma SC encontrada." : "Digite para buscar uma SC."}
+                            </p>
+                          ) : scOptions.map((n) => (
+                            <button
+                              key={n.id}
+                              type="button"
+                              onMouseDown={() => vincularNecessidade(n.id)}
+                              className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-indigo-50 border-b border-gray-50 last:border-0"
+                            >
+                              <span className="font-mono font-semibold text-gray-800">{n.numero}</span>
+                              <div className="text-right">
+                                {n.solicitante && <p className="text-xs text-gray-600">{n.solicitante}</p>}
+                                {(n.centroCusto?.nome ?? n.localEstoque?.nome ?? n.setor?.nome) && (
+                                  <p className="text-xs text-gray-400">
+                                    {n.centroCusto?.nome ?? n.localEstoque?.nome ?? n.setor?.nome}
+                                  </p>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SC info body */}
+              {sc ? (
+                <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-gray-500">Número SC</Label>
+                    <Input value={sc.numero} readOnly className="bg-gray-50 font-mono" />
+                  </div>
+                  {sc.solicitante && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-gray-500">Solicitante</Label>
+                      <Input value={sc.solicitante} readOnly className="bg-gray-50" />
+                    </div>
+                  )}
+                  {(sc.centroCusto?.nome ?? sc.localEstoque?.nome ?? sc.setor?.nome) && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-gray-500">
+                        {sc.centroCusto ? "Centro de Custo" : sc.setor ? "Setor" : "Local"}
+                      </Label>
+                      <Input
+                        value={sc.centroCusto?.nome ?? sc.setor?.nome ?? sc.localEstoque?.nome ?? ""}
+                        readOnly
+                        className="bg-gray-50"
+                      />
+                    </div>
+                  )}
+                  {sc.justificativa && (
+                    <div className="col-span-full space-y-1">
+                      <Label className="text-xs text-gray-500">Justificativa</Label>
+                      <Input value={sc.justificativa} readOnly className="bg-gray-50" />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="px-4 py-5 text-sm text-gray-400 italic">
+                  Nenhuma SC vinculada. Clique em &quot;Vincular SC&quot; para associar.
+                </div>
+              )}
             </div>
           );
         })()}
