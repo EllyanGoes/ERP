@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
+import { useSession } from "@/lib/session-context";
 import { Pencil, Trash2, Loader2, AlertTriangle, Plus, Save, X, ChevronDown, Send, CheckCircle2, XCircle, Clock, MessageCircle, Users, Search, Copy, ExternalLink } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
@@ -225,6 +226,8 @@ export default function NecessidadeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const sidebarExpanded = useSidebarExpanded();
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
 
   // ── View state ───────────────────────────────────────────────────────────────
   const [necessidade, setNecessidade] = useState<Necessidade | null>(null);
@@ -550,7 +553,7 @@ export default function NecessidadeDetailPage() {
   if (!necessidade) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
   const isRascunho = necessidade.status === "RASCUNHO";
-  const canEdit    = ["RASCUNHO", "AGUARDANDO_APROVACAO", "REJEITADA"].includes(necessidade.status);
+  const canEdit    = isAdmin || ["RASCUNHO", "AGUARDANDO_APROVACAO", "REJEITADA"].includes(necessidade.status);
 
   // ── Edit mode view ───────────────────────────────────────────────────────────
   if (editMode) {
