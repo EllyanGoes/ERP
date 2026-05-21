@@ -17,15 +17,15 @@ type Filial   = { id: string; razaoSocial: string; nomeFantasia: string | null }
 type UsuarioMin = { id: string; nome: string; email: string };
 
 type Colaborador = {
-  id:           string;
-  nome:         string;
-  cpf:          string | null;
-  cargo:        string | null;
-  departamento: string | null;
-  telefone:     string | null;
-  ativo:        boolean;
-  filiais:      Filial[];
-  usuario:      UsuarioMin | null;
+  id:       string;
+  nome:     string;
+  cpf:      string | null;
+  cargo:    string | null;
+  setor:    { id: string; nome: string } | null;
+  telefone: string | null;
+  ativo:    boolean;
+  filiais:  Filial[];
+  usuario:  UsuarioMin | null;
 };
 
 // ── Column definitions ────────────────────────────────────────────────────────
@@ -52,11 +52,11 @@ const COLS: ColDef<Colaborador>[] = [
     render: (c) => c.cargo || <span className="text-gray-300">—</span>,
   },
   {
-    id: "departamento",
-    label: "Departamento",
+    id: "setor",
+    label: "Setor",
     thClass: "text-left px-4 py-3 font-medium text-gray-600",
     tdClass: "px-4 py-3 text-gray-500",
-    render: (c) => c.departamento || <span className="text-gray-300">—</span>,
+    render: (c) => c.setor?.nome || <span className="text-gray-300">—</span>,
   },
   {
     id: "filial",
@@ -199,7 +199,7 @@ export default function ColaboradoresPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Nome, CPF, cargo, departamento..."
+              placeholder="Nome, CPF, cargo, setor..."
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
           </div>
