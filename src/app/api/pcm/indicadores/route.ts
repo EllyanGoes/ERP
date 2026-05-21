@@ -12,20 +12,22 @@ export interface IndicadorEquipamento {
   localInstalacao: string;
   totalFalhas: number;
   totalHorasReparo: number;
-  mtbf: number;          // horas entre falhas
-  mttr: number;          // horas de reparo médio
+  mtbf: number;           // horas entre falhas
+  mttr: number;           // MTTR padrão (MAQPAR→MAQFUN ou HOREXEREA)
+  mttrEfetivo: number;    // MTTR efetivo (TEMPO_EFETIVO, EXECUTADO='S', SIMULA='R')
   disponibilidade: number; // 0–100 %
   confiabilidade: number;  // R(90d) = e^(−n/8760 × 2160) × 100  (Engeman-nativa)
   periodoHoras: number;
 }
 
 export interface TendenciaMensal {
-  mes: string;           // "YYYY-MM"
-  label: string;         // "Jan/25"
-  mttrMedio: number;     // h
-  mtbfMedio: number;     // h
-  disponibilidade: number; // %
-  confiabilidade: number;  // R(90d) = e^(−n/horas_mês × 2160) × 100
+  mes: string;               // "YYYY-MM"
+  label: string;             // "Jan/25"
+  mttrMedio: number;         // h — MTTR padrão
+  mttrEfetivoMedio: number;  // h — MTTR efetivo
+  mtbfMedio: number;         // h
+  disponibilidade: number;   // %
+  confiabilidade: number;    // R(90d) = e^(−n/horas_mês × 2160) × 100
   falhas: number;
   totalHhReparo: number;
 }
@@ -78,6 +80,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
       TOTAL_FALHAS: number;
       TOTAL_HH_REPARO: number;
       MTTR: number;
+      MTTR_EFETIVO: number;
       MTBF: number;
       DISPONIBILIDADE: number;
       CONFIABILIDADE: number;
@@ -110,6 +113,25 @@ async function queryEngeman(diasPeriodo: number): Promise<{
           AND o.CODFIL NOT IN (0)
           AND o.DATPRO2 BETWEEN CONVERT(DATE, GETDATE()-365) AND CONVERT(DATE, GETDATE())
         GROUP BY o.CODAPL
+      ),
+      /* MTTR Efetivo: usa TEMPO_EFETIVO, EXECUTADO='S', STATORD<>'C', SIMULA='R' */
+      MTTR_EF AS (
+        SELECT
+          o.CODAPL,
+          COUNT(r.CODORD)                         AS N_EF,
+          SUM(ISNULL(o.TEMPO_EFETIVO, 0))         AS TEMPO_TOTAL_EF
+        FROM ORDSERV o
+        INNER JOIN (
+          SELECT CODORD FROM REGSERV
+          WHERE CODDEF IS NOT NULL AND EXECUTADO = 'S'
+          GROUP BY CODORD
+        ) r ON r.CODORD = o.CODORD
+        WHERE o.STATORD <> 'C'
+          AND o.SIMULA   = 'R'
+          AND o.CODAPL  IS NOT NULL
+          AND o.CODFIL  NOT IN (0)
+          AND o.DATPRO  >= DATEADD(DAY, -@diasPeriodo, GETDATE())
+        GROUP BY o.CODAPL
       )
       SELECT
         a.CODAPL,
@@ -123,8 +145,16 @@ async function queryEngeman(diasPeriodo: number): Promise<{
         /* Horas totais de reparo */
         SUM(f.HH_REPARO) AS TOTAL_HH_REPARO,
 
-        /* MTTR = horas totais / nº falhas */
+        /* MTTR padrão = horas totais / nº falhas (MAQPAR→MAQFUN ou HOREXEREA) */
         SUM(f.HH_REPARO) / NULLIF(COUNT(DISTINCT f.CODORD), 0) AS MTTR,
+
+        /* MTTR Efetivo = SUM(TEMPO_EFETIVO) / COUNT(OS executadas) */
+        ROUND(
+          CASE WHEN ISNULL(ef.N_EF, 0) > 0
+            THEN ef.TEMPO_TOTAL_EF / CAST(ef.N_EF AS FLOAT)
+            ELSE 0
+          END, 2
+        ) AS MTTR_EFETIVO,
 
         /* MTBF = período total (h) / nº falhas — considera o período selecionado */
         @periodoHoras / NULLIF(COUNT(DISTINCT f.CODORD), 0) AS MTBF,
@@ -143,11 +173,12 @@ async function queryEngeman(diasPeriodo: number): Promise<{
         END AS CONFIABILIDADE
 
       FROM FALHAS f
-      INNER JOIN APLIC    a ON a.CODAPL    = f.CODAPL
-      LEFT  JOIN LOCAPLIC l ON l.CODLOCAPL = a.CODLOCAPL
-      LEFT  JOIN CONF     c ON c.CODAPL    = f.CODAPL
+      INNER JOIN APLIC    a  ON a.CODAPL    = f.CODAPL
+      LEFT  JOIN LOCAPLIC l  ON l.CODLOCAPL = a.CODLOCAPL
+      LEFT  JOIN CONF     c  ON c.CODAPL    = f.CODAPL
+      LEFT  JOIN MTTR_EF  ef ON ef.CODAPL   = f.CODAPL
 
-      GROUP BY a.CODAPL, a.DESCRICAO, l.DESCRICAO, c.N
+      GROUP BY a.CODAPL, a.DESCRICAO, l.DESCRICAO, c.N, ef.N_EF, ef.TEMPO_TOTAL_EF
       HAVING COUNT(DISTINCT f.CODORD) >= 1
       ORDER BY TOTAL_FALHAS DESC
     `);
@@ -162,6 +193,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
       MES: number;
       FALHAS: number;
       MTTR_MEDIO: number;
+      MTTR_EFETIVO_MEDIO: number;
       TOTAL_HH_REPARO: number;
       HORAS_MES: number;
       MTBF_MEDIO: number;
@@ -183,38 +215,67 @@ async function queryEngeman(diasPeriodo: number): Promise<{
           AND o.CODAPL IS NOT NULL
           AND o.CODFIL NOT IN (0)
           AND o.DATPRO >= DATEADD(DAY, -@diasPeriodo2, GETDATE())
+      ),
+      /* MTTR Efetivo mensal */
+      MTTR_EF2 AS (
+        SELECT
+          YEAR(o.DATPRO)  AS ANO,
+          MONTH(o.DATPRO) AS MES,
+          COUNT(r.CODORD)                   AS N_EF,
+          SUM(ISNULL(o.TEMPO_EFETIVO, 0))   AS TEMPO_TOTAL_EF
+        FROM ORDSERV o
+        INNER JOIN (
+          SELECT CODORD FROM REGSERV
+          WHERE CODDEF IS NOT NULL AND EXECUTADO = 'S'
+          GROUP BY CODORD
+        ) r ON r.CODORD = o.CODORD
+        WHERE o.STATORD <> 'C'
+          AND o.SIMULA   = 'R'
+          AND o.CODAPL  IS NOT NULL
+          AND o.CODFIL  NOT IN (0)
+          AND o.DATPRO  >= DATEADD(DAY, -@diasPeriodo2, GETDATE())
+        GROUP BY YEAR(o.DATPRO), MONTH(o.DATPRO)
       )
       SELECT
-        ANO,
-        MES,
+        f.ANO,
+        f.MES,
 
         /* Falhas = OS distintas com defeito registrado no mês */
-        COUNT(DISTINCT CODORD) AS FALHAS,
+        COUNT(DISTINCT f.CODORD) AS FALHAS,
 
-        /* MTTR = horas / falhas */
-        SUM(HH_REPARO) / NULLIF(COUNT(DISTINCT CODORD), 0) AS MTTR_MEDIO,
+        /* MTTR padrão = horas / falhas */
+        SUM(f.HH_REPARO) / NULLIF(COUNT(DISTINCT f.CODORD), 0) AS MTTR_MEDIO,
+
+        /* MTTR Efetivo mensal */
+        ROUND(
+          CASE WHEN ISNULL(ef.N_EF, 0) > 0
+            THEN ef.TEMPO_TOTAL_EF / CAST(ef.N_EF AS FLOAT)
+            ELSE 0
+          END, 2
+        ) AS MTTR_EFETIVO_MEDIO,
 
         /* Horas totais */
-        SUM(HH_REPARO) AS TOTAL_HH_REPARO,
+        SUM(f.HH_REPARO) AS TOTAL_HH_REPARO,
 
         /* Horas calendário do mês (período do mês) */
-        DAY(EOMONTH(DATEFROMPARTS(ANO, MES, 1))) * 24.0 AS HORAS_MES,
+        DAY(EOMONTH(DATEFROMPARTS(f.ANO, f.MES, 1))) * 24.0 AS HORAS_MES,
 
         /* MTBF = horas_mês / nº falhas — usa o período do mês como base */
-        (DAY(EOMONTH(DATEFROMPARTS(ANO, MES, 1))) * 24.0) /
-          NULLIF(COUNT(DISTINCT CODORD), 0) AS MTBF_MEDIO,
+        (DAY(EOMONTH(DATEFROMPARTS(f.ANO, f.MES, 1))) * 24.0) /
+          NULLIF(COUNT(DISTINCT f.CODORD), 0) AS MTBF_MEDIO,
 
         /* Disponibilidade = MTBF / (MTBF + MTTR) × 100 */
-        ((DAY(EOMONTH(DATEFROMPARTS(ANO, MES, 1))) * 24.0) / NULLIF(COUNT(DISTINCT CODORD), 0)) /
+        ((DAY(EOMONTH(DATEFROMPARTS(f.ANO, f.MES, 1))) * 24.0) / NULLIF(COUNT(DISTINCT f.CODORD), 0)) /
           NULLIF(
-            ((DAY(EOMONTH(DATEFROMPARTS(ANO, MES, 1))) * 24.0) / NULLIF(COUNT(DISTINCT CODORD), 0))
-            + (SUM(HH_REPARO) / NULLIF(COUNT(DISTINCT CODORD), 0)),
+            ((DAY(EOMONTH(DATEFROMPARTS(f.ANO, f.MES, 1))) * 24.0) / NULLIF(COUNT(DISTINCT f.CODORD), 0))
+            + (SUM(f.HH_REPARO) / NULLIF(COUNT(DISTINCT f.CODORD), 0)),
           0) * 100.0 AS DISPONIBILIDADE
 
-      FROM FALHAS2
-      GROUP BY ANO, MES
-      HAVING COUNT(DISTINCT CODORD) >= 1
-      ORDER BY ANO, MES
+      FROM FALHAS2 f
+      LEFT JOIN MTTR_EF2 ef ON ef.ANO = f.ANO AND ef.MES = f.MES
+      GROUP BY f.ANO, f.MES, ef.N_EF, ef.TEMPO_TOTAL_EF
+      HAVING COUNT(DISTINCT f.CODORD) >= 1
+      ORDER BY f.ANO, f.MES
     `);
 
   // ── 3. Locais disponíveis (para filtro) ──────────────────────────────────
@@ -239,8 +300,8 @@ async function queryEngeman(diasPeriodo: number): Promise<{
       totalHorasReparo: parseFloat((r.TOTAL_HH_REPARO ?? 0).toFixed(2)),
       mtbf:             parseFloat(Math.max(r.MTBF ?? 0, 0).toFixed(2)),
       mttr:             parseFloat((r.MTTR ?? 0).toFixed(2)),
+      mttrEfetivo:      parseFloat((r.MTTR_EFETIVO ?? 0).toFixed(2)),
       disponibilidade:  parseFloat(Math.min(r.DISPONIBILIDADE ?? 100, 100).toFixed(2)),
-      // Confiabilidade vem do SQL: R(90d) = EXP(−n/8760 × 2160) × 100
       confiabilidade:   parseFloat(Math.min(r.CONFIABILIDADE ?? 100, 100).toFixed(2)),
       periodoHoras,
     };
@@ -254,14 +315,15 @@ async function queryEngeman(diasPeriodo: number): Promise<{
     const lambda = r.FALHAS > 0 ? r.FALHAS / horasMes : 0;
     const conf   = lambda > 0 ? Math.exp(-lambda * 90 * 24) * 100 : 100;
     return {
-      mes:             `${r.ANO}-${String(r.MES).padStart(2, "0")}`,
-      label:           `${MESES[r.MES - 1]}/${String(r.ANO).slice(2)}`,
-      mttrMedio:       parseFloat((r.MTTR_MEDIO ?? 0).toFixed(2)),
-      mtbfMedio:       parseFloat(mtbf.toFixed(2)),
-      disponibilidade: parseFloat(disp.toFixed(2)),
-      confiabilidade:  parseFloat(Math.min(conf, 100).toFixed(2)),
-      falhas:          r.FALHAS,
-      totalHhReparo:   parseFloat((r.TOTAL_HH_REPARO ?? 0).toFixed(2)),
+      mes:                `${r.ANO}-${String(r.MES).padStart(2, "0")}`,
+      label:              `${MESES[r.MES - 1]}/${String(r.ANO).slice(2)}`,
+      mttrMedio:          parseFloat((r.MTTR_MEDIO ?? 0).toFixed(2)),
+      mttrEfetivoMedio:   parseFloat((r.MTTR_EFETIVO_MEDIO ?? 0).toFixed(2)),
+      mtbfMedio:          parseFloat(mtbf.toFixed(2)),
+      disponibilidade:    parseFloat(disp.toFixed(2)),
+      confiabilidade:     parseFloat(Math.min(conf, 100).toFixed(2)),
+      falhas:             r.FALHAS,
+      totalHhReparo:      parseFloat((r.TOTAL_HH_REPARO ?? 0).toFixed(2)),
     };
   });
 

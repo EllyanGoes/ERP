@@ -152,7 +152,7 @@ function fmtHoras(h: number): string {
 }
 
 // ── Metric line chart ─────────────────────────────────────────────────────────
-type MetricKey = "mtbfMedio" | "mttrMedio" | "disponibilidade" | "confiabilidade";
+type MetricKey = "mtbfMedio" | "mttrMedio" | "mttrEfetivoMedio" | "disponibilidade" | "confiabilidade";
 
 interface MetricConfig {
   key: MetricKey;
@@ -198,6 +198,14 @@ const METRIC_CONFIGS: MetricConfig[] = [
     fmtDot:      fmtHoras,
     domain:      ["auto", "dataMax"],
   },
+  {
+    key:         "mttrEfetivoMedio",
+    label:       "MTTR Efetivo",
+    color:       "#f97316",
+    fmtY:        fmtHoras,
+    fmtDot:      fmtHoras,
+    domain:      ["auto", "dataMax"],
+  },
 ];
 
 // Custom dot with value label above
@@ -234,9 +242,10 @@ function DrillModal({
   onClose: () => void;
 }) {
   function eqVal(eq: IndicadorEquipamento): number {
-    if (metric.key === "mtbfMedio")       return eq.mtbf;
-    if (metric.key === "mttrMedio")       return eq.mttr;
-    if (metric.key === "disponibilidade") return eq.disponibilidade;
+    if (metric.key === "mtbfMedio")          return eq.mtbf;
+    if (metric.key === "mttrMedio")          return eq.mttr;
+    if (metric.key === "mttrEfetivoMedio")   return eq.mttrEfetivo;
+    if (metric.key === "disponibilidade")    return eq.disponibilidade;
     return eq.confiabilidade;
   }
 
@@ -248,10 +257,11 @@ function DrillModal({
   });
 
   const isGood = (eq: IndicadorEquipamento) => {
-    if (metric.key === "mtbfMedio")     return eq.mtbf  >= targets.mtbf;
-    if (metric.key === "mttrMedio")     return eq.mttr  <= targets.mttr;
-    if (metric.key === "disponibilidade") return eq.disponibilidade >= 95;
-    if (metric.key === "confiabilidade")  return eq.confiabilidade  >= 60;
+    if (metric.key === "mtbfMedio")        return eq.mtbf         >= targets.mtbf;
+    if (metric.key === "mttrMedio")        return eq.mttr         <= targets.mttr;
+    if (metric.key === "mttrEfetivoMedio") return eq.mttrEfetivo  <= targets.mttr;
+    if (metric.key === "disponibilidade")  return eq.disponibilidade >= 95;
+    if (metric.key === "confiabilidade")   return eq.confiabilidade  >= 60;
     return true;
   };
 
@@ -689,13 +699,14 @@ export default function PCMDashboardPage() {
   const kpis = useMemo(() => {
     const list = equipamentosFiltrados;
     if (list.length === 0) {
-      return { mtbf: 0, mttr: 0, disp: 0, conf: 0 };
+      return { mtbf: 0, mttr: 0, mttrEfetivo: 0, disp: 0, conf: 0 };
     }
     return {
-      mtbf: list.reduce((s, e) => s + e.mtbf, 0) / list.length,
-      mttr: list.reduce((s, e) => s + e.mttr, 0) / list.length,
-      disp: list.reduce((s, e) => s + e.disponibilidade, 0) / list.length,
-      conf: list.reduce((s, e) => s + e.confiabilidade, 0) / list.length,
+      mtbf:         list.reduce((s, e) => s + e.mtbf, 0)          / list.length,
+      mttr:         list.reduce((s, e) => s + e.mttr, 0)          / list.length,
+      mttrEfetivo:  list.reduce((s, e) => s + e.mttrEfetivo, 0)   / list.length,
+      disp:         list.reduce((s, e) => s + e.disponibilidade, 0) / list.length,
+      conf:         list.reduce((s, e) => s + e.confiabilidade, 0) / list.length,
     };
   }, [equipamentosFiltrados]);
 
@@ -997,7 +1008,7 @@ export default function PCMDashboardPage() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-5 gap-4">
           <KpiCard
             title="Média MTBF"
             value={`${fmt1(kpis.mtbf)}h`}
@@ -1027,6 +1038,22 @@ export default function PCMDashboardPage() {
                 <strong>MTTR</strong> — Tempo Médio Para Reparar<br />
                 Fórmula: Horas Corretivas ÷ Nº Falhas<br />
                 Quanto menor, mais ágil a equipe de manutenção na resolução das quebras.
+              </span>
+            }
+          />
+          <KpiCard
+            title="MTTR Efetivo Médio"
+            value={`${fmt1(kpis.mttrEfetivo)}h`}
+            subtitle={`Meta: ≤ ${targets.mttr}h (tempo efetivo)`}
+            icon={AlertTriangle}
+            color={kpis.mttrEfetivo <= targets.mttr ? "text-orange-600" : "text-red-600"}
+            bg={kpis.mttrEfetivo <= targets.mttr ? "bg-orange-50" : "bg-red-50"}
+            trend={kpis.mttrEfetivo <= targets.mttr ? "up" : "down"}
+            info={
+              <span>
+                <strong>MTTR Efetivo</strong><br />
+                Fórmula Engeman: SUM(TEMPO_EFETIVO) ÷ COUNT(OS executadas)<br />
+                Filtros: REGSERV.EXECUTADO=&apos;S&apos;, CODDEF IS NOT NULL, STATORD≠&apos;C&apos;, SIMULA=&apos;R&apos;. Mede o tempo realmente gasto no reparo (sem deslocamento nem espera).
               </span>
             }
           />
