@@ -50,10 +50,10 @@ const COLS: ColDef<ProdutoRow>[] = [
   {
     id: "codigo",
     label: "Código",
-    thClass: "text-left px-4 py-2.5 font-medium",
-    tdClass: "px-4 py-3",
+    thClass: "text-left px-4 py-3 font-semibold",
+    tdClass: "px-4 py-3.5",
     render: (p) => (
-      <Link href={`/suprimentos/produtos/${p.itemId}`} className="font-mono text-xs text-blue-600 hover:underline">
+      <Link href={`/suprimentos/produtos/${p.itemId}`} className="font-mono text-xs font-semibold text-blue-600 hover:underline">
         {p.codigo}
       </Link>
     ),
@@ -61,15 +61,15 @@ const COLS: ColDef<ProdutoRow>[] = [
   {
     id: "descricao",
     label: "Descrição",
-    thClass: "text-left px-4 py-2.5 font-medium",
-    tdClass: "px-4 py-3 font-medium text-gray-900",
+    thClass: "text-left px-4 py-3 font-semibold",
+    tdClass: "px-4 py-3.5 font-semibold text-gray-900",
     render: (p) => p.descricao,
   },
   {
     id: "qtdTotal",
     label: "Qtd. Total",
-    thClass: "text-right px-4 py-2.5 font-medium",
-    tdClass: "px-4 py-3 text-right",
+    thClass: "text-right px-4 py-3 font-semibold",
+    tdClass: "px-4 py-3.5 text-right",
     render: (p) => {
       const abaixo = p.minTotal > 0 && p.qtdTotal < p.minTotal;
       return (
@@ -77,7 +77,7 @@ const COLS: ColDef<ProdutoRow>[] = [
           <span className={cn("font-bold text-base", abaixo ? "text-red-600" : "text-gray-900")}>
             {p.qtdTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
           </span>
-          <span className="text-xs text-gray-400 ml-1">{p.unidade}</span>
+          <span className="text-xs text-gray-500 ml-1 font-medium">{p.unidade}</span>
         </>
       );
     },
@@ -85,35 +85,35 @@ const COLS: ColDef<ProdutoRow>[] = [
   {
     id: "minimo",
     label: "Mínimo",
-    thClass: "text-right px-4 py-2.5 font-medium",
-    tdClass: "px-4 py-3 text-right text-gray-500 text-sm",
-    render: (p) => p.minTotal > 0 ? p.minTotal.toLocaleString("pt-BR") : "—",
+    thClass: "text-right px-4 py-3 font-semibold",
+    tdClass: "px-4 py-3.5 text-right text-gray-600 text-sm font-medium",
+    render: (p) => p.minTotal > 0 ? p.minTotal.toLocaleString("pt-BR") : <span className="text-gray-300">—</span>,
   },
   {
     id: "maximo",
     label: "Máximo",
-    thClass: "text-right px-4 py-2.5 font-medium",
-    tdClass: "px-4 py-3 text-right text-gray-500 text-sm",
-    render: (p) => p.maxTotal !== null ? p.maxTotal.toLocaleString("pt-BR") : "—",
+    thClass: "text-right px-4 py-3 font-semibold",
+    tdClass: "px-4 py-3.5 text-right text-gray-600 text-sm font-medium",
+    render: (p) => p.maxTotal !== null ? p.maxTotal.toLocaleString("pt-BR") : <span className="text-gray-300">—</span>,
   },
   {
     id: "situacao",
     label: "Situação",
-    thClass: "text-center px-4 py-2.5 font-medium",
-    tdClass: "px-4 py-3 text-center",
+    thClass: "text-center px-4 py-3 font-semibold",
+    tdClass: "px-4 py-3.5 text-center",
     render: (p) => {
       const abaixo = p.minTotal > 0 && p.qtdTotal < p.minTotal;
       const acima  = p.maxTotal !== null && p.qtdTotal > p.maxTotal;
       if (abaixo) return (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
+        <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 border border-red-200 px-2.5 py-1 rounded-full">
           <AlertTriangle className="w-3 h-3" /> Baixo
         </span>
       );
       if (acima) return (
-        <span className="text-xs font-medium text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">Acima máx.</span>
+        <span className="text-xs font-semibold text-amber-700 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full">Acima máx.</span>
       );
       return (
-        <span className="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">Normal</span>
+        <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full">Normal</span>
       );
     },
   },
@@ -308,14 +308,14 @@ export default function EstoquePage() {
         ) : (
           <div className="rounded-xl border border-gray-200 overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr className="text-xs text-gray-400 uppercase tracking-wide">
+              <thead className="bg-gray-100 border-b border-gray-300">
+                <tr className="text-xs text-gray-600 uppercase tracking-wide font-semibold">
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-200">
                 {filtered.map((p) => {
                   const abaixo = p.minTotal > 0 && p.qtdTotal < p.minTotal;
                   return (
@@ -335,7 +335,7 @@ export default function EstoquePage() {
                 })}
               </tbody>
             </table>
-            <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 text-xs text-gray-400">
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 font-medium">
               {filtered.length} produto{filtered.length !== 1 ? "s" : ""}
               {localId !== "todos" && ` · filtrado por local`}
               {hasFilters && totalUnique !== filtered.length && ` (${totalUnique} no total)`}

@@ -160,11 +160,14 @@ function ItemSearchCell({
   function calcPos() {
     if (!inputRef.current) return;
     const r = inputRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom + 2, left: r.left, width: Math.max(r.width, 300) });
+    setPos({ top: r.bottom + 2, left: r.left, width: Math.max(r.width, 360) });
   }
 
   const filtered = (query.trim()
-    ? itensCat.filter((i) => i.codigo.toLowerCase().includes(query.toLowerCase()) || i.descricao.toLowerCase().includes(query.toLowerCase()))
+    ? itensCat.filter((i) =>
+        i.codigo.toLowerCase().includes(query.toLowerCase()) ||
+        i.descricao.toLowerCase().includes(query.toLowerCase())
+      )
     : itensCat
   ).slice(0, 50);
 
@@ -182,37 +185,93 @@ function ItemSearchCell({
 
   return (
     <div className="item-search-wrap relative">
-      <Input
-        ref={inputRef}
-        value={open ? query : (selected?.descricao ?? "")}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          if (row.itemId && e.target.value !== selected?.descricao) {
-            onSelect(row._key, "", "");
-          }
-          calcPos();
-          setOpen(true);
-        }}
-        onFocus={() => { setQuery(""); calcPos(); setOpen(true); }}
-        placeholder="Buscar material..."
-        className="h-8 text-xs"
-      />
+      <div className={cn(
+        "flex items-center rounded-md border transition-colors bg-white",
+        open ? "border-blue-400 ring-1 ring-blue-200" : "border-gray-200 hover:border-gray-300"
+      )}>
+        <input
+          ref={inputRef}
+          value={open ? query : (selected ? `${selected.codigo} — ${selected.descricao}` : "")}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (row.itemId && e.target.value !== `${selected?.codigo} — ${selected?.descricao}`) {
+              onSelect(row._key, "", "");
+            }
+            calcPos();
+            setOpen(true);
+          }}
+          onFocus={() => { setQuery(""); calcPos(); setOpen(true); }}
+          placeholder="Buscar produto por código ou descrição..."
+          className="flex-1 px-2 py-1.5 text-xs bg-transparent outline-none placeholder:text-gray-400 text-gray-900 h-8"
+        />
+        {row.itemId && !open && (
+          <button
+            type="button"
+            onClick={() => { onSelect(row._key, "", ""); setQuery(""); }}
+            className="px-1.5 text-gray-300 hover:text-gray-500"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
       {mounted && open && createPortal(
-        <div className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-auto max-h-52"
+        <div className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
           style={{ top: pos?.top, left: pos?.left, width: pos?.width }}>
-          {filtered.length > 0 ? filtered.map((it) => (
-            <button key={it.id} type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onSelect(row._key, it.id, it.unidade?.sigla ?? it.unidadeMedida ?? "");
-                setQuery("");
-                setOpen(false);
-              }}
-              className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 flex items-center gap-2">
-              <span className="font-mono text-gray-400 shrink-0 w-20 truncate">{it.codigo}</span>
-              <span className="text-gray-800 truncate">{it.descricao}</span>
-            </button>
-          )) : <p className="px-3 py-2 text-xs text-gray-400 italic">Nenhum material encontrado</p>}
+          {/* Header */}
+          <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+              Cadastro de Produtos
+            </span>
+            <span className="text-[10px] text-gray-400">{filtered.length} encontrado{filtered.length !== 1 ? "s" : ""}</span>
+          </div>
+          <div className="overflow-auto max-h-48">
+            {filtered.length > 0 ? filtered.map((it) => (
+              <button key={it.id} type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onSelect(row._key, it.id, it.unidade?.sigla ?? it.unidadeMedida ?? "");
+                  setQuery("");
+                  setOpen(false);
+                }}
+                className={cn(
+                  "w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors flex items-center gap-3 border-b border-gray-50 last:border-0",
+                  it.id === row.itemId && "bg-blue-50"
+                )}>
+                <span className="font-mono text-[11px] font-semibold text-blue-600 shrink-0 w-[72px] truncate">{it.codigo}</span>
+                <span className="text-xs text-gray-800 font-medium truncate flex-1">{it.descricao}</span>
+                {(it.unidade?.sigla || it.unidadeMedida) && (
+                  <span className="text-[10px] text-gray-400 shrink-0 font-mono">{it.unidade?.sigla || it.unidadeMedida}</span>
+                )}
+              </button>
+            )) : (
+              <div className="px-3 py-4 text-center">
+                <p className="text-xs text-gray-400 italic mb-2">
+                  {query ? `Nenhum produto encontrado para "${query}"` : "Nenhum produto cadastrado"}
+                </p>
+                <a
+                  href="/suprimentos/produtos/novo"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <Plus className="w-3 h-3" /> Cadastrar novo produto
+                </a>
+              </div>
+            )}
+          </div>
+          {/* Footer link */}
+          <div className="px-3 py-2 bg-gray-50 border-t border-gray-100">
+            <a
+              href="/suprimentos/produtos"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-gray-400 hover:text-blue-600 transition-colors"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              Ver todos os produtos →
+            </a>
+          </div>
         </div>,
         document.body
       )}
@@ -613,7 +672,7 @@ export default function NovaRequisicaoPage() {
         {/* Items table */}
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Materiais</CardTitle>
+            <CardTitle className="text-base">Produtos</CardTitle>
             <Button type="button" size="sm" variant="outline" onClick={() => setRows((p) => [...p, emptyRow()])}>
               <Plus className="w-4 h-4 mr-1" />Adicionar
             </Button>
@@ -623,7 +682,7 @@ export default function NovaRequisicaoPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr className="text-xs text-gray-500 uppercase tracking-wide font-medium">
-                    <th className="text-left px-3 py-2.5 min-w-[240px]">Material</th>
+                    <th className="text-left px-3 py-2.5 min-w-[240px]">Produto</th>
                     <th className="text-left px-3 py-2.5 w-16">Un.</th>
                     <th className="text-left px-3 py-2.5 w-28">Qtde</th>
                     {tipo === "REQUISICAO" && <>

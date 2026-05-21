@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { usePersistedFilters } from "@/lib/use-persisted-filters";
 import PageHeader from "@/components/shared/PageHeader";
 import { useSession } from "@/lib/session-context";
-import { Lock } from "lucide-react";
 import FilterDropdown, { FilterOption } from "@/components/shared/FilterDropdown";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import { Button } from "@/components/ui/button";
@@ -597,22 +596,9 @@ export default function MovimentacoesPage() {
   const [colOrder, setColOrder] = useColumnOrder("movimentacoes", MOV_COLS.map((c) => c.id));
   const orderedMovCols = colOrder.map((id) => MOV_COLS.find((c) => c.id === id)).filter((c): c is ColDef<MovItem> => c !== undefined);
 
-  // ── Render ───────────────────────────────────────────────────────────────────
-  // Admin-only gate (placed after all hooks to respect React rules)
-  if (user !== null && user?.perfil !== "ADMIN") {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
-          <Lock className="w-8 h-8 text-gray-400" />
-        </div>
-        <div className="text-center">
-          <p className="text-lg font-semibold text-gray-700">Acesso Restrito</p>
-          <p className="text-sm text-gray-400 mt-1">Esta página está disponível apenas para administradores.</p>
-        </div>
-      </div>
-    );
-  }
+  const isAdmin = user?.perfil === "ADMIN";
 
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div>
       {/* Auto-vínculo toast */}
@@ -628,10 +614,12 @@ export default function MovimentacoesPage() {
         title="Movimentações de Estoque"
         breadcrumbs={[{ label: "Almoxarifado" }, { label: "Movimentações" }]}
         action={
-          <Button onClick={() => { resetModal(); setShowModal(true); }}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nova Movimentação
-          </Button>
+          isAdmin ? (
+            <Button onClick={() => { resetModal(); setShowModal(true); }}>
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Movimentação
+            </Button>
+          ) : undefined
         }
       />
 
