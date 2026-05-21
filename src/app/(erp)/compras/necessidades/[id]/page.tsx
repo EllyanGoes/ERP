@@ -356,11 +356,11 @@ export default function NecessidadeDetailPage() {
     setSubmittingAprovacaoError("");
     setWAUsersLoading(true);
     try {
-      const res  = await fetch("/api/empresa/colaboradores?ativo=true");
+      const res  = await fetch("/api/empresa/aprovadores");
       const json = await res.json();
       const list: WAUser[] = (Array.isArray(json) ? json : []).map((c: WAUser) => ({
-        id: c.id, nome: c.nome, email: undefined,
-        telefone: c.telefone, _type: "colaborador" as const,
+        id: c.id, nome: c.nome, email: c.email,
+        telefone: c.telefone, _type: "usuario" as const,
       }));
       setWAUsers(list);
     } catch { /* ignore */ }
@@ -412,7 +412,7 @@ export default function NecessidadeDetailPage() {
       fetch(`/api/compras/necessidades/${necessidade.id}/submeter-aprovacao`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modo: "direto", colaboradorId: waAprovadorId }),
+        body: JSON.stringify({ modo: "direto", aprovadorId: waAprovadorId }),
       }).catch(() => {});
     }
     setShowWAModal(false);
@@ -425,7 +425,7 @@ export default function NecessidadeDetailPage() {
       await fetch(`/api/compras/necessidades/${necessidade.id}/submeter-aprovacao`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modo: "direto", colaboradorId: waAprovadorId }),
+        body: JSON.stringify({ modo: "direto", aprovadorId: waAprovadorId }),
       });
     } catch { /* silencioso */ }
     setShowWAModal(false);
