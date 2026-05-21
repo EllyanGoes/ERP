@@ -164,6 +164,7 @@ export default function NovoPedidoCompraPage() {
   // ── Submit ─────────────────────────────────────────────────────────────────
   async function handleSubmit() {
     if (!fornecedorId) { setError("Selecione um fornecedor"); return; }
+    if (!descricao.trim()) { setError("Descrição é obrigatória"); return; }
     const validItens = itens.filter(
       (row) => row.itemId && parseFloat(row.quantidade) > 0
     );
@@ -266,11 +267,12 @@ export default function NovoPedidoCompraPage() {
             </div>
 
             <div className="space-y-1 md:col-span-3">
-              <Label className="text-xs text-gray-500">Descrição</Label>
+              <Label className="text-xs text-gray-500">Descrição <span className="text-red-500">*</span></Label>
               <Input
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
                 placeholder="Descrição do pedido (ex.: materiais para manutenção preventiva)"
+                className={!descricao.trim() && error ? "border-red-400" : ""}
               />
             </div>
             <div className="space-y-1">
