@@ -655,7 +655,8 @@ export default function PCMDashboardPage() {
 
   // ── Tree popover filter ──────────────────────────────────────────────────────
   const [showTreePopover, setShowTreePopover]   = useState(false);
-  const [treeSelected, setTreeSelected]         = useState<Set<number> | null>(null); // null = all
+  const [treeSelected, setTreeSelected]         = useState<Set<number> | null>(null); // null = all (applied)
+  const [pendingSelected, setPendingSelected]   = useState<Set<number> | null>(null); // draft inside popover
   const [treeExpanded, setTreeExpanded]         = useState<Set<string>>(new Set());
   const [treeSearch, setTreeSearch]             = useState("");
   const [allTree, setAllTree]                   = useState<TreeNode[]>([]);
@@ -719,6 +720,16 @@ export default function PCMDashboardPage() {
       .finally(() => setLoadingLocais(false));
   }, []);
 
+  // Sync pending ← applied when popover opens; clear search on close
+  useEffect(() => {
+    if (showTreePopover) {
+      setPendingSelected(treeSelected === null ? null : new Set(treeSelected));
+    } else {
+      setTreeSearch("");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showTreePopover]);
+
   // Close tree popover on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -764,10 +775,10 @@ export default function PCMDashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allTree]);
 
-  // ── Tree helpers ────────────────────────────────────────────────────────────
+  // ── Tree helpers (operam sobre pendingSelected — rascunho do popover) ────────
   function toggleGroup(node: TreeNode) {
     const ids = getDescendantLeaves(node).map((l) => l.codApl);
-    setTreeSelected((prev) => {
+    setPendingSelected((prev) => {
       const base = prev ?? allCodApls;
       const allSel = ids.every((id) => base.has(id));
       const next = new Set(base);
@@ -778,13 +789,18 @@ export default function PCMDashboardPage() {
   }
 
   function toggleLeaf(codApl: number) {
-    setTreeSelected((prev) => {
+    setPendingSelected((prev) => {
       const base = prev ?? new Set(allCodApls);
       const next = new Set(base);
       if (next.has(codApl)) next.delete(codApl);
       else next.add(codApl);
       return next.size === allCodApls.size ? null : next;
     });
+  }
+
+  function applyTreeFilter() {
+    setTreeSelected(pendingSelected);
+    setShowTreePopover(false);
   }
 
   // Filtered + sorted equipamentos
@@ -1031,11 +1047,11 @@ export default function PCMDashboardPage() {
                 {/* Actions — seleção + expand/collapse */}
                 <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-100 bg-gray-50/60">
                   {/* Seleção */}
-                  <button onClick={() => setTreeSelected(null)} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                  <button onClick={() => setPendingSelected(null)} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
                     Todos
                   </button>
                   <span className="text-gray-200">|</span>
-                  <button onClick={() => setTreeSelected(new Set())} className="text-xs text-gray-500 hover:text-gray-700">
+                  <button onClick={() => setPendingSelected(new Set())} className="text-xs text-gray-500 hover:text-gray-700">
                     Nenhum
                   </button>
 
@@ -1069,7 +1085,7 @@ export default function PCMDashboardPage() {
                   </button>
 
                   <span className="ml-auto text-xs text-gray-400">
-                    {treeSelected === null ? allCodApls.size : treeSelected.size}/{allCodApls.size}
+                    {pendingSelected === null ? allCodApls.size : pendingSelected.size}/{allCodApls.size}
                   </span>
                 </div>
 
@@ -1088,11 +1104,27 @@ export default function PCMDashboardPage() {
                       depth={0}
                       expanded={treeExpanded}
                       setExpanded={setTreeExpanded}
-                      selected={treeSelected}
+                      selected={pendingSelected}
                       onToggleGroup={toggleGroup}
                       onToggleLeaf={toggleLeaf}
                     />
                   ))}
+                </div>
+
+                {/* Rodapé — Aplicar / Cancelar */}
+                <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-t border-gray-100 bg-gray-50/60">
+                  <button
+                    onClick={() => setShowTreePopover(false)}
+                    className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={applyTreeFilter}
+                    className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-lg transition-colors"
+                  >
+                    Aplicar filtro
+                  </button>
                 </div>
               </div>
             )}
