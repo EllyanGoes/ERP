@@ -60,6 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             documento: conferencia.numero,
             observacoes: docRef,
             conferenciaItemId: item.id,
+            localEstoqueId: targetLocalEstoqueId,
           },
         });
 

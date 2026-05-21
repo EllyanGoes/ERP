@@ -393,7 +393,7 @@ export default function NovaRequisicaoPage() {
       safeFetch("/api/empresa/colaboradores?ativo=true"),
       safeFetch("/api/empresa/setores?ativo=true"),
       safeFetch("/api/empresa/centros-custo?ativo=true"),
-      safeFetch("/api/suprimentos/produtos?ativo=true"),
+      safeFetch("/api/suprimentos/produtos"),
     ]);
 
     if (lData  != null) setLocais(       Array.isArray(lData)  ? lData  : lData.data  ?? []);
