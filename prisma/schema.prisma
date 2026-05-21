@@ -859,11 +859,13 @@ model Usuario {
   updatedAt      DateTime @updatedAt
   perfilAcessoId String?
   telefone       String?
-  aprovacaoEtapas AprovacaoEtapa[]
-  aprovacoesSC    AprovacaoSC[]
-  colaborador     Colaborador?
-  permissoes      Permissao[]
-  perfilAcesso    PerfilAcesso?    @relation(fields: [perfilAcessoId], references: [id])
+  aprovacaoEtapas    AprovacaoEtapa[]
+  aprovacoesSC       AprovacaoSC[]
+  colaborador        Colaborador?
+  permissoes         Permissao[]
+  perfilAcesso       PerfilAcesso?    @relation(fields: [perfilAcessoId], references: [id])
+  ticketsAbertos     SupportTicket[]  @relation("TicketsAbertos")
+  ticketsRespondidos SupportTicket[]  @relation("TicketsRespondidos")
 }
 
 enum PerfilUsuario {
@@ -1098,4 +1100,46 @@ enum StatusInventarioMaterial {
   EM_ANDAMENTO
   CONCLUIDO
   CANCELADO
+}
+
+model SupportTicket {
+  id              String              @id @default(cuid())
+  numero          String              @unique
+  titulo          String
+  descricao       String
+  tipo            TipoSupportTicket   @default(MELHORIA)
+  status          StatusSupportTicket @default(ABERTO)
+  prioridade      PrioridadeTicket    @default(MEDIA)
+  imagemUrl       String?
+  imagemNome      String?
+  resposta        String?
+  usuarioId       String
+  respondidoPorId String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  usuario         Usuario             @relation("TicketsAbertos", fields: [usuarioId], references: [id])
+  respondidoPor   Usuario?            @relation("TicketsRespondidos", fields: [respondidoPorId], references: [id])
+
+  @@index([usuarioId])
+  @@index([status])
+}
+
+enum TipoSupportTicket {
+  MELHORIA
+  BUG
+  DUVIDA
+}
+
+enum StatusSupportTicket {
+  ABERTO
+  EM_ANALISE
+  RESOLVIDO
+  FECHADO
+}
+
+enum PrioridadeTicket {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
 }
