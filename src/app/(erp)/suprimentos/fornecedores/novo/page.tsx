@@ -2,6 +2,24 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
+function maskCpfCnpj(value: string, tipo: "JURIDICA" | "FISICA"): string {
+  const d = value.replace(/\D/g, "");
+  if (tipo === "FISICA") {
+    // CPF: XXX.XXX.XXX-XX
+    if (d.length <= 3)  return d;
+    if (d.length <= 6)  return `${d.slice(0,3)}.${d.slice(3)}`;
+    if (d.length <= 9)  return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}`;
+    return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9,11)}`;
+  } else {
+    // CNPJ: XX.XXX.XXX/XXXX-XX
+    if (d.length <= 2)  return d;
+    if (d.length <= 5)  return `${d.slice(0,2)}.${d.slice(2)}`;
+    if (d.length <= 8)  return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5)}`;
+    if (d.length <= 12) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8)}`;
+    return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12,14)}`;
+  }
+}
 import { CheckCircle2, Plus, ArrowLeft } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -207,8 +225,9 @@ export default function NovoFornecedorPage() {
               </Label>
               <Input
                 value={form.cpfCnpj}
-                onChange={(e) => set("cpfCnpj", e.target.value)}
+                onChange={(e) => set("cpfCnpj", maskCpfCnpj(e.target.value, form.tipoPessoa))}
                 placeholder={form.tipoPessoa === "JURIDICA" ? "00.000.000/0000-00" : "000.000.000-00"}
+                maxLength={form.tipoPessoa === "JURIDICA" ? 18 : 14}
               />
             </div>
 

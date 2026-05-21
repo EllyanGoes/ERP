@@ -3,6 +3,22 @@
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
+
+function maskCpfCnpj(value: string, tipo: string): string {
+  const d = value.replace(/\D/g, "");
+  if (tipo === "FISICA") {
+    if (d.length <= 3)  return d;
+    if (d.length <= 6)  return `${d.slice(0,3)}.${d.slice(3)}`;
+    if (d.length <= 9)  return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}`;
+    return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9,11)}`;
+  } else {
+    if (d.length <= 2)  return d;
+    if (d.length <= 5)  return `${d.slice(0,2)}.${d.slice(2)}`;
+    if (d.length <= 8)  return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5)}`;
+    if (d.length <= 12) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8)}`;
+    return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12,14)}`;
+  }
+}
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -452,8 +468,13 @@ export default function FornecedorDetailPage() {
                       </Select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label>CPF/CNPJ</Label>
-                      <Input value={editForm.cpfCnpj ?? ""} onChange={(e) => setField("cpfCnpj", e.target.value)} />
+                      <Label>{editForm.tipoPessoa === "FISICA" ? "CPF" : "CNPJ"}</Label>
+                      <Input
+                        value={editForm.cpfCnpj ?? ""}
+                        onChange={(e) => setField("cpfCnpj", maskCpfCnpj(e.target.value, editForm.tipoPessoa as string))}
+                        placeholder={editForm.tipoPessoa === "FISICA" ? "000.000.000-00" : "00.000.000/0000-00"}
+                        maxLength={editForm.tipoPessoa === "FISICA" ? 14 : 18}
+                      />
                     </div>
                     <div className="space-y-1.5 md:col-span-2">
                       <Label>Razão Social <span className="text-red-500">*</span></Label>
