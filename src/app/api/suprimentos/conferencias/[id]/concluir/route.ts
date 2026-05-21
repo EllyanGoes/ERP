@@ -32,8 +32,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
 
       if (qtdRecebida > 0) {
-        // Use item-specific localEstoqueId if set, otherwise fall back to null (global stock)
-        const targetLocalEstoqueId = item.localEstoqueId ?? null;
+        // Use item-specific localEstoqueId if set, otherwise fall back to the
+        // conferência's default local, then to null (global stock)
+        const targetLocalEstoqueId = item.localEstoqueId ?? conferencia.localEstoqueId ?? null;
 
         // Get current stock for this location
         const estoqueItem = await tx.estoqueItem.findFirst({
