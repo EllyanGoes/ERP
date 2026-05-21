@@ -50,13 +50,14 @@ export interface IndicadoresResponse {
 // Tempo de reparo: MAQPAR→MAQFUN (parada real); fallback: HOREXEREA
 
 // ── Queries ───────────────────────────────────────────────────────────────────
-async function queryEngeman(diasPeriodo: number): Promise<{
+async function queryEngeman(diasPeriodo: number, codApls?: number[]): Promise<{
   equipamentos: IndicadorEquipamento[];
   tendencia: TendenciaMensal[];
   locais: string[];
 }> {
   const pool = await sql.connect(await getEngemanConfig());
   const periodoHoras = diasPeriodo * 24;
+  const codAplList = codApls && codApls.length > 0 ? codApls.join(",") : null;
 
   // ── 1. Indicadores por equipamento ────────────────────────────────────────
   // Fórmula Engeman-nativa (usando período selecionado como base de tempo):
@@ -72,6 +73,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
   const indResult = await pool.request()
     .input("diasPeriodo", sql.Int, diasPeriodo)
     .input("periodoHoras", sql.Float, periodoHoras)
+    .input("codAplList", sql.VarChar(sql.MAX), codAplList)
     .query<{
       CODAPL: number;
       TAG: string;
@@ -101,6 +103,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
           AND o.CODAPL IS NOT NULL
           AND o.CODFIL NOT IN (0)
           AND o.DATPRO >= DATEADD(DAY, -@diasPeriodo, GETDATE())
+          AND (@codAplList IS NULL OR o.CODAPL IN (SELECT CAST(value AS INT) FROM STRING_SPLIT(@codAplList, ',')))
       ),
       /* Confiabilidade: fórmula Engeman (DEFCAU='S', STATORD='F', DATPRO2, sempre 365d) */
       CONF AS (
@@ -112,6 +115,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
           AND o.CODAPL IS NOT NULL
           AND o.CODFIL NOT IN (0)
           AND o.DATPRO2 BETWEEN CONVERT(DATE, GETDATE()-365) AND CONVERT(DATE, GETDATE())
+          AND (@codAplList IS NULL OR o.CODAPL IN (SELECT CAST(value AS INT) FROM STRING_SPLIT(@codAplList, ',')))
         GROUP BY o.CODAPL
       ),
       /* MTTR Efetivo: usa TEMPO_EFETIVO, EXECUTADO='S', STATORD<>'C', SIMULA='R' */
@@ -131,6 +135,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
           AND o.CODAPL  IS NOT NULL
           AND o.CODFIL  NOT IN (0)
           AND o.DATPRO  >= DATEADD(DAY, -@diasPeriodo, GETDATE())
+          AND (@codAplList IS NULL OR o.CODAPL IN (SELECT CAST(value AS INT) FROM STRING_SPLIT(@codAplList, ',')))
         GROUP BY o.CODAPL
       )
       SELECT
@@ -188,6 +193,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
   // MTBF_MEDIO = horas_mês / falhas_mês  (consistente com a query por equipamento)
   const trendResult = await pool.request()
     .input("diasPeriodo2", sql.Int, diasPeriodo)
+    .input("codAplList", sql.VarChar(sql.MAX), codAplList)
     .query<{
       ANO: number;
       MES: number;
@@ -215,6 +221,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
           AND o.CODAPL IS NOT NULL
           AND o.CODFIL NOT IN (0)
           AND o.DATPRO >= DATEADD(DAY, -@diasPeriodo2, GETDATE())
+          AND (@codAplList IS NULL OR o.CODAPL IN (SELECT CAST(value AS INT) FROM STRING_SPLIT(@codAplList, ',')))
       ),
       /* MTTR Efetivo mensal */
       MTTR_EF2 AS (
@@ -234,6 +241,7 @@ async function queryEngeman(diasPeriodo: number): Promise<{
           AND o.CODAPL  IS NOT NULL
           AND o.CODFIL  NOT IN (0)
           AND o.DATPRO  >= DATEADD(DAY, -@diasPeriodo2, GETDATE())
+          AND (@codAplList IS NULL OR o.CODAPL IN (SELECT CAST(value AS INT) FROM STRING_SPLIT(@codAplList, ',')))
         GROUP BY YEAR(o.DATPRO), MONTH(o.DATPRO)
       )
       SELECT
@@ -335,9 +343,13 @@ async function queryEngeman(diasPeriodo: number): Promise<{
 // ── Handler ───────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const dias = parseInt(req.nextUrl.searchParams.get("dias") ?? "365", 10) || 365;
+  const codAplsParam = req.nextUrl.searchParams.get("codApls");
+  const codApls = codAplsParam
+    ? codAplsParam.split(",").map(Number).filter((n) => !isNaN(n) && n > 0)
+    : undefined;
 
   try {
-    const { equipamentos, tendencia, locais } = await queryEngeman(dias);
+    const { equipamentos, tendencia, locais } = await queryEngeman(dias, codApls);
     const response: IndicadoresResponse = {
       equipamentos,
       tendencia,
