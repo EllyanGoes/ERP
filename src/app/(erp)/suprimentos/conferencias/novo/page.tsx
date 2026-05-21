@@ -224,7 +224,7 @@ export default function NovoDocumentoEntradaPage() {
   useEffect(() => {
     fetch("/api/suprimentos/fornecedores")
       .then((r) => r.json())
-      .then((j) => setFornecedores(j.data ?? []))
+      .then((j) => setFornecedores(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
 
