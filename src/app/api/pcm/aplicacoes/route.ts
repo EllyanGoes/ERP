@@ -6,18 +6,24 @@ import { getEngemanConfig } from "@/lib/engeman";
 
 export interface AplicacaoNode {
   codApl: number;
-  tag: string;       // coluna TAG do APLIC (ex.: "CRX-0003")
+  tag: string;       // coluna TAG do APLIC (ex.: "ALI-0001")
   descricao: string;
   ativo: boolean;
 }
 
-export interface GrupoNode {
-  gruTag: string;    // TAG da aplicação-grupo (ex.: "PLF-0000")
-  descricao: string; // DESCRICAO da aplicação-grupo (ex.: "PLANTA FABRIL")
+export interface SubgrupoNode {
+  gruTag: string;    // TAG do sub-sistema nível 3 (ex.: "LNP-0001")
+  descricao: string; // Nome do sub-sistema  (ex.: "LINHA DE PRODUÇÃO 01")
   equips: AplicacaoNode[];
 }
 
-// Mantido por compatibilidade — não é mais usado internamente
+export interface GrupoNode {
+  gruTag: string;    // TAG da área nível 2  (ex.: "PRD-0000")
+  descricao: string; // Nome da área         (ex.: "ÁREA DE PRODUÇÃO")
+  subgrupos: SubgrupoNode[];
+}
+
+// Mantido por compatibilidade com imports antigos
 export interface LocalNode {
   codLocapl: number | null;
   descricao: string;
@@ -34,45 +40,99 @@ export async function GET() {
   try {
     const pool = await sql.connect(await getEngemanConfig());
 
-    // Busca todas as aplicações ativas com:
-    //   TAG e DESCRICAO para identificação
-    //   Grupo raiz determinado pelo prefixo da TAGGRU (ex.: "001.")
-    //   Join com a aplicação-grupo (GRUAPL='S') que tem esse prefixo como TAGGRU
+    // Extrai prefixo de nível 2 (área) e nível 3 (sub-sistema) para cada aplicação
+    // e resolve os nomes fazendo join com a própria tabela APLIC.
+    //
+    // Exemplos de TAGGRU:
+    //   '001.'           → nível 1 (raiz – PLF-0000, ignorado)
+    //   '001.001.'       → nível 2 = área (PRD-0000)
+    //   '001.001.001.'   → nível 3 = sub-sistema (LNP-0001)
+    //   '001.001.001.001.002.001.' → folha → grupo em nível 3, sub-sistema em nível 3
     const result = await pool.request().query<{
       CODAPL: number;
       TAG: string;
       DESCRICAO: string;
       ATIVO: string;
-      GRU_TAG: string;
-      GRU_NOME: string;
+      GRU2_TAG: string;
+      GRU2_NOME: string;
+      GRU3_TAG: string;
+      GRU3_NOME: string;
     }>(`
+      WITH PREFIXES AS (
+        SELECT
+          a.CODAPL,
+          RTRIM(ISNULL(a.TAG, CAST(a.CODAPL AS VARCHAR(20))))  AS TAG,
+          RTRIM(ISNULL(a.DESCRICAO, 'Sem descrição'))          AS DESCRICAO,
+          ISNULL(a.ATIVO, 'N')                                 AS ATIVO,
+
+          /* ── Prefixo nível 2 (área): até o 2º ponto ── */
+          CASE
+            WHEN a.TAGGRU IS NULL THEN NULL
+            WHEN CHARINDEX('.', a.TAGGRU, CHARINDEX('.', a.TAGGRU) + 1) > 0
+              THEN LEFT(a.TAGGRU, CHARINDEX('.', a.TAGGRU, CHARINDEX('.', a.TAGGRU) + 1))
+            ELSE a.TAGGRU   -- nível 1: usa o próprio
+          END AS GRU2_PREFIX,
+
+          /* ── Prefixo nível 3 (sub-sistema): até o 3º ponto ── */
+          CASE
+            WHEN a.TAGGRU IS NULL THEN NULL
+            WHEN CHARINDEX('.', a.TAGGRU,
+                   CHARINDEX('.', a.TAGGRU, CHARINDEX('.', a.TAGGRU) + 1) + 1) > 0
+              THEN LEFT(a.TAGGRU,
+                     CHARINDEX('.', a.TAGGRU,
+                       CHARINDEX('.', a.TAGGRU, CHARINDEX('.', a.TAGGRU) + 1) + 1))
+            WHEN CHARINDEX('.', a.TAGGRU, CHARINDEX('.', a.TAGGRU) + 1) > 0
+              THEN a.TAGGRU   -- nível 2: usa o próprio
+            ELSE a.TAGGRU     -- nível 1: usa o próprio
+          END AS GRU3_PREFIX
+
+        FROM APLIC a
+        WHERE a.ATIVO = 'S'
+      )
       SELECT
-        a.CODAPL,
-        RTRIM(ISNULL(a.TAG, CAST(a.CODAPL AS VARCHAR(20))))   AS TAG,
-        RTRIM(ISNULL(a.DESCRICAO, 'Sem descrição'))           AS DESCRICAO,
-        ISNULL(a.ATIVO, 'N')                                  AS ATIVO,
-        ISNULL(RTRIM(g.TAG),       'SEM-GRU')                 AS GRU_TAG,
-        ISNULL(RTRIM(g.DESCRICAO), 'Sem Agrupamento')         AS GRU_NOME
-      FROM APLIC a
-      /* Encontra o grupo raiz: aplicação com GRUAPL='S' cujo TAGGRU
-         é o primeiro segmento do TAGGRU da aplicação filho (ex.: "001.") */
-      LEFT JOIN APLIC g
-        ON  g.GRUAPL = 'S'
-        AND a.TAGGRU IS NOT NULL
-        AND g.TAGGRU = LEFT(a.TAGGRU, CHARINDEX('.', a.TAGGRU))
-      WHERE a.ATIVO = 'S'
-      ORDER BY GRU_NOME, a.TAG
+        p.CODAPL,
+        p.TAG,
+        p.DESCRICAO,
+        p.ATIVO,
+
+        /* Área (nível 2) */
+        ISNULL(RTRIM(g2.TAG),        'SEM-AREA')       AS GRU2_TAG,
+        ISNULL(RTRIM(g2.DESCRICAO),  'Sem Área')       AS GRU2_NOME,
+
+        /* Sub-sistema (nível 3) */
+        ISNULL(RTRIM(g3.TAG),        ISNULL(p.GRU3_PREFIX, 'SEM-SUB')) AS GRU3_TAG,
+        ISNULL(RTRIM(g3.DESCRICAO),  ISNULL(p.GRU3_PREFIX, 'Sem Subgrupo')) AS GRU3_NOME
+
+      FROM PREFIXES p
+      LEFT JOIN APLIC g2 ON g2.TAGGRU = p.GRU2_PREFIX AND g2.ATIVO = 'S'
+      LEFT JOIN APLIC g3 ON g3.TAGGRU = p.GRU3_PREFIX AND g3.ATIVO = 'S'
+      ORDER BY GRU2_NOME, GRU3_NOME, p.TAG
     `);
 
     await pool.close();
 
-    const map = new Map<string, GrupoNode>();
+    // ── Agrupamento em memória ────────────────────────────────────────────────
+    const areaMap = new Map<string, GrupoNode>();
+
     for (const r of result.recordset) {
-      const key = r.GRU_TAG;
-      if (!map.has(key)) {
-        map.set(key, { gruTag: r.GRU_TAG, descricao: r.GRU_NOME, equips: [] });
+      // Garante área
+      if (!areaMap.has(r.GRU2_TAG)) {
+        areaMap.set(r.GRU2_TAG, {
+          gruTag: r.GRU2_TAG,
+          descricao: r.GRU2_NOME,
+          subgrupos: [],
+        });
       }
-      map.get(key)!.equips.push({
+      const area = areaMap.get(r.GRU2_TAG)!;
+
+      // Garante sub-grupo
+      let sub = area.subgrupos.find((s) => s.gruTag === r.GRU3_TAG);
+      if (!sub) {
+        sub = { gruTag: r.GRU3_TAG, descricao: r.GRU3_NOME, equips: [] };
+        area.subgrupos.push(sub);
+      }
+
+      sub.equips.push({
         codApl:   r.CODAPL,
         tag:      r.TAG,
         descricao: r.DESCRICAO,
@@ -80,10 +140,10 @@ export async function GET() {
       });
     }
 
-    // "Sem Agrupamento" vai por último
-    const grupos = Array.from(map.values()).sort((a, b) => {
-      if (a.gruTag === "SEM-GRU") return 1;
-      if (b.gruTag === "SEM-GRU") return -1;
+    // "Sem Área" vai por último
+    const grupos = Array.from(areaMap.values()).sort((a, b) => {
+      if (a.gruTag === "SEM-AREA") return 1;
+      if (b.gruTag === "SEM-AREA") return -1;
       return a.descricao.localeCompare(b.descricao);
     });
 

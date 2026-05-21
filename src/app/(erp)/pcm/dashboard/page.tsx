@@ -56,7 +56,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { IndicadorEquipamento, TendenciaMensal, IndicadoresResponse } from "@/app/api/pcm/indicadores/route";
-import type { GrupoNode, AplicacoesResponse } from "@/app/api/pcm/aplicacoes/route";
+import type { GrupoNode, SubgrupoNode, AplicacoesResponse } from "@/app/api/pcm/aplicacoes/route";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -593,41 +593,59 @@ export default function PCMDashboardPage() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [showTreePopover]);
 
-  // All codApls from groups tree
+  // All codApls — flatten área → subgrupo → equips
   const allCodApls = useMemo(
-    () => new Set(allGrupos.flatMap((g) => g.equips.map((e) => e.codApl))),
+    () => new Set(allGrupos.flatMap((g) => g.subgrupos.flatMap((s) => s.equips.map((e) => e.codApl)))),
     [allGrupos]
   );
 
-  // Tree nodes filtered by search
-  const treeNodes = useMemo(() => {
+  // Tree nodes filtered by search (3 levels)
+  const treeNodes = useMemo((): GrupoNode[] => {
     if (!treeSearch.trim()) return allGrupos;
     const q = treeSearch.toLowerCase();
     return allGrupos
       .map((grp) => ({
         ...grp,
-        equips: grp.equips.filter(
-          (e) => e.descricao.toLowerCase().includes(q) || e.tag.toLowerCase().includes(q)
-        ),
+        subgrupos: grp.subgrupos
+          .map((sub) => ({
+            ...sub,
+            equips: sub.equips.filter(
+              (e) => e.descricao.toLowerCase().includes(q) || e.tag.toLowerCase().includes(q)
+            ),
+          }))
+          .filter(
+            (sub) =>
+              sub.descricao.toLowerCase().includes(q) ||
+              sub.gruTag.toLowerCase().includes(q) ||
+              sub.equips.length > 0
+          ),
       }))
-      .filter((grp) =>
-        grp.descricao.toLowerCase().includes(q) ||
-        grp.gruTag.toLowerCase().includes(q) ||
-        grp.equips.length > 0
+      .filter(
+        (grp) =>
+          grp.descricao.toLowerCase().includes(q) ||
+          grp.gruTag.toLowerCase().includes(q) ||
+          grp.subgrupos.length > 0
       );
   }, [allGrupos, treeSearch]);
 
-  // Expand matched nodes when searching
+  // Expand matched areas AND subgrupos when searching
   useEffect(() => {
     if (treeSearch.trim()) {
-      setTreeExpanded(new Set(treeNodes.map((n) => n.descricao)));
+      const keys = new Set<string>();
+      treeNodes.forEach((grp) => {
+        keys.add(grp.gruTag);
+        grp.subgrupos.forEach((sub) => {
+          if (sub.equips.length > 0) keys.add(sub.gruTag);
+        });
+      });
+      setTreeExpanded(keys);
     }
   }, [treeSearch, treeNodes]);
 
-  // Expand all groups on first load
+  // Expand all areas (but not subgrupos) on first load
   useEffect(() => {
     if (allGrupos.length > 0 && treeExpanded.size === 0) {
-      setTreeExpanded(new Set(allGrupos.map((g) => g.descricao)));
+      setTreeExpanded(new Set(allGrupos.map((g) => g.gruTag)));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allGrupos]);
@@ -926,7 +944,7 @@ export default function PCMDashboardPage() {
                   </span>
                 </div>
 
-                {/* Tree — agrupado por TAGGRU root */}
+                {/* Árvore 3 níveis: Área → Sub-sistema → Equipamento */}
                 <div className="overflow-y-auto flex-1 py-1">
                   {loadingLocais ? (
                     <div className="flex items-center justify-center py-6 text-gray-400 text-xs gap-1">
@@ -935,46 +953,81 @@ export default function PCMDashboardPage() {
                   ) : treeNodes.length === 0 ? (
                     <p className="text-xs text-gray-400 text-center py-4">Nenhum resultado</p>
                   ) : treeNodes.map((grp) => {
-                    const expanded = treeExpanded.has(grp.descricao);
-                    const checkState = locationCheckState(grp.equips);
+                    const areaExpanded = treeExpanded.has(grp.gruTag);
+                    const areaEquips   = grp.subgrupos.flatMap((s) => s.equips);
+                    const areaCheck    = locationCheckState(areaEquips);
+                    const areaTotal    = areaEquips.length;
                     return (
                       <div key={grp.gruTag}>
-                        {/* Grupo header */}
-                        <div className="flex items-center gap-1 px-2 py-1 hover:bg-gray-50 group">
+                        {/* ── Nível 1: Área ── */}
+                        <div className="flex items-center gap-1 px-2 py-1 hover:bg-gray-50">
                           <button
                             onClick={() => setTreeExpanded((prev) => {
                               const next = new Set(prev);
-                              if (next.has(grp.descricao)) next.delete(grp.descricao);
-                              else next.add(grp.descricao);
+                              if (next.has(grp.gruTag)) next.delete(grp.gruTag);
+                              else next.add(grp.gruTag);
                               return next;
                             })}
                             className="p-0.5 text-gray-400 hover:text-gray-600 flex-shrink-0"
                           >
-                            {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                            {areaExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                           </button>
-                          <button onClick={() => toggleTreeLocation(grp.descricao, grp.equips)} className="flex-shrink-0 text-blue-600">
-                            {checkState === "all" ? <CheckSquare className="w-4 h-4" /> : checkState === "partial" ? <MinusSquare className="w-4 h-4 text-blue-400" /> : <Square className="w-4 h-4 text-gray-300" />}
+                          <button onClick={() => toggleTreeLocation(grp.gruTag, areaEquips)} className="flex-shrink-0 text-blue-600">
+                            {areaCheck === "all" ? <CheckSquare className="w-4 h-4" /> : areaCheck === "partial" ? <MinusSquare className="w-4 h-4 text-blue-400" /> : <Square className="w-4 h-4 text-gray-300" />}
                           </button>
-                          <Layers className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
-                          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => toggleTreeLocation(grp.descricao, grp.equips)}>
-                            <p className="text-xs font-semibold text-gray-700 truncate" title={grp.descricao}>{grp.descricao}</p>
-                            <p className="text-[10px] text-gray-400 font-mono">{grp.gruTag}</p>
+                          <Layers className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+                          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => toggleTreeLocation(grp.gruTag, areaEquips)}>
+                            <p className="text-xs font-bold text-gray-800 truncate" title={grp.descricao}>{grp.descricao}</p>
+                            <p className="text-[10px] text-indigo-400 font-mono">{grp.gruTag}</p>
                           </div>
-                          <span className="text-xs text-gray-300 flex-shrink-0">{grp.equips.length}</span>
+                          <span className="text-[10px] text-gray-300 flex-shrink-0">{areaTotal}</span>
                         </div>
-                        {/* Aplicações do grupo */}
-                        {expanded && grp.equips.map((eq) => {
-                          const sel = !treeSelected || treeSelected.has(eq.codApl);
+
+                        {/* ── Nível 2: Sub-sistema ── */}
+                        {areaExpanded && grp.subgrupos.map((sub: SubgrupoNode) => {
+                          const subExpanded = treeExpanded.has(sub.gruTag);
+                          const subCheck    = locationCheckState(sub.equips);
                           return (
-                            <div key={eq.codApl} className="flex items-center gap-1 pl-7 pr-2 py-0.5 hover:bg-gray-50 cursor-pointer" onClick={() => toggleTreeEquip(eq.codApl)}>
-                              <button className="flex-shrink-0 text-blue-600">
-                                {sel ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5 text-gray-300" />}
-                              </button>
-                              <Cpu className="w-3 h-3 text-blue-400 flex-shrink-0" />
-                              <div className="min-w-0 flex-1">
-                                <p className={`text-xs truncate ${sel ? "text-gray-700" : "text-gray-400"}`} title={eq.descricao}>{eq.descricao}</p>
-                                <p className="text-[10px] text-indigo-400 font-mono">{eq.tag}</p>
+                            <div key={sub.gruTag}>
+                              <div className="flex items-center gap-1 pl-5 pr-2 py-0.5 hover:bg-gray-50">
+                                <button
+                                  onClick={() => setTreeExpanded((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(sub.gruTag)) next.delete(sub.gruTag);
+                                    else next.add(sub.gruTag);
+                                    return next;
+                                  })}
+                                  className="p-0.5 text-gray-400 hover:text-gray-600 flex-shrink-0"
+                                >
+                                  {subExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                </button>
+                                <button onClick={() => toggleTreeLocation(sub.gruTag, sub.equips)} className="flex-shrink-0 text-blue-500">
+                                  {subCheck === "all" ? <CheckSquare className="w-3.5 h-3.5" /> : subCheck === "partial" ? <MinusSquare className="w-3.5 h-3.5 text-blue-400" /> : <Square className="w-3.5 h-3.5 text-gray-300" />}
+                                </button>
+                                <GitBranch className="w-3 h-3 text-blue-300 flex-shrink-0" />
+                                <div className="min-w-0 flex-1 cursor-pointer" onClick={() => toggleTreeLocation(sub.gruTag, sub.equips)}>
+                                  <p className="text-xs font-medium text-gray-700 truncate" title={sub.descricao}>{sub.descricao}</p>
+                                  <p className="text-[10px] text-blue-300 font-mono">{sub.gruTag}</p>
+                                </div>
+                                <span className="text-[10px] text-gray-300 flex-shrink-0">{sub.equips.length}</span>
                               </div>
+
+                              {/* ── Nível 3: Equipamento ── */}
+                              {subExpanded && sub.equips.map((eq) => {
+                                const sel = !treeSelected || treeSelected.has(eq.codApl);
+                                return (
+                                  <div key={eq.codApl} className="flex items-center gap-1 pl-11 pr-2 py-0.5 hover:bg-gray-50 cursor-pointer" onClick={() => toggleTreeEquip(eq.codApl)}>
+                                    <button className="flex-shrink-0 text-blue-500">
+                                      {sel ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3 text-gray-300" />}
+                                    </button>
+                                    <Cpu className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                      <p className={`text-xs truncate ${sel ? "text-gray-700" : "text-gray-400"}`} title={eq.descricao}>{eq.descricao}</p>
+                                      <p className="text-[10px] text-blue-400 font-mono">{eq.tag}</p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           );
                         })}
