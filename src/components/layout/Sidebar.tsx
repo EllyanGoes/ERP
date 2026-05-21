@@ -52,6 +52,7 @@ import {
   Wrench,
   Users2,
   Layers,
+  Bell,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -443,8 +444,15 @@ export default function Sidebar() {
   const { attemptNavigate } = useDirtyFormContext();
   const { user, canAccess } = useSession();
 
-  // ── Pending approvals badge ────────────────────────────────────────────────
+  // ── Pending approvals badge + notification panel ─────────────────────────
   const [pendingAprov, setPendingAprov] = useState(0);
+  const [notifOpen, setNotifOpen]       = useState(false);
+  const notifBtnRef = useRef<HTMLButtonElement>(null);
+  const notifPanelRef = useRef<HTMLDivElement>(null);
+  const [notifPos, setNotifPos] = useState({ top: 0, left: 0 });
+  const [notifMounted, setNotifMounted] = useState(false);
+  useEffect(() => { setNotifMounted(true); }, []);
+
   useEffect(() => {
     async function fetchPending() {
       try {
@@ -459,6 +467,26 @@ export default function Sidebar() {
     const timer = setInterval(fetchPending, 60_000); // poll every 60s
     return () => clearInterval(timer);
   }, []);
+
+  // Close notification panel on outside click
+  useEffect(() => {
+    if (!notifOpen) return;
+    function onDown(e: MouseEvent) {
+      if (
+        notifPanelRef.current && !notifPanelRef.current.contains(e.target as Node) &&
+        notifBtnRef.current   && !notifBtnRef.current.contains(e.target as Node)
+      ) setNotifOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [notifOpen]);
+
+  function handleNotifToggle() {
+    if (!notifBtnRef.current) return;
+    const r = notifBtnRef.current.getBoundingClientRect();
+    setNotifPos({ top: r.top, left: r.right + 8 });
+    setNotifOpen((p) => !p);
+  }
 
   // Visible main modules (exclude admin)
   const visibleMain  = mainModules.filter((mod) => canAccess(mod.id));
@@ -666,6 +694,29 @@ export default function Sidebar() {
               </button>
             </StripTooltip>
 
+            {/* Notificações */}
+            <StripTooltip label={pendingAprov > 0 ? `Notificações (${pendingAprov} pendentes)` : "Notificações"}>
+              <button
+                ref={notifBtnRef}
+                onClick={handleNotifToggle}
+                className={cn(
+                  "relative flex items-center justify-center w-9 h-9 rounded-xl transition-colors",
+                  notifOpen
+                    ? "bg-gray-700 text-white"
+                    : pendingAprov > 0
+                    ? "text-amber-400 hover:bg-gray-800"
+                    : "text-gray-500 hover:bg-gray-800 hover:text-gray-200"
+                )}
+              >
+                <Bell className="w-4 h-4" />
+                {pendingAprov > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                    {pendingAprov > 99 ? "99+" : pendingAprov}
+                  </span>
+                )}
+              </button>
+            </StripTooltip>
+
             {/* Administração — só para quem tem acesso */}
             {showAdmin && (
               <StripTooltip label="Administração">
@@ -825,6 +876,73 @@ export default function Sidebar() {
           </div>
         )}
       </aside>
+
+      {/* ── Notification panel (portal) ─────────────────────────────────────── */}
+      {notifMounted && notifOpen && createPortal(
+        <div
+          ref={notifPanelRef}
+          className="fixed z-[9999] w-72 rounded-xl bg-white border border-gray-200 shadow-[0_8px_32px_rgba(0,0,0,0.14)] overflow-hidden"
+          style={{ top: notifPos.top, left: notifPos.left }}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-gray-500" />
+              <span className="text-sm font-semibold text-gray-800">Notificações</span>
+              {pendingAprov > 0 && (
+                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
+                  {pendingAprov > 99 ? "99+" : pendingAprov}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="max-h-72 overflow-y-auto">
+            {pendingAprov > 0 ? (
+              <button
+                onClick={() => { setNotifOpen(false); attemptNavigate(() => router.push("/aprovacoes")); }}
+                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-amber-50 transition-colors text-left border-b border-gray-50"
+              >
+                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+                  <ThumbsUp className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800">
+                    {pendingAprov === 1
+                      ? "1 aprovação aguardando"
+                      : `${pendingAprov} aprovações aguardando`}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Solicitações de compra pendentes de aprovação
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 shrink-0 mt-1" />
+              </button>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 gap-2 text-center px-4">
+                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                  <Bell className="w-5 h-5 text-gray-300" />
+                </div>
+                <p className="text-sm text-gray-400">Nenhuma notificação pendente</p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          {pendingAprov > 0 && (
+            <div className="border-t border-gray-100 px-4 py-2.5">
+              <button
+                onClick={() => { setNotifOpen(false); attemptNavigate(() => router.push("/aprovacoes")); }}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium w-full text-center"
+              >
+                Ver todas as aprovações
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
     </>
   );
 }
