@@ -205,7 +205,7 @@ export default function DocumentoEntradaDetailPage() {
   useEffect(() => {
     fetch("/api/suprimentos/locais-estoque")
       .then((r) => r.json())
-      .then((j) => setLocaisEstoque(j.data ?? []))
+      .then((j) => setLocaisEstoque(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
 

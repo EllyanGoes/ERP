@@ -240,7 +240,7 @@ export default function NovoDocumentoEntradaPage() {
   useEffect(() => {
     fetch("/api/suprimentos/locais-estoque")
       .then((r) => r.json())
-      .then((j) => setLocaisEstoque(j.data ?? []))
+      .then((j) => setLocaisEstoque(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
 
@@ -394,6 +394,12 @@ export default function NovoDocumentoEntradaPage() {
     const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidadePedida) > 0);
     if (validItens.length === 0) {
       setError("Adicione pelo menos 1 item com produto e quantidade.");
+      return;
+    }
+
+    const itensSemLocal = validItens.filter((r) => !r.localEstoqueId);
+    if (itensSemLocal.length > 0) {
+      setError("Informe o Local de Estoque para todos os itens.");
       return;
     }
 
@@ -739,9 +745,12 @@ export default function NovoDocumentoEntradaPage() {
                           <select
                             value={row.localEstoqueId}
                             onChange={(e) => updateItem(row._key, "localEstoqueId", e.target.value)}
-                            className="w-full h-8 px-2 border border-gray-200 rounded-md text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className={cn(
+                              "w-full h-8 px-2 border rounded-md text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+                              !row.localEstoqueId ? "border-red-300 text-gray-400" : "border-gray-200 text-gray-800"
+                            )}
                           >
-                            <option value="">Global</option>
+                            <option value="">Selecionar local...</option>
                             {locaisEstoque.map((l) => (
                               <option key={l.id} value={l.id}>{l.nome}</option>
                             ))}
