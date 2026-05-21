@@ -40,10 +40,11 @@ export interface IndicadoresResponse {
 
 // ── Engeman SQL Server ────────────────────────────────────────────────────────
 // Banco espelho (slave) do Engeman CMMS
-// Tabelas reais confirmadas: ORDSERV, APLIC, LOCAPLIC, TIPMANUT
-// Tipos corretivos: CODTIPMAN IN (1=CRT, 2=CRP, 3=CRN)
-// Status fechada: STATORD = 'F'
-// Tempo parada: MAQPAR (início) → MAQFUN (retorno); fallback: HOREXEREA
+// Tabelas: ORDSERV, REGSERV, APLIC, LOCAPLIC
+// Falha confirmada: JOIN REGSERV onde CODDEF IS NOT NULL (defeito registrado)
+// Data de referência: DATPRO (programação/fechamento da OS)
+// Filial válida: CODFIL NOT IN (0)
+// Tempo de reparo: MAQPAR→MAQFUN (parada real); fallback: HOREXEREA
 
 // ── Queries ───────────────────────────────────────────────────────────────────
 async function queryEngeman(diasPeriodo: number): Promise<{
@@ -55,20 +56,17 @@ async function queryEngeman(diasPeriodo: number): Promise<{
   const periodoHoras = diasPeriodo * 24;
 
   // ── 1. Indicadores por equipamento ────────────────────────────────────────
-  // Fórmula correta (NBR 5462 / referência Tractian/SKF):
-  //   Tempo de Disponibilidade = período − horas preventiva
-  //   MTBF  = (Disponibilidade − horas corretiva) / nº falhas
-  //         = (período − hh_prev − hh_corr) / nº falhas
-  //   MTTR  = horas corretiva / nº falhas
-  //   Disponibilidade % = (1 − (hh_prev + hh_corr) / período) × 100
-  //   Confiabilidade R(24h) = e^(-24/MTBF) × 100  (prob. de operar 24h sem falha)
+  // Fórmula Engeman-nativa:
+  //   Falha confirmada = OS com REGSERV.CODDEF IS NOT NULL (defeito registrado)
+  //   MTBF  = (MAX(DATPRO) − MIN(DATPRO) em horas) / COUNT(DISTINCT CODORD)
+  //   MTTR  = horas totais de reparo / nº de OS  (MAQPAR→MAQFUN ou HOREXEREA)
+  //   Disponibilidade % = MTBF / (MTBF + MTTR) × 100
+  //   Confiabilidade R(24h) = e^(-24/MTBF) × 100
   //
-  // Horas de parada por OS (prioridade):
-  //   1. MAQPAR → MAQFUN (tempo real de parada de máquina)
-  //   2. HOREXEREA fallback
+  // DATPRO = data de programação/fechamento da OS (data real da falha no Engeman)
+  // CODFIL NOT IN (0) = exclui filial zero (padrão do sistema)
   const indResult = await pool.request()
     .input("diasPeriodo", sql.Int, diasPeriodo)
-    .input("periodoHoras", sql.Float, periodoHoras)
     .query<{
       CODAPL: number;
       TAG: string;
@@ -80,20 +78,22 @@ async function queryEngeman(diasPeriodo: number): Promise<{
       MTBF: number;
       DISPONIBILIDADE: number;
     }>(`
-      WITH OS AS (
+      WITH FALHAS AS (
         SELECT
           o.CODAPL,
-          o.CODTIPMAN,
+          o.CODORD,
+          o.DATPRO,
           CASE
             WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
               THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
             ELSE ISNULL(o.HOREXEREA, 0)
-          END AS HH
+          END AS HH_REPARO
         FROM ORDSERV o
-        WHERE o.DATENT >= DATEADD(DAY, -@diasPeriodo, GETDATE())
+        INNER JOIN REGSERV r ON r.CODORD = o.CODORD
+        WHERE r.CODDEF IS NOT NULL
           AND o.CODAPL IS NOT NULL
-          AND o.CODTIPMAN IS NOT NULL
-          AND o.STATORD = 'F'
+          AND o.CODFIL NOT IN (0)
+          AND o.DATPRO >= DATEADD(DAY, -@diasPeriodo, GETDATE())
       )
       SELECT
         a.CODAPL,
@@ -101,39 +101,48 @@ async function queryEngeman(diasPeriodo: number): Promise<{
         RTRIM(a.DESCRICAO)                          AS DESCRICAO,
         ISNULL(RTRIM(l.DESCRICAO), 'Não informado') AS LOCAL_INSTALACAO,
 
-        /* Falhas = apenas OS corretivas */
-        COUNT(CASE WHEN os.CODTIPMAN IN (1,2,3) THEN 1 END) AS TOTAL_FALHAS,
+        /* Falhas = OS distintas com defeito registrado */
+        COUNT(DISTINCT f.CODORD) AS TOTAL_FALHAS,
 
-        /* Horas corretivas (para MTTR) */
-        SUM(CASE WHEN os.CODTIPMAN IN (1,2,3) THEN os.HH ELSE 0.0 END) AS TOTAL_HH_REPARO,
+        /* Horas totais de reparo */
+        SUM(f.HH_REPARO) AS TOTAL_HH_REPARO,
 
-        /* MTTR = hh_corretivo / falhas */
-        SUM(CASE WHEN os.CODTIPMAN IN (1,2,3) THEN os.HH ELSE 0.0 END) /
-          NULLIF(COUNT(CASE WHEN os.CODTIPMAN IN (1,2,3) THEN 1 END), 0) AS MTTR,
+        /* MTTR = horas totais / nº falhas */
+        SUM(f.HH_REPARO) / NULLIF(COUNT(DISTINCT f.CODORD), 0) AS MTTR,
 
-        /* MTBF = (período − hh_preventiva − hh_corretiva) / falhas */
-        (
-          @periodoHoras
-          - SUM(CASE WHEN os.CODTIPMAN NOT IN (1,2,3) THEN os.HH ELSE 0.0 END)
-          - SUM(CASE WHEN os.CODTIPMAN IN (1,2,3)     THEN os.HH ELSE 0.0 END)
-        ) / NULLIF(COUNT(CASE WHEN os.CODTIPMAN IN (1,2,3) THEN 1 END), 0) AS MTBF,
+        /* MTBF = (MAX(DATPRO) - MIN(DATPRO) em horas) / nº falhas */
+        ROUND(DATEDIFF(MINUTE, MIN(f.DATPRO), MAX(f.DATPRO)) / 60.0, 2) /
+          NULLIF(COUNT(DISTINCT f.CODORD), 0) AS MTBF,
 
-        /* Disponibilidade = (1 − (hh_prev + hh_corr) / período) × 100 */
-        (1.0 - (
-          SUM(CASE WHEN os.CODTIPMAN NOT IN (1,2,3) THEN os.HH ELSE 0.0 END)
-          + SUM(CASE WHEN os.CODTIPMAN IN (1,2,3)   THEN os.HH ELSE 0.0 END)
-        ) / @periodoHoras) * 100.0 AS DISPONIBILIDADE
+        /* Disponibilidade = MTBF / (MTBF + MTTR) × 100 */
+        CASE
+          WHEN (
+            ROUND(DATEDIFF(MINUTE, MIN(f.DATPRO), MAX(f.DATPRO)) / 60.0, 2) /
+              NULLIF(COUNT(DISTINCT f.CODORD), 0)
+            + SUM(f.HH_REPARO) / NULLIF(COUNT(DISTINCT f.CODORD), 0)
+          ) > 0
+          THEN (
+            ROUND(DATEDIFF(MINUTE, MIN(f.DATPRO), MAX(f.DATPRO)) / 60.0, 2) /
+              NULLIF(COUNT(DISTINCT f.CODORD), 0)
+          ) / (
+            ROUND(DATEDIFF(MINUTE, MIN(f.DATPRO), MAX(f.DATPRO)) / 60.0, 2) /
+              NULLIF(COUNT(DISTINCT f.CODORD), 0)
+            + SUM(f.HH_REPARO) / NULLIF(COUNT(DISTINCT f.CODORD), 0)
+          ) * 100.0
+          ELSE 100.0
+        END AS DISPONIBILIDADE
 
-      FROM OS os
-      INNER JOIN APLIC    a ON a.CODAPL    = os.CODAPL
+      FROM FALHAS f
+      INNER JOIN APLIC    a ON a.CODAPL    = f.CODAPL
       LEFT  JOIN LOCAPLIC l ON l.CODLOCAPL = a.CODLOCAPL
 
       GROUP BY a.CODAPL, a.DESCRICAO, l.DESCRICAO
-      HAVING COUNT(CASE WHEN os.CODTIPMAN IN (1,2,3) THEN 1 END) >= 1
+      HAVING COUNT(DISTINCT f.CODORD) >= 1
       ORDER BY TOTAL_FALHAS DESC
     `);
 
   // ── 2. Tendência mensal ───────────────────────────────────────────────────
+  // Mesma lógica da fórmula Engeman-nativa, agrupada por mês de DATPRO
   const trendResult = await pool.request()
     .input("diasPeriodo2", sql.Int, diasPeriodo)
     .query<{
@@ -146,54 +155,65 @@ async function queryEngeman(diasPeriodo: number): Promise<{
       MTBF_MEDIO: number;
       DISPONIBILIDADE: number;
     }>(`
-      WITH OS2 AS (
+      WITH FALHAS2 AS (
         SELECT
-          YEAR(o.DATENT)  AS ANO,
-          MONTH(o.DATENT) AS MES,
-          o.CODTIPMAN,
+          YEAR(o.DATPRO)  AS ANO,
+          MONTH(o.DATPRO) AS MES,
+          o.CODORD,
+          o.DATPRO,
           CASE
             WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
               THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
             ELSE ISNULL(o.HOREXEREA, 0)
-          END AS HH
+          END AS HH_REPARO
         FROM ORDSERV o
-        WHERE o.DATENT >= DATEADD(DAY, -@diasPeriodo2, GETDATE())
-          AND o.CODTIPMAN IS NOT NULL
-          AND o.STATORD = 'F'
+        INNER JOIN REGSERV r ON r.CODORD = o.CODORD
+        WHERE r.CODDEF IS NOT NULL
+          AND o.CODAPL IS NOT NULL
+          AND o.CODFIL NOT IN (0)
+          AND o.DATPRO >= DATEADD(DAY, -@diasPeriodo2, GETDATE())
       )
       SELECT
         ANO,
         MES,
 
-        /* Falhas = apenas corretivas */
-        COUNT(CASE WHEN CODTIPMAN IN (1,2,3) THEN 1 END) AS FALHAS,
+        /* Falhas = OS distintas com defeito registrado no mês */
+        COUNT(DISTINCT CODORD) AS FALHAS,
 
-        /* MTTR */
-        SUM(CASE WHEN CODTIPMAN IN (1,2,3) THEN HH ELSE 0.0 END) /
-          NULLIF(COUNT(CASE WHEN CODTIPMAN IN (1,2,3) THEN 1 END), 0) AS MTTR_MEDIO,
+        /* MTTR = horas / falhas */
+        SUM(HH_REPARO) / NULLIF(COUNT(DISTINCT CODORD), 0) AS MTTR_MEDIO,
 
-        /* Horas corretivas */
-        SUM(CASE WHEN CODTIPMAN IN (1,2,3) THEN HH ELSE 0.0 END) AS TOTAL_HH_REPARO,
+        /* Horas totais */
+        SUM(HH_REPARO) AS TOTAL_HH_REPARO,
 
-        /* Horas do mês */
+        /* Horas calendário do mês */
         DAY(EOMONTH(DATEFROMPARTS(ANO, MES, 1))) * 24.0 AS HORAS_MES,
 
-        /* MTBF = (horas_mês − hh_prev − hh_corr) / falhas */
-        (
-          DAY(EOMONTH(DATEFROMPARTS(ANO, MES, 1))) * 24.0
-          - SUM(CASE WHEN CODTIPMAN NOT IN (1,2,3) THEN HH ELSE 0.0 END)
-          - SUM(CASE WHEN CODTIPMAN IN (1,2,3)     THEN HH ELSE 0.0 END)
-        ) / NULLIF(COUNT(CASE WHEN CODTIPMAN IN (1,2,3) THEN 1 END), 0) AS MTBF_MEDIO,
+        /* MTBF = (MAX(DATPRO) - MIN(DATPRO) em horas) / nº falhas no mês */
+        ROUND(DATEDIFF(MINUTE, MIN(DATPRO), MAX(DATPRO)) / 60.0, 2) /
+          NULLIF(COUNT(DISTINCT CODORD), 0) AS MTBF_MEDIO,
 
-        /* Disponibilidade = (1 − (hh_prev + hh_corr) / horas_mês) × 100 */
-        (1.0 - (
-          SUM(CASE WHEN CODTIPMAN NOT IN (1,2,3) THEN HH ELSE 0.0 END)
-          + SUM(CASE WHEN CODTIPMAN IN (1,2,3)   THEN HH ELSE 0.0 END)
-        ) / (DAY(EOMONTH(DATEFROMPARTS(ANO, MES, 1))) * 24.0)) * 100.0 AS DISPONIBILIDADE
+        /* Disponibilidade = MTBF / (MTBF + MTTR) × 100 */
+        CASE
+          WHEN (
+            ROUND(DATEDIFF(MINUTE, MIN(DATPRO), MAX(DATPRO)) / 60.0, 2) /
+              NULLIF(COUNT(DISTINCT CODORD), 0)
+            + SUM(HH_REPARO) / NULLIF(COUNT(DISTINCT CODORD), 0)
+          ) > 0
+          THEN (
+            ROUND(DATEDIFF(MINUTE, MIN(DATPRO), MAX(DATPRO)) / 60.0, 2) /
+              NULLIF(COUNT(DISTINCT CODORD), 0)
+          ) / (
+            ROUND(DATEDIFF(MINUTE, MIN(DATPRO), MAX(DATPRO)) / 60.0, 2) /
+              NULLIF(COUNT(DISTINCT CODORD), 0)
+            + SUM(HH_REPARO) / NULLIF(COUNT(DISTINCT CODORD), 0)
+          ) * 100.0
+          ELSE 100.0
+        END AS DISPONIBILIDADE
 
-      FROM OS2
+      FROM FALHAS2
       GROUP BY ANO, MES
-      HAVING COUNT(CASE WHEN CODTIPMAN IN (1,2,3) THEN 1 END) >= 1
+      HAVING COUNT(DISTINCT CODORD) >= 1
       ORDER BY ANO, MES
     `);
 
