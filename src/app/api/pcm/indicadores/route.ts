@@ -15,7 +15,7 @@ export interface IndicadorEquipamento {
   mtbf: number;          // horas entre falhas
   mttr: number;          // horas de reparo médio
   disponibilidade: number; // 0–100 %
-  confiabilidade: number;  // R(t=720h) = e^(-720/MTBF) × 100
+  confiabilidade: number;  // R(90d) = e^(−n/8760 × 2160) × 100  (Engeman-nativa)
   periodoHoras: number;
 }
 
@@ -25,7 +25,7 @@ export interface TendenciaMensal {
   mttrMedio: number;     // h
   mtbfMedio: number;     // h
   disponibilidade: number; // %
-  confiabilidade: number;  // R(720h) %
+  confiabilidade: number;  // R(90d) = e^(−n/horas_mês × 2160) × 100
   falhas: number;
   totalHhReparo: number;
 }
@@ -40,9 +40,10 @@ export interface IndicadoresResponse {
 
 // ── Engeman SQL Server ────────────────────────────────────────────────────────
 // Banco espelho (slave) do Engeman CMMS
-// Tabelas: ORDSERV, REGSERV, APLIC, LOCAPLIC
-// Falha confirmada: JOIN REGSERV onde CODDEF IS NOT NULL (defeito registrado)
-// Data de referência: DATPRO (programação/fechamento da OS)
+// Tabelas: ORDSERV, REGSERV, APLIC, LOCAPLIC, TIPMANUT
+// MTBF/MTTR/Disp  → REGSERV.CODDEF IS NOT NULL  + DATPRO  (período selecionado)
+// Confiabilidade  → REGSERV.DEFCAU = 'S' + STATORD='F' + DATPRO2 (sempre 365d)
+//   R(90d) = EXP(−n / (365×24) × (90×24)) × 100  (fórmula Engeman-nativa)
 // Filial válida: CODFIL NOT IN (0)
 // Tempo de reparo: MAQPAR→MAQFUN (parada real); fallback: HOREXEREA
 
@@ -79,7 +80,9 @@ async function queryEngeman(diasPeriodo: number): Promise<{
       MTTR: number;
       MTBF: number;
       DISPONIBILIDADE: number;
+      CONFIABILIDADE: number;
     }>(`
+      /* MTBF/MTTR: falhas com defeito registrado (CODDEF IS NOT NULL) no período */
       WITH FALHAS AS (
         SELECT
           o.CODAPL,
@@ -95,6 +98,18 @@ async function queryEngeman(diasPeriodo: number): Promise<{
           AND o.CODAPL IS NOT NULL
           AND o.CODFIL NOT IN (0)
           AND o.DATPRO >= DATEADD(DAY, -@diasPeriodo, GETDATE())
+      ),
+      /* Confiabilidade: fórmula Engeman (DEFCAU='S', STATORD='F', DATPRO2, sempre 365d) */
+      CONF AS (
+        SELECT o.CODAPL, COUNT(DISTINCT o.CODORD) AS N
+        FROM ORDSERV o
+        INNER JOIN REGSERV r ON r.CODORD = o.CODORD
+        WHERE r.DEFCAU = 'S'
+          AND o.STATORD = 'F'
+          AND o.CODAPL IS NOT NULL
+          AND o.CODFIL NOT IN (0)
+          AND o.DATPRO2 BETWEEN CONVERT(DATE, GETDATE()-365) AND CONVERT(DATE, GETDATE())
+        GROUP BY o.CODAPL
       )
       SELECT
         a.CODAPL,
@@ -119,13 +134,20 @@ async function queryEngeman(diasPeriodo: number): Promise<{
           NULLIF(
             (@periodoHoras / NULLIF(COUNT(DISTINCT f.CODORD), 0))
             + (SUM(f.HH_REPARO) / NULLIF(COUNT(DISTINCT f.CODORD), 0)),
-          0) * 100.0 AS DISPONIBILIDADE
+          0) * 100.0 AS DISPONIBILIDADE,
+
+        /* Confiabilidade R(90d) = EXP(−n/(365×24) × (90×24)) × 100  (Engeman-nativa) */
+        CASE
+          WHEN ISNULL(c.N, 0) = 0 THEN 100.0
+          ELSE ROUND(EXP((-CAST(c.N AS FLOAT) / (365.0 * 24.0)) * (90.0 * 24.0)) * 100.0, 2)
+        END AS CONFIABILIDADE
 
       FROM FALHAS f
       INNER JOIN APLIC    a ON a.CODAPL    = f.CODAPL
       LEFT  JOIN LOCAPLIC l ON l.CODLOCAPL = a.CODLOCAPL
+      LEFT  JOIN CONF     c ON c.CODAPL    = f.CODAPL
 
-      GROUP BY a.CODAPL, a.DESCRICAO, l.DESCRICAO
+      GROUP BY a.CODAPL, a.DESCRICAO, l.DESCRICAO, c.N
       HAVING COUNT(DISTINCT f.CODORD) >= 1
       ORDER BY TOTAL_FALHAS DESC
     `);
@@ -208,8 +230,6 @@ async function queryEngeman(diasPeriodo: number): Promise<{
   const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
   const equipamentos: IndicadorEquipamento[] = indResult.recordset.map((r) => {
-    const mtbf = Math.max(r.MTBF ?? 0, 0);
-    const confiabilidade = mtbf > 0 ? Math.exp(-24 / mtbf) * 100 : 0;
     return {
       codApl:           r.CODAPL,
       tag:              r.TAG ?? "",
@@ -217,25 +237,29 @@ async function queryEngeman(diasPeriodo: number): Promise<{
       localInstalacao:  r.LOCAL_INSTALACAO ?? "Não informado",
       totalFalhas:      r.TOTAL_FALHAS,
       totalHorasReparo: parseFloat((r.TOTAL_HH_REPARO ?? 0).toFixed(2)),
-      mtbf:             parseFloat(mtbf.toFixed(2)),
+      mtbf:             parseFloat(Math.max(r.MTBF ?? 0, 0).toFixed(2)),
       mttr:             parseFloat((r.MTTR ?? 0).toFixed(2)),
       disponibilidade:  parseFloat(Math.min(r.DISPONIBILIDADE ?? 100, 100).toFixed(2)),
-      confiabilidade:   parseFloat(confiabilidade.toFixed(2)),
+      // Confiabilidade vem do SQL: R(90d) = EXP(−n/8760 × 2160) × 100
+      confiabilidade:   parseFloat(Math.min(r.CONFIABILIDADE ?? 100, 100).toFixed(2)),
       periodoHoras,
     };
   });
 
   const tendencia: TendenciaMensal[] = trendResult.recordset.map((r) => {
     const mtbf = Math.max(r.MTBF_MEDIO ?? 0, 0);
-    const disp = Math.min(Math.max(r.DISPONIBILIDADE ?? 100, 0), 100);
-    const conf = mtbf > 0 ? Math.exp(-24 / mtbf) * 100 : 0;
+    const disp  = Math.min(Math.max(r.DISPONIBILIDADE ?? 100, 0), 100);
+    // R(90d) adaptada ao mês: λ = falhas / horas_mês; R = e^(−λ × 2160) × 100
+    const horasMes = r.HORAS_MES ?? (30 * 24);
+    const lambda = r.FALHAS > 0 ? r.FALHAS / horasMes : 0;
+    const conf   = lambda > 0 ? Math.exp(-lambda * 90 * 24) * 100 : 100;
     return {
       mes:             `${r.ANO}-${String(r.MES).padStart(2, "0")}`,
       label:           `${MESES[r.MES - 1]}/${String(r.ANO).slice(2)}`,
       mttrMedio:       parseFloat((r.MTTR_MEDIO ?? 0).toFixed(2)),
       mtbfMedio:       parseFloat(mtbf.toFixed(2)),
       disponibilidade: parseFloat(disp.toFixed(2)),
-      confiabilidade:  parseFloat(conf.toFixed(2)),
+      confiabilidade:  parseFloat(Math.min(conf, 100).toFixed(2)),
       falhas:          r.FALHAS,
       totalHhReparo:   parseFloat((r.TOTAL_HH_REPARO ?? 0).toFixed(2)),
     };
