@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { usePersistedFilters } from "@/lib/use-persisted-filters";
 import PageHeader from "@/components/shared/PageHeader";
+import { useSession } from "@/lib/session-context";
+import { Lock } from "lucide-react";
 import FilterDropdown, { FilterOption } from "@/components/shared/FilterDropdown";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import { Button } from "@/components/ui/button";
@@ -258,6 +260,8 @@ function formatDateTime(d: string) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function MovimentacoesPage() {
+  const { user } = useSession();
+
   // Default period: 1 Jan of current year → today
   const currentYear = new Date().getFullYear();
   const defaultRange: DateRange = {
@@ -594,6 +598,21 @@ export default function MovimentacoesPage() {
   const orderedMovCols = colOrder.map((id) => MOV_COLS.find((c) => c.id === id)).filter((c): c is ColDef<MovItem> => c !== undefined);
 
   // ── Render ───────────────────────────────────────────────────────────────────
+  // Admin-only gate (placed after all hooks to respect React rules)
+  if (user !== null && user?.perfil !== "ADMIN") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+          <Lock className="w-8 h-8 text-gray-400" />
+        </div>
+        <div className="text-center">
+          <p className="text-lg font-semibold text-gray-700">Acesso Restrito</p>
+          <p className="text-sm text-gray-400 mt-1">Esta página está disponível apenas para administradores.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* Auto-vínculo toast */}

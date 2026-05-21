@@ -379,23 +379,28 @@ export default function NovaRequisicaoPage() {
   const [saveError, setSaveError] = useState("");
 
   const loadOptions = useCallback(async () => {
-    const [lRes, cRes, sRes, ccRes, itRes] = await Promise.all([
-      fetch("/api/suprimentos/locais-estoque?ativo=true"),
-      fetch("/api/empresa/colaboradores?ativo=true"),
-      fetch("/api/empresa/setores?ativo=true"),
-      fetch("/api/empresa/centros-custo?ativo=true"),
-      fetch("/api/suprimentos/produtos?ativo=true&limit=9999"),
+    // fetch each independently so one failure doesn't block the others
+    async function safeFetch(url: string) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        return await res.json();
+      } catch { return null; }
+    }
+
+    const [lData, cData, sData, ccData, itData] = await Promise.all([
+      safeFetch("/api/suprimentos/locais-estoque?ativo=true"),
+      safeFetch("/api/empresa/colaboradores?ativo=true"),
+      safeFetch("/api/empresa/setores?ativo=true"),
+      safeFetch("/api/empresa/centros-custo?ativo=true"),
+      safeFetch("/api/suprimentos/produtos?ativo=true"),
     ]);
-    const lData  = await lRes.json();
-    const cData  = await cRes.json();
-    const sData  = await sRes.json();
-    const ccData = await ccRes.json();
-    const itData = await itRes.json();
-    setLocais(       Array.isArray(lData)  ? lData  : lData.data  ?? []);
-    setColaboradores(Array.isArray(cData)  ? cData  : cData.data  ?? []);
-    setSetores(      Array.isArray(sData)  ? sData  : sData.data  ?? []);
-    setCentros(      Array.isArray(ccData) ? ccData : ccData.data ?? []);
-    setItensCat(     Array.isArray(itData) ? itData : itData.data ?? []);
+
+    if (lData  != null) setLocais(       Array.isArray(lData)  ? lData  : lData.data  ?? []);
+    if (cData  != null) setColaboradores(Array.isArray(cData)  ? cData  : cData.data  ?? []);
+    if (sData  != null) setSetores(      Array.isArray(sData)  ? sData  : sData.data  ?? []);
+    if (ccData != null) setCentros(      Array.isArray(ccData) ? ccData : ccData.data ?? []);
+    if (itData != null) setItensCat(     Array.isArray(itData) ? itData : itData.data ?? []);
   }, []);
 
   useEffect(() => { loadOptions(); }, [loadOptions]);

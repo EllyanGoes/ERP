@@ -60,7 +60,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       };
     }
 
-    return tx.requisicaoMaterial.update({
+    const updated = await tx.requisicaoMaterial.update({
       where: { id: params.id },
       data: updateData,
       include: {
@@ -77,6 +77,62 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         },
       },
     });
+
+    // ── Stock deduction when ATENDIDA ──────────────────────────────────────────
+    // For REQUISICAO: deduct from stock (SAIDA)
+    // For DEVOLUCAO: return to stock (ENTRADA)
+    if (body.status === "ATENDIDA" && updated.tipo !== undefined) {
+      const isSaida = updated.tipo === "REQUISICAO";
+      const movTipo = isSaida ? "SAIDA" : "ENTRADA";
+      const localEstoqueId = updated.localEstoqueId;
+
+      for (const item of updated.itens) {
+        const qtd = parseFloat(String(item.quantidade));
+        if (qtd <= 0) continue;
+
+        const estoqueItem = await tx.estoqueItem.findFirst({
+          where: { itemId: item.itemId, localEstoqueId },
+          select: { id: true, quantidadeAtual: true },
+        });
+
+        const saldoAntes = estoqueItem ? parseFloat(String(estoqueItem.quantidadeAtual)) : 0;
+        const saldoDepois = isSaida
+          ? Math.max(0, saldoAntes - qtd)
+          : saldoAntes + qtd;
+
+        await tx.movimentacaoEstoque.create({
+          data: {
+            itemId:       item.itemId,
+            tipo:         movTipo,
+            quantidade:   qtd,
+            saldoAntes,
+            saldoDepois,
+            documento:    updated.numero,
+            observacoes:  `${isSaida ? "Requisição" : "Devolução"} de Material ${updated.numero}`,
+            localEstoqueId,
+          },
+        });
+
+        if (estoqueItem) {
+          await tx.estoqueItem.update({
+            where: { id: estoqueItem.id },
+            data: { quantidadeAtual: saldoDepois },
+          });
+        } else if (!isSaida) {
+          // For devoluções, create estoque record if it doesn't exist
+          await tx.estoqueItem.create({
+            data: {
+              itemId: item.itemId,
+              quantidadeAtual: saldoDepois,
+              quantidadeMin: 0,
+              localEstoqueId,
+            },
+          });
+        }
+      }
+    }
+
+    return updated;
   });
 
   return NextResponse.json({ data: record });

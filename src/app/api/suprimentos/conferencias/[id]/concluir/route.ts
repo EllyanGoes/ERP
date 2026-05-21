@@ -180,7 +180,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         }
       }
       // Also include items being concluded in THIS conferência
-      for (const ci of conferencia.itens) {
+      for (const ci of conferencia!.itens) {
         const prev = recebidoMap.get(ci.itemId) ?? 0;
         recebidoMap.set(ci.itemId, prev + parseFloat(String(ci.quantidadeRecebida ?? 0)));
       }
@@ -243,7 +243,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
 
       // Update each unique SC
-      for (const necessidadeId of necessidadeIds) {
+      for (const necessidadeId of Array.from(necessidadeIds)) {
         await atualizarStatusSC(necessidadeId);
       }
     }
