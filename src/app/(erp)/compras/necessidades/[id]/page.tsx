@@ -252,6 +252,8 @@ export default function NecessidadeDetailPage() {
   const [waUsers,           setWAUsers]           = useState<WAUser[]>([]);
   const [waUsersLoading,    setWAUsersLoading]    = useState(false);
   const [waCopied,          setWACopied]          = useState(false);
+  const [waModalLoading,    setWAModalLoading]    = useState(false);
+  const [waModalError,      setWAModalError]      = useState("");
   const waDropdownRef = useRef<HTMLDivElement>(null);
 
   // ── Edit mode state ──────────────────────────────────────────────────────────
@@ -354,6 +356,8 @@ export default function NecessidadeDetailPage() {
     setWADropdownOpen(false);
     setWACopied(false);
     setSubmittingAprovacaoError("");
+    setWAModalError("");
+    setWAModalLoading(false);
     setWAUsersLoading(true);
     try {
       const res  = await fetch("/api/empresa/aprovadores");
@@ -395,41 +399,70 @@ export default function NecessidadeDetailPage() {
     setTimeout(() => setWACopied(false), 2500);
   }
 
-  function openWhatsApp() {
+  async function openWhatsApp() {
+    if (!necessidade) return;
     const approver = waUsers.find((u) => u.id === waAprovadorId);
     const msg = buildWAMessage();
     const encoded = encodeURIComponent(msg);
+
+    // Open WhatsApp immediately (don't make user wait for DB)
     if (approver?.telefone) {
       const phone = approver.telefone.replace(/\D/g, "");
       const normalized = phone.startsWith("55") ? phone : `55${phone}`;
       window.open(`https://wa.me/${normalized}?text=${encoded}`, "_blank");
     } else {
-      // No phone — open WhatsApp Web without pre-selecting contact
       window.open(`https://web.whatsapp.com/send?text=${encoded}`, "_blank");
     }
-    // Still register the approval in DB (tracking only, non-blocking)
-    if (necessidade && waAprovadorId) {
-      fetch(`/api/compras/necessidades/${necessidade.id}/submeter-aprovacao`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modo: "direto", aprovadorId: waAprovadorId }),
-      }).catch(() => {});
+
+    // Register in DB in the background — show error if it fails
+    if (waAprovadorId) {
+      setWAModalLoading(true);
+      setWAModalError("");
+      try {
+        const res = await fetch(`/api/compras/necessidades/${necessidade.id}/submeter-aprovacao`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ modo: "direto", aprovadorId: waAprovadorId, sendWA: false }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          setWAModalError(json.error || "Erro ao registrar aprovação");
+          setWAModalLoading(false);
+          return;
+        }
+        setShowWAModal(false);
+        setTimeout(() => load(), 800);
+      } catch {
+        setWAModalError("Erro de conexão ao registrar aprovação");
+        setWAModalLoading(false);
+      }
+    } else {
+      setShowWAModal(false);
     }
-    setShowWAModal(false);
-    setTimeout(() => load(), 1500);
   }
 
   async function confirmarDiretamente() {
     if (!necessidade || !waAprovadorId) return;
+    setWAModalLoading(true);
+    setWAModalError("");
     try {
-      await fetch(`/api/compras/necessidades/${necessidade.id}/submeter-aprovacao`, {
+      const res = await fetch(`/api/compras/necessidades/${necessidade.id}/submeter-aprovacao`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modo: "direto", aprovadorId: waAprovadorId }),
+        body: JSON.stringify({ modo: "direto", aprovadorId: waAprovadorId, sendWA: false }),
       });
-    } catch { /* silencioso */ }
-    setShowWAModal(false);
-    setTimeout(() => load(), 800);
+      const json = await res.json();
+      if (!res.ok) {
+        setWAModalError(json.error || "Erro ao registrar aprovação");
+        return;
+      }
+      setShowWAModal(false);
+      setTimeout(() => load(), 800);
+    } catch {
+      setWAModalError("Erro de conexão");
+    } finally {
+      setWAModalLoading(false);
+    }
   }
 
 
@@ -1193,11 +1226,17 @@ export default function NecessidadeDetailPage() {
 
             {/* Footer */}
             <div className="px-6 py-4 border-t border-gray-100 shrink-0 bg-gray-50 rounded-b-2xl">
+              {waModalError && (
+                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  {waModalError}
+                </div>
+              )}
               <div className="flex items-center gap-2 flex-wrap justify-end">
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowWAModal(false)}>
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowWAModal(false)} disabled={waModalLoading}>
                   Fechar
                 </Button>
-                <Button type="button" variant="outline" size="sm" onClick={copyWAMessage}
+                <Button type="button" variant="outline" size="sm" onClick={copyWAMessage} disabled={waModalLoading}
                   className={cn("gap-1.5", waCopied && "border-green-400 text-green-700 bg-green-50")}>
                   <Copy className="w-3.5 h-3.5" />
                   {waCopied ? "Copiado!" : "Copiar mensagem"}
@@ -1205,17 +1244,18 @@ export default function NecessidadeDetailPage() {
                 <Button type="button" size="sm"
                   variant="outline"
                   className="gap-1.5 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
-                  disabled={!waAprovadorId}
+                  disabled={!waAprovadorId || waModalLoading}
                   onClick={confirmarDiretamente}
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {waModalLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                   Confirmar
                 </Button>
                 <Button type="button" size="sm"
                   className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                  disabled={waModalLoading}
                   onClick={openWhatsApp}
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  {waModalLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
                   {waAprovadorId ? "Encaminhar pelo WhatsApp" : "Abrir WhatsApp Web"}
                 </Button>
               </div>

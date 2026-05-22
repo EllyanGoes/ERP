@@ -61,12 +61,8 @@ export async function POST(
     const modo:           "fluxo" | "direto" = body.modo ?? "fluxo";
     const aprovadorId:    string | undefined  = body.aprovadorId;
     const colaboradorId:  string | undefined  = body.colaboradorId;
-
-    // ── Validate WA config BEFORE touching the DB ─────────────────────────────
-    const waCheck = await validateWAConfig();
-    if (!waCheck.ok) {
-      return NextResponse.json({ error: waCheck.error }, { status: 422 });
-    }
+    // sendWA: false skips WhatsApp sending (used by the "Confirmar" / in-system path)
+    const sendWA: boolean = body.sendWA !== false;
 
     // ── Load SC ──────────────────────────────────────────────────────────────
     const sc = await prisma.necessidadeCompra.findUnique({
@@ -205,34 +201,6 @@ export async function POST(
       }
     }
 
-    if (!aprovadorResolved.telefone) {
-      return NextResponse.json(
-        { error: `O aprovador "${aprovadorResolved.nome}" não tem telefone cadastrado. Cadastre em Configurações → Usuários.` },
-        { status: 422 }
-      );
-    }
-
-    // ── Build WA message ──────────────────────────────────────────────────────
-    const filialNome = sc.filial
-      ? sc.filial.nomeFantasia ?? sc.filial.razaoSocial
-      : "—";
-
-    const msgBody = buildMsgBody({
-      numero: sc.numero,
-      filialNome,
-      solicitante: sc.solicitante,
-      createdAt: sc.createdAt,
-      itens: sc.itens.map((it) => ({
-        descricao: it.item.descricao,
-        quantidade: parseFloat(String(it.quantidade ?? 0)),
-        unidade: it.unidade ?? it.item.unidade?.sigla ?? it.item.unidadeMedida ?? "un",
-      })),
-      valorTotal: valorTotalStr,
-      prioridade: sc.prioridade,
-      justificativa: sc.justificativa,
-      etapaNome,
-    });
-
     // ── Garantir 1 aprovação pendente por pessoa por SC ──────────────────────
     // Remove entradas PENDENTE anteriores para este aprovador nesta SC
     // para evitar duplicatas ao reenviar.
@@ -262,29 +230,65 @@ export async function POST(
       data: { status: "AGUARDANDO_APROVACAO" },
     });
 
-    // ── Send WA ───────────────────────────────────────────────────────────────
-    // Normalize Brazilian phone: strip non-digits, then ensure country code 55
-    // Valid formats stored in DB: "47999999999" (11 digits) or "4799999999" (10 digits)
-    // Z-API expects: "5547999999999" (13 digits) or "554799999999" (12 digits)
-    const rawPhone = aprovadorResolved.telefone.replace(/\D/g, "");
-    const phone = rawPhone.startsWith("55") ? rawPhone : `55${rawPhone}`;
-    const waResult = await sendWAMessage({
-      to: phone,
-      body: msgBody,
-      buttons: [
-        { id: `sc_APPROVE_${aprovacao.id}`, title: "✅ Aprovar" },
-        { id: `sc_REJECT_${aprovacao.id}`,  title: "❌ Reprovar" },
-        { id: `sc_VIEW_${aprovacao.id}`,    title: "🔍 Detalhes" },
-      ],
-    });
+    // ── Send WA (best-effort — never fails the request) ───────────────────────
+    let waMsgId: string | null = null;
+    let waError: string | null = null;
 
-    await prisma.aprovacaoSC.update({
-      where: { id: aprovacao.id },
-      data:  { waMsgId: waResult.msgId },
-    });
+    if (sendWA && aprovadorResolved.telefone) {
+      try {
+        const waCheck = await validateWAConfig();
+        if (!waCheck.ok) {
+          waError = waCheck.error;
+        } else {
+          const filialNome = sc.filial
+            ? sc.filial.nomeFantasia ?? sc.filial.razaoSocial
+            : "—";
+
+          const msgBody = buildMsgBody({
+            numero: sc.numero,
+            filialNome,
+            solicitante: sc.solicitante,
+            createdAt: sc.createdAt,
+            itens: sc.itens.map((it) => ({
+              descricao: it.item.descricao,
+              quantidade: parseFloat(String(it.quantidade ?? 0)),
+              unidade: it.unidade ?? it.item.unidade?.sigla ?? it.item.unidadeMedida ?? "un",
+            })),
+            valorTotal: valorTotalStr,
+            prioridade: sc.prioridade,
+            justificativa: sc.justificativa,
+            etapaNome,
+          });
+
+          // Normalize Brazilian phone
+          const rawPhone = aprovadorResolved.telefone.replace(/\D/g, "");
+          const phone = rawPhone.startsWith("55") ? rawPhone : `55${rawPhone}`;
+          const waResult = await sendWAMessage({
+            to: phone,
+            body: msgBody,
+            buttons: [
+              { id: `sc_APPROVE_${aprovacao.id}`, title: "✅ Aprovar" },
+              { id: `sc_REJECT_${aprovacao.id}`,  title: "❌ Reprovar" },
+              { id: `sc_VIEW_${aprovacao.id}`,    title: "🔍 Detalhes" },
+            ],
+          });
+          waMsgId = waResult.msgId;
+          await prisma.aprovacaoSC.update({
+            where: { id: aprovacao.id },
+            data:  { waMsgId },
+          });
+        }
+      } catch (waErr) {
+        waError = waErr instanceof Error ? waErr.message : "Erro ao enviar WhatsApp";
+        console.warn("[submeter-aprovacao] WA send failed (non-blocking):", waError);
+      }
+    } else if (sendWA && !aprovadorResolved.telefone) {
+      waError = `O aprovador "${aprovadorResolved.nome}" não tem telefone cadastrado.`;
+    }
 
     return NextResponse.json({
-      data: { id: aprovacao.id, aprovadorNome: aprovadorResolved.nome, waMsgId: waResult.msgId },
+      data: { id: aprovacao.id, aprovadorNome: aprovadorResolved.nome, waMsgId },
+      waError, // null when WA was sent; message when it failed or was skipped
     }, { status: 201 });
   } catch (err) {
     console.error("[POST submeter-aprovacao]", err);
