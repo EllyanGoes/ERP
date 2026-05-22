@@ -10,7 +10,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       colaborador:  { select: { id: true, nome: true } },
       itens: {
         include: {
-          item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } },
+          item:      { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, precoCusto: true, unidade: { select: { sigla: true } } } },
+          fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
         },
         orderBy: { item: { descricao: "asc" } },
       },
@@ -38,17 +39,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         create: body.itens.map((it: {
           itemId: string; localizacao?: string;
           saldoSistema: number; saldoFisico?: number; diferenca?: number;
+          custoUnitario?: number; fornecedorId?: string;
         }) => ({
-          itemId:      it.itemId,
-          localizacao: it.localizacao?.trim() || null,
-          saldoSistema: parseFloat(String(it.saldoSistema)),
-          saldoFisico:  it.saldoFisico != null ? parseFloat(String(it.saldoFisico)) : null,
-          diferenca:    it.diferenca   != null ? parseFloat(String(it.diferenca))   : null,
+          itemId:        it.itemId,
+          localizacao:   it.localizacao?.trim() || null,
+          saldoSistema:  parseFloat(String(it.saldoSistema)),
+          saldoFisico:   it.saldoFisico   != null ? parseFloat(String(it.saldoFisico))   : null,
+          diferenca:     it.diferenca     != null ? parseFloat(String(it.diferenca))     : null,
+          custoUnitario: it.custoUnitario != null ? parseFloat(String(it.custoUnitario)) : null,
+          fornecedorId:  it.fornecedorId  || null,
         })),
       };
     }
 
-    return tx.inventarioMaterial.update({
+    const updated = await tx.inventarioMaterial.update({
       where: { id: params.id },
       data: updateData,
       include: {
@@ -56,11 +60,26 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         colaborador:  { select: { id: true, nome: true } },
         itens: {
           include: {
-            item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } },
+            item:      { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, precoCusto: true, unidade: { select: { sigla: true } } } },
+            fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
           },
         },
       },
     });
+
+    // When concluding: update Item.precoCusto for items that have custoUnitario set
+    if (body.status === "CONCLUIDO" && Array.isArray(body.itens)) {
+      for (const it of body.itens as { itemId: string; custoUnitario?: number }[]) {
+        if (it.custoUnitario != null && it.custoUnitario > 0) {
+          await tx.item.update({
+            where: { id: it.itemId },
+            data:  { precoCusto: parseFloat(String(it.custoUnitario)) },
+          });
+        }
+      }
+    }
+
+    return updated;
   });
 
   return NextResponse.json({ data: record });

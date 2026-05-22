@@ -15,15 +15,19 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 type LocalEstoqueOpt = { id: string; nome: string };
 type ColaboradorOpt  = { id: string; nome: string; setorId: string | null };
-type ItemOpt         = { id: string; codigo: string; descricao: string; unidadeMedida: string; tipo: string; unidade: { sigla: string } | null };
+type FornecedorOpt   = { id: string; razaoSocial: string; nomeFantasia: string | null };
+type LastPurchase    = { vlrUnitario: unknown; conferencia: { fornecedorId: string | null; fornecedor: FornecedorOpt | null } | null } | null;
+type ItemOpt         = { id: string; codigo: string; descricao: string; unidadeMedida: string; tipo: string; precoCusto: unknown; unidade: { sigla: string } | null; conferenciaCompraItens: LastPurchase[] };
 type EstoqueItemOpt  = { id: string; quantidadeAtual: unknown; localizacao: string | null; item: ItemOpt };
 
 type SampleRow = {
-  _key:        string;
-  itemId:      string;
-  item:        ItemOpt | null;
-  localizacao: string;
+  _key:         string;
+  itemId:       string;
+  item:         ItemOpt | null;
+  localizacao:  string;
   saldoSistema: string;
+  custoUnitario: string;
+  fornecedorId:  string;
 };
 
 function toNum(v: unknown) { return v == null ? 0 : parseFloat(String(v)); }
@@ -176,19 +180,23 @@ export default function NovoInventarioPage() {
 
   const [locais,        setLocais]        = useState<LocalEstoqueOpt[]>([]);
   const [colaboradores, setColaboradores] = useState<ColaboradorOpt[]>([]);
+  const [fornecedores,  setFornecedores]  = useState<FornecedorOpt[]>([]);
   const [estoqueItens,  setEstoqueItens]  = useState<EstoqueItemOpt[]>([]);
 
   const [saving,    setSaving]    = useState(false);
   const [saveError, setSaveError] = useState("");
 
   const loadOptions = useCallback(async () => {
-    const [lRes, cRes] = await Promise.all([
+    const [lRes, cRes, fRes] = await Promise.all([
       fetch("/api/suprimentos/locais-estoque?ativo=true"),
       fetch("/api/empresa/colaboradores?ativo=true"),
+      fetch("/api/suprimentos/fornecedores?ativo=true"),
     ]);
     setLocais((await lRes.json()) || []);
     const cData = await cRes.json();
     setColaboradores(Array.isArray(cData) ? cData : Array.isArray(cData.data) ? cData.data : []);
+    const fData = await fRes.json();
+    setFornecedores(Array.isArray(fData) ? fData : Array.isArray(fData.data) ? fData.data : []);
   }, []);
 
   useEffect(() => { loadOptions(); }, [loadOptions]);
@@ -200,29 +208,34 @@ export default function NovoInventarioPage() {
       .then((d) => setEstoqueItens(d.estoqueItens ?? []));
   }, [localEstoqueId]);
 
+  function buildRow(e: EstoqueItemOpt): SampleRow {
+    const lastPurchase = e.item.conferenciaCompraItens?.[0] ?? null;
+    const lastCusto = lastPurchase?.vlrUnitario != null
+      ? String(parseFloat(String(lastPurchase.vlrUnitario)))
+      : e.item.precoCusto != null ? String(parseFloat(String(e.item.precoCusto))) : "";
+    const lastFornecedorId = lastPurchase?.conferencia?.fornecedorId ?? "";
+    return {
+      _key:          e.id,
+      itemId:        e.item.id,
+      item:          e.item,
+      localizacao:   e.localizacao ?? "",
+      saldoSistema:  String(toNum(e.quantidadeAtual)),
+      custoUnitario: lastCusto,
+      fornecedorId:  lastFornecedorId,
+    };
+  }
+
   function handleFiltrarAmostragem() {
     let base = estoqueItens;
     if (filtroTipo)    base = base.filter(e => e.item.tipo === filtroTipo);
     if (filtroLocalId) base = base.filter(e => localEstoqueId === filtroLocalId);
-    setRows(base.map((e) => ({
-      _key:        e.id,
-      itemId:      e.item.id,
-      item:        e.item,
-      localizacao: e.localizacao ?? "",
-      saldoSistema: String(toNum(e.quantidadeAtual)),
-    })));
+    setRows(base.map(buildRow));
     setActiveTab("amostragem");
   }
 
   function handleFiltrarPendentes() {
     const base = estoqueItens.filter(e => toNum(e.quantidadeAtual) > 0);
-    setRows(base.map((e) => ({
-      _key:        e.id,
-      itemId:      e.item.id,
-      item:        e.item,
-      localizacao: e.localizacao ?? "",
-      saldoSistema: String(toNum(e.quantidadeAtual)),
-    })));
+    setRows(base.map(buildRow));
     setActiveTab("amostragem");
   }
 
@@ -256,11 +269,13 @@ export default function NovoInventarioPage() {
           body: JSON.stringify({
             status: statusFinal,
             itens: rows.map(r => ({
-              itemId:      r.itemId,
-              localizacao: r.localizacao || null,
-              saldoSistema: parseFloat(r.saldoSistema) || 0,
-              saldoFisico:  null,
-              diferenca:    null,
+              itemId:        r.itemId,
+              localizacao:   r.localizacao || null,
+              saldoSistema:  parseFloat(r.saldoSistema) || 0,
+              saldoFisico:   null,
+              diferenca:     null,
+              custoUnitario: r.custoUnitario ? parseFloat(r.custoUnitario) : null,
+              fornecedorId:  r.fornecedorId  || null,
             })),
           }),
         });
@@ -423,6 +438,7 @@ export default function NovoInventarioPage() {
                   onClick={() => setRows(p => [...p, {
                     _key: Math.random().toString(36).slice(2),
                     itemId: "", item: null, localizacao: "", saldoSistema: "0",
+                    custoUnitario: "", fornecedorId: "",
                   }])}
                 >
                   <Plus className="w-3.5 h-3.5 mr-1" />Adicionar
@@ -440,6 +456,8 @@ export default function NovoInventarioPage() {
                       <tr className="text-xs text-gray-400 uppercase tracking-wide">
                         <th className="text-left px-4 py-2.5 font-medium">Material</th>
                         <th className="text-left px-4 py-2.5 font-medium">Unidade</th>
+                        <th className="text-left px-4 py-2.5 font-medium">Fornecedor</th>
+                        <th className="text-right px-4 py-2.5 font-medium">Custo Unit.</th>
                         <th className="text-left px-4 py-2.5 font-medium">Localização</th>
                         <th className="text-right px-4 py-2.5 font-medium">Saldo Sistema</th>
                         <th className="w-10" />
@@ -460,6 +478,25 @@ export default function NovoInventarioPage() {
                           </td>
                           <td className="px-4 py-2.5 text-gray-500 text-xs">
                             {r.item?.unidade?.sigla ?? r.item?.unidadeMedida ?? "—"}
+                          </td>
+                          <td className="px-4 py-2.5 min-w-[180px]">
+                            <PortalSelect
+                              options={fornecedores}
+                              value={r.fornecedorId}
+                              onChange={(v) => updateRow(r._key, "fornecedorId", v)}
+                              placeholder="— Fornecedor —"
+                              getLabel={(f) => f.nomeFantasia ?? f.razaoSocial}
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={r.custoUnitario}
+                              onChange={(e) => updateRow(r._key, "custoUnitario", e.target.value)}
+                              className="h-7 text-xs w-28 ml-auto"
+                              placeholder="0,00"
+                            />
                           </td>
                           <td className="px-4 py-2.5">
                             <Input

@@ -473,6 +473,7 @@ model Fornecedor {
   pedidosCompra     PedidoCompra[]
   produtos          ProdutoFornecedor[]
   docEntradas       ConferenciaCompra[]
+  inventarioItens   InventarioMaterialItem[]
 }
 
 model FornecedorContato {
@@ -1065,17 +1066,21 @@ model InventarioMaterial {
 }
 
 model InventarioMaterialItem {
-  id           String             @id @default(cuid())
-  inventarioId String
-  itemId       String
-  localizacao  String?
-  saldoSistema Decimal            @db.Decimal(15, 3)
-  saldoFisico  Decimal?           @db.Decimal(15, 3)
-  diferenca    Decimal?           @db.Decimal(15, 3)
-  inventario   InventarioMaterial @relation(fields: [inventarioId], references: [id], onDelete: Cascade)
-  item         Item               @relation(fields: [itemId], references: [id])
+  id            String             @id @default(cuid())
+  inventarioId  String
+  itemId        String
+  localizacao   String?
+  saldoSistema  Decimal            @db.Decimal(15, 3)
+  saldoFisico   Decimal?           @db.Decimal(15, 3)
+  diferenca     Decimal?           @db.Decimal(15, 3)
+  custoUnitario Decimal?           @db.Decimal(15, 2)
+  fornecedorId  String?
+  inventario    InventarioMaterial @relation(fields: [inventarioId], references: [id], onDelete: Cascade)
+  item          Item               @relation(fields: [itemId], references: [id])
+  fornecedor    Fornecedor?        @relation(fields: [fornecedorId], references: [id])
 
   @@index([inventarioId])
+  @@index([fornecedorId])
 }
 
 enum TipoRequisicaoMaterial {

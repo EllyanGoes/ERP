@@ -22,6 +22,20 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
               id: true, codigo: true, descricao: true,
               tipo: true, ativo: true, unidadeMedida: true, precoCusto: true,
               unidade: { select: { sigla: true } },
+              conferenciaCompraItens: {
+                where:   { vlrUnitario: { not: null } },
+                orderBy: { id: "desc" },
+                take: 1,
+                select: {
+                  vlrUnitario: true,
+                  conferencia: {
+                    select: {
+                      fornecedorId: true,
+                      fornecedor:   { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+                    },
+                  },
+                },
+              },
             },
           },
         },

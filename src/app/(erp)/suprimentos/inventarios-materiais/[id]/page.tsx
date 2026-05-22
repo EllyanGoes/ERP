@@ -10,14 +10,19 @@ import { Label } from "@/components/ui/label";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 
+type FornecedorOpt = { id: string; razaoSocial: string; nomeFantasia: string | null };
+
 type InvItem = {
   id: string;
   itemId: string;
-  localizacao: string | null;
-  saldoSistema: unknown;
-  saldoFisico:  unknown | null;
-  diferenca:    unknown | null;
-  item: { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null } | null;
+  localizacao:   string | null;
+  saldoSistema:  unknown;
+  saldoFisico:   unknown | null;
+  diferenca:     unknown | null;
+  custoUnitario: unknown | null;
+  fornecedorId:  string | null;
+  fornecedor:    FornecedorOpt | null;
+  item: { id: string; codigo: string; descricao: string; unidadeMedida: string; precoCusto: unknown; unidade: { sigla: string } | null } | null;
 };
 
 type Inv = {
@@ -64,6 +69,7 @@ export default function InventarioDetailPage() {
   const [saveError, setSaveError] = useState("");
 
   const [colaboradores, setColaboradores] = useState<ColaboradorOpt[]>([]);
+  const [fornecedores,  setFornecedores]  = useState<FornecedorOpt[]>([]);
   const [showDelete, setShowDelete]       = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
@@ -80,8 +86,13 @@ export default function InventarioDetailPage() {
 
   useEffect(() => {
     if (!editMode) return;
-    fetch("/api/empresa/colaboradores?ativo=true").then(r => r.json()).then(d => {
-      setColaboradores(Array.isArray(d.data) ? d.data : []);
+    Promise.all([
+      fetch("/api/empresa/colaboradores?ativo=true").then(r => r.json()),
+      fetch("/api/suprimentos/fornecedores?ativo=true").then(r => r.json()),
+    ]).then(([cData, fData]) => {
+      setColaboradores(Array.isArray(cData.data) ? cData.data : []);
+      const fArr = Array.isArray(fData) ? fData : Array.isArray(fData.data) ? fData.data : [];
+      setFornecedores(fArr);
     });
   }, [editMode]);
 
@@ -104,11 +115,13 @@ export default function InventarioDetailPage() {
         data:          editData || null,
         observacoes:   editObs  || null,
         itens: editRows.map(r => ({
-          itemId:      r.itemId,
-          localizacao: r.localizacao || null,
-          saldoSistema: toNum(r.saldoSistema),
-          saldoFisico:  r.saldoFisico != null ? toNum(r.saldoFisico) : null,
-          diferenca:    r.diferenca   != null ? toNum(r.diferenca)   : null,
+          itemId:        r.itemId,
+          localizacao:   r.localizacao || null,
+          saldoSistema:  toNum(r.saldoSistema),
+          saldoFisico:   r.saldoFisico   != null ? toNum(r.saldoFisico)   : null,
+          diferenca:     r.diferenca     != null ? toNum(r.diferenca)     : null,
+          custoUnitario: r.custoUnitario != null && r.custoUnitario !== "" ? toNum(r.custoUnitario) : null,
+          fornecedorId:  r.fornecedorId  || null,
         })),
       }),
     });
@@ -117,10 +130,23 @@ export default function InventarioDetailPage() {
   }
 
   async function updateStatus(status: string) {
+    const body: Record<string, unknown> = { status };
+    // When concluding, pass current items so precoCusto can be updated
+    if (status === "CONCLUIDO") {
+      body.itens = inv!.itens.map(r => ({
+        itemId:        r.itemId,
+        localizacao:   r.localizacao || null,
+        saldoSistema:  toNum(r.saldoSistema),
+        saldoFisico:   r.saldoFisico   != null ? toNum(r.saldoFisico)   : null,
+        diferenca:     r.diferenca     != null ? toNum(r.diferenca)     : null,
+        custoUnitario: r.custoUnitario != null ? toNum(r.custoUnitario) : null,
+        fornecedorId:  r.fornecedorId  || null,
+      }));
+    }
     await fetch(`/api/suprimentos/inventarios-materiais/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(body),
     });
     await load();
   }
@@ -265,6 +291,8 @@ export default function InventarioDetailPage() {
                   <tr className="text-xs text-gray-400 uppercase tracking-wide">
                     <th className="text-left px-4 py-2.5 font-medium">Material</th>
                     <th className="text-left px-4 py-2.5 font-medium">Unidade</th>
+                    <th className="text-left px-4 py-2.5 font-medium">Fornecedor</th>
+                    <th className="text-right px-4 py-2.5 font-medium">Custo Unit.</th>
                     <th className="text-left px-4 py-2.5 font-medium">Localização</th>
                     <th className="text-right px-4 py-2.5 font-medium">Saldo</th>
                     <th className="text-right px-4 py-2.5 font-medium">Saldo Físico</th>
@@ -277,6 +305,7 @@ export default function InventarioDetailPage() {
                     const ss    = toNum(it.saldoSistema);
                     const diff  = it.saldoFisico != null ? sf - ss : null;
                     const diffCls = diff == null ? "" : diff < 0 ? "text-red-600 font-semibold" : diff > 0 ? "text-amber-600 font-semibold" : "text-emerald-600";
+                    const fornNome = it.fornecedor ? (it.fornecedor.nomeFantasia ?? it.fornecedor.razaoSocial) : "—";
 
                     return (
                       <tr key={it.id || idx} className="hover:bg-gray-50">
@@ -286,6 +315,35 @@ export default function InventarioDetailPage() {
                         </td>
                         <td className="px-4 py-2.5 text-gray-500 text-xs">
                           {it.item?.unidade?.sigla ?? it.item?.unidadeMedida ?? "—"}
+                        </td>
+                        <td className="px-4 py-2.5 text-gray-700 text-xs min-w-[160px]">
+                          {editMode ? (
+                            <select
+                              value={it.fornecedorId ?? ""}
+                              onChange={(e) => updateEditRow(idx, "fornecedorId", e.target.value)}
+                              className="w-full h-7 text-xs border border-gray-200 rounded-md bg-white px-2 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                            >
+                              <option value="">— Fornecedor —</option>
+                              {fornecedores.map(f => (
+                                <option key={f.id} value={f.id}>{f.nomeFantasia ?? f.razaoSocial}</option>
+                              ))}
+                            </select>
+                          ) : fornNome}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-mono text-gray-700 text-xs">
+                          {editMode ? (
+                            <Input
+                              type="number" step="0.01"
+                              value={it.custoUnitario == null ? "" : String(it.custoUnitario)}
+                              onChange={(e) => updateEditRow(idx, "custoUnitario", e.target.value)}
+                              className="h-7 text-xs w-28 ml-auto"
+                              placeholder="0,00"
+                            />
+                          ) : (
+                            it.custoUnitario != null
+                              ? toNum(it.custoUnitario).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                              : <span className="text-gray-300">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-2.5 text-gray-500 text-xs">
                           {editMode ? (
