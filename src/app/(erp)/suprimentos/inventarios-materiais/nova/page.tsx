@@ -15,7 +15,7 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 type LocalEstoqueOpt = { id: string; nome: string };
 type ColaboradorOpt  = { id: string; nome: string; setorId: string | null };
-type ItemOpt         = { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null };
+type ItemOpt         = { id: string; codigo: string; descricao: string; unidadeMedida: string; tipo: string; unidade: { sigla: string } | null };
 type EstoqueItemOpt  = { id: string; quantidadeAtual: unknown; localizacao: string | null; item: ItemOpt };
 
 type SampleRow = {
@@ -27,6 +27,12 @@ type SampleRow = {
 };
 
 function toNum(v: unknown) { return v == null ? 0 : parseFloat(String(v)); }
+
+const TIPO_ITEM_OPTIONS: { id: string; nome: string }[] = [
+  { id: "PRODUTO",       nome: "Produto" },
+  { id: "MATERIA_PRIMA", nome: "Matéria-Prima" },
+  { id: "SERVICO",       nome: "Serviço" },
+];
 
 const ACTIVE_TAB_CLS = "border-b-2 border-indigo-600 text-indigo-700 font-medium";
 const INACTIVE_TAB_CLS = "border-b-2 border-transparent text-gray-500 hover:text-gray-800";
@@ -163,10 +169,8 @@ export default function NovoInventarioPage() {
 
   const [activeTab, setActiveTab] = useState<"filtros" | "amostragem">("filtros");
 
-  const [filtroLocalizacao, setFiltroLocalizacao] = useState("");
-  const [filtroClasse,      setFiltroClasse]      = useState("");
-  const [filtroGrupo,       setFiltroGrupo]       = useState("");
-  const [filtroMaterial,    setFiltroMaterial]    = useState("");
+  const [filtroTipo,       setFiltroTipo]       = useState("");
+  const [filtroLocalId,    setFiltroLocalId]    = useState("");
 
   const [rows, setRows] = useState<SampleRow[]>([]);
 
@@ -198,8 +202,8 @@ export default function NovoInventarioPage() {
 
   function handleFiltrarAmostragem() {
     let base = estoqueItens;
-    if (filtroLocalizacao) base = base.filter(e => e.localizacao?.toLowerCase().includes(filtroLocalizacao.toLowerCase()));
-    if (filtroMaterial)   base = base.filter(e => e.item.descricao.toLowerCase().includes(filtroMaterial.toLowerCase()) || e.item.codigo.toLowerCase().includes(filtroMaterial.toLowerCase()));
+    if (filtroTipo)    base = base.filter(e => e.item.tipo === filtroTipo);
+    if (filtroLocalId) base = base.filter(e => localEstoqueId === filtroLocalId);
     setRows(base.map((e) => ({
       _key:        e.id,
       itemId:      e.item.id,
@@ -375,20 +379,24 @@ export default function NovoInventarioPage() {
               <p className="text-xs text-gray-400">Defina os filtros para selecionar os materiais que serão inventariados.</p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">Localização de Material</Label>
-                  <Input value={filtroLocalizacao} onChange={(e) => setFiltroLocalizacao(e.target.value)} placeholder="Ex: A1-01" className="h-9" />
+                  <Label className="text-xs text-gray-500">Tipo</Label>
+                  <PortalSelect
+                    options={TIPO_ITEM_OPTIONS}
+                    value={filtroTipo}
+                    onChange={setFiltroTipo}
+                    placeholder="Todos os tipos"
+                    getLabel={(o) => o.nome}
+                  />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">Classe de Material</Label>
-                  <Input value={filtroClasse} onChange={(e) => setFiltroClasse(e.target.value)} placeholder="Classe" className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">Grupo de Material</Label>
-                  <Input value={filtroGrupo} onChange={(e) => setFiltroGrupo(e.target.value)} placeholder="Grupo" className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">Material</Label>
-                  <Input value={filtroMaterial} onChange={(e) => setFiltroMaterial(e.target.value)} placeholder="Código ou descrição" className="h-9" />
+                  <Label className="text-xs text-gray-500">Local de Estoque</Label>
+                  <PortalSelect
+                    options={locais}
+                    value={filtroLocalId}
+                    onChange={setFiltroLocalId}
+                    placeholder="Todos os locais"
+                    getLabel={(l) => l.nome}
+                  />
                 </div>
               </div>
               <div className="flex gap-3 pt-2">
