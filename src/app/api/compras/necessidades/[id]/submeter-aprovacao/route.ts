@@ -362,20 +362,11 @@ export async function POST(
         ...linhas,
         ``,
         `👤 *Aprovador:* ${escMD(aprovadorResolved.nome)}`,
-        ...(etapaNome ? [`📋 *Etapa:* ${escMD(etapaNome)}`] : []),
         ``,
         `_Acesse o ERP para aprovar ou reprovar\\._`,
       ];
 
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
-        ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
-
-      await sendTelegramMessage({
-        text: lines.join("\n"),
-        inlineKeyboard: [[
-          { text: "🔍 Ver aprovação", url: `${baseUrl}/aprovacoes` },
-        ]],
-      });
+      await sendTelegramMessage({ text: lines.join("\n") });
     } catch (tgErr) {
       console.warn("[submeter-aprovacao] Telegram send failed (non-blocking):", tgErr);
     }
