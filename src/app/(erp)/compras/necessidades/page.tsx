@@ -30,7 +30,8 @@ type Necessidade = {
   localEstoque: { id: string; nome: string } | null;
   setor: { id: string; nome: string } | null;
   _count: { itens: number };
-  cotacoes?: Array<{ id: string; status: string; pedidos: Array<{ id: string; status: string }> }>;
+  cotacoes?: Array<{ id: string; numero: string; status: string; pedidos: Array<{ id: string; numero: string; status: string }> }>;
+  pedidosCompra?: Array<{ id: string; numero: string; status: string; conferencia: { id: string; numero: string; status: string } | null }>;
 };
 
 const STATUS_OPTIONS = [
@@ -145,6 +146,80 @@ const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
     thClass: "text-center px-4 py-3 font-medium text-gray-600 w-14",
     tdClass: "px-4 py-3 text-center text-gray-500",
     render: (n) => n._count.itens,
+  },
+  {
+    id: "cotacao",
+    label: "Cotação",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-36",
+    tdClass: "px-4 py-3",
+    render: (n) => {
+      const cotacoes = n.cotacoes ?? [];
+      if (cotacoes.length === 0) return <span className="text-gray-300 text-xs">—</span>;
+      return (
+        <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
+          {cotacoes.map((c) => (
+            <Link
+              key={c.id}
+              href={`/suprimentos/cotacoes/${c.id}`}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 transition-colors"
+            >
+              <span className="font-mono text-[10px] font-medium text-gray-600 hover:text-blue-700">{c.numero}</span>
+              <StatusBadge status={c.status} />
+            </Link>
+          ))}
+        </div>
+      );
+    },
+  },
+  {
+    id: "pedidos_compra",
+    label: "Pedidos de Compra",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-40",
+    tdClass: "px-4 py-3",
+    render: (n) => {
+      const pedidos = n.pedidosCompra ?? [];
+      if (pedidos.length === 0) return <span className="text-gray-300 text-xs">—</span>;
+      return (
+        <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
+          {pedidos.map((p) => (
+            <Link
+              key={p.id}
+              href={`/suprimentos/pedidos-compra/${p.id}`}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 transition-colors"
+            >
+              <span className="font-mono text-[10px] font-medium text-gray-600 hover:text-blue-700">{p.numero}</span>
+              <StatusBadge status={p.status} />
+            </Link>
+          ))}
+        </div>
+      );
+    },
+  },
+  {
+    id: "doc_entrada",
+    label: "Doc. de Entrada",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-40",
+    tdClass: "px-4 py-3",
+    render: (n) => {
+      const conferencias = (n.pedidosCompra ?? [])
+        .map((p) => p.conferencia)
+        .filter((c): c is NonNullable<typeof c> => c !== null);
+      if (conferencias.length === 0) return <span className="text-gray-300 text-xs">—</span>;
+      return (
+        <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
+          {conferencias.map((c) => (
+            <Link
+              key={c.id}
+              href={`/suprimentos/conferencias/${c.id}`}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 transition-colors"
+            >
+              <span className="font-mono text-[10px] font-medium text-gray-600 hover:text-blue-700">{c.numero}</span>
+              <StatusBadge status={c.status} />
+            </Link>
+          ))}
+        </div>
+      );
+    },
   },
 ];
 
