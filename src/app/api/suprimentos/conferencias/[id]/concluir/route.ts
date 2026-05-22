@@ -168,8 +168,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       if (scItems.length === 0) return;
 
       // Find ALL pedidos linked to this SC (direct or via cotação)
+      // Do NOT filter by PC status — a PC may have been cancelled or updated outside
+      // the normal flow; what matters is whether its DE is concluded.
       const pedidosDiretos = await tx.pedidoCompra.findMany({
-        where: { necessidadeId, status: "RECEBIDO" },
+        where: { necessidadeId },
         select: { id: true },
       });
       const cotacoesDaSc = await tx.cotacaoCompra.findMany({
@@ -179,7 +181,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       const cotacaoIds = cotacoesDaSc.map((c) => c.id);
       const pedidosDeCotacao = cotacaoIds.length > 0
         ? await tx.pedidoCompra.findMany({
-            where: { cotacaoId: { in: cotacaoIds }, status: "RECEBIDO" },
+            where: { cotacaoId: { in: cotacaoIds } },
             select: { id: true },
           })
         : [];
