@@ -58,10 +58,21 @@ type ItemRow = {
   unidadeMedida: string;
   localEstoqueId: string;
   quantidadePedida: string;
+  quantidadeRecebida: string;
   vlrUnitario: string;
+  desconto: string;
+  vlrTotal: string;
+  vlrIPI: string;
+  vlrICMS: string;
   tipoEntrada: string;
   codFiscal: string;
 };
+
+function getItemStatus(pedida: number, recebida: number): { label: string; cls: string } {
+  if (recebida === 0) return { label: "Faltante", cls: "bg-red-100 text-red-700" };
+  if (Math.abs(pedida - recebida) > 0.001) return { label: "Divergência", cls: "bg-amber-100 text-amber-700" };
+  return { label: "OK", cls: "bg-green-100 text-green-700" };
+}
 
 function makeKey() {
   return Math.random().toString(36).slice(2);
@@ -76,7 +87,12 @@ function emptyRow(): ItemRow {
     unidadeMedida: "",
     localEstoqueId: "",
     quantidadePedida: "",
+    quantidadeRecebida: "",
     vlrUnitario: "",
+    desconto: "",
+    vlrTotal: "",
+    vlrIPI: "",
+    vlrICMS: "",
     tipoEntrada: "",
     codFiscal: "",
   };
@@ -195,6 +211,11 @@ export default function NovoDocumentoEntradaPage() {
   const [fornecedores, setFornecedores]   = useState<Fornecedor[]>([]);
   const [fornecedorId, setFornecedorId]   = useState("");
 
+  // Responsável
+  const [usuarios, setUsuarios]           = useState<{ id: string; nome: string; email: string }[]>([]);
+  const [usuarioResponsavelId, setUsuarioResponsavelId] = useState("");
+  const [responsavel, setResponsavel]     = useState("");
+
   // Pedido vinculado — button in header
   const [vinculadoPedido, setVinculadoPedido] = useState<PedidoOption | null>(null);
   const [pcPopoverOpen, setPcPopoverOpen]     = useState(false);
@@ -229,6 +250,14 @@ export default function NovoDocumentoEntradaPage() {
     fetch("/api/suprimentos/fornecedores")
       .then((r) => r.json())
       .then((j) => setFornecedores(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+  }, []);
+
+  // Load usuarios
+  useEffect(() => {
+    fetch("/api/usuarios")
+      .then((r) => r.json())
+      .then((j) => setUsuarios(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
 
@@ -350,7 +379,12 @@ export default function NovoDocumentoEntradaPage() {
         unidadeMedida: pi.item.unidadeMedida,
         localEstoqueId: modoLocalEstoque === "GLOBAL" ? localEstoqueGlobalId : "",
         quantidadePedida: decimalToNumber(pi.quantidade).toString(),
+        quantidadeRecebida: "0",
         vlrUnitario: "",
+        desconto: "",
+        vlrTotal: "",
+        vlrIPI: "",
+        vlrICMS: "",
         tipoEntrada: "",
         codFiscal: "",
       }))
@@ -366,6 +400,23 @@ export default function NovoDocumentoEntradaPage() {
   function updateItem(key: string, field: keyof ItemRow, value: string) {
     setItens((prev) =>
       prev.map((r) => (r._key === key ? { ...r, [field]: value } : r))
+    );
+  }
+
+  function updateItemAndCalc(key: string, field: "vlrUnitario" | "quantidadeRecebida" | "desconto", value: string) {
+    setItens((prev) =>
+      prev.map((r) => {
+        if (r._key !== key) return r;
+        const updated = { ...r, [field]: value };
+        const qtd  = parseFloat(field === "quantidadeRecebida" ? value : r.quantidadeRecebida) || 0;
+        const unit = parseFloat(field === "vlrUnitario" ? value : r.vlrUnitario) || 0;
+        const pct  = parseFloat(field === "desconto" ? value : r.desconto) || 0;
+        if (qtd > 0 && unit > 0) {
+          const bruto = qtd * unit;
+          updated.vlrTotal = (bruto - (bruto * pct) / 100).toFixed(2);
+        }
+        return updated;
+      })
     );
   }
 
@@ -391,11 +442,7 @@ export default function NovoDocumentoEntradaPage() {
   }
 
   // Computed totals
-  const vlrMercadoria = itens.reduce((s, r) => {
-    const qtd  = parseFloat(r.quantidadePedida) || 0;
-    const unit = parseFloat(r.vlrUnitario) || 0;
-    return s + qtd * unit;
-  }, 0);
+  const vlrMercadoria = itens.reduce((s, r) => s + (parseFloat(r.vlrTotal) || 0), 0);
   const freteNum    = parseFloat(frete)    || 0;
   const seguroNum   = parseFloat(seguro)   || 0;
   const despesasNum = parseFloat(despesas) || 0;
@@ -407,6 +454,11 @@ export default function NovoDocumentoEntradaPage() {
 
     if (!fornecedorId) {
       setError("Selecione um fornecedor.");
+      return;
+    }
+
+    if (!responsavel) {
+      setError("Selecione o responsável pela conferência.");
       return;
     }
 
@@ -432,6 +484,7 @@ export default function NovoDocumentoEntradaPage() {
     try {
       const payload: Record<string, unknown> = {
         fornecedorId,
+        responsavel: responsavel || null,
         pedidoId: vinculadoPedido?.id ?? null,
         modoLocalEstoque,
         localEstoqueId: modoLocalEstoque === "GLOBAL" ? (localEstoqueGlobalId || null) : null,
@@ -449,10 +502,15 @@ export default function NovoDocumentoEntradaPage() {
         itens: validItens.map((r, idx) => ({
           itemId: r.itemId,
           quantidadePedida: parseFloat(r.quantidadePedida),
-          vlrUnitario:  parseFloat(r.vlrUnitario) || null,
+          quantidadeRecebida: parseFloat(r.quantidadeRecebida) || 0,
+          vlrUnitario: parseFloat(r.vlrUnitario) || null,
+          desconto: parseFloat(r.desconto) || null,
+          vlrTotal: parseFloat(r.vlrTotal) || null,
+          vlrIPI: parseFloat(r.vlrIPI) || null,
+          vlrICMS: parseFloat(r.vlrICMS) || null,
           localEstoqueId: r.localEstoqueId || null,
-          tipoEntrada:  r.tipoEntrada || null,
-          codFiscal:    r.codFiscal   || null,
+          tipoEntrada: r.tipoEntrada || null,
+          codFiscal: r.codFiscal || null,
           itemNF: idx + 1,
         })),
       };
@@ -798,34 +856,43 @@ export default function NovoDocumentoEntradaPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-6">#</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs min-w-[200px]">Produto</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-8">#NF</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Produto</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs min-w-[180px]">Descrição</th>
                     {modoLocalEstoque === "POR_ITEM" && (
-                      <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs min-w-[140px]">
+                      <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs min-w-[130px]">
                         Local Estoque <span className="text-red-500">*</span>
                       </th>
                     )}
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-16">U.M.</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-28">Qtd. Pedida</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-28">Vlr. Unit.</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-28">Vlr. Total</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-28">Tipo Entrada</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Cód. Fiscal</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-14">U.M.</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Qtd. Pedida</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Qtd. Recebida</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Vlr. Unit.</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-20">% Desc.</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Vlr. Total</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Vlr. IPI</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Vlr. ICMS</th>
+                    <th className="text-center px-3 py-2.5 font-medium text-gray-600 text-xs w-20">Status</th>
                     <th className="w-8" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {itens.map((row, idx) => {
-                    const qtd   = parseFloat(row.quantidadePedida) || 0;
-                    const unit  = parseFloat(row.vlrUnitario) || 0;
-                    const total = qtd * unit;
                     const prodSearch = prodSearchMap[row._key] ?? row.descricao ?? "";
+                    const qtdPedida   = parseFloat(row.quantidadePedida) || 0;
+                    const qtdRecebida = parseFloat(row.quantidadeRecebida) || 0;
+                    const itemStatus  = getItemStatus(qtdPedida, qtdRecebida);
 
                     return (
                       <tr key={row._key} className="hover:bg-gray-50">
                         <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
 
-                        {/* Produto */}
+                        {/* Produto — código */}
+                        <td className="px-3 py-2 font-mono text-xs text-gray-500">
+                          {row.codigo || "—"}
+                        </td>
+
+                        {/* Descrição — search cell */}
                         <td className="px-3 py-2">
                           <ProdSearchCell
                             rowKey={row._key}
@@ -834,6 +901,7 @@ export default function NovoDocumentoEntradaPage() {
                             onSelect={selectProduto}
                             onClear={(key) => {
                               updateItem(key, "itemId", "");
+                              updateItem(key, "codigo", "");
                               updateItem(key, "descricao", "");
                               setProdSearchMap((prev) => ({ ...prev, [key]: "" }));
                             }}
@@ -847,11 +915,11 @@ export default function NovoDocumentoEntradaPage() {
                               value={row.localEstoqueId}
                               onChange={(e) => updateItem(row._key, "localEstoqueId", e.target.value)}
                               className={cn(
-                                "w-full h-8 px-2 border rounded-md text-xs bg-white focus:outline-none focus:ring-1 focus:ring-red-400",
+                                "w-full h-7 px-2 border rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-red-400",
                                 !row.localEstoqueId ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200 text-gray-800"
                               )}
                             >
-                              <option value="">Selecionar local...</option>
+                              <option value="">—</option>
                               {locaisEstoque.map((l) => (
                                 <option key={l.id} value={l.id}>{l.nome}</option>
                               ))}
@@ -872,7 +940,19 @@ export default function NovoDocumentoEntradaPage() {
                             min="0"
                             value={row.quantidadePedida}
                             onChange={(e) => updateItem(row._key, "quantidadePedida", e.target.value)}
-                            className="text-right h-8 text-xs"
+                            className="w-20 ml-auto text-right h-7 text-xs"
+                          />
+                        </td>
+
+                        {/* Qtd. Recebida */}
+                        <td className="px-3 py-2">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            min="0"
+                            value={row.quantidadeRecebida}
+                            onChange={(e) => updateItemAndCalc(row._key, "quantidadeRecebida", e.target.value)}
+                            className="w-20 ml-auto text-right h-7 text-xs"
                           />
                         </td>
 
@@ -883,34 +963,68 @@ export default function NovoDocumentoEntradaPage() {
                             step="0.01"
                             min="0"
                             value={row.vlrUnitario}
-                            onChange={(e) => updateItem(row._key, "vlrUnitario", e.target.value)}
-                            className="text-right h-8 text-xs"
+                            onChange={(e) => updateItemAndCalc(row._key, "vlrUnitario", e.target.value)}
+                            className="w-24 ml-auto text-right h-7 text-xs"
                           />
+                        </td>
+
+                        {/* % Desc. */}
+                        <td className="px-3 py-2">
+                          <div className="relative w-20 ml-auto">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max="100"
+                              value={row.desconto}
+                              onChange={(e) => updateItemAndCalc(row._key, "desconto", e.target.value)}
+                              className="w-20 text-right h-7 text-xs pr-5"
+                            />
+                            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                          </div>
                         </td>
 
                         {/* Vlr. Total */}
-                        <td className="px-3 py-2 text-right text-xs text-gray-600 whitespace-nowrap">
-                          {total > 0 ? formatBRL(total) : "—"}
-                        </td>
-
-                        {/* Tipo Entrada */}
                         <td className="px-3 py-2">
                           <Input
-                            value={row.tipoEntrada}
-                            onChange={(e) => updateItem(row._key, "tipoEntrada", e.target.value)}
-                            placeholder="—"
-                            className="h-8 text-xs"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={row.vlrTotal}
+                            onChange={(e) => updateItem(row._key, "vlrTotal", e.target.value)}
+                            className="w-24 ml-auto text-right h-7 text-xs"
                           />
                         </td>
 
-                        {/* Cód. Fiscal */}
+                        {/* Vlr. IPI */}
                         <td className="px-3 py-2">
                           <Input
-                            value={row.codFiscal}
-                            onChange={(e) => updateItem(row._key, "codFiscal", e.target.value)}
-                            placeholder="—"
-                            className="h-8 text-xs font-mono"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={row.vlrIPI}
+                            onChange={(e) => updateItem(row._key, "vlrIPI", e.target.value)}
+                            className="w-24 ml-auto text-right h-7 text-xs"
                           />
+                        </td>
+
+                        {/* Vlr. ICMS */}
+                        <td className="px-3 py-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={row.vlrICMS}
+                            onChange={(e) => updateItem(row._key, "vlrICMS", e.target.value)}
+                            className="w-24 ml-auto text-right h-7 text-xs"
+                          />
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-3 py-2 text-center">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${itemStatus.cls}`}>
+                            {itemStatus.label}
+                          </span>
                         </td>
 
                         {/* Delete */}
@@ -965,6 +1079,34 @@ export default function NovoDocumentoEntradaPage() {
                 <Label className="text-xs text-gray-500">Vlr. Bruto</Label>
                 <Input value={formatBRL(vlrBruto)} readOnly className="bg-blue-50 text-right font-bold text-blue-900 border-blue-200" />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Responsável ──────────────────────────────────────────────────── */}
+        <Card>
+          <CardContent className="pt-4">
+            <div className="space-y-1.5 max-w-xs">
+              <Label>
+                Responsável pela Conferência <span className="text-red-500">*</span>
+              </Label>
+              <select
+                value={usuarioResponsavelId}
+                onChange={(e) => {
+                  const selected = usuarios.find((u) => u.id === e.target.value);
+                  setUsuarioResponsavelId(e.target.value);
+                  setResponsavel(selected?.nome ?? "");
+                }}
+                className={cn(
+                  "w-full h-9 px-3 border rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+                  !usuarioResponsavelId ? "border-red-300" : "border-gray-200"
+                )}
+              >
+                <option value="">— Selecionar usuário —</option>
+                {usuarios.map((u) => (
+                  <option key={u.id} value={u.id}>{u.nome}</option>
+                ))}
+              </select>
             </div>
           </CardContent>
         </Card>

@@ -1107,7 +1107,7 @@ export default function DocumentoEntradaDetailPage() {
                         {/* Local Estoque — only shown in Por Item mode */}
                         {modoLocalEstoque === "POR_ITEM" && (
                           <td className="px-3 py-2">
-                            {itemsEditable && ei ? (
+                            {canEdit && ei ? (
                               <select
                                 value={ei.localEstoqueId}
                                 onChange={(e) => updateEditItem(item.id, "localEstoqueId", e.target.value)}

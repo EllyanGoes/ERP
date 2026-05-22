@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
   // ── Path B: Full-form Doc. Entrada ────────────────────────────────────────
   const {
     fornecedorId,
+    responsavel,
     pedidoId: linkedPedidoId,
     modoLocalEstoque,
     localEstoqueId: globalLocalEstoqueId,
@@ -143,6 +144,7 @@ export async function POST(req: NextRequest) {
         numero,
         status: "PENDENTE",
         fornecedorId,
+        responsavel: responsavel || null,
         pedidoId: linkedPedidoId || null,
         modoLocalEstoque: modoLocalEstoque || "POR_ITEM",
         localEstoqueId: modoLocalEstoque === "GLOBAL" ? (globalLocalEstoqueId || null) : null,
@@ -159,17 +161,39 @@ export async function POST(req: NextRequest) {
         desconto: desconto != null ? parseFloat(String(desconto)) : null,
         observacoes: observacoes?.trim() || null,
         itens: {
-          create: itens.map((it: { itemId: string; quantidadePedida: number | string; vlrUnitario?: number | string | null; localEstoqueId?: string | null }) => {
-            const qtd = parseFloat(String(it.quantidadePedida));
+          create: itens.map((it: {
+            itemId: string;
+            quantidadePedida: number | string;
+            quantidadeRecebida?: number | string;
+            vlrUnitario?: number | string | null;
+            desconto?: number | string | null;
+            vlrTotal?: number | string | null;
+            vlrIPI?: number | string | null;
+            vlrICMS?: number | string | null;
+            localEstoqueId?: string | null;
+            tipoEntrada?: string | null;
+            codFiscal?: string | null;
+          }) => {
+            const qtdPed  = parseFloat(String(it.quantidadePedida));
+            const qtdRec  = it.quantidadeRecebida != null ? parseFloat(String(it.quantidadeRecebida)) : 0;
             const vlrUnit = it.vlrUnitario != null ? parseFloat(String(it.vlrUnitario)) : null;
-            const vlrTot = vlrUnit != null ? qtd * vlrUnit : null;
+            const pct     = it.desconto != null ? parseFloat(String(it.desconto)) : null;
+            // Use provided vlrTotal; fallback to auto-calc from qtdRec * vlrUnit
+            const vlrTot  = it.vlrTotal != null
+              ? parseFloat(String(it.vlrTotal))
+              : (vlrUnit != null ? qtdRec * vlrUnit : null);
             return {
               itemId: it.itemId,
-              quantidadePedida: qtd,
-              quantidadeRecebida: 0,
+              quantidadePedida: qtdPed,
+              quantidadeRecebida: qtdRec,
               vlrUnitario: vlrUnit,
+              desconto: pct,
               vlrTotal: vlrTot,
+              vlrIPI: it.vlrIPI != null ? parseFloat(String(it.vlrIPI)) : null,
+              vlrICMS: it.vlrICMS != null ? parseFloat(String(it.vlrICMS)) : null,
               localEstoqueId: it.localEstoqueId || null,
+              tipoEntrada: it.tipoEntrada || null,
+              codFiscal: it.codFiscal || null,
             };
           }),
         },
