@@ -53,6 +53,7 @@ import {
   Users2,
   Layers,
   Bell,
+  RefreshCw,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -453,20 +454,21 @@ export default function Sidebar() {
   const [notifMounted, setNotifMounted] = useState(false);
   useEffect(() => { setNotifMounted(true); }, []);
 
+  const fetchPending = useCallback(async () => {
+    try {
+      const res = await fetch("/api/aprovacoes?status=PENDENTE&limit=1");
+      if (res.ok) {
+        const d = await res.json();
+        setPendingAprov(d.pendingCount ?? 0);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
-    async function fetchPending() {
-      try {
-        const res = await fetch("/api/aprovacoes?status=PENDENTE&limit=1");
-        if (res.ok) {
-          const d = await res.json();
-          setPendingAprov(d.pendingCount ?? 0);
-        }
-      } catch { /* ignore */ }
-    }
     fetchPending();
     const timer = setInterval(fetchPending, 60_000); // poll every 60s
     return () => clearInterval(timer);
-  }, []);
+  }, [fetchPending]);
 
   // Close notification panel on outside click
   useEffect(() => {
@@ -485,7 +487,10 @@ export default function Sidebar() {
     if (!notifBtnRef.current) return;
     const r = notifBtnRef.current.getBoundingClientRect();
     setNotifPos({ top: r.top, left: r.right + 8 });
-    setNotifOpen((p) => !p);
+    setNotifOpen((p) => {
+      if (!p) fetchPending(); // refetch ao abrir para evitar estado stale
+      return !p;
+    });
   }
 
   // Visible main modules (exclude admin)
@@ -895,6 +900,13 @@ export default function Sidebar() {
                 </span>
               )}
             </div>
+            <button
+              onClick={fetchPending}
+              title="Atualizar"
+              className="text-gray-400 hover:text-gray-600 transition-colors p-0.5 rounded"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           {/* Body */}
