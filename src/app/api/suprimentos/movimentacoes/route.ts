@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { notifyMovimentacao } from "@/lib/notify-estoque";
 
 const itemSchema = z.object({
   itemId:         z.string().min(1),
@@ -149,6 +150,31 @@ export async function POST(req: NextRequest) {
       });
       return { lote: result, autoVinculos };
     });
+
+    // Notify Telegram for each item (best-effort, outside transaction)
+    if (lote.lote?.itens) {
+      for (const movItem of lote.lote.itens) {
+        const itemId = movItem.item.id;
+        const localEstoqueId = movItem.localEstoqueId ?? undefined;
+        prisma.estoqueItem.findFirst({
+          where: { itemId, ...(localEstoqueId ? { localEstoqueId } : {}) },
+          include: { localEstoque: { select: { nome: true } } },
+        }).then((estoqueAtual) => {
+          notifyMovimentacao({
+            tipo,
+            itemDescricao: movItem.item.descricao,
+            itemCodigo: movItem.item.codigo,
+            quantidade: parseFloat(String(movItem.quantidade)),
+            saldoDepois: parseFloat(String(movItem.saldoDepois ?? 0)),
+            unidade: movItem.unidade?.sigla ?? "un",
+            localNome: movItem.localEstoque?.nome ?? estoqueAtual?.localEstoque?.nome ?? null,
+            documento: lote.lote!.documento ?? lote.lote!.numero,
+            observacoes: movItem.observacoes ?? undefined,
+            quantidadeMin: estoqueAtual?.quantidadeMin != null ? parseFloat(String(estoqueAtual.quantidadeMin)) : null,
+          });
+        }).catch(() => {});
+      }
+    }
 
     return NextResponse.json({ data: lote.lote, autoVinculos: lote.autoVinculos }, { status: 201 });
   } catch (err: unknown) {

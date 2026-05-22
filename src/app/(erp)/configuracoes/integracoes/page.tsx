@@ -38,6 +38,7 @@ type Config = {
   // Telegram
   tg_bot_token:           string | null;
   tg_chat_id:             string | null;
+  tg_chat_estoque:        string | null;
 };
 
 const PROVIDERS: { id: Provider; label: string; sub: string }[] = [
@@ -158,6 +159,7 @@ export default function IntegracoesPage() {
   const [tgOpen,          setTgOpen]          = useState(false);
   const [tgBotToken,      setTgBotToken]      = useState("");
   const [tgChatId,        setTgChatId]        = useState("");
+  const [tgChatEstoque,   setTgChatEstoque]   = useState("");
   const [tgStatus,        setTgStatus]        = useState<ConnStatus>("idle");
   const [tgStatusMsg,     setTgStatusMsg]     = useState("");
   const [tgDirty,         setTgDirty]         = useState(false);
@@ -211,6 +213,7 @@ export default function IntegracoesPage() {
       // Telegram
       setTgBotToken(cfg.tg_bot_token ?? "");
       setTgChatId(cfg.tg_chat_id ?? "");
+      setTgChatEstoque(cfg.tg_chat_estoque ?? "");
       const hasTg = !!(cfg.tg_bot_token && cfg.tg_chat_id);
       setTgStatus(hasTg ? "ok" : "unconfigured");
 
@@ -321,8 +324,9 @@ export default function IntegracoesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tg_bot_token: tgBotToken.trim() || null,
-          tg_chat_id:   tgChatId.trim()   || null,
+          tg_bot_token:    tgBotToken.trim()    || null,
+          tg_chat_id:      tgChatId.trim()      || null,
+          tg_chat_estoque: tgChatEstoque.trim() || null,
         }),
       });
       if (!res.ok) {
@@ -828,6 +832,13 @@ export default function IntegracoesPage() {
                     value={tgChatId}
                     onChange={(v) => { setTgChatId(v); markTg(); }}
                     placeholder="-1001234567890"
+                  />
+                  <PlainField
+                    label="Chat ID — Canal Estoque"
+                    description="Canal que receberá notificações de movimentações de estoque"
+                    value={tgChatEstoque}
+                    onChange={(v) => { setTgChatEstoque(v); markTg(); }}
+                    placeholder="-1003907639883"
                   />
                 </div>
               </div>

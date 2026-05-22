@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { notifyMovimentacao } from "@/lib/notify-estoque";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.requisicaoMaterial.findUnique({
@@ -134,6 +135,36 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     return updated;
   });
+
+  // Notify Telegram when ATENDIDA (best-effort, outside transaction)
+  if (body.status === "ATENDIDA" && record.tipo !== undefined) {
+    const isSaida = record.tipo === "REQUISICAO";
+    const movTipo = isSaida ? "SAIDA" : "ENTRADA";
+    const localEstoqueId = record.localEstoqueId ?? undefined;
+
+    for (const item of record.itens) {
+      const qtd = parseFloat(String(item.quantidade));
+      if (qtd <= 0) continue;
+
+      prisma.estoqueItem.findFirst({
+        where: { itemId: item.itemId, ...(localEstoqueId ? { localEstoqueId } : {}) },
+        include: { localEstoque: { select: { nome: true } } },
+      }).then((estoqueAtual) => {
+        notifyMovimentacao({
+          tipo: movTipo,
+          itemDescricao: item.item.descricao,
+          itemCodigo: item.item.codigo ?? null,
+          quantidade: qtd,
+          saldoDepois: estoqueAtual ? parseFloat(String(estoqueAtual.quantidadeAtual)) : 0,
+          unidade: item.item.unidade?.sigla ?? item.item.unidadeMedida ?? "un",
+          localNome: estoqueAtual?.localEstoque?.nome ?? null,
+          documento: record.numero,
+          observacoes: `${isSaida ? "Requisição" : "Devolução"} de Material ${record.numero}`,
+          quantidadeMin: estoqueAtual?.quantidadeMin != null ? parseFloat(String(estoqueAtual.quantidadeMin)) : null,
+        });
+      }).catch(() => {});
+    }
+  }
 
   return NextResponse.json({ data: record });
 }

@@ -139,6 +139,31 @@ export async function sendTelegramDM(
   }
 }
 
+// ── sendTelegramChannel ───────────────────────────────────────────────────────
+
+/**
+ * Send a message to a specific channel by chat ID stored in the DB config.
+ * configKey: the DB key that holds the chat_id (e.g. "tg_chat_estoque")
+ */
+export async function sendTelegramChannel(
+  configKey: string,
+  msg: TGMessage
+): Promise<{ ok: boolean; error?: string }> {
+  const cfg = await getTGConfig();
+  if (!cfg) return { ok: false, error: "Telegram não configurado" };
+
+  try {
+    const rec = await prisma.configuracao.findUnique({ where: { chave: configKey } });
+    const chatId = rec?.valor;
+    if (!chatId) return { ok: false, error: `Canal ${configKey} não configurado` };
+
+    const result = await sendTelegramDM(chatId, msg);
+    return result;
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro" };
+  }
+}
+
 // ── editTelegramMessage ───────────────────────────────────────────────────────
 
 /**

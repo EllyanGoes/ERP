@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { notifyMovimentacao } from "@/lib/notify-estoque";
 
 const schema = z.object({ status: z.enum(["CONFIRMADO","EM_PRODUCAO","FATURADO","ENTREGUE","CANCELADO"]) });
 
@@ -63,6 +64,36 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     return result;
   });
+
+  // Notify Telegram for ENTREGUE (best-effort, outside transaction)
+  if (parsed.data.status === "ENTREGUE") {
+    for (const item of pedido.itens) {
+      const qty = parseFloat(item.quantidade.toString());
+      if (qty <= 0) continue;
+
+      prisma.estoqueItem.findFirst({
+        where: { itemId: item.itemId },
+        include: {
+          localEstoque: { select: { nome: true } },
+          item: { select: { codigo: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } },
+        },
+      }).then((estoqueAtual) => {
+        if (!estoqueAtual) return;
+        notifyMovimentacao({
+          tipo: "SAIDA",
+          itemDescricao: estoqueAtual.item.descricao,
+          itemCodigo: estoqueAtual.item.codigo ?? null,
+          quantidade: qty,
+          saldoDepois: parseFloat(String(estoqueAtual.quantidadeAtual)),
+          unidade: estoqueAtual.item.unidade?.sigla ?? estoqueAtual.item.unidadeMedida ?? "un",
+          localNome: estoqueAtual.localEstoque?.nome ?? null,
+          documento: pedido.numero,
+          observacoes: `Saída por entrega do pedido ${pedido.numero}`,
+          quantidadeMin: estoqueAtual.quantidadeMin != null ? parseFloat(String(estoqueAtual.quantidadeMin)) : null,
+        });
+      }).catch(() => {});
+    }
+  }
 
   return NextResponse.json({ data: updated });
 }

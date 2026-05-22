@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { notifyMovimentacao } from "@/lib/notify-estoque";
 
 const postSchema = z.object({
   itemId:        z.string(),
@@ -54,6 +55,31 @@ export async function POST(req: NextRequest) {
         include: { item: { select: { codigo: true, descricao: true } } },
       });
     });
+
+    // Notify Telegram (best-effort, outside transaction)
+    prisma.estoqueItem.findFirst({
+      where: {
+        itemId,
+        ...(localEstoqueId ? { localEstoqueId } : {}),
+      },
+      include: {
+        localEstoque: { select: { nome: true } },
+        item: { select: { unidadeMedida: true, unidade: { select: { sigla: true } } } },
+      },
+    }).then((estoqueAtual) => {
+      notifyMovimentacao({
+        tipo,
+        itemDescricao: result.item.descricao,
+        itemCodigo: result.item.codigo,
+        quantidade,
+        saldoDepois: parseFloat(String(result.saldoDepois ?? 0)),
+        unidade: estoqueAtual?.item?.unidade?.sigla ?? estoqueAtual?.item?.unidadeMedida ?? "un",
+        localNome: estoqueAtual?.localEstoque?.nome ?? null,
+        documento,
+        observacoes,
+        quantidadeMin: estoqueAtual?.quantidadeMin != null ? parseFloat(String(estoqueAtual.quantidadeMin)) : null,
+      });
+    }).catch(() => {});
 
     return NextResponse.json({ data: result }, { status: 201 });
   } catch (err: unknown) {

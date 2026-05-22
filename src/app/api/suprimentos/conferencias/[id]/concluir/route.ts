@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { notifyMovimentacao } from "@/lib/notify-estoque";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json().catch(() => ({}));
@@ -271,6 +272,32 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     return { conferencia: updatedConferencia, movimentacoesCriadas, autoVinculos, scAtualizadas };
   });
+
+  // Notify Telegram for each received item (best-effort, outside transaction)
+  for (const item of result.conferencia.itens) {
+    const qtdRecebida = parseFloat(String(item.quantidadeRecebida ?? 0));
+    if (qtdRecebida <= 0) continue;
+
+    const targetLocalEstoqueId = item.localEstoqueId ?? result.conferencia.localEstoqueId ?? undefined;
+    prisma.estoqueItem.findFirst({
+      where: { itemId: item.itemId, ...(targetLocalEstoqueId ? { localEstoqueId: targetLocalEstoqueId } : {}) },
+      include: { localEstoque: { select: { nome: true } } },
+    }).then((estoqueAtual) => {
+      const saldoDepois = (estoqueAtual ? parseFloat(String(estoqueAtual.quantidadeAtual)) : 0);
+      notifyMovimentacao({
+        tipo: "ENTRADA",
+        itemDescricao: item.item.descricao,
+        itemCodigo: item.item.codigo ?? null,
+        quantidade: qtdRecebida,
+        saldoDepois,
+        unidade: item.item.unidadeMedida ?? "un",
+        localNome: estoqueAtual?.localEstoque?.nome ?? null,
+        documento: result.conferencia.numero,
+        observacoes: `Recebimento ${result.conferencia.numero}`,
+        quantidadeMin: estoqueAtual?.quantidadeMin != null ? parseFloat(String(estoqueAtual.quantidadeMin)) : null,
+      });
+    }).catch(() => {});
+  }
 
   return NextResponse.json({
     data: result.conferencia,

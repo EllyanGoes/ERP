@@ -6,7 +6,13 @@ import PageHeader from "@/components/shared/PageHeader";
 import FilterDropdown, { FilterOption } from "@/components/shared/FilterDropdown";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Plus, Search, X, Loader2, AlertTriangle, Trash2 } from "lucide-react";
+import { Plus, Search, X, Loader2, AlertTriangle, Trash2, MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatBRL, decimalToNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
@@ -361,13 +367,26 @@ export default function ProdutosPage() {
                       <td key={col.id} className={col.tdClass}>{col.render(item)}</td>
                     ))}
                     <td className="px-4 py-3 text-center">
-                      <Button
-                        variant="ghost" size="sm"
-                        className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
-                        onClick={(e) => { e.stopPropagation(); setDeleteId(item.id); setDeleteError(null); }}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost" size="sm"
+                            className="h-8 w-8 p-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                            onClick={(e) => { e.stopPropagation(); setDeleteId(item.id); setDeleteError(null); }}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   </tr>
                 ))}
