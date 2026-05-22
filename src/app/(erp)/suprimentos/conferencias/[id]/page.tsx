@@ -162,6 +162,7 @@ export default function DocumentoEntradaDetailPage() {
   const [desconto, setDesconto] = useState("");
   const [validationError, setValidationError] = useState("");
   const [localAlertDismissed, setLocalAlertDismissed] = useState(false);
+  const [showDivergenciaConfirm, setShowDivergenciaConfirm] = useState(false);
 
   // Local de estoque (header-level)
   const [modoLocalEstoque, setModoLocalEstoque] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
@@ -633,6 +634,97 @@ export default function DocumentoEntradaDetailPage() {
           </div>
         </div>
       )}
+
+      {/* ── Confirmação de Divergência ──────────────────────────────────────── */}
+      {showDivergenciaConfirm && (() => {
+        const divergentItems = conferencia.itens
+          .map((item, idx) => {
+            const ei = editItems[idx];
+            const pedida   = decimalToNumber(item.quantidadePedida);
+            const recebida = parseFloat(ei?.quantidadeRecebida ?? "0") || 0;
+            if (Math.abs(pedida - recebida) > 0.001) {
+              return { codigo: item.item.codigo, descricao: item.item.descricao, unidade: item.item.unidadeMedida, pedida, recebida };
+            }
+            return null;
+          })
+          .filter(Boolean) as { codigo: string; descricao: string; unidade: string; pedida: number; recebida: number }[];
+
+        return (
+          <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30">
+            <div className="bg-white rounded-2xl shadow-2xl border border-amber-200 max-w-lg w-full mx-4 p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="shrink-0 w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 3h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Divergência de quantidades</h3>
+                  <p className="text-sm text-gray-500">
+                    {divergentItems.length === 1
+                      ? "O item abaixo foi recebido em quantidade diferente da pedida."
+                      : `Os ${divergentItems.length} itens abaixo foram recebidos em quantidades diferentes das pedidas.`}
+                    {" "}O documento será concluído com status <span className="font-semibold text-amber-700">Divergência</span>.
+                  </p>
+                </div>
+              </div>
+
+              {/* Tabela de itens divergentes */}
+              <div className="rounded-lg border border-gray-100 overflow-hidden mb-5">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium text-gray-500">Produto</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-500">Qtd. Pedida</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-500">Qtd. Recebida</th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-500">Diferença</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {divergentItems.map((it) => (
+                      <tr key={it.codigo}>
+                        <td className="px-3 py-2">
+                          <span className="font-mono text-gray-400 mr-1.5">{it.codigo}</span>
+                          <span className="text-gray-700">{it.descricao}</span>
+                        </td>
+                        <td className="px-3 py-2 text-right text-gray-600">
+                          {it.pedida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {it.unidade}
+                        </td>
+                        <td className="px-3 py-2 text-right text-gray-600">
+                          {it.recebida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {it.unidade}
+                        </td>
+                        <td className={`px-3 py-2 text-right font-semibold ${it.recebida < it.pedida ? "text-red-600" : "text-emerald-600"}`}>
+                          {it.recebida > it.pedida ? "+" : ""}
+                          {(it.recebida - it.pedida).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {it.unidade}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowDivergenciaConfirm(false)}
+                  className="px-4 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDivergenciaConfirm(false);
+                    concluir();
+                  }}
+                  disabled={actioning}
+                  className="px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-60"
+                >
+                  {actioning ? "Concluindo..." : "Confirmar mesmo assim"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <PageHeader
         title={`Documento de Entrada ${conferencia.numero}`}
@@ -1501,7 +1593,16 @@ export default function DocumentoEntradaDetailPage() {
           )}
 
           {isEditable && (
-            <Button onClick={concluir} disabled={actioning}>
+            <Button
+              onClick={() => {
+                if (hasDivergencias) {
+                  setShowDivergenciaConfirm(true);
+                } else {
+                  concluir();
+                }
+              }}
+              disabled={actioning}
+            >
               {actioning ? "Concluindo..." : "Concluir"}
             </Button>
           )}
