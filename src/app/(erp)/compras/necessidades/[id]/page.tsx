@@ -43,9 +43,12 @@ type Necessidade = {
   tipoCompra: string | null; motivo: string | null; categoria: string | null;
   projeto: string | null; classificacaoAuxiliar: string | null;
   filialId: string | null; localEstoqueId: string | null; centroCustoId: string | null;
+  colaboradorId: string | null; setorId: string | null;
   filial:        { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
   localEstoque:  { id: string; nome: string } | null;
   centroCusto:   { id: string; codigo: string; nome: string } | null;
+  colaborador:   { id: string; nome: string } | null;
+  setor:         { id: string; nome: string } | null;
   itens: Array<{
     id: string; quantidade: unknown; quantidadeAprovada: unknown;
     observacao: string | null; unidade: string | null;
@@ -837,11 +840,11 @@ export default function NecessidadeDetailPage() {
           <div className="min-w-0 flex-1 space-y-5">
 
             <Card>
-              <CardHeader><CardTitle className="text-base">Informações</CardTitle></CardHeader>
-              <CardContent className="space-y-5">
+              <CardHeader className="pb-2"><CardTitle className="text-base">Informações</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
 
                 {/* Row 1: identidade */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
                   <InfoField label="Número">
                     <span className="font-mono font-bold text-gray-900">{necessidade.numero}</span>
                   </InfoField>
@@ -859,12 +862,15 @@ export default function NecessidadeDetailPage() {
                 <div className="h-px bg-gray-100" />
 
                 {/* Row 2: origem */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
                   <InfoField label="Filial">
                     {necessidade.filial ? (necessidade.filial.nomeFantasia || necessidade.filial.razaoSocial) : "—"}
                   </InfoField>
                   <InfoField label="Local de Estoque">
                     {necessidade.localEstoque?.nome ?? "—"}
+                  </InfoField>
+                  <InfoField label="Setor">
+                    {necessidade.setor?.nome ?? "—"}
                   </InfoField>
                   <InfoField label="Centro de Custo">
                     {necessidade.centroCusto ? `${necessidade.centroCusto.codigo} — ${necessidade.centroCusto.nome}` : "—"}
@@ -874,9 +880,9 @@ export default function NecessidadeDetailPage() {
                 <div className="h-px bg-gray-100" />
 
                 {/* Row 3: solicitação */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
                   <InfoField label="Solicitante">
-                    {necessidade.solicitante ?? "—"}
+                    {necessidade.colaborador?.nome ?? necessidade.solicitante ?? "—"}
                   </InfoField>
                   <InfoField label="Entrega Desejada">
                     {formatDate(necessidade.dataNecessidade)}
@@ -893,7 +899,7 @@ export default function NecessidadeDetailPage() {
                 {(necessidade.categoria || necessidade.projeto || necessidade.classificacaoAuxiliar) && (
                   <>
                     <div className="h-px bg-gray-100" />
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3">
                       <InfoField label="Categoria">{necessidade.categoria ?? "—"}</InfoField>
                       <InfoField label="Projeto">{necessidade.projeto ?? "—"}</InfoField>
                       <InfoField label="Classificação Auxiliar">{necessidade.classificacaoAuxiliar ?? "—"}</InfoField>
@@ -904,7 +910,7 @@ export default function NecessidadeDetailPage() {
                 <div className="h-px bg-gray-100" />
 
                 {/* Row 5: textos livres */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                   <InfoField label="Descrição / Justificativa">
                     <span className="text-gray-700 whitespace-pre-wrap">{necessidade.justificativa || "—"}</span>
                   </InfoField>
