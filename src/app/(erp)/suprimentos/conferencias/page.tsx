@@ -7,7 +7,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search, X, ChevronDown, LayoutList, Kanban, FileText, Calendar, MoreHorizontal, Eye, Pencil } from "lucide-react";
+import { Loader2, Search, X, ChevronDown, LayoutList, Kanban, FileText, Calendar, MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
 import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
@@ -121,24 +121,43 @@ const COLS: ColDef<ConferenciaRow>[] = [
 ];
 
 // ── Row Actions Menu ─────────────────────────────────────────────────────────
-function RowActionsMenu({ doc }: { doc: ConferenciaRow }) {
+function RowActionsMenu({ doc, onDeleted }: { doc: ConferenciaRow; onDeleted: () => void }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setConfirmDelete(false);
+      }
     }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [open]);
 
+  async function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation();
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/suprimentos/conferencias/${doc.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setOpen(false);
+        onDeleted();
+      }
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); setConfirmDelete(false); }}
         className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
       >
         <MoreHorizontal className="w-4 h-4" />
@@ -160,6 +179,36 @@ function RowActionsMenu({ doc }: { doc: ConferenciaRow }) {
             <Pencil className="w-3.5 h-3.5 text-gray-400" />
             Editar
           </button>
+          <div className="border-t border-gray-100 mt-1 pt-1">
+            {!confirmDelete ? (
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Excluir
+              </button>
+            ) : (
+              <div className="px-3 py-2">
+                <p className="text-xs text-gray-600 mb-1.5">Confirmar exclusão?</p>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="flex-1 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded px-2 py-1 disabled:opacity-60"
+                  >
+                    {deleting ? "..." : "Sim"}
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
+                    className="flex-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-200 rounded px-2 py-1"
+                  >
+                    Não
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -404,7 +453,7 @@ export default function DocumentosEntradaPage() {
                       <td key={col.id} className={col.tdClass}>{col.render(doc)}</td>
                     ))}
                     <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                      <RowActionsMenu doc={doc} />
+                      <RowActionsMenu doc={doc} onDeleted={load} />
                     </td>
                   </tr>
                 ))}

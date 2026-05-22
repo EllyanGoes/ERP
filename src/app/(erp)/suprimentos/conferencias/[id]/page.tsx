@@ -12,7 +12,8 @@ import StatusBadge from "@/components/shared/StatusBadge";
 import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
-import { ShieldAlert, Save, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ShieldAlert, Save, Loader2, Trash2 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 const UF_LIST = [
@@ -105,6 +106,21 @@ type EditItem = {
 };
 
 type LocalEstoqueOption = { id: string; nome: string };
+type ProdutoOption = { id: string; codigo: string; descricao: string; unidadeMedida: string };
+type NewItem = {
+  _key: string;
+  itemId: string;
+  codigo: string;
+  descricao: string;
+  unidadeMedida: string;
+  quantidadeRecebida: string;
+  vlrUnitario: string;
+  vlrTotal: string;
+  vlrIPI: string;
+  vlrICMS: string;
+  desconto: string;
+  localEstoqueId: string;
+};
 
 function getItemStatus(pedida: number, recebida: number): { label: string; cls: string } {
   if (recebida === 0) return { label: "Faltante", cls: "bg-red-100 text-red-700" };
@@ -116,6 +132,7 @@ export default function DocumentoEntradaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
+  const router = useRouter();
 
   const [conferencia, setConferencia] = useState<Conferencia | null>(null);
   const [loading, setLoading] = useState(true);
@@ -123,6 +140,8 @@ export default function DocumentoEntradaDetailPage() {
   const [actionError, setActionError] = useState("");
   const [adminStatus, setAdminStatus] = useState("");
   const [actioning, setActioning] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [autoVinculoMsg, setAutoVinculoMsg] = useState<string | null>(null);
   const [scAtendidaMsg, setScAtendidaMsg] = useState<{ numero: string; status: string }[] | null>(null);
 
@@ -151,8 +170,18 @@ export default function DocumentoEntradaDetailPage() {
   const [fornecedorId, setFornecedorId] = useState("");
   const [fornecedores, setFornecedores] = useState<FornecedorOption[]>([]);
 
+  // Usuário (responsável)
+  const [usuarioResponsavelId, setUsuarioResponsavelId] = useState("");
+  const [usuarios, setUsuarios] = useState<{ id: string; nome: string; email: string }[]>([]);
+
   const [saving, setSaving] = useState(false);
   const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoqueOption[]>([]);
+
+  // Add item inline
+  const [produtos, setProdutos] = useState<ProdutoOption[]>([]);
+  const [newItems, setNewItems] = useState<NewItem[]>([]);
+  const [addItemSearch, setAddItemSearch] = useState("");
+  const [showAddRow, setShowAddRow] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -162,7 +191,9 @@ export default function DocumentoEntradaDetailPage() {
       const conf: Conferencia = json.data;
       setConferencia(conf);
       setAdminStatus(conf.status);
-      setResponsavel(conf.responsavel ?? "");
+      // Auto-fill responsavel with current user if not yet set
+      const respoNome = conf.responsavel ?? user?.nome ?? "";
+      setResponsavel(respoNome);
       setObservacoes(conf.observacoes ?? "");
       setTipoNota(
         conf.tipoNota === "SN" ? "SN" : "NF"
@@ -170,7 +201,7 @@ export default function DocumentoEntradaDetailPage() {
       setEspDocumento(conf.espDocumento ?? "");
       setNumeroNF(conf.numeroNF ?? "");
       setSerie(conf.serie ?? "");
-      setDtEmissao(conf.dtEmissao ? conf.dtEmissao.slice(0, 10) : "");
+      setDtEmissao(conf.dtEmissao ? conf.dtEmissao.slice(0, 10) : new Date().toISOString().slice(0, 10));
       setUfOrigem(conf.ufOrigem ?? "");
       setFrete(decimalToNumber(conf.frete) > 0 ? String(decimalToNumber(conf.frete)) : "");
       const forn = conf.fornecedor ?? conf.pedido?.fornecedor ?? null;
@@ -209,6 +240,14 @@ export default function DocumentoEntradaDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Sync usuarioResponsavelId from responsavel name once users are loaded
+  useEffect(() => {
+    if (usuarios.length === 0 || !responsavel) return;
+    const match = usuarios.find((u) => u.nome.toLowerCase() === responsavel.toLowerCase());
+    if (match) setUsuarioResponsavelId(match.id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuarios]);
+
   useEffect(() => {
     fetch("/api/suprimentos/locais-estoque")
       .then((r) => r.json())
@@ -222,6 +261,66 @@ export default function DocumentoEntradaDetailPage() {
       .then((j) => setFornecedores(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    fetch("/api/usuarios")
+      .then((r) => r.json())
+      .then((j) => setUsuarios(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/suprimentos/produtos")
+      .then((r) => r.json())
+      .then((j) => setProdutos(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+  }, []);
+
+  function updateNewItem(key: string, field: keyof NewItem, value: string) {
+    setNewItems((prev) =>
+      prev.map((ni) => {
+        if (ni._key !== key) return ni;
+        const updated = { ...ni, [field]: value };
+        // auto-calc vlrTotal
+        if (field === "vlrUnitario" || field === "quantidadeRecebida" || field === "desconto") {
+          const qtd  = parseFloat(field === "quantidadeRecebida" ? value : ni.quantidadeRecebida) || 0;
+          const unit = parseFloat(field === "vlrUnitario" ? value : ni.vlrUnitario) || 0;
+          const pct  = parseFloat(field === "desconto" ? value : ni.desconto) || 0;
+          if (qtd > 0 && unit > 0) {
+            const bruto = qtd * unit;
+            updated.vlrTotal = (bruto - (bruto * pct) / 100).toFixed(2);
+          }
+        }
+        return updated;
+      })
+    );
+  }
+
+  function addNewItemRow(produto: ProdutoOption) {
+    setNewItems((prev) => [
+      ...prev,
+      {
+        _key: `${produto.id}-${Date.now()}`,
+        itemId: produto.id,
+        codigo: produto.codigo,
+        descricao: produto.descricao,
+        unidadeMedida: produto.unidadeMedida,
+        quantidadeRecebida: "1",
+        vlrUnitario: "",
+        vlrTotal: "",
+        vlrIPI: "",
+        vlrICMS: "",
+        desconto: "",
+        localEstoqueId: localEstoqueGlobalId,
+      },
+    ]);
+    setAddItemSearch("");
+    setShowAddRow(false);
+  }
+
+  function removeNewItem(key: string) {
+    setNewItems((prev) => prev.filter((ni) => ni._key !== key));
+  }
 
   function updateEditItem(itemId: string, key: keyof EditItem, value: string) {
     setEditItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, [key]: value } : i)));
@@ -268,7 +367,6 @@ export default function DocumentoEntradaDetailPage() {
     setSaving(true);
     setActionError("");
     try {
-      const isConcludedStatus = conferencia?.status === "CONCLUIDA" || conferencia?.status === "DIVERGENCIA";
       const res = await fetch(`/api/suprimentos/conferencias/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -287,22 +385,36 @@ export default function DocumentoEntradaDetailPage() {
           seguro: seguro ? parseFloat(seguro) : null,
           despesas: despesas ? parseFloat(despesas) : null,
           desconto: desconto ? parseFloat(desconto) : null,
-          // Admin can change status on concluded DEs
-          ...(isAdmin && isConcludedStatus ? { status: adminStatus } : {}),
-          itens: editItems.map((i) => ({
-            id: i.id,
-            quantidadeRecebida: parseFloat(i.quantidadeRecebida) || 0,
-            observacao: i.observacao || null,
-            vlrUnitario: i.vlrUnitario ? parseFloat(i.vlrUnitario) : null,
-            vlrTotal: i.vlrTotal ? parseFloat(i.vlrTotal) : null,
-            vlrIPI: i.vlrIPI ? parseFloat(i.vlrIPI) : null,
-            vlrICMS: i.vlrICMS ? parseFloat(i.vlrICMS) : null,
-            tipoEntrada: i.tipoEntrada || null,
-            codFiscal: i.codFiscal || null,
-            tpOper: i.tpOper || null,
-            localEstoqueId: i.localEstoqueId || null,
-            desconto: i.desconto ? parseFloat(i.desconto) : null,
-          })),
+          // Admin can change status at any state
+          ...(isAdmin ? { status: adminStatus } : {}),
+          itens: [
+            ...editItems.map((i) => ({
+              id: i.id,
+              quantidadeRecebida: parseFloat(i.quantidadeRecebida) || 0,
+              observacao: i.observacao || null,
+              vlrUnitario: i.vlrUnitario ? parseFloat(i.vlrUnitario) : null,
+              vlrTotal: i.vlrTotal ? parseFloat(i.vlrTotal) : null,
+              vlrIPI: i.vlrIPI ? parseFloat(i.vlrIPI) : null,
+              vlrICMS: i.vlrICMS ? parseFloat(i.vlrICMS) : null,
+              tipoEntrada: i.tipoEntrada || null,
+              codFiscal: i.codFiscal || null,
+              tpOper: i.tpOper || null,
+              localEstoqueId: i.localEstoqueId || null,
+              desconto: i.desconto ? parseFloat(i.desconto) : null,
+            })),
+            // new items (no id — will be created by API)
+            ...newItems.map((ni) => ({
+              itemId: ni.itemId,
+              quantidadePedida: parseFloat(ni.quantidadeRecebida) || 0,
+              quantidadeRecebida: parseFloat(ni.quantidadeRecebida) || 0,
+              vlrUnitario: ni.vlrUnitario ? parseFloat(ni.vlrUnitario) : null,
+              vlrTotal: ni.vlrTotal ? parseFloat(ni.vlrTotal) : null,
+              vlrIPI: ni.vlrIPI ? parseFloat(ni.vlrIPI) : null,
+              vlrICMS: ni.vlrICMS ? parseFloat(ni.vlrICMS) : null,
+              desconto: ni.desconto ? parseFloat(ni.desconto) : null,
+              localEstoqueId: ni.localEstoqueId || null,
+            })),
+          ],
         }),
       });
       const json = await res.json();
@@ -310,6 +422,7 @@ export default function DocumentoEntradaDetailPage() {
         setActionError(json.error || "Erro ao salvar");
         return;
       }
+      setNewItems([]); // clear pending new items after save
       await load();
     } catch {
       setActionError("Erro de conexão");
@@ -371,6 +484,20 @@ export default function DocumentoEntradaDetailPage() {
       setActionError("Erro de conexão");
     } finally {
       setActioning(false);
+    }
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/suprimentos/conferencias/${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) { setActionError(json.error || "Erro ao excluir"); setDeleting(false); setConfirmDelete(false); return; }
+      router.push("/suprimentos/conferencias");
+    } catch {
+      setActionError("Erro de conexão");
+      setDeleting(false);
+      setConfirmDelete(false);
     }
   }
 
@@ -477,11 +604,40 @@ export default function DocumentoEntradaDetailPage() {
                 }
               </Button>
             )}
+            {!confirmDelete ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                onClick={() => setConfirmDelete(true)}
+                disabled={deleting}
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" />
+                Excluir
+              </Button>
+            ) : (
+              <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+                <span className="text-xs text-red-700 font-medium">Confirmar exclusão?</span>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="text-xs font-semibold text-white bg-red-600 hover:bg-red-700 px-2 py-0.5 rounded"
+                >
+                  {deleting ? "..." : "Sim"}
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="text-xs text-red-500 hover:text-red-700 px-1"
+                >
+                  Não
+                </button>
+              </div>
+            )}
           </div>
         }
       />
 
-      <div className="px-8 pb-8 max-w-6xl space-y-6">
+      <div className="px-8 pb-8 space-y-6">
         {(actionError || validationError) && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
             {validationError || actionError}
@@ -494,6 +650,25 @@ export default function DocumentoEntradaDetailPage() {
             <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
             <span className="font-medium">Modo edição administrativa</span>
             <span className="text-amber-600">— alterações salvas substituirão os dados do documento concluído.</span>
+          </div>
+        )}
+
+        {/* ── Admin: Alterar Status (sempre visível para ADMIN) ────────────── */}
+        {isAdmin && (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-4">
+            <ShieldAlert className="w-4 h-4 text-gray-500 shrink-0" />
+            <span className="text-sm font-medium text-gray-700 shrink-0">Alterar status:</span>
+            <select
+              value={adminStatus}
+              onChange={(e) => setAdminStatus(e.target.value)}
+              className="h-8 px-3 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              <option value="PENDENTE">Pendente</option>
+              <option value="EM_CONFERENCIA">Em Conferência</option>
+              <option value="CONCLUIDA">Concluída</option>
+              <option value="DIVERGENCIA">Divergência</option>
+            </select>
+            <span className="text-xs text-gray-400">Salve para aplicar</span>
           </div>
         )}
 
@@ -788,8 +963,59 @@ export default function DocumentoEntradaDetailPage() {
         {/* ── Seção 4: Itens ───────────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Itens</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Itens</CardTitle>
+              {itemsEditable && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddRow((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                >
+                  <span className="text-base leading-none">+</span> Adicionar item
+                </button>
+              )}
+            </div>
           </CardHeader>
+          {/* ── Busca de produto para adicionar ──────────────────────────── */}
+          {itemsEditable && showAddRow && (() => {
+            const q = addItemSearch.toLowerCase().trim();
+            const filteredProdutos = q
+              ? produtos.filter((p) => p.descricao.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q)).slice(0, 10)
+              : [];
+            return (
+              <div className="px-4 py-3 border-b border-gray-100 bg-blue-50/40">
+                <div className="relative max-w-sm">
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Buscar produto por código ou descrição..."
+                    value={addItemSearch}
+                    onChange={(e) => setAddItemSearch(e.target.value)}
+                    className="w-full h-8 px-3 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {filteredProdutos.length > 0 && (
+                    <div className="absolute top-9 left-0 z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                      {filteredProdutos.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center gap-2 text-sm"
+                          onClick={() => addNewItemRow(p)}
+                        >
+                          <span className="font-mono text-xs text-gray-400 shrink-0">{p.codigo}</span>
+                          <span className="text-gray-800">{p.descricao}</span>
+                          <span className="ml-auto text-xs text-gray-400 shrink-0">{p.unidadeMedida}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {q && filteredProdutos.length === 0 && (
+                    <p className="mt-1 text-xs text-gray-400">Nenhum produto encontrado.</p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -810,6 +1036,7 @@ export default function DocumentoEntradaDetailPage() {
                     <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Vlr. IPI</th>
                     <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Vlr. ICMS</th>
                     <th className="text-center px-3 py-2.5 font-medium text-gray-600 text-xs">Status</th>
+                    {itemsEditable && <th className="w-8" />}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -986,9 +1213,94 @@ export default function DocumentoEntradaDetailPage() {
                             {itemsEditable ? itemStatus.label : (item.divergencia ? "Divergência" : "OK")}
                           </span>
                         </td>
+                        {itemsEditable && <td className="w-8" />}
                       </tr>
                     );
                   })}
+
+                  {/* ── Novas linhas adicionadas ─────────────────────────── */}
+                  {newItems.map((ni) => (
+                    <tr key={ni._key} className="bg-blue-50/30 hover:bg-blue-50">
+                      <td className="px-3 py-2 text-xs text-blue-400">+</td>
+                      <td className="px-3 py-2 font-mono text-xs text-gray-500">{ni.codigo}</td>
+                      <td className="px-3 py-2 text-xs text-gray-800 max-w-[200px]">{ni.descricao}</td>
+                      {modoLocalEstoque === "POR_ITEM" && (
+                        <td className="px-3 py-2">
+                          <select
+                            value={ni.localEstoqueId}
+                            onChange={(e) => updateNewItem(ni._key, "localEstoqueId", e.target.value)}
+                            className="w-full h-7 px-2 border border-gray-200 rounded text-xs bg-white focus:outline-none"
+                          >
+                            <option value="">—</option>
+                            {locaisEstoque.map((l) => (
+                              <option key={l.id} value={l.id}>{l.nome}</option>
+                            ))}
+                          </select>
+                        </td>
+                      )}
+                      <td className="px-3 py-2 text-xs text-gray-500">{ni.unidadeMedida}</td>
+                      <td className="px-3 py-2 text-right text-xs text-gray-400">—</td>
+                      <td className="px-3 py-2">
+                        <Input
+                          type="number" step="0.001" min="0"
+                          className="w-24 ml-auto text-right h-7 text-xs"
+                          value={ni.quantidadeRecebida}
+                          onChange={(e) => updateNewItem(ni._key, "quantidadeRecebida", e.target.value)}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <Input
+                          type="number" step="0.01" min="0"
+                          className="w-24 ml-auto text-right h-7 text-xs"
+                          value={ni.vlrUnitario}
+                          onChange={(e) => updateNewItem(ni._key, "vlrUnitario", e.target.value)}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="relative w-20 ml-auto">
+                          <Input
+                            type="number" step="0.01" min="0" max="100"
+                            className="w-20 text-right h-7 text-xs pr-5"
+                            value={ni.desconto}
+                            onChange={(e) => updateNewItem(ni._key, "desconto", e.target.value)}
+                          />
+                          <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <Input
+                          type="number" step="0.01" min="0"
+                          className="w-24 ml-auto text-right h-7 text-xs"
+                          value={ni.vlrTotal}
+                          onChange={(e) => updateNewItem(ni._key, "vlrTotal", e.target.value)}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <Input
+                          type="number" step="0.01" min="0"
+                          className="w-24 ml-auto text-right h-7 text-xs"
+                          value={ni.vlrIPI}
+                          onChange={(e) => updateNewItem(ni._key, "vlrIPI", e.target.value)}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <Input
+                          type="number" step="0.01" min="0"
+                          className="w-24 ml-auto text-right h-7 text-xs"
+                          value={ni.vlrICMS}
+                          onChange={(e) => updateNewItem(ni._key, "vlrICMS", e.target.value)}
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => removeNewItem(ni._key)}
+                          className="text-red-400 hover:text-red-600 text-xs font-medium"
+                          title="Remover"
+                        >✕</button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -1098,33 +1410,27 @@ export default function DocumentoEntradaDetailPage() {
             <CardContent className="pt-4">
               <div className="space-y-1.5 max-w-xs">
                 <Label>Responsável pela Conferência</Label>
-                <Input
-                  value={responsavel}
-                  onChange={(e) => setResponsavel(e.target.value)}
-                  placeholder="Nome do conferente"
-                />
+                <select
+                  value={usuarioResponsavelId}
+                  onChange={(e) => {
+                    const selected = usuarios.find((u) => u.id === e.target.value);
+                    setUsuarioResponsavelId(e.target.value);
+                    setResponsavel(selected?.nome ?? "");
+                  }}
+                  className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— Selecionar usuário —</option>
+                  {usuarios.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.nome}
+                    </option>
+                  ))}
+                </select>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* ── Admin: Alterar Status ──────────────────────────────────────── */}
-        {isConcluded && isAdmin && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-4">
-            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
-            <span className="text-sm font-medium text-amber-800 shrink-0">Alterar status:</span>
-            <select
-              value={adminStatus}
-              onChange={(e) => setAdminStatus(e.target.value)}
-              className="h-8 px-3 border border-amber-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-            >
-              <option value="PENDENTE">Pendente</option>
-              <option value="EM_CONFERENCIA">Em Conferência</option>
-              <option value="CONCLUIDA">Concluída</option>
-              <option value="DIVERGENCIA">Divergência</option>
-            </select>
-          </div>
-        )}
 
         {/* ── Actions ──────────────────────────────────────────────────────── */}
         <div className="flex gap-3 flex-wrap">
@@ -1141,16 +1447,8 @@ export default function DocumentoEntradaDetailPage() {
           )}
 
           {isEditable && (
-            <Button
-              onClick={concluir}
-              disabled={actioning}
-              className={hasDivergencias ? "bg-amber-600 hover:bg-amber-700" : ""}
-            >
-              {actioning
-                ? "Concluindo..."
-                : hasDivergencias
-                ? "Concluir com Divergências"
-                : "Concluir"}
+            <Button onClick={concluir} disabled={actioning}>
+              {actioning ? "Concluindo..." : "Concluir"}
             </Button>
           )}
         </div>

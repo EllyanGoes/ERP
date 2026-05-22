@@ -24,7 +24,12 @@ export async function GET(req: NextRequest) {
       cotacoes: {
         select: {
           id: true, numero: true, status: true,
-          pedidos: { select: { id: true, numero: true, status: true } },
+          pedidos: {
+            select: {
+              id: true, numero: true, status: true,
+              conferencia: { select: { id: true, numero: true, status: true } },
+            },
+          },
         },
         orderBy: { createdAt: "asc" as const },
       },

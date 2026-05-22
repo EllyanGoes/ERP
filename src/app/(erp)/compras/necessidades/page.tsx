@@ -36,7 +36,13 @@ type Necessidade = {
   localEstoque: { id: string; nome: string } | null;
   setor: { id: string; nome: string } | null;
   _count: { itens: number };
-  cotacoes?: Array<{ id: string; numero: string; status: string; pedidos: Array<{ id: string; numero: string; status: string }> }>;
+  cotacoes?: Array<{
+    id: string; numero: string; status: string;
+    pedidos: Array<{
+      id: string; numero: string; status: string;
+      conferencia: { id: string; numero: string; status: string } | null;
+    }>;
+  }>;
   pedidosCompra?: Array<{ id: string; numero: string; status: string; conferencia: { id: string; numero: string; status: string } | null }>;
 };
 
@@ -183,7 +189,15 @@ const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
     thClass: "text-left px-4 py-3 font-medium text-gray-600 w-40",
     tdClass: "px-4 py-3",
     render: (n) => {
-      const pedidos = n.pedidosCompra ?? [];
+      // Pedidos podem vir via cotacoes (link cotacaoId) ou diretamente (necessidadeId)
+      const viaCotacoes = (n.cotacoes ?? []).flatMap((c) => c.pedidos ?? []);
+      const diretos = n.pedidosCompra ?? [];
+      const allIds = new Set<string>();
+      const pedidos = [...diretos, ...viaCotacoes].filter((p) => {
+        if (allIds.has(p.id)) return false;
+        allIds.add(p.id);
+        return true;
+      });
       if (pedidos.length === 0) return <span className="text-gray-300 text-xs">—</span>;
       return (
         <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
@@ -207,9 +221,13 @@ const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
     thClass: "text-left px-4 py-3 font-medium text-gray-600 w-40",
     tdClass: "px-4 py-3",
     render: (n) => {
-      const conferencias = (n.pedidosCompra ?? [])
+      const viaCotacoes = (n.cotacoes ?? []).flatMap((c) => c.pedidos ?? []);
+      const diretos = n.pedidosCompra ?? [];
+      const allPedidos = [...diretos, ...viaCotacoes].filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
+      const conferencias = allPedidos
         .map((p) => p.conferencia)
-        .filter((c): c is NonNullable<typeof c> => c !== null);
+        .filter((c): c is NonNullable<typeof c> => c !== null)
+        .filter((c, i, arr) => arr.findIndex((x) => x.id === c.id) === i);
       if (conferencias.length === 0) return <span className="text-gray-300 text-xs">—</span>;
       return (
         <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>

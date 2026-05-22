@@ -95,7 +95,34 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const vlrICMS = item.vlrICMS != null ? parseFloat(String(item.vlrICMS)) : undefined;
         const itemDesconto = item.desconto != null ? parseFloat(String(item.desconto)) : undefined;
 
-        // Get pedida to determine divergencia
+        if (!item.id) {
+          // NEW item — create it
+          if (!item.itemId) continue;
+          const qtdPedida = parseFloat(String(item.quantidadePedida ?? qtdRecebida));
+          const divergencia = Math.abs(qtdRecebida - qtdPedida) > 0.001;
+          await tx.conferenciaCompraItem.create({
+            data: {
+              conferenciaId: params.id,
+              itemId: item.itemId,
+              quantidadePedida: qtdPedida,
+              quantidadeRecebida: qtdRecebida,
+              divergencia,
+              observacao: item.observacao || null,
+              vlrUnitario: vlrUnit ?? null,
+              vlrTotal: vlrTot ?? null,
+              vlrIPI: vlrIPI ?? null,
+              vlrICMS: vlrICMS ?? null,
+              tipoEntrada: item.tipoEntrada || null,
+              codFiscal: item.codFiscal || null,
+              tpOper: item.tpOper || null,
+              localEstoqueId: item.localEstoqueId || null,
+              desconto: itemDesconto ?? null,
+            },
+          });
+          continue;
+        }
+
+        // EXISTING item — update it
         const ci = await tx.conferenciaCompraItem.findUnique({
           where: { id: item.id },
           select: { quantidadePedida: true },
@@ -199,4 +226,24 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   });
 
   return NextResponse.json({ data: updated });
+}
+
+export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+
+  const current = await prisma.conferenciaCompra.findUnique({
+    where: { id: params.id },
+    select: { status: true },
+  });
+  if (!current) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
+
+  // Docs concluídos/divergentes só podem ser excluídos por ADMIN
+  const isConcluded = current.status === "CONCLUIDA" || current.status === "DIVERGENCIA";
+  if (isConcluded && session.perfil !== "ADMIN") {
+    return NextResponse.json({ error: "Apenas administradores podem excluir documentos concluídos" }, { status: 403 });
+  }
+
+  await prisma.conferenciaCompra.delete({ where: { id: params.id } });
+  return NextResponse.json({ ok: true });
 }
