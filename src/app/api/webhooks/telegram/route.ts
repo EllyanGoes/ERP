@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { answerCallbackQuery, editTelegramMessage, escMD } from "@/lib/telegram";
+import { answerCallbackQuery, editTelegramMessage, escMD, sendTelegramDM } from "@/lib/telegram";
+import { buildRelatorioEstoque, parseRelatorioDate } from "@/lib/relatorio-estoque";
 
 // Telegram sends POST with callback_query when user clicks inline keyboard button
 export async function POST(req: NextRequest) {
@@ -21,11 +22,43 @@ export async function POST(req: NextRequest) {
         message?: { message_id: number; chat: { id: number } };
         data?: string;
       };
+      message?: {
+        message_id: number;
+        from?: { id: number; first_name?: string; username?: string };
+        chat: { id: number; type: string };
+        text?: string;
+      };
     };
+
+    // ── Handle text commands ──────────────────────────────────────────────────
+    if (body.message?.text != null) {
+      const msg  = body.message;
+      const text = (msg.text ?? "").trim();
+
+      // /relatorio [data opcional]
+      if (text.startsWith("/relatorio")) {
+        const arg      = text.replace(/^\/relatorio(@\S+)?/, "").trim();
+        const targetDate = parseRelatorioDate(arg);
+
+        if (!targetDate) {
+          await sendTelegramDM(msg.chat.id, {
+            text: `❌ Data inválida: *${escMD(arg)}*\n\nUse: /relatorio, /relatorio hoje, /relatorio ontem, ou /relatorio DD/MM/AAAA`,
+          });
+          return NextResponse.json({ ok: true });
+        }
+
+        const relatorio = await buildRelatorioEstoque(targetDate);
+        await sendTelegramDM(msg.chat.id, { text: relatorio.text });
+        return NextResponse.json({ ok: true });
+      }
+
+      // Unknown command — ignore silently
+      return NextResponse.json({ ok: true });
+    }
 
     const cq = body.callback_query;
     if (!cq) {
-      // Not a callback query (e.g., a text message) — acknowledge silently
+      // Not a callback query and not a message — acknowledge silently
       return NextResponse.json({ ok: true });
     }
 
