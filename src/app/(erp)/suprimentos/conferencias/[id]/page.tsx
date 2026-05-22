@@ -11,7 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
-import { Search, Plus, X, ChevronDown } from "lucide-react";
+import { useSession } from "@/lib/session-context";
+import { Search, Plus, X, ChevronDown, ShieldAlert } from "lucide-react";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -112,10 +113,14 @@ function getItemStatus(pedida: number, recebida: number): { label: string; cls: 
 
 export default function DocumentoEntradaDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
+
   const [conferencia, setConferencia] = useState<Conferencia | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [adminStatus, setAdminStatus] = useState("");
   const [actioning, setActioning] = useState(false);
   const [autoVinculoMsg, setAutoVinculoMsg] = useState<string | null>(null);
   const [scAtendidaMsg, setScAtendidaMsg] = useState<{ numero: string; status: string }[] | null>(null);
@@ -157,6 +162,7 @@ export default function DocumentoEntradaDetailPage() {
       const json = await res.json();
       const conf: Conferencia = json.data;
       setConferencia(conf);
+      setAdminStatus(conf.status);
       setResponsavel(conf.responsavel ?? "");
       setObservacoes(conf.observacoes ?? "");
       setTipoNota(conf.tipoNota ?? "NORMAL");
@@ -270,6 +276,7 @@ export default function DocumentoEntradaDetailPage() {
     setSaving(true);
     setActionError("");
     try {
+      const isConcludedStatus = conferencia?.status === "CONCLUIDA" || conferencia?.status === "DIVERGENCIA";
       const res = await fetch(`/api/suprimentos/conferencias/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -287,6 +294,8 @@ export default function DocumentoEntradaDetailPage() {
           seguro: seguro ? parseFloat(seguro) : null,
           despesas: despesas ? parseFloat(despesas) : null,
           desconto: desconto ? parseFloat(desconto) : null,
+          // Admin can change status on concluded DEs
+          ...(isAdmin && isConcludedStatus ? { status: adminStatus } : {}),
           itens: editItems.map((i) => ({
             id: i.id,
             quantidadeRecebida: parseFloat(i.quantidadeRecebida) || 0,
@@ -377,9 +386,12 @@ export default function DocumentoEntradaDetailPage() {
   if (loading) return <div className="px-8 pt-8 text-gray-400">Carregando...</div>;
   if (!conferencia) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
-  const isEditable = conferencia.status === "EM_CONFERENCIA";
-  const isPendente = conferencia.status === "PENDENTE";
-  const nfEditable = isPendente || isEditable;
+  const isPendente   = conferencia.status === "PENDENTE";
+  const isEditable   = conferencia.status === "EM_CONFERENCIA";
+  const isConcluded  = conferencia.status === "CONCLUIDA" || conferencia.status === "DIVERGENCIA";
+  const canEdit      = isPendente || isEditable || (isConcluded && isAdmin);
+  const nfEditable   = canEdit;
+  const itemsEditable = isEditable || (isConcluded && isAdmin);
 
   const hasDivergencias = editItems.some((ei) => {
     const item = conferencia.itens.find((i) => i.id === ei.id);
@@ -393,10 +405,10 @@ export default function DocumentoEntradaDetailPage() {
   const codigoForn = fornInfo ? fornInfo.id.slice(-8).toUpperCase() : "—";
 
   // Totals
-  const vlrMercadoria = isEditable
+  const vlrMercadoria = itemsEditable
     ? editItems.reduce((s, i) => s + (parseFloat(i.vlrTotal) || 0), 0)
     : conferencia.itens.reduce((s, i) => s + decimalToNumber(i.vlrTotal), 0);
-  const descontoTotalItens = isEditable
+  const descontoTotalItens = itemsEditable
     ? editItems.reduce((s, ei) => {
         const unit = parseFloat(ei.vlrUnitario) || 0;
         const qtd  = parseFloat(ei.quantidadeRecebida) || 0;
@@ -471,6 +483,15 @@ export default function DocumentoEntradaDetailPage() {
         {(actionError || validationError) && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
             {validationError || actionError}
+          </div>
+        )}
+
+        {/* ── Banner: modo edição administrativa ───────────────────────────── */}
+        {isConcluded && isAdmin && (
+          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2.5 rounded-xl text-sm">
+            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="font-medium">Modo edição administrativa</span>
+            <span className="text-amber-600">— alterações salvas substituirão os dados do documento concluído.</span>
           </div>
         )}
 
@@ -789,7 +810,7 @@ export default function DocumentoEntradaDetailPage() {
                     return (
                       <tr
                         key={item.id}
-                        className={`hover:bg-gray-50 ${item.divergencia && !isEditable ? "bg-amber-50/50" : ""}`}
+                        className={`hover:bg-gray-50 ${item.divergencia && !itemsEditable ? "bg-amber-50/50" : ""}`}
                       >
                         <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
                         <td className="px-3 py-2 font-mono text-xs text-gray-500">{item.item.codigo}</td>
@@ -798,7 +819,7 @@ export default function DocumentoEntradaDetailPage() {
                         {/* Local Estoque — only shown in Por Item mode */}
                         {modoLocalEstoque === "POR_ITEM" && (
                           <td className="px-3 py-2">
-                            {isEditable && ei ? (
+                            {itemsEditable && ei ? (
                               <select
                                 value={ei.localEstoqueId}
                                 onChange={(e) => updateEditItem(item.id, "localEstoqueId", e.target.value)}
@@ -824,7 +845,7 @@ export default function DocumentoEntradaDetailPage() {
 
                         {/* Qtd. Recebida */}
                         <td className="px-3 py-2">
-                          {isEditable && ei ? (
+                          {itemsEditable && ei ? (
                             <Input
                               type="number"
                               step="0.001"
@@ -842,7 +863,7 @@ export default function DocumentoEntradaDetailPage() {
 
                         {/* Vlr. Unit */}
                         <td className="px-3 py-2">
-                          {isEditable && ei ? (
+                          {itemsEditable && ei ? (
                             <Input
                               type="number"
                               step="0.01"
@@ -862,7 +883,7 @@ export default function DocumentoEntradaDetailPage() {
 
                         {/* % Desc. */}
                         <td className="px-3 py-2">
-                          {isEditable && ei ? (
+                          {itemsEditable && ei ? (
                             <div className="relative w-20 ml-auto">
                               <Input
                                 type="number"
@@ -886,7 +907,7 @@ export default function DocumentoEntradaDetailPage() {
 
                         {/* Vlr. Total */}
                         <td className="px-3 py-2">
-                          {isEditable && ei ? (
+                          {itemsEditable && ei ? (
                             <Input
                               type="number"
                               step="0.01"
@@ -906,7 +927,7 @@ export default function DocumentoEntradaDetailPage() {
 
                         {/* Vlr. IPI */}
                         <td className="px-3 py-2">
-                          {isEditable && ei ? (
+                          {itemsEditable && ei ? (
                             <Input
                               type="number"
                               step="0.01"
@@ -926,7 +947,7 @@ export default function DocumentoEntradaDetailPage() {
 
                         {/* Vlr. ICMS */}
                         <td className="px-3 py-2">
-                          {isEditable && ei ? (
+                          {itemsEditable && ei ? (
                             <Input
                               type="number"
                               step="0.01"
@@ -949,7 +970,7 @@ export default function DocumentoEntradaDetailPage() {
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${itemStatus.cls}`}
                           >
-                            {isEditable ? itemStatus.label : (item.divergencia ? "Divergência" : "OK")}
+                            {itemsEditable ? itemStatus.label : (item.divergencia ? "Divergência" : "OK")}
                           </span>
                         </td>
                       </tr>
@@ -969,7 +990,7 @@ export default function DocumentoEntradaDetailPage() {
           <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Vlr. Mercadoria</Label>
-              {isEditable ? (
+              {itemsEditable ? (
                 <Input value={formatBRL(vlrMercadoria)} readOnly className="bg-gray-50 text-right" />
               ) : (
                 <Input value={vlrMercadoria > 0 ? formatBRL(vlrMercadoria) : "—"} readOnly className="bg-gray-50 text-right" />
@@ -1059,7 +1080,7 @@ export default function DocumentoEntradaDetailPage() {
         </div>
 
         {/* ── Responsável ──────────────────────────────────────────────────── */}
-        {isEditable && (
+        {(isEditable || (isConcluded && isAdmin)) && (
           <Card>
             <CardContent className="pt-4">
               <div className="space-y-1.5 max-w-xs">
@@ -1074,15 +1095,33 @@ export default function DocumentoEntradaDetailPage() {
           </Card>
         )}
 
+        {/* ── Admin: Alterar Status ──────────────────────────────────────── */}
+        {isConcluded && isAdmin && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-4">
+            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="text-sm font-medium text-amber-800 shrink-0">Alterar status:</span>
+            <select
+              value={adminStatus}
+              onChange={(e) => setAdminStatus(e.target.value)}
+              className="h-8 px-3 border border-amber-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+            >
+              <option value="PENDENTE">Pendente</option>
+              <option value="EM_CONFERENCIA">Em Conferência</option>
+              <option value="CONCLUIDA">Concluída</option>
+              <option value="DIVERGENCIA">Divergência</option>
+            </select>
+          </div>
+        )}
+
         {/* ── Actions ──────────────────────────────────────────────────────── */}
         <div className="flex gap-3 flex-wrap">
-          {conferencia.status === "PENDENTE" && (
+          {isPendente && (
             <Button onClick={iniciarConferencia} disabled={actioning}>
               {actioning ? "Iniciando..." : "Iniciar Conferência"}
             </Button>
           )}
 
-          {(isPendente || isEditable) && !actioning && (
+          {canEdit && !actioning && (
             <Button variant="outline" onClick={salvarConferencia} disabled={saving}>
               {saving ? "Salvando..." : "Salvar Progresso"}
             </Button>

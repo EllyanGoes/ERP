@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.conferenciaCompra.findUnique({
@@ -46,6 +47,22 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  const isAdmin = session.perfil === "ADMIN";
+
+  // Check if DE is in a concluded state — only ADMIN can edit
+  const current = await prisma.conferenciaCompra.findUnique({
+    where: { id: params.id },
+    select: { status: true },
+  });
+  if (!current) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
+
+  const isConcluded = current.status === "CONCLUIDA" || current.status === "DIVERGENCIA";
+  if (isConcluded && !isAdmin) {
+    return NextResponse.json({ error: "Apenas administradores podem editar documentos concluídos" }, { status: 403 });
+  }
+
   const body = await req.json();
   const {
     itens,
@@ -65,6 +82,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     despesas,
     desconto,
     vrTotal,
+    status: requestedStatus,
   } = body;
 
   await prisma.$transaction(async (tx) => {
@@ -106,7 +124,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
     }
 
-    const updateData: Record<string, unknown> = { status: "EM_CONFERENCIA" };
+    // Determine new status:
+    // - Admin can explicitly set any status via requestedStatus
+    // - PENDENTE auto-transitions to EM_CONFERENCIA on save
+    // - Concluded DEs keep their status unless admin changes it
+    let newStatus: string;
+    if (isAdmin && requestedStatus) {
+      newStatus = requestedStatus;
+    } else if (current.status === "PENDENTE") {
+      newStatus = "EM_CONFERENCIA";
+    } else {
+      newStatus = current.status;
+    }
+    const updateData: Record<string, unknown> = { status: newStatus };
     if (fornecedorId !== undefined) updateData.fornecedorId = fornecedorId || null;
     if (localEstoqueId !== undefined) updateData.localEstoqueId = localEstoqueId || null;
     if (modoLocalEstoque !== undefined) updateData.modoLocalEstoque = modoLocalEstoque || "POR_ITEM";
