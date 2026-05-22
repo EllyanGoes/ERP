@@ -169,45 +169,46 @@ export default function PedidoCompraDetailPage() {
     return () => document.removeEventListener("mousedown", handle);
   }, [scPopoverOpen]);
 
-  // Search cotações while typing
+  // Search cotações while typing (or show all on open)
   useEffect(() => {
-    if (!ctSearch.trim()) { setCtOptions([]); return; }
+    if (!ctPopoverOpen) return;
     const t = setTimeout(async () => {
       setCtSearching(true);
       try {
         const res  = await fetch(`/api/suprimentos/cotacoes`);
         const json = await res.json();
-        const q    = ctSearch.toLowerCase();
+        const q    = ctSearch.toLowerCase().trim();
         const list = (json.data ?? []).filter((c: { numero: string; nome: string | null }) =>
-          c.numero.toLowerCase().includes(q) || (c.nome ?? "").toLowerCase().includes(q)
+          !q || c.numero.toLowerCase().includes(q) || (c.nome ?? "").toLowerCase().includes(q)
         );
-        setCtOptions(list.slice(0, 10));
+        setCtOptions(list.slice(0, 15));
       } catch { /* ignore */ }
       finally { setCtSearching(false); }
-    }, 300);
+    }, ctSearch.trim() ? 300 : 0);
     return () => clearTimeout(t);
-  }, [ctSearch]);
+  }, [ctSearch, ctPopoverOpen]);
 
-  // Search necessidades (SC) while typing
+  // Search necessidades (SC) while typing (or show all on open)
   useEffect(() => {
-    if (!scSearch.trim()) { setScOptions([]); return; }
+    if (!scPopoverOpen) return;
     const t = setTimeout(async () => {
       setScSearching(true);
       try {
         const res  = await fetch(`/api/suprimentos/necessidades`);
         const json = await res.json();
-        const q    = scSearch.toLowerCase();
+        const q    = scSearch.toLowerCase().trim();
         const list = ((json.data ?? []) as NecessidadeMin[]).filter((n) =>
+          !q ||
           n.numero.toLowerCase().includes(q) ||
           (n.solicitante ?? "").toLowerCase().includes(q) ||
           (n.justificativa ?? "").toLowerCase().includes(q)
         );
-        setScOptions(list.slice(0, 10));
+        setScOptions(list.slice(0, 15));
       } catch { /* ignore */ }
       finally { setScSearching(false); }
-    }, 300);
+    }, scSearch.trim() ? 300 : 0);
     return () => clearTimeout(t);
-  }, [scSearch]);
+  }, [scSearch, scPopoverOpen]);
 
   async function vincularCotacao(cotacaoId: string | null) {
     setActioning(true);
@@ -529,8 +530,8 @@ async function openWAModal() {
         {(() => {
           const sc = pedido.necessidade ?? pedido.cotacao?.necessidade ?? null;
           return (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
+            <div className="bg-white rounded-xl border border-gray-200">
+              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 rounded-t-xl flex items-center justify-between gap-3">
                 <h2 className="font-semibold text-sm text-gray-800">Solicitação de Compras</h2>
 
                 <div className="flex items-center gap-2 ml-auto">
@@ -575,7 +576,7 @@ async function openWAModal() {
 
                     {/* Popover de busca SC */}
                     {scPopoverOpen && (
-                      <div className="absolute right-0 top-full mt-2 z-50 w-80 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
+                      <div className="absolute right-0 top-full mt-2 z-50 w-96 bg-white rounded-xl border border-gray-200 shadow-xl">
                         <div className="p-3 border-b border-gray-100">
                           <div className="relative">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
@@ -596,7 +597,7 @@ async function openWAModal() {
                             </div>
                           ) : scOptions.length === 0 ? (
                             <p className="px-4 py-3 text-xs text-gray-400 italic text-center">
-                              {scSearch.trim() ? "Nenhuma SC encontrada." : "Digite para buscar uma SC."}
+                              {scSearch.trim() ? "Nenhuma SC encontrada." : "Nenhuma SC disponível."}
                             </p>
                           ) : scOptions.map((n) => (
                             <button
@@ -694,8 +695,8 @@ async function openWAModal() {
         </div>
 
         {/* ── Seção Cotação / Financeiro ───────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
+        <div className="bg-white rounded-xl border border-gray-200">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 rounded-t-xl flex items-center justify-between gap-3">
             <h2 className="font-semibold text-sm text-gray-800">Cotação</h2>
 
             <div className="flex items-center gap-2 ml-auto">
@@ -742,7 +743,7 @@ async function openWAModal() {
 
                 {/* Popover de busca */}
                 {ctPopoverOpen && (
-                  <div className="absolute right-0 top-full mt-2 z-50 w-80 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
+                  <div className="absolute right-0 top-full mt-2 z-50 w-96 bg-white rounded-xl border border-gray-200 shadow-xl">
                     <div className="p-3 border-b border-gray-100">
                       <div className="relative">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
@@ -763,7 +764,7 @@ async function openWAModal() {
                         </div>
                       ) : ctOptions.length === 0 ? (
                         <p className="px-4 py-3 text-xs text-gray-400 italic text-center">
-                          {ctSearch.trim() ? "Nenhuma cotação encontrada." : "Digite para buscar uma Cotação."}
+                          {ctSearch.trim() ? "Nenhuma cotação encontrada." : "Nenhuma cotação disponível."}
                         </p>
                       ) : ctOptions.map((c) => (
                         <button
