@@ -69,7 +69,9 @@ export async function POST(
     const sc = await prisma.necessidadeCompra.findUnique({
       where: { id: params.id },
       include: {
-        filial: true,
+        filial:      true,
+        setor:       { select: { id: true, nome: true } },
+        colaborador: { select: { id: true, nome: true } },
         itens: {
           include: {
             item: { select: { descricao: true, precoCusto: true, unidadeMedida: true, unidade: { select: { sigla: true } } } },
@@ -299,7 +301,9 @@ export async function POST(
 
     if (approverTgChatId) {
       try {
-        const filialNome = sc.filial ? sc.filial.nomeFantasia ?? sc.filial.razaoSocial : "—";
+        const filialNome    = sc.filial ? (sc.filial.nomeFantasia || sc.filial.razaoSocial) : "—";
+        const setorNome     = (sc as { setor?: { nome: string } | null }).setor?.nome ?? null;
+        const solicitante   = (sc as { colaborador?: { nome: string } | null }).colaborador?.nome ?? sc.solicitante ?? "—";
         const linhas = sc.itens.map((it, i) => {
           const qtd = parseFloat(String(it.quantidade ?? 0)).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
           const un  = (it as { unidade?: string | null }).unidade ?? it.item.unidade?.sigla ?? it.item.unidadeMedida ?? "un";
@@ -312,11 +316,13 @@ export async function POST(
           `🛒 *Aprovação necessária — SC Nº ${escMD(sc.numero)}*`,
           ``,
           `• *Filial:* ${escMD(filialNome)}`,
-          `• *Solicitado por:* ${escMD(sc.solicitante ?? "—")}`,
+          `• *Solicitado por:* ${escMD(solicitante)}`,
+          ...(setorNome ? [`• *Setor:* ${escMD(setorNome)}`] : []),
           `• *Data:* ${escMD(dataStr)}`,
           `• *Prioridade:* ${escMD(prioLabel)}`,
           ...(valorTotalStr ? [`• *Valor estimado:* ${escMD(valorTotalStr)}`] : []),
           ...(sc.justificativa ? [`• *Descrição:* ${escMD(sc.justificativa)}`] : []),
+          ...(sc.observacoes   ? [`• *Observações:* ${escMD(sc.observacoes)}`] : []),
           ``,
           `*Itens \\(${sc.itens.length}\\):*`,
           ...linhas,
@@ -338,7 +344,9 @@ export async function POST(
 
     // ── Send Telegram (best-effort — never fails the request) ────────────────
     try {
-      const filialNome = sc.filial ? sc.filial.nomeFantasia ?? sc.filial.razaoSocial : "—";
+      const filialNome  = sc.filial ? (sc.filial.nomeFantasia || sc.filial.razaoSocial) : "—";
+      const setorNome   = (sc as { setor?: { nome: string } | null }).setor?.nome ?? null;
+      const solicitante = (sc as { colaborador?: { nome: string } | null }).colaborador?.nome ?? sc.solicitante ?? "—";
       const linhas = sc.itens.map((it, i) => {
         const qtd = parseFloat(String(it.quantidade ?? 0)).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
         const un  = (it as { unidade?: string | null }).unidade ?? it.item.unidade?.sigla ?? it.item.unidadeMedida ?? "un";
@@ -352,11 +360,13 @@ export async function POST(
         `🛒 *Solicitação de Compras Nº ${escMD(sc.numero)}*`,
         ``,
         `• *Filial:* ${escMD(filialNome)}`,
-        `• *Solicitado por:* ${escMD(sc.solicitante ?? "—")}`,
+        `• *Solicitado por:* ${escMD(solicitante)}`,
+        ...(setorNome ? [`• *Setor:* ${escMD(setorNome)}`] : []),
         `• *Data:* ${escMD(dataStr)}`,
         `• *Prioridade:* ${escMD(prioLabel)}`,
         ...(valorTotalStr ? [`• *Valor estimado:* ${escMD(valorTotalStr)}`] : []),
         ...(sc.justificativa ? [`• *Descrição:* ${escMD(sc.justificativa)}`] : []),
+        ...(sc.observacoes   ? [`• *Observações:* ${escMD(sc.observacoes)}`] : []),
         ``,
         `*Itens \\(${sc.itens.length}\\):*`,
         ...linhas,
