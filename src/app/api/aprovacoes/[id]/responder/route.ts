@@ -3,7 +3,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { sendWAMessage } from "@/lib/whatsapp";
+import { sendWAMessage }                    from "@/lib/whatsapp";
+import { sendTelegramMessage, escMD }       from "@/lib/telegram";
 
 export async function POST(
   req: NextRequest,
@@ -174,6 +175,34 @@ export async function POST(
           },
         });
       }
+    }
+
+    // ── Telegram: notify result (best-effort) ────────────────────────────────
+    try {
+      const filialNome = sc.filial ? sc.filial.nomeFantasia ?? sc.filial.razaoSocial : "—";
+      const icon = novoStatus === "APROVADO" ? "✅" : "❌";
+      const verb = novoStatus === "APROVADO" ? "aprovada" : "reprovada";
+
+      const lines: string[] = [
+        `${icon} *SC Nº ${escMD(sc.numero)} foi ${verb}*`,
+        ``,
+        `• *Filial:* ${escMD(filialNome)}`,
+        `• *Solicitado por:* ${escMD(sc.solicitante ?? "—")}`,
+        `• *Decisão de:* ${escMD(aprovacao.aprovador.nome)}`,
+        ...(observacao ? [`• *Observação:* ${escMD(observacao)}`] : []),
+      ];
+
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+        ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
+      await sendTelegramMessage({
+        text: lines.join("\n"),
+        inlineKeyboard: [[
+          { text: "📋 Ver SC", url: `${baseUrl}/compras/necessidades/${sc.id}` },
+        ]],
+      });
+    } catch (tgErr) {
+      console.warn("[responder] Telegram notify failed (non-blocking):", tgErr);
     }
 
     return NextResponse.json({ ok: true, status: novoStatus });

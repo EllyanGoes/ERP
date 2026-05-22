@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendWAMessage, validateWAConfig } from "@/lib/whatsapp";
+import { sendTelegramMessage, escMD }      from "@/lib/telegram";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const PRIORIDADE_LABEL: Record<number, string> = {
@@ -284,6 +285,50 @@ export async function POST(
       }
     } else if (sendWA && !aprovadorResolved.telefone) {
       waError = `O aprovador "${aprovadorResolved.nome}" não tem telefone cadastrado.`;
+    }
+
+    // ── Send Telegram (best-effort — never fails the request) ────────────────
+    try {
+      const filialNome = sc.filial ? sc.filial.nomeFantasia ?? sc.filial.razaoSocial : "—";
+      const linhas = sc.itens.map((it, i) => {
+        const qtd = parseFloat(String(it.quantidade ?? 0)).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+        const un  = (it as { unidade?: string | null }).unidade ?? it.item.unidade?.sigla ?? it.item.unidadeMedida ?? "un";
+        return `  ${i + 1}\\. ${escMD(it.item.descricao)} — ${escMD(qtd)} ${escMD(un)}`;
+      });
+
+      const prioLabel = { 1: "Muito Baixa", 2: "Baixa", 3: "Média", 4: "Alta", 5: "🔴 Crítica" }[sc.prioridade] ?? String(sc.prioridade);
+      const dataStr = sc.createdAt.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+      const lines: string[] = [
+        `🛒 *Solicitação de Compras Nº ${escMD(sc.numero)}*`,
+        ``,
+        `• *Filial:* ${escMD(filialNome)}`,
+        `• *Solicitado por:* ${escMD(sc.solicitante ?? "—")}`,
+        `• *Data:* ${escMD(dataStr)}`,
+        `• *Prioridade:* ${escMD(prioLabel)}`,
+        ...(valorTotalStr ? [`• *Valor estimado:* ${escMD(valorTotalStr)}`] : []),
+        ...(sc.justificativa ? [`• *Descrição:* ${escMD(sc.justificativa)}`] : []),
+        ``,
+        `*Itens \\(${sc.itens.length}\\):*`,
+        ...linhas,
+        ``,
+        `👤 *Aprovador:* ${escMD(aprovadorResolved.nome)}`,
+        ...(etapaNome ? [`📋 *Etapa:* ${escMD(etapaNome)}`] : []),
+        ``,
+        `_Acesse o ERP para aprovar ou reprovar\\._`,
+      ];
+
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+        ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
+      await sendTelegramMessage({
+        text: lines.join("\n"),
+        inlineKeyboard: [[
+          { text: "🔍 Ver aprovação", url: `${baseUrl}/aprovacoes` },
+        ]],
+      });
+    } catch (tgErr) {
+      console.warn("[submeter-aprovacao] Telegram send failed (non-blocking):", tgErr);
     }
 
     return NextResponse.json({
