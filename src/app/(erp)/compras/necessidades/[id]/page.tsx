@@ -17,7 +17,7 @@ import { Pencil, Trash2, Loader2, AlertTriangle, Plus, Save, X, ChevronDown, Sen
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 // ── WA user type ──────────────────────────────────────────────────────────────
-type WAUser = { id: string; nome: string; email?: string; telefone: string | null; _type?: "colaborador" | "usuario" };
+type WAUser = { id: string; nome: string; email?: string; telefone: string | null; telegramChatId?: string | null; _type?: "colaborador" | "usuario" };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -365,32 +365,37 @@ export default function NecessidadeDetailPage() {
       const json = await res.json();
       const list: WAUser[] = (Array.isArray(json) ? json : []).map((c: WAUser) => ({
         id: c.id, nome: c.nome, email: c.email,
-        telefone: c.telefone, _type: "usuario" as const,
+        telefone: c.telefone, telegramChatId: c.telegramChatId ?? null, _type: "usuario" as const,
       }));
       setWAUsers(list);
+      // Auto-select first approver with Telegram configured
+      const withTg = list.find((u) => u.telegramChatId);
+      if (withTg) setWAAprovadorId(withTg.id);
     } catch { /* ignore */ }
     finally { setWAUsersLoading(false); }
   }
 
   function buildWAMessage() {
     if (!necessidade) return "";
-    const prioLabel: Record<number, string> = { 1: "1 - Muito Baixa", 2: "2 - Baixa", 3: "3 - Média", 4: "4 - Alta", 5: "5 - Crítica" };
+    const prioLabel: Record<number, string> = { 1: "Muito Baixa", 2: "Baixa", 3: "Média", 4: "Alta", 5: "🔴 Crítica" };
     const itensLines = necessidade.itens.map((it, i) =>
       `  ${i + 1}. ${it.item.descricao} — ${decimalToNumber(it.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} ${it.unidade ?? it.item.unidade?.sigla ?? it.item.unidadeMedida ?? "un"}`
     );
+    const approver = waUsers.find((u) => u.id === waAprovadorId);
     return [
-      `*Solicitação de Compras Nº ${necessidade.numero}*`,
+      `🛒 Solicitação de Compras Nº ${necessidade.numero}`,
       ``,
-      `• *Filial:* ${necessidade.filial?.nomeFantasia ?? necessidade.filial?.razaoSocial ?? "—"}`,
-      `• *Solicitado por:* ${necessidade.solicitante ?? "—"}`,
-      `• *Data:* ${new Date(necessidade.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`,
-      `• *Prioridade:* ${prioLabel[necessidade.prioridade] ?? necessidade.prioridade}`,
-      ...(necessidade.justificativa ? [`• *Descrição:* ${necessidade.justificativa}`] : []),
+      `• Filial: ${necessidade.filial?.nomeFantasia ?? necessidade.filial?.razaoSocial ?? "—"}`,
+      `• Solicitado por: ${necessidade.solicitante ?? "—"}`,
+      `• Data: ${new Date(necessidade.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`,
+      `• Prioridade: ${prioLabel[necessidade.prioridade] ?? necessidade.prioridade}`,
+      ...(necessidade.justificativa ? [`• Descrição: ${necessidade.justificativa}`] : []),
       ``,
-      `*Itens (${necessidade.itens.length}):*`,
+      `Itens (${necessidade.itens.length}):`,
       ...itensLines,
+      ...(approver ? [``, `👤 Aprovador: ${approver.nome}`] : []),
       ``,
-      `Aguardo sua aprovação. Responda com: ✅ Aprovado ou ❌ Reprovado`,
+      `Selecione uma ação: ✅ Aprovar  ❌ Reprovar`,
     ].join("\n");
   }
 
@@ -1156,8 +1161,8 @@ export default function NecessidadeDetailPage() {
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 shrink-0">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                  <MessageCircle className="w-4 h-4 text-green-600" />
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                  <Send className="w-4 h-4 text-blue-600" />
                 </div>
                 <div>
                   <h2 className="font-semibold text-gray-900">Encaminhar para Aprovação</h2>
@@ -1227,13 +1232,13 @@ export default function NecessidadeDetailPage() {
                                 onClick={() => { setWAAprovadorId(u.id); setWADropdownOpen(false); setWAUserSearch(""); }}
                                 className={cn(
                                   "w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0",
-                                  waAprovadorId === u.id && "bg-green-50"
+                                  waAprovadorId === u.id && "bg-blue-50"
                                 )}
                               >
-                                <span className={cn("font-medium", waAprovadorId === u.id ? "text-green-700" : "text-gray-900")}>{u.nome}</span>
-                                {u.telefone
-                                  ? <span className="text-xs text-gray-400 font-mono">{u.telefone}</span>
-                                  : <span className="text-xs text-red-400">sem telefone</span>}
+                                <span className={cn("font-medium", waAprovadorId === u.id ? "text-blue-700" : "text-gray-900")}>{u.nome}</span>
+                                {u.telegramChatId
+                                  ? <span className="text-xs text-blue-500 flex items-center gap-1">✈️ Telegram</span>
+                                  : <span className="text-xs text-red-400">sem Telegram</span>}
                               </button>
                             ));
                           })()}
@@ -1246,9 +1251,10 @@ export default function NecessidadeDetailPage() {
                 {waAprovadorId && (() => {
                   const a = waUsers.find((u) => u.id === waAprovadorId);
                   return a ? (
-                    <p className="text-xs text-gray-400 flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      {a.telefone ? <span className="font-mono">{a.telefone}</span> : <span className="text-red-400">Sem telefone cadastrado</span>}
+                    <p className="text-xs flex items-center gap-1">
+                      {a.telegramChatId
+                        ? <span className="text-blue-500">✈️ Telegram configurado</span>
+                        : <span className="text-red-400">⚠️ Sem Telegram cadastrado — configure em Empresa → Colaboradores</span>}
                     </p>
                   ) : null;
                 })()}
@@ -1281,31 +1287,14 @@ export default function NecessidadeDetailPage() {
                   {waCopied ? "Copiado!" : "Copiar mensagem"}
                 </Button>
                 <Button type="button" size="sm"
-                  variant="outline"
-                  className="gap-1.5 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                  className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
                   disabled={!waAprovadorId || waModalLoading}
                   onClick={confirmarDiretamente}
                 >
-                  {waModalLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                  Confirmar
-                </Button>
-                <Button type="button" size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
-                  disabled={waModalLoading}
-                  onClick={openWhatsApp}
-                >
-                  {waModalLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
-                  {waAprovadorId ? "Encaminhar pelo WhatsApp" : "Abrir WhatsApp Web"}
+                  {waModalLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  Encaminhar pelo Telegram
                 </Button>
               </div>
-              {waAprovadorId && (
-                <p className="text-xs text-gray-400 mt-2 text-right">
-                  {(() => {
-                    const a = waUsers.find((u) => u.id === waAprovadorId);
-                    return a?.telefone ? `WhatsApp: ${a.nome} (${a.telefone})` : `WhatsApp Web — selecione ${a?.nome} manualmente`;
-                  })()}
-                </p>
-              )}
             </div>
           </div>
         </div>

@@ -10,9 +10,18 @@ export async function GET() {
 
   const users = await prisma.usuario.findMany({
     where: { perfil: "ADMIN", ativo: true },
-    select: { id: true, nome: true, email: true, telefone: true },
+    select: {
+      id: true, nome: true, email: true, telefone: true,
+      colaborador: { select: { telegramChatId: true } },
+    },
     orderBy: { nome: "asc" },
   });
 
-  return NextResponse.json(users);
+  return NextResponse.json(users.map((u) => ({
+    id:             u.id,
+    nome:           u.nome,
+    email:          u.email,
+    telefone:       u.telefone,
+    telegramChatId: u.colaborador?.telegramChatId ?? null,
+  })));
 }
