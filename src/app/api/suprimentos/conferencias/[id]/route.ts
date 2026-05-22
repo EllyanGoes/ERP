@@ -51,15 +51,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!session) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   const isAdmin = session.perfil === "ADMIN";
 
-  // Check if DE is in a concluded state — only ADMIN can edit
+  // Check if DE is in a concluded state — only ADMIN can edit CONCLUIDA;
+  // DIVERGENCIA is re-editable by any user (needs correction)
   const current = await prisma.conferenciaCompra.findUnique({
     where: { id: params.id },
     select: { status: true },
   });
   if (!current) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
 
-  const isConcluded = current.status === "CONCLUIDA" || current.status === "DIVERGENCIA";
-  if (isConcluded && !isAdmin) {
+  if (current.status === "CONCLUIDA" && !isAdmin) {
     return NextResponse.json({ error: "Apenas administradores podem editar documentos concluídos" }, { status: 403 });
   }
 
