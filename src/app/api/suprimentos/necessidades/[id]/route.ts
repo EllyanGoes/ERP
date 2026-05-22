@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.necessidadeCompra.findUnique({
@@ -99,6 +100,38 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  if (session.perfil !== "ADMIN") return NextResponse.json({ error: "Apenas administradores podem excluir solicitações" }, { status: 403 });
+
+  // Block if there are active purchase orders or quotes linked
+  const sc = await prisma.necessidadeCompra.findUnique({
+    where: { id: params.id },
+    select: {
+      numero: true,
+      pedidosCompra: { select: { id: true, status: true } },
+      cotacoes:      { select: { id: true, status: true } },
+    },
+  });
+
+  if (!sc) return NextResponse.json({ error: "SC não encontrada" }, { status: 404 });
+
+  const pedidosAtivos = sc.pedidosCompra.filter((p) => p.status !== "CANCELADO");
+  if (pedidosAtivos.length > 0) {
+    return NextResponse.json(
+      { error: `Não é possível excluir: SC possui ${pedidosAtivos.length} pedido(s) de compra vinculado(s). Cancele os pedidos primeiro.` },
+      { status: 409 }
+    );
+  }
+
+  const cotacoesAtivas = sc.cotacoes.filter((c) => c.status !== "CANCELADA" && c.status !== "CANCELADO");
+  if (cotacoesAtivas.length > 0) {
+    return NextResponse.json(
+      { error: `Não é possível excluir: SC possui ${cotacoesAtivas.length} cotação(ões) vinculada(s). Cancele as cotações primeiro.` },
+      { status: 409 }
+    );
+  }
+
   await prisma.necessidadeCompra.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }

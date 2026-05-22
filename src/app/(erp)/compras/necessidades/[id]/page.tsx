@@ -776,21 +776,23 @@ export default function NecessidadeDetailPage() {
 
             {/* RASCUNHO */}
             {isRascunho && (
-              <>
-                <Button size="sm"
-                  onClick={() => changeStatus("AGUARDANDO_APROVACAO")} disabled={actioning}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
-                >
-                  {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                  Confirmar SC
-                </Button>
-                <Button size="sm" variant="outline"
-                  className="border-red-200 text-red-600 hover:bg-red-50"
-                  onClick={() => { setShowDelete(true); setDeleteError(""); }}
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1" />Excluir
-                </Button>
-              </>
+              <Button size="sm"
+                onClick={() => changeStatus("AGUARDANDO_APROVACAO")} disabled={actioning}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+              >
+                {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                Confirmar SC
+              </Button>
+            )}
+
+            {/* Excluir — apenas admin, qualquer status */}
+            {isAdmin && (
+              <Button size="sm" variant="outline"
+                className="border-red-200 text-red-600 hover:bg-red-50"
+                onClick={() => { setShowDelete(true); setDeleteError(""); }}
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1" />Excluir
+              </Button>
             )}
 
             {/* Botão WA — disponível enquanto não aprovada/em cotação */}
