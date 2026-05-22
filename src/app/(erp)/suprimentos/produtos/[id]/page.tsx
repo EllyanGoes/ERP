@@ -12,7 +12,7 @@ import {
   ChevronRight, Pencil, Save, X, Plus, Trash2,
   Loader2, Package, TrendingUp, TrendingDown, ArrowUpDown,
   BarChart2, ShieldCheck, RefreshCw, Clock, AlertOctagon, AlertTriangle,
-  ShoppingBag, ClipboardList, FileText, PackageCheck, ExternalLink,
+  ShoppingBag, ClipboardList, FileText, PackageCheck, ExternalLink, Info,
 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { TipoProdutoQuickCreate, UnidadeQuickCreate, LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
@@ -772,26 +772,26 @@ export default function ProdutoDetailPage() {
             ) : (
               <div className="rounded-xl border border-gray-200 overflow-hidden">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
+                  <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
                     <tr>
-                      <th className="text-left px-4 py-3 font-medium">Fornecedor</th>
-                      <th className="text-left px-4 py-3 font-medium">Cód. Fornecedor</th>
-                      <th className="text-right px-4 py-3 font-medium">Último Preço</th>
-                      <th className="text-right px-4 py-3 font-medium">Prazo (dias)</th>
+                      <th className="text-left px-4 py-3 font-semibold">Fornecedor</th>
+                      <th className="text-left px-4 py-3 font-semibold">Cód. Fornecedor</th>
+                      <th className="text-right px-4 py-3 font-semibold">Último Preço</th>
+                      <th className="text-right px-4 py-3 font-semibold">Prazo (dias)</th>
                       <th className="w-10" />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-gray-200">
                     {item.fornecedores.map((pf) => (
-                      <tr key={pf.id} className="hover:bg-gray-50">
+                      <tr key={pf.id} className="hover:bg-blue-50/40">
                         <td className="px-4 py-3 font-medium text-gray-900">
                           <Link href={`/suprimentos/fornecedores/${pf.fornecedor.id}`} className="hover:text-blue-600 hover:underline">
                             {pf.fornecedor.nomeFantasia || pf.fornecedor.razaoSocial}
                           </Link>
                         </td>
-                        <td className="px-4 py-3 text-gray-500 font-mono text-xs">{pf.codigoFornecedor || "—"}</td>
-                        <td className="px-4 py-3 text-right font-medium">{pf.precoUltimo ? formatBRL(decimalToNumber(pf.precoUltimo)) : "—"}</td>
-                        <td className="px-4 py-3 text-right text-gray-600">{pf.prazoEntregaDias ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-600 font-mono text-xs">{pf.codigoFornecedor || "—"}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-gray-800">{pf.precoUltimo ? formatBRL(decimalToNumber(pf.precoUltimo)) : <span className="text-gray-400">—</span>}</td>
+                        <td className="px-4 py-3 text-right text-gray-700 font-semibold">{pf.prazoEntregaDias ?? <span className="text-gray-400">—</span>}</td>
                         <td className="px-4 py-3 text-right">
                           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-300 hover:text-red-500" onClick={() => removeFornecedor(pf.id)}>
                             <Trash2 className="w-3.5 h-3.5" />
@@ -947,18 +947,18 @@ export default function ProdutoDetailPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Unidade</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Sigla</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Fator Conv.</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide">Unidade</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide">Sigla</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide">Fator Conv.</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide">Status</th>
                       <th className="px-4 py-2.5" />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-gray-200">
                     {itemUnidades.map((iu) => {
                       const isProductPrincipal = item.unidade?.id === iu.unidade.id;
                       return (
-                        <tr key={iu.id} className={cn("hover:bg-gray-50", isProductPrincipal && "bg-blue-50/40")}>
+                        <tr key={iu.id} className={cn("hover:bg-blue-50/40", isProductPrincipal && "bg-blue-50/40")}>
                           <td className="px-4 py-3 font-medium text-gray-900">{iu.unidade.nome}</td>
                           <td className="px-4 py-3">
                             <span className={cn(
@@ -1040,17 +1040,17 @@ export default function ProdutoDetailPage() {
                 )}
                 <div className="rounded-xl border border-gray-200 overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
                       <tr>
-                        <th className="text-left px-4 py-3 font-medium">Local de Estoque</th>
-                        <th className="text-left px-4 py-3 font-medium">Localização</th>
-                        <th className="text-right px-4 py-3 font-medium">Qtd. Atual</th>
-                        <th className="text-right px-4 py-3 font-medium">Mínimo</th>
-                        <th className="text-right px-4 py-3 font-medium">Máximo</th>
-                        <th className="text-center px-4 py-3 font-medium">Situação</th>
+                        <th className="text-left px-4 py-3 font-semibold">Local de Estoque</th>
+                        <th className="text-left px-4 py-3 font-semibold">Localização</th>
+                        <th className="text-right px-4 py-3 font-semibold">Qtd. Atual</th>
+                        <th className="text-right px-4 py-3 font-semibold">Mínimo</th>
+                        <th className="text-right px-4 py-3 font-semibold">Máximo</th>
+                        <th className="text-center px-4 py-3 font-semibold">Situação</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-gray-200">
                       {estoqueComLocal.map((e) => {
                         const atual = decimalToNumber(e.quantidadeAtual);
                         const min = decimalToNumber(e.quantidadeMin);
@@ -1058,7 +1058,7 @@ export default function ProdutoDetailPage() {
                         const abaixo = min > 0 && atual < min;
                         const acima = max !== null && atual > max;
                         return (
-                          <tr key={e.id} className={cn("hover:bg-gray-50", abaixo && "bg-red-50/40")}>
+                          <tr key={e.id} className={cn("hover:bg-blue-50/40", abaixo && "bg-red-50/40")}>
                             <td className="px-4 py-3 font-medium text-gray-800">
                               <Link href={`/suprimentos/locais-estoque/${e.localEstoque!.id}`} className="hover:text-blue-600 hover:underline">
                                 {e.localEstoque!.nome}
@@ -1073,17 +1073,17 @@ export default function ProdutoDetailPage() {
                               <span className={cn("font-bold text-base", abaixo ? "text-red-600" : "text-gray-900")}>
                                 {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                               </span>
-                              <span className="text-xs text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                              <span className="text-xs text-gray-600 font-semibold ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
                             </td>
-                            <td className="px-4 py-3 text-right text-gray-500">{min > 0 ? min.toLocaleString("pt-BR") : "—"}</td>
-                            <td className="px-4 py-3 text-right text-gray-500">{max !== null ? max.toLocaleString("pt-BR") : "—"}</td>
+                            <td className="px-4 py-3 text-right text-gray-700 font-semibold">{min > 0 ? min.toLocaleString("pt-BR") : <span className="text-gray-400">—</span>}</td>
+                            <td className="px-4 py-3 text-right text-gray-700 font-semibold">{max !== null ? max.toLocaleString("pt-BR") : <span className="text-gray-400">—</span>}</td>
                             <td className="px-4 py-3 text-center">
                               {abaixo ? (
-                                <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">Baixo</span>
+                                <span className="text-xs font-semibold text-red-700 bg-red-100 border border-red-200 px-2.5 py-1 rounded-full">Baixo</span>
                               ) : acima ? (
-                                <span className="text-xs font-medium text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">Acima máx.</span>
+                                <span className="text-xs font-semibold text-amber-700 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full">Acima máx.</span>
                               ) : (
-                                <span className="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">Normal</span>
+                                <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full">Normal</span>
                               )}
                             </td>
                           </tr>
@@ -1196,24 +1196,24 @@ export default function ProdutoDetailPage() {
             ) : (
               <div className="rounded-xl border border-gray-200 overflow-hidden">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
+                  <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
                     <tr>
-                      <th className="text-left px-4 py-3 font-medium">Data</th>
-                      <th className="text-center px-4 py-3 font-medium">Tipo</th>
-                      <th className="text-right px-4 py-3 font-medium">Quantidade</th>
-                      <th className="text-left px-4 py-3 font-medium">Unidade</th>
-                      <th className="text-right px-4 py-3 font-medium">Saldo Antes</th>
-                      <th className="text-right px-4 py-3 font-medium">Saldo Depois</th>
-                      <th className="text-left px-4 py-3 font-medium">Origem</th>
-                      <th className="text-left px-4 py-3 font-medium">Documento</th>
-                      <th className="text-left px-4 py-3 font-medium">Obs.</th>
+                      <th className="text-left px-4 py-3 font-semibold">Data</th>
+                      <th className="text-center px-4 py-3 font-semibold">Tipo</th>
+                      <th className="text-right px-4 py-3 font-semibold">Quantidade</th>
+                      <th className="text-left px-4 py-3 font-semibold">Unidade</th>
+                      <th className="text-right px-4 py-3 font-semibold">Saldo Antes</th>
+                      <th className="text-right px-4 py-3 font-semibold">Saldo Depois</th>
+                      <th className="text-left px-4 py-3 font-semibold">Origem</th>
+                      <th className="text-left px-4 py-3 font-semibold">Documento</th>
+                      <th className="text-left px-4 py-3 font-semibold">Obs.</th>
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-gray-200">
                     {movsVisiveis.map((m) => (
-                      <tr key={m.id} className="hover:bg-gray-50 group/row">
-                        <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
+                      <tr key={m.id} className="hover:bg-blue-50/40 group/row">
+                        <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">
                           {formatDateTime(m.createdAt)}
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -1321,23 +1321,23 @@ export default function ProdutoDetailPage() {
                   ) : (
                     <div className="rounded-xl border border-gray-200 overflow-hidden">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b text-xs text-gray-400 uppercase tracking-wide">
+                        <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
                           <tr>
-                            <th className="text-left px-4 py-2.5 font-medium">Número</th>
-                            <th className="text-left px-4 py-2.5 font-medium">Status</th>
-                            <th className="text-right px-4 py-2.5 font-medium">Qtd.</th>
-                            <th className="text-left px-4 py-2.5 font-medium">Solicitante</th>
-                            <th className="text-left px-4 py-2.5 font-medium">Prazo</th>
-                            <th className="text-left px-4 py-2.5 font-medium">Criado em</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Número</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Status</th>
+                            <th className="text-right px-4 py-2.5 font-semibold">Qtd.</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Solicitante</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Prazo</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Criado em</th>
                             <th className="w-10" />
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-gray-200">
                           {compras.necessidades.map((n) => (
-                            <tr key={n.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 font-mono text-xs text-gray-600">{n.numero}</td>
+                            <tr key={n.id} className="hover:bg-blue-50/40">
+                              <td className="px-4 py-3 font-mono text-xs font-bold text-blue-700">{n.numero}</td>
                               <td className="px-4 py-3">
-                                <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", {
+                                <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", {
                                   "bg-gray-100 text-gray-600":   n.status === "RASCUNHO",
                                   "bg-amber-100 text-amber-700": n.status === "PENDENTE",
                                   "bg-blue-100 text-blue-700":   n.status === "APROVADO",
@@ -1350,15 +1350,15 @@ export default function ProdutoDetailPage() {
                               <td className="px-4 py-3 text-right font-medium text-gray-800">
                                 {decimalToNumber(n.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                               </td>
-                              <td className="px-4 py-3 text-gray-600 text-xs">{n.solicitante || "—"}</td>
-                              <td className="px-4 py-3 text-gray-500 text-xs">
-                                {n.dataNecessidade ? new Date(n.dataNecessidade).toLocaleDateString("pt-BR") : "—"}
+                              <td className="px-4 py-3 text-gray-700 text-xs">{n.solicitante || <span className="text-gray-400">—</span>}</td>
+                              <td className="px-4 py-3 text-gray-600 text-xs">
+                                {n.dataNecessidade ? new Date(n.dataNecessidade).toLocaleDateString("pt-BR") : <span className="text-gray-400">—</span>}
                               </td>
-                              <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
+                              <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">
                                 {new Date(n.createdAt).toLocaleDateString("pt-BR")}
                               </td>
                               <td className="px-3 py-3">
-                                <Link href={`/compras/necessidades/${n.id}`} className="p-1 rounded hover:bg-blue-50 text-gray-300 hover:text-blue-600 inline-flex">
+                                <Link href={`/compras/necessidades/${n.id}`} className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 inline-flex">
                                   <ExternalLink className="w-3.5 h-3.5" />
                                 </Link>
                               </td>
@@ -1384,23 +1384,23 @@ export default function ProdutoDetailPage() {
                   ) : (
                     <div className="rounded-xl border border-gray-200 overflow-hidden">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b text-xs text-gray-400 uppercase tracking-wide">
+                        <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
                           <tr>
-                            <th className="text-left px-4 py-2.5 font-medium">Número</th>
-                            <th className="text-left px-4 py-2.5 font-medium">Status</th>
-                            <th className="text-left px-4 py-2.5 font-medium">Fornecedor</th>
-                            <th className="text-right px-4 py-2.5 font-medium">Qtd.</th>
-                            <th className="text-right px-4 py-2.5 font-medium">Preço Unit.</th>
-                            <th className="text-left px-4 py-2.5 font-medium">Entrega Prev.</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Número</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Status</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Fornecedor</th>
+                            <th className="text-right px-4 py-2.5 font-semibold">Qtd.</th>
+                            <th className="text-right px-4 py-2.5 font-semibold">Preço Unit.</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Entrega Prev.</th>
                             <th className="w-10" />
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-gray-200">
                           {compras.pedidos.map((p) => (
-                            <tr key={p.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 font-mono text-xs text-gray-600">{p.numero}</td>
+                            <tr key={p.id} className="hover:bg-blue-50/40">
+                              <td className="px-4 py-3 font-mono text-xs font-bold text-blue-700">{p.numero}</td>
                               <td className="px-4 py-3">
-                                <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", {
+                                <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", {
                                   "bg-gray-100 text-gray-600":   p.status === "RASCUNHO",
                                   "bg-amber-100 text-amber-700": p.status === "ENVIADO",
                                   "bg-blue-100 text-blue-700":   p.status === "CONFIRMADO",
@@ -1410,20 +1410,20 @@ export default function ProdutoDetailPage() {
                                   {p.status}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-gray-600 text-xs">
+                              <td className="px-4 py-3 text-gray-700 text-xs font-medium">
                                 {p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial}
                               </td>
-                              <td className="px-4 py-3 text-right font-medium text-gray-800">
+                              <td className="px-4 py-3 text-right font-semibold text-gray-800">
                                 {decimalToNumber(p.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                               </td>
-                              <td className="px-4 py-3 text-right text-gray-600">
+                              <td className="px-4 py-3 text-right text-gray-700 font-semibold">
                                 {formatBRL(decimalToNumber(p.precoUnitario))}
                               </td>
-                              <td className="px-4 py-3 text-gray-500 text-xs">
-                                {p.dataEntregaPrevista ? new Date(p.dataEntregaPrevista).toLocaleDateString("pt-BR") : "—"}
+                              <td className="px-4 py-3 text-gray-600 text-xs">
+                                {p.dataEntregaPrevista ? new Date(p.dataEntregaPrevista).toLocaleDateString("pt-BR") : <span className="text-gray-400">—</span>}
                               </td>
                               <td className="px-3 py-3">
-                                <Link href={`/suprimentos/pedidos-compra/${p.id}`} className="p-1 rounded hover:bg-blue-50 text-gray-300 hover:text-blue-600 inline-flex">
+                                <Link href={`/suprimentos/pedidos-compra/${p.id}`} className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 inline-flex">
                                   <ExternalLink className="w-3.5 h-3.5" />
                                 </Link>
                               </td>
@@ -1449,24 +1449,24 @@ export default function ProdutoDetailPage() {
                   ) : (
                     <div className="rounded-xl border border-gray-200 overflow-hidden">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b text-xs text-gray-400 uppercase tracking-wide">
+                        <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
                           <tr>
-                            <th className="text-left px-4 py-2.5 font-medium">Número</th>
-                            <th className="text-left px-4 py-2.5 font-medium">Status</th>
-                            <th className="text-left px-4 py-2.5 font-medium">Pedido</th>
-                            <th className="text-left px-4 py-2.5 font-medium">Fornecedor</th>
-                            <th className="text-right px-4 py-2.5 font-medium">Pedido</th>
-                            <th className="text-right px-4 py-2.5 font-medium">Recebido</th>
-                            <th className="text-center px-4 py-2.5 font-medium">Divergência</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Número</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Status</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Pedido</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Fornecedor</th>
+                            <th className="text-right px-4 py-2.5 font-semibold">Pedido</th>
+                            <th className="text-right px-4 py-2.5 font-semibold">Recebido</th>
+                            <th className="text-center px-4 py-2.5 font-semibold">Divergência</th>
                             <th className="w-10" />
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-gray-200">
                           {compras.conferencias.map((c) => (
-                            <tr key={c.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 font-mono text-xs text-gray-600">{c.numero}</td>
+                            <tr key={c.id} className="hover:bg-blue-50/40">
+                              <td className="px-4 py-3 font-mono text-xs font-bold text-blue-700">{c.numero}</td>
                               <td className="px-4 py-3">
-                                <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", {
+                                <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", {
                                   "bg-amber-100 text-amber-700": c.status === "PENDENTE",
                                   "bg-blue-100 text-blue-700":   c.status === "EM_ANDAMENTO",
                                   "bg-green-100 text-green-700": c.status === "CONCLUIDA",
@@ -1475,24 +1475,24 @@ export default function ProdutoDetailPage() {
                                   {c.status}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 font-mono text-xs text-gray-500">{c.pedido.numero}</td>
-                              <td className="px-4 py-3 text-gray-600 text-xs">
+                              <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">{c.pedido.numero}</td>
+                              <td className="px-4 py-3 text-gray-700 text-xs font-medium">
                                 {c.pedido.fornecedor.nomeFantasia || c.pedido.fornecedor.razaoSocial}
                               </td>
-                              <td className="px-4 py-3 text-right font-medium text-gray-800">
+                              <td className="px-4 py-3 text-right font-semibold text-gray-800">
                                 {decimalToNumber(c.quantidadePedida).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                               </td>
-                              <td className="px-4 py-3 text-right font-medium text-emerald-700">
+                              <td className="px-4 py-3 text-right font-semibold text-emerald-700">
                                 {decimalToNumber(c.quantidadeRecebida).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                               </td>
                               <td className="px-4 py-3 text-center">
                                 {c.divergencia
-                                  ? <span className="text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded-full">Sim</span>
-                                  : <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">OK</span>
+                                  ? <span className="text-xs text-red-700 font-semibold bg-red-100 border border-red-200 px-2.5 py-1 rounded-full">Sim</span>
+                                  : <span className="text-xs text-emerald-700 font-semibold bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full">OK</span>
                                 }
                               </td>
                               <td className="px-3 py-3">
-                                <Link href={`/suprimentos/conferencias/${c.id}`} className="p-1 rounded hover:bg-blue-50 text-gray-300 hover:text-blue-600 inline-flex">
+                                <Link href={`/suprimentos/conferencias/${c.id}`} className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 inline-flex">
                                   <ExternalLink className="w-3.5 h-3.5" />
                                 </Link>
                               </td>
@@ -1598,7 +1598,10 @@ export default function ProdutoDetailPage() {
                       sub={consumoDiario > 0
                         ? `${consumoDiario.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} ${sigla}/dia`
                         : `${totalSaidaPer.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} ${sigla} no período`}
-                      hint="Média de consumo / saída por mês no período selecionado."
+                      hint={{
+                        formula: "Total de saídas no período ÷ número de meses. O consumo diário é calculado dividindo pelo total de dias.",
+                        interpretation: "Indica quanto do produto é consumido por mês em média. Use para planejar a frequência e quantidade de reposição."
+                      }}
                     />
 
                     {/* Giro de Estoque */}
@@ -1608,7 +1611,10 @@ export default function ProdutoDetailPage() {
                       title="Giro de Estoque"
                       value={giro > 0 ? `${giro.toFixed(2)}×/ano` : "—"}
                       sub={giro >= 6 ? "Giro saudável" : giro >= 2 ? "Giro moderado" : giro > 0 ? "Giro baixo — capital imobilizado" : "Sem saídas no período"}
-                      hint="Quantas vezes o estoque é renovado por ano. Giro alto = boa saúde financeira."
+                      hint={{
+                        formula: "(Total de saídas no período × 365 ÷ dias do período) ÷ estoque atual.",
+                        interpretation: "Quantas vezes o estoque é renovado por ano. Giro ≥ 6 = saudável. Entre 2 e 6 = moderado. Abaixo de 2 = capital imobilizado, risco de obsolescência."
+                      }}
                     />
 
                     {/* Cobertura de Estoque */}
@@ -1624,7 +1630,10 @@ export default function ProdutoDetailPage() {
                       sub={coberturaDias === Infinity
                         ? "Sem consumo no período"
                         : `Com base no consumo de ${periodoDias} dias`}
-                      hint="Por quanto tempo o estoque atual cobre o consumo médio."
+                      hint={{
+                        formula: "Estoque atual ÷ consumo diário médio.",
+                        interpretation: "Por quantos dias/meses o estoque suporta a demanda sem reposição. Abaixo de 14 dias = risco de ruptura. Acima de 60 dias pode indicar excesso."
+                      }}
                     />
 
                     {/* Estoque de Segurança */}
@@ -1636,7 +1645,10 @@ export default function ProdutoDetailPage() {
                         ? `${estoqueSeguranca.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${sigla}`
                         : "—"}
                       sub={`Lead time: ${Math.round(leadTimeMedio)} dias · fator: 1,5`}
-                      hint="Estoque extra para cobrir atrasos de fornecedor ou picos de demanda. Fórmula: consumo diário × lead time × 1,5."
+                      hint={{
+                        formula: "Consumo diário × lead time médio dos fornecedores × 1,5 (fator de segurança).",
+                        interpretation: "Quantidade mínima recomendada em estoque para absorver atrasos de fornecedor ou picos de demanda. Se o estoque atual estiver abaixo deste valor, considere repor."
+                      }}
                     />
 
                     {/* Taxa de Ruptura */}
@@ -1648,7 +1660,10 @@ export default function ProdutoDetailPage() {
                       sub={totalSaidasAll > 0
                         ? `${rupturaEvents} de ${totalSaidasAll} saídas com saldo zerado`
                         : "Sem saídas registradas"}
-                      hint="% de saídas que levaram o saldo a zero ou negativo — proxy de stockout."
+                      hint={{
+                        formula: "(Nº de saídas que levaram o saldo a ≤ 0 ÷ total de saídas) × 100.",
+                        interpretation: "Frequência com que o estoque zerou após uma saída — proxy de stockout. 0% = ideal. Acima de 5% indica necessidade de revisar ponto de reposição."
+                      }}
                     />
 
                     {/* Resumo período */}
@@ -2221,13 +2236,31 @@ function KpiCard({
   title: string;
   value: string;
   sub?: string;
-  hint?: string;
+  hint?: { formula: string; interpretation: string };
 }) {
   const c = KPI_COLORS[color] ?? KPI_COLORS.blue;
   return (
-    <div className={cn("rounded-xl border px-5 py-4 space-y-1", c.bg, c.border)} title={hint}>
-      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center mb-2", c.bg, c.icon)}>
-        {icon}
+    <div className={cn("rounded-xl border px-5 py-4 space-y-1 relative", c.bg, c.border)}>
+      <div className="flex items-start justify-between mb-2">
+        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", c.bg, c.icon)}>
+          {icon}
+        </div>
+        {hint && (
+          <div className="group relative">
+            <button className="text-gray-400 hover:text-gray-600 transition-colors p-0.5 rounded">
+              <Info className="w-3.5 h-3.5" />
+            </button>
+            {/* Tooltip */}
+            <div className="absolute right-0 top-6 z-50 w-64 bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-left
+                            invisible opacity-0 group-hover:visible group-hover:opacity-100
+                            transition-all duration-150 pointer-events-none">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Cálculo</p>
+              <p className="text-xs text-gray-700 leading-relaxed mb-2.5">{hint.formula}</p>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Interpretação</p>
+              <p className="text-xs text-gray-700 leading-relaxed">{hint.interpretation}</p>
+            </div>
+          </div>
+        )}
       </div>
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide leading-none">{title}</p>
       <p className={cn("text-2xl font-bold leading-tight", c.value)}>{value}</p>

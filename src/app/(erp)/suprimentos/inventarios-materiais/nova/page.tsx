@@ -158,7 +158,6 @@ export default function NovoInventarioPage() {
   const [localEstoqueId, setLocalEstoqueId] = useState(searchParams.get("localEstoqueId") ?? "");
   const [colaboradorId,  setColaboradorId]  = useState("");
   const [data,           setData]           = useState(() => new Date().toISOString().split("T")[0]);
-  const [tipo,           setTipo]           = useState("TOTAL");
   const [observacoes,    setObservacoes]    = useState("");
   const [submitted,      setSubmitted]      = useState(false);
 
@@ -185,7 +184,7 @@ export default function NovoInventarioPage() {
     ]);
     setLocais((await lRes.json()) || []);
     const cData = await cRes.json();
-    setColaboradores(Array.isArray(cData.data) ? cData.data : []);
+    setColaboradores(Array.isArray(cData) ? cData : Array.isArray(cData.data) ? cData.data : []);
   }, []);
 
   useEffect(() => { loadOptions(); }, [loadOptions]);
@@ -240,7 +239,6 @@ export default function NovoInventarioPage() {
           localEstoqueId,
           colaboradorId: colaboradorId || null,
           data,
-          tipo,
           observacoes: observacoes || null,
         }),
       });
@@ -296,7 +294,7 @@ export default function NovoInventarioPage() {
             <CardTitle className="text-base">Dados do Inventário</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs text-gray-500">
                   Almoxarifado <span className="text-red-500">*</span>
@@ -339,18 +337,6 @@ export default function NovoInventarioPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">Tipo do Inventário</Label>
-                <select
-                  value={tipo}
-                  onChange={(e) => setTipo(e.target.value)}
-                  className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="TOTAL">Total</option>
-                  <option value="PARCIAL">Parcial</option>
-                  <option value="CICLICO">Cíclico</option>
-                </select>
-              </div>
             </div>
 
             <div className="space-y-1.5">

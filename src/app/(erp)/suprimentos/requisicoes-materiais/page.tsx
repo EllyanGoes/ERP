@@ -131,43 +131,43 @@ export default function RequisicoesMaterialPage() {
           <p className="text-sm text-gray-400 mt-1">Crie uma nova requisição ou devolução de materiais.</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-gray-200 overflow-hidden">
+        <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
-              <tr className="text-xs text-gray-400 uppercase tracking-wide">
-                <th className="text-left px-4 py-2.5 font-medium">Número</th>
-                <th className="text-left px-4 py-2.5 font-medium">Tipo</th>
-                <th className="text-left px-4 py-2.5 font-medium">Almoxarifado</th>
-                <th className="text-left px-4 py-2.5 font-medium">Solicitante</th>
-                <th className="text-left px-4 py-2.5 font-medium">Data</th>
-                <th className="text-center px-4 py-2.5 font-medium">Itens</th>
-                <th className="text-center px-4 py-2.5 font-medium">Status</th>
+              <tr>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Número</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Tipo</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Almoxarifado</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Solicitante</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Data</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Itens</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-200">
               {filtered.map((r) => (
                 <tr
                   key={r.id}
                   onClick={() => router.push(`/suprimentos/requisicoes-materiais/${r.id}`)}
-                  className="hover:bg-gray-50 cursor-pointer transition-colors"
+                  className="hover:bg-blue-50/40 cursor-pointer transition-colors"
                 >
-                  <td className="px-4 py-3 font-mono text-xs font-semibold text-blue-700">{r.numero}</td>
+                  <td className="px-4 py-3 font-mono text-xs font-bold text-blue-700">{r.numero}</td>
                   <td className="px-4 py-3">
                     <span className={cn(
-                      "px-2 py-0.5 rounded-full text-xs font-medium",
-                      r.tipo === "REQUISICAO" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
+                      "px-2.5 py-1 rounded-full text-xs font-semibold",
+                      r.tipo === "REQUISICAO" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"
                     )}>
                       {r.tipo === "REQUISICAO" ? "Requisição" : "Devolução"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-700">{r.localEstoque?.nome ?? "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{r.colaborador?.nome ?? "—"}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">
+                  <td className="px-4 py-3 text-gray-800 font-medium">{r.localEstoque?.nome ?? <span className="text-gray-400">—</span>}</td>
+                  <td className="px-4 py-3 text-gray-700">{r.colaborador?.nome ?? <span className="text-gray-400">—</span>}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs font-medium">
                     {new Date(r.data).toLocaleDateString("pt-BR")}
                   </td>
-                  <td className="px-4 py-3 text-center text-gray-500">{r._count.itens}</td>
+                  <td className="px-4 py-3 text-center text-gray-700 font-medium">{r._count.itens}</td>
                   <td className="px-4 py-3 text-center">
-                    <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", STATUS_COLOR[r.status] ?? "bg-gray-100 text-gray-500")}>
+                    <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", STATUS_COLOR[r.status] ?? "bg-gray-100 text-gray-600")}>
                       {STATUS_LABEL[r.status] ?? r.status}
                     </span>
                   </td>

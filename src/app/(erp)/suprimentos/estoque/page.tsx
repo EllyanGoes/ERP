@@ -77,7 +77,7 @@ const COLS: ColDef<ProdutoRow>[] = [
           <span className={cn("font-bold text-base", abaixo ? "text-red-600" : "text-gray-900")}>
             {p.qtdTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
           </span>
-          <span className="text-xs text-gray-500 ml-1 font-medium">{p.unidade}</span>
+          <span className="text-xs text-gray-600 ml-1 font-semibold">{p.unidade}</span>
         </>
       );
     },
@@ -86,15 +86,15 @@ const COLS: ColDef<ProdutoRow>[] = [
     id: "minimo",
     label: "Mínimo",
     thClass: "text-right px-4 py-3 font-semibold",
-    tdClass: "px-4 py-3.5 text-right text-gray-600 text-sm font-medium",
-    render: (p) => p.minTotal > 0 ? p.minTotal.toLocaleString("pt-BR") : <span className="text-gray-300">—</span>,
+    tdClass: "px-4 py-3.5 text-right text-gray-700 text-sm font-semibold",
+    render: (p) => p.minTotal > 0 ? p.minTotal.toLocaleString("pt-BR") : <span className="text-gray-400">—</span>,
   },
   {
     id: "maximo",
     label: "Máximo",
     thClass: "text-right px-4 py-3 font-semibold",
-    tdClass: "px-4 py-3.5 text-right text-gray-600 text-sm font-medium",
-    render: (p) => p.maxTotal !== null ? p.maxTotal.toLocaleString("pt-BR") : <span className="text-gray-300">—</span>,
+    tdClass: "px-4 py-3.5 text-right text-gray-700 text-sm font-semibold",
+    render: (p) => p.maxTotal !== null ? p.maxTotal.toLocaleString("pt-BR") : <span className="text-gray-400">—</span>,
   },
   {
     id: "situacao",
@@ -306,9 +306,9 @@ export default function EstoquePage() {
             {hasFilters && <button onClick={clearFilters} className="mt-2 text-sm text-blue-500 hover:underline">Limpar filtros</button>}
           </div>
         ) : (
-          <div className="rounded-xl border border-gray-200 overflow-hidden">
+          <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
             <table className="w-full text-sm">
-              <thead className="bg-gray-100 border-b border-gray-300">
+              <thead className="bg-gray-50 border-b border-gray-200">
                 <tr className="text-xs text-gray-600 uppercase tracking-wide font-semibold">
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
@@ -322,7 +322,7 @@ export default function EstoquePage() {
                     <tr
                       key={p.itemId}
                       className={cn(
-                        "hover:bg-gray-50 transition-colors",
+                        "hover:bg-blue-50/40 transition-colors",
                         abaixo && "bg-red-50/40 hover:bg-red-50/60",
                         !p.ativo && "opacity-50"
                       )}
@@ -335,7 +335,7 @@ export default function EstoquePage() {
                 })}
               </tbody>
             </table>
-            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 font-medium">
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-600 font-medium">
               {filtered.length} produto{filtered.length !== 1 ? "s" : ""}
               {localId !== "todos" && ` · filtrado por local`}
               {hasFilters && totalUnique !== filtered.length && ` (${totalUnique} no total)`}

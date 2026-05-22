@@ -72,6 +72,7 @@ export default function NovoProdutoPage() {
   function validate(): boolean {
     const newErrors: Partial<Record<keyof FormData, string>> = {};
     if (!form.descricao.trim()) newErrors.descricao = "Descrição é obrigatória";
+    if (!form.tipoProdutoId) newErrors.tipoProdutoId = "Tipo de Produto é obrigatório";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
@@ -170,18 +171,19 @@ export default function NovoProdutoPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Tipo de Produto</Label>
+              <Label>Tipo de Produto <span className="text-red-500">*</span></Label>
               <ComboboxWithCreate
                 options={tiposProduto.map((tp) => ({ value: tp.id, label: tp.nome }))}
                 value={form.tipoProdutoId}
                 onChange={(v) => set("tipoProdutoId", v)}
-                noneLabel="Nenhum"
                 placeholder="Selecionar tipo..."
                 createHref="/suprimentos/tipos-produto"
                 createParam="nome"
                 createLabel="tipo de produto"
                 renderCreateModal={(args) => <TipoProdutoQuickCreate {...args} />}
+                triggerClassName={errors.tipoProdutoId ? "border-red-300 focus:ring-red-400" : undefined}
               />
+              {errors.tipoProdutoId && <p className="text-red-500 text-xs">{errors.tipoProdutoId}</p>}
             </div>
 
             <div className="space-y-1.5">

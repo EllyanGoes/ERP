@@ -220,20 +220,20 @@ export default function CadastroSimples({
           </Button>
         </div>
 
-        <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide">
+              <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide font-semibold">
                 {campos.map((c) => (
-                  <th key={c.key} className="text-left px-4 py-2.5" style={{ width: c.width }}>
+                  <th key={c.key} className="text-left px-4 py-3 font-semibold" style={{ width: c.width }}>
                     {c.label}
                   </th>
                 ))}
-                <th className="text-center px-4 py-2.5 w-24">Ativo</th>
-                <th className="px-4 py-2.5 w-20" />
+                <th className="text-center px-4 py-3 w-24 font-semibold">Ativo</th>
+                <th className="px-4 py-3 w-20" />
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
                   <td colSpan={campos.length + 2} className="py-10 text-center text-gray-400">
@@ -242,7 +242,7 @@ export default function CadastroSimples({
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={campos.length + 2} className="py-10 text-center text-gray-400 text-xs">
+                  <td colSpan={campos.length + 2} className="py-10 text-center text-gray-500 text-xs">
                     {emptyText}
                   </td>
                 </tr>
@@ -251,13 +251,12 @@ export default function CadastroSimples({
                   <tr
                     key={row.id}
                     className={cn(
-                      "border-b border-gray-100 last:border-0",
                       !row.ativo && "opacity-50",
-                      editingId === row.id ? "bg-blue-50/40" : "hover:bg-gray-50"
+                      editingId === row.id ? "bg-blue-50/40" : "hover:bg-blue-50/40 transition-colors"
                     )}
                   >
                     {campos.map((c) => (
-                      <td key={c.key} className="px-4 py-2.5">
+                      <td key={c.key} className="px-4 py-3">
                         {editingId === row.id ? (
                           <Input
                             value={form[c.key]}
@@ -275,32 +274,32 @@ export default function CadastroSimples({
                             }}
                           />
                         ) : (
-                          <span className="text-gray-800">{row[c.key] as string}</span>
+                          <span className="text-gray-900 font-medium">{row[c.key] as string}</span>
                         )}
                       </td>
                     ))}
-                    <td className="px-4 py-2.5 text-center">
-                      <button onClick={() => toggleAtivo(row)} className="text-gray-400 hover:text-gray-600">
+                    <td className="px-4 py-3 text-center">
+                      <button onClick={() => toggleAtivo(row)} className="text-gray-400 hover:text-gray-600 transition-colors">
                         {row.ativo
-                          ? <ToggleRight className="w-5 h-5 text-green-500" />
-                          : <ToggleLeft  className="w-5 h-5 text-gray-300" />}
+                          ? <ToggleRight className="w-5 h-5 text-emerald-500" />
+                          : <ToggleLeft  className="w-5 h-5 text-gray-400" />}
                       </button>
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end">
                         {editingId === row.id ? (
                           <>
-                            <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600" onClick={save} disabled={saving}>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:bg-green-50" onClick={save} disabled={saving}>
                               {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                             </Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-400" onClick={cancel}>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-500 hover:bg-gray-100" onClick={cancel}>
                               <X className="w-3.5 h-3.5" />
                             </Button>
                           </>
                         ) : (
                           <Button
                             size="icon" variant="ghost"
-                            className="h-7 w-7 text-gray-400 hover:text-gray-700"
+                            className="h-7 w-7 text-gray-500 hover:text-gray-800 hover:bg-gray-100"
                             onClick={() => startEdit(row)}
                             disabled={editingId !== null}
                           >
