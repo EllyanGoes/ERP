@@ -12,7 +12,7 @@ import {
   ChevronRight, Pencil, Save, X, Plus, Trash2,
   Loader2, Package, TrendingUp, TrendingDown, ArrowUpDown,
   BarChart2, ShieldCheck, RefreshCw, Clock, AlertOctagon, AlertTriangle,
-  ShoppingBag, ClipboardList, FileText, PackageCheck, ExternalLink, Info,
+  ShoppingBag, ClipboardList, FileText, PackageCheck, ExternalLink, Info as InfoIcon,
 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { TipoProdutoQuickCreate, UnidadeQuickCreate, LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
@@ -2248,7 +2248,7 @@ function KpiCard({
         {hint && (
           <div className="group relative">
             <button className="text-gray-400 hover:text-gray-600 transition-colors p-0.5 rounded">
-              <Info className="w-3.5 h-3.5" />
+              <InfoIcon className="w-3.5 h-3.5" />
             </button>
             {/* Tooltip */}
             <div className="absolute right-0 top-6 z-50 w-64 bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-left
