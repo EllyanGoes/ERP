@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search, X, ChevronDown, LayoutList, Kanban, FileText, Calendar } from "lucide-react";
+import { Loader2, Search, X, ChevronDown, LayoutList, Kanban, FileText, Calendar, MoreHorizontal, Eye, Pencil } from "lucide-react";
 import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
@@ -119,6 +119,52 @@ const COLS: ColDef<ConferenciaRow>[] = [
     },
   },
 ];
+
+// ── Row Actions Menu ─────────────────────────────────────────────────────────
+function RowActionsMenu({ doc }: { doc: ConferenciaRow }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+      >
+        <MoreHorizontal className="w-4 h-4" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-8 z-50 w-44 bg-white border border-gray-200 rounded-xl shadow-lg py-1 overflow-hidden">
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            onClick={(e) => { e.stopPropagation(); setOpen(false); router.push(`/suprimentos/conferencias/${doc.id}`); }}
+          >
+            <Eye className="w-3.5 h-3.5 text-gray-400" />
+            Abrir
+          </button>
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            onClick={(e) => { e.stopPropagation(); setOpen(false); router.push(`/suprimentos/conferencias/${doc.id}`); }}
+          >
+            <Pencil className="w-3.5 h-3.5 text-gray-400" />
+            Editar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Kanban Card ───────────────────────────────────────────────────────────────
 function KanbanCard({ doc }: { doc: ConferenciaRow }) {
@@ -357,13 +403,8 @@ export default function DocumentosEntradaPage() {
                     {orderedCols.map((col) => (
                       <td key={col.id} className={col.tdClass}>{col.render(doc)}</td>
                     ))}
-                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        href={`/suprimentos/conferencias/${doc.id}`}
-                        className="text-blue-600 hover:underline text-xs"
-                      >
-                        Ver
-                      </Link>
+                    <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                      <RowActionsMenu doc={doc} />
                     </td>
                   </tr>
                 ))}

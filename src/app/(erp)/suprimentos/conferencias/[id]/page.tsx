@@ -12,7 +12,7 @@ import StatusBadge from "@/components/shared/StatusBadge";
 import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
-import { Search, X, ChevronDown, ShieldAlert } from "lucide-react";
+import { Search, X, ChevronDown, ShieldAlert, Save, Loader2 } from "lucide-react";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -475,6 +475,14 @@ export default function DocumentoEntradaDetailPage() {
         action={
           <div className="flex items-center gap-2">
             <StatusBadge status={conferencia.status} />
+            {canEdit && (
+              <Button size="sm" onClick={salvarConferencia} disabled={saving}>
+                {saving
+                  ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Salvando...</>
+                  : <><Save className="w-4 h-4 mr-1.5" />Salvar</>
+                }
+              </Button>
+            )}
           </div>
         }
       />
