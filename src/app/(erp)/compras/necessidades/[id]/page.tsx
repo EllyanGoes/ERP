@@ -52,6 +52,7 @@ type Necessidade = {
     item: { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null };
   }>;
   cotacoes: Array<{ id: string; numero: string; status: string }>;
+  pedidosCompra?: Array<{ id: string; numero: string; status: string; conferencia: { id: string; numero: string; status: string } | null }>;
   aprovacoes?: AprovacaoSCItem[];
 };
 
@@ -1039,13 +1040,51 @@ export default function NecessidadeDetailPage() {
                 <CardContent className="flex flex-wrap gap-2">
                   {necessidade.cotacoes.map((c) => (
                     <Link key={c.id} href={`/suprimentos/cotacoes/${c.id}`}
-                      className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline border border-blue-200 rounded px-3 py-1">
-                      {c.numero} — <StatusBadge status={c.status} />
+                      className="inline-flex items-center gap-2 text-sm border border-gray-200 hover:border-blue-300 hover:bg-blue-50 rounded-lg px-3 py-1.5 transition-colors group">
+                      <span className="font-mono font-medium text-gray-700 group-hover:text-blue-700">{c.numero}</span>
+                      <StatusBadge status={c.status} />
                     </Link>
                   ))}
                 </CardContent>
               </Card>
             )}
+
+            {/* Pedidos de Compra */}
+            {(necessidade.pedidosCompra?.length ?? 0) > 0 && (
+              <Card>
+                <CardHeader><CardTitle className="text-base">Pedidos de Compra</CardTitle></CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {necessidade.pedidosCompra!.map((p) => (
+                    <Link key={p.id} href={`/suprimentos/pedidos-compra/${p.id}`}
+                      className="inline-flex items-center gap-2 text-sm border border-gray-200 hover:border-blue-300 hover:bg-blue-50 rounded-lg px-3 py-1.5 transition-colors group">
+                      <span className="font-mono font-medium text-gray-700 group-hover:text-blue-700">{p.numero}</span>
+                      <StatusBadge status={p.status} />
+                    </Link>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Documentos de Entrada */}
+            {(() => {
+              const conferencias = (necessidade.pedidosCompra ?? [])
+                .map((p) => p.conferencia)
+                .filter((c): c is NonNullable<typeof c> => c !== null);
+              return conferencias.length > 0 ? (
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Documentos de Entrada</CardTitle></CardHeader>
+                  <CardContent className="flex flex-wrap gap-2">
+                    {conferencias.map((c) => (
+                      <Link key={c.id} href={`/suprimentos/conferencias/${c.id}`}
+                        className="inline-flex items-center gap-2 text-sm border border-gray-200 hover:border-blue-300 hover:bg-blue-50 rounded-lg px-3 py-1.5 transition-colors group">
+                        <span className="font-mono font-medium text-gray-700 group-hover:text-blue-700">{c.numero}</span>
+                        <StatusBadge status={c.status} />
+                      </Link>
+                    ))}
+                  </CardContent>
+                </Card>
+              ) : null;
+            })()}
 
           </div>
         </div>
