@@ -46,8 +46,8 @@ const FILTER_KEY = "erp:pedidos-compra:filters:v2";
 
 const KANBAN_TRANSITIONS: Record<string, string[]> = {
   AGUARDANDO_PAGAMENTO: ["EM_TRANSITO", "CANCELADO"],
-  EM_TRANSITO:          ["CONFIRMADO",  "CANCELADO"],
-  CONFIRMADO:           [],
+  EM_TRANSITO:          ["RECEBIDO",    "CANCELADO"],
+  CONFIRMADO:           ["RECEBIDO",    "CANCELADO"], // legado
   RECEBIDO:             [],
   CANCELADO:            [],
   RASCUNHO:             ["AGUARDANDO_PAGAMENTO", "CANCELADO"],
@@ -59,7 +59,6 @@ const STATUS_COLS: { key: string; label: string; color: string; bg: string; bord
   { key: "ENVIADO",              label: "Enviado",            color: "text-blue-600",   bg: "bg-blue-50",    border: "border-blue-200"   },
   { key: "AGUARDANDO_PAGAMENTO", label: "Aguard. Pagamento", color: "text-yellow-700", bg: "bg-yellow-50",  border: "border-yellow-200" },
   { key: "EM_TRANSITO",          label: "Em Trânsito",       color: "text-amber-600",  bg: "bg-amber-50",   border: "border-amber-200"  },
-  { key: "CONFIRMADO",           label: "Confirmado",        color: "text-green-700",  bg: "bg-green-50",   border: "border-green-200"  },
   { key: "RECEBIDO",             label: "Recebido",          color: "text-emerald-700",bg: "bg-emerald-50", border: "border-emerald-200"},
   { key: "CANCELADO",            label: "Cancelado",         color: "text-red-500",    bg: "bg-red-50",     border: "border-red-200"    },
 ];
@@ -380,19 +379,17 @@ export default function PedidosCompraPage() {
 
       const { conferenciaCreated, conferenciaId, conferenciaNumero } = json.data ?? {};
 
-      if (toStatus === "CONFIRMADO" && conferenciaCreated) {
+      if (toStatus === "RECEBIDO" && conferenciaCreated) {
         pushToast({
           type: "success",
           message: `Doc. de Entrada ${conferenciaNumero} criado automaticamente.`,
           link: { href: `/suprimentos/conferencias/${conferenciaId}`, label: "Abrir" },
         });
-      } else if (toStatus === "CONFIRMADO") {
+      } else if (toStatus === "RECEBIDO" && conferenciaId) {
         pushToast({
           type: "success",
-          message: `Pedido confirmado. Doc. de Entrada ${conferenciaNumero ?? ""} já existia.`,
-          link: conferenciaId
-            ? { href: `/suprimentos/conferencias/${conferenciaId}`, label: "Abrir" }
-            : undefined,
+          message: `Pedido recebido. Doc. de Entrada ${conferenciaNumero ?? ""} já existia.`,
+          link: { href: `/suprimentos/conferencias/${conferenciaId}`, label: "Abrir" },
         });
       } else if (toStatus === "CANCELADO") {
         pushToast({ type: "success", message: "Pedido cancelado." });
@@ -498,7 +495,6 @@ export default function PedidosCompraPage() {
       ENVIADO:              "Enviado",
       AGUARDANDO_PAGAMENTO: "Aguard. Pgto",
       EM_TRANSITO:          "Em Trânsito",
-      CONFIRMADO:           "Confirmado",
       RECEBIDO:             "Recebido",
       CANCELADO:            "Cancelado",
     };

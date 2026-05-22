@@ -5,8 +5,8 @@ import { generateSimpleDocNumber } from "@/lib/utils";
 
 const TRANSITIONS: Record<string, string[]> = {
   AGUARDANDO_PAGAMENTO: ["EM_TRANSITO", "CANCELADO"],
-  EM_TRANSITO:          ["CONFIRMADO",  "CANCELADO"],
-  CONFIRMADO:           [],
+  EM_TRANSITO:          ["RECEBIDO",    "CANCELADO"],
+  CONFIRMADO:           ["RECEBIDO",    "CANCELADO"], // legado — permite migrar
   CANCELADO:            [],
   // legado — registros antigos podem migrar para o novo fluxo
   RASCUNHO:  ["AGUARDANDO_PAGAMENTO", "CANCELADO"],
@@ -34,8 +34,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     );
   }
 
-  // ── Transition to CONFIRMADO: auto-create Doc. de Entrada if not exists ───
-  if (status === "CONFIRMADO") {
+  // ── Transition to RECEBIDO: auto-create Doc. de Entrada if not exists ───
+  if (status === "RECEBIDO") {
     // Check if conferencia already exists
     const existing = await prisma.conferenciaCompra.findUnique({
       where: { pedidoId },

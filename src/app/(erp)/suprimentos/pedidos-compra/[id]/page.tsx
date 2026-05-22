@@ -19,7 +19,7 @@ import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Use
 const STATUS_FLOW: { value: string; label: string }[] = [
   { value: "AGUARDANDO_PAGAMENTO", label: "Aguard. Pagamento" },
   { value: "EM_TRANSITO",          label: "Em Trânsito"       },
-  { value: "CONFIRMADO",           label: "Confirmado"        },
+  { value: "RECEBIDO",             label: "Recebido"          },
   { value: "CANCELADO",            label: "Cancelado"         },
 ];
 
@@ -427,7 +427,7 @@ async function openWAModal() {
             <Select
               value={pedido.status}
               onValueChange={(v) => changeStatus(v)}
-              disabled={actioning || pedido.status === "CANCELADO" || pedido.status === "CONFIRMADO"}
+              disabled={actioning || pedido.status === "CANCELADO" || pedido.status === "RECEBIDO"}
             >
               <SelectTrigger className="h-8 w-48 text-xs font-medium">
                 <SelectValue />
