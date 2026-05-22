@@ -49,7 +49,7 @@ export default function EditarUsuarioPage() {
   const [perfil,         setPerfil]         = useState<"ADMIN" | "USUARIO">("USUARIO");
   const [ativo,          setAtivo]          = useState(true);
   const [permissoes,     setPermissoes]     = useState<string[]>([]);
-  const [perfilAcessoId, setPerfilAcessoId] = useState<string>("");
+  const [perfilAcessoId, setPerfilAcessoId] = useState<string>("none");
   const [perfisList,     setPerfisList]     = useState<PerfilAcesso[]>([]);
 
   const load = useCallback(async () => {
@@ -66,7 +66,7 @@ export default function EditarUsuarioPage() {
       setPerfil(data.perfil);
       setAtivo(data.ativo);
       setPermissoes(data.permissoes.map((p) => p.modulo));
-      setPerfilAcessoId(data.perfilAcesso?.id ?? "");
+      setPerfilAcessoId(data.perfilAcesso?.id ?? "none");
       setPerfisList(Array.isArray(perfisData) ? perfisData : []);
     } catch {
       setError("Erro ao carregar usuário");
@@ -76,9 +76,10 @@ export default function EditarUsuarioPage() {
   }, [id]);
 
   function applyPerfil(pid: string) {
+    const realId = pid === "none" ? "" : pid;
     setPerfilAcessoId(pid);
-    if (!pid) return;
-    const found = perfisList.find((p) => p.id === pid);
+    if (!realId) return;
+    const found = perfisList.find((p) => p.id === realId);
     if (found) setPermissoes([...found.permissoes]);
   }
 
@@ -96,7 +97,7 @@ export default function EditarUsuarioPage() {
         nome: nome.trim(),
         email: email.trim(),
         perfil,
-        perfilAcessoId: perfilAcessoId || null,
+        perfilAcessoId: (perfilAcessoId === "none" || !perfilAcessoId) ? null : perfilAcessoId,
       };
       if (senha.trim()) body.senha = senha.trim();
 
@@ -282,7 +283,7 @@ export default function EditarUsuarioPage() {
                     <SelectValue placeholder="Selecionar perfil..." />
                   </SelectTrigger>
                   <SelectContent position="popper" sideOffset={4}>
-                    <SelectItem value="">Nenhum</SelectItem>
+                    <SelectItem value="none">Nenhum</SelectItem>
                     {perfisList.map((p) => (
                       <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
                     ))}
