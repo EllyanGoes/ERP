@@ -12,8 +12,14 @@ import Link from "next/link";
 import {
   Plus, Trash2, Loader2, AlertTriangle, ChevronRight, Building2,
   Search, X, ArrowUpDown, ChevronUp, ChevronDown as ChevronDownIcon, Check,
-  LayoutList, Kanban,
+  LayoutList, Kanban, MoreHorizontal,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatDate, cn } from "@/lib/utils";
 import { useSession } from "@/lib/session-context";
 import { useColumnOrder } from "@/lib/use-column-order";
@@ -426,13 +432,25 @@ function KanbanCard({ n, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
       <div className="flex items-start justify-between gap-2 mb-2">
         <span className="font-mono text-xs font-bold text-gray-500">{n.numero}</span>
         {canDelete && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
-            title="Excluir"
-          >
-            <Trash2 className="w-3 h-3" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                onClick={(e) => e.stopPropagation()}
+                className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all shrink-0"
+              >
+                <MoreHorizontal className="w-3.5 h-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 
@@ -904,13 +922,22 @@ export default function NecessidadesPage() {
                           ))}
                           <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                             {canDeleteSC(n) && (
-                              <button
-                                onClick={() => { setDeleteItem(n); setDeleteError(""); }}
-                                className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                                title="Excluir"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                                    <MoreHorizontal className="w-3.5 h-3.5" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                                    onClick={() => { setDeleteItem(n); setDeleteError(""); }}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Excluir
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             )}
                           </td>
                         </tr>
