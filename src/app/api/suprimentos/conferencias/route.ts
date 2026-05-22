@@ -131,6 +131,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Fornecedor não encontrado" }, { status: 404 });
   }
 
+  // ── Impedir mais de um DE para a mesma SC ────────────────────────────────
+  if (linkedPedidoId) {
+    const pc = await prisma.pedidoCompra.findUnique({
+      where: { id: linkedPedidoId },
+      select: { cotacao: { select: { necessidadeId: true } } },
+    });
+    const necessidadeId = pc?.cotacao?.necessidadeId;
+    if (necessidadeId) {
+      const existingDE = await prisma.conferenciaCompra.findFirst({
+        where: { pedido: { cotacao: { necessidadeId } } },
+        select: { numero: true },
+      });
+      if (existingDE) {
+        return NextResponse.json(
+          { error: `Já existe o Documento de Entrada ${existingDE.numero} para esta Solicitação. Não é possível criar mais de um documento de entrada por solicitação.` },
+          { status: 409 }
+        );
+      }
+    }
+  }
+
   const conferencia = await prisma.$transaction(async (tx) => {
     const seq = await tx.sequencia.upsert({
       where: { prefixo: "DE" },

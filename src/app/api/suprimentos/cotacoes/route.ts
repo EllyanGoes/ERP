@@ -25,6 +25,20 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { necessidadeId, nome, observacoes, infoEntrega, dataLimiteResposta, fornecedorIds = [], itens = [] } = body;
 
+  // ── Impedir mais de uma cotação para a mesma SC ──────────────────────────
+  if (necessidadeId) {
+    const existingCT = await prisma.cotacaoCompra.findFirst({
+      where: { necessidadeId },
+      select: { numero: true },
+    });
+    if (existingCT) {
+      return NextResponse.json(
+        { error: `Já existe a Cotação ${existingCT.numero} para esta Solicitação. Não é possível criar mais de uma cotação por solicitação.` },
+        { status: 409 }
+      );
+    }
+  }
+
   // Build itemId -> quantidade map
   let qtdMap: Record<string, number> = {};
 
