@@ -161,6 +161,7 @@ export default function DocumentoEntradaDetailPage() {
   const [despesas, setDespesas] = useState("");
   const [desconto, setDesconto] = useState("");
   const [validationError, setValidationError] = useState("");
+  const [localAlertDismissed, setLocalAlertDismissed] = useState(false);
 
   // Local de estoque (header-level)
   const [modoLocalEstoque, setModoLocalEstoque] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
@@ -316,6 +317,8 @@ export default function DocumentoEntradaDetailPage() {
     ]);
     setAddItemSearch("");
     setShowAddRow(false);
+    // Re-show the local alert if new item has no local
+    if (!localEstoqueGlobalId) setLocalAlertDismissed(false);
   }
 
   function removeNewItem(key: string) {
@@ -522,6 +525,12 @@ export default function DocumentoEntradaDetailPage() {
   const isSN = tipoNota === "SN";
   const itemsEditable = isEditable || (isConcluded && isAdmin);
 
+  // Detect missing local de estoque (only relevant while editable)
+  const missingLocalGlobal = itemsEditable && modoLocalEstoque === "GLOBAL" && !localEstoqueGlobalId;
+  const missingLocalPorItem = itemsEditable && modoLocalEstoque === "POR_ITEM" &&
+    [...editItems, ...newItems].some((i) => !i.localEstoqueId);
+  const showLocalAlert = (missingLocalGlobal || missingLocalPorItem) && !localAlertDismissed;
+
   const hasDivergencias = editItems.some((ei) => {
     const item = conferencia.itens.find((i) => i.id === ei.id);
     if (!item) return false;
@@ -591,6 +600,37 @@ export default function DocumentoEntradaDetailPage() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 bg-emerald-700 text-white text-sm px-5 py-3 rounded-2xl shadow-lg max-w-lg">
           <span>{autoVinculoMsg}</span>
           <button onClick={() => setAutoVinculoMsg(null)} className="ml-1 opacity-70 hover:opacity-100">✕</button>
+        </div>
+      )}
+
+      {/* ── Local de Estoque — pop-up de aviso ──────────────────────────────── */}
+      {showLocalAlert && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-2xl shadow-2xl border border-red-200 max-w-md w-full mx-4 p-6">
+            <div className="flex items-start gap-4">
+              <div className="shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 3h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-gray-900 mb-1">Local de Estoque obrigatório</h3>
+                <p className="text-sm text-gray-500">
+                  {modoLocalEstoque === "GLOBAL"
+                    ? "Selecione o Local de Estoque antes de salvar ou concluir este documento."
+                    : "Um ou mais itens não possuem Local de Estoque definido. Preencha o campo antes de salvar ou concluir."}
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end">
+              <button
+                onClick={() => setLocalAlertDismissed(true)}
+                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1071,7 +1111,10 @@ export default function DocumentoEntradaDetailPage() {
                               <select
                                 value={ei.localEstoqueId}
                                 onChange={(e) => updateEditItem(item.id, "localEstoqueId", e.target.value)}
-                                className="w-full h-7 px-2 border border-gray-200 rounded text-xs bg-white focus:outline-none"
+                                className={cn(
+                                  "w-full h-7 px-2 border rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-red-400",
+                                  !ei.localEstoqueId ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200"
+                                )}
                               >
                                 <option value="">—</option>
                                 {locaisEstoque.map((l) => (
@@ -1237,7 +1280,10 @@ export default function DocumentoEntradaDetailPage() {
                           <select
                             value={ni.localEstoqueId}
                             onChange={(e) => updateNewItem(ni._key, "localEstoqueId", e.target.value)}
-                            className="w-full h-7 px-2 border border-gray-200 rounded text-xs bg-white focus:outline-none"
+                            className={cn(
+                              "w-full h-7 px-2 border rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-red-400",
+                              !ni.localEstoqueId ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200"
+                            )}
                           >
                             <option value="">—</option>
                             {locaisEstoque.map((l) => (
