@@ -518,13 +518,15 @@ export default function DocumentoEntradaDetailPage() {
   if (loading) return <div className="px-8 pt-8 text-gray-400">Carregando...</div>;
   if (!conferencia) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
-  const isPendente   = conferencia.status === "PENDENTE";
-  const isEditable   = conferencia.status === "EM_CONFERENCIA";
-  const isConcluded  = conferencia.status === "CONCLUIDA" || conferencia.status === "DIVERGENCIA";
-  const canEdit      = isPendente || isEditable || (isConcluded && isAdmin);
-  const nfEditable   = canEdit;
+  const isPendente    = conferencia.status === "PENDENTE";
+  const isEditable    = conferencia.status === "EM_CONFERENCIA";
+  const isDivergencia = conferencia.status === "DIVERGENCIA";
+  const isConcluded   = conferencia.status === "CONCLUIDA";
+  // Divergência é re-editável por qualquer usuário; Concluída só por admin
+  const canEdit       = isPendente || isEditable || isDivergencia || (isConcluded && isAdmin);
+  const nfEditable    = canEdit;
   const isSN = tipoNota === "SN";
-  const itemsEditable = isEditable || (isConcluded && isAdmin);
+  const itemsEditable = isEditable || isDivergencia || (isConcluded && isAdmin);
 
   // Detect missing local de estoque (only relevant while editable)
   const missingLocalGlobal = itemsEditable && modoLocalEstoque === "GLOBAL" && !localEstoqueGlobalId;
@@ -1551,7 +1553,7 @@ export default function DocumentoEntradaDetailPage() {
         </div>
 
         {/* ── Responsável ──────────────────────────────────────────────────── */}
-        {(isEditable || (isConcluded && isAdmin)) && (
+        {(isEditable || isDivergencia || (isConcluded && isAdmin)) && (
           <Card>
             <CardContent className="pt-4">
               <div className="space-y-1.5 max-w-xs">
@@ -1592,7 +1594,7 @@ export default function DocumentoEntradaDetailPage() {
             </Button>
           )}
 
-          {isEditable && (
+          {(isEditable || isDivergencia) && (
             <Button
               onClick={() => {
                 if (hasDivergencias) {
