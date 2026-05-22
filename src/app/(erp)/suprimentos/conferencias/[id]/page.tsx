@@ -12,7 +12,7 @@ import StatusBadge from "@/components/shared/StatusBadge";
 import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
-import { Search, Plus, X, ChevronDown, ShieldAlert } from "lucide-react";
+import { Search, X, ChevronDown, ShieldAlert } from "lucide-react";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -668,14 +668,6 @@ export default function DocumentoEntradaDetailPage() {
                       </div>
                     )}
                   </div>
-                  <a
-                    href="/suprimentos/fornecedores/novo"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 h-9 px-3 text-xs font-medium text-blue-600 border border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors whitespace-nowrap"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Novo
-                  </a>
                 </div>
               ) : (
                 <Input value={fornNome} readOnly className="bg-gray-50" />

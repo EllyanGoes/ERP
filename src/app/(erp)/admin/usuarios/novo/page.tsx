@@ -31,7 +31,7 @@ export default function NovoUsuarioPage() {
   const [senha,          setSenha]          = useState("");
   const [perfil,         setPerfil]         = useState<"ADMIN" | "USUARIO">("USUARIO");
   const [permissoes,     setPermissoes]     = useState<string[]>([]);
-  const [perfilAcessoId, setPerfilAcessoId] = useState<string>("");
+  const [perfilAcessoId, setPerfilAcessoId] = useState<string>("none");
   const [perfisList,     setPerfisList]     = useState<PerfilAcesso[]>([]);
 
   useEffect(() => {
@@ -42,9 +42,10 @@ export default function NovoUsuarioPage() {
   }, []);
 
   function applyPerfil(pid: string) {
+    const realId = pid === "none" ? "" : pid;
     setPerfilAcessoId(pid);
-    if (!pid) return;
-    const found = perfisList.find((p) => p.id === pid);
+    if (!realId) return;
+    const found = perfisList.find((p) => p.id === realId);
     if (found) setPermissoes([...found.permissoes]);
   }
 
@@ -68,7 +69,7 @@ export default function NovoUsuarioPage() {
           email: email.trim(),
           senha: senha.trim(),
           perfil,
-          perfilAcessoId: perfilAcessoId || null,
+          perfilAcessoId: (perfilAcessoId === "none" || !perfilAcessoId) ? null : perfilAcessoId,
         }),
       });
       const data = await res.json();
@@ -226,7 +227,7 @@ export default function NovoUsuarioPage() {
                     <SelectValue placeholder="Selecionar perfil..." />
                   </SelectTrigger>
                   <SelectContent position="popper" sideOffset={4}>
-                    <SelectItem value="">Nenhum</SelectItem>
+                    <SelectItem value="none">Nenhum</SelectItem>
                     {perfisList.map((p) => (
                       <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
                     ))}
