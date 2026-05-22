@@ -51,6 +51,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           ? `Recebimento ${conferencia.pedido.numero}`
           : `Recebimento ${conferencia.numero}`;
 
+        const vlrUnitario = item.vlrUnitario ? parseFloat(String(item.vlrUnitario)) : null;
+
         // Create stock movement
         const mov = await tx.movimentacaoEstoque.create({
           data: {
@@ -63,6 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             observacoes: docRef,
             conferenciaItemId: item.id,
             localEstoqueId: targetLocalEstoqueId,
+            valorUnitario: vlrUnitario ?? null,
           },
         });
 
@@ -82,6 +85,30 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               quantidadeMin: 0,
               localEstoqueId: targetLocalEstoqueId,
             },
+          });
+        }
+
+        // ── Custo Médio Ponderado Móvel (CMPM) ───────────────────────────────
+        // Atualiza precoCusto no Item quando o item da conferência tem vlrUnitario
+        if (vlrUnitario && vlrUnitario > 0) {
+          const currentItem = await tx.item.findUnique({
+            where: { id: item.itemId },
+            select: { precoCusto: true },
+          });
+          const oldCusto = currentItem?.precoCusto ? parseFloat(String(currentItem.precoCusto)) : 0;
+
+          // Soma todo o estoque atual (já atualizado) e subtrai a qtd recebida para obter o saldo antes
+          const allEstoque = await tx.estoqueItem.findMany({ where: { itemId: item.itemId } });
+          const estoqueTotal = allEstoque.reduce((s, e) => s + parseFloat(String(e.quantidadeAtual)), 0);
+          const baseSaldo = Math.max(estoqueTotal - qtdRecebida, 0);
+
+          const novoCusto = baseSaldo > 0
+            ? (baseSaldo * oldCusto + qtdRecebida * vlrUnitario) / (baseSaldo + qtdRecebida)
+            : vlrUnitario;
+
+          await tx.item.update({
+            where: { id: item.itemId },
+            data: { precoCusto: novoCusto },
           });
         }
 
