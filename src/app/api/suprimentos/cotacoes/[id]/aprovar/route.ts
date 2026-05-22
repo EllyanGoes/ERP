@@ -26,6 +26,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       if (!cotacao) throw new Error("Cotação não encontrada");
       if (cotacao.status === "CONCLUIDA") throw new Error("Cotação já concluída");
 
+      // ── Impedir mais de um PC ativo para a mesma SC ──────────────────────
+      if (cotacao.necessidadeId) {
+        const existingPC = await tx.pedidoCompra.findFirst({
+          where: {
+            cotacao: { necessidadeId: cotacao.necessidadeId },
+            status: { not: "CANCELADO" },
+          },
+          select: { numero: true },
+        });
+        if (existingPC) {
+          throw new Error(
+            `Já existe o Pedido de Compra ${existingPC.numero} ativo para esta Solicitação. Cancele-o antes de aprovar uma nova cotação.`
+          );
+        }
+      }
+
       // Find the best supplier: use cfId if provided, then melhorOpcao, then lowest total respondida
       let melhor = cfIdParam
         ? cotacao.fornecedores.find((f) => f.id === cfIdParam)

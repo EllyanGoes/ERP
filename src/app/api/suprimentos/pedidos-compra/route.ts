@@ -39,6 +39,29 @@ export async function POST(req: NextRequest) {
   if (!fornecedorId) return NextResponse.json({ error: "Fornecedor obrigatório" }, { status: 400 });
   if (!itens.length)  return NextResponse.json({ error: "Adicione pelo menos um item" }, { status: 400 });
 
+  // ── Impedir mais de um PC ativo para a mesma SC ───────────────────────────
+  if (cotacaoId) {
+    const cotacao = await prisma.cotacaoCompra.findUnique({
+      where: { id: cotacaoId },
+      select: { necessidadeId: true },
+    });
+    if (cotacao?.necessidadeId) {
+      const existingPC = await prisma.pedidoCompra.findFirst({
+        where: {
+          cotacao: { necessidadeId: cotacao.necessidadeId },
+          status: { not: "CANCELADO" },
+        },
+        select: { numero: true },
+      });
+      if (existingPC) {
+        return NextResponse.json(
+          { error: `Já existe o Pedido de Compra ${existingPC.numero} ativo para esta Solicitação. Cancele-o antes de criar um novo.` },
+          { status: 409 }
+        );
+      }
+    }
+  }
+
   const pedido = await prisma.$transaction(async (tx) => {
     const seq = await tx.sequencia.upsert({
       where:  { prefixo: "PC" },
