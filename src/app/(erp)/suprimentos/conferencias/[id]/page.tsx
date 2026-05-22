@@ -363,6 +363,14 @@ export default function DocumentoEntradaDetailPage() {
     if (!fornecedorId) { setValidationError("Fornecedor é obrigatório."); return; }
     if (!tipoNota)     { setValidationError("Tipo é obrigatório."); return; }
     if (!dtEmissao)    { setValidationError("DT Emissão é obrigatória."); return; }
+    if (modoLocalEstoque === "GLOBAL" && !localEstoqueGlobalId) {
+      setValidationError("Local de Estoque é obrigatório."); return;
+    }
+    if (modoLocalEstoque === "POR_ITEM") {
+      const allItems = [...editItems, ...newItems];
+      const semLocal = allItems.some((i) => !i.localEstoqueId);
+      if (semLocal) { setValidationError("Todos os itens precisam ter um Local de Estoque definido."); return; }
+    }
 
     setSaving(true);
     setActionError("");
