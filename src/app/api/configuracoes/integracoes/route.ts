@@ -25,7 +25,9 @@ const MANAGED_KEYS = [
   // Telegram
   "tg_bot_token",
   "tg_chat_id",
+  "tg_chat_id_label",
   "tg_chat_estoque",
+  "tg_chat_estoque_label",
 ] as const;
 
 export async function GET() {
