@@ -202,6 +202,10 @@ export default function NovoDocumentoEntradaPage() {
   const [pedidoOptions, setPedidoOptions]     = useState<PedidoOption[]>([]);
   const pcPopoverRef = useRef<HTMLDivElement>(null);
 
+  // Local de Estoque (Global vs Por Item)
+  const [modoLocalEstoque, setModoLocalEstoque] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
+  const [localEstoqueGlobalId, setLocalEstoqueGlobalId] = useState("");
+
   // Items
   const [itens, setItens]                       = useState<ItemRow[]>([emptyRow()]);
   const [produtos, setProdutos]                 = useState<Produto[]>([]);
@@ -307,6 +311,19 @@ export default function NovoDocumentoEntradaPage() {
     }
   }, [isSN]);
 
+  function handleModoChange(novo: "GLOBAL" | "POR_ITEM") {
+    setModoLocalEstoque(novo);
+    if (novo === "GLOBAL") {
+      // propagate current global local to all rows
+      setItens((prev) => prev.map((r) => ({ ...r, localEstoqueId: localEstoqueGlobalId })));
+    }
+  }
+
+  function handleGlobalLocalChange(localId: string) {
+    setLocalEstoqueGlobalId(localId);
+    setItens((prev) => prev.map((r) => ({ ...r, localEstoqueId: localId })));
+  }
+
   function selectFornecedor(f: Fornecedor) {
     setFornecedorId(f.id);
   }
@@ -323,7 +340,7 @@ export default function NovoDocumentoEntradaPage() {
       nomeFantasia: p.fornecedor.nomeFantasia,
       cpfCnpj: null,
     });
-    // Pull items from pedido
+    // Pull items from pedido; pre-fill local if global mode
     setItens(
       p.itens.map((pi) => ({
         _key: makeKey(),
@@ -331,7 +348,7 @@ export default function NovoDocumentoEntradaPage() {
         codigo: pi.item.codigo,
         descricao: pi.item.descricao,
         unidadeMedida: pi.item.unidadeMedida,
-        localEstoqueId: "",
+        localEstoqueId: modoLocalEstoque === "GLOBAL" ? localEstoqueGlobalId : "",
         quantidadePedida: decimalToNumber(pi.quantidade).toString(),
         vlrUnitario: "",
         tipoEntrada: "",
@@ -364,7 +381,9 @@ export default function NovoDocumentoEntradaPage() {
   }
 
   function addRow() {
-    setItens((prev) => [...prev, emptyRow()]);
+    const row = emptyRow();
+    if (modoLocalEstoque === "GLOBAL") row.localEstoqueId = localEstoqueGlobalId;
+    setItens((prev) => [...prev, row]);
   }
 
   function removeRow(key: string) {
@@ -397,10 +416,16 @@ export default function NovoDocumentoEntradaPage() {
       return;
     }
 
-    const itensSemLocal = validItens.filter((r) => !r.localEstoqueId);
-    if (itensSemLocal.length > 0) {
-      setError("Informe o Local de Estoque para todos os itens.");
+    if (modoLocalEstoque === "GLOBAL" && !localEstoqueGlobalId) {
+      setError("Selecione o Local de Estoque.");
       return;
+    }
+    if (modoLocalEstoque === "POR_ITEM") {
+      const itensSemLocal = validItens.filter((r) => !r.localEstoqueId);
+      if (itensSemLocal.length > 0) {
+        setError("Informe o Local de Estoque para todos os itens.");
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -408,6 +433,8 @@ export default function NovoDocumentoEntradaPage() {
       const payload: Record<string, unknown> = {
         fornecedorId,
         pedidoId: vinculadoPedido?.id ?? null,
+        modoLocalEstoque,
+        localEstoqueId: modoLocalEstoque === "GLOBAL" ? (localEstoqueGlobalId || null) : null,
         tipoNota: tipoDocumento,
         numeroNF:    isSN ? null : (numeroNF || null),
         serie:       isSN ? null : (serie    || null),
@@ -689,6 +716,75 @@ export default function NovoDocumentoEntradaPage() {
           </CardContent>
         </Card>
 
+        {/* ── Local de Estoque ─────────────────────────────────────────────── */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Local de Estoque</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap items-start gap-6">
+              {/* Toggle */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Modo de entrada</Label>
+                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+                  <button
+                    type="button"
+                    onClick={() => handleModoChange("GLOBAL")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                      modoLocalEstoque === "GLOBAL"
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                    )}
+                  >
+                    Global
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleModoChange("POR_ITEM")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                      modoLocalEstoque === "POR_ITEM"
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                    )}
+                  >
+                    Por Item
+                  </button>
+                </div>
+              </div>
+
+              {/* Global selector */}
+              {modoLocalEstoque === "GLOBAL" && (
+                <div className="space-y-1.5 flex-1 max-w-xs">
+                  <Label className="text-xs text-gray-500">
+                    Local de Estoque <span className="text-red-500">*</span>
+                  </Label>
+                  <select
+                    value={localEstoqueGlobalId}
+                    onChange={(e) => handleGlobalLocalChange(e.target.value)}
+                    className={cn(
+                      "w-full h-9 px-3 border rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+                      !localEstoqueGlobalId ? "border-red-300" : "border-gray-200"
+                    )}
+                  >
+                    <option value="">Selecionar local...</option>
+                    {locaisEstoque.map((l) => (
+                      <option key={l.id} value={l.id}>{l.nome}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {modoLocalEstoque === "POR_ITEM" && (
+                <p className="text-xs text-gray-400 self-end pb-1.5">
+                  O local de estoque será definido individualmente para cada item na tabela abaixo.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* ── Items Table ──────────────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
@@ -704,7 +800,11 @@ export default function NovoDocumentoEntradaPage() {
                   <tr>
                     <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-6">#</th>
                     <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs min-w-[200px]">Produto</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs min-w-[120px]">Local Estoque</th>
+                    {modoLocalEstoque === "POR_ITEM" && (
+                      <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs min-w-[140px]">
+                        Local Estoque <span className="text-red-500">*</span>
+                      </th>
+                    )}
                     <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-16">U.M.</th>
                     <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-28">Qtd. Pedida</th>
                     <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-28">Vlr. Unit.</th>
@@ -740,22 +840,24 @@ export default function NovoDocumentoEntradaPage() {
                           />
                         </td>
 
-                        {/* Local Estoque */}
-                        <td className="px-3 py-2">
-                          <select
-                            value={row.localEstoqueId}
-                            onChange={(e) => updateItem(row._key, "localEstoqueId", e.target.value)}
-                            className={cn(
-                              "w-full h-8 px-2 border rounded-md text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
-                              !row.localEstoqueId ? "border-red-300 text-gray-400" : "border-gray-200 text-gray-800"
-                            )}
-                          >
-                            <option value="">Selecionar local...</option>
-                            {locaisEstoque.map((l) => (
-                              <option key={l.id} value={l.id}>{l.nome}</option>
-                            ))}
-                          </select>
-                        </td>
+                        {/* Local Estoque — only in Por Item mode */}
+                        {modoLocalEstoque === "POR_ITEM" && (
+                          <td className="px-3 py-2">
+                            <select
+                              value={row.localEstoqueId}
+                              onChange={(e) => updateItem(row._key, "localEstoqueId", e.target.value)}
+                              className={cn(
+                                "w-full h-8 px-2 border rounded-md text-xs bg-white focus:outline-none focus:ring-1 focus:ring-red-400",
+                                !row.localEstoqueId ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200 text-gray-800"
+                              )}
+                            >
+                              <option value="">Selecionar local...</option>
+                              {locaisEstoque.map((l) => (
+                                <option key={l.id} value={l.id}>{l.nome}</option>
+                              ))}
+                            </select>
+                          </td>
+                        )}
 
                         {/* U.M. */}
                         <td className="px-3 py-2">
