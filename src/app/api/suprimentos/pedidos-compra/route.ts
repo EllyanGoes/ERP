@@ -21,6 +21,7 @@ export async function GET() {
         },
       },
       _count: { select: { itens: true } },
+      conferencia: { select: { id: true, numero: true, status: true } },
     },
     orderBy: { createdAt: "desc" },
   });

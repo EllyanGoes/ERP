@@ -38,6 +38,7 @@ type Pedido = {
     } | null;
   } | null;
   _count: { itens: number };
+  conferencia: { id: string; numero: string; status: string } | null;
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -166,6 +167,26 @@ const COLS: ColDef<Pedido>[] = [
     thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell",
     tdClass: "px-4 py-3 text-gray-500 text-xs hidden lg:table-cell",
     render: (p) => p.dataEntregaPrevista ? formatDate(p.dataEntregaPrevista) : "—",
+  },
+  {
+    id: "docEntrada",
+    label: "Doc. Entrada",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden xl:table-cell",
+    tdClass: "px-4 py-3 hidden xl:table-cell",
+    render: (p) =>
+      p.conferencia ? (
+        <Link
+          href={`/suprimentos/conferencias/${p.conferencia.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="group flex items-center gap-1 text-xs font-medium text-teal-600 hover:text-teal-700 hover:underline"
+        >
+          <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
+          {p.conferencia.numero}
+          <ChevronRight className="w-3 h-3 text-teal-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </Link>
+      ) : (
+        <span className="text-xs text-gray-300">—</span>
+      ),
   },
 ];
 
