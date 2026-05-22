@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
@@ -12,7 +12,8 @@ import StatusBadge from "@/components/shared/StatusBadge";
 import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
-import { Search, X, ChevronDown, ShieldAlert, Save, Loader2 } from "lucide-react";
+import { ShieldAlert, Save, Loader2 } from "lucide-react";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -135,6 +136,7 @@ export default function DocumentoEntradaDetailPage() {
   const [serie, setSerie] = useState("");
   const [dtEmissao, setDtEmissao] = useState("");
   const [ufOrigem, setUfOrigem] = useState("");
+  const [espDocumento, setEspDocumento] = useState("");
   const [frete, setFrete] = useState("");
   const [seguro, setSeguro] = useState("");
   const [despesas, setDespesas] = useState("");
@@ -148,9 +150,6 @@ export default function DocumentoEntradaDetailPage() {
   // Fornecedor search (editable)
   const [fornecedorId, setFornecedorId] = useState("");
   const [fornecedores, setFornecedores] = useState<FornecedorOption[]>([]);
-  const [fornSearch, setFornSearch] = useState("");
-  const [fornDropOpen, setFornDropOpen] = useState(false);
-  const fornRef = useRef<HTMLDivElement>(null);
 
   const [saving, setSaving] = useState(false);
   const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoqueOption[]>([]);
@@ -165,7 +164,10 @@ export default function DocumentoEntradaDetailPage() {
       setAdminStatus(conf.status);
       setResponsavel(conf.responsavel ?? "");
       setObservacoes(conf.observacoes ?? "");
-      setTipoNota(conf.tipoNota ?? "NORMAL");
+      setTipoNota(
+        conf.tipoNota === "SN" ? "SN" : "NF"
+      );
+      setEspDocumento(conf.espDocumento ?? "");
       setNumeroNF(conf.numeroNF ?? "");
       setSerie(conf.serie ?? "");
       setDtEmissao(conf.dtEmissao ? conf.dtEmissao.slice(0, 10) : "");
@@ -173,7 +175,6 @@ export default function DocumentoEntradaDetailPage() {
       setFrete(decimalToNumber(conf.frete) > 0 ? String(decimalToNumber(conf.frete)) : "");
       const forn = conf.fornecedor ?? conf.pedido?.fornecedor ?? null;
       setFornecedorId(forn?.id ?? "");
-      setFornSearch(forn ? (forn.nomeFantasia || forn.razaoSocial) : "");
       const modo = (conf.modoLocalEstoque === "GLOBAL" ? "GLOBAL" : "POR_ITEM") as "GLOBAL" | "POR_ITEM";
       setModoLocalEstoque(modo);
       setLocalEstoqueGlobalId(conf.localEstoqueId ?? "");
@@ -221,15 +222,6 @@ export default function DocumentoEntradaDetailPage() {
       .then((j) => setFornecedores(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    if (!fornDropOpen) return;
-    function handle(e: MouseEvent) {
-      if (fornRef.current && !fornRef.current.contains(e.target as Node)) setFornDropOpen(false);
-    }
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, [fornDropOpen]);
 
   function updateEditItem(itemId: string, key: keyof EditItem, value: string) {
     setEditItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, [key]: value } : i)));
@@ -290,6 +282,7 @@ export default function DocumentoEntradaDetailPage() {
           serie: serie || null,
           dtEmissao: dtEmissao || null,
           ufOrigem: ufOrigem || null,
+          espDocumento: espDocumento || null,
           frete: frete ? parseFloat(frete) : null,
           seguro: seguro ? parseFloat(seguro) : null,
           despesas: despesas ? parseFloat(despesas) : null,
@@ -391,6 +384,7 @@ export default function DocumentoEntradaDetailPage() {
   const isConcluded  = conferencia.status === "CONCLUIDA" || conferencia.status === "DIVERGENCIA";
   const canEdit      = isPendente || isEditable || (isConcluded && isAdmin);
   const nfEditable   = canEdit;
+  const isSN = tipoNota === "SN";
   const itemsEditable = isEditable || (isConcluded && isAdmin);
 
   const hasDivergencias = editItems.some((ei) => {
@@ -503,55 +497,72 @@ export default function DocumentoEntradaDetailPage() {
           </div>
         )}
 
-        {/* ── Seção 1: Nota Fiscal ──────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-sm text-gray-800">Nota Fiscal</h2>
-          </div>
-          <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Tipo (obrigatório) */}
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Tipo <span className="text-red-500">*</span></Label>
+        {/* ── Seção 1: Dados do Documento ───────────────────────────────────── */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Dados do Documento</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+            {/* Tipo de Documento */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">Tipo de Documento <span className="text-red-500">*</span></Label>
               {nfEditable ? (
                 <select
                   value={tipoNota}
                   onChange={(e) => setTipoNota(e.target.value)}
-                  className={cn(
-                    "w-full h-9 px-3 border rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
-                    !tipoNota ? "border-red-300" : "border-gray-200"
-                  )}
+                  className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Selecione...</option>
-                  <option value="NORMAL">Normal</option>
-                  <option value="COMPLEMENTAR">Complementar</option>
-                  <option value="DEVOLUCAO">Devolução</option>
-                  <option value="ENTRADA_SIMBOLICA">Entrada Simbólica</option>
+                  <option value="NF">NF — Nota Fiscal</option>
+                  <option value="SN">SN — Sem Nota</option>
                 </select>
               ) : (
-                <Input value={conferencia.tipoNota ?? "—"} readOnly className="bg-gray-50" />
+                <Input
+                  value={tipoNota === "SN" ? "SN — Sem Nota" : "NF — Nota Fiscal"}
+                  readOnly
+                  className="bg-gray-50"
+                />
               )}
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Série</Label>
+            {/* Número NF */}
+            <div className="space-y-1.5">
+              <Label className={cn("text-xs", isSN ? "text-gray-300" : "text-gray-500")}>
+                Número NF{isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
+              </Label>
               {nfEditable ? (
-                <Input value={serie} onChange={(e) => setSerie(e.target.value)} placeholder="1" />
-              ) : (
-                <Input value={conferencia.serie ?? "—"} readOnly className="bg-gray-50" />
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Número NF</Label>
-              {nfEditable ? (
-                <Input value={numeroNF} onChange={(e) => setNumeroNF(e.target.value)} placeholder="000000" />
+                <Input
+                  value={isSN ? "" : numeroNF}
+                  onChange={(e) => setNumeroNF(e.target.value)}
+                  placeholder={isSN ? "—" : "000000"}
+                  disabled={isSN}
+                  className={isSN ? "bg-gray-50 text-gray-300 cursor-not-allowed" : ""}
+                />
               ) : (
                 <Input value={conferencia.numeroNF ?? "—"} readOnly className="bg-gray-50" />
               )}
             </div>
 
-            {/* DT Emissão (obrigatório) */}
-            <div className="space-y-1">
+            {/* Série */}
+            <div className="space-y-1.5">
+              <Label className={cn("text-xs", isSN ? "text-gray-300" : "text-gray-500")}>
+                Série{isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
+              </Label>
+              {nfEditable ? (
+                <Input
+                  value={isSN ? "" : serie}
+                  onChange={(e) => setSerie(e.target.value)}
+                  placeholder={isSN ? "—" : "1"}
+                  disabled={isSN}
+                  className={isSN ? "bg-gray-50 text-gray-300 cursor-not-allowed" : ""}
+                />
+              ) : (
+                <Input value={conferencia.serie ?? "—"} readOnly className="bg-gray-50" />
+              )}
+            </div>
+
+            {/* DT Emissão */}
+            <div className="space-y-1.5">
               <Label className="text-xs text-gray-500">DT Emissão <span className="text-red-500">*</span></Label>
               {nfEditable ? (
                 <Input
@@ -569,7 +580,26 @@ export default function DocumentoEntradaDetailPage() {
               )}
             </div>
 
-            <div className="space-y-1">
+            {/* Espécie de Documento */}
+            <div className="space-y-1.5">
+              <Label className={cn("text-xs", isSN ? "text-gray-300" : "text-gray-500")}>
+                Espécie de Documento{isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
+              </Label>
+              {nfEditable ? (
+                <Input
+                  value={isSN ? "" : espDocumento}
+                  onChange={(e) => setEspDocumento(e.target.value)}
+                  placeholder={isSN ? "—" : "SPED"}
+                  disabled={isSN}
+                  className={isSN ? "bg-gray-50 text-gray-300 cursor-not-allowed" : ""}
+                />
+              ) : (
+                <Input value={conferencia.espDocumento ?? "—"} readOnly className="bg-gray-50" />
+              )}
+            </div>
+
+            {/* UF Origem */}
+            <div className="space-y-1.5">
               <Label className="text-xs text-gray-500">UF Origem</Label>
               {nfEditable ? (
                 <select
@@ -587,115 +617,98 @@ export default function DocumentoEntradaDetailPage() {
               )}
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Data Conferência</Label>
-              <Input
-                value={conferencia.dataConferencia ? formatDate(conferencia.dataConferencia) : "—"}
-                readOnly
-                className="bg-gray-50"
-              />
+            {/* Loja */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">Loja</Label>
+              <Input value="01" readOnly className="bg-gray-50" />
             </div>
 
-            <div className="space-y-1">
+            {/* Nº Documento (read-only) */}
+            <div className="space-y-1.5">
               <Label className="text-xs text-gray-500">Nº Documento</Label>
               <Input value={conferencia.numero} readOnly className="bg-gray-50 font-mono text-xs" />
             </div>
-          </div>
-        </div>
+
+            {/* Data Conferência (read-only) */}
+            {conferencia.dataConferencia && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Data Conferência</Label>
+                <Input
+                  value={formatDate(conferencia.dataConferencia)}
+                  readOnly
+                  className="bg-gray-50"
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* ── Seção 2: Fornecedor ───────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-            <h2 className="font-semibold text-sm text-gray-800">Fornecedor</h2>
-            {conferencia.pedido && (
-              <Link
-                href={`/suprimentos/pedidos-compra/${conferencia.pedido.id}`}
-                className="text-xs text-blue-600 hover:underline font-mono"
-              >
-                Pedido vinculado: {conferencia.pedido.numero}
-              </Link>
-            )}
-          </div>
-          <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-            {/* Fornecedor search — editable when nfEditable */}
-            <div className="md:col-span-2 space-y-1">
-              <Label className="text-xs text-gray-500">
-                Fornecedor <span className="text-red-500">*</span>
-              </Label>
-              {nfEditable ? (
-                <div className="flex gap-2">
-                  <div className="relative flex-1" ref={fornRef}>
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                    <Input
-                      className={cn("pl-8 pr-8", !fornecedorId ? "border-red-300" : "")}
-                      placeholder="Buscar fornecedor..."
-                      value={fornSearch}
-                      onChange={(e) => {
-                        setFornSearch(e.target.value);
-                        setFornecedorId("");
-                        setFornDropOpen(true);
-                      }}
-                      onFocus={() => setFornDropOpen(true)}
-                    />
-                    {fornSearch && (
-                      <button
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        onClick={() => { setFornSearch(""); setFornecedorId(""); }}
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    {fornDropOpen && (
-                      <div className="absolute left-0 top-full mt-1 z-50 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto">
-                        {fornecedores
-                          .filter((f) => {
-                            const q = fornSearch.toLowerCase();
-                            return !q || (f.nomeFantasia ?? "").toLowerCase().includes(q) || f.razaoSocial.toLowerCase().includes(q) || (f.cpfCnpj ?? "").includes(q);
-                          })
-                          .slice(0, 10)
-                          .map((f) => (
-                            <button
-                              key={f.id}
-                              className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm transition-colors"
-                              onClick={() => {
-                                setFornecedorId(f.id);
-                                setFornSearch(f.nomeFantasia || f.razaoSocial);
-                                setFornDropOpen(false);
-                              }}
-                            >
-                              <span className="font-medium text-gray-800">{f.nomeFantasia || f.razaoSocial}</span>
-                              {f.cpfCnpj && <span className="ml-2 text-xs text-gray-400 font-mono">{f.cpfCnpj}</span>}
-                            </button>
-                          ))}
-                        {fornecedores.filter((f) => {
-                          const q = fornSearch.toLowerCase();
-                          return !q || (f.nomeFantasia ?? "").toLowerCase().includes(q) || f.razaoSocial.toLowerCase().includes(q);
-                        }).length === 0 && (
-                          <p className="px-3 py-2 text-sm text-gray-400">Nenhum fornecedor encontrado</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <Input value={fornNome} readOnly className="bg-gray-50" />
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Fornecedor</CardTitle>
+              {conferencia.pedido && (
+                <Link
+                  href={`/suprimentos/pedidos-compra/${conferencia.pedido.id}`}
+                  className="text-xs text-blue-600 hover:underline font-mono"
+                >
+                  Pedido vinculado: {conferencia.pedido.numero}
+                </Link>
               )}
             </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">CNPJ</Label>
-              <Input value={fornInfo?.cpfCnpj ?? "—"} readOnly className="bg-gray-50 font-mono text-xs" />
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1.5 md:col-span-2">
+                <Label className="text-xs text-gray-500">
+                  Fornecedor <span className="text-red-500">*</span>
+                </Label>
+                {nfEditable ? (
+                  <ComboboxWithCreate
+                    options={fornecedores.map((f) => ({
+                      value: f.id,
+                      label: f.nomeFantasia || f.razaoSocial,
+                      code: f.cpfCnpj ?? undefined,
+                    }))}
+                    value={fornecedorId}
+                    onChange={setFornecedorId}
+                    allowNone={false}
+                    placeholder="Selecionar fornecedor..."
+                    createHref="/suprimentos/fornecedores/novo"
+                    createLabel="fornecedor"
+                  />
+                ) : (
+                  <Input value={fornNome} readOnly className="bg-gray-50" />
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">CNPJ</Label>
+                <Input
+                  value={
+                    nfEditable
+                      ? (fornecedores.find((f) => f.id === fornecedorId)?.cpfCnpj ?? (fornInfo?.cpfCnpj ?? "—"))
+                      : (fornInfo?.cpfCnpj ?? "—")
+                  }
+                  readOnly
+                  className="bg-gray-50 font-mono text-xs"
+                />
+              </div>
+              {fornInfo?.contato && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-500">Contato</Label>
+                  <Input value={fornInfo.contato} readOnly className="bg-gray-50" />
+                </div>
+              )}
+              {fornInfo?.email && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-gray-500">E-mail</Label>
+                  <Input value={fornInfo.email} readOnly className="bg-gray-50" />
+                </div>
+              )}
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Contato</Label>
-              <Input value={fornInfo?.contato ?? "—"} readOnly className="bg-gray-50" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">E-mail</Label>
-              <Input value={fornInfo?.email ?? "—"} readOnly className="bg-gray-50" />
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* ── Seção 3: Local de Estoque ────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
