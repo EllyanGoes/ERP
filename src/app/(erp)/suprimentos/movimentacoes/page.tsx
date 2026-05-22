@@ -120,6 +120,19 @@ const MOV_COLS: ColDef<MovItem>[] = [
     },
   },
   {
+    id: "custoTotal",
+    label: "Custo Total",
+    thClass: "text-right px-4 py-2 font-medium",
+    tdClass: "px-4 py-2.5 text-right text-xs text-gray-700 font-medium",
+    render: (it) => {
+      const vUnit = it.valorUnitario ? toNum(it.valorUnitario) : null;
+      const qtd   = toNum(it.quantidade);
+      return vUnit !== null && qtd > 0
+        ? (vUnit * qtd).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+        : <span className="text-gray-300">—</span>;
+    },
+  },
+  {
     id: "saldoAntes",
     label: "Saldo Antes",
     thClass: "text-right px-4 py-2 font-medium",
@@ -690,7 +703,12 @@ export default function MovimentacoesPage() {
             {sortedFiltered.map((lote) => {
               const isOpen  = expanded.has(lote.id);
               const isEntra = lote.tipo === "ENTRADA";
-              const totalQtd = lote.itens.reduce((s, i) => s + toNum(i.quantidade), 0);
+              const totalQtd   = lote.itens.reduce((s, i) => s + toNum(i.quantidade), 0);
+              const totalCusto = lote.itens.reduce((s, i) => {
+                const v = i.valorUnitario ? toNum(i.valorUnitario) : null;
+                return v !== null ? s + v * toNum(i.quantidade) : s;
+              }, 0);
+              const hasCusto = lote.itens.some(i => i.valorUnitario && toNum(i.valorUnitario) > 0);
               return (
                 <div key={lote.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                   {/* Header row */}
@@ -740,6 +758,13 @@ export default function MovimentacoesPage() {
                       total: {totalQtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                     </span>
 
+                    {/* Total custo */}
+                    {hasCusto && (
+                      <span className="text-xs font-medium text-gray-600 shrink-0">
+                        · {totalCusto.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      </span>
+                    )}
+
                     {/* Spacer */}
                     <span className="flex-1" />
 
@@ -759,7 +784,7 @@ export default function MovimentacoesPage() {
                         <thead>
                           <tr className="bg-gray-50 text-xs text-gray-400 uppercase tracking-wide">
                             {orderedMovCols
-                              .filter((col) => col.id !== "custoUnit" || isEntra)
+                              .filter((col) => (col.id !== "custoUnit" && col.id !== "custoTotal") || isEntra)
                               .map((col) => (
                                 <th key={col.id} className={col.thClass}>{col.label}</th>
                               ))}
@@ -772,7 +797,7 @@ export default function MovimentacoesPage() {
                             return (
                               <tr key={it.id} className="group/row hover:bg-gray-50">
                                 {orderedMovCols
-                                  .filter((col) => col.id !== "custoUnit" || isEntra)
+                                  .filter((col) => (col.id !== "custoUnit" && col.id !== "custoTotal") || isEntra)
                                   .map((col) => (
                                     <td key={col.id} className={col.tdClass}>{col.render(it)}</td>
                                   ))}

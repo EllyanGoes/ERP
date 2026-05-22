@@ -630,8 +630,8 @@ export default function NecessidadesPage() {
   // Filters, sort AND view — all persisted
   const [f, setF] = usePersistedFilters("necessidades", {
     search:         "",
-    filterStatuses: [] as string[],
-    filterStatusOp: "is" as FilterOp,
+    filterStatuses: ["TOTALMENTE_ATENDIDA"] as string[],
+    filterStatusOp: "is_not" as FilterOp,
     filterFilial:   "",
     sortKey:        "createdAt_desc",
     view:           "list" as "list" | "kanban",
