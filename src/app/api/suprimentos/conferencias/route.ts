@@ -91,6 +91,8 @@ export async function POST(req: NextRequest) {
   const {
     fornecedorId,
     pedidoId: linkedPedidoId,
+    modoLocalEstoque,
+    localEstoqueId: globalLocalEstoqueId,
     tipoNota,
     numeroNF,
     serie,
@@ -142,6 +144,8 @@ export async function POST(req: NextRequest) {
         status: "PENDENTE",
         fornecedorId,
         pedidoId: linkedPedidoId || null,
+        modoLocalEstoque: modoLocalEstoque || "POR_ITEM",
+        localEstoqueId: modoLocalEstoque === "GLOBAL" ? (globalLocalEstoqueId || null) : null,
         tipoNota: tipoNota || "NORMAL",
         numeroNF: numeroNF || null,
         serie: serie || null,
@@ -180,12 +184,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (linkedPedidoId) {
-      await tx.pedidoCompra.update({
-        where: { id: linkedPedidoId },
-        data: { status: "CONFIRMADO" },
-      });
-    }
+    // NOTE: PC status is NOT updated here intentionally.
+    // The PC will only transition to RECEBIDO when the DE is concluded (concluir endpoint).
+    // Changing PC status on DE creation would be premature — items haven't been received yet.
 
     return record;
   });
