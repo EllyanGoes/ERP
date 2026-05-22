@@ -28,6 +28,7 @@ type Colaborador = {
   rg:              string | null;
   email:           string | null;
   telefone:        string | null;
+  telegramChatId:  string | null;
   cargo:           string | null;
   setorId:         string | null;
   setor:           { id: string; nome: string } | null;
@@ -88,7 +89,8 @@ export default function ColaboradorDetailPage() {
   const [eCpf,          setECpf]          = useState("");
   const [eRg,           setERg]           = useState("");
   const [eEmail,        setEEmail]        = useState("");
-  const [eTelefone,     setETelefone]     = useState("");
+  const [eTelefone,        setETelefone]        = useState("");
+  const [eTelegramChatId,  setETelegramChatId]  = useState("");
   const [eCargo,        setECargo]        = useState("");
   const [eSetorId,      setESetorId]      = useState("");
   const [eDataAdmissao, setEDataAdmissao] = useState("");
@@ -133,6 +135,7 @@ export default function ColaboradorDetailPage() {
     setERg(colaborador.rg ?? "");
     setEEmail(colaborador.email ?? "");
     setETelefone(colaborador.telefone ?? "");
+    setETelegramChatId(colaborador.telegramChatId ?? "");
     setECargo(colaborador.cargo ?? "");
     setESetorId(colaborador.setorId ?? "");
     setEDataAdmissao(colaborador.dataAdmissao ? colaborador.dataAdmissao.slice(0, 10) : "");
@@ -172,8 +175,9 @@ export default function ColaboradorDetailPage() {
           cpf:          eCpf.trim()  || null,
           rg:           eRg.trim()   || null,
           email:        eEmail.trim() || null,
-          telefone:     eTelefone.trim() || null,
-          cargo:        eCargo.trim()   || null,
+          telefone:       eTelefone.trim() || null,
+          telegramChatId: eTelegramChatId.trim() || null,
+          cargo:          eCargo.trim()   || null,
           setorId:      eSetorId       || null,
           dataAdmissao: eDataAdmissao || null,
           dataDemissao: eDataDemissao || null,
@@ -263,6 +267,16 @@ export default function ColaboradorDetailPage() {
                   <Input value={eTelefone} onChange={(e) => setETelefone(e.target.value)} placeholder="(00) 00000-0000" />
                 </Field>
               </div>
+              <Field
+                label="Telegram Chat ID"
+                hint="Para receber aprovações no Telegram, informe seu Chat ID. Envie /start para o bot e depois use @userinfobot para descobrir seu ID."
+              >
+                <Input
+                  value={eTelegramChatId}
+                  onChange={(e) => setETelegramChatId(e.target.value)}
+                  placeholder="Ex: 123456789"
+                />
+              </Field>
             </CardContent>
           </Card>
 
@@ -427,6 +441,9 @@ export default function ColaboradorDetailPage() {
                   {colaborador.telefone}
                 </span>
               ) : null}
+            </InfoField>
+            <InfoField label="Telegram Chat ID">
+              {colaborador.telegramChatId ?? null}
             </InfoField>
           </CardContent>
         </Card>

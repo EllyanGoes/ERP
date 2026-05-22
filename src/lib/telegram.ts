@@ -88,3 +88,150 @@ export async function validateTGConfig(): Promise<{ ok: true } | { ok: false; er
   }
   return { ok: true };
 }
+
+// ── sendTelegramDM ────────────────────────────────────────────────────────────
+
+/**
+ * Send a message directly to a specific Telegram chat_id.
+ * Used for sending approval requests to specific approvers.
+ */
+export async function sendTelegramDM(
+  chatId: string | number,
+  msg: TGMessage
+): Promise<{ ok: boolean; msgId?: number; error?: string }> {
+  const cfg = await getTGConfig();
+  if (!cfg) {
+    return { ok: false, error: "Telegram não configurado. Acesse Configurações → Integrações." };
+  }
+
+  const inline_keyboard = msg.inlineKeyboard?.map((row) =>
+    row.map((btn) => {
+      if (btn.url)          return { text: btn.text, url: btn.url };
+      if (btn.callbackData) return { text: btn.text, callback_data: btn.callbackData };
+      return { text: btn.text, callback_data: btn.text };
+    })
+  );
+
+  const payload: Record<string, unknown> = {
+    chat_id:    String(chatId),
+    text:       msg.text,
+    parse_mode: "MarkdownV2",
+    ...(inline_keyboard ? { reply_markup: { inline_keyboard } } : {}),
+  };
+
+  try {
+    const res = await fetch(`${TG_BASE}/bot${cfg.token}/sendMessage`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(payload),
+      signal:  AbortSignal.timeout(10_000),
+    });
+
+    const data = await res.json() as { ok: boolean; result?: { message_id?: number }; description?: string };
+
+    if (!data.ok) {
+      return { ok: false, error: data.description ?? "Telegram API error" };
+    }
+
+    return { ok: true, msgId: data.result?.message_id };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro ao enviar para o Telegram" };
+  }
+}
+
+// ── editTelegramMessage ───────────────────────────────────────────────────────
+
+/**
+ * Edit a previously sent message (used to update after approval/rejection via webhook)
+ */
+export async function editTelegramMessage(
+  chatId: string | number,
+  messageId: number,
+  text: string
+): Promise<void> {
+  const cfg = await getTGConfig();
+  if (!cfg) return;
+
+  await fetch(`${TG_BASE}/bot${cfg.token}/editMessageText`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({
+      chat_id:    String(chatId),
+      message_id: messageId,
+      text,
+      parse_mode: "MarkdownV2",
+    }),
+    signal: AbortSignal.timeout(8_000),
+  }).catch(() => { /* ignore */ });
+}
+
+// ── answerCallbackQuery ───────────────────────────────────────────────────────
+
+/**
+ * Answer a Telegram callback query (removes the loading indicator on the button)
+ */
+export async function answerCallbackQuery(callbackQueryId: string, text?: string): Promise<void> {
+  const cfg = await getTGConfig();
+  if (!cfg) return;
+
+  await fetch(`${TG_BASE}/bot${cfg.token}/answerCallbackQuery`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ callback_query_id: callbackQueryId, text: text ?? "" }),
+    signal:  AbortSignal.timeout(5_000),
+  }).catch(() => { /* ignore */ });
+}
+
+// ── setTelegramWebhook ────────────────────────────────────────────────────────
+
+/**
+ * Register a webhook URL with Telegram
+ */
+export async function setTelegramWebhook(
+  webhookUrl: string,
+  secretToken?: string
+): Promise<{ ok: boolean; error?: string }> {
+  const cfg = await getTGConfig();
+  if (!cfg) return { ok: false, error: "Telegram não configurado" };
+
+  const payload: Record<string, unknown> = {
+    url: webhookUrl,
+    allowed_updates: ["callback_query", "message"],
+    drop_pending_updates: true,
+  };
+  if (secretToken) payload.secret_token = secretToken;
+
+  try {
+    const res = await fetch(`${TG_BASE}/bot${cfg.token}/setWebhook`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(payload),
+      signal:  AbortSignal.timeout(10_000),
+    });
+    const data = await res.json() as { ok: boolean; description?: string };
+    return data.ok ? { ok: true } : { ok: false, error: data.description };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro" };
+  }
+}
+
+// ── getTelegramWebhookInfo ────────────────────────────────────────────────────
+
+/**
+ * Get current webhook info
+ */
+export async function getTelegramWebhookInfo(): Promise<{ url?: string; ok: boolean; error?: string }> {
+  const cfg = await getTGConfig();
+  if (!cfg) return { ok: false, error: "Telegram não configurado" };
+
+  try {
+    const res = await fetch(`${TG_BASE}/bot${cfg.token}/getWebhookInfo`, {
+      signal: AbortSignal.timeout(8_000),
+    });
+    const data = await res.json() as { ok: boolean; result?: { url?: string }; description?: string };
+    if (!data.ok) return { ok: false, error: data.description };
+    return { ok: true, url: data.result?.url };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro" };
+  }
+}

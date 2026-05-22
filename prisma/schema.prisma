@@ -113,6 +113,7 @@ model Colaborador {
   rg             String?
   email          String?
   telefone       String?
+  telegramChatId String?
   cargo          String?
   setorId        String?
   dataAdmissao   DateTime?

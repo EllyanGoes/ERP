@@ -155,15 +155,18 @@ export default function IntegracoesPage() {
   const [zapiSecurity,   setZapiSecurity]   = useState("");
 
   // Telegram
-  const [tgOpen,       setTgOpen]       = useState(false);
-  const [tgBotToken,   setTgBotToken]   = useState("");
-  const [tgChatId,     setTgChatId]     = useState("");
-  const [tgStatus,     setTgStatus]     = useState<ConnStatus>("idle");
-  const [tgStatusMsg,  setTgStatusMsg]  = useState("");
-  const [tgDirty,      setTgDirty]      = useState(false);
-  const [tgSaving,     setTgSaving]     = useState(false);
-  const [tgTesting,    setTgTesting]    = useState(false);
-  const [tgSaveMsg,    setTgSaveMsg]    = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [tgOpen,          setTgOpen]          = useState(false);
+  const [tgBotToken,      setTgBotToken]      = useState("");
+  const [tgChatId,        setTgChatId]        = useState("");
+  const [tgStatus,        setTgStatus]        = useState<ConnStatus>("idle");
+  const [tgStatusMsg,     setTgStatusMsg]     = useState("");
+  const [tgDirty,         setTgDirty]         = useState(false);
+  const [tgSaving,        setTgSaving]        = useState(false);
+  const [tgTesting,       setTgTesting]       = useState(false);
+  const [tgSaveMsg,       setTgSaveMsg]       = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [tgWebhookUrl,    setTgWebhookUrl]    = useState<string | null>(null);
+  const [tgWebhookLoading, setTgWebhookLoading] = useState(false);
+  const [tgWebhookMsg,    setTgWebhookMsg]    = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   // DB Engeman
   const [dbEngemanOpen,     setDbEngemanOpen]     = useState(false);
@@ -348,6 +351,32 @@ export default function IntegracoesPage() {
       setTgStatusMsg("Sem resposta do servidor");
     } finally {
       setTgTesting(false);
+    }
+  }
+
+  async function loadTgWebhook() {
+    try {
+      const res = await fetch("/api/configuracoes/integracoes/telegram-webhook");
+      const d   = await res.json() as { ok: boolean; url?: string; error?: string };
+      if (d.ok) setTgWebhookUrl(d.url ?? null);
+    } catch { /* ignore */ }
+  }
+
+  async function handleRegisterTgWebhook() {
+    setTgWebhookLoading(true); setTgWebhookMsg(null);
+    try {
+      const res = await fetch("/api/configuracoes/integracoes/telegram-webhook", { method: "POST" });
+      const d   = await res.json() as { ok?: boolean; webhookUrl?: string; error?: string };
+      if (!res.ok || !d.ok) {
+        setTgWebhookMsg({ type: "err", text: d.error ?? "Erro ao registrar webhook" });
+      } else {
+        setTgWebhookUrl(d.webhookUrl ?? null);
+        setTgWebhookMsg({ type: "ok", text: "Webhook registrado com sucesso!" });
+      }
+    } catch {
+      setTgWebhookMsg({ type: "err", text: "Erro de conexão." });
+    } finally {
+      setTgWebhookLoading(false);
     }
   }
 
@@ -734,7 +763,7 @@ export default function IntegracoesPage() {
         )}>
           <button
             type="button"
-            onClick={() => setTgOpen((p) => !p)}
+            onClick={() => { setTgOpen((p) => { if (!p) loadTgWebhook(); return !p; }); }}
             className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-gray-50/60 transition-colors rounded-2xl"
           >
             <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center shrink-0">
@@ -852,6 +881,48 @@ export default function IntegracoesPage() {
                     ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Salvando...</>
                     : <><Save className="w-3.5 h-3.5 mr-1.5" />Salvar</>}
                 </Button>
+              </div>
+
+              {/* Webhook registration */}
+              <div className="space-y-3 border-t border-gray-100 pt-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Webhook para Aprovações (Botões)</p>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                  Registre o webhook para que o bot receba as respostas dos botões ✅/❌ enviados ao aprovador.
+                  Necessário para o fluxo de aprovação via DM.
+                </p>
+
+                {tgWebhookUrl && (
+                  <div className="bg-sky-50 border border-sky-100 rounded-xl px-4 py-3 space-y-1">
+                    <p className="text-[11px] font-semibold text-sky-700">Webhook registrado:</p>
+                    <p className="text-xs text-sky-700 font-mono break-all select-all">{tgWebhookUrl}</p>
+                  </div>
+                )}
+
+                {tgWebhookMsg && (
+                  <div className={cn(
+                    "flex items-center gap-2 px-4 py-3 rounded-xl text-sm border",
+                    tgWebhookMsg.type === "ok"
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                      : "bg-red-50 border-red-200 text-red-700"
+                  )}>
+                    {tgWebhookMsg.type === "ok"
+                      ? <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      : <AlertCircle  className="w-4 h-4 shrink-0" />}
+                    <span>{tgWebhookMsg.text}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-start">
+                  <Button
+                    variant="outline" size="sm"
+                    onClick={handleRegisterTgWebhook}
+                    disabled={tgWebhookLoading || !tgBotToken}
+                  >
+                    {tgWebhookLoading
+                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Registrando...</>
+                      : <><Wifi className="w-3.5 h-3.5 mr-1.5" />Registrar Webhook</>}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
