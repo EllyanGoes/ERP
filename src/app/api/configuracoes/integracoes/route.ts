@@ -22,6 +22,9 @@ const MANAGED_KEYS = [
   "db_engeman_name",
   "db_engeman_user",
   "db_engeman_password",
+  // Telegram
+  "tg_bot_token",
+  "tg_chat_id",
 ] as const;
 
 export async function GET() {

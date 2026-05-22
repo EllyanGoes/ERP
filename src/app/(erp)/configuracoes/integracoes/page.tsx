@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
   Loader2, Save, Eye, EyeOff, CheckCircle2, AlertCircle,
-  RefreshCw, ChevronDown, MessageCircle, Wifi, WifiOff, HelpCircle, Database,
+  RefreshCw, ChevronDown, MessageCircle, Wifi, WifiOff, HelpCircle, Database, Send,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -35,6 +35,9 @@ type Config = {
   db_engeman_name:        string | null;
   db_engeman_user:        string | null;
   db_engeman_password:    string | null;
+  // Telegram
+  tg_bot_token:           string | null;
+  tg_chat_id:             string | null;
 };
 
 const PROVIDERS: { id: Provider; label: string; sub: string }[] = [
@@ -151,6 +154,17 @@ export default function IntegracoesPage() {
   const [zapiToken,      setZapiToken]      = useState("");
   const [zapiSecurity,   setZapiSecurity]   = useState("");
 
+  // Telegram
+  const [tgOpen,       setTgOpen]       = useState(false);
+  const [tgBotToken,   setTgBotToken]   = useState("");
+  const [tgChatId,     setTgChatId]     = useState("");
+  const [tgStatus,     setTgStatus]     = useState<ConnStatus>("idle");
+  const [tgStatusMsg,  setTgStatusMsg]  = useState("");
+  const [tgDirty,      setTgDirty]      = useState(false);
+  const [tgSaving,     setTgSaving]     = useState(false);
+  const [tgTesting,    setTgTesting]    = useState(false);
+  const [tgSaveMsg,    setTgSaveMsg]    = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
   // DB Engeman
   const [dbEngemanOpen,     setDbEngemanOpen]     = useState(false);
   const [dbEngemanHost,     setDbEngemanHost]     = useState("");
@@ -164,6 +178,7 @@ export default function IntegracoesPage() {
 
   function mark() { setDirty(true); setSaveMsg(null); }
   function markDb() { setDbEngemanDirty(true); setDbEngemanSaveMsg(null); }
+  function markTg() { setTgDirty(true); setTgSaveMsg(null); }
 
   // ── Load ─────────────────────────────────────────────────────────────────────
   const loadConfig = useCallback(async () => {
@@ -189,6 +204,12 @@ export default function IntegracoesPage() {
       setDbEngemanPassword(cfg.db_engeman_password ?? "");
       const hasEngeman = !!(cfg.db_engeman_host && cfg.db_engeman_name && cfg.db_engeman_user);
       setDbEngemanStatus(hasEngeman ? "ok" : "unconfigured");
+
+      // Telegram
+      setTgBotToken(cfg.tg_bot_token ?? "");
+      setTgChatId(cfg.tg_chat_id ?? "");
+      const hasTg = !!(cfg.tg_bot_token && cfg.tg_chat_id);
+      setTgStatus(hasTg ? "ok" : "unconfigured");
 
       const hasCreds =
         prov === "evolution" ? !!(cfg.wa_evolution_url && cfg.wa_evolution_instance && cfg.wa_evolution_apikey) :
@@ -286,6 +307,47 @@ export default function IntegracoesPage() {
       setDbEngemanSaveMsg({ type: "err", text: "Erro de conexão." });
     } finally {
       setDbEngemanSaving(false);
+    }
+  }
+
+  // ── Save Telegram ─────────────────────────────────────────────────────────────
+  async function handleSaveTelegram() {
+    setTgSaving(true); setTgSaveMsg(null);
+    try {
+      const res = await fetch("/api/configuracoes/integracoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tg_bot_token: tgBotToken.trim() || null,
+          tg_chat_id:   tgChatId.trim()   || null,
+        }),
+      });
+      if (!res.ok) {
+        setTgSaveMsg({ type: "err", text: (await res.json()).error || "Erro ao salvar" });
+        return;
+      }
+      setTgSaveMsg({ type: "ok", text: "Credenciais salvas!" });
+      setTgDirty(false);
+      setTgStatus(!!(tgBotToken && tgChatId) ? "ok" : "unconfigured");
+    } catch {
+      setTgSaveMsg({ type: "err", text: "Erro de conexão." });
+    } finally {
+      setTgSaving(false);
+    }
+  }
+
+  async function handleTestTelegram() {
+    setTgTesting(true); setTgStatusMsg("");
+    try {
+      const res = await fetch("/api/configuracoes/integracoes/telegram-status");
+      const d   = await res.json() as { connected: boolean; reason?: string };
+      setTgStatus(d.connected ? "ok" : "error");
+      setTgStatusMsg(d.reason ?? "");
+    } catch {
+      setTgStatus("error");
+      setTgStatusMsg("Sem resposta do servidor");
+    } finally {
+      setTgTesting(false);
     }
   }
 
@@ -657,6 +719,136 @@ export default function IntegracoesPage() {
                   disabled={dbEngemanSaving || !dbEngemanDirty}
                 >
                   {dbEngemanSaving
+                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Salvando...</>
+                    : <><Save className="w-3.5 h-3.5 mr-1.5" />Salvar</>}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Telegram ─────────────────────────────────────────────────────── */}
+        <div className={cn(
+          "bg-white rounded-2xl border transition-all duration-200",
+          tgOpen ? "border-gray-300 shadow-sm" : "border-gray-200"
+        )}>
+          <button
+            type="button"
+            onClick={() => setTgOpen((p) => !p)}
+            className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-gray-50/60 transition-colors rounded-2xl"
+          >
+            <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center shrink-0">
+              <Send className="w-5 h-5 text-sky-500" />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-semibold text-gray-900 text-sm">Telegram</p>
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border bg-sky-50 text-sky-600 border-sky-100">
+                  Bot API
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Notificações e aprovações via bot do Telegram
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0">
+              <StatusPill status={tgStatus} msg={tgStatusMsg} />
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); handleTestTelegram(); }}
+                className="p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
+                title="Verificar conexão"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+              <ChevronDown className={cn("w-4 h-4 text-gray-400 transition-transform duration-200", tgOpen && "rotate-180")} />
+            </div>
+          </button>
+
+          {tgOpen && (
+            <div className="px-5 pb-5 space-y-5 border-t border-gray-100">
+              <div className="pt-4" />
+
+              {/* How to create a bot */}
+              <div className="bg-sky-50 border border-sky-100 rounded-xl px-4 py-3 space-y-1.5 text-xs text-sky-700">
+                <p className="font-semibold">Como configurar</p>
+                <ol className="list-decimal list-inside space-y-1 text-sky-600 leading-relaxed">
+                  <li>Abra o Telegram e busque por <strong>@BotFather</strong></li>
+                  <li>Envie <strong>/newbot</strong> e siga as instruções para criar o bot</li>
+                  <li>Copie o <strong>token</strong> fornecido pelo BotFather</li>
+                  <li>Adicione o bot ao grupo/canal desejado</li>
+                  <li>Obtenha o <strong>Chat ID</strong> via <strong>@userinfobot</strong> ou pela URL da API</li>
+                </ol>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Credenciais</p>
+                <div className="space-y-3">
+                  <SecretField
+                    label="Bot Token"
+                    description="Token gerado pelo @BotFather (ex: 123456789:AAFxxx...)"
+                    value={tgBotToken}
+                    onChange={(v) => { setTgBotToken(v); markTg(); }}
+                    placeholder="123456789:AAF..."
+                  />
+                  <PlainField
+                    label="Chat ID"
+                    description="ID do grupo, canal ou chat privado que receberá as mensagens. Pode ser negativo para grupos (ex: -1001234567890)"
+                    value={tgChatId}
+                    onChange={(v) => { setTgChatId(v); markTg(); }}
+                    placeholder="-1001234567890"
+                  />
+                </div>
+              </div>
+
+              {/* Status feedback */}
+              {(tgStatus === "ok" || tgStatus === "error") && !tgDirty && (
+                <div className={cn(
+                  "flex items-start gap-2 px-4 py-3 rounded-xl text-sm border",
+                  tgStatus === "ok"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : "bg-red-50 border-red-200 text-red-700"
+                )}>
+                  {tgStatus === "ok"
+                    ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                    : <AlertCircle  className="w-4 h-4 mt-0.5 shrink-0" />}
+                  <span>{tgStatus === "ok" ? `Conexão estabelecida. ${tgStatusMsg}` : tgStatusMsg}</span>
+                </div>
+              )}
+
+              {tgSaveMsg && (
+                <div className={cn(
+                  "flex items-center gap-2 px-4 py-3 rounded-xl text-sm border",
+                  tgSaveMsg.type === "ok"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : "bg-red-50 border-red-200 text-red-700"
+                )}>
+                  {tgSaveMsg.type === "ok" ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                  <span>{tgSaveMsg.text}</span>
+                </div>
+              )}
+
+              {tgDirty && !tgSaveMsg && (
+                <p className="text-xs text-amber-600 font-medium flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                  Alterações não salvas
+                </p>
+              )}
+
+              <div className="flex items-center justify-between pt-1">
+                <Button
+                  variant="outline" size="sm"
+                  onClick={handleTestTelegram}
+                  disabled={tgTesting || tgSaving || !tgBotToken || !tgChatId}
+                >
+                  {tgTesting
+                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Testando...</>
+                    : <><Send className="w-3.5 h-3.5 mr-1.5" />Testar e Enviar Mensagem</>}
+                </Button>
+                <Button size="sm" onClick={handleSaveTelegram} disabled={tgSaving || tgTesting || !tgDirty}>
+                  {tgSaving
                     ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Salvando...</>
                     : <><Save className="w-3.5 h-3.5 mr-1.5" />Salvar</>}
                 </Button>
