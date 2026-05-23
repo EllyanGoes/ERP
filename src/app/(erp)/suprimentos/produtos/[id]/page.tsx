@@ -673,7 +673,69 @@ export default function ProdutoDetailPage() {
                     <Info label="Código" value={item.codigo} mono />
                     <Info label="Tipo de Produto" value={item.tipoProduto?.nome} />
                     <Info label="Descrição" value={item.descricao} colSpan />
-                    <Info label="Unidade Principal" value={item.unidade ? `${item.unidade.sigla} — ${item.unidade.nome}` : item.unidadeMedida} />
+
+                    {/* Unidade de Estoque — campo rico com referência às conversões */}
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-gray-500">Unidade de Estoque</p>
+                      {item.unidade ? (
+                        <div className="flex items-start justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2.5">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="font-mono text-sm font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded shrink-0">
+                              {item.unidade.sigla}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-800 leading-tight">{item.unidade.nome}</p>
+                              <p className="text-[11px] text-gray-400 mt-0.5">
+                                Unidade base · gestão de estoque e movimentações
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => { setTab("unidades"); if (!unidadesLoaded) loadItemUnidades(); }}
+                            className="shrink-0 text-[11px] text-blue-600 hover:text-blue-800 font-medium underline underline-offset-2 transition-colors whitespace-nowrap mt-0.5"
+                          >
+                            Ver conversões →
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-gray-200 px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded">UN</span>
+                            <p className="text-xs text-gray-400">Padrão (sem unidade definida)</p>
+                          </div>
+                          <button
+                            onClick={() => setEditMode(true)}
+                            className="text-[11px] text-blue-500 hover:text-blue-700 underline underline-offset-2 transition-colors whitespace-nowrap"
+                          >
+                            Definir →
+                          </button>
+                        </div>
+                      )}
+                      {unidadesLoaded && itemUnidades.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {itemUnidades
+                            .filter((iu) => iu.unidade.id !== item.unidade?.id)
+                            .slice(0, 4)
+                            .map((iu) => (
+                              <span key={iu.id} className="inline-flex items-center gap-1 text-[11px] font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                <span className="font-mono">{iu.unidade.sigla}</span>
+                                {iu.fatorConversao && (
+                                  <span className="text-gray-400">
+                                    = {Number(iu.fatorConversao).toLocaleString("pt-BR", { maximumFractionDigits: 4 })}{" "}
+                                    {iu.baseUnidade?.sigla ?? item.unidade?.sigla}
+                                  </span>
+                                )}
+                              </span>
+                            ))}
+                          {itemUnidades.filter((iu) => iu.unidade.id !== item.unidade?.id).length > 4 && (
+                            <span className="text-[11px] text-gray-400">
+                              +{itemUnidades.filter((iu) => iu.unidade.id !== item.unidade?.id).length - 4} mais
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     <Info label="NCM" value={item.ncm} />
                     {item.observacoes && <Info label="Observações" value={item.observacoes} colSpan />}
                   </>
