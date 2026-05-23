@@ -6,7 +6,17 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const record = await prisma.cotacaoCompra.findUnique({
     where: { id: params.id },
     include: {
-      necessidade: { select: { id: true, numero: true } },
+      necessidade: {
+        select: {
+          id: true,
+          numero: true,
+          itens: {
+            include: {
+              item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } },
+            },
+          },
+        },
+      },
       fornecedores: {
         include: {
           fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true, cpfCnpj: true, email: true, contato: true } },

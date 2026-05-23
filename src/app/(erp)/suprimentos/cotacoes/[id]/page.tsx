@@ -52,6 +52,13 @@ type CotacaoFornecedor = {
   itens: CotacaoFornecedorItem[];
 };
 
+type SCItem = {
+  id: string;
+  itemId: string;
+  quantidade: unknown;
+  item: { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null };
+};
+
 type Cotacao = {
   id: string;
   numero: string;
@@ -60,6 +67,7 @@ type Cotacao = {
   dataLimiteResposta: string | null;
   observacoes: string | null;
   infoEntrega: string | null;
+  necessidade: { id: string; numero: string; itens: SCItem[] } | null;
   fornecedores: CotacaoFornecedor[];
   pedidos: Array<{ id: string; numero: string; status: string }>;
 };
@@ -245,7 +253,7 @@ export default function CotacaoDetailPage() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
-  useTabTitle(cotacao ? `Editar Cotação ${cotacao.numero}` : null);
+  useTabTitle(cotacao ? cotacao.numero : null);
 
   // ── Status transitions ────────────────────────────────────────────────────
   async function changeStatus(newStatus: string) {
@@ -332,18 +340,29 @@ export default function CotacaoDetailPage() {
   );
   if (!cotacao) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
-  // Gather all unique items from all suppliers
+  // Gather all unique items — from suppliers if any, otherwise from the SC
   const allItemsMap = new Map<string, { codigo: string; descricao: string; unidadeMedida: string; quantidade: unknown }>();
-  cotacao.fornecedores.forEach((cf) =>
-    cf.itens.forEach((i) =>
+  if (cotacao.fornecedores.length > 0) {
+    cotacao.fornecedores.forEach((cf) =>
+      cf.itens.forEach((i) =>
+        allItemsMap.set(i.item.id, {
+          codigo: i.item.codigo,
+          descricao: i.item.descricao,
+          unidadeMedida: i.item.unidadeMedida,
+          quantidade: i.quantidade,
+        })
+      )
+    );
+  } else if (cotacao.necessidade?.itens) {
+    cotacao.necessidade.itens.forEach((i) =>
       allItemsMap.set(i.item.id, {
         codigo: i.item.codigo,
         descricao: i.item.descricao,
-        unidadeMedida: i.item.unidadeMedida,
+        unidadeMedida: i.item.unidade?.sigla || i.item.unidadeMedida,
         quantidade: i.quantidade,
       })
-    )
-  );
+    );
+  }
 
   const respondidas = cotacao.fornecedores.filter((cf) => cf.status === "RESPONDIDA");
   const canEdit = cotacao.status !== "CONCLUIDA";
@@ -351,7 +370,7 @@ export default function CotacaoDetailPage() {
   return (
     <div>
       <PageHeader
-        title={`EDITAR COTAÇÃO - ${cotacao.numero}`}
+        title={cotacao.numero}
         breadcrumbs={[
           { label: "Suprimentos" },
           { label: "Cotações", href: "/suprimentos/cotacoes" },
@@ -406,10 +425,23 @@ export default function CotacaoDetailPage() {
 
         {/* ── Info header card ───────────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-gray-200 px-5 py-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Apelido</p>
               <p className="font-semibold text-gray-800 truncate">{cotacao.nome || <span className="text-gray-300 font-normal">—</span>}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Solicitação vinculada</p>
+              {cotacao.necessidade ? (
+                <Link
+                  href={`/compras/necessidades/${cotacao.necessidade.id}`}
+                  className="inline-flex items-center gap-1 font-mono text-sm font-semibold text-blue-700 hover:text-blue-900 hover:underline"
+                >
+                  {cotacao.necessidade.numero}
+                </Link>
+              ) : (
+                <span className="text-gray-300">—</span>
+              )}
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Prazo de resposta</p>

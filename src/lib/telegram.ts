@@ -264,7 +264,7 @@ export async function sendTelegramDocument(opts: {
 
   const form = new FormData();
   form.append("chat_id", targetChatId);
-  form.append("document", new Blob([opts.buffer], { type: "application/pdf" }), opts.filename);
+  form.append("document", new Blob([new Uint8Array(opts.buffer)], { type: "application/pdf" }), opts.filename);
   if (opts.caption) {
     form.append("caption", opts.caption);
     form.append("parse_mode", "MarkdownV2");

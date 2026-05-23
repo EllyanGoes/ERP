@@ -39,18 +39,38 @@ export async function POST(req: NextRequest) {
 
       // /relatorio [data opcional]
       if (text.startsWith("/relatorio")) {
-        const arg      = text.replace(/^\/relatorio(@\S+)?/, "").trim();
+        const arg        = text.replace(/^\/relatorio(@\S+)?/, "").trim();
         const targetDate = parseRelatorioDate(arg);
 
         if (!targetDate) {
           await sendTelegramDM(msg.chat.id, {
-            text: `❌ Data inválida: *${escMD(arg)}*\n\nUse: /relatorio, /relatorio hoje, /relatorio ontem, ou /relatorio DD/MM/AAAA`,
+            text: `❌ Data inválida: *${escMD(arg)}*\n\nUse: /relatorio, /relatorio hoje, /relatorio ontem, ou /relatorio DD\\/MM\\/AAAA`,
           });
           return NextResponse.json({ ok: true });
         }
 
-        const relatorio = await buildRelatorioEstoque(targetDate);
-        await sendTelegramDM(msg.chat.id, { text: relatorio.text });
+        await sendTelegramDM(msg.chat.id, { text: `⏳ _Gerando relatório\\.\\.\\._` });
+
+        try {
+          const relatorio = await buildRelatorioEstoque(targetDate);
+          const dateStr   = targetDate.toLocaleDateString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
+            day: "2-digit", month: "2-digit", year: "numeric",
+          }).replace(/\//g, "-");
+
+          await sendTelegramDocument({
+            chatId:   String(msg.chat.id),
+            filename: `estoque-${dateStr}.pdf`,
+            buffer:   relatorio.pdfBuffer,
+            caption:  relatorio.captionText,
+          });
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          await sendTelegramDM(msg.chat.id, {
+            text: `❌ Erro ao gerar relatório: ${escMD(errMsg)}`,
+          });
+        }
+
         return NextResponse.json({ ok: true });
       }
 
