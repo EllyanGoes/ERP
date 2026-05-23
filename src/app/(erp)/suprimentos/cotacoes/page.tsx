@@ -44,6 +44,7 @@ type CotacaoItem = {
   nome: string | null;
   status: "PENDENTE" | "EM_ANALISE" | "CONCLUIDA";
   createdAt: string;
+  necessidade: { id: string; numero: string } | null;
   _count: { fornecedores: number };
   fornecedores: Array<{
     status: "AGUARDANDO" | "RESPONDIDA" | "RECUSADA";
@@ -108,6 +109,21 @@ function makeCotacoesCols(
       thClass: "text-left px-4 py-3 font-medium text-gray-600",
       tdClass: "px-4 py-3 font-mono text-xs font-medium text-gray-900",
       render: (c) => c.numero,
+    },
+    {
+      id: "solicitacao",
+      label: "Solicitação",
+      thClass: "text-left px-4 py-3 font-medium text-gray-600",
+      tdClass: "px-4 py-3",
+      render: (c) => c.necessidade ? (
+        <Link
+          href={`/compras/necessidades/${c.necessidade.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-blue-700 hover:text-blue-900 hover:underline"
+        >
+          {c.necessidade.numero}
+        </Link>
+      ) : <span className="text-gray-400 text-xs">—</span>,
     },
     {
       id: "apelido",
