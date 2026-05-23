@@ -148,7 +148,12 @@ export default function CotacaoDetailPage() {
           precoUnitario: 0,
           situacao: "CONSIDERA",
         }))
-      : [];
+      : (cotacao.necessidade?.itens ?? []).map((i) => ({
+          itemId: i.item.id,
+          quantidade: decimalToNumber(i.quantidade),
+          precoUnitario: 0,
+          situacao: "CONSIDERA",
+        }));
 
     if (itensBase.length === 0) {
       setAddError("Nenhum item encontrado na cotação para vincular.");
