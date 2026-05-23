@@ -698,7 +698,7 @@ export default function ProdutoDetailPage() {
                       Calculado automaticamente via CMPM. Informe o custo ao registrar entradas.
                     </p>
                   </div>
-                  <Field label="Preço de Venda (R$)">
+                  <Field label="Custo Médio (R$)">
                     <Input
                       type="number" step="0.01"
                       value={(form.precoVenda as string) ?? ""}
@@ -739,9 +739,9 @@ export default function ProdutoDetailPage() {
                       <p className="text-xs text-violet-400 mt-0.5">média dos fornecedores</p>
                     )}
                   </div>
-                  {/* Preço de Venda */}
+                  {/* Custo Médio */}
                   <div className="rounded-xl bg-emerald-50 px-4 py-3">
-                    <p className="text-xs text-emerald-600 font-medium mb-1">Preço de Venda</p>
+                    <p className="text-xs text-emerald-600 font-medium mb-1">Custo Médio</p>
                     <p className="text-xl font-bold text-emerald-800">
                       {formatBRL(decimalToNumber(item.precoVenda))}
                     </p>

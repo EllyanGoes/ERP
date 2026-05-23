@@ -145,7 +145,7 @@ export default function NovoProdutoPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Tipo</Label>
+              <Label>Categoria</Label>
               <Select value={form.tipo} onValueChange={(v) => set("tipo", v as FormData["tipo"])}>
                 <SelectTrigger>
                   <SelectValue />
@@ -219,7 +219,7 @@ export default function NovoProdutoPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>Preço de Venda (R$)</Label>
+              <Label>Custo Médio (R$)</Label>
               <Input
                 type="number"
                 step="0.01"
