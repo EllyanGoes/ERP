@@ -54,6 +54,7 @@ import {
   Layers,
   Bell,
   RefreshCw,
+  Activity,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -146,9 +147,10 @@ const mainModules: Module[] = [
       {
         kind: "Relatórios",
         items: [
-          { href: "/suprimentos/relatorios/movimentacoes", label: "Entradas e Saídas", icon: FileBarChart2 },
-          { href: "/suprimentos/relatorios/curva-abc",     label: "Curva ABC",         icon: PieChart },
-          { href: "/suprimentos/relatorios/imd",           label: "IMD — Demandas",    icon: BarChart3 },
+          { href: "/suprimentos/relatorios/movimentacoes", label: "Entradas e Saídas",    icon: FileBarChart2 },
+          { href: "/suprimentos/relatorios/curva-abc",     label: "Curva ABC",           icon: PieChart },
+          { href: "/suprimentos/relatorios/imd",           label: "IMD — Demandas",      icon: BarChart3 },
+          { href: "/suprimentos/relatorios/consumo",       label: "Análise de Consumo",  icon: Activity },
         ],
       },
     ],
