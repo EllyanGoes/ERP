@@ -104,6 +104,7 @@ export default function CotacaoDetailPage() {
 
   const [actioning, setActioning] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [showSemPropostaModal, setShowSemPropostaModal] = useState(false);
 
   const [historicoTarget, setHistoricoTarget] = useState<{ cfId: string; fornNome: string } | null>(null);
   const [historicoData, setHistoricoData] = useState<HistoricoEntry[]>([]);
@@ -385,7 +386,13 @@ export default function CotacaoDetailPage() {
           <div className="flex items-center gap-2">
             {(cotacao.status === "PENDENTE" || cotacao.status === "EM_ANALISE") && (
               <Button
-                onClick={() => router.push(`/suprimentos/cotacoes/${id}/analise`)}
+                onClick={() => {
+                  if (respondidas.length === 0) {
+                    setShowSemPropostaModal(true);
+                    return;
+                  }
+                  router.push(`/suprimentos/cotacoes/${id}/analise`);
+                }}
                 disabled={actioning}
                 className="bg-blue-600 hover:bg-blue-700"
               >
@@ -993,6 +1000,36 @@ export default function CotacaoDetailPage() {
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: sem proposta para analisar ─────────────────────────────────── */}
+      {showSemPropostaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col">
+            <div className="px-6 pt-6 pb-4 flex flex-col items-center text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                <BarChart3 className="w-6 h-6 text-amber-600" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-gray-900 text-base">Nenhuma proposta registrada</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Para analisar a cotação é necessário que pelo menos um fornecedor tenha enviado sua proposta.
+                  Registre uma proposta antes de continuar.
+                </p>
+              </div>
+              <div className="w-full mt-1 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-sm text-amber-800">
+                {cotacao.fornecedores.length === 0
+                  ? "Nenhum fornecedor vinculado a esta cotação."
+                  : `${cotacao.fornecedores.length} fornecedor${cotacao.fornecedores.length > 1 ? "es" : ""} aguardando resposta.`}
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end">
+              <Button onClick={() => setShowSemPropostaModal(false)} className="bg-blue-600 hover:bg-blue-700">
+                Entendido
+              </Button>
             </div>
           </div>
         </div>
