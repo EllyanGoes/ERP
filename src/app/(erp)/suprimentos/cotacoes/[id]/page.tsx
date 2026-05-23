@@ -561,13 +561,22 @@ export default function CotacaoDetailPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {canEdit && cf.status !== "RECUSADA" && (
+                    {canEdit && cf.status === "AGUARDANDO" && (
+                      <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => router.push(`/suprimentos/cotacoes/${id}/proposta/${cf.id}`)}
+                      >
+                        Preencher proposta
+                      </Button>
+                    )}
+                    {canEdit && cf.status === "RESPONDIDA" && (
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => router.push(`/suprimentos/cotacoes/${id}/proposta/${cf.id}`)}
                       >
-                        Editar
+                        Atualizar proposta
                       </Button>
                     )}
                     <DropdownMenu>
