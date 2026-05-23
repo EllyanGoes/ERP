@@ -334,9 +334,6 @@ type FormSnapshot = {
   motivo: string;
   localEstoqueId: string;
   centroCustoId: string;
-  categoria: string;
-  projeto: string;
-  classificacaoAuxiliar: string;
   observacoes: string;
   itens: ItemRow[];
 };
@@ -358,9 +355,6 @@ export default function NovasolicitacaoPage() {
   const [motivo,                setMotivo]                = useState("");
   const [localEstoqueId,        setLocalEstoqueId]        = useState("");
   const [centroCustoId,         setCentroCustoId]         = useState("");
-  const [categoria,             setCategoria]             = useState("");
-  const [projeto,               setProjeto]               = useState("");
-  const [classificacaoAuxiliar, setClassificacaoAuxiliar] = useState("");
   const [observacoes,           setObservacoes]           = useState("");
 
   const [itens,       setItens]       = useState<ItemRow[]>([{ itemId: "", quantidade: "1", unidade: "", observacao: "" }]);
@@ -401,9 +395,6 @@ export default function NovasolicitacaoPage() {
       setMotivo(saved.motivo ?? "");
       setLocalEstoqueId(saved.localEstoqueId ?? "");
       setCentroCustoId(saved.centroCustoId ?? "");
-      setCategoria(saved.categoria ?? "");
-      setProjeto(saved.projeto ?? "");
-      setClassificacaoAuxiliar(saved.classificacaoAuxiliar ?? "");
       setObservacoes(saved.observacoes ?? "");
       setItens(saved.itens ?? [{ itemId: "", quantidade: "1", unidade: "", observacao: "" }]);
     }
@@ -419,8 +410,8 @@ export default function NovasolicitacaoPage() {
 
   // Auto-save form state to sessionStorage on every change
   useEffect(() => {
-    saveForm({ filialId, descricao, prioridade, entregaDesejada, colaboradorId, setorId, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens });
-  }, [filialId, descricao, prioridade, entregaDesejada, colaboradorId, setorId, tipoCompra, motivo, localEstoqueId, centroCustoId, categoria, projeto, classificacaoAuxiliar, observacoes, itens, saveForm]);
+    saveForm({ filialId, descricao, prioridade, entregaDesejada, colaboradorId, setorId, tipoCompra, motivo, localEstoqueId, centroCustoId, observacoes, itens });
+  }, [filialId, descricao, prioridade, entregaDesejada, colaboradorId, setorId, tipoCompra, motivo, localEstoqueId, centroCustoId, observacoes, itens, saveForm]);
 
   const loadLocais = useCallback(async (fId: string) => {
     if (!fId) { setLocaisEstoque([]); setLocalEstoqueId(""); return; }
@@ -449,8 +440,7 @@ export default function NovasolicitacaoPage() {
 
   function resetForm() {
     setDescricao(""); setPrioridade(3); setEntregaDesejada(""); setTipoCompra("");
-    setMotivo(""); setLocalEstoqueId(""); setCentroCustoId(""); setCategoria("");
-    setProjeto(""); setClassificacaoAuxiliar(""); setObservacoes("");
+    setMotivo(""); setLocalEstoqueId(""); setCentroCustoId(""); setObservacoes("");
     setColaboradorId(""); setSetorId("");
     setItens([{ itemId: "", quantidade: "1", unidade: "", observacao: "" }]);
     setServerError("");
@@ -490,8 +480,7 @@ export default function NovasolicitacaoPage() {
           solicitante: colaboradores.find((c) => c.id === colaboradorId)?.nome?.trim() || null,
           tipoCompra: tipoCompra.trim() || null,
           motivo: motivo.trim() || null, localEstoqueId: localEstoqueId || null,
-          centroCustoId: centroCustoId || null, categoria: categoria.trim() || null,
-          projeto: projeto.trim() || null, classificacaoAuxiliar: classificacaoAuxiliar.trim() || null,
+          centroCustoId: centroCustoId || null,
           observacoes: observacoes.trim() || null,
           itens: validItens.map((r) => ({
             itemId: r.itemId, quantidade: parseFloat(r.quantidade),
@@ -654,11 +643,6 @@ export default function NovasolicitacaoPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-1.5"><Label>Categoria</Label><Input value={categoria} onChange={(e) => setCategoria(e.target.value)} placeholder="Ex: Material de escritório..." /></div>
-              <div className="space-y-1.5"><Label>Projeto</Label><Input value={projeto} onChange={(e) => setProjeto(e.target.value)} placeholder="Nome do projeto..." /></div>
-              <div className="space-y-1.5"><Label>Classificação auxiliar</Label><Input value={classificacaoAuxiliar} onChange={(e) => setClassificacaoAuxiliar(e.target.value)} placeholder="Classificação adicional..." /></div>
-            </div>
 
             <div className="space-y-1.5">
               <Label>Observação</Label>
