@@ -154,7 +154,7 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
   // Índice de cada linha de grupo para usar em didParseCell
   const groupRowIndices = new Set<number>();
 
-  for (const [filialNome, grupo] of grupos) {
+  for (const [filialNome, grupo] of Array.from(grupos.entries())) {
     // Linha de cabeçalho do grupo
     const groupRow: TableRow = Array(NUM_COLS).fill("");
     groupRow[0] = GROUP_MARKER;
@@ -176,7 +176,7 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
         continue;
       }
 
-      sc.itens.forEach((it, idx) => {
+      sc.itens.forEach((it: typeof sc.itens[0], idx: number) => {
         const unidade = it.item.unidade?.sigla || it.item.unidadeMedida || "UN";
         const qty     = parseFloat(it.quantidade.toString()).toLocaleString("pt-BR", { maximumFractionDigits: 3 });
         rows.push([
