@@ -12,7 +12,7 @@ import {
   ChevronRight, Pencil, Save, X, Plus, Trash2,
   Loader2, Package, TrendingUp, TrendingDown, ArrowUpDown,
   BarChart2, ShieldCheck, RefreshCw, Clock, AlertOctagon, AlertTriangle,
-  ShoppingBag, ClipboardList, FileText, PackageCheck, ExternalLink, Info as InfoIcon, Star,
+  ShoppingBag, ClipboardList, FileText, PackageCheck, ExternalLink, Info as InfoIcon, Star, Activity,
 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { TipoProdutoQuickCreate, UnidadeQuickCreate, LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
@@ -1807,6 +1807,61 @@ export default function ProdutoDetailPage() {
                       </div>
                     );
                   })()}
+
+                  {/* ── Evolução do Saldo (consumo analysis chart) ──────────── */}
+                  {(() => {
+                    const pr   = item.pontoReposicao != null ? decimalToNumber(item.pontoReposicao) : consumoDiario * (item.leadTimeDias ?? 7);
+                    const eds  = item.estoqueMinimo  != null ? decimalToNumber(item.estoqueMinimo)  : consumoDiario * 3;
+                    const emax = item.estoqueMaximo  != null ? decimalToNumber(item.estoqueMaximo)  : null;
+
+                    let previsaoText  = "—";
+                    let previsaoCls   = "bg-gray-100 text-gray-600";
+                    if (consumoDiario > 0) {
+                      if (estoqueTotal <= eds) {
+                        previsaoText = "CRÍTICO";
+                        previsaoCls  = "bg-red-100 text-red-700";
+                      } else {
+                        const dias  = Math.floor(estoqueTotal / consumoDiario);
+                        const lead  = item.leadTimeDias ?? 7;
+                        const dtStr = new Date(Date.now() + dias * 86400000)
+                          .toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "America/Sao_Paulo" });
+                        previsaoText = `${dias}d (${dtStr})`;
+                        previsaoCls  = dias <= lead ? "bg-red-100 text-red-700"
+                          : dias <= lead * 2 ? "bg-amber-100 text-amber-700"
+                          : "bg-emerald-100 text-emerald-700";
+                      }
+                    }
+
+                    return (
+                      <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 space-y-4">
+                        {/* Header */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Activity className="w-4 h-4 text-blue-600" />
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                              Evolução do Saldo — Últimos 90 dias + Projeção 14 dias
+                            </p>
+                          </div>
+                          <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", previsaoCls)}>
+                            Ruptura: {previsaoText}
+                          </span>
+                        </div>
+
+                        {/* Parameters row */}
+                        <div className="flex flex-wrap gap-3">
+                          <ParamBadge label="Pto. Reposição" value={`${pr.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${sigla}`} color="amber" />
+                          <ParamBadge label="Est. Mínimo (EDS)" value={`${eds.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${sigla}`} color="red" />
+                          {emax != null && (
+                            <ParamBadge label="Est. Máximo" value={`${emax.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${sigla}`} color="gray" />
+                          )}
+                          <ParamBadge label="Lead Time" value={`${item.leadTimeDias ?? 7} dias`} color="gray" />
+                        </div>
+
+                        {/* Chart image */}
+                        <ConsumoChart itemId={id} />
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </div>
@@ -2477,6 +2532,60 @@ function KpiCard({
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide leading-none">{title}</p>
       <p className={cn("text-2xl font-bold leading-tight", c.value)}>{value}</p>
       {sub && <p className="text-xs text-gray-500">{sub}</p>}
+    </div>
+  );
+}
+
+// ── ConsumoChart ──────────────────────────────────────────────────────────────
+function ConsumoChart({ itemId }: { itemId: string }) {
+  const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
+  const [key, setKey] = useState(0);
+
+  return (
+    <div className="relative">
+      {status === "loading" && (
+        <div className="flex items-center justify-center h-40 text-gray-400">
+          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+          <span className="text-sm">Carregando gráfico…</span>
+        </div>
+      )}
+      {status === "error" && (
+        <div className="flex flex-col items-center justify-center h-32 text-gray-400 gap-2">
+          <p className="text-sm">Não foi possível carregar o gráfico.</p>
+          <button
+            onClick={() => { setStatus("loading"); setKey((k) => k + 1); }}
+            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+          >
+            <RefreshCw className="w-3 h-3" /> Tentar novamente
+          </button>
+        </div>
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        key={key}
+        src={`/api/suprimentos/produtos/${itemId}/consumo-chart`}
+        alt="Gráfico de evolução do saldo"
+        className={cn("w-full rounded-lg", status !== "ok" && "hidden")}
+        onLoad={() => setStatus("ok")}
+        onError={() => setStatus("error")}
+      />
+    </div>
+  );
+}
+
+// ── ParamBadge ────────────────────────────────────────────────────────────────
+function ParamBadge({
+  label, value, color,
+}: { label: string; value: string; color: "amber" | "red" | "gray" }) {
+  const cls = {
+    amber: "bg-amber-50 border-amber-200 text-amber-800",
+    red:   "bg-red-50   border-red-200   text-red-800",
+    gray:  "bg-gray-50  border-gray-200  text-gray-700",
+  }[color];
+  return (
+    <div className={cn("flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs", cls)}>
+      <span className="text-[10px] font-semibold uppercase tracking-wide opacity-70">{label}</span>
+      <span className="font-semibold">{value}</span>
     </div>
   );
 }
