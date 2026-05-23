@@ -240,6 +240,50 @@ export async function setTelegramWebhook(
   }
 }
 
+// ── sendTelegramDocument ──────────────────────────────────────────────────────
+
+/**
+ * Send a document (file) to the configured chat or a specific chat_id.
+ * Uses multipart/form-data to upload the file buffer.
+ */
+export async function sendTelegramDocument(opts: {
+  chatId?: string;        // override chat — omit to use default tg_chat_id
+  configKey?: string;     // use a DB config key to resolve chatId
+  filename: string;       // e.g. "relatorio.pdf"
+  buffer: Buffer;         // raw file bytes
+  caption?: string;       // optional caption (MarkdownV2)
+}): Promise<{ ok: boolean; error?: string }> {
+  const cfg = await getTGConfig();
+  if (!cfg) return { ok: false, error: "Telegram não configurado" };
+
+  let targetChatId = opts.chatId ?? cfg.chatId;
+  if (opts.configKey && !opts.chatId) {
+    const rec = await prisma.configuracao.findUnique({ where: { chave: opts.configKey } });
+    if (rec?.valor) targetChatId = rec.valor;
+  }
+
+  const form = new FormData();
+  form.append("chat_id", targetChatId);
+  form.append("document", new Blob([opts.buffer], { type: "application/pdf" }), opts.filename);
+  if (opts.caption) {
+    form.append("caption", opts.caption);
+    form.append("parse_mode", "MarkdownV2");
+  }
+
+  try {
+    const res = await fetch(`${TG_BASE}/bot${cfg.token}/sendDocument`, {
+      method: "POST",
+      body: form,
+      signal: AbortSignal.timeout(30_000),
+    });
+    const data = await res.json() as { ok: boolean; description?: string };
+    if (!data.ok) return { ok: false, error: data.description ?? "Telegram API error" };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erro ao enviar documento" };
+  }
+}
+
 // ── getTelegramWebhookInfo ────────────────────────────────────────────────────
 
 /**

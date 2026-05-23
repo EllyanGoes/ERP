@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/relatorio-estoque",
       "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/cron/relatorio-necessidades",
+      "schedule": "0 11 * * 1-5"
     }
   ]
 }
