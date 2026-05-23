@@ -145,14 +145,20 @@ export async function buildRelatorioConsumo(): Promise<RelatorioConsumoResult> {
     const n        = labels.length;
     const maxSaldo = emax ?? Math.max(...saldoSeries, eds * 1.2, 1);
 
+    // Split saldo into realizado (blue, 90 days) and projetado (gray, 14 days)
+    // They share the last historical point so the lines connect seamlessly
+    const saldoRealizado  = [...saldoSeries.slice(0, 90), ...Array(14).fill(null)];
+    const saldoProjetado  = [...Array(89).fill(null), ...saldoSeries.slice(89)];
+
     const chartConfig = {
       type: "line",
       data: {
         labels,
         datasets: [
-          { label: "Saldo", data: saldoSeries, borderColor: "#2563eb", backgroundColor: "rgba(37,99,235,0.08)", fill: true, tension: 0.3, borderWidth: 2, pointRadius: 0 },
-          { label: "Ponto de Reposição (PR)", data: Array(n).fill(parseFloat(pr.toFixed(3))), borderColor: "#f59e0b", borderWidth: 1.5, borderDash: [6, 3], pointRadius: 0, fill: false },
-          { label: "Estoque Mínimo (EDS)",    data: Array(n).fill(parseFloat(eds.toFixed(3))), borderColor: "#dc2626", borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0, fill: false },
+          { label: "Saldo Realizado",          data: saldoRealizado, borderColor: "#2563eb", backgroundColor: "rgba(37,99,235,0.08)", fill: true,  tension: 0.3, borderWidth: 2,   pointRadius: 0 },
+          { label: "Saldo Projetado",           data: saldoProjetado, borderColor: "#9ca3af", backgroundColor: "rgba(156,163,175,0.07)", fill: true, tension: 0.3, borderWidth: 2,   pointRadius: 0, borderDash: [5, 4] },
+          { label: "Ponto de Reposição (PR)",   data: Array(n).fill(parseFloat(pr.toFixed(3))),  borderColor: "#f59e0b", borderWidth: 1.5, borderDash: [6, 3], pointRadius: 0, fill: false },
+          { label: "Estoque Mínimo (EDS)",      data: Array(n).fill(parseFloat(eds.toFixed(3))), borderColor: "#dc2626", borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0, fill: false },
         ],
       },
       options: {
