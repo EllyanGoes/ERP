@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { answerCallbackQuery, editTelegramMessage, escMD, sendTelegramDM, sendTelegramDocument } from "@/lib/telegram";
 import { buildRelatorioEstoque, parseRelatorioDate } from "@/lib/relatorio-estoque";
 import { buildRelatorioNecessidades } from "@/lib/relatorio-necessidades";
+import { buildRelatorioSolicitacoes } from "@/lib/relatorio-solicitacoes";
 
 // Telegram sends POST with callback_query when user clicks inline keyboard button
 export async function POST(req: NextRequest) {
@@ -101,6 +102,33 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true });
       }
 
+      // /solicitacoes — relatório de SCs ativas (exceto totalmente atendidas)
+      if (text.startsWith("/solicitacoes")) {
+        await sendTelegramDM(msg.chat.id, { text: `⏳ _Gerando relatório\\.\\.\\._` });
+
+        try {
+          const relatorio = await buildRelatorioSolicitacoes();
+          const dateStr = new Date().toLocaleDateString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
+            day: "2-digit", month: "2-digit", year: "numeric",
+          }).replace(/\//g, "-");
+
+          await sendTelegramDocument({
+            chatId:   String(msg.chat.id),
+            filename: `solicitacoes-ativas-${dateStr}.pdf`,
+            buffer:   relatorio.pdfBuffer,
+            caption:  relatorio.captionText,
+          });
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          await sendTelegramDM(msg.chat.id, {
+            text: `❌ Erro ao gerar relatório: ${escMD(errMsg)}`,
+          });
+        }
+
+        return NextResponse.json({ ok: true });
+      }
+
       // /ajuda — lista de comandos disponíveis
       if (text.startsWith("/ajuda") || text.startsWith("/help") || text.startsWith("/start")) {
         await sendTelegramDM(msg.chat.id, {
@@ -112,6 +140,9 @@ export async function POST(req: NextRequest) {
             ``,
             `📋 /necessidades — Necessidades pendentes de cotação`,
             `_SCs aprovadas que ainda não possuem cotação vinculada_`,
+            ``,
+            `📑 /solicitacoes — Solicitações de compras ativas`,
+            `_Todas as SCs exceto as totalmente atendidas_`,
             ``,
             `ℹ️ /ajuda — Lista de comandos disponíveis`,
           ].join("\n"),

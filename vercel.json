@@ -15,6 +15,9 @@
     },
     "src/app/api/cron/relatorio-necessidades/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/cron/relatorio-solicitacoes/route.ts": {
+      "maxDuration": 60
     }
   }
 }
