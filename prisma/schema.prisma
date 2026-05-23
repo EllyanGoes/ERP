@@ -512,6 +512,11 @@ model Item {
   pesoLiquido           Decimal?                @db.Decimal(10, 3)
   pesoBruto             Decimal?                @db.Decimal(10, 3)
   ativo                 Boolean                 @default(true)
+  favorito              Boolean                 @default(false)
+  estoqueMinimo         Decimal?                @db.Decimal(15, 3)
+  estoqueMaximo         Decimal?                @db.Decimal(15, 3)
+  pontoReposicao        Decimal?                @db.Decimal(15, 3)
+  leadTimeDias          Int?
   observacoes           String?
   createdAt             DateTime                @default(now())
   updatedAt             DateTime @updatedAt

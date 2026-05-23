@@ -12,7 +12,7 @@ import {
   ChevronRight, Pencil, Save, X, Plus, Trash2,
   Loader2, Package, TrendingUp, TrendingDown, ArrowUpDown,
   BarChart2, ShieldCheck, RefreshCw, Clock, AlertOctagon, AlertTriangle,
-  ShoppingBag, ClipboardList, FileText, PackageCheck, ExternalLink, Info as InfoIcon,
+  ShoppingBag, ClipboardList, FileText, PackageCheck, ExternalLink, Info as InfoIcon, Star,
 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { TipoProdutoQuickCreate, UnidadeQuickCreate, LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
@@ -48,6 +48,11 @@ type Item = {
   precoVenda: unknown;
   precoCusto: unknown;
   ativo: boolean;
+  favorito: boolean;
+  estoqueMinimo: unknown;
+  estoqueMaximo: unknown;
+  pontoReposicao: unknown;
+  leadTimeDias: number | null;
   observacoes: string | null;
   estoqueItems: Array<{
     id: string;
@@ -192,6 +197,47 @@ export default function ProdutoDetailPage() {
   });
   const [saldoSaving, setSaldoSaving] = useState(false);
   const [saldoError, setSaldoError] = useState("");
+
+  // Favorito toggle
+  const [favoritoSaving, setFavoritoSaving] = useState(false);
+
+  async function toggleFavorito() {
+    if (!item || favoritoSaving) return;
+    setFavoritoSaving(true);
+    try {
+      const res = await fetch(`/api/suprimentos/produtos/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ favorito: !item.favorito }),
+      });
+      if (res.ok) await load();
+    } catch { /* ignore */ }
+    finally { setFavoritoSaving(false); }
+  }
+
+  // Parâmetros de reposição inline edit
+  const [paramEdit, setParamEdit] = useState<null | "estoqueMinimo" | "estoqueMaximo" | "pontoReposicao" | "leadTimeDias">(null);
+  const [paramValue, setParamValue] = useState("");
+  const [paramSaving, setParamSaving] = useState(false);
+
+  async function saveParam(field: string, value: string) {
+    setParamSaving(true);
+    try {
+      const payload: Record<string, unknown> = {};
+      if (field === "leadTimeDias") {
+        payload[field] = value === "" ? null : parseInt(value);
+      } else {
+        payload[field] = value === "" ? null : parseFloat(value);
+      }
+      const res = await fetch(`/api/suprimentos/produtos/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) { await load(); setParamEdit(null); }
+    } catch { /* ignore */ }
+    finally { setParamSaving(false); }
+  }
 
   // Compras tab
   const [compras, setCompras]           = useState<ComprasData | null>(null);
@@ -575,6 +621,16 @@ export default function ProdutoDetailPage() {
               >
                 <ClipboardList className="w-4 h-4 mr-1" />
                 Nova Necessidade
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={toggleFavorito}
+                disabled={favoritoSaving}
+                title={item.favorito ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                className={item.favorito ? "border-yellow-400 text-yellow-600 hover:bg-yellow-50" : ""}
+              >
+                <Star className={cn("w-4 h-4", item.favorito ? "fill-yellow-400 text-yellow-500" : "")} />
               </Button>
               <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>
                 <Pencil className="w-4 h-4 mr-1" />Editar
@@ -1051,6 +1107,76 @@ export default function ProdutoDetailPage() {
                   </div>
                 )}
               </>
+            )}
+
+            {/* Parâmetros de Reposição */}
+            {item.tipo !== "SERVICO" && (
+              <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 mt-2">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-700">Parâmetros de Reposição</h3>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {([
+                    { field: "estoqueMinimo",  label: "Estoque Mínimo (EDS)", suffix: item.unidade?.sigla || item.unidadeMedida },
+                    { field: "estoqueMaximo",  label: "Estoque Máximo (EMax)", suffix: item.unidade?.sigla || item.unidadeMedida },
+                    { field: "pontoReposicao", label: "Ponto de Reposição (PR)", suffix: item.unidade?.sigla || item.unidadeMedida },
+                    { field: "leadTimeDias",   label: "Lead Time", suffix: "dias" },
+                  ] as const).map(({ field, label, suffix }) => {
+                    const rawVal = item[field];
+                    const displayVal = rawVal != null
+                      ? (field === "leadTimeDias"
+                          ? `${rawVal} ${suffix}`
+                          : `${decimalToNumber(rawVal).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} ${suffix}`)
+                      : null;
+                    const isEditing = paramEdit === field;
+                    return (
+                      <div key={field} className="bg-white rounded-lg border border-gray-200 px-3 py-2.5">
+                        <p className="text-xs text-gray-500 mb-1">{label}</p>
+                        {isEditing ? (
+                          <div className="flex items-center gap-1">
+                            <Input
+                              autoFocus
+                              type="number"
+                              min="0"
+                              value={paramValue}
+                              onChange={(e) => setParamValue(e.target.value)}
+                              className="h-7 text-sm w-full"
+                              onKeyDown={(e) => { if (e.key === "Enter") saveParam(field, paramValue); if (e.key === "Escape") setParamEdit(null); }}
+                            />
+                            <button
+                              onClick={() => saveParam(field, paramValue)}
+                              disabled={paramSaving}
+                              className="p-1 rounded hover:bg-green-50 text-green-600 disabled:opacity-50"
+                            >
+                              {paramSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                            </button>
+                            <button onClick={() => setParamEdit(null)} className="p-1 rounded hover:bg-gray-100 text-gray-400">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-1">
+                            <span className={cn("text-sm font-semibold", displayVal ? "text-gray-900" : "text-gray-400 font-normal italic")}>
+                              {displayVal ?? "Não definido"}
+                            </span>
+                            <button
+                              onClick={() => {
+                                setParamEdit(field);
+                                const v = rawVal != null ? (field === "leadTimeDias" ? String(rawVal) : decimalToNumber(rawVal).toString()) : "";
+                                setParamValue(v);
+                              }}
+                              className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                              title="Editar"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
         )}

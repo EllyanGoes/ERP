@@ -52,6 +52,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.precoVenda !== undefined) updateData.precoVenda = parseFloat(body.precoVenda) || 0;
   // precoCusto is auto-maintained by CMPM (entrada movements) — never updated via PATCH
   if (body.ativo !== undefined) updateData.ativo = body.ativo;
+  if (body.favorito !== undefined) updateData.favorito = Boolean(body.favorito);
+  if (body.estoqueMinimo !== undefined) updateData.estoqueMinimo = body.estoqueMinimo != null ? parseFloat(body.estoqueMinimo) : null;
+  if (body.estoqueMaximo !== undefined) updateData.estoqueMaximo = body.estoqueMaximo != null ? parseFloat(body.estoqueMaximo) : null;
+  if (body.pontoReposicao !== undefined) updateData.pontoReposicao = body.pontoReposicao != null ? parseFloat(body.pontoReposicao) : null;
+  if (body.leadTimeDias !== undefined) updateData.leadTimeDias = body.leadTimeDias != null ? parseInt(body.leadTimeDias) : null;
   if (body.observacoes !== undefined) updateData.observacoes = body.observacoes || null;
 
   const updated = await prisma.item.update({

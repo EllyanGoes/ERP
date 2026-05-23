@@ -7,6 +7,7 @@ import { answerCallbackQuery, editTelegramMessage, escMD, sendTelegramDM, sendTe
 import { buildRelatorioEstoque, parseRelatorioDate } from "@/lib/relatorio-estoque";
 import { buildRelatorioNecessidades } from "@/lib/relatorio-necessidades";
 import { buildRelatorioSolicitacoes } from "@/lib/relatorio-solicitacoes";
+import { buildRelatorioConsumo } from "@/lib/relatorio-consumo";
 
 // Telegram sends POST with callback_query when user clicks inline keyboard button
 export async function POST(req: NextRequest) {
@@ -129,6 +130,33 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true });
       }
 
+      // /consumo — análise de consumo dos produtos favoritados
+      if (text.startsWith("/consumo")) {
+        await sendTelegramDM(msg.chat.id, { text: `⏳ _Gerando análise de consumo\\.\\.\\._` });
+
+        try {
+          const relatorio = await buildRelatorioConsumo();
+          const dateStr = new Date().toLocaleDateString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
+            day: "2-digit", month: "2-digit", year: "numeric",
+          }).replace(/\//g, "-");
+
+          await sendTelegramDocument({
+            chatId:   String(msg.chat.id),
+            filename: `consumo-${dateStr}.pdf`,
+            buffer:   relatorio.pdfBuffer,
+            caption:  relatorio.captionText,
+          });
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          await sendTelegramDM(msg.chat.id, {
+            text: `❌ Erro ao gerar análise: ${escMD(errMsg)}`,
+          });
+        }
+
+        return NextResponse.json({ ok: true });
+      }
+
       // /ajuda — lista de comandos disponíveis
       if (text.startsWith("/ajuda") || text.startsWith("/help") || text.startsWith("/start")) {
         await sendTelegramDM(msg.chat.id, {
@@ -143,6 +171,9 @@ export async function POST(req: NextRequest) {
             ``,
             `📑 /solicitacoes — Solicitações de compras ativas`,
             `_Todas as SCs exceto as totalmente atendidas_`,
+            ``,
+            `📊 /consumo — Análise de consumo dos produtos favoritados`,
+            `_Série histórica 90 dias \\+ projeção 14 dias_`,
             ``,
             `ℹ️ /ajuda — Lista de comandos disponíveis`,
           ].join("\n"),

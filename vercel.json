@@ -18,6 +18,9 @@
     },
     "src/app/api/cron/relatorio-solicitacoes/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/cron/relatorio-consumo/route.ts": {
+      "maxDuration": 60
     }
   }
 }
