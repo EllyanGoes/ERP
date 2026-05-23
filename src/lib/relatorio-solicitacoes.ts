@@ -49,9 +49,10 @@ export async function buildRelatorioSolicitacoes(): Promise<RelatorioSolicitacoe
           },
         },
       },
-      setor:    { select: { nome: true } },
-      filial:   { select: { razaoSocial: true, nomeFantasia: true } },
-      cotacoes: { select: { numero: true, status: true }, orderBy: { createdAt: "desc" }, take: 1 },
+      setor:         { select: { nome: true } },
+      filial:        { select: { razaoSocial: true, nomeFantasia: true } },
+      cotacoes:      { select: { numero: true, status: true }, orderBy: { createdAt: "desc" }, take: 1 },
+      pedidosCompra: { select: { numero: true }, orderBy: { createdAt: "desc" }, take: 1 },
     },
     orderBy: [
       { prioridade: "asc" },
@@ -97,9 +98,10 @@ export async function buildRelatorioSolicitacoes(): Promise<RelatorioSolicitacoe
 type SCData = Awaited<ReturnType<typeof prisma.necessidadeCompra.findMany<{
   include: {
     itens: { include: { item: { select: { codigo: true; descricao: true; tipoProduto: { select: { nome: true } }; unidade: { select: { sigla: true } }; unidadeMedida: true } } } };
-    setor:    { select: { nome: true } };
-    filial:   { select: { razaoSocial: true; nomeFantasia: true } };
-    cotacoes: { select: { numero: true; status: true } };
+    setor:         { select: { nome: true } };
+    filial:        { select: { razaoSocial: true; nomeFantasia: true } };
+    cotacoes:      { select: { numero: true; status: true } };
+    pedidosCompra: { select: { numero: true } };
   };
 }>>>;
 
@@ -141,18 +143,16 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
   const rows: TableRow[] = [];
 
   for (const sc of scs) {
-    const filial   = sc.filial?.nomeFantasia || sc.filial?.razaoSocial || "—";
-    const setor    = sc.setor?.nome || "—";
-    const prio     = PRIORIDADE_LABEL[sc.prioridade] ?? "Média";
-    const prazo    = sc.dataNecessidade
-      ? new Date(sc.dataNecessidade).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" })
-      : "—";
-    const criado   = new Date(sc.createdAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" });
-    const cotacao  = sc.cotacoes[0]?.numero ?? "—";
+    const filial     = sc.filial?.nomeFantasia || sc.filial?.razaoSocial || "—";
+    const setor      = sc.setor?.nome || "—";
+    const prio       = PRIORIDADE_LABEL[sc.prioridade] ?? "Média";
+    const criado     = new Date(sc.createdAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" });
+    const cotacao    = sc.cotacoes[0]?.numero ?? "—";
+    const pedido     = sc.pedidosCompra[0]?.numero ?? "—";
     const statusMeta = STATUS_META[sc.status] ?? { label: sc.status, color: [100, 100, 100] as [number, number, number] };
 
     if (sc.itens.length === 0) {
-      rows.push([sc.numero, statusMeta.label, filial, setor, "—", "—", "—", prio, prazo, criado, cotacao]);
+      rows.push([sc.numero, statusMeta.label, filial, setor, "—", "—", prio, criado, cotacao, pedido]);
       continue;
     }
 
@@ -165,12 +165,11 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
         idx === 0 ? filial           : "",
         idx === 0 ? setor            : "",
         it.item.codigo,
-        it.item.descricao,
-        it.item.tipoProduto?.nome || "—",
+        `${it.item.descricao} — ${qty} ${it.item.unidade?.sigla || it.item.unidadeMedida || "UN"}`,
         idx === 0 ? prio             : "",
-        idx === 0 ? prazo            : "",
         idx === 0 ? criado           : "",
         idx === 0 ? cotacao          : "",
+        idx === 0 ? pedido           : "",
       ]);
     });
   }
@@ -179,8 +178,8 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
     startY: 26,
     head: [[
       "Solicitação", "Status", "Filial", "Setor",
-      "Código", "Descrição", "Categoria",
-      "Prioridade", "Prazo", "Criado em", "Cotação",
+      "Código", "Produto (Qtd.)",
+      "Prioridade", "Criado em", "Cotação", "Pedido",
     ]],
     body: rows,
     styles: {
@@ -197,17 +196,16 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
     },
     alternateRowStyles: { fillColor: [245, 247, 250] },
     columnStyles: {
-      0:  { cellWidth: 22, fontStyle: "bold", textColor: [37, 99, 235] }, // SC
-      1:  { cellWidth: 24, halign: "center", fontStyle: "bold" },          // Status
-      2:  { cellWidth: 28 },                                                // Filial
-      3:  { cellWidth: 22 },                                                // Setor
-      4:  { cellWidth: 20, font: "courier", fontSize: 6.5, textColor: [60, 60, 60] }, // Código
-      5:  { cellWidth: "auto" },                                            // Descrição
-      6:  { cellWidth: 22 },                                                // Categoria
-      7:  { cellWidth: 18, halign: "center" },                              // Prioridade
-      8:  { cellWidth: 22, halign: "center" },                              // Prazo
-      9:  { cellWidth: 20, halign: "center" },                              // Criado em
-      10: { cellWidth: 20, halign: "center", textColor: [37, 99, 235], fontStyle: "bold" }, // Cotação
+      0: { cellWidth: 22, fontStyle: "bold", textColor: [37, 99, 235] },                    // SC
+      1: { cellWidth: 26, halign: "center", fontStyle: "bold" },                             // Status
+      2: { cellWidth: 30 },                                                                   // Filial
+      3: { cellWidth: 22 },                                                                   // Setor
+      4: { cellWidth: 20, font: "courier", fontSize: 6.5, textColor: [60, 60, 60] },         // Código
+      5: { cellWidth: "auto" },                                                               // Produto (Qtd.)
+      6: { cellWidth: 18, halign: "center" },                                                 // Prioridade
+      7: { cellWidth: 20, halign: "center" },                                                 // Criado em
+      8: { cellWidth: 20, halign: "center", textColor: [37, 99, 235], fontStyle: "bold" },   // Cotação
+      9: { cellWidth: 20, halign: "center", textColor: [22, 163, 74],  fontStyle: "bold" },  // Pedido
     },
     didParseCell: (data) => {
       if (data.section !== "body") return;
