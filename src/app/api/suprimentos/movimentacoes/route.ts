@@ -11,6 +11,7 @@ const itemSchema = z.object({
   quantidade:     z.coerce.number().min(0.001),
   valorUnitario:  z.coerce.number().min(0).optional(),
   observacoes:    z.string().optional(),
+  localizacao:    z.string().optional().nullable(),
 });
 
 const postSchema = z.object({
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
 
       // Process each item
       for (const item of itens) {
-        const { itemId, localEstoqueId, unidadeId, quantidade, valorUnitario, observacoes: obsItem } = item;
+        const { itemId, localEstoqueId, unidadeId, quantidade, valorUnitario, observacoes: obsItem, localizacao } = item;
 
         // Find or create EstoqueItem for this location
         let estoque = await tx.estoqueItem.findFirst({
@@ -61,6 +62,13 @@ export async function POST(req: NextRequest) {
         if (!estoque) {
           estoque = await tx.estoqueItem.create({
             data: { itemId, localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0 },
+          });
+        }
+        // Update localizacao if provided
+        if (localizacao !== undefined && localizacao !== null) {
+          await tx.estoqueItem.update({
+            where: { id: estoque.id },
+            data: { localizacao },
           });
         }
 

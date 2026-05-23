@@ -55,7 +55,11 @@ type Item = {
     quantidadeMin: unknown;
     quantidadeMax: unknown;
     localizacao: string | null;
-    localEstoque: { id: string; nome: string } | null;
+    localEstoque: {
+      id: string;
+      nome: string;
+      filial: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
+    } | null;
   }>;
   fornecedores: Array<{
     id: string;
@@ -152,7 +156,7 @@ export default function ProdutoDetailPage() {
 
   // Movimentação rápida
   const [showMovDialog, setShowMovDialog] = useState(false);
-  const [locaisEstoque, setLocaisEstoque] = useState<{ id: string; nome: string }[]>([]);
+  const [locaisEstoque, setLocaisEstoque] = useState<{ id: string; nome: string; filial: { id: string; razaoSocial: string } | null }[]>([]);
   const [movForm, setMovForm] = useState({
     tipo: "ENTRADA" as "ENTRADA" | "SAIDA",
     localEstoqueId: "",
@@ -177,6 +181,18 @@ export default function ProdutoDetailPage() {
   // Movimentações — period filter
   const [movPeriodo, setMovPeriodo] = useState<DateRange>({ from: "", to: "" });
 
+  // Inserir Saldo Inicial
+  const [showSaldoDialog, setShowSaldoDialog] = useState(false);
+  const [saldoFilialFilter, setSaldoFilialFilter] = useState("");
+  const [saldoForm, setSaldoForm] = useState({
+    localEstoqueId: "",
+    saldo: "",
+    custo: "",
+    endereco: "",
+  });
+  const [saldoSaving, setSaldoSaving] = useState(false);
+  const [saldoError, setSaldoError] = useState("");
+
   // Compras tab
   const [compras, setCompras]           = useState<ComprasData | null>(null);
   const [comprasLoading, setComprasLoading] = useState(false);
@@ -189,6 +205,46 @@ export default function ProdutoDetailPage() {
       .then((r) => r.json())
       .then((d) => { setCompras(d); setComprasLoaded(true); })
       .finally(() => setComprasLoading(false));
+  }
+
+  function openSaldoDialog() {
+    setSaldoForm({ localEstoqueId: "", saldo: "", custo: "", endereco: "" });
+    setSaldoFilialFilter("");
+    setSaldoError("");
+    setShowSaldoDialog(true);
+    if (locaisEstoque.length === 0) {
+      fetch("/api/suprimentos/locais-estoque").then((r) => r.json()).then((j) => {
+        setLocaisEstoque(Array.isArray(j) ? j : (j.data ?? []));
+      });
+    }
+  }
+
+  async function submitSaldo() {
+    if (!saldoForm.localEstoqueId) { setSaldoError("Selecione o Local de Estoque"); return; }
+    if (!saldoForm.saldo || parseFloat(saldoForm.saldo) <= 0) { setSaldoError("Informe o Saldo (deve ser maior que 0)"); return; }
+    setSaldoSaving(true); setSaldoError("");
+    try {
+      const res = await fetch("/api/suprimentos/movimentacoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tipo: "ENTRADA",
+          documento: "SALDO-INICIAL",
+          observacoes: "Saldo inicial inserido manualmente",
+          itens: [{
+            itemId: id,
+            localEstoqueId: saldoForm.localEstoqueId,
+            quantidade: parseFloat(saldoForm.saldo),
+            valorUnitario: saldoForm.custo ? parseFloat(saldoForm.custo) : undefined,
+            localizacao: saldoForm.endereco || undefined,
+          }],
+        }),
+      });
+      if (!res.ok) { setSaldoError((await res.json()).error || "Erro ao registrar saldo"); return; }
+      setShowSaldoDialog(false);
+      await load();
+    } catch { setSaldoError("Erro de conexão"); }
+    finally { setSaldoSaving(false); }
   }
 
   // Nova Necessidade quick modal
@@ -1016,94 +1072,131 @@ export default function ProdutoDetailPage() {
 
         {/* ── ESTOQUES ────────────────────────────────────────────────────── */}
         {tab === "estoques" && (
-          <div className="space-y-4 max-w-4xl">
+          <div className="space-y-4">
             {item.tipo === "SERVICO" ? (
               <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
                 <p className="text-sm">Serviços não possuem controle de estoque</p>
               </div>
-            ) : estoqueComLocal.length === 0 ? (
-              <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
-                <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Nenhum estoque registrado em local definido</p>
-                <p className="text-xs mt-1">Registre uma movimentação de entrada para inicializar o saldo</p>
-              </div>
             ) : (
               <>
-                {estoqueComLocal.length > 1 && (
-                  <div className="bg-blue-50 rounded-xl px-5 py-3 flex items-center justify-between">
-                    <span className="text-sm font-medium text-blue-700">Total em todos os locais</span>
-                    <span className="text-2xl font-bold text-blue-800">
-                      {estoqueTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                      <span className="text-sm font-normal ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
-                    </span>
+                {/* Header bar */}
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-500">
+                    Saldo por local de estoque ·{" "}
+                    <span className="font-semibold text-gray-700">
+                      {estoqueTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {item.unidade?.sigla || item.unidadeMedida}
+                    </span>{" "}
+                    total
+                    {custoUnit > 0 && (
+                      <> · custo total{" "}
+                        <span className="font-semibold text-blue-700">{formatBRL(custoUnit * estoqueTotal)}</span>
+                      </>
+                    )}
+                  </p>
+                  <Button size="sm" onClick={openSaldoDialog}>
+                    <Plus className="w-4 h-4 mr-1" />Inserir Saldo
+                  </Button>
+                </div>
+
+                {estoqueComLocal.length === 0 ? (
+                  <div className="text-center py-20 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+                    <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm font-medium">Nenhum saldo registrado em local definido</p>
+                    <p className="text-xs mt-1">Use "Inserir Saldo" para itens já em estoque</p>
+                    <Button size="sm" variant="outline" className="mt-4" onClick={openSaldoDialog}>
+                      <Plus className="w-3.5 h-3.5 mr-1" />Inserir Saldo
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-100 border-b-2 border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
+                          <tr>
+                            <th className="text-left px-4 py-3 font-semibold whitespace-nowrap">Filial</th>
+                            <th className="text-left px-4 py-3 font-semibold whitespace-nowrap">Local de Estoque</th>
+                            <th className="text-right px-4 py-3 font-semibold whitespace-nowrap">Saldo</th>
+                            <th className="text-right px-4 py-3 font-semibold whitespace-nowrap">Saldo Disponível</th>
+                            <th className="text-right px-4 py-3 font-semibold whitespace-nowrap">Custo Unit.</th>
+                            <th className="text-right px-4 py-3 font-semibold whitespace-nowrap">Custo Médio</th>
+                            <th className="text-right px-4 py-3 font-semibold whitespace-nowrap">Custo Total</th>
+                            <th className="text-left px-4 py-3 font-semibold whitespace-nowrap">Endereço</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {estoqueComLocal.map((e) => {
+                            const atual = decimalToNumber(e.quantidadeAtual);
+                            const min = decimalToNumber(e.quantidadeMin);
+                            const abaixo = min > 0 && atual < min;
+                            const custoLinha = custoUnit;
+                            const custoTotalLinha = custoLinha * atual;
+                            const filialNome = e.localEstoque?.filial
+                              ? (e.localEstoque.filial.nomeFantasia || e.localEstoque.filial.razaoSocial)
+                              : "—";
+                            return (
+                              <tr key={e.id} className={cn("hover:bg-indigo-50/40 transition-colors", abaixo && "bg-red-50/30")}>
+                                <td className="px-4 py-3.5 text-gray-600 text-xs font-medium">{filialNome}</td>
+                                <td className="px-4 py-3.5 font-medium text-gray-900">
+                                  <Link href={`/suprimentos/locais-estoque/${e.localEstoque!.id}`} className="hover:text-blue-600 hover:underline">
+                                    {e.localEstoque!.nome}
+                                  </Link>
+                                </td>
+                                <td className="px-4 py-3.5 text-right">
+                                  <span className={cn("font-bold", abaixo ? "text-red-600" : "text-gray-900")}>
+                                    {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                                  </span>
+                                  <span className="text-xs text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                </td>
+                                <td className="px-4 py-3.5 text-right">
+                                  <span className="font-semibold text-gray-800">
+                                    {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                                  </span>
+                                  <span className="text-xs text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                </td>
+                                <td className="px-4 py-3.5 text-right font-semibold text-gray-700">
+                                  {custoLinha > 0 ? formatBRL(custoLinha) : <span className="text-gray-400">—</span>}
+                                </td>
+                                <td className="px-4 py-3.5 text-right text-gray-500 text-xs">
+                                  {custoLinha > 0 ? (
+                                    <span className="font-mono bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded">{formatBRL(custoLinha)}</span>
+                                  ) : <span className="text-gray-400">—</span>}
+                                </td>
+                                <td className="px-4 py-3.5 text-right font-semibold text-blue-700">
+                                  {custoTotalLinha > 0 ? formatBRL(custoTotalLinha) : <span className="text-gray-400 font-normal">—</span>}
+                                </td>
+                                <td className="px-4 py-3.5 text-gray-500 text-xs">
+                                  {e.localizacao ? (
+                                    <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{e.localizacao}</span>
+                                  ) : "—"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        {estoqueComLocal.length > 1 && (
+                          <tfoot>
+                            <tr className="border-t-2 border-gray-200 bg-gray-50">
+                              <td colSpan={2} className="px-4 py-2.5 text-xs font-semibold text-gray-600 uppercase">Total</td>
+                              <td className="px-4 py-2.5 text-right font-bold text-gray-900">
+                                {estoqueTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                                <span className="text-xs font-normal text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                              </td>
+                              <td className="px-4 py-2.5 text-right font-bold text-gray-800">
+                                {estoqueTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                                <span className="text-xs font-normal text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                              </td>
+                              <td colSpan={2} />
+                              <td className="px-4 py-2.5 text-right font-bold text-blue-800">
+                                {custoUnit > 0 ? formatBRL(custoUnit * estoqueTotal) : <span className="text-gray-400">—</span>}
+                              </td>
+                              <td />
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
                   </div>
                 )}
-                <div className="rounded-xl border border-gray-200 overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
-                      <tr>
-                        <th className="text-left px-4 py-3 font-semibold">Local de Estoque</th>
-                        <th className="text-left px-4 py-3 font-semibold">Localização</th>
-                        <th className="text-right px-4 py-3 font-semibold">Qtd. Atual</th>
-                        <th className="text-right px-4 py-3 font-semibold">Mínimo</th>
-                        <th className="text-right px-4 py-3 font-semibold">Máximo</th>
-                        <th className="text-center px-4 py-3 font-semibold">Situação</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {estoqueComLocal.map((e) => {
-                        const atual = decimalToNumber(e.quantidadeAtual);
-                        const min = decimalToNumber(e.quantidadeMin);
-                        const max = e.quantidadeMax ? decimalToNumber(e.quantidadeMax) : null;
-                        const abaixo = min > 0 && atual < min;
-                        const acima = max !== null && atual > max;
-                        return (
-                          <tr key={e.id} className={cn("hover:bg-blue-50/40", abaixo && "bg-red-50/40")}>
-                            <td className="px-4 py-3 font-medium text-gray-800">
-                              <Link href={`/suprimentos/locais-estoque/${e.localEstoque!.id}`} className="hover:text-blue-600 hover:underline">
-                                {e.localEstoque!.nome}
-                              </Link>
-                            </td>
-                            <td className="px-4 py-3 text-gray-500 text-xs">
-                              {e.localizacao ? (
-                                <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{e.localizacao}</span>
-                              ) : "—"}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <span className={cn("font-bold text-base", abaixo ? "text-red-600" : "text-gray-900")}>
-                                {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                              </span>
-                              <span className="text-xs text-gray-600 font-semibold ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
-                            </td>
-                            <td className="px-4 py-3 text-right text-gray-700 font-semibold">{min > 0 ? min.toLocaleString("pt-BR") : <span className="text-gray-400">—</span>}</td>
-                            <td className="px-4 py-3 text-right text-gray-700 font-semibold">{max !== null ? max.toLocaleString("pt-BR") : <span className="text-gray-400">—</span>}</td>
-                            <td className="px-4 py-3 text-center">
-                              {abaixo ? (
-                                <span className="text-xs font-semibold text-red-700 bg-red-100 border border-red-200 px-2.5 py-1 rounded-full">Baixo</span>
-                              ) : acima ? (
-                                <span className="text-xs font-semibold text-amber-700 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full">Acima máx.</span>
-                              ) : (
-                                <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full">Normal</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    {estoqueComLocal.length > 1 && (
-                      <tfoot>
-                        <tr className="border-t border-gray-200 bg-gray-50">
-                          <td colSpan={2} className="px-4 py-2 text-xs font-medium text-gray-500">Total</td>
-                          <td className="px-4 py-2 text-right font-bold text-gray-900">
-                            {estoqueTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                            <span className="text-xs font-normal text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
-                          </td>
-                          <td colSpan={3} />
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
-                </div>
               </>
             )}
           </div>
@@ -1861,6 +1954,146 @@ export default function ProdutoDetailPage() {
               >
                 {deletingMovId === deleteMovConfirm.id && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
                 Excluir
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Modal: Inserir Saldo Inicial ──────────────────────────────── */}
+      {showSaldoDialog && typeof window !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg space-y-5">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-900 text-base">Inserir Saldo</h3>
+                <p className="text-xs text-gray-400 mt-0.5 font-mono">{item.codigo} — {item.descricao}</p>
+              </div>
+              <button onClick={() => setShowSaldoDialog(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              Use este formulário para registrar estoque de itens que já estão físicamente no almoxarifado e não entraram pelo fluxo de compras.
+            </p>
+
+            <div className="space-y-4">
+              {saldoError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{saldoError}</p>
+              )}
+
+              {/* Filial (para filtrar locais) */}
+              <div className="space-y-1.5">
+                <Label>Filial</Label>
+                <select
+                  value={saldoFilialFilter}
+                  onChange={(e) => { setSaldoFilialFilter(e.target.value); setSaldoForm((p) => ({ ...p, localEstoqueId: "" })); }}
+                  className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Todas as filiais</option>
+                  {Array.from(new Map(
+                    locaisEstoque
+                      .filter((l) => l.filial)
+                      .map((l) => [l.filial!.id, l.filial!])
+                  ).values()).map((f) => (
+                    <option key={f.id} value={f.id}>{f.razaoSocial}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Local de Estoque */}
+              <div className="space-y-1.5">
+                <Label>Local de Estoque <span className="text-red-500">*</span></Label>
+                <select
+                  value={saldoForm.localEstoqueId}
+                  onChange={(e) => setSaldoForm((p) => ({ ...p, localEstoqueId: e.target.value }))}
+                  className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Selecionar local...</option>
+                  {locaisEstoque
+                    .filter((l) => !saldoFilialFilter || l.filial?.id === saldoFilialFilter)
+                    .map((l) => (
+                      <option key={l.id} value={l.id}>{l.nome}</option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Saldo + Saldo Disponível */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Saldo <span className="text-red-500">*</span></Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number" step="0.001" min="0.001"
+                      value={saldoForm.saldo}
+                      onChange={(e) => setSaldoForm((p) => ({ ...p, saldo: e.target.value }))}
+                      placeholder="0"
+                    />
+                    <span className="text-xs text-gray-500 font-mono shrink-0">{item.unidade?.sigla || item.unidadeMedida}</span>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Saldo Disponível</Label>
+                  <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-gray-100 bg-gray-50">
+                    <span className="text-sm text-gray-600">{saldoForm.saldo ? parseFloat(saldoForm.saldo).toLocaleString("pt-BR", { maximumFractionDigits: 3 }) : "—"}</span>
+                    <span className="text-xs text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                    <span className="ml-auto text-[10px] text-gray-400">= saldo</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Custo + Custo Médio + Custo Total */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Custo Unit. (R$)</Label>
+                  <Input
+                    type="number" step="0.01" min="0"
+                    value={saldoForm.custo}
+                    onChange={(e) => setSaldoForm((p) => ({ ...p, custo: e.target.value }))}
+                    placeholder="0,00"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Custo Médio</Label>
+                  <div className="flex items-center h-9 px-3 rounded-md border border-gray-100 bg-violet-50">
+                    <span className="text-sm text-violet-700 font-semibold">
+                      {saldoForm.custo ? formatBRL(parseFloat(saldoForm.custo)) : (custoUnit > 0 ? formatBRL(custoUnit) : "—")}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Custo Total</Label>
+                  <div className="flex items-center h-9 px-3 rounded-md border border-gray-100 bg-blue-50">
+                    <span className="text-sm text-blue-700 font-semibold">
+                      {saldoForm.custo && saldoForm.saldo
+                        ? formatBRL(parseFloat(saldoForm.custo) * parseFloat(saldoForm.saldo))
+                        : "—"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Endereço */}
+              <div className="space-y-1.5">
+                <Label>Endereço / Localização</Label>
+                <Input
+                  value={saldoForm.endereco}
+                  onChange={(e) => setSaldoForm((p) => ({ ...p, endereco: e.target.value }))}
+                  placeholder="Ex: Prateleira A3, Corredor 2..."
+                />
+                <p className="text-[11px] text-gray-400">Localização física dentro do almoxarifado</p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-1">
+              <Button size="sm" variant="outline" onClick={() => setShowSaldoDialog(false)} disabled={saldoSaving}>Cancelar</Button>
+              <Button size="sm" onClick={submitSaldo} disabled={saldoSaving || !saldoForm.localEstoqueId || !saldoForm.saldo}>
+                {saldoSaving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+                <PackageCheck className="w-3.5 h-3.5 mr-1.5" />
+                Inserir Saldo
               </Button>
             </div>
           </div>

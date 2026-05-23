@@ -9,7 +9,11 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       tipoProduto: true,
       unidade: true,
       estoqueItems: {
-        include: { localEstoque: true },
+        include: {
+          localEstoque: {
+            include: { filial: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
+          },
+        },
       },
       produtosFornecedor: {
         include: { fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
@@ -56,7 +60,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     include: {
       tipoProduto: true,
       unidade: true,
-      estoqueItems: { include: { localEstoque: true } },
+      estoqueItems: {
+        include: {
+          localEstoque: {
+            include: { filial: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
+          },
+        },
+      },
       produtosFornecedor: {
         include: { fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
       },
