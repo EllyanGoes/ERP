@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { answerCallbackQuery, editTelegramMessage, escMD, sendTelegramDM } from "@/lib/telegram";
+import { answerCallbackQuery, editTelegramMessage, escMD, sendTelegramDM, sendTelegramDocument } from "@/lib/telegram";
 import { buildRelatorioEstoque, parseRelatorioDate } from "@/lib/relatorio-estoque";
+import { buildRelatorioNecessidades } from "@/lib/relatorio-necessidades";
 
 // Telegram sends POST with callback_query when user clicks inline keyboard button
 export async function POST(req: NextRequest) {
@@ -49,6 +51,51 @@ export async function POST(req: NextRequest) {
 
         const relatorio = await buildRelatorioEstoque(targetDate);
         await sendTelegramDM(msg.chat.id, { text: relatorio.text });
+        return NextResponse.json({ ok: true });
+      }
+
+      // /necessidades — relatório de necessidades pendentes de cotação
+      if (text.startsWith("/necessidades")) {
+        await sendTelegramDM(msg.chat.id, { text: `⏳ _Gerando relatório\\.\\.\\._` });
+
+        try {
+          const relatorio = await buildRelatorioNecessidades();
+          const dateStr = new Date().toLocaleDateString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
+            day: "2-digit", month: "2-digit", year: "numeric",
+          }).replace(/\//g, "-");
+
+          await sendTelegramDocument({
+            chatId:   String(msg.chat.id),
+            filename: `necessidades-pendentes-${dateStr}.pdf`,
+            buffer:   relatorio.pdfBuffer,
+            caption:  relatorio.captionText,
+          });
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          await sendTelegramDM(msg.chat.id, {
+            text: `❌ Erro ao gerar relatório: ${escMD(errMsg)}`,
+          });
+        }
+
+        return NextResponse.json({ ok: true });
+      }
+
+      // /ajuda — lista de comandos disponíveis
+      if (text.startsWith("/ajuda") || text.startsWith("/help") || text.startsWith("/start")) {
+        await sendTelegramDM(msg.chat.id, {
+          text: [
+            `ℹ️ *Comandos disponíveis*`,
+            ``,
+            `📦 /relatorio — Relatório de movimentações de estoque do dia`,
+            `_Variações: /relatorio hoje, /relatorio ontem, /relatorio DD\\/MM\\/AAAA_`,
+            ``,
+            `📋 /necessidades — Necessidades pendentes de cotação`,
+            `_SCs aprovadas que ainda não possuem cotação vinculada_`,
+            ``,
+            `ℹ️ /ajuda — Lista de comandos disponíveis`,
+          ].join("\n"),
+        });
         return NextResponse.json({ ok: true });
       }
 

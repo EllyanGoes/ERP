@@ -18,10 +18,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Loader2, CheckCircle2, ChevronDown, ChevronRight,
-  Plus, ArrowLeft, BarChart3, X, Pencil,
+  Plus, ArrowLeft, BarChart3, X, Pencil, Search,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+type FornecedorOption = {
+  id: string;
+  razaoSocial: string;
+  nomeFantasia: string | null;
+  cpfCnpj: string | null;
+};
+
 type CotacaoFornecedorItem = {
   id: string;
   itemId: string;
@@ -93,6 +100,84 @@ export default function CotacaoDetailPage() {
   const [historicoTarget, setHistoricoTarget] = useState<{ cfId: string; fornNome: string } | null>(null);
   const [historicoData, setHistoricoData] = useState<HistoricoEntry[]>([]);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
+
+  // ── Add participants modal ────────────────────────────────────────────────
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [allFornecedores, setAllFornecedores] = useState<FornecedorOption[]>([]);
+  const [fornecedoresLoaded, setFornecedoresLoaded] = useState(false);
+  const [selectedFornIds, setSelectedFornIds] = useState<Set<string>>(new Set());
+  const [addingParticipants, setAddingParticipants] = useState(false);
+  const [addError, setAddError] = useState("");
+  const [searchForn, setSearchForn] = useState("");
+
+  async function loadAllFornecedores() {
+    if (fornecedoresLoaded) return;
+    try {
+      const res = await fetch("/api/suprimentos/fornecedores");
+      const json = await res.json();
+      setAllFornecedores(Array.isArray(json) ? json : (json.data ?? []));
+      setFornecedoresLoaded(true);
+    } catch {}
+  }
+
+  function openAddModal() {
+    setSelectedFornIds(new Set());
+    setAddError("");
+    setSearchForn("");
+    setShowAddModal(true);
+    loadAllFornecedores();
+  }
+
+  async function handleAddParticipants() {
+    if (selectedFornIds.size === 0) return;
+    if (!cotacao) return;
+
+    const firstForn = cotacao.fornecedores[0];
+    const itensBase = firstForn
+      ? firstForn.itens.map((i) => ({
+          itemId: i.itemId,
+          quantidade: decimalToNumber(i.quantidade),
+          precoUnitario: 0,
+          situacao: "CONSIDERA",
+        }))
+      : [];
+
+    if (itensBase.length === 0) {
+      setAddError("Nenhum item encontrado na cotação para vincular.");
+      return;
+    }
+
+    setAddingParticipants(true);
+    setAddError("");
+    const errors: string[] = [];
+
+    for (const fornId of Array.from(selectedFornIds)) {
+      try {
+        const res = await fetch(`/api/suprimentos/cotacoes/${id}/fornecedores`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fornecedorId: fornId,
+            itens: itensBase,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) errors.push(json.error || `Erro ao adicionar fornecedor`);
+      } catch {
+        errors.push("Erro de conexão");
+      }
+    }
+
+    setAddingParticipants(false);
+
+    if (errors.length > 0) {
+      setAddError(errors.join("; "));
+      return;
+    }
+
+    setShowAddModal(false);
+    await load();
+  }
 
   // ── Edit cotação modal ────────────────────────────────────────────────────
   const [showEditModal, setShowEditModal] = useState(false);
@@ -301,10 +386,7 @@ export default function CotacaoDetailPage() {
               </Button>
             )}
             {canEdit && (
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/suprimentos/cotacoes/${id}/nova-participante`)}
-              >
+              <Button variant="outline" onClick={openAddModal}>
                 <Plus className="w-4 h-4 mr-2" />
                 Novo participante
               </Button>
@@ -649,6 +731,139 @@ export default function CotacaoDetailPage() {
           </div>
         </div>
       )}
+
+      {/* ── Add participants modal ─────────────────────────────────────────────── */}
+      {showAddModal && (() => {
+        const existingIds = new Set(cotacao.fornecedores.map((cf) => cf.fornecedor.id));
+        const available = allFornecedores.filter((f) => !existingIds.has(f.id));
+        const filtered = available.filter((f) => {
+          const q = searchForn.toLowerCase();
+          return (
+            (f.nomeFantasia ?? "").toLowerCase().includes(q) ||
+            f.razaoSocial.toLowerCase().includes(q) ||
+            (f.cpfCnpj ?? "").includes(q)
+          );
+        });
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh]">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+                <div>
+                  <h2 className="font-semibold text-gray-900">Adicionar participantes</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {selectedFornIds.size > 0
+                      ? `${selectedFornIds.size} fornecedor${selectedFornIds.size > 1 ? "es" : ""} selecionado${selectedFornIds.size > 1 ? "s" : ""}`
+                      : "Selecione os fornecedores que participarão da cotação"}
+                  </p>
+                </div>
+                <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Search */}
+              <div className="px-6 pt-4 pb-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchForn}
+                    onChange={(e) => setSearchForn(e.target.value)}
+                    placeholder="Buscar por nome, fantasia ou CNPJ..."
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              {/* List */}
+              <div className="overflow-y-auto flex-1 px-6 py-2 space-y-1">
+                {!fornecedoresLoaded && (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                  </div>
+                )}
+                {fornecedoresLoaded && filtered.length === 0 && (
+                  <p className="text-center text-sm text-gray-400 py-8">
+                    {available.length === 0 ? "Todos os fornecedores já estão na cotação." : "Nenhum fornecedor encontrado."}
+                  </p>
+                )}
+                {fornecedoresLoaded && filtered.map((f) => {
+                  const isSelected = selectedFornIds.has(f.id);
+                  const label = f.nomeFantasia || f.razaoSocial;
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedFornIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(f.id)) next.delete(f.id);
+                          else next.add(f.id);
+                          return next;
+                        });
+                      }}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors",
+                        isSelected
+                          ? "bg-blue-50 border border-blue-200"
+                          : "hover:bg-gray-50 border border-transparent"
+                      )}
+                    >
+                      <div className={cn(
+                        "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+                        isSelected ? "bg-blue-600 border-blue-600" : "border-gray-300"
+                      )}>
+                        {isSelected && (
+                          <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 8" fill="none">
+                            <path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{label}</p>
+                        {f.nomeFantasia && (
+                          <p className="text-xs text-gray-400 truncate">{f.razaoSocial}</p>
+                        )}
+                      </div>
+                      {f.cpfCnpj && (
+                        <span className="text-xs text-gray-400 font-mono shrink-0">{f.cpfCnpj}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Error */}
+              {addError && (
+                <div className="mx-6 mb-2">
+                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{addError}</p>
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowAddModal(false)} disabled={addingParticipants}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleAddParticipants}
+                  disabled={selectedFornIds.size === 0 || addingParticipants}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {addingParticipants ? (
+                    <><Loader2 className="w-4 h-4 animate-spin mr-2" />Adicionando...</>
+                  ) : (
+                    `Adicionar${selectedFornIds.size > 0 ? ` (${selectedFornIds.size})` : ""}`
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── History modal ──────────────────────────────────────────────────────── */}
       {historicoTarget && (

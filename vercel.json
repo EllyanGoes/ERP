@@ -8,5 +8,13 @@
       "path": "/api/cron/relatorio-necessidades",
       "schedule": "0 11 * * 1-5"
     }
-  ]
+  ],
+  "functions": {
+    "src/app/api/webhooks/telegram/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/cron/relatorio-necessidades/route.ts": {
+      "maxDuration": 60
+    }
+  }
 }

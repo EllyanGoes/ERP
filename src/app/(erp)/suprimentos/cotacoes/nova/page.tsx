@@ -127,7 +127,11 @@ export default function NovaCotacaoWizard() {
 
   // ── Step 2 state ──────────────────────────────────────────────────────────
   const [nome, setNome]                 = useState<string>("");
-  const [dataLimite, setDataLimite]     = useState<string>("");
+  const [dataLimite, setDataLimite]     = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split("T")[0];
+  });
   const [infoEntrega, setInfoEntrega]   = useState<string>("");
   const [step2Error, setStep2Error]     = useState("");
 
@@ -161,7 +165,10 @@ export default function NovaCotacaoWizard() {
       setStep(saved.step ?? 1);
       setSelectedItemIds(new Set(saved.selectedItemIds ?? []));
       setNome(saved.nome ?? "");
-      setDataLimite(saved.dataLimite ?? "");
+      setDataLimite(saved.dataLimite ?? (() => {
+        const d = new Date(); d.setDate(d.getDate() + 7);
+        return d.toISOString().split("T")[0];
+      })());
       setInfoEntrega(saved.infoEntrega ?? "");
       setSelectedFornIds(new Set(saved.selectedFornIds ?? []));
     }
