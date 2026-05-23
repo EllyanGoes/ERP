@@ -41,116 +41,151 @@ const TIPO_ITEM_OPTIONS: { id: string; nome: string }[] = [
 const ACTIVE_TAB_CLS = "border-b-2 border-indigo-600 text-indigo-700 font-medium";
 const INACTIVE_TAB_CLS = "border-b-2 border-transparent text-gray-500 hover:text-gray-800";
 
-/* Portal-based select for dropdowns that need to escape overflow-hidden/auto containers */
+/* Portal-based single select */
 function PortalSelect<T extends { id: string }>({
-  options,
-  value,
-  onChange,
-  placeholder,
-  getLabel,
-  error,
+  options, value, onChange, placeholder, getLabel, error,
 }: {
-  options: T[];
-  value: string;
-  onChange: (id: string) => void;
-  placeholder: string;
-  getLabel: (item: T) => string;
-  error?: boolean;
+  options: T[]; value: string; onChange: (id: string) => void;
+  placeholder: string; getLabel: (item: T) => string; error?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [mounted, setMounted] = useState(false);
-
   useEffect(() => { setMounted(true); }, []);
-
   const selected = options.find((o) => o.id === value);
+  function openDropdown() {
+    if (containerRef.current) {
+      const r = containerRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX, width: r.width });
+    }
+    setOpen(true); setQuery("");
+  }
+  const filtered = options.filter((o) => !query || getLabel(o).toLowerCase().includes(query.toLowerCase()));
+  const dropdown = open && mounted && pos ? createPortal(
+    <div className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+      style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: 220 }}>
+      <div className="p-1.5 border-b border-gray-100">
+        <input autoFocus type="text" value={query} onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar..." className="w-full px-2 py-1 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+      </div>
+      <div className="overflow-y-auto" style={{ maxHeight: 160 }}>
+        <button type="button" onMouseDown={() => { onChange(""); setOpen(false); }}
+          className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 border-b border-gray-50">{placeholder}</button>
+        {filtered.map((o) => (
+          <button key={o.id} type="button" onMouseDown={() => { onChange(o.id); setOpen(false); }}
+            className={cn("w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0", value === o.id && "bg-indigo-50 text-indigo-700")}>
+            {getLabel(o)}
+          </button>
+        ))}
+        {filtered.length === 0 && <p className="px-3 py-2 text-sm text-gray-400 italic">Nenhum resultado.</p>}
+      </div>
+    </div>, document.body) : null;
+  useEffect(() => {
+    if (!open) return;
+    function handle(e: MouseEvent) { if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false); }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+  return (
+    <div ref={containerRef} className="relative">
+      <button type="button" onClick={openDropdown}
+        className={cn("w-full h-9 px-3 text-sm text-left border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 flex items-center justify-between",
+          error ? "border-red-300" : "border-gray-200", !selected && "text-gray-400")}>
+        <span className={selected ? "text-gray-900" : "text-gray-400"}>{selected ? getLabel(selected) : placeholder}</span>
+        <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {dropdown}
+    </div>
+  );
+}
+
+/* Portal-based multi-select with checkboxes */
+function PortalMultiSelect<T extends { id: string }>({
+  options, values, onChange, placeholder, getLabel,
+}: {
+  options: T[]; values: string[]; onChange: (ids: string[]) => void;
+  placeholder: string; getLabel: (item: T) => string;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   function openDropdown() {
     if (containerRef.current) {
       const r = containerRef.current.getBoundingClientRect();
       setPos({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX, width: r.width });
     }
-    setOpen(true);
-    setQuery("");
+    setOpen(true); setQuery("");
   }
 
-  const filtered = options.filter((o) =>
-    !query || getLabel(o).toLowerCase().includes(query.toLowerCase())
-  );
+  function toggle(id: string) {
+    onChange(values.includes(id) ? values.filter((v) => v !== id) : [...values, id]);
+  }
 
-  const dropdown = open && mounted && pos
-    ? createPortal(
-        <div
-          className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
-          style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: 220 }}
-        >
-          <div className="p-1.5 border-b border-gray-100">
-            <input
-              autoFocus
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar..."
-              className="w-full px-2 py-1 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
-            />
-          </div>
-          <div className="overflow-y-auto" style={{ maxHeight: 160 }}>
-            <button
-              type="button"
-              onMouseDown={() => { onChange(""); setOpen(false); }}
-              className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 border-b border-gray-50"
-            >
-              {placeholder}
-            </button>
-            {filtered.map((o) => (
-              <button
-                key={o.id}
-                type="button"
-                onMouseDown={() => { onChange(o.id); setOpen(false); }}
-                className={cn(
-                  "w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0",
-                  value === o.id && "bg-indigo-50 text-indigo-700"
-                )}
-              >
-                {getLabel(o)}
+  const filtered = options.filter((o) => !query || getLabel(o).toLowerCase().includes(query.toLowerCase()));
+
+  const triggerLabel = values.length === 0
+    ? placeholder
+    : values.length === 1
+      ? getLabel(options.find((o) => o.id === values[0])!) || placeholder
+      : `${values.length} selecionados`;
+
+  const dropdown = open && mounted && pos ? createPortal(
+    <div className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+      style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: 260 }}>
+      <div className="p-1.5 border-b border-gray-100">
+        <input autoFocus type="text" value={query} onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar..." className="w-full px-2 py-1 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+      </div>
+      {values.length > 0 && (
+        <div className="px-3 py-1.5 border-b border-gray-100 flex items-center justify-between">
+          <span className="text-xs text-indigo-600 font-medium">{values.length} selecionado(s)</span>
+          <button type="button" onMouseDown={() => onChange([])} className="text-xs text-gray-400 hover:text-red-500">Limpar</button>
+        </div>
+      )}
+      <div className="overflow-y-auto" style={{ maxHeight: 180 }}>
+        {filtered.length === 0
+          ? <p className="px-3 py-2 text-sm text-gray-400 italic">Nenhum resultado.</p>
+          : filtered.map((o) => {
+            const checked = values.includes(o.id);
+            return (
+              <button key={o.id} type="button" onMouseDown={() => toggle(o.id)}
+                className={cn("w-full text-left px-3 py-2 text-sm flex items-center gap-2.5 hover:bg-gray-50 border-b border-gray-50 last:border-0",
+                  checked && "bg-indigo-50")}>
+                <span className={cn("w-4 h-4 rounded border flex items-center justify-center shrink-0",
+                  checked ? "bg-indigo-600 border-indigo-600" : "border-gray-300")}>
+                  {checked && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>}
+                </span>
+                <span className={checked ? "text-indigo-700 font-medium" : "text-gray-700"}>{getLabel(o)}</span>
               </button>
-            ))}
-            {filtered.length === 0 && (
-              <p className="px-3 py-2 text-sm text-gray-400 italic">Nenhum resultado.</p>
-            )}
-          </div>
-        </div>,
-        document.body
-      )
-    : null;
+            );
+          })
+        }
+      </div>
+    </div>, document.body) : null;
 
   useEffect(() => {
     if (!open) return;
-    function handle(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
+    function handle(e: MouseEvent) { if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false); }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [open]);
 
   return (
     <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        onClick={openDropdown}
-        className={cn(
-          "w-full h-9 px-3 text-sm text-left border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 flex items-center justify-between",
-          error ? "border-red-300" : "border-gray-200",
-          !selected && "text-gray-400"
-        )}
-      >
-        <span className={selected ? "text-gray-900" : "text-gray-400"}>
-          {selected ? getLabel(selected) : placeholder}
-        </span>
+      <button type="button" onClick={openDropdown}
+        className={cn("w-full h-9 px-3 text-sm text-left border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 flex items-center justify-between",
+          values.length === 0 && "text-gray-400")}>
+        <span className={values.length > 0 ? "text-gray-900" : "text-gray-400"}>{triggerLabel}</span>
         <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -173,8 +208,8 @@ export default function NovoInventarioPage() {
 
   const [activeTab, setActiveTab] = useState<"filtros" | "amostragem">("filtros");
 
-  const [filtroTipo,       setFiltroTipo]       = useState("");
-  const [filtroLocalId,    setFiltroLocalId]    = useState("");
+  const [filtroTipos,    setFiltroTipos]    = useState<string[]>([]);
+  const [filtroItemIds,  setFiltroItemIds]  = useState<string[]>([]);
 
   const [rows, setRows] = useState<SampleRow[]>([]);
 
@@ -227,8 +262,8 @@ export default function NovoInventarioPage() {
 
   function handleFiltrarAmostragem() {
     let base = estoqueItens;
-    if (filtroTipo)    base = base.filter(e => e.item.tipo === filtroTipo);
-    if (filtroLocalId) base = base.filter(e => localEstoqueId === filtroLocalId);
+    if (filtroTipos.length > 0)   base = base.filter(e => filtroTipos.includes(e.item.tipo));
+    if (filtroItemIds.length > 0) base = base.filter(e => filtroItemIds.includes(e.item.id));
     setRows(base.map(buildRow));
     setActiveTab("amostragem");
   }
@@ -245,7 +280,7 @@ export default function NovoInventarioPage() {
 
   async function handleSave(statusFinal: "RASCUNHO" | "EM_ANDAMENTO") {
     setSubmitted(true);
-    if (!localEstoqueId) { setSaveError("Almoxarifado é obrigatório"); return; }
+    if (!localEstoqueId) { setSaveError("Local de Estoque é obrigatório"); return; }
     if (!data) { setSaveError("Data é obrigatória"); return; }
     setSaving(true); setSaveError("");
     try {
@@ -316,7 +351,7 @@ export default function NovoInventarioPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs text-gray-500">
-                  Almoxarifado <span className="text-red-500">*</span>
+                  Local de Estoque <span className="text-red-500">*</span>
                 </Label>
                 <PortalSelect
                   options={locais}
@@ -394,23 +429,23 @@ export default function NovoInventarioPage() {
               <p className="text-xs text-gray-400">Defina os filtros para selecionar os materiais que serão inventariados.</p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">Tipo</Label>
-                  <PortalSelect
-                    options={TIPO_ITEM_OPTIONS}
-                    value={filtroTipo}
-                    onChange={setFiltroTipo}
-                    placeholder="Todos os tipos"
-                    getLabel={(o) => o.nome}
+                  <Label className="text-xs text-gray-500">Produto</Label>
+                  <PortalMultiSelect
+                    options={estoqueItens.map((e) => ({ id: e.item.id, nome: e.item.descricao, codigo: e.item.codigo }))}
+                    values={filtroItemIds}
+                    onChange={setFiltroItemIds}
+                    placeholder="Todos os produtos"
+                    getLabel={(o) => `${o.codigo} — ${o.nome}`}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">Local de Estoque</Label>
-                  <PortalSelect
-                    options={locais}
-                    value={filtroLocalId}
-                    onChange={setFiltroLocalId}
-                    placeholder="Todos os locais"
-                    getLabel={(l) => l.nome}
+                  <Label className="text-xs text-gray-500">Tipo de Produto</Label>
+                  <PortalMultiSelect
+                    options={TIPO_ITEM_OPTIONS}
+                    values={filtroTipos}
+                    onChange={setFiltroTipos}
+                    placeholder="Todos os tipos"
+                    getLabel={(o) => o.nome}
                   />
                 </div>
               </div>
@@ -423,7 +458,7 @@ export default function NovoInventarioPage() {
                 </Button>
               </div>
               {!localEstoqueId && (
-                <p className="text-xs text-amber-600">Selecione um almoxarifado para usar os filtros.</p>
+                <p className="text-xs text-amber-600">Selecione um Local de Estoque para usar os filtros.</p>
               )}
             </div>
           )}
