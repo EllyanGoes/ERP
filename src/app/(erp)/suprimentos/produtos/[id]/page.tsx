@@ -119,7 +119,7 @@ function formatDateTime(d: string) {
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function ProdutoDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [tab, setTab] = useState<"dados" | "fornecedores" | "unidades" | "estoques" | "movimentacoes" | "compras" | "relatorio">("dados");
+  const [tab, setTab] = useState<"dados" | "fornecedores" | "estoques" | "movimentacoes" | "compras" | "relatorio">("dados");
   const [periodoDias, setPeriodoDias] = useState<30 | 90 | 180 | 365>(90);
   const [item, setItem] = useState<Item | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -293,6 +293,7 @@ export default function ProdutoDetailPage() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadItemUnidades(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     Promise.all([
@@ -515,7 +516,6 @@ export default function ProdutoDetailPage() {
   const TABS = [
     { key: "dados",          label: "Dados" },
     { key: "fornecedores",   label: `Fornecedores (${item.fornecedores?.length ?? 0})` },
-    { key: "unidades",       label: `Unidades (${unidadesLoaded ? itemUnidades.length : "…"})` },
     { key: "estoques",       label: "Estoques" },
     { key: "movimentacoes",  label: `Movimentações (${item.movimentacoes?.length ?? 0})` },
     { key: "compras",        label: totalCompras !== null ? `Compras (${totalCompras})` : "Compras" },
@@ -594,7 +594,7 @@ export default function ProdutoDetailPage() {
           {TABS.map((t) => (
             <button
               key={t.key}
-              onClick={() => { setTab(t.key); if (t.key === "unidades" && !unidadesLoaded) loadItemUnidades(); if (t.key === "compras") loadCompras(); }}
+              onClick={() => { setTab(t.key); if (t.key === "compras") loadCompras(); }}
               className={cn(
                 "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
                 tab === t.key
@@ -690,12 +690,11 @@ export default function ProdutoDetailPage() {
                               </p>
                             </div>
                           </div>
-                          <button
-                            onClick={() => { setTab("unidades"); if (!unidadesLoaded) loadItemUnidades(); }}
-                            className="shrink-0 text-[11px] text-blue-600 hover:text-blue-800 font-medium underline underline-offset-2 transition-colors whitespace-nowrap mt-0.5"
-                          >
-                            Ver conversões →
-                          </button>
+                          {itemUnidades.filter((iu) => iu.unidade.id !== item.unidade?.id).length > 0 && (
+                            <span className="shrink-0 text-[11px] text-blue-500 font-medium whitespace-nowrap mt-0.5">
+                              {itemUnidades.filter((iu) => iu.unidade.id !== item.unidade?.id).length} conversão(ões)
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-gray-200 px-3 py-2.5">
@@ -917,214 +916,6 @@ export default function ProdutoDetailPage() {
                         </td>
                       </tr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── UNIDADES ────────────────────────────────────────────────────── */}
-        {tab === "unidades" && (
-          <div className="space-y-4 max-w-4xl">
-            {/* Primary unit banner */}
-            <div className="flex items-center justify-between gap-4 rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-4 h-4 text-blue-600" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Unidade Principal (Estoque)</p>
-                  {item.unidade ? (
-                    <p className="text-sm font-bold text-blue-900 mt-0.5">
-                      <span className="font-mono">{item.unidade.sigla}</span>
-                      <span className="font-normal text-blue-600 ml-1.5">— {item.unidade.nome}</span>
-                    </p>
-                  ) : (
-                    <p className="text-sm text-blue-500 italic">Não definida — configure na aba Dados</p>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={() => setTab("dados")}
-                className="text-xs text-blue-600 hover:text-blue-800 underline underline-offset-2 shrink-0 transition-colors"
-              >
-                Editar em Dados ↗
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-500">
-                Unidades alternativas aceitas em movimentações.
-                Marque uma como <strong>principal</strong> para sincronizar com a aba Dados.
-              </p>
-              <Button size="sm" onClick={() => { setAddUnidadeError(""); setAddUnidadeId(""); setAddBaseUnidadeId(""); setAddFatorConv(""); setShowAddUnidade(true); }}>
-                <Plus className="w-4 h-4 mr-1" />Adicionar Unidade
-              </Button>
-            </div>
-
-            {/* Add unit dialog */}
-            {showAddUnidade && typeof window !== "undefined" && createPortal(
-              <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-                <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-5">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-gray-900 text-base">Adicionar Unidade</h3>
-                    <button type="button" onClick={() => setShowAddUnidade(false)} className="text-gray-400 hover:text-gray-600">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="space-y-4">
-                    {addUnidadeError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{addUnidadeError}</p>}
-
-                    {/* Unit selector */}
-                    <div className="space-y-1.5">
-                      <Label>Unidade <span className="text-red-500">*</span></Label>
-                      <ComboboxWithCreate
-                        options={unidades
-                          .filter((u) => !itemUnidades.some((iu) => iu.unidade.id === u.id))
-                          .map((u) => ({ value: u.id, label: `${u.sigla} — ${u.nome}` }))}
-                        value={addUnidadeId}
-                        onChange={setAddUnidadeId}
-                        allowNone={false}
-                        placeholder="Selecionar unidade..."
-                        createHref="/suprimentos/unidades"
-                        createParam="nome"
-                        createLabel="unidade"
-                        renderCreateModal={(args) => <UnidadeQuickCreate {...args} />}
-                      />
-                    </div>
-
-                    {/* Conversion factor — inline "1 [A] = [N] [B]" */}
-                    <div className="space-y-1.5">
-                      <Label>
-                        Fator de Conversão{" "}
-                        <span className="text-gray-400 font-normal text-xs">(opcional)</span>
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        {/* Left side: "1 [from unit]" */}
-                        <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-700 whitespace-nowrap shrink-0">
-                          <span className="text-gray-400">1</span>
-                          <span className="font-semibold font-mono">
-                            {addUnidadeId
-                              ? (unidades.find((u) => u.id === addUnidadeId)?.sigla ?? "?")
-                              : "—"}
-                          </span>
-                        </div>
-                        <span className="text-gray-400 text-sm shrink-0">=</span>
-                        {/* Factor input */}
-                        <Input
-                          type="number" step="0.000001" min="0"
-                          value={addFatorConv}
-                          onChange={(e) => setAddFatorConv(e.target.value)}
-                          placeholder="Fator"
-                          className="w-28 shrink-0"
-                        />
-                        {/* Right side: base unit selector */}
-                        <div className="flex-1 min-w-0">
-                          <ComboboxWithCreate
-                            options={unidades.map((u) => ({ value: u.id, label: `${u.sigla} — ${u.nome}` }))}
-                            value={addBaseUnidadeId}
-                            onChange={setAddBaseUnidadeId}
-                            allowNone
-                            noneLabel="Unidade base"
-                            placeholder="Unidade base..."
-                            createHref="/suprimentos/unidades"
-                            createParam="nome"
-                            createLabel="unidade"
-                            renderCreateModal={(args) => <UnidadeQuickCreate {...args} />}
-                          />
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        Ex: 1 TON = 1000 KG
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 justify-end pt-1">
-                    <Button size="sm" variant="outline" onClick={() => setShowAddUnidade(false)} disabled={addUnidadeSaving}>Cancelar</Button>
-                    <Button size="sm" onClick={addItemUnidade} disabled={addUnidadeSaving || !addUnidadeId}>
-                      {addUnidadeSaving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
-                      Adicionar
-                    </Button>
-                  </div>
-                </div>
-              </div>,
-              document.body
-            )}
-
-            {/* Units list */}
-            {!unidadesLoaded ? (
-              <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-gray-300" /></div>
-            ) : itemUnidades.length === 0 ? (
-              <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
-                <p className="text-sm font-medium">Nenhuma unidade cadastrada</p>
-                <p className="text-xs mt-1">Clique em "Adicionar Unidade" para configurar</p>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-gray-200 overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide">Unidade</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide">Sigla</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide">Fator Conv.</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide">Status</th>
-                      <th className="px-4 py-2.5" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {itemUnidades.map((iu) => {
-                      const isProductPrincipal = item.unidade?.id === iu.unidade.id;
-                      return (
-                        <tr key={iu.id} className={cn("hover:bg-blue-50/40", isProductPrincipal && "bg-blue-50/40")}>
-                          <td className="px-4 py-3 font-medium text-gray-900">{iu.unidade.nome}</td>
-                          <td className="px-4 py-3">
-                            <span className={cn(
-                              "font-mono text-xs px-2 py-0.5 rounded",
-                              isProductPrincipal ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-700"
-                            )}>{iu.unidade.sigla}</span>
-                          </td>
-                          <td className="px-4 py-3 text-gray-500 text-xs">
-                            {iu.fatorConversao ? (
-                              <span className="font-mono bg-gray-50 border border-gray-200 rounded px-2 py-0.5 text-gray-700">
-                                1 {iu.unidade.sigla} = {Number(iu.fatorConversao).toLocaleString("pt-BR", { maximumFractionDigits: 6 })}{iu.baseUnidade ? ` ${iu.baseUnidade.sigla}` : ""}
-                              </span>
-                            ) : (
-                              <span className="text-gray-300">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            {isProductPrincipal ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                                <ShieldCheck className="w-3 h-3" /> Principal (Estoque)
-                              </span>
-                            ) : iu.isPrincipal ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                                ★ Padrão mov.
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => setPrincipal(iu.id, iu.unidade.id)}
-                                className="text-xs text-gray-400 hover:text-blue-600 underline underline-offset-2 transition-colors"
-                              >
-                                Tornar principal
-                              </button>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            {!isProductPrincipal && (
-                              <button
-                                onClick={() => removeItemUnidade(iu.id)}
-                                className="text-gray-300 hover:text-red-500 transition-colors"
-                                title="Remover"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
                   </tbody>
                 </table>
               </div>
