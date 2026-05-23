@@ -98,31 +98,31 @@ export default function InventariosMaterialPage() {
           <p className="text-sm text-gray-400 mt-1">Crie um novo inventário de materiais.</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-gray-200 overflow-hidden">
+        <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr className="text-xs text-gray-400 uppercase tracking-wide">
-                <th className="text-left px-4 py-2.5 font-medium">Número</th>
-                <th className="text-left px-4 py-2.5 font-medium">Almoxarifado</th>
-                <th className="text-left px-4 py-2.5 font-medium">Tipo</th>
-                <th className="text-left px-4 py-2.5 font-medium">Funcionário</th>
-                <th className="text-left px-4 py-2.5 font-medium">Data</th>
-                <th className="text-center px-4 py-2.5 font-medium">Itens</th>
-                <th className="text-center px-4 py-2.5 font-medium">Status</th>
+            <thead className="bg-gray-100 border-b-2 border-gray-200">
+              <tr className="text-xs text-gray-600 uppercase tracking-wide">
+                <th className="text-left px-4 py-3 font-semibold">Número</th>
+                <th className="text-left px-4 py-3 font-semibold">Local de Estoque</th>
+                <th className="text-left px-4 py-3 font-semibold">Tipo</th>
+                <th className="text-left px-4 py-3 font-semibold">Funcionário</th>
+                <th className="text-left px-4 py-3 font-semibold">Data</th>
+                <th className="text-center px-4 py-3 font-semibold">Itens</th>
+                <th className="text-center px-4 py-3 font-semibold">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-200">
               {filtered.map((r) => (
                 <tr key={r.id} onClick={() => router.push(`/suprimentos/inventarios-materiais/${r.id}`)}
-                  className="hover:bg-gray-50 cursor-pointer transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs font-semibold text-indigo-700">{r.numero}</td>
-                  <td className="px-4 py-3 text-gray-700">{r.localEstoque?.nome ?? "—"}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{TIPO_LABEL[r.tipo] ?? r.tipo}</td>
-                  <td className="px-4 py-3 text-gray-600">{r.colaborador?.nome ?? "—"}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{new Date(r.data).toLocaleDateString("pt-BR")}</td>
-                  <td className="px-4 py-3 text-center text-gray-500">{r._count.itens}</td>
-                  <td className="px-4 py-3 text-center">
-                    <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", STATUS_COLOR[r.status] ?? "bg-gray-100 text-gray-500")}>
+                  className="hover:bg-indigo-50/40 cursor-pointer transition-colors">
+                  <td className="px-4 py-3.5 font-mono text-xs font-bold text-indigo-700">{r.numero}</td>
+                  <td className="px-4 py-3.5 text-gray-900 font-medium">{r.localEstoque?.nome ?? "—"}</td>
+                  <td className="px-4 py-3.5 text-gray-600 text-xs font-medium">{TIPO_LABEL[r.tipo] ?? r.tipo}</td>
+                  <td className="px-4 py-3.5 text-gray-700">{r.colaborador?.nome ?? "—"}</td>
+                  <td className="px-4 py-3.5 text-gray-600 text-xs">{new Date(r.data).toLocaleDateString("pt-BR")}</td>
+                  <td className="px-4 py-3.5 text-center text-gray-700 font-medium">{r._count.itens}</td>
+                  <td className="px-4 py-3.5 text-center">
+                    <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", STATUS_COLOR[r.status] ?? "bg-gray-100 text-gray-600")}>
                       {STATUS_LABEL[r.status] ?? r.status}
                     </span>
                   </td>
