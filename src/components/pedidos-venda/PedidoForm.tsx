@@ -12,13 +12,14 @@ import { formatBRL, decimalToNumber, cn } from "@/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type ClienteOption = { id: string; razaoSocial: string; nomeFantasia: string | null };
-type ItemOption    = { id: string; codigo: string; descricao: string; precoVenda: unknown; unidadeMedida: string };
-type TabelaOption  = {
+type ClienteOption    = { id: string; razaoSocial: string; nomeFantasia: string | null };
+type ItemOption       = { id: string; codigo: string; descricao: string; precoVenda: unknown; unidadeMedida: string };
+type TabelaOption     = {
   id: string; codigo: string; descricao: string;
   condicaoPagamento: string | null; ativa: boolean;
   itens: Array<{ itemId: string | null; precoVenda: unknown; vlrDesconto: unknown }>;
 };
+type CondicaoOption   = { id: string; nome: string };
 
 type LineItem = {
   _key: string;
@@ -78,6 +79,10 @@ export default function PedidoForm({
   const [tabelaLoading,  setTabelaLoading]  = useState(false);
   const tabelaSelecionada = tabelas.find((t) => t.id === tabelaPrecoId) ?? null;
 
+  // Condições de Pagamento
+  const [condicoes,      setCondicoes]      = useState<CondicaoOption[]>([]);
+  const [condicoesLoading, setCondicoesLoading] = useState(false);
+
   // Line items
   const [linhas, setLinhas] = useState<LineItem[]>([]);
 
@@ -101,6 +106,16 @@ export default function PedidoForm({
       .then((j) => setTabelas(j.data ?? []))
       .catch(() => {})
       .finally(() => setTabelaLoading(false));
+  }, []);
+
+  // Load condições de pagamento on mount
+  useEffect(() => {
+    setCondicoesLoading(true);
+    fetch("/api/suprimentos/condicoes-pagamento")
+      .then((r) => r.json())
+      .then((j) => setCondicoes(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {})
+      .finally(() => setCondicoesLoading(false));
   }, []);
 
   // When tabela changes → update condicaoPagamento auto
@@ -383,11 +398,17 @@ export default function PedidoForm({
           {/* Condição de Pagamento */}
           <div className="space-y-1">
             <Label className="text-xs text-gray-600">Condição de Pagamento</Label>
-            <Input
+            <select
               value={condicaoPagamento}
               onChange={(e) => setCondicaoPagamento(e.target.value)}
-              placeholder="Ex: 30/60/90 DDL, À vista..."
-            />
+              disabled={condicoesLoading}
+              className="w-full h-9 rounded-lg border border-gray-200 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              <option value="">— Selecionar condição —</option>
+              {condicoes.map((c) => (
+                <option key={c.id} value={c.nome}>{c.nome}</option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
