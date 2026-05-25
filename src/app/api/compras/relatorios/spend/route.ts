@@ -36,8 +36,9 @@ export async function GET(req: NextRequest) {
   });
 
   // Post-filter by conferencia.createdAt date range
-  const fromDate = from ? new Date(from) : null;
-  const toDate   = to   ? new Date(to + "T23:59:59.999Z") : null;
+  // Use explicit Brazil timezone offset (UTC-3) so midnight BRT aligns correctly with UTC-stored dates
+  const fromDate = from ? new Date(from + "T00:00:00-03:00") : null;
+  const toDate   = to   ? new Date(to   + "T23:59:59-03:00") : null;
 
   const filtered = pedidos.filter((p) => {
     if (!p.conferencia) return false;

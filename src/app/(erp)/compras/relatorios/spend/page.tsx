@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   BarChart3,
   TrendingUp,
@@ -392,22 +392,29 @@ export default function SpendPage() {
   const [loading,   setLoading]   = useState(true);
   const [drillDown, setDrillDown] = useState<DrillDown | null>(null);
 
+  // Keep a ref so `load` can always read the latest range without being recreated
+  const rangeRef = useRef(range);
+  useEffect(() => { rangeRef.current = range; }, [range]);
+
+  // Stable load function — reads range from ref, never changes reference
   const load = useCallback(() => {
     setLoading(true);
+    const { from, to } = rangeRef.current;
     const params = new URLSearchParams();
-    if (range.from) params.set("from", range.from);
-    if (range.to)   params.set("to",   range.to);
+    if (from) params.set("from", from);
+    if (to)   params.set("to",   to);
     fetch(`/api/compras/relatorios/spend?${params}`)
       .then((r) => r.json())
       .then(setData)
       .finally(() => setLoading(false));
-  }, [range]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Skip reload while user is mid-selecting (from set but to still empty)
+  // Load on mount + whenever a COMPLETE range is selected (both dates set)
+  // Does NOT fire while mid-selecting (to is empty)
   useEffect(() => {
-    if (range.from && !range.to) return;
+    if (!range.from || !range.to) return;
     load();
-  }, [load]);
+  }, [range.from, range.to]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const s = data?.summary;
 
