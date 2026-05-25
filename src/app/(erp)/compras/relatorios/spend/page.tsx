@@ -211,6 +211,8 @@ function DrillDownModal({
 }
 
 // ── Monthly Bar Chart ─────────────────────────────────────────────────────────
+const BAR_H = 150; // chart area height in px
+
 function MonthlyBarChart({
   data,
   onBarClick,
@@ -222,29 +224,39 @@ function MonthlyBarChart({
   const maxV = Math.max(...data.map((d) => d.valor), 1);
 
   return (
-    <div className="flex items-end gap-1 h-48 pt-6 relative">
-      {data.map((d) => {
-        const pct = (d.valor / maxV) * 100;
-        return (
-          <div
-            key={d.month}
-            className="flex-1 flex flex-col items-center gap-1 group cursor-pointer min-w-0"
-            onClick={() => onBarClick(d.month)}
-            title={`${fmtMonth(d.month)}: ${formatBRL(d.valor)}`}
-          >
-            <span className="text-[9px] font-medium text-gray-500 truncate group-hover:text-blue-600 transition-colors text-center w-full">
-              {fmtMi(d.valor)}
-            </span>
+    <div className="w-full select-none">
+      {/* Bar area — fixed pixel height so bars can use px values reliably */}
+      <div className="flex items-end gap-[3px]" style={{ height: BAR_H }}>
+        {data.map((d) => {
+          const barPx = Math.max(Math.round((d.valor / maxV) * BAR_H), 4);
+          return (
             <div
-              className="w-full bg-blue-500 rounded-t-md hover:bg-blue-600 active:bg-blue-700 transition-colors"
-              style={{ height: `${Math.max(pct, 3)}%` }}
-            />
-            <span className="text-[9px] text-gray-400 truncate w-full text-center">
-              {fmtMonth(d.month)}
-            </span>
+              key={d.month}
+              className="flex-1 relative group cursor-pointer min-w-0"
+              style={{ height: barPx }}
+              onClick={() => onBarClick(d.month)}
+              title={`${fmtMonth(d.month)}: ${formatBRL(d.valor)}`}
+            >
+              {/* bar fill */}
+              <div className="absolute inset-0 bg-blue-500 group-hover:bg-blue-600 rounded-t transition-colors" />
+              {/* value label above bar */}
+              <div className="absolute bottom-full left-0 right-0 flex justify-center pb-0.5">
+                <span className="text-[8px] font-medium text-gray-500 group-hover:text-blue-600 transition-colors leading-none">
+                  {fmtMi(d.valor)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {/* Month labels row */}
+      <div className="flex gap-[3px] mt-1">
+        {data.map((d) => (
+          <div key={d.month} className="flex-1 min-w-0 text-center overflow-hidden">
+            <span className="text-[8px] text-gray-400 block truncate">{fmtMonth(d.month)}</span>
           </div>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 }
@@ -391,7 +403,11 @@ export default function SpendPage() {
       .finally(() => setLoading(false));
   }, [range]);
 
-  useEffect(() => { load(); }, [load]);
+  // Skip reload while user is mid-selecting (from set but to still empty)
+  useEffect(() => {
+    if (range.from && !range.to) return;
+    load();
+  }, [load]);
 
   const s = data?.summary;
 
