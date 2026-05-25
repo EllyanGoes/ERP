@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/relatorio-necessidades",
       "schedule": "0 11 * * 1-5"
+    },
+    {
+      "path": "/api/cron/relatorio-estoque-minimo",
+      "schedule": "0 11 * * *"
     }
   ],
   "functions": {
@@ -20,6 +24,9 @@
       "maxDuration": 60
     },
     "src/app/api/cron/relatorio-consumo/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/cron/relatorio-estoque-minimo/route.ts": {
       "maxDuration": 60
     }
   }
