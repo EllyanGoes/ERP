@@ -1,6 +1,7 @@
 import Sidebar from "@/components/layout/Sidebar";
 import TabBar from "@/components/layout/TabBar";
 import ScrollRestorer from "@/components/layout/ScrollRestorer";
+import CommandPalette from "@/components/layout/CommandPalette";
 import { TabsProvider } from "@/lib/tabs-context";
 import { SessionProvider } from "@/lib/session-context";
 import { DirtyFormProvider } from "@/lib/dirty-form-context";
@@ -29,6 +30,7 @@ export default async function ErpLayout({ children }: { children: React.ReactNod
               </main>
             </div>
           </div>
+          <CommandPalette />
         </DirtyFormProvider>
       </TabsProvider>
     </SessionProvider>
