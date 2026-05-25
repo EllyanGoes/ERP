@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { useTabsContext, type Tab } from "@/lib/tabs-context";
 import { useDirtyFormContext } from "@/lib/dirty-form-context";
+import { routeColor } from "@/lib/route-registry";
 import { cn } from "@/lib/utils";
 
 type DropTarget = { id: string; side: "before" | "after" } | null;
@@ -101,6 +102,20 @@ export default function TabBar() {
                 style={{ maxWidth: 200, minWidth: 80 }}
                 title={tab.title}
               >
+                {/* Icon */}
+                {tab.icon && (() => {
+                  const Icon = tab.icon!;
+                  const color = routeColor(tab.section ?? "");
+                  return (
+                    <span className={cn(
+                      "flex shrink-0 items-center justify-center w-4 h-4 rounded",
+                      isActive ? `${color.selBg} ${color.selText}` : `${color.bg} ${color.text}`
+                    )}>
+                      <Icon className="w-2.5 h-2.5" />
+                    </span>
+                  );
+                })()}
+
                 {/* Title */}
                 <span className="truncate flex-1 text-left" style={{ maxWidth: 140 }}>
                   {tab.title}

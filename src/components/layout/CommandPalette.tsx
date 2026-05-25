@@ -4,78 +4,9 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import {
-  Search, X, Clock, ExternalLink,
-  GitBranch, UserCheck, Layers, Users,
-  Package, Tag, Ruler, MapPin,
-  Truck, CalendarDays, CreditCard, CircleDot,
-  ShoppingCart,
-  PackageSearch, ArrowLeftRight, ClipboardList, ClipboardCheck,
-  FileBarChart2, PieChart, BarChart3, Activity,
-  ThumbsUp, FileSearch, FilePlus, PackageCheck,
-  TrendingUp, TrendingDown,
-  UserCog, ShieldCheck,
-  Settings2, Plug,
-  LayoutDashboard,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-
-// ── Route registry ─────────────────────────────────────────────────────────────
-type Route = {
-  href:     string;
-  label:    string;
-  group:    string;
-  section:  string;
-  icon:     LucideIcon;
-  keywords?: string;
-};
-
-const ROUTES: Route[] = [
-  { href: "/",                                     label: "Dashboard",               group: "Início",         section: "Geral",            icon: LayoutDashboard },
-
-  { href: "/empresa/filiais",                      label: "Filiais",                 group: "Empresa",        section: "Geral",            icon: GitBranch },
-  { href: "/empresa/colaboradores",                label: "Colaboradores",           group: "Empresa",        section: "Geral",            icon: UserCheck },
-  { href: "/empresa/setores",                      label: "Setores",                 group: "Empresa",        section: "Geral",            icon: Layers },
-  { href: "/clientes",                             label: "Clientes",                group: "Empresa",        section: "Geral",            icon: Users },
-
-  { href: "/suprimentos/produtos",                 label: "Produtos",                group: "Empresa",        section: "Almoxarifado",     icon: Package },
-  { href: "/suprimentos/tipos-produto",            label: "Tipos de Produto",        group: "Empresa",        section: "Almoxarifado",     icon: Tag },
-  { href: "/suprimentos/unidades",                 label: "Unidades de Medida",      group: "Empresa",        section: "Almoxarifado",     icon: Ruler },
-  { href: "/suprimentos/locais-estoque",           label: "Locais de Estoque",       group: "Empresa",        section: "Almoxarifado",     icon: MapPin },
-
-  { href: "/suprimentos/fornecedores",             label: "Fornecedores",            group: "Empresa",        section: "Compras",          icon: Truck },
-  { href: "/suprimentos/condicoes-pagamento",      label: "Condições de Pagamento",  group: "Empresa",        section: "Compras",          icon: CalendarDays },
-  { href: "/suprimentos/formas-pagamento",         label: "Formas de Pagamento",     group: "Empresa",        section: "Compras",          icon: CreditCard },
-  { href: "/empresa/centros-custo",                label: "Centros de Custo",        group: "Empresa",        section: "Financeiro",       icon: CircleDot },
-
-  { href: "/pedidos-venda",                        label: "Pedidos de Venda",        group: "Comercial",      section: "Processos",        icon: ShoppingCart },
-
-  { href: "/suprimentos/estoque",                  label: "Posição de Estoque",      group: "Almoxarifado",   section: "Estoque",          icon: PackageSearch },
-  { href: "/suprimentos/movimentacoes",            label: "Movimentações",           group: "Almoxarifado",   section: "Estoque",          icon: ArrowLeftRight },
-  { href: "/suprimentos/requisicoes-materiais",    label: "Req/Dev de Materiais",    group: "Almoxarifado",   section: "Estoque",          icon: ClipboardList,   keywords: "requisição devolução materiais" },
-  { href: "/suprimentos/inventarios-materiais",    label: "Inventário",              group: "Almoxarifado",   section: "Estoque",          icon: ClipboardCheck },
-
-  { href: "/suprimentos/relatorios/movimentacoes", label: "Entradas e Saídas",       group: "Almoxarifado",   section: "Relatórios",       icon: FileBarChart2 },
-  { href: "/suprimentos/relatorios/curva-abc",     label: "Curva ABC",               group: "Almoxarifado",   section: "Relatórios",       icon: PieChart },
-  { href: "/suprimentos/relatorios/imd",           label: "IMD — Demandas",          group: "Almoxarifado",   section: "Relatórios",       icon: BarChart3,       keywords: "imd demandas" },
-  { href: "/suprimentos/relatorios/consumo",       label: "Análise de Consumo",      group: "Almoxarifado",   section: "Relatórios",       icon: Activity },
-
-  { href: "/aprovacoes",                           label: "Minhas Aprovações",       group: "Compras",        section: "Aprovações",       icon: ThumbsUp },
-  { href: "/compras/necessidades",                 label: "Solicitação de Compras",  group: "Compras",        section: "Fluxo de Compras", icon: ClipboardList,   keywords: "SC necessidade" },
-  { href: "/suprimentos/cotacoes",                 label: "Cotação de Compras",      group: "Compras",        section: "Fluxo de Compras", icon: FileSearch,      keywords: "CT cotação" },
-  { href: "/suprimentos/pedidos-compra",           label: "Pedido de Compras",       group: "Compras",        section: "Fluxo de Compras", icon: FilePlus,        keywords: "PC pedido" },
-  { href: "/suprimentos/conferencias",             label: "Doc. de Entrada",         group: "Compras",        section: "Fluxo de Compras", icon: PackageCheck,    keywords: "DE conferência entrada NF nota fiscal" },
-
-  { href: "/contas-receber",                       label: "Contas a Receber",        group: "Financeiro",     section: "Processos",        icon: TrendingUp },
-  { href: "/contas-pagar",                         label: "Contas a Pagar",          group: "Financeiro",     section: "Processos",        icon: TrendingDown },
-  { href: "/fluxo-caixa",                          label: "Fluxo de Caixa",          group: "Financeiro",     section: "Processos",        icon: BarChart3 },
-
-  { href: "/admin/usuarios",                       label: "Usuários",                group: "Administração",  section: "Sistema",          icon: UserCog },
-  { href: "/admin/perfis",                         label: "Perfis de Acesso",        group: "Administração",  section: "Sistema",          icon: ShieldCheck },
-
-  { href: "/configuracoes/aprovacoes",             label: "Aprovações",              group: "Configurações",  section: "Configurações",    icon: Settings2 },
-  { href: "/configuracoes/integracoes",            label: "Integrações",             group: "Configurações",  section: "Configurações",    icon: Plug },
-];
+import { Search, X, Clock, ExternalLink } from "lucide-react";
+import { ROUTES, routeColor } from "@/lib/route-registry";
+import type { RouteEntry as Route } from "@/lib/route-registry";
 
 const ROUTE_MAP = new Map(ROUTES.map((r) => [r.href, r]));
 const RECENTS_KEY = "cmd-palette-recents";
@@ -331,6 +262,7 @@ function RouteItem({
   showGroup?:  boolean;
 }) {
   const Icon = route.icon;
+  const color = routeColor(route.section);
   const subtitle = [
     showGroup   ? route.group   : null,
     showSection ? route.section : null,
@@ -342,22 +274,22 @@ function RouteItem({
       onMouseEnter={onHover}
       className={cn(
         "group flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors",
-        selected ? "bg-blue-50" : "hover:bg-gray-50"
+        selected ? "bg-gray-50" : "hover:bg-gray-50"
       )}
     >
       {/* Icon */}
       <span className={cn(
         "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors",
-        selected ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-500"
+        selected ? `${color.selBg} ${color.selText}` : `${color.bg} ${color.text}`
       )}>
-        <Icon className="h-3.5 w-3.5" />
+        <Icon className="h-4 w-4" />
       </span>
 
       {/* Label + subtitle */}
       <span className="flex-1 min-w-0" onClick={onClick}>
         <span className={cn(
           "block truncate text-sm font-medium",
-          selected ? "text-blue-700" : "text-gray-800"
+          selected ? "text-gray-900" : "text-gray-800"
         )}>
           {route.label}
         </span>

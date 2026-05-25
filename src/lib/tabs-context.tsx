@@ -4,6 +4,8 @@ import {
   createContext, useContext, useState, useEffect, useCallback, useRef,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { findRoute } from "@/lib/route-registry";
+import type { LucideIcon } from "lucide-react";
 
 // ── Route title map ──────────────────────────────────────────────────────────
 const ROUTE_TITLES: Record<string, string> = {
@@ -78,6 +80,8 @@ export type Tab = {
   id: string;
   href: string;
   title: string;
+  icon?: LucideIcon;
+  section?: string;
 };
 
 type TabsContextType = {
@@ -123,7 +127,14 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
       const existing = prev.find((t) => t.href === pathname);
       if (existing) return prev; // already open, just switch
       const id = `tab-${++idCounterRef.current}`;
-      const newTab: Tab = { id, href: pathname, title: guessTitle(pathname) };
+      const routeEntry = findRoute(pathname);
+      const newTab: Tab = {
+        id,
+        href: pathname,
+        title: guessTitle(pathname),
+        icon: routeEntry?.icon,
+        section: routeEntry?.section,
+      };
       return [...prev, newTab];
     });
   }, [pathname]);
