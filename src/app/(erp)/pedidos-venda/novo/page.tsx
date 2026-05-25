@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function NovoPedidoPage() {
   const [clientes, itens] = await Promise.all([
     prisma.cliente.findMany({ where: { status: "ATIVO" }, orderBy: { razaoSocial: "asc" }, select: { id: true, razaoSocial: true, nomeFantasia: true } }),
-    prisma.item.findMany({ where: { ativo: true }, orderBy: { codigo: "asc" }, select: { id: true, codigo: true, descricao: true, precoVenda: true, unidadeMedida: true } }),
+    prisma.item.findMany({ where: { ativo: true, vendavel: true }, orderBy: { codigo: "asc" }, select: { id: true, codigo: true, descricao: true, precoVenda: true, unidadeMedida: true } }),
   ]);
 
   return (
