@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import PageHeader from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -138,7 +139,7 @@ function LabeledDot(props: {
   );
 }
 
-// ── Application Combobox ──────────────────────────────────────────────────────
+// ── Application Combobox (portal-based to avoid overflow clipping) ────────────
 function AplicacaoCombobox({
   options,
   value,
@@ -150,9 +151,14 @@ function AplicacaoCombobox({
   onChange: (codApl: number) => void;
   loading: boolean;
 }) {
-  const [open, setOpen]   = useState(false);
-  const [query, setQuery] = useState("");
-  const containerRef      = useRef<HTMLDivElement>(null);
+  const [open, setOpen]     = useState(false);
+  const [query, setQuery]   = useState("");
+  const [mounted, setMounted] = useState(false);
+  const [pos, setPos]       = useState<{ top: number; left: number; width: number } | null>(null);
+  const triggerRef          = useRef<HTMLButtonElement>(null);
+  const searchRef           = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setMounted(true); }, []);
 
   const selected = options.find((o) => o.codApl === value);
 
@@ -164,23 +170,97 @@ function AplicacaoCombobox({
     );
   }, [options, query]);
 
+  function openDropdown() {
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX, width: r.width });
+    }
+    setOpen(true);
+    setQuery("");
+    // focus the search input on next tick
+    setTimeout(() => searchRef.current?.focus(), 0);
+  }
+
   // Close on outside click
   useEffect(() => {
+    if (!open) return;
     function handle(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target as Node) &&
+        !(e.target as HTMLElement)?.closest?.("[data-apl-dropdown]")
+      ) {
         setOpen(false);
         setQuery("");
       }
     }
-    if (open) document.addEventListener("mousedown", handle);
+    document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [open]);
 
+  // Close on scroll
+  useEffect(() => {
+    if (!open) return;
+    function onScroll() { setOpen(false); }
+    window.addEventListener("scroll", onScroll, true);
+    return () => window.removeEventListener("scroll", onScroll, true);
+  }, [open]);
+
+  const dropdown = open && mounted && pos
+    ? createPortal(
+        <div
+          data-apl-dropdown
+          className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
+          style={{ top: pos.top, left: pos.left, width: pos.width }}
+        >
+          {/* Search */}
+          <div className="p-2 border-b border-gray-100">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              <Input
+                ref={searchRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar por TAG ou descrição…"
+                className="pl-8 h-8 text-sm"
+              />
+            </div>
+          </div>
+          {/* List */}
+          <div className="max-h-64 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-3 text-xs text-gray-400 italic text-center">Nenhuma aplicação encontrada.</p>
+            ) : filtered.map((o) => (
+              <button
+                key={o.codApl}
+                type="button"
+                onMouseDown={() => {
+                  onChange(o.codApl);
+                  setOpen(false);
+                  setQuery("");
+                }}
+                className={cn(
+                  "w-full text-left py-2.5 text-sm hover:bg-blue-50 border-b border-gray-50 last:border-0",
+                  "flex items-center gap-2",
+                  o.codApl === value && "bg-blue-50 text-blue-700"
+                )}
+                style={{ paddingLeft: `${16 + o.indent * 12}px`, paddingRight: 16 }}
+              >
+                <span className="font-mono text-[11px] text-gray-400 shrink-0">{o.tag}</span>
+                <span className="truncate text-gray-800">{o.descricao}</span>
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
+
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => { setOpen((v) => !v); setQuery(""); }}
+        onClick={() => open ? setOpen(false) : openDropdown()}
         disabled={loading}
         className={cn(
           "w-full h-10 px-3 pr-8 text-left text-sm border rounded-lg bg-white",
@@ -199,7 +279,7 @@ function AplicacaoCombobox({
         <ChevronDown className={cn("w-4 h-4 text-gray-400 shrink-0 transition-transform", open && "rotate-180")} />
       </button>
 
-      {value && !loading && (
+      {value != null && value > 0 && !loading && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onChange(0); setQuery(""); }}
@@ -210,48 +290,7 @@ function AplicacaoCombobox({
         </button>
       )}
 
-      {open && (
-        <div className="absolute z-50 top-full left-0 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
-          {/* Search input */}
-          <div className="p-2 border-b border-gray-100">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-              <Input
-                autoFocus
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar por TAG ou descrição…"
-                className="pl-8 h-8 text-sm"
-              />
-            </div>
-          </div>
-          {/* List */}
-          <div className="max-h-60 overflow-y-auto">
-            {filtered.length === 0 ? (
-              <p className="px-4 py-3 text-xs text-gray-400 italic text-center">Nenhuma aplicação encontrada.</p>
-            ) : filtered.map((o) => (
-              <button
-                key={o.codApl}
-                type="button"
-                onMouseDown={() => {
-                  onChange(o.codApl);
-                  setOpen(false);
-                  setQuery("");
-                }}
-                className={cn(
-                  "w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 border-b border-gray-50 last:border-0",
-                  "flex items-center gap-2",
-                  o.codApl === value && "bg-blue-50 text-blue-700"
-                )}
-                style={{ paddingLeft: `${16 + o.indent * 12}px` }}
-              >
-                <span className="font-mono text-[11px] text-gray-400 shrink-0">{o.tag}</span>
-                <span className="truncate text-gray-800">{o.descricao}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {dropdown}
     </div>
   );
 }
