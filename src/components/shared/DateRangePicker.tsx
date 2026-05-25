@@ -132,6 +132,15 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
     setHover("");
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Navigate calendar when picking mode switches to "to"
+  // → go to the "to" date month if set, otherwise advance one month from "from"
+  useEffect(() => {
+    if (!open || picking !== "to") return;
+    const src = value.to || value.from || today;
+    setViewYear(parseInt(src.split("-")[0]));
+    setViewMonth(parseInt(src.split("-")[1]) - 1);
+  }, [picking]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── navigation ──────────────────────────────────────────────────────────────
   function prevMonth() {
     if (viewMonth === 0) { setViewYear((y) => y - 1); setViewMonth(11); }
@@ -165,11 +174,14 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
       const iso = parseBR(formatted);
       if (iso) {
         onChange({ from: iso, to: value.to });
+        // Navigate calendar to the typed "from" month
+        setViewYear(parseInt(iso.split("-")[0]));
+        setViewMonth(parseInt(iso.split("-")[1]) - 1);
         setPicking("to");
         setTimeout(() => toRef.current?.focus(), 0);
       }
     }
-  }, [onChange, value.to]);
+  }, [onChange, value.to]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToChange = useCallback((raw: string) => {
     const formatted = autoFmt(raw);
@@ -244,7 +256,7 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
 
       {/* Popover */}
       {open && (
-        <div className="absolute left-0 top-full mt-1.5 z-50 bg-white rounded-2xl border border-gray-200 shadow-xl p-4 w-[308px]">
+        <div className="absolute right-0 top-full mt-1.5 z-50 bg-white rounded-2xl border border-gray-200 shadow-xl p-4 w-[308px]">
 
           {/* ── Editable date inputs ─────────────────────────────────────── */}
           <div className="flex items-center gap-2 mb-4">

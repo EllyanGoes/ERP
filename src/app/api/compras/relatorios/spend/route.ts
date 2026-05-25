@@ -12,8 +12,9 @@ type PedidoDetail = {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const from = searchParams.get("from");
-  const to   = searchParams.get("to");
+  const from    = searchParams.get("from");
+  const to      = searchParams.get("to");
+  const groupBy = (searchParams.get("groupBy") ?? "month") as "month" | "day";
 
   // Fetch all received orders that have a conferencia
   const pedidos = await prisma.pedidoCompra.findMany({
@@ -54,10 +55,12 @@ export async function GET(req: NextRequest) {
   const totalFornecedores = new Set(filtered.map((p) => p.fornecedorId)).size;
   const ticketMedio       = totalPedidos > 0 ? totalSpend / totalPedidos : 0;
 
-  // ── Spend por mês (group by conferencia month) ────────────────────────────
+  // ── Spend por mês / dia (group by conferencia date) ──────────────────────
   const byMonthMap = new Map<string, { valor: number; pedidos: number; pedidosList: PedidoDetail[] }>();
   for (const p of filtered) {
-    const key = p.conferencia!.createdAt.toISOString().slice(0, 7); // "YYYY-MM"
+    const key = groupBy === "day"
+      ? p.conferencia!.createdAt.toISOString().slice(0, 10) // "YYYY-MM-DD"
+      : p.conferencia!.createdAt.toISOString().slice(0, 7); // "YYYY-MM"
     const prev = byMonthMap.get(key) ?? { valor: 0, pedidos: 0, pedidosList: [] };
     prev.valor += Number(p.valorTotal);
     prev.pedidos += 1;

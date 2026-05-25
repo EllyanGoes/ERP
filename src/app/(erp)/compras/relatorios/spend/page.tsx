@@ -10,7 +10,6 @@ import {
   Loader2,
   RefreshCw,
   X,
-  Package,
 } from "lucide-react";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import { cn, formatBRL } from "@/lib/utils";
@@ -70,6 +69,14 @@ function fmtMonth(m: string) {
     month: "short",
     year: "2-digit",
   });
+}
+
+function fmtLabel(key: string, groupBy: "month" | "day") {
+  if (groupBy === "day") {
+    const [, m, d] = key.split("-");
+    return `${d}/${m}`;
+  }
+  return fmtMonth(key);
 }
 
 function fmtMi(v: number) {
@@ -229,54 +236,157 @@ function DrillDownModal({
   );
 }
 
-// ── Monthly Bar Chart ─────────────────────────────────────────────────────────
-const BAR_H = 150; // chart area height in px
+// ── SVG Line Chart ────────────────────────────────────────────────────────────
+const LC_W = 560; // viewBox width
+const LC_H = 180; // viewBox height
+const LC_PAD = { top: 28, right: 16, bottom: 32, left: 52 };
 
-function MonthlyBarChart({
+function LineChart({
   data,
-  onBarClick,
+  groupBy,
+  onPointClick,
 }: {
   data: SpendData["byMonth"];
-  onBarClick: (month: string) => void;
+  groupBy: "month" | "day";
+  onPointClick: (key: string) => void;
 }) {
+  const [hovered, setHovered] = useState<number | null>(null);
+
   if (data.length === 0) return <EmptyChart />;
+
   const maxV = Math.max(...data.map((d) => d.valor), 1);
+  const inner = {
+    w: LC_W - LC_PAD.left - LC_PAD.right,
+    h: LC_H - LC_PAD.top  - LC_PAD.bottom,
+  };
+
+  // Map data points to SVG coordinates
+  const pts = data.map((d, i) => ({
+    x: LC_PAD.left + (data.length === 1 ? inner.w / 2 : (i / (data.length - 1)) * inner.w),
+    y: LC_PAD.top  + inner.h - (d.valor / maxV) * inner.h,
+    d,
+  }));
+
+  const polyline = pts.map((p) => `${p.x},${p.y}`).join(" ");
+
+  // Area fill (closed path)
+  const areaPath = pts.length > 0
+    ? `M ${pts[0].x},${LC_PAD.top + inner.h} ` +
+      pts.map((p) => `L ${p.x},${p.y}`).join(" ") +
+      ` L ${pts[pts.length - 1].x},${LC_PAD.top + inner.h} Z`
+    : "";
+
+  // Y-axis tick values (0, 25%, 50%, 75%, 100%)
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((pct) => ({
+    y: LC_PAD.top + inner.h - pct * inner.h,
+    label: fmtMi(maxV * pct),
+  }));
+
+  // X-axis: show at most ~8 labels evenly
+  const maxLabels = Math.min(data.length, groupBy === "day" ? 10 : 8);
+  const labelStep = data.length <= maxLabels ? 1 : Math.ceil(data.length / maxLabels);
+  const xLabelIdxs = new Set(
+    Array.from({ length: data.length }, (_, i) => i).filter(
+      (i) => i % labelStep === 0 || i === data.length - 1
+    )
+  );
 
   return (
-    <div className="w-full select-none">
-      {/* Bar area — fixed pixel height so bars can use px values reliably */}
-      <div className="flex items-end gap-[3px]" style={{ height: BAR_H }}>
-        {data.map((d) => {
-          const barPx = Math.max(Math.round((d.valor / maxV) * BAR_H), 4);
-          return (
-            <div
-              key={d.month}
-              className="flex-1 relative group cursor-pointer min-w-0"
-              style={{ height: barPx }}
-              onClick={() => onBarClick(d.month)}
-              title={`${fmtMonth(d.month)}: ${formatBRL(d.valor)}`}
-            >
-              {/* bar fill */}
-              <div className="absolute inset-0 bg-blue-500 group-hover:bg-blue-600 rounded-t transition-colors" />
-              {/* value label above bar */}
-              <div className="absolute bottom-full left-0 right-0 flex justify-center pb-0.5">
-                <span className="text-[8px] font-medium text-gray-500 group-hover:text-blue-600 transition-colors leading-none">
-                  {fmtMi(d.valor)}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {/* Month labels row */}
-      <div className="flex gap-[3px] mt-1">
-        {data.map((d) => (
-          <div key={d.month} className="flex-1 min-w-0 text-center overflow-hidden">
-            <span className="text-[8px] text-gray-400 block truncate">{fmtMonth(d.month)}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    <svg
+      viewBox={`0 0 ${LC_W} ${LC_H}`}
+      className="w-full select-none"
+      style={{ height: LC_H }}
+    >
+      {/* Y grid lines + labels */}
+      {yTicks.map((t, i) => (
+        <g key={i}>
+          <line
+            x1={LC_PAD.left} y1={t.y} x2={LC_W - LC_PAD.right} y2={t.y}
+            stroke={i === 0 ? "#d1d5db" : "#f3f4f6"} strokeWidth="1"
+          />
+          <text x={LC_PAD.left - 4} y={t.y + 4} textAnchor="end"
+            fontSize="9" fill="#9ca3af">{t.label}
+          </text>
+        </g>
+      ))}
+
+      {/* Area fill */}
+      {areaPath && (
+        <path d={areaPath} fill="#3b82f6" fillOpacity="0.08" />
+      )}
+
+      {/* Line */}
+      {pts.length > 1 && (
+        <polyline
+          points={polyline}
+          fill="none"
+          stroke="#3b82f6"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+      )}
+
+      {/* X-axis labels */}
+      {pts.map((p, i) =>
+        xLabelIdxs.has(i) ? (
+          <text
+            key={p.d.month}
+            x={p.x} y={LC_PAD.top + inner.h + 14}
+            textAnchor="middle" fontSize="9" fill="#9ca3af"
+          >
+            {fmtLabel(p.d.month, groupBy)}
+          </text>
+        ) : null
+      )}
+
+      {/* Interactive points */}
+      {pts.map((p, i) => (
+        <g key={p.d.month} style={{ cursor: "pointer" }}
+          onClick={() => onPointClick(p.d.month)}
+          onMouseEnter={() => setHovered(i)}
+          onMouseLeave={() => setHovered(null)}
+        >
+          {/* Larger invisible hit area */}
+          <circle cx={p.x} cy={p.y} r={12} fill="transparent" />
+
+          {/* Visible dot */}
+          <circle
+            cx={p.x} cy={p.y}
+            r={hovered === i ? 5 : 3.5}
+            fill={hovered === i ? "#2563eb" : "#3b82f6"}
+            stroke="white" strokeWidth="1.5"
+            style={{ transition: "r 0.1s" }}
+          />
+
+          {/* Tooltip on hover */}
+          {hovered === i && (
+            <g>
+              <rect
+                x={Math.min(p.x - 44, LC_W - LC_PAD.right - 88)}
+                y={p.y - 32}
+                width={88} height={22}
+                rx={4} fill="#1e3a5f" fillOpacity="0.92"
+              />
+              <text
+                x={Math.min(p.x, LC_W - LC_PAD.right - 44)}
+                y={p.y - 17}
+                textAnchor="middle" fontSize="9.5" fill="white" fontWeight="600"
+              >
+                {fmtMi(p.d.valor)}
+              </text>
+              <text
+                x={Math.min(p.x, LC_W - LC_PAD.right - 44)}
+                y={p.y - 7}
+                textAnchor="middle" fontSize="8" fill="#93c5fd"
+              >
+                {p.d.pedidos} pedido{p.d.pedidos !== 1 ? "s" : ""}
+              </text>
+            </g>
+          )}
+        </g>
+      ))}
+    </svg>
   );
 }
 
@@ -410,18 +520,22 @@ export default function SpendPage() {
   const [data,      setData]      = useState<SpendData | null>(null);
   const [loading,   setLoading]   = useState(true);
   const [drillDown, setDrillDown] = useState<DrillDown | null>(null);
+  const [groupBy,   setGroupBy]   = useState<"month" | "day">("month");
 
-  // Keep a ref so `load` can always read the latest range without being recreated
-  const rangeRef = useRef(range);
-  useEffect(() => { rangeRef.current = range; }, [range]);
+  // Keep refs so `load` can always read the latest values without being recreated
+  const rangeRef   = useRef(range);
+  const groupByRef = useRef(groupBy);
+  useEffect(() => { rangeRef.current   = range;   }, [range]);
+  useEffect(() => { groupByRef.current = groupBy; }, [groupBy]);
 
-  // Stable load function — reads range from ref, never changes reference
+  // Stable load function
   const load = useCallback(() => {
     setLoading(true);
     const { from, to } = rangeRef.current;
     const params = new URLSearchParams();
     if (from) params.set("from", from);
     if (to)   params.set("to",   to);
+    params.set("groupBy", groupByRef.current);
     fetch(`/api/compras/relatorios/spend?${params}`)
       .then((r) => r.json())
       .then(setData)
@@ -429,11 +543,16 @@ export default function SpendPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load on mount + whenever a COMPLETE range is selected (both dates set)
-  // Does NOT fire while mid-selecting (to is empty)
   useEffect(() => {
     if (!range.from || !range.to) return;
     load();
   }, [range.from, range.to]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reload when groupBy changes (if range is complete)
+  useEffect(() => {
+    if (!range.from || !range.to) return;
+    load();
+  }, [groupBy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const s = data?.summary;
 
@@ -441,10 +560,11 @@ export default function SpendPage() {
   function handleBarClick(month: string) {
     const entry = data?.byMonth.find((m) => m.month === month);
     if (!entry) return;
+    const label = fmtLabel(month, groupBy);
     setDrillDown({
-      title:   `Pedidos — ${fmtMonth(month)}`,
-      subtitle: `${entry.pedidos} pedido(s) recebidos em ${fmtMonth(month)}`,
-      content: "pedidos",
+      title:    `Pedidos — ${label}`,
+      subtitle: `${entry.pedidos} pedido(s) recebidos em ${label}`,
+      content:  "pedidos",
       pedidosList: entry.pedidosList,
     });
   }
@@ -534,24 +654,42 @@ export default function SpendPage() {
           </div>
 
           {/* ── Charts row ──────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Spend por Mês */}
-            <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm font-semibold text-gray-700">Spend por Mês</p>
-                <p className="text-xs text-gray-400">Clique em uma barra para ver os pedidos</p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Spend por Mês / Dia */}
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-gray-700">Spend por Período</p>
+                <div className="flex items-center gap-3">
+                  {/* Group by toggle */}
+                  <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
+                    {(["month", "day"] as const).map((g) => (
+                      <button
+                        key={g}
+                        onClick={() => setGroupBy(g)}
+                        className={cn(
+                          "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                          groupBy === g
+                            ? "bg-white text-gray-800 shadow-sm"
+                            : "text-gray-500 hover:text-gray-700"
+                        )}
+                      >
+                        {g === "month" ? "Mês" : "Dia"}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400">Clique para ver pedidos</p>
+                </div>
               </div>
-              <div className="h-[200px]">
-                <MonthlyBarChart
-                  data={data?.byMonth ?? []}
-                  onBarClick={handleBarClick}
-                />
-              </div>
+              <LineChart
+                data={data?.byMonth ?? []}
+                groupBy={groupBy}
+                onPointClick={handleBarClick}
+              />
             </div>
 
             {/* Spend por Categoria */}
             <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-3">
                 <p className="text-sm font-semibold text-gray-700">Spend por Categoria</p>
                 <p className="text-xs text-gray-400">Clique para detalhar</p>
               </div>
