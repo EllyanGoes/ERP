@@ -19,6 +19,7 @@ import { TipoProdutoQuickCreate, UnidadeQuickCreate, LocalEstoqueQuickCreate } f
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
+import { useSession } from "@/lib/session-context";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Movimentacao = {
@@ -124,6 +125,8 @@ function formatDateTime(d: string) {
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function ProdutoDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
   const [tab, setTab] = useState<"dados" | "fornecedores" | "estoques" | "movimentacoes" | "compras" | "relatorio">("dados");
   const [periodoDias, setPeriodoDias] = useState<30 | 90 | 180 | 365>(90);
   const [item, setItem] = useState<Item | null>(null);
@@ -198,6 +201,12 @@ export default function ProdutoDetailPage() {
   const [saldoSaving, setSaldoSaving] = useState(false);
   const [saldoError, setSaldoError] = useState("");
 
+  // Inline edit for estoqueItem rows (admin only)
+  const [editingEstoqueId, setEditingEstoqueId] = useState<string | null>(null);
+  const [estoqueEditForm, setEstoqueEditForm] = useState({ quantidadeAtual: "", localizacao: "" });
+  const [estoqueEditSaving, setEstoqueEditSaving] = useState(false);
+  const [estoqueEditError, setEstoqueEditError] = useState("");
+
   // Favorito toggle
   const [favoritoSaving, setFavoritoSaving] = useState(false);
 
@@ -251,6 +260,35 @@ export default function ProdutoDetailPage() {
       .then((r) => r.json())
       .then((d) => { setCompras(d); setComprasLoaded(true); })
       .finally(() => setComprasLoading(false));
+  }
+
+  function openEstoqueEdit(e: { id: string; quantidadeAtual: unknown; localizacao: string | null }) {
+    setEstoqueEditForm({
+      quantidadeAtual: decimalToNumber(e.quantidadeAtual).toLocaleString("en-US", { maximumFractionDigits: 3, useGrouping: false }),
+      localizacao: e.localizacao ?? "",
+    });
+    setEstoqueEditError("");
+    setEditingEstoqueId(e.id);
+  }
+
+  async function saveEstoqueEdit() {
+    if (!editingEstoqueId) return;
+    setEstoqueEditSaving(true);
+    setEstoqueEditError("");
+    try {
+      const res = await fetch(`/api/suprimentos/estoque-items/${editingEstoqueId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quantidadeAtual: estoqueEditForm.quantidadeAtual,
+          localizacao: estoqueEditForm.localizacao,
+        }),
+      });
+      if (!res.ok) { setEstoqueEditError((await res.json()).error || "Erro ao salvar"); return; }
+      setEditingEstoqueId(null);
+      await load();
+    } catch { setEstoqueEditError("Erro de conexão"); }
+    finally { setEstoqueEditSaving(false); }
   }
 
   function openSaldoDialog() {
@@ -1030,6 +1068,7 @@ export default function ProdutoDetailPage() {
                             <th className="text-right px-4 py-3 font-semibold whitespace-nowrap">Custo Médio</th>
                             <th className="text-right px-4 py-3 font-semibold whitespace-nowrap">Custo Total</th>
                             <th className="text-left px-4 py-3 font-semibold whitespace-nowrap">Endereço</th>
+                            {isAdmin && <th className="w-20 px-4 py-3" />}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
@@ -1042,20 +1081,38 @@ export default function ProdutoDetailPage() {
                             const filialNome = e.localEstoque?.filial
                               ? (e.localEstoque.filial.nomeFantasia || e.localEstoque.filial.razaoSocial)
                               : "—";
+                            const isEditingRow = editingEstoqueId === e.id;
                             return (
-                              <tr key={e.id} className={cn("hover:bg-indigo-50/40 transition-colors", abaixo && "bg-red-50/30")}>
+                              <tr key={e.id} className={cn("hover:bg-indigo-50/40 transition-colors", abaixo && "bg-red-50/30", isEditingRow && "bg-amber-50/60 hover:bg-amber-50/80")}>
                                 <td className="px-4 py-3.5 text-gray-600 text-xs font-medium">{filialNome}</td>
                                 <td className="px-4 py-3.5 font-medium text-gray-900">
                                   <Link href={`/suprimentos/locais-estoque/${e.localEstoque!.id}`} className="hover:text-blue-600 hover:underline">
                                     {e.localEstoque!.nome}
                                   </Link>
                                 </td>
+
+                                {/* Saldo */}
                                 <td className="px-4 py-3.5 text-right">
-                                  <span className={cn("font-bold", abaixo ? "text-red-600" : "text-gray-900")}>
-                                    {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                                  </span>
-                                  <span className="text-xs text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                  {isEditingRow ? (
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="0.001"
+                                      className="h-7 w-28 text-right text-xs ml-auto"
+                                      value={estoqueEditForm.quantidadeAtual}
+                                      onChange={(ev) => setEstoqueEditForm((f) => ({ ...f, quantidadeAtual: ev.target.value }))}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <>
+                                      <span className={cn("font-bold", abaixo ? "text-red-600" : "text-gray-900")}>
+                                        {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                                      </span>
+                                      <span className="text-xs text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                    </>
+                                  )}
                                 </td>
+
                                 <td className="px-4 py-3.5 text-right">
                                   <span className="font-semibold text-gray-800">
                                     {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
@@ -1073,11 +1130,55 @@ export default function ProdutoDetailPage() {
                                 <td className="px-4 py-3.5 text-right font-semibold text-blue-700">
                                   {custoTotalLinha > 0 ? formatBRL(custoTotalLinha) : <span className="text-gray-400 font-normal">—</span>}
                                 </td>
+
+                                {/* Endereço */}
                                 <td className="px-4 py-3.5 text-gray-500 text-xs">
-                                  {e.localizacao ? (
+                                  {isEditingRow ? (
+                                    <Input
+                                      className="h-7 w-28 text-xs font-mono"
+                                      placeholder="Ex: A-01-02"
+                                      value={estoqueEditForm.localizacao}
+                                      onChange={(ev) => setEstoqueEditForm((f) => ({ ...f, localizacao: ev.target.value }))}
+                                    />
+                                  ) : e.localizacao ? (
                                     <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{e.localizacao}</span>
                                   ) : "—"}
                                 </td>
+
+                                {/* Admin actions */}
+                                {isAdmin && (
+                                  <td className="px-3 py-3.5">
+                                    {isEditingRow ? (
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          onClick={saveEstoqueEdit}
+                                          disabled={estoqueEditSaving}
+                                          className="p-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white transition-colors disabled:opacity-50"
+                                          title="Salvar"
+                                        >
+                                          {estoqueEditSaving
+                                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            : <Save className="w-3.5 h-3.5" />}
+                                        </button>
+                                        <button
+                                          onClick={() => { setEditingEstoqueId(null); setEstoqueEditError(""); }}
+                                          className="p-1 rounded-md hover:bg-gray-100 text-gray-500 transition-colors"
+                                          title="Cancelar"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => openEstoqueEdit(e)}
+                                        className="p-1 rounded-md hover:bg-gray-100 text-gray-400 hover:text-indigo-600 transition-colors"
+                                        title="Editar registro"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </td>
+                                )}
                               </tr>
                             );
                           })}
@@ -1098,7 +1199,16 @@ export default function ProdutoDetailPage() {
                               <td className="px-4 py-2.5 text-right font-bold text-blue-800">
                                 {custoUnit > 0 ? formatBRL(custoUnit * estoqueTotal) : <span className="text-gray-400">—</span>}
                               </td>
-                              <td />
+                              <td colSpan={isAdmin ? 2 : 1} />
+                            </tr>
+                          </tfoot>
+                        )}
+                        {estoqueEditError && (
+                          <tfoot>
+                            <tr>
+                              <td colSpan={isAdmin ? 9 : 8} className="px-4 py-2 text-xs text-red-600 bg-red-50">
+                                {estoqueEditError}
+                              </td>
                             </tr>
                           </tfoot>
                         )}
