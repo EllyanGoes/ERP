@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { X, Mail, MessageCircle, BookOpen, Keyboard } from "lucide-react";
 import { useShortcuts } from "@/lib/shortcuts-context";
 
@@ -88,7 +89,7 @@ export default function HelpPanel() {
                 icon={<MessageCircle className="h-4 w-4 text-blue-600" />}
                 title="Abrir chamado"
                 description="Reporte um problema ou solicite uma funcionalidade"
-                href="mailto:suporte@erpsigma.com.br?subject=Chamado ERP"
+                href="/suporte"
                 bg="bg-blue-50"
               />
               <SupportCard
@@ -165,13 +166,9 @@ function SupportCard({ icon, title, description, href, bg }: {
   href: string;
   bg: string;
 }) {
-  return (
-    <a
-      href={href}
-      target={href.startsWith("mailto") ? undefined : "_blank"}
-      rel="noopener noreferrer"
-      className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all group"
-    >
+  const cls = "flex items-center gap-3 p-3.5 rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all group";
+  const content = (
+    <>
       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${bg}`}>
         {icon}
       </span>
@@ -179,6 +176,15 @@ function SupportCard({ icon, title, description, href, bg }: {
         <p className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors">{title}</p>
         <p className="text-xs text-gray-400 truncate">{description}</p>
       </div>
+    </>
+  );
+
+  if (href.startsWith("/")) {
+    return <Link href={href} className={cls}>{content}</Link>;
+  }
+  return (
+    <a href={href} target={href.startsWith("mailto") ? undefined : "_blank"} rel="noopener noreferrer" className={cls}>
+      {content}
     </a>
   );
 }
