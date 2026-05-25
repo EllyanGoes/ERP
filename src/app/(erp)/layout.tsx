@@ -2,9 +2,11 @@ import Sidebar from "@/components/layout/Sidebar";
 import TabBar from "@/components/layout/TabBar";
 import ScrollRestorer from "@/components/layout/ScrollRestorer";
 import CommandPalette from "@/components/layout/CommandPalette";
+import ShortcutsModal from "@/components/layout/ShortcutsModal";
 import { TabsProvider } from "@/lib/tabs-context";
 import { SessionProvider } from "@/lib/session-context";
 import { DirtyFormProvider } from "@/lib/dirty-form-context";
+import { ShortcutsProvider } from "@/lib/shortcuts-context";
 import { getSession } from "@/lib/auth";
 
 export default async function ErpLayout({ children }: { children: React.ReactNode }) {
@@ -15,6 +17,7 @@ export default async function ErpLayout({ children }: { children: React.ReactNod
 
   return (
     <SessionProvider initial={user}>
+      <ShortcutsProvider>
       <TabsProvider>
         <DirtyFormProvider>
           <div className="flex h-screen bg-gray-50">
@@ -31,8 +34,10 @@ export default async function ErpLayout({ children }: { children: React.ReactNod
             </div>
           </div>
           <CommandPalette />
+          <ShortcutsModal />
         </DirtyFormProvider>
       </TabsProvider>
+      </ShortcutsProvider>
     </SessionProvider>
   );
 }

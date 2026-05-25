@@ -58,6 +58,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
+import { useShortcuts } from "@/lib/shortcuts-context";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -446,6 +447,7 @@ export default function Sidebar() {
   const router = useRouter();
   const { attemptNavigate } = useDirtyFormContext();
   const { user, canAccess } = useSession();
+  const { openShortcuts } = useShortcuts();
 
   // ── Pending approvals badge + notification panel ─────────────────────────
   const [pendingAprov, setPendingAprov] = useState(0);
@@ -746,10 +748,10 @@ export default function Sidebar() {
               </StripTooltip>
             )}
 
-            {/* Suporte */}
-            <StripTooltip label="Suporte">
+            {/* Atalhos / Ajuda */}
+            <StripTooltip label="Atalhos do teclado (?)">
               <button
-                onClick={() => attemptNavigate(() => router.push("/suporte"))}
+                onClick={openShortcuts}
                 className="flex items-center justify-center w-9 h-9 rounded-xl
                   text-gray-500 hover:bg-gray-800 hover:text-gray-200 transition-colors"
               >
