@@ -9,6 +9,7 @@ import {
   UserCheck, Plus, Search, Loader2, Phone,
 } from "lucide-react";
 import { useColumnOrder } from "@/lib/use-column-order";
+import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -146,7 +147,8 @@ export default function ColaboradoresPage() {
 
   // Column order
   const [colOrder, setColOrder] = useColumnOrder("colaboradores", COLS.map((c) => c.id));
-  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Colaborador> => c !== undefined);
+  const [colVis, setColVis, showAllCols] = useColumnVisibility("colaboradores", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Colaborador> => c !== undefined && colVis[c.id] !== false);
 
   return (
     <div>
@@ -203,7 +205,7 @@ export default function ColaboradoresPage() {
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
           </div>
-          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
+          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} visibility={colVis} onVisibilityChange={setColVis} onShowAll={showAllCols} />
           <select
             value={filtroAtivo}
             onChange={(e) => setFiltroAtivo(e.target.value as "" | "true" | "false")}

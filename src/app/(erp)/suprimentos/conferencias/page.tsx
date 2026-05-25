@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Search, X, ChevronDown, LayoutList, Kanban, FileText, Calendar, MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
 import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
+import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -266,7 +267,8 @@ export default function DocumentosEntradaPage() {
 
   // Column order
   const [colOrder, setColOrder] = useColumnOrder("conferencias", COLS.map((c) => c.id));
-  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<ConferenciaRow> => c !== undefined);
+  const [colVis, setColVis, showAllCols] = useColumnVisibility("conferencias", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<ConferenciaRow> => c !== undefined && colVis[c.id] !== false);
 
   function updateFilters(partial: Partial<Filters>) {
     setFilters((prev) => {
@@ -397,7 +399,7 @@ export default function DocumentosEntradaPage() {
 
         {/* Column configurator — list only */}
         {filters.view === "list" && (
-          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
+          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} visibility={colVis} onVisibilityChange={setColVis} onShowAll={showAllCols} />
         )}
 
         {/* View toggle */}

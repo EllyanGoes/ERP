@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import PedidoActionsMenu from "./PedidoActionsMenu";
 import { useColumnOrder } from "@/lib/use-column-order";
+import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 import {
   Plus, Search, X, LayoutList, Kanban, Loader2,
@@ -314,7 +315,8 @@ export default function PedidosCompraPage() {
 
   // Column order
   const [colOrder, setColOrder] = useColumnOrder("pedidos-compra", COLS.map((c) => c.id));
-  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Pedido> => c !== undefined);
+  const [colVis, setColVis, showAllCols] = useColumnVisibility("pedidos-compra", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Pedido> => c !== undefined && colVis[c.id] !== false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   // Drag state
@@ -637,7 +639,7 @@ export default function PedidosCompraPage() {
 
         {/* Column configurator — only relevant for list view */}
         {filters.view === "list" && (
-          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
+          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} visibility={colVis} onVisibilityChange={setColVis} onShowAll={showAllCols} />
         )}
 
         {/* PDF download */}

@@ -10,6 +10,7 @@ import Link from "next/link";
 import { Plus, Search, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
+import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 type Fornecedor = {
@@ -148,7 +149,8 @@ export default function FornecedoresPage() {
   // Column order
   _search = search;
   const [colOrder, setColOrder] = useColumnOrder("fornecedores", COLS.map((c) => c.id));
-  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Fornecedor> => c !== undefined);
+  const [colVis, setColVis, showAllCols] = useColumnVisibility("fornecedores", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Fornecedor> => c !== undefined && colVis[c.id] !== false);
 
   return (
     <div>
@@ -221,7 +223,7 @@ export default function FornecedoresPage() {
             </button>
           )}
 
-          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
+          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} visibility={colVis} onVisibilityChange={setColVis} onShowAll={showAllCols} />
         </div>
 
         {/* Table */}

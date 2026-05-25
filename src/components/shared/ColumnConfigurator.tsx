@@ -2,16 +2,26 @@
 /**
  * ColumnConfigurator
  *
- * Botão + popover drag-and-drop para reordenar colunas de qualquer tabela.
+ * Botão + popover para reordenar e mostrar/ocultar colunas.
  *
  * Uso:
- *   <ColumnConfigurator columns={COLS} order={order} onOrderChange={setOrder} />
+ *   <ColumnConfigurator
+ *     columns={COLS}
+ *     order={order}
+ *     onOrderChange={setOrder}
+ *     visibility={visibility}          // Record<id, boolean>
+ *     onVisibilityChange={setVis}      // (id, visible) => void
+ *     onShowAll={showAll}              // () => void
+ *   />
  *
  * ColDef<T> é exportado para que as páginas possam tipar seus arrays de colunas.
  */
 
 import { useState } from "react";
-import { SlidersHorizontal, GripVertical, RotateCcw } from "lucide-react";
+import {
+  SlidersHorizontal, GripVertical, RotateCcw,
+  Eye, EyeOff,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import React from "react";
 
@@ -31,35 +41,57 @@ export type ColDef<T = unknown> = {
 
 // ── Component ────────────────────────────────────────────────────────────────
 interface Props {
-  /** All available columns (id + label only needed) */
+  /** All available columns (id + label) */
   columns: { id: string; label: string }[];
-  /** Current order (array of ids) */
+  /** Current order (array of all ids, visible + hidden) */
   order: string[];
   /** Callback when user reorders */
   onOrderChange: (newOrder: string[]) => void;
+  /** Record<id, boolean> — true = visible (default when absent) */
+  visibility?: Record<string, boolean>;
+  /** Called when user toggles a column */
+  onVisibilityChange?: (id: string, visible: boolean) => void;
+  /** Called when user clicks "Mostrar tudo" */
+  onShowAll?: () => void;
 }
 
-export default function ColumnConfigurator({ columns, order, onOrderChange }: Props) {
+export default function ColumnConfigurator({
+  columns, order, onOrderChange,
+  visibility = {}, onVisibilityChange, onShowAll,
+}: Props) {
   const [open, setOpen] = useState(false);
 
-  // Drag state
+  // Drag state (only visible columns are draggable)
   const [dragIdx,     setDragIdx]     = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
-  // Resolve ordered column list (filter out any id not present in columns)
-  const orderedCols = order
+  // All cols in current order
+  const orderedAll = order
     .map((id) => columns.find((c) => c.id === id))
     .filter((c): c is { id: string; label: string } => c !== undefined);
 
+  const visible = orderedAll.filter((c) => visibility[c.id] !== false);
+  const hidden  = orderedAll.filter((c) => visibility[c.id] === false);
+
   function handleDrop(toIdx: number) {
     if (dragIdx === null || dragIdx === toIdx) return;
-    const ids = orderedCols.map((c) => c.id);
-    const [moved] = ids.splice(dragIdx, 1);
-    ids.splice(toIdx, 0, moved);
-    onOrderChange(ids);
+    // Reorder only among visible cols; keep hidden cols in their relative positions
+    const visIds = visible.map((c) => c.id);
+    const [moved] = visIds.splice(dragIdx, 1);
+    visIds.splice(toIdx, 0, moved);
+    // Rebuild full order: visible first (in new order), then hidden (original rel order)
+    const hiddenIds = hidden.map((c) => c.id);
+    onOrderChange([...visIds, ...hiddenIds]);
     setDragIdx(null);
     setDragOverIdx(null);
   }
+
+  function resetToDefault() {
+    onOrderChange(columns.map((c) => c.id));
+    onShowAll?.();
+  }
+
+  const hiddenCount = hidden.length;
 
   return (
     <div className="relative">
@@ -76,22 +108,27 @@ export default function ColumnConfigurator({ columns, order, onOrderChange }: Pr
       >
         <SlidersHorizontal className="w-3.5 h-3.5" />
         <span className="hidden sm:inline text-xs font-medium">Colunas</span>
+        {hiddenCount > 0 && (
+          <span className="flex items-center justify-center w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] font-bold">
+            {hiddenCount}
+          </span>
+        )}
       </button>
 
       {/* Popover */}
       {open && (
         <>
-          {/* Backdrop */}
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
 
-          <div className="absolute right-0 top-10 z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-60 overflow-hidden">
+          <div className="absolute right-0 top-10 z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-64 overflow-hidden">
+
             {/* Header */}
             <div className="px-3 py-2.5 border-b border-gray-100 flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Ordem das colunas
+              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                Colunas
               </span>
               <button
-                onClick={() => onOrderChange(columns.map((c) => c.id))}
+                onClick={resetToDefault}
                 title="Restaurar padrão"
                 className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
               >
@@ -100,22 +137,33 @@ export default function ColumnConfigurator({ columns, order, onOrderChange }: Pr
               </button>
             </div>
 
-            {/* Sortable list */}
-            <div className="py-1 max-h-80 overflow-y-auto">
-              {orderedCols.map((col, idx) => (
+            {/* ── Visible section ────────────────────────────────────────── */}
+            <div className="max-h-80 overflow-y-auto">
+              <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+                  Mostradas na tabela
+                </span>
+                {onVisibilityChange && visible.length > 1 && (
+                  <button
+                    onClick={() => visible.forEach((c) => onVisibilityChange(c.id, false))}
+                    className="text-[10px] text-blue-500 hover:text-blue-700 font-medium"
+                  >
+                    Ocultar tudo
+                  </button>
+                )}
+              </div>
+
+              {visible.map((col, idx) => (
                 <div
                   key={col.id}
                   draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = "move";
-                    setDragIdx(idx);
-                  }}
+                  onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; setDragIdx(idx); }}
                   onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
                   onDragOver={(e) => { e.preventDefault(); setDragOverIdx(idx); }}
                   onDragLeave={() => setDragOverIdx(null)}
                   onDrop={(e) => { e.preventDefault(); handleDrop(idx); }}
                   className={cn(
-                    "flex items-center gap-2.5 px-3 py-2.5 cursor-grab active:cursor-grabbing select-none transition-colors text-sm",
+                    "flex items-center gap-2 px-3 py-2 select-none transition-colors text-sm group",
                     dragIdx === idx
                       ? "opacity-40"
                       : dragOverIdx === idx
@@ -123,15 +171,68 @@ export default function ColumnConfigurator({ columns, order, onOrderChange }: Pr
                       : "hover:bg-gray-50 text-gray-700",
                   )}
                 >
-                  <GripVertical className="w-3.5 h-3.5 text-gray-300 shrink-0" />
-                  <span className="truncate">{col.label}</span>
+                  <GripVertical className="w-3.5 h-3.5 text-gray-300 shrink-0 cursor-grab active:cursor-grabbing" />
+                  <span className="flex-1 truncate text-sm">{col.label}</span>
+                  {onVisibilityChange && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onVisibilityChange(col.id, false); }}
+                      title="Ocultar coluna"
+                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-700 transition-opacity"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               ))}
+
+              {visible.length === 0 && (
+                <p className="px-3 py-2 text-xs text-gray-400 italic">
+                  Nenhuma coluna visível
+                </p>
+              )}
+
+              {/* ── Hidden section ─────────────────────────────────────── */}
+              {hidden.length > 0 && (
+                <>
+                  <div className="flex items-center justify-between px-3 pt-3 pb-1 border-t border-gray-100 mt-1">
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+                      Ocultas na tabela
+                    </span>
+                    {onShowAll && (
+                      <button
+                        onClick={onShowAll}
+                        className="text-[10px] text-blue-500 hover:text-blue-700 font-medium"
+                      >
+                        Mostrar tudo
+                      </button>
+                    )}
+                  </div>
+
+                  {hidden.map((col) => (
+                    <div
+                      key={col.id}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-400 group hover:bg-gray-50 transition-colors"
+                    >
+                      <GripVertical className="w-3.5 h-3.5 text-gray-200 shrink-0" />
+                      <span className="flex-1 truncate">{col.label}</span>
+                      {onVisibilityChange && (
+                        <button
+                          onClick={() => onVisibilityChange(col.id, true)}
+                          title="Mostrar coluna"
+                          className="text-gray-300 hover:text-gray-600 transition-colors"
+                        >
+                          <EyeOff className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
 
-            {/* Footer hint */}
+            {/* Footer */}
             <div className="px-3 py-2 border-t border-gray-100 bg-gray-50">
-              <p className="text-xs text-gray-400">Arraste para reordenar</p>
+              <p className="text-[11px] text-gray-400">Arraste para reordenar · clique no olho para ocultar</p>
             </div>
           </div>
         </>

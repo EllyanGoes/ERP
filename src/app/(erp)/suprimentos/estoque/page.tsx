@@ -7,6 +7,7 @@ import FilterDropdown, { FilterOption } from "@/components/shared/FilterDropdown
 import { Search, X, Loader2, Package, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
+import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -220,7 +221,8 @@ export default function EstoquePage() {
 
   // Column order
   const [colOrder, setColOrder] = useColumnOrder("estoque", COLS.map((c) => c.id));
-  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<ProdutoRow> => c !== undefined);
+  const [colVis, setColVis, showAllCols] = useColumnVisibility("estoque", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<ProdutoRow> => c !== undefined && colVis[c.id] !== false);
 
   const localOptions: FilterOption[] = [
     { key: "todos", label: "Todos os locais", color: "bg-gray-100 text-gray-600" },
@@ -290,7 +292,7 @@ export default function EstoquePage() {
             </button>
           )}
 
-          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
+          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} visibility={colVis} onVisibilityChange={setColVis} onShowAll={showAllCols} />
         </div>
 
         {/* Table */}

@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MODULOS } from "@/lib/modules";
 import { useColumnOrder } from "@/lib/use-column-order";
+import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -163,7 +164,8 @@ export default function UsuariosPage() {
   // Column order (only relevant for list view)
   const COLS = makeUsuariosCols(toggleAtivo);
   const [colOrder, setColOrder] = useColumnOrder("usuarios", COLS.map((c) => c.id));
-  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Usuario> => c !== undefined);
+  const [colVis, setColVis, showAllCols] = useColumnVisibility("usuarios", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Usuario> => c !== undefined && colVis[c.id] !== false);
 
   const filtered     = users.filter((u) =>
     u.nome.toLowerCase().includes(search.toLowerCase()) ||
@@ -256,7 +258,7 @@ export default function UsuariosPage() {
             </div>
           )}
           {tabView === "lista" && (
-            <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
+            <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} visibility={colVis} onVisibilityChange={setColVis} onShowAll={showAllCols} />
           )}
         </div>
 

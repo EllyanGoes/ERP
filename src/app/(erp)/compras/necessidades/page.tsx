@@ -23,6 +23,7 @@ import {
 import { formatDate, cn } from "@/lib/utils";
 import { useSession } from "@/lib/session-context";
 import { useColumnOrder } from "@/lib/use-column-order";
+import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -739,7 +740,8 @@ export default function NecessidadesPage() {
 
   // Column order
   const [colOrder, setColOrder] = useColumnOrder("necessidades", NECESSIDADES_COLS.map((c) => c.id));
-  const orderedNecCols = colOrder.map((id) => NECESSIDADES_COLS.find((c) => c.id === id)).filter((c): c is ColDef<Necessidade> => c !== undefined);
+  const [colVis, setColVis, showAllCols] = useColumnVisibility("necessidades", NECESSIDADES_COLS.map((c) => c.id));
+  const orderedNecCols = colOrder.map((id) => NECESSIDADES_COLS.find((c) => c.id === id)).filter((c): c is ColDef<Necessidade> => c !== undefined && colVis[c.id] !== false);
 
   return (
     <div>
@@ -823,7 +825,7 @@ export default function NecessidadesPage() {
 
           {/* Column configurator — list view only */}
           {view === "list" && (
-            <ColumnConfigurator columns={NECESSIDADES_COLS} order={colOrder} onOrderChange={setColOrder} />
+            <ColumnConfigurator columns={NECESSIDADES_COLS} order={colOrder} onOrderChange={setColOrder} visibility={colVis} onVisibilityChange={setColVis} onShowAll={showAllCols} />
           )}
 
           {/* View toggle */}

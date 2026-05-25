@@ -18,6 +18,7 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
 import { cn } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
+import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -607,7 +608,8 @@ export default function MovimentacoesPage() {
 
   // Column order
   const [colOrder, setColOrder] = useColumnOrder("movimentacoes", MOV_COLS.map((c) => c.id));
-  const orderedMovCols = colOrder.map((id) => MOV_COLS.find((c) => c.id === id)).filter((c): c is ColDef<MovItem> => c !== undefined);
+  const [colVis, setColVis, showAllCols] = useColumnVisibility("movimentacoes", MOV_COLS.map((c) => c.id));
+  const orderedMovCols = colOrder.map((id) => MOV_COLS.find((c) => c.id === id)).filter((c): c is ColDef<MovItem> => c !== undefined && colVis[c.id] !== false);
 
   const isAdmin = user?.perfil === "ADMIN";
 
@@ -685,7 +687,7 @@ export default function MovimentacoesPage() {
             </button>
           )}
 
-          <ColumnConfigurator columns={MOV_COLS} order={colOrder} onOrderChange={setColOrder} />
+          <ColumnConfigurator columns={MOV_COLS} order={colOrder} onOrderChange={setColOrder} visibility={colVis} onVisibilityChange={setColVis} onShowAll={showAllCols} />
         </div>
 
         {/* List */}

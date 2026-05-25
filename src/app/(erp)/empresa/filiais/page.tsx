@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
+import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -370,7 +371,8 @@ export default function FiliaisPage() {
 
   // Column order
   const [colOrder, setColOrder] = useColumnOrder("filiais", COLS.map((c) => c.id));
-  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Filial> => c !== undefined);
+  const [colVis, setColVis, showAllCols] = useColumnVisibility("filiais", COLS.map((c) => c.id));
+  const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Filial> => c !== undefined && colVis[c.id] !== false);
 
   return (
     <div>
@@ -425,7 +427,7 @@ export default function FiliaisPage() {
             <option value="true">Ativas</option>
             <option value="false">Inativas</option>
           </select>
-          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} />
+          <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} visibility={colVis} onVisibilityChange={setColVis} onShowAll={showAllCols} />
         </div>
 
         {/* Table */}
