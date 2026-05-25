@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session-context";
 import Link from "next/link";
@@ -15,8 +16,8 @@ import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 import {
   Plus, Search, X, LayoutList, Kanban, Loader2,
-  ChevronDown, ChevronRight, Calendar, Building2, ClipboardList, FileText,
-  CheckCircle2, AlertCircle, ExternalLink, Download,
+  ChevronDown as ChevronDownIcon, ChevronRight, Calendar, Building2, ClipboardList, FileText,
+  CheckCircle2, AlertCircle, ExternalLink, Download, Check,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -65,6 +66,11 @@ const STATUS_COLS: { key: string; label: string; color: string; bg: string; bord
 ];
 
 const ALL_STATUSES = STATUS_COLS.map((s) => s.key);
+
+const STATUS_OPTIONS = STATUS_COLS.map((s) => ({ value: s.key, label: s.label }));
+
+// ── Filter types ──────────────────────────────────────────────────────────────
+type FilterOp = "is" | "is_not";
 
 // ── Column definitions ────────────────────────────────────────────────────────
 const COLS: ColDef<Pedido>[] = [
@@ -191,26 +197,172 @@ const COLS: ColDef<Pedido>[] = [
 ];
 
 // ── Persist helpers ───────────────────────────────────────────────────────────
-type Filters = { search: string; statuses: string[]; view: "list" | "kanban" };
+type Filters = { search: string; statuses: string[]; statusOp: FilterOp; view: "list" | "kanban" };
 
 function loadFilters(): Filters {
-  if (typeof window === "undefined") return { search: "", statuses: ALL_STATUSES, view: "list" };
+  if (typeof window === "undefined") return { search: "", statuses: [], statusOp: "is_not", view: "list" };
   try {
     const raw = localStorage.getItem(FILTER_KEY);
     if (raw) {
       const f = JSON.parse(raw) as Filters;
       return {
         search:   f.search   ?? "",
-        statuses: Array.isArray(f.statuses) && f.statuses.length ? f.statuses : ALL_STATUSES,
+        statuses: Array.isArray(f.statuses) ? f.statuses : [],
+        statusOp: f.statusOp === "is" ? "is" : "is_not",
         view:     f.view === "kanban" ? "kanban" : "list",
       };
     }
   } catch {}
-  return { search: "", statuses: ALL_STATUSES, view: "list" };
+  return { search: "", statuses: [], statusOp: "is_not", view: "list" };
 }
 
 function saveFilters(f: Filters) {
   try { localStorage.setItem(FILTER_KEY, JSON.stringify(f)); } catch {}
+}
+
+// ── StatusFilterChip ──────────────────────────────────────────────────────────
+function StatusFilterChip({
+  selected, op, onChange, onOpChange, onClear,
+}: {
+  selected: string[];
+  op: FilterOp;
+  onChange: (v: string[]) => void;
+  onOpChange: (op: FilterOp) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen]           = useState(false);
+  const [showOpMenu, setShowOpMenu] = useState(false);
+  const [mounted, setMounted]     = useState(false);
+  const btnRef  = useRef<HTMLDivElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const opRef   = useRef<HTMLButtonElement>(null);
+  const [pos, setPos]     = useState<{ top: number; left: number; width: number } | null>(null);
+  const [opPos, setOpPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || dropRef.current?.contains(t)) return;
+      setOpen(false); setShowOpMenu(false);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  function toggle(value: string) {
+    onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value]);
+  }
+
+  const active   = selected.length > 0;
+  const opLabel  = op === "is" ? "é" : "não é";
+
+  return (
+    <div ref={btnRef} className="relative inline-flex items-center">
+      <div className={cn(
+        "inline-flex items-center h-8 rounded-full border text-sm font-medium transition-colors cursor-pointer select-none",
+        active
+          ? "border-blue-400 bg-blue-50 text-blue-700"
+          : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700"
+      )}>
+        <button
+          type="button"
+          onClick={() => {
+            const r = btnRef.current?.getBoundingClientRect();
+            if (r) setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 240) });
+            setOpen((p) => !p); setShowOpMenu(false);
+          }}
+          className="pl-3 pr-1 h-full flex items-center gap-1.5 rounded-l-full"
+        >
+          <span className={cn("text-xs font-semibold", active ? "text-blue-500" : "text-gray-400")}>Status</span>
+          {active && (
+            <>
+              <button
+                ref={opRef}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const r = opRef.current?.getBoundingClientRect();
+                  if (r) setOpPos({ top: r.bottom + 4, left: r.left });
+                  setShowOpMenu((p) => !p); setOpen(false);
+                }}
+                className="px-1 py-0.5 rounded hover:bg-blue-100 text-blue-600 text-xs font-medium"
+              >
+                {opLabel}
+              </button>
+              <span className="text-blue-500 text-xs">
+                {selected.length === 1
+                  ? STATUS_OPTIONS.find((o) => o.value === selected[0])?.label
+                  : `${selected.length} selecionados`}
+              </span>
+            </>
+          )}
+          <ChevronDownIcon className={cn("w-3 h-3 ml-0.5 transition-transform", open && "rotate-180", active ? "text-blue-400" : "text-gray-400")} />
+        </button>
+        {active && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onClear(); setOpen(false); }}
+            className="pr-2 pl-0.5 h-full flex items-center rounded-r-full hover:text-blue-900"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+
+      {mounted && showOpMenu && opPos && createPortal(
+        <div style={{ position: "fixed", top: opPos.top, left: opPos.left, zIndex: 9999 }}
+          className="bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[100px]">
+          {(["is", "is_not"] as FilterOp[]).map((o) => (
+            <button key={o} type="button" onClick={() => { onOpChange(o); setShowOpMenu(false); }}
+              className={cn("w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2", op === o && "text-blue-600 font-medium")}>
+              {op === o && <Check className="w-3.5 h-3.5 shrink-0" />}
+              {o === "is" ? "É" : "Não é"}
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+
+      {mounted && open && pos && createPortal(
+        <div ref={dropRef} style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
+          className="bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+          <div className="flex border-b border-gray-100">
+            {(["is", "is_not"] as FilterOp[]).map((o) => (
+              <button key={o} type="button" onClick={() => onOpChange(o)}
+                className={cn("flex-1 py-2 text-xs font-semibold transition-colors", op === o ? "bg-blue-50 text-blue-600" : "text-gray-400 hover:bg-gray-50")}>
+                {o === "is" ? "É" : "Não é"}
+              </button>
+            ))}
+          </div>
+          <div className="py-1">
+            {STATUS_OPTIONS.map((opt) => {
+              const checked = selected.includes(opt.value);
+              return (
+                <button key={opt.value} type="button" onClick={() => toggle(opt.value)}
+                  className={cn("w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left", checked && "bg-blue-50/60")}>
+                  <span className={cn("w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors", checked ? "bg-blue-600 border-blue-600" : "border-gray-300")}>
+                    {checked && <Check className="w-3 h-3 text-white" />}
+                  </span>
+                  <StatusBadge status={opt.value} />
+                </button>
+              );
+            })}
+          </div>
+          {selected.length > 0 && (
+            <div className="border-t border-gray-100 px-3 py-2">
+              <button type="button" onClick={() => { onClear(); setOpen(false); }}
+                className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                Limpar seleção
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
 }
 
 // ── Kanban card ───────────────────────────────────────────────────────────────
@@ -317,8 +469,6 @@ export default function PedidosCompraPage() {
   const [colOrder, setColOrder] = useColumnOrder("pedidos-compra", COLS.map((c) => c.id));
   const [colVis, setColVis, showAllCols] = useColumnVisibility("pedidos-compra", COLS.map((c) => c.id));
   const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Pedido> => c !== undefined && colVis[c.id] !== false);
-  const [showStatusMenu, setShowStatusMenu] = useState(false);
-
   // Drag state
   const [dragId,   setDragId]   = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
@@ -441,7 +591,10 @@ export default function PedidosCompraPage() {
   const filtered = useMemo(() => {
     const q = filters.search.toLowerCase().trim();
     return pedidos.filter((p) => {
-      if (!filters.statuses.includes(p.status)) return false;
+      if (filters.statuses.length > 0) {
+        if (filters.statusOp === "is"     && !filters.statuses.includes(p.status)) return false;
+        if (filters.statusOp === "is_not" &&  filters.statuses.includes(p.status)) return false;
+      }
       if (!q) return true;
       const sc = p.cotacao?.necessidade;
       return (
@@ -454,21 +607,18 @@ export default function PedidosCompraPage() {
     });
   }, [pedidos, filters]);
 
-  const activeStatusLabel = useMemo(() => {
-    if (filters.statuses.length === ALL_STATUSES.length) return "Todos os status";
-    if (filters.statuses.length === 0) return "Nenhum status";
-    if (filters.statuses.length === 1)
-      return STATUS_COLS.find((s) => s.key === filters.statuses[0])?.label ?? "1 status";
-    return `${filters.statuses.length} status`;
-  }, [filters.statuses]);
-
   // ── Kanban grouped ────────────────────────────────────────────────────────
   const kanbanGroups = useMemo(
     () => STATUS_COLS.map((col) => ({
       ...col,
       items: filtered.filter((p) => p.status === col.key),
-    })).filter((col) => filters.statuses.includes(col.key)),
-    [filtered, filters.statuses]
+    })).filter((col) => {
+      if (filters.statuses.length === 0) return true;
+      if (filters.statusOp === "is")     return  filters.statuses.includes(col.key);
+      if (filters.statusOp === "is_not") return !filters.statuses.includes(col.key);
+      return true;
+    }),
+    [filtered, filters.statuses, filters.statusOp]
   );
 
   // ── PDF export ────────────────────────────────────────────────────────────
@@ -582,55 +732,23 @@ export default function PedidosCompraPage() {
         </div>
 
         {/* Status filter */}
-        <div className="relative">
-          <button
-            className="flex items-center gap-2 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white hover:bg-gray-50 transition-colors"
-            onClick={() => setShowStatusMenu((v) => !v)}
-          >
-            <span className="text-gray-700">{activeStatusLabel}</span>
-            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-          </button>
+        <StatusFilterChip
+          selected={filters.statuses}
+          op={filters.statusOp}
+          onChange={(v) => updateFilters({ statuses: v })}
+          onOpChange={(v) => updateFilters({ statusOp: v })}
+          onClear={() => updateFilters({ statuses: [], statusOp: "is" })}
+        />
 
-          {showStatusMenu && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowStatusMenu(false)} />
-              <div className="absolute left-0 top-10 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1.5 w-52">
-                <button
-                  className="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50 font-medium"
-                  onClick={() => updateFilters({ statuses: filters.statuses.length === ALL_STATUSES.length ? [] : [...ALL_STATUSES] })}
-                >
-                  {filters.statuses.length === ALL_STATUSES.length ? "Desmarcar todos" : "Selecionar todos"}
-                </button>
-                <div className="border-t border-gray-100 mt-1 pt-1">
-                  {STATUS_COLS.map((s) => (
-                    <button
-                      key={s.key}
-                      className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-gray-50"
-                      onClick={() => {
-                        const next = filters.statuses.includes(s.key)
-                          ? filters.statuses.filter((x) => x !== s.key)
-                          : [...filters.statuses, s.key];
-                        updateFilters({ statuses: next });
-                      }}
-                    >
-                      <span className={cn(
-                        "w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors",
-                        filters.statuses.includes(s.key) ? "bg-blue-600 border-blue-600" : "border-gray-300"
-                      )}>
-                        {filters.statuses.includes(s.key) && (
-                          <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </span>
-                      <span className="text-gray-700">{s.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        {/* Limpar tudo */}
+        {(filters.statuses.length > 0 || filters.search) && (
+          <button
+            onClick={() => updateFilters({ search: "", statuses: [], statusOp: "is" })}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap"
+          >
+            Limpar tudo
+          </button>
+        )}
 
         {/* Results count */}
         <span className="text-xs text-gray-400">
