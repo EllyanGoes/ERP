@@ -348,7 +348,24 @@ async function openWAModal() {
 
     // ── Totals ─────────────────────────────────────────────────────────────────
     const vrDesconto = decimalToNumber(cf?.vrDesconto);
-    if (vrDesconto > 0) lines.push(`*Desconto:* ${formatBRL(vrDesconto)}`);
+    const freteMsg   = decimalToNumber(cf?.frete);
+    const seguroMsg  = decimalToNumber(cf?.seguro);
+    const despesasMsg = decimalToNumber(cf?.despesas);
+
+    const hasExtras = vrDesconto > 0 || freteMsg > 0 || seguroMsg > 0 || despesasMsg > 0;
+    if (hasExtras) {
+      const subtotal = pedido.itens.reduce((sum, it) => {
+        const vlItem = decimalToNumber(it.valorTotal);
+        const qtd    = decimalToNumber(it.quantidade);
+        const preco  = decimalToNumber(it.precoUnitario);
+        return sum + (vlItem > 0 ? vlItem : qtd * preco);
+      }, 0);
+      lines.push(`*Subtotal:* ${formatBRL(subtotal)}`);
+      if (vrDesconto > 0)  lines.push(`*Desconto:* − ${formatBRL(vrDesconto)}`);
+      if (freteMsg > 0)    lines.push(`*Frete:* ${formatBRL(freteMsg)}`);
+      if (seguroMsg > 0)   lines.push(`*Seguro:* ${formatBRL(seguroMsg)}`);
+      if (despesasMsg > 0) lines.push(`*Despesas:* ${formatBRL(despesasMsg)}`);
+    }
     lines.push(`*Total:* ${formatBRL(total)}`);
 
     if (pedido.observacoes) lines.push(``, `_Obs: ${pedido.observacoes}_`);
