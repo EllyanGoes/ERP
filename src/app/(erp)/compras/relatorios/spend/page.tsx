@@ -1,11 +1,28 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { BarChart3, TrendingUp, ShoppingBag, Users, Loader2, RefreshCw } from "lucide-react";
+import {
+  BarChart3,
+  TrendingUp,
+  ShoppingBag,
+  Users,
+  Loader2,
+  RefreshCw,
+  X,
+  Package,
+} from "lucide-react";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import { cn, formatBRL } from "@/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
+type PedidoDetail = {
+  id: string;
+  numero: string;
+  fornecedorNome: string;
+  valor: number;
+  receiptDate: string;
+};
+
 type SpendData = {
   summary: {
     totalSpend: number;
@@ -13,9 +30,30 @@ type SpendData = {
     totalFornecedores: number;
     ticketMedio: number;
   };
-  byMonth:      { month: string; valor: number; pedidos: number }[];
-  byCategoria:  { categoria: string; valor: number; pct: number }[];
-  byFornecedor: { id: string; nome: string; valor: number; pedidos: number; pct: number; pctAcumulado: number }[];
+  byMonth: { month: string; valor: number; pedidos: number; pedidosList: PedidoDetail[] }[];
+  byCategoria: {
+    categoria: string;
+    valor: number;
+    pct: number;
+    subItens: { nome: string; codigo: string; valor: number }[];
+  }[];
+  byFornecedor: {
+    id: string;
+    nome: string;
+    valor: number;
+    pedidos: number;
+    pct: number;
+    pctAcumulado: number;
+    pedidosList: PedidoDetail[];
+  }[];
+};
+
+type DrillDown = {
+  title: string;
+  subtitle: string;
+  content: "pedidos" | "subItens";
+  pedidosList?: PedidoDetail[];
+  subItens?: { nome: string; codigo: string; valor: number }[];
 };
 
 // ── Chart colours ─────────────────────────────────────────────────────────────
@@ -27,7 +65,10 @@ const PIE_COLORS = [
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtMonth(m: string) {
   const [y, mo] = m.split("-");
-  return new Date(Number(y), Number(mo) - 1).toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
+  return new Date(Number(y), Number(mo) - 1).toLocaleDateString("pt-BR", {
+    month: "short",
+    year: "2-digit",
+  });
 }
 
 function fmtMi(v: number) {
@@ -36,77 +77,198 @@ function fmtMi(v: number) {
   return formatBRL(v);
 }
 
-// ── SVG Line Chart ─────────────────────────────────────────────────────────────
-function LineChart({ data }: { data: { month: string; valor: number }[] }) {
-  if (data.length === 0) return <EmptyChart />;
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString("pt-BR");
+}
 
-  const W = 800, H = 200, PL = 50, PR = 20, PT = 20, PB = 40;
-  const iW = W - PL - PR, iH = H - PT - PB;
-
-  const maxV = Math.max(...data.map((d) => d.valor)) * 1.1 || 1;
-  const xOf  = (i: number) => PL + (i / Math.max(data.length - 1, 1)) * iW;
-  const yOf  = (v: number) => PT + iH - (v / maxV) * iH;
-
-  const points = data.map((d, i) => `${xOf(i)},${yOf(d.valor)}`).join(" ");
-  const fillPts = [
-    `${xOf(0)},${PT + iH}`,
-    ...data.map((d, i) => `${xOf(i)},${yOf(d.valor)}`),
-    `${xOf(data.length - 1)},${PT + iH}`,
-  ].join(" ");
-
-  // Y grid labels
-  const ySteps = 4;
-  const yGrid = Array.from({ length: ySteps + 1 }, (_, i) => ({
-    y: PT + iH - (i / ySteps) * iH,
-    label: fmtMi((i / ySteps) * maxV),
-  }));
-
+// ── Empty chart placeholder ───────────────────────────────────────────────────
+function EmptyChart() {
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
-      {/* Grid lines */}
-      {yGrid.map((g, i) => (
-        <g key={i}>
-          <line x1={PL} y1={g.y} x2={W - PR} y2={g.y} stroke="#f0f0f0" strokeWidth="1" />
-          <text x={PL - 6} y={g.y + 4} textAnchor="end" fontSize="9" fill="#9ca3af">{g.label}</text>
-        </g>
-      ))}
-
-      {/* Area fill */}
-      <polygon points={fillPts} fill="#3b82f6" fillOpacity="0.08" />
-
-      {/* Line */}
-      <polyline points={points} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-
-      {/* Points + tooltips */}
-      {data.map((d, i) => (
-        <g key={i}>
-          <circle cx={xOf(i)} cy={yOf(d.valor)} r="3.5" fill="#3b82f6" stroke="white" strokeWidth="1.5" />
-          {/* Label above point */}
-          <text x={xOf(i)} y={yOf(d.valor) - 8} textAnchor="middle" fontSize="8" fill="#374151" fontWeight="500">
-            {fmtMi(d.valor)}
-          </text>
-          {/* X-axis label */}
-          <text x={xOf(i)} y={H - 6} textAnchor="middle" fontSize="9" fill="#9ca3af">
-            {fmtMonth(d.month)}
-          </text>
-        </g>
-      ))}
-    </svg>
+    <div className="flex items-center justify-center h-full text-gray-300 text-sm">
+      Sem dados no período
+    </div>
   );
 }
 
-// ── SVG Pie Chart ──────────────────────────────────────────────────────────────
-function PieChart({ data }: { data: { categoria: string; valor: number; pct: number }[] }) {
+// ── Drill-down modal ──────────────────────────────────────────────────────────
+function DrillDownModal({
+  data,
+  onClose,
+}: {
+  data: DrillDown;
+  onClose: () => void;
+}) {
+  const totalSubItens =
+    data.subItens?.reduce((s, it) => s + it.valor, 0) || 1;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={onClose}
+      />
+      {/* Panel */}
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">{data.title}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{data.subtitle}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="ml-4 flex items-center justify-center h-8 w-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1">
+          {data.content === "pedidos" && (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide sticky top-0">
+                <tr>
+                  <th className="text-left px-5 py-3 font-semibold">Nº PC</th>
+                  <th className="text-left px-5 py-3 font-semibold">Fornecedor</th>
+                  <th className="text-right px-5 py-3 font-semibold">Data Recebimento</th>
+                  <th className="text-right px-5 py-3 font-semibold">Valor</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {(data.pedidosList ?? []).map((p) => (
+                  <tr key={p.id} className="hover:bg-gray-50">
+                    <td className="px-5 py-3 font-mono text-xs text-gray-600">{p.numero}</td>
+                    <td className="px-5 py-3 text-gray-800">{p.fornecedorNome}</td>
+                    <td className="px-5 py-3 text-right text-gray-500 text-xs">{fmtDate(p.receiptDate)}</td>
+                    <td className="px-5 py-3 text-right font-semibold text-gray-900">
+                      {formatBRL(p.valor)}
+                    </td>
+                  </tr>
+                ))}
+                {(data.pedidosList ?? []).length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="text-center py-10 text-gray-400 text-sm">
+                      Nenhum pedido encontrado
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+
+          {data.content === "subItens" && (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide sticky top-0">
+                <tr>
+                  <th className="text-left px-5 py-3 font-semibold">Código</th>
+                  <th className="text-left px-5 py-3 font-semibold">Item / Produto</th>
+                  <th className="text-right px-5 py-3 font-semibold">Total Gasto</th>
+                  <th className="px-5 py-3 w-28" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {(data.subItens ?? []).map((it, i) => {
+                  const pct = (it.valor / totalSubItens) * 100;
+                  return (
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="px-5 py-3 font-mono text-xs text-gray-500">{it.codigo || "—"}</td>
+                      <td className="px-5 py-3 text-gray-800">{it.nome}</td>
+                      <td className="px-5 py-3 text-right font-semibold text-gray-900">
+                        {formatBRL(it.valor)}
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-500 rounded-full"
+                              style={{ width: `${Math.min(pct, 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-400 w-10 text-right shrink-0">
+                            {pct.toFixed(1)}%
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {(data.subItens ?? []).length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="text-center py-10 text-gray-400 text-sm">
+                      Nenhum item encontrado
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Monthly Bar Chart ─────────────────────────────────────────────────────────
+function MonthlyBarChart({
+  data,
+  onBarClick,
+}: {
+  data: SpendData["byMonth"];
+  onBarClick: (month: string) => void;
+}) {
+  if (data.length === 0) return <EmptyChart />;
+  const maxV = Math.max(...data.map((d) => d.valor), 1);
+
+  return (
+    <div className="flex items-end gap-1 h-48 pt-6 relative">
+      {data.map((d) => {
+        const pct = (d.valor / maxV) * 100;
+        return (
+          <div
+            key={d.month}
+            className="flex-1 flex flex-col items-center gap-1 group cursor-pointer min-w-0"
+            onClick={() => onBarClick(d.month)}
+            title={`${fmtMonth(d.month)}: ${formatBRL(d.valor)}`}
+          >
+            <span className="text-[9px] font-medium text-gray-500 truncate group-hover:text-blue-600 transition-colors text-center w-full">
+              {fmtMi(d.valor)}
+            </span>
+            <div
+              className="w-full bg-blue-500 rounded-t-md hover:bg-blue-600 active:bg-blue-700 transition-colors"
+              style={{ height: `${Math.max(pct, 3)}%` }}
+            />
+            <span className="text-[9px] text-gray-400 truncate w-full text-center">
+              {fmtMonth(d.month)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── SVG Donut / Pie Chart ─────────────────────────────────────────────────────
+function PieChart({
+  data,
+  onSliceClick,
+}: {
+  data: SpendData["byCategoria"];
+  onSliceClick: (categoria: string) => void;
+}) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
   if (data.length === 0) return <EmptyChart />;
 
-  const cx = 50, cy = 50, r = 38, ri = 20; // donut
+  const cx = 50, cy = 50, r = 38, ri = 20;
   let startAngle = -90;
 
   const slices = data.map((d, i) => {
-    const angle = (d.pct / 100) * 360;
+    const angle    = (d.pct / 100) * 360;
     const endAngle = startAngle + angle;
-    const s = startAngle;
-    startAngle = endAngle;
+    const s        = startAngle;
+    startAngle     = endAngle;
     return { ...d, startAngle: s, endAngle, color: PIE_COLORS[i % PIE_COLORS.length] };
   });
 
@@ -120,7 +282,7 @@ function PieChart({ data }: { data: { categoria: string; valor: number; pct: num
     const y1i = cy + innerR * Math.sin(rad(ea));
     const x2i = cx + innerR * Math.cos(rad(sa));
     const y2i = cy + innerR * Math.sin(rad(sa));
-    const large = (ea - sa) > 180 ? 1 : 0;
+    const large = ea - sa > 180 ? 1 : 0;
     return `M ${x1o} ${y1o} A ${outerR} ${outerR} 0 ${large} 1 ${x2o} ${y2o} L ${x1i} ${y1i} A ${innerR} ${innerR} 0 ${large} 0 ${x2i} ${y2i} Z`;
   }
 
@@ -128,15 +290,40 @@ function PieChart({ data }: { data: { categoria: string; valor: number; pct: num
     <div className="flex items-center gap-6">
       <svg viewBox="0 0 100 100" className="w-40 h-40 shrink-0">
         {slices.map((s, i) => (
-          <path key={i} d={arc(s.startAngle, s.endAngle, r, ri)} fill={s.color} />
+          <g
+            key={i}
+            style={{ cursor: "pointer" }}
+            onClick={() => onSliceClick(s.categoria)}
+            onMouseEnter={() => setHoveredIdx(i)}
+            onMouseLeave={() => setHoveredIdx(null)}
+          >
+            <path
+              d={arc(s.startAngle, s.endAngle, r, ri)}
+              fill={s.color}
+              opacity={hoveredIdx === null || hoveredIdx === i ? 1 : 0.65}
+              stroke={hoveredIdx === i ? "white" : "none"}
+              strokeWidth={hoveredIdx === i ? "2" : "0"}
+            />
+          </g>
         ))}
       </svg>
       <div className="flex-1 space-y-1.5 min-w-0">
         {slices.map((s, i) => (
-          <div key={i} className="flex items-center gap-2 min-w-0">
-            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: s.color }} />
-            <span className="text-xs text-gray-600 truncate flex-1">{s.categoria}</span>
-            <span className="text-xs font-semibold text-gray-800 shrink-0">{s.pct.toFixed(1)}%</span>
+          <div
+            key={i}
+            className="flex items-center gap-2 min-w-0 cursor-pointer group"
+            onClick={() => onSliceClick(s.categoria)}
+          >
+            <span
+              className="w-2.5 h-2.5 rounded-sm shrink-0 transition-opacity"
+              style={{ background: s.color }}
+            />
+            <span className="text-xs text-gray-600 truncate flex-1 group-hover:text-blue-600 transition-colors">
+              {s.categoria}
+            </span>
+            <span className="text-xs font-semibold text-gray-800 shrink-0">
+              {s.pct.toFixed(1)}%
+            </span>
           </div>
         ))}
       </div>
@@ -144,22 +331,28 @@ function PieChart({ data }: { data: { categoria: string; valor: number; pct: num
   );
 }
 
-function EmptyChart() {
-  return (
-    <div className="flex items-center justify-center h-full text-gray-300 text-sm">
-      Sem dados no período
-    </div>
-  );
-}
-
 // ── Summary Card ──────────────────────────────────────────────────────────────
-function SummaryCard({ label, value, sub, icon, color }: {
-  label: string; value: string; sub?: string;
-  icon: React.ReactNode; color: string;
+function SummaryCard({
+  label,
+  value,
+  sub,
+  icon,
+  color,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: React.ReactNode;
+  color: string;
 }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
-      <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", color)}>
+      <span
+        className={cn(
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+          color
+        )}
+      >
         {icon}
       </span>
       <div className="min-w-0">
@@ -183,8 +376,9 @@ export default function SpendPage() {
     };
   });
 
-  const [data,    setData]    = useState<SpendData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data,      setData]      = useState<SpendData | null>(null);
+  const [loading,   setLoading]   = useState(true);
+  const [drillDown, setDrillDown] = useState<DrillDown | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -201,9 +395,41 @@ export default function SpendPage() {
 
   const s = data?.summary;
 
+  // ── Drill-down handlers ───────────────────────────────────────────────────
+  function handleBarClick(month: string) {
+    const entry = data?.byMonth.find((m) => m.month === month);
+    if (!entry) return;
+    setDrillDown({
+      title:   `Pedidos — ${fmtMonth(month)}`,
+      subtitle: `${entry.pedidos} pedido(s) recebidos em ${fmtMonth(month)}`,
+      content: "pedidos",
+      pedidosList: entry.pedidosList,
+    });
+  }
+
+  function handleSliceClick(categoria: string) {
+    const entry = data?.byCategoria.find((c) => c.categoria === categoria);
+    if (!entry) return;
+    setDrillDown({
+      title:    categoria,
+      subtitle: `${entry.subItens.length} produto(s) • ${formatBRL(entry.valor)} total`,
+      content:  "subItens",
+      subItens: entry.subItens,
+    });
+  }
+
+  function handleFornecedorClick(fornecedor: SpendData["byFornecedor"][number]) {
+    setDrillDown({
+      title:    fornecedor.nome,
+      subtitle: `${fornecedor.pedidos} pedido(s) recebidos • ${formatBRL(fornecedor.valor)} total`,
+      content:  "pedidos",
+      pedidosList: fornecedor.pedidosList,
+    });
+  }
+
   return (
     <div className="p-6 space-y-6">
-      {/* ── Header ─────────────────────────────────────────────────────── */}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
@@ -214,7 +440,9 @@ export default function SpendPage() {
             <span className="text-gray-600 font-medium">SPEND</span>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Spend Analysis</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Gastos em pedidos de compra por fornecedor, categoria e período</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Gastos em pedidos com recebimento confirmado por fornecedor, categoria e período
+          </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <DateRangePicker value={range} onChange={setRange} />
@@ -234,7 +462,7 @@ export default function SpendPage() {
         </div>
       ) : (
         <>
-          {/* ── Summary cards ─────────────────────────────────────────── */}
+          {/* ── Summary cards ───────────────────────────────────────────────── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <SummaryCard
               label="Total Spend"
@@ -245,7 +473,7 @@ export default function SpendPage() {
             <SummaryCard
               label="Pedidos de Compra"
               value={(s?.totalPedidos ?? 0).toLocaleString("pt-BR")}
-              sub="excluídos rascunhos e cancelados"
+              sub="pedidos com recebimento confirmado"
               icon={<ShoppingBag className="w-5 h-5 text-blue-600" />}
               color="bg-blue-50"
             />
@@ -263,29 +491,42 @@ export default function SpendPage() {
             />
           </div>
 
-          {/* ── Charts row ────────────────────────────────────────────── */}
+          {/* ── Charts row ──────────────────────────────────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
             {/* Spend por Mês */}
             <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
-              <p className="text-sm font-semibold text-gray-700 mb-4">Spend por Mês</p>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-semibold text-gray-700">Spend por Mês</p>
+                <p className="text-xs text-gray-400">Clique em uma barra para ver os pedidos</p>
+              </div>
               <div className="h-[200px]">
-                <LineChart data={data?.byMonth ?? []} />
+                <MonthlyBarChart
+                  data={data?.byMonth ?? []}
+                  onBarClick={handleBarClick}
+                />
               </div>
             </div>
 
             {/* Spend por Categoria */}
             <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <p className="text-sm font-semibold text-gray-700 mb-4">Spend por Categoria</p>
-              <PieChart data={data?.byCategoria ?? []} />
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-semibold text-gray-700">Spend por Categoria</p>
+                <p className="text-xs text-gray-400">Clique para detalhar</p>
+              </div>
+              <PieChart
+                data={data?.byCategoria ?? []}
+                onSliceClick={handleSliceClick}
+              />
             </div>
           </div>
 
-          {/* ── Pareto Fornecedores ───────────────────────────────────── */}
+          {/* ── Pareto Fornecedores ─────────────────────────────────────────── */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
               <p className="text-sm font-semibold text-gray-700">Spend por Fornecedor</p>
-              <span className="text-xs text-gray-400">{data?.byFornecedor.length ?? 0} fornecedores</span>
+              <span className="text-xs text-gray-400">
+                {data?.byFornecedor.length ?? 0} fornecedores · clique na linha para ver pedidos
+              </span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -303,14 +544,20 @@ export default function SpendPage() {
                 <tbody className="divide-y divide-gray-100">
                   {(data?.byFornecedor ?? []).map((f, i) => {
                     const curvaClass =
-                      f.pctAcumulado <= 80 ? "bg-blue-500" :
-                      f.pctAcumulado <= 95 ? "bg-amber-400" : "bg-rose-400";
+                      f.pctAcumulado <= 80
+                        ? "bg-blue-500"
+                        : f.pctAcumulado <= 95
+                        ? "bg-amber-400"
+                        : "bg-rose-400";
                     const curvaLabel =
-                      f.pctAcumulado <= 80 ? "A" :
-                      f.pctAcumulado <= 95 ? "B" : "C";
+                      f.pctAcumulado <= 80 ? "A" : f.pctAcumulado <= 95 ? "B" : "C";
 
                     return (
-                      <tr key={f.id} className="hover:bg-gray-50 transition-colors">
+                      <tr
+                        key={f.id}
+                        className="hover:bg-gray-50 transition-colors cursor-pointer"
+                        onClick={() => handleFornecedorClick(f)}
+                      >
                         <td className="px-5 py-3 text-gray-400 text-xs">{i + 1}</td>
                         <td className="px-5 py-3 font-medium text-gray-800">{f.nome}</td>
                         <td className="px-5 py-3 text-right text-gray-600">{f.pedidos}</td>
@@ -325,17 +572,18 @@ export default function SpendPage() {
                         </td>
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-2">
-                            {/* Pareto bar */}
                             <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-blue-500 rounded-full"
                                 style={{ width: `${Math.min(f.pct * 5, 100)}%` }}
                               />
                             </div>
-                            <span className={cn(
-                              "text-[10px] font-bold px-1.5 py-0.5 rounded text-white shrink-0",
-                              curvaClass
-                            )}>
+                            <span
+                              className={cn(
+                                "text-[10px] font-bold px-1.5 py-0.5 rounded text-white shrink-0",
+                                curvaClass
+                              )}
+                            >
                               {curvaLabel}
                             </span>
                           </div>
@@ -354,7 +602,12 @@ export default function SpendPage() {
                 {(data?.byFornecedor.length ?? 0) > 0 && (
                   <tfoot className="border-t-2 border-gray-200 bg-gray-50">
                     <tr>
-                      <td colSpan={3} className="px-5 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide">Total</td>
+                      <td
+                        colSpan={3}
+                        className="px-5 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide"
+                      >
+                        Total
+                      </td>
                       <td className="px-5 py-3 text-right font-bold text-gray-900">
                         {fmtMi(s?.totalSpend ?? 0)}
                       </td>
@@ -367,6 +620,11 @@ export default function SpendPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Drill-down modal ─────────────────────────────────────────────────── */}
+      {drillDown && (
+        <DrillDownModal data={drillDown} onClose={() => setDrillDown(null)} />
       )}
     </div>
   );
