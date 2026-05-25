@@ -59,6 +59,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
 import { useShortcuts } from "@/lib/shortcuts-context";
+import { routeColor } from "@/lib/route-registry";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -807,7 +808,8 @@ export default function Sidebar() {
                       </p>
                       {section.items.map((item) => {
                         const active = itemIsActive(item, pathname);
-                        const Icon = item.icon ?? CircleDot;
+                        const Icon   = item.icon ?? CircleDot;
+                        const color  = routeColor(section.kind);
                         if (item.soon) {
                           return (
                             <div
@@ -815,7 +817,9 @@ export default function Sidebar() {
                               className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-300 cursor-not-allowed"
                               title="Em breve"
                             >
-                              <Icon className="w-3.5 h-3.5 shrink-0 text-gray-200" />
+                              <span className="flex shrink-0 items-center justify-center w-5 h-5 rounded-md bg-gray-100">
+                                <Icon className="w-3 h-3 text-gray-200" />
+                              </span>
                               <span className="flex-1 truncate">{item.label}</span>
                               <span className="text-[9px] font-semibold bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">breve</span>
                             </div>
@@ -832,7 +836,12 @@ export default function Sidebar() {
                                 : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
                             )}
                           >
-                            <Icon className={cn("w-3.5 h-3.5 shrink-0", active ? "text-blue-500" : "text-gray-300")} />
+                            <span className={cn(
+                              "flex shrink-0 items-center justify-center w-5 h-5 rounded-md transition-colors",
+                              active ? `${color.selBg} ${color.selText}` : `${color.bg} ${color.text}`
+                            )}>
+                              <Icon className="w-3 h-3" />
+                            </span>
                             <span className="truncate flex-1 text-left">{item.label}</span>
                             {item.href === "/aprovacoes" && pendingAprov > 0 && (
                               <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">

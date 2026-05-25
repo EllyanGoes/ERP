@@ -45,6 +45,8 @@ export const SECTION_COLORS: Record<string, IconColor> = {
   "Manutenção":       { bg: "bg-orange-50",  text: "text-orange-600",  selBg: "bg-orange-100",  selText: "text-orange-700"  },
   "Comercial":        { bg: "bg-blue-50",    text: "text-blue-600",    selBg: "bg-blue-100",    selText: "text-blue-700"    },
   "Financeiro":       { bg: "bg-teal-50",    text: "text-teal-600",    selBg: "bg-teal-100",    selText: "text-teal-700"    },
+  "Compras":          { bg: "bg-amber-50",   text: "text-amber-600",   selBg: "bg-amber-100",   selText: "text-amber-700"   },
+  "Cadastros":        { bg: "bg-violet-50",  text: "text-violet-600",  selBg: "bg-violet-100",  selText: "text-violet-700"  },
 };
 
 export const DEFAULT_COLOR: IconColor = {
