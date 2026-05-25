@@ -4,7 +4,12 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   const tabelas = await prisma.tabelaPreco.findMany({
-    include: { _count: { select: { itens: true } } },
+    include: {
+      _count: { select: { itens: true } },
+      itens: {
+        select: { itemId: true, precoVenda: true, vlrDesconto: true },
+      },
+    },
     orderBy: { codigo: "asc" },
   });
   return NextResponse.json({ data: tabelas });

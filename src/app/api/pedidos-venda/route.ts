@@ -69,11 +69,13 @@ export async function POST(req: NextRequest) {
         dataEntrega: pedidoData.dataEntrega ? new Date(pedidoData.dataEntrega) : null,
         itens: {
           create: itens.map((item) => ({
-            itemId: item.itemId,
-            quantidade: item.quantidade,
+            itemId:        item.itemId,
+            quantidade:    item.quantidade,
             precoUnitario: item.precoUnitario,
-            desconto: item.desconto ?? 0,
-            valorTotal: item.valorTotal,
+            descontoPct:   item.descontoPct   ?? 0,
+            valorDesconto: item.valorDesconto ?? 0,
+            desconto:      item.desconto      ?? 0,
+            valorTotal:    item.valorTotal,
           })),
         },
       },

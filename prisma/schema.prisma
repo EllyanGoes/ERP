@@ -732,6 +732,7 @@ model PedidoVenda {
   id                String            @id @default(cuid())
   numero            String            @unique
   clienteId         String
+  tabelaPrecoId     String?
   status            StatusPedidoVenda @default(ORCAMENTO)
   dataEmissao       DateTime          @default(now())
   dataEntrega       DateTime?
@@ -745,6 +746,7 @@ model PedidoVenda {
   updatedAt         DateTime @updatedAt
   contasReceber     ContaReceber[]
   cliente           Cliente           @relation(fields: [clienteId], references: [id])
+  tabelaPreco       TabelaPreco?      @relation(fields: [tabelaPrecoId], references: [id])
   itens             PedidoVendaItem[]
 
   @@index([clienteId])
@@ -758,7 +760,9 @@ model PedidoVendaItem {
   itemId              String
   quantidade          Decimal               @db.Decimal(15, 3)
   precoUnitario       Decimal               @db.Decimal(15, 2)
+  descontoPct         Decimal               @default(0) @db.Decimal(15, 4)
   desconto            Decimal               @default(0) @db.Decimal(15, 2)
+  valorDesconto       Decimal               @default(0) @db.Decimal(15, 2)
   valorTotal          Decimal               @db.Decimal(15, 2)
   movimentacoes MovimentacaoEstoque[]
   item          Item                  @relation(fields: [itemId], references: [id])
@@ -834,6 +838,7 @@ model TabelaPreco {
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
   itens              TabelaPrecoItem[]
+  pedidosVenda       PedidoVenda[]
 
   @@index([ativa])
 }
