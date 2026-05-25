@@ -347,26 +347,25 @@ async function openWAModal() {
     lines.push(``);
 
     // ── Totals ─────────────────────────────────────────────────────────────────
-    const vrDesconto = decimalToNumber(cf?.vrDesconto);
-    const freteMsg   = decimalToNumber(cf?.frete);
-    const seguroMsg  = decimalToNumber(cf?.seguro);
+    const vrDesconto  = decimalToNumber(cf?.vrDesconto);
+    const freteMsg    = decimalToNumber(cf?.frete);
+    const seguroMsg   = decimalToNumber(cf?.seguro);
     const despesasMsg = decimalToNumber(cf?.despesas);
 
-    const hasExtras = vrDesconto > 0 || freteMsg > 0 || seguroMsg > 0 || despesasMsg > 0;
-    if (hasExtras) {
-      const subtotal = pedido.itens.reduce((sum, it) => {
-        const vlItem = decimalToNumber(it.valorTotal);
-        const qtd    = decimalToNumber(it.quantidade);
-        const preco  = decimalToNumber(it.precoUnitario);
-        return sum + (vlItem > 0 ? vlItem : qtd * preco);
-      }, 0);
-      lines.push(`*Subtotal:* ${formatBRL(subtotal)}`);
-      if (vrDesconto > 0)  lines.push(`*Desconto:* − ${formatBRL(vrDesconto)}`);
-      if (freteMsg > 0)    lines.push(`*Frete:* ${formatBRL(freteMsg)}`);
-      if (seguroMsg > 0)   lines.push(`*Seguro:* ${formatBRL(seguroMsg)}`);
-      if (despesasMsg > 0) lines.push(`*Despesas:* ${formatBRL(despesasMsg)}`);
-    }
-    lines.push(`*Total:* ${formatBRL(total)}`);
+    const msgSubtotal = pedido.itens.reduce((sum, it) => {
+      const vlItem = decimalToNumber(it.valorTotal);
+      const qtd    = decimalToNumber(it.quantidade);
+      const preco  = decimalToNumber(it.precoUnitario);
+      return sum + (vlItem > 0 ? vlItem : qtd * preco);
+    }, 0);
+    const msgTotal = msgSubtotal - vrDesconto + freteMsg + seguroMsg + despesasMsg;
+
+    lines.push(`*Subtotal:* ${formatBRL(msgSubtotal)}`);
+    if (vrDesconto > 0)  lines.push(`*Desconto:* − ${formatBRL(vrDesconto)}`);
+    if (freteMsg > 0)    lines.push(`*Frete:* ${formatBRL(freteMsg)}`);
+    if (seguroMsg > 0)   lines.push(`*Seguro:* ${formatBRL(seguroMsg)}`);
+    if (despesasMsg > 0) lines.push(`*Despesas:* ${formatBRL(despesasMsg)}`);
+    lines.push(`*Total:* ${formatBRL(msgTotal)}`);
 
     if (pedido.observacoes) lines.push(``, `_Obs: ${pedido.observacoes}_`);
 
@@ -428,6 +427,15 @@ async function openWAModal() {
 
   // Total itens (qty sum)
   const totalItensQtd = pedido.itens.reduce((s, i) => s + decimalToNumber(i.quantidade), 0);
+
+  // Subtotal = sum of item values; netTotal = subtotal − discount + extras
+  const subtotalVal = pedido.itens.reduce((s, it) => {
+    const v = decimalToNumber(it.valorTotal);
+    const q = decimalToNumber(it.quantidade);
+    const p = decimalToNumber(it.precoUnitario);
+    return s + (v > 0 ? v : q * p);
+  }, 0);
+  const netTotal = subtotalVal - vrDescontoVal + freteVal + despesasVal + seguroVal;
 
   return (
     <div>
@@ -815,11 +823,11 @@ async function openWAModal() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Total Cotação</Label>
+              <Label className="text-xs text-gray-500">Subtotal</Label>
               <Input
-                value={formatBRL(totalGeral)}
+                value={formatBRL(subtotalVal)}
                 readOnly
-                className="bg-gray-50 text-right font-semibold"
+                className="bg-gray-50 text-right"
               />
             </div>
             <div className="space-y-1">
@@ -836,6 +844,14 @@ async function openWAModal() {
                 value={formatBRL(vrDescontoVal)}
                 readOnly
                 className="bg-gray-50 text-right"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Total</Label>
+              <Input
+                value={formatBRL(netTotal)}
+                readOnly
+                className="bg-gray-50 text-right font-semibold text-gray-900"
               />
             </div>
             <div className="space-y-1">
@@ -954,13 +970,38 @@ async function openWAModal() {
               </tbody>
               <tfoot className="border-t-2 border-gray-200 bg-gray-50">
                 <tr>
-                  <td colSpan={5} className="px-4 py-2 text-right font-semibold text-gray-700 text-sm">
-                    Total da cotação
-                  </td>
-                  <td />
-                  <td className="px-4 py-2 text-right font-bold text-gray-900">
-                    {formatBRL(totalGeral)}
-                  </td>
+                  <td colSpan={6} className="px-4 py-1.5 text-right text-sm text-gray-500">Subtotal</td>
+                  <td className="px-4 py-1.5 text-right text-sm text-gray-700">{formatBRL(subtotalVal)}</td>
+                </tr>
+                {vrDescontoVal > 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-1.5 text-right text-sm text-gray-500">
+                      Desconto{descontoVal > 0 ? ` (${descontoVal.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)` : ""}
+                    </td>
+                    <td className="px-4 py-1.5 text-right text-sm text-red-600">− {formatBRL(vrDescontoVal)}</td>
+                  </tr>
+                )}
+                {freteVal > 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-1.5 text-right text-sm text-gray-500">Frete</td>
+                    <td className="px-4 py-1.5 text-right text-sm text-gray-700">+ {formatBRL(freteVal)}</td>
+                  </tr>
+                )}
+                {despesasVal > 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-1.5 text-right text-sm text-gray-500">Despesas</td>
+                    <td className="px-4 py-1.5 text-right text-sm text-gray-700">+ {formatBRL(despesasVal)}</td>
+                  </tr>
+                )}
+                {seguroVal > 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-1.5 text-right text-sm text-gray-500">Seguro</td>
+                    <td className="px-4 py-1.5 text-right text-sm text-gray-700">+ {formatBRL(seguroVal)}</td>
+                  </tr>
+                )}
+                <tr className="border-t border-gray-200">
+                  <td colSpan={6} className="px-4 py-2 text-right font-semibold text-gray-700 text-sm">Total</td>
+                  <td className="px-4 py-2 text-right font-bold text-gray-900">{formatBRL(netTotal)}</td>
                 </tr>
               </tfoot>
             </table>
