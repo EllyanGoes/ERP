@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,7 +97,9 @@ export default function PedidoForm({
   const [itemSearchQ,     setItemSearchQ]     = useState("");
   const [itemResults,     setItemResults]     = useState<ItemOption[]>([]);
   const [itemSearching,   setItemSearching]   = useState(false);
-  const itemSearchRef = useRef<HTMLDivElement>(null);
+  const [itemDropPos,     setItemDropPos]     = useState<{ top: number; left: number; width: number } | null>(null);
+  const [portalMounted,   setPortalMounted]   = useState(false);
+  const itemInputRef = useRef<HTMLInputElement>(null);
 
   // Load tabelas de preço on mount
   useEffect(() => {
@@ -134,28 +137,51 @@ export default function PedidoForm({
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  // Outside click: close item search
-  useEffect(() => {
-    function h(e: MouseEvent) {
-      if (itemSearchRef.current && !itemSearchRef.current.contains(e.target as Node))
-        setItemSearchRow(null);
-    }
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
+  useEffect(() => { setPortalMounted(true); }, []);
 
-  // Item search debounce
+  // Close item search on outside click or scroll
   useEffect(() => {
     if (!itemSearchRow) return;
-    const delay = itemSearchQ.trim() ? 300 : 0;
-    const t = setTimeout(() => {
-      const q = itemSearchQ.toLowerCase();
-      const filtered = q
-        ? catalogItens.filter((i) => i.codigo.toLowerCase().includes(q) || i.descricao.toLowerCase().includes(q))
-        : catalogItens;
-      setItemResults(filtered.slice(0, 20));
-    }, delay);
-    return () => clearTimeout(t);
+    function h(e: MouseEvent) {
+      if (!(e.target as HTMLElement).closest("[data-item-search]"))
+        closeItemSearch();
+    }
+    function onScroll() { closeItemSearch(); }
+    document.addEventListener("mousedown", h);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", h);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [itemSearchRow]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function closeItemSearch() {
+    setItemSearchRow(null);
+    setItemDropPos(null);
+    setItemSearchQ("");
+  }
+
+  function openItemSearch(key: string, triggerEl: HTMLElement, initialQ: string) {
+    const r = triggerEl.getBoundingClientRect();
+    setItemDropPos({
+      top:   r.bottom + window.scrollY + 4,
+      left:  r.left   + window.scrollX,
+      width: Math.max(r.width, 400),
+    });
+    setItemSearchRow(key);
+    setItemSearchQ(initialQ);
+    setItemResults(catalogItens.slice(0, 20));
+    setTimeout(() => itemInputRef.current?.focus(), 0);
+  }
+
+  // Item search — filter on query change
+  useEffect(() => {
+    if (!itemSearchRow) return;
+    const q = itemSearchQ.trim().toLowerCase();
+    const filtered = q
+      ? catalogItens.filter((i) => i.codigo.toLowerCase().includes(q) || i.descricao.toLowerCase().includes(q))
+      : catalogItens;
+    setItemResults(filtered.slice(0, 20));
   }, [itemSearchQ, itemSearchRow, catalogItens]);
 
   // ── Line item helpers ────────────────────────────────────────────────────────
@@ -451,16 +477,18 @@ export default function PedidoForm({
                       {idx + 1}
                     </td>
 
-                    {/* Produto — search popover */}
-                    <td className="px-3 py-2 relative min-w-[220px]">
+                    {/* Produto — search popover (portal-based) */}
+                    <td className="px-3 py-2 min-w-[220px]">
                       <button
+                        data-item-search
                         type="button"
-                        onClick={() => { setItemSearchRow(linha._key); setItemSearchQ(linha.codigo); setItemResults(catalogItens.slice(0, 20)); }}
+                        onClick={(e) => openItemSearch(linha._key, e.currentTarget, linha.codigo)}
                         className={cn(
                           "w-full h-8 px-2.5 rounded-lg border text-left text-xs transition-colors",
                           linha.itemId
                             ? "border-gray-200 bg-white text-gray-800 hover:border-blue-400"
-                            : "border-dashed border-gray-300 text-gray-400 hover:border-blue-400"
+                            : "border-dashed border-gray-300 text-gray-400 hover:border-blue-400",
+                          itemSearchRow === linha._key && "border-blue-400 ring-1 ring-blue-200"
                         )}
                       >
                         {linha.itemId ? (
@@ -472,41 +500,6 @@ export default function PedidoForm({
                           <span className="flex items-center gap-1"><Search className="w-3 h-3" /> Buscar produto...</span>
                         )}
                       </button>
-
-                      {itemSearchRow === linha._key && (
-                        <div ref={itemSearchRef} className="absolute left-0 top-full mt-1 z-50 w-96 bg-white rounded-xl border border-gray-200 shadow-xl">
-                          <div className="relative border-b border-gray-100">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                            <input
-                              autoFocus type="text"
-                              value={itemSearchQ}
-                              onChange={(e) => setItemSearchQ(e.target.value)}
-                              placeholder="Código ou descrição..."
-                              className="w-full pl-8 pr-3 py-2.5 text-sm focus:outline-none bg-transparent"
-                            />
-                          </div>
-                          <div className="max-h-52 overflow-y-auto">
-                            {itemSearching ? (
-                              <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-gray-400">
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando...
-                              </div>
-                            ) : itemResults.length === 0 ? (
-                              <p className="px-4 py-3 text-xs text-gray-400 italic text-center">Nenhum produto encontrado</p>
-                            ) : itemResults.map((p) => (
-                              <button
-                                key={p.id} type="button"
-                                onMouseDown={() => selectItem(linha._key, p)}
-                                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-blue-50 text-left border-b border-gray-50 last:border-0"
-                              >
-                                <span className="font-mono text-xs text-gray-500 shrink-0 w-20">{p.codigo}</span>
-                                <span className="text-sm text-gray-800 truncate flex-1">{p.descricao}</span>
-                                <span className="text-xs text-gray-500 shrink-0">{p.unidadeMedida}</span>
-                                <span className="text-xs font-medium text-blue-600 shrink-0">{formatBRL(decimalToNumber(p.precoVenda))}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </td>
 
                     {/* Unidade */}
@@ -609,6 +602,60 @@ export default function PedidoForm({
           </div>
         </div>
       </div>
+
+      {/* ── Portal: item search dropdown ─────────────────────────────── */}
+      {portalMounted && itemSearchRow && itemDropPos && createPortal(
+        <div
+          data-item-search
+          className="fixed z-[9999] bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden"
+          style={{ top: itemDropPos.top, left: itemDropPos.left, width: itemDropPos.width }}
+        >
+          {/* Search input */}
+          <div className="relative border-b border-gray-100">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            <input
+              ref={itemInputRef}
+              data-item-search
+              type="text"
+              value={itemSearchQ}
+              onChange={(e) => setItemSearchQ(e.target.value)}
+              placeholder="Código ou descrição..."
+              className="w-full pl-8 pr-3 py-2.5 text-sm focus:outline-none bg-transparent"
+            />
+          </div>
+          {/* Results */}
+          <div className="max-h-56 overflow-y-auto">
+            {itemSearching ? (
+              <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-gray-400">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando...
+              </div>
+            ) : itemResults.length === 0 ? (
+              <p className="px-4 py-3 text-xs text-gray-400 italic text-center">
+                {catalogItens.length === 0
+                  ? "Nenhum produto marcado como vendável. Ative o check nos produtos."
+                  : "Nenhum produto encontrado"}
+              </p>
+            ) : itemResults.map((p) => (
+              <button
+                key={p.id}
+                data-item-search
+                type="button"
+                onMouseDown={() => {
+                  selectItem(itemSearchRow, p);
+                  closeItemSearch();
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-blue-50 text-left border-b border-gray-50 last:border-0"
+              >
+                <span className="font-mono text-xs text-gray-500 shrink-0 w-20">{p.codigo}</span>
+                <span className="text-sm text-gray-800 truncate flex-1">{p.descricao}</span>
+                <span className="text-xs text-gray-500 shrink-0">{p.unidadeMedida}</span>
+                <span className="text-xs font-medium text-blue-600 shrink-0">{formatBRL(decimalToNumber(p.precoVenda))}</span>
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Observações */}
       <div className="space-y-1">
