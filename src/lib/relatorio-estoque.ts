@@ -17,12 +17,15 @@ export interface RelatorioResult {
 
 export async function buildRelatorioEstoque(date: Date): Promise<RelatorioResult> {
   // Converter para início/fim do dia no fuso BRT (UTC-3)
-  const BRT_OFFSET = -3 * 60 * 60 * 1000;
-  const localMidnight = new Date(
-    Math.floor((date.getTime() + (-BRT_OFFSET)) / 86_400_000) * 86_400_000 + BRT_OFFSET
-  );
-  const startOfDay = new Date(localMidnight.getTime());
-  const endOfDay   = new Date(localMidnight.getTime() + 86_400_000 - 1);
+  // BRT = UTC - 3h → para encontrar a meia-noite BRT:
+  //   1) subtrair 3h do timestamp UTC para "colocar no relógio BRT"
+  //   2) truncar para o início do dia
+  //   3) somar 3h de volta para converter para UTC
+  const BRT_OFFSET_MS = 3 * 60 * 60 * 1000; // 10_800_000 ms
+  const brtMs      = date.getTime() - BRT_OFFSET_MS;
+  const brtDayStart = Math.floor(brtMs / 86_400_000) * 86_400_000;
+  const startOfDay  = new Date(brtDayStart + BRT_OFFSET_MS); // UTC 03:00 do dia BRT
+  const endOfDay    = new Date(brtDayStart + BRT_OFFSET_MS + 86_400_000 - 1);
 
   const movs = await prisma.movimentacaoEstoque.findMany({
     where: { createdAt: { gte: startOfDay, lte: endOfDay } },

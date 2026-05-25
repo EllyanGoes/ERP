@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/relatorio-estoque",
-      "schedule": "0 21 * * *"
+      "schedule": "55 20 * * *"
     },
     {
       "path": "/api/cron/relatorio-necessidades",
