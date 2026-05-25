@@ -535,6 +535,7 @@ model Item {
   produtosFornecedor     ProdutoFornecedor[]
   itensRequisicao        RequisicaoMaterialItem[]
   itensInventario        InventarioMaterialItem[]
+  tabelaPrecoItens       TabelaPrecoItem[]
 
   @@index([codigo])
   @@index([tipo])
@@ -815,6 +816,49 @@ model ProdutoFornecedor {
 model Sequencia {
   prefixo String @id
   ultimo  Int    @default(0)
+}
+
+// ── Tabela de Preços ──────────────────────────────────────────────────────────
+
+model TabelaPreco {
+  id                 String            @id @default(cuid())
+  codigo             String            @unique
+  descricao          String
+  dataInicial        DateTime
+  dataFinal          DateTime?
+  condicaoPagamento  String?
+  tipoHorario        String            @default("UNICO")
+  ativa              Boolean           @default(true)
+  ecommerce          Boolean           @default(false)
+  observacoes        String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  itens              TabelaPrecoItem[]
+
+  @@index([ativa])
+}
+
+model TabelaPrecoItem {
+  id             String      @id @default(cuid())
+  tabelaPrecoId  String
+  sequencia      Int
+  itemId         String?
+  grupo          String?
+  precoBase      Decimal     @default(0) @db.Decimal(15, 4)
+  precoVenda     Decimal     @default(0) @db.Decimal(15, 4)
+  vlrDesconto    Decimal     @default(0) @db.Decimal(15, 4)
+  ativo          Boolean     @default(true)
+  fator          Decimal     @default(0) @db.Decimal(15, 4)
+  tipoOperacao   String?
+  faixa          Decimal?    @db.Decimal(15, 2)
+  moeda          String      @default("BRL")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  tabelaPreco    TabelaPreco @relation(fields: [tabelaPrecoId], references: [id], onDelete: Cascade)
+  item           Item?       @relation(fields: [itemId], references: [id])
+
+  @@index([tabelaPrecoId])
+  @@index([itemId])
 }
 
 model TipoProduto {

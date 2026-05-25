@@ -130,6 +130,10 @@ const mainModules: Module[] = [
     label: "Comercial",
     icon: ShoppingCart,
     sections: [
+      { kind: "Cadastros", items: [
+        { href: "/comercial/tabelas-preco", label: "Tabelas de Preço", icon: Tag },
+        { href: "/clientes",               label: "Clientes",          icon: Users },
+      ]},
       { kind: "Processos", items: [{ href: "/pedidos-venda", label: "Pedidos de Venda", icon: ShoppingCart }] },
     ],
   },
