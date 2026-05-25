@@ -55,6 +55,7 @@ import {
   Bell,
   RefreshCw,
   Activity,
+  Clock,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -174,7 +175,15 @@ const mainModules: Module[] = [
           { href: "/compras/necessidades",       label: "Solicitação de Compras", icon: ClipboardList },
           { href: "/suprimentos/cotacoes",       label: "Cotação de Compras",    icon: FileSearch },
           { href: "/suprimentos/pedidos-compra", label: "Pedido de Compras",     icon: FilePlus },
-          { href: "/suprimentos/conferencias",   label: "Doc. Entrada", icon: PackageCheck },
+          { href: "/suprimentos/conferencias",   label: "Doc. Entrada",          icon: PackageCheck },
+        ],
+      },
+      {
+        kind: "Relatórios" as SubSection["kind"],
+        items: [
+          { href: "/compras/relatorios/spend", label: "SPEND", icon: BarChart3 },
+          { href: "/compras/relatorios/sla",   label: "SLA",   icon: Clock },
+          { href: "/compras/relatorios/otd",   label: "OTD",   icon: Truck },
         ],
       },
     ],

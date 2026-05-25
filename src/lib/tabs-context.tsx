@@ -43,6 +43,9 @@ const ROUTE_TITLES: Record<string, string> = {
   "/suprimentos/relatorios/movimentacoes": "Entradas e Saídas",
   "/suprimentos/relatorios/curva-abc":     "Curva ABC",
   "/suprimentos/relatorios/imd":           "IMD — Demandas",
+  "/compras/relatorios/spend":             "SPEND",
+  "/compras/relatorios/sla":               "SLA",
+  "/compras/relatorios/otd":               "OTD",
   "/suprimentos/condicoes-pagamento": "Cond. de Pagamento",
   "/suprimentos/formas-pagamento": "Formas de Pagamento",
 };

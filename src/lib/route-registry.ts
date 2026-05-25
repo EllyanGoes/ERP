@@ -20,7 +20,7 @@ import {
   TrendingUp, TrendingDown,
   UserCog, ShieldCheck,
   Settings2, Plug,
-  Building2,
+  Building2, Clock,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -45,8 +45,9 @@ export const SECTION_COLORS: Record<string, IconColor> = {
   "Manutenção":       { bg: "bg-orange-50",  text: "text-orange-600",  selBg: "bg-orange-100",  selText: "text-orange-700"  },
   "Comercial":        { bg: "bg-blue-50",    text: "text-blue-600",    selBg: "bg-blue-100",    selText: "text-blue-700"    },
   "Financeiro":       { bg: "bg-teal-50",    text: "text-teal-600",    selBg: "bg-teal-100",    selText: "text-teal-700"    },
-  "Compras":          { bg: "bg-amber-50",   text: "text-amber-600",   selBg: "bg-amber-100",   selText: "text-amber-700"   },
-  "Cadastros":        { bg: "bg-violet-50",  text: "text-violet-600",  selBg: "bg-violet-100",  selText: "text-violet-700"  },
+  "Compras":            { bg: "bg-amber-50",   text: "text-amber-600",   selBg: "bg-amber-100",   selText: "text-amber-700"   },
+  "Cadastros":          { bg: "bg-violet-50",  text: "text-violet-600",  selBg: "bg-violet-100",  selText: "text-violet-700"  },
+  "Relatórios Compras": { bg: "bg-rose-50",    text: "text-rose-600",    selBg: "bg-rose-100",    selText: "text-rose-700"    },
 };
 
 export const DEFAULT_COLOR: IconColor = {
@@ -99,6 +100,10 @@ export const ROUTES: RouteEntry[] = [
   { href: "/suprimentos/cotacoes",                 label: "Cotação de Compras",      group: "Compras",        section: "Fluxo de Compras", icon: FileSearch,     keywords: "CT cotação" },
   { href: "/suprimentos/pedidos-compra",           label: "Pedido de Compras",       group: "Compras",        section: "Fluxo de Compras", icon: FilePlus,       keywords: "PC pedido" },
   { href: "/suprimentos/conferencias",             label: "Doc. de Entrada",         group: "Compras",        section: "Fluxo de Compras", icon: PackageCheck,   keywords: "DE conferência entrada NF nota fiscal" },
+
+  { href: "/compras/relatorios/spend",             label: "SPEND",                   group: "Compras",        section: "Relatórios Compras", icon: BarChart3,   keywords: "spend gastos fornecedor" },
+  { href: "/compras/relatorios/sla",               label: "SLA",                     group: "Compras",        section: "Relatórios Compras", icon: Clock,       keywords: "sla prazo nível serviço" },
+  { href: "/compras/relatorios/otd",               label: "OTD",                     group: "Compras",        section: "Relatórios Compras", icon: Truck,       keywords: "otd entrega prazo" },
 
   { href: "/contas-receber",                       label: "Contas a Receber",        group: "Financeiro",     section: "Financeiro",       icon: TrendingUp },
   { href: "/contas-pagar",                         label: "Contas a Pagar",          group: "Financeiro",     section: "Financeiro",       icon: TrendingDown },
