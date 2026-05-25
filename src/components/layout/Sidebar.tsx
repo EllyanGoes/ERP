@@ -215,8 +215,9 @@ const mainModules: Module[] = [
       {
         kind: "Manutenção" as SubSection["kind"],
         items: [
-          { href: "/pcm/dashboard", label: "Resultados", icon: BarChart3 },
-          { href: "/pcm/ordens", label: "Relatório de O.S.", icon: ClipboardList },
+          { href: "/pcm/dashboard",       label: "Resultados",       icon: BarChart3 },
+          { href: "/pcm/ordens",          label: "Relatório de O.S.", icon: ClipboardList },
+          { href: "/pcm/relatorio-mtbf",  label: "Relatório MTBF",   icon: Activity },
         ],
       },
     ],
