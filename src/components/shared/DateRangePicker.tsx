@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Calendar, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -99,9 +100,14 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
   const [fromText, setFromText] = useState(value.from ? formatBR(value.from) : "");
   const [toText,   setToText]   = useState(value.to   ? formatBR(value.to)   : "");
 
-  const wrapRef   = useRef<HTMLDivElement>(null);
-  const fromRef   = useRef<HTMLInputElement>(null);
-  const toRef     = useRef<HTMLInputElement>(null);
+  const wrapRef    = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const fromRef    = useRef<HTMLInputElement>(null);
+  const toRef      = useRef<HTMLInputElement>(null);
+
+  // Fixed-position coordinates for the portal popover
+  const [popStyle, setPopStyle] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
 
   // Keep text in sync when value changes from outside (e.g. calendar click, clear)
   useEffect(() => {
@@ -112,24 +118,33 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
     setToText(value.to ? formatBR(value.to) : "");
   }, [value.to]);
 
-  // Close on outside click
+  // Close on outside click — check both trigger and the portal popover
   useEffect(() => {
     function handle(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      const inTrigger = wrapRef.current?.contains(target);
+      const inPopover = popoverRef.current?.contains(target);
+      if (!inTrigger && !inPopover) setOpen(false);
     }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
-  // When opened: sync calendar view to current "from" date; don't reset picking
+  // When opened: sync calendar view + compute fixed position for the portal
   useEffect(() => {
     if (!open) return;
     const src = value.from || today;
     setViewYear(parseInt(src.split("-")[0]));
     setViewMonth(parseInt(src.split("-")[1]) - 1);
     setHover("");
+    // Calculate where to place the popover (anchored to trigger's bottom-right)
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPopStyle({
+        top:   rect.bottom + 6,
+        right: window.innerWidth - rect.right,
+      });
+    }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Navigate calendar when picking mode switches to "to"
@@ -235,6 +250,7 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
     <div ref={wrapRef} className="relative">
       {/* Trigger button */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => { setOpen((v) => !v); setPicking("from"); }}
         className={cn(
@@ -254,9 +270,13 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
         )}
       </button>
 
-      {/* Popover */}
-      {open && (
-        <div className="absolute right-0 top-full mt-1.5 z-50 bg-white rounded-2xl border border-gray-200 shadow-xl p-4 w-[308px]">
+      {/* Popover — rendered in a portal with fixed position to avoid parent overflow clipping */}
+      {open && typeof window !== "undefined" && createPortal(
+        <div
+          ref={popoverRef}
+          style={{ position: "fixed", top: popStyle.top, right: popStyle.right, zIndex: 9999 }}
+          className="bg-white rounded-2xl border border-gray-200 shadow-xl p-4 w-[308px]"
+        >
 
           {/* ── Editable date inputs ─────────────────────────────────────── */}
           <div className="flex items-center gap-2 mb-4">
@@ -374,7 +394,8 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
               ? "Clique no calendário ou digite a data inicial"
               : "Clique no calendário ou digite a data final"}
           </p>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
