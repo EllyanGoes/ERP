@@ -279,7 +279,7 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
         >
 
           {/* ── Editable date inputs ─────────────────────────────────────── */}
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-1.5 mb-4">
             <input
               ref={fromRef}
               type="text"
@@ -291,14 +291,14 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
               onChange={(e) => handleFromChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Tab") { e.preventDefault(); toRef.current?.focus(); } }}
               className={cn(
-                "flex-1 text-sm px-3 py-1.5 rounded-lg border text-center outline-none transition-colors",
+                "min-w-0 w-0 flex-1 text-xs px-2 py-1.5 rounded-lg border text-center outline-none transition-colors",
                 picking === "from"
-                  ? "border-blue-500 ring-1 ring-blue-200 bg-white text-gray-800"
-                  : "border-gray-200 bg-gray-50 text-gray-700"
+                  ? "border-blue-500 ring-1 ring-blue-100 bg-white text-gray-800"
+                  : "border-gray-200 bg-gray-50 text-gray-600"
               )}
             />
 
-            <span className="text-gray-400 text-xs font-medium shrink-0">→</span>
+            <span className="text-gray-300 text-xs shrink-0">→</span>
 
             <input
               ref={toRef}
@@ -310,10 +310,10 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
               onFocus={() => setPicking("to")}
               onChange={(e) => handleToChange(e.target.value)}
               className={cn(
-                "flex-1 text-sm px-3 py-1.5 rounded-lg border text-center outline-none transition-colors",
+                "min-w-0 w-0 flex-1 text-xs px-2 py-1.5 rounded-lg border text-center outline-none transition-colors",
                 picking === "to"
-                  ? "border-blue-500 ring-1 ring-blue-200 bg-white text-gray-800"
-                  : "border-gray-200 bg-gray-50 text-gray-700"
+                  ? "border-blue-500 ring-1 ring-blue-100 bg-white text-gray-800"
+                  : "border-gray-200 bg-gray-50 text-gray-600"
               )}
             />
           </div>
