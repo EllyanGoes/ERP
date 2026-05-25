@@ -456,9 +456,11 @@ export default function ImdPage() {
                 <div>
                   <p className="font-medium text-gray-600 mb-1">Fórmula</p>
                   <p>
-                    <strong>IMD = {periodMonths} ÷ Meses sem Consumo</strong> (período de análise: {periodMonths} meses).
-                    Quanto maior o IMD, maior a frequência de consumo e mais o item justifica
-                    manutenção em estoque.
+                    <strong>IMD = Meses com Consumo ÷ Meses sem Consumo</strong>{" "}
+                    (período de análise: {periodMonths} meses).
+                    Quanto maior o IMD, mais frequente é a demanda e mais o item
+                    justifica manutenção em estoque.
+                    Meses com consumo = meses com ao menos uma saída registrada.
                   </p>
                 </div>
                 <div>

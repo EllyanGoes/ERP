@@ -12,10 +12,15 @@ import { prisma } from "@/lib/prisma";
  *   Classe B → acumula de 80% a 95%
  *   Classe C → acumula de 95% a 100%
  *
- * IMD = Total de Meses do Período / Meses sem Consumo (SAIDA)
- *   > 5   → Estocável
- *   2 a 5 → MTO (Make To Order)
- *   < 2   → Obsoleto
+ * IMD = Meses COM Consumo / Meses SEM Consumo
+ *   (quanto maior, mais frequente é a demanda)
+ *   > 5   → Estocável  — alta frequência; manter em estoque
+ *   2 a 5 → MTO        — demanda irregular; comprar conforme necessidade
+ *   < 2   → Obsoleto   — baixíssima demanda; reavaliar necessidade de estoque
+ *
+ * Casos especiais:
+ *   mesesSemConsumo = 0  →  consumido em TODOS os meses → IMD = 999 (Estocável)
+ *   mesesComConsumo = 0  →  nunca consumido              → IMD = 0   (Obsoleto)
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -114,7 +119,8 @@ export async function GET(req: NextRequest) {
 
     for (const m of movs) {
       const d = new Date(m.createdAt);
-      monthsWithConsumption.add(`${d.getFullYear()}-${String(d.getMonth()).padStart(2, "0")}`);
+      // getMonth() retorna 0-11; usamos +1 para chave correta (01–12)
+      monthsWithConsumption.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
       const qty  = parseFloat(m.quantidade.toString());
       const cost = m.valorUnitario ? parseFloat(m.valorUnitario.toString()) : custo;
       totalValorConsumo += qty * cost;
@@ -123,10 +129,12 @@ export async function GET(req: NextRequest) {
     const mesesComConsumo = monthsWithConsumption.size;
     const mesesSemConsumo = PERIOD_MONTHS - mesesComConsumo;
 
-    // IMD = Total Meses / Meses sem Consumo  (÷0 → 999)
+    // IMD = Meses COM Consumo / Meses SEM Consumo
+    //   mesesSem = 0 → consumido todos os meses → Estocável máximo (999)
+    //   mesesCom = 0 → nunca consumido           → IMD = 0 (Obsoleto)
     const imd = mesesSemConsumo === 0
       ? 999
-      : Math.round((PERIOD_MONTHS / mesesSemConsumo) * 100) / 100;
+      : Math.round((mesesComConsumo / mesesSemConsumo) * 100) / 100;
 
     const categoriaIMD: "ESTOCAVEL" | "MTO" | "OBSOLETO" =
       imd > 5 ? "ESTOCAVEL" : imd > 2 ? "MTO" : "OBSOLETO";
