@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn, formatBRL } from "@/lib/utils";
-import { Plus, Trash2, Loader2, Save, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, Loader2, Save, CheckCircle2, LinkIcon } from "lucide-react";
+import { useEscToClose } from "@/lib/use-esc-to-close";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 type Fornecedor = {
@@ -80,6 +81,11 @@ export default function NovoPedidoCompraPage() {
   // Form state
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState("");
+
+  // Popup: novos vínculos fornecedor × produto
+  type VinculoItem = { id: string; codigo: string; descricao: string };
+  const [vinculoPopup, setVinculoPopup] = useState<{ fornecedorNome: string; novos: VinculoItem[] } | null>(null);
+  useEscToClose(() => setVinculoPopup(null), !!vinculoPopup);
 
   const isDirty = !!(fornecedorId || itens.some(r => r.itemId));
   useDirtyForm(isDirty);
@@ -170,6 +176,29 @@ export default function NovoPedidoCompraPage() {
     );
     if (validItens.length === 0) { setError("Adicione pelo menos um item"); return; }
 
+    // Verificar novos vínculos fornecedor × produto antes de criar o pedido
+    const itemIds = validItens.map((r) => r.itemId).join(",");
+    try {
+      const checkRes = await fetch(
+        `/api/suprimentos/fornecedor-vinculos-check?fornecedorId=${fornecedorId}&itemIds=${encodeURIComponent(itemIds)}`
+      );
+      if (checkRes.ok) {
+        const { novos } = await checkRes.json() as { novos: { id: string; codigo: string; descricao: string }[] };
+        if (novos?.length > 0) {
+          setVinculoPopup({ fornecedorNome: fornNome, novos });
+          return; // aguarda confirmação do usuário
+        }
+      }
+    } catch { /* ignora erros de verificação — segue com o submit */ }
+
+    await doSubmit(validItens);
+  }
+
+  async function doSubmit(validItens?: { itemId: string; quantidade: string; precoUnitario: string; situacao: string }[]) {
+    setVinculoPopup(null);
+    if (!validItens) {
+      validItens = itens.filter((row) => row.itemId && parseFloat(row.quantidade) > 0);
+    }
     setSaving(true);
     setError("");
     try {
@@ -496,6 +525,50 @@ export default function NovoPedidoCompraPage() {
           <span>— item incluído no total</span>
         </div>
       </div>
+
+      {/* ── Popup: novos vínculos fornecedor × produto ───────────────────────── */}
+      {vinculoPopup && (
+        <div className="fixed inset-0 z-[9200] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setVinculoPopup(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-start gap-3 px-6 pt-6 pb-4 border-b border-gray-100">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50">
+                <LinkIcon className="w-5 h-5 text-blue-600" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Novo vínculo fornecedor × produto</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Ao criar este pedido, {vinculoPopup.novos.length === 1 ? "o produto abaixo será vinculado" : `os ${vinculoPopup.novos.length} produtos abaixo serão vinculados`} ao fornecedor{" "}
+                  <span className="font-medium text-gray-700">{vinculoPopup.fornecedorNome}</span> pela primeira vez.
+                </p>
+              </div>
+            </div>
+            {/* Product list */}
+            <ul className="divide-y divide-gray-50 max-h-52 overflow-y-auto">
+              {vinculoPopup.novos.map((item) => (
+                <li key={item.id} className="flex items-center gap-3 px-6 py-2.5">
+                  <span className="font-mono text-[11px] text-gray-400 w-16 shrink-0">{item.codigo}</span>
+                  <span className="text-sm text-gray-800">{item.descricao}</span>
+                </li>
+              ))}
+            </ul>
+            {/* Footer */}
+            <div className="flex justify-end gap-2 px-6 py-4 bg-gray-50 border-t border-gray-100">
+              <Button variant="outline" size="sm" onClick={() => setVinculoPopup(null)}>
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={() => doSubmit()}
+              >
+                Confirmar e criar pedido
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -13,8 +13,9 @@ import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { useRouter } from "next/navigation";
-import { ShieldAlert, Save, Loader2, Trash2 } from "lucide-react";
+import { ShieldAlert, Save, Loader2, Trash2, LinkIcon } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { useEscToClose } from "@/lib/use-esc-to-close";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -144,6 +145,11 @@ export default function DocumentoEntradaDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [autoVinculoMsg, setAutoVinculoMsg] = useState<string | null>(null);
   const [scAtendidaMsg, setScAtendidaMsg] = useState<{ numero: string; status: string }[] | null>(null);
+
+  // Popup: novos vínculos antes de concluir
+  type VinculoItem = { id: string; codigo: string; descricao: string };
+  const [vinculoPopup, setVinculoPopup] = useState<{ fornecedorNome: string; novos: VinculoItem[] } | null>(null);
+  useEscToClose(() => setVinculoPopup(null), !!vinculoPopup);
 
   const [editItems, setEditItems] = useState<EditItem[]>([]);
   const [responsavel, setResponsavel] = useState("");
@@ -444,6 +450,39 @@ export default function DocumentoEntradaDetailPage() {
   }
 
   async function concluir() {
+    setActionError("");
+
+    // ── Pré-verificação: novos vínculos fornecedor × produto ──────────────────
+    // fornecedorId: vem do pedido vinculado ou do fornecedor direto da conferência, ou do estado do formulário
+    const fornecedorIdCheck = conferencia?.pedido?.fornecedor?.id ?? conferencia?.fornecedor?.id ?? fornecedorId;
+    // Cruzar editItems (que tem quantidadeRecebida) com conferencia.itens (que tem item.id)
+    const itensComRecebimento = (conferencia?.itens ?? []).filter((ci) => {
+      const ei = editItems.find((e) => e.id === ci.id);
+      return parseFloat(String(ei?.quantidadeRecebida ?? ci.quantidadeRecebida ?? 0)) > 0;
+    });
+    if (fornecedorIdCheck && itensComRecebimento.length > 0) {
+      try {
+        const itemIds = itensComRecebimento.map((ci) => ci.item.id).join(",");
+        const checkRes = await fetch(
+          `/api/suprimentos/fornecedor-vinculos-check?fornecedorId=${fornecedorIdCheck}&itemIds=${encodeURIComponent(itemIds)}`
+        );
+        if (checkRes.ok) {
+          const { novos } = await checkRes.json() as { novos: VinculoItem[] };
+          if (novos?.length > 0) {
+            const fornInfo2 = conferencia?.pedido?.fornecedor ?? conferencia?.fornecedor;
+            const fornNome = fornInfo2?.nomeFantasia || fornInfo2?.razaoSocial || "fornecedor";
+            setVinculoPopup({ fornecedorNome: String(fornNome), novos });
+            return; // aguarda confirmação
+          }
+        }
+      } catch { /* ignora erros de verificação */ }
+    }
+
+    await doConcluir();
+  }
+
+  async function doConcluir() {
+    setVinculoPopup(null);
     setActioning(true);
     setActionError("");
     try {
@@ -460,12 +499,6 @@ export default function DocumentoEntradaDetailPage() {
         return;
       }
       await load();
-      if (json.autoVinculos?.length > 0) {
-        setAutoVinculoMsg(
-          `Vinculação automática: ${json.autoVinculos.join(", ")} ${json.autoVinculos.length === 1 ? "foi vinculado" : "foram vinculados"} ao fornecedor.`
-        );
-        setTimeout(() => setAutoVinculoMsg(null), 7000);
-      }
       if (json.scAtualizadas?.length > 0) {
         setScAtendidaMsg(json.scAtualizadas);
         setTimeout(() => setScAtendidaMsg(null), 10000);
@@ -1610,6 +1643,50 @@ export default function DocumentoEntradaDetailPage() {
           )}
         </div>
       </div>
+
+      {/* ── Popup: novos vínculos fornecedor × produto ───────────────────────── */}
+      {vinculoPopup && (
+        <div className="fixed inset-0 z-[9200] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setVinculoPopup(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-start gap-3 px-6 pt-6 pb-4 border-b border-gray-100">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50">
+                <LinkIcon className="w-5 h-5 text-blue-600" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Novo vínculo fornecedor × produto</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Ao concluir, {vinculoPopup.novos.length === 1 ? "o produto abaixo será vinculado" : `os ${vinculoPopup.novos.length} produtos abaixo serão vinculados`} ao fornecedor{" "}
+                  <span className="font-medium text-gray-700">{vinculoPopup.fornecedorNome}</span> pela primeira vez.
+                </p>
+              </div>
+            </div>
+            {/* Product list */}
+            <ul className="divide-y divide-gray-50 max-h-52 overflow-y-auto">
+              {vinculoPopup.novos.map((item) => (
+                <li key={item.id} className="flex items-center gap-3 px-6 py-2.5">
+                  <span className="font-mono text-[11px] text-gray-400 w-16 shrink-0">{item.codigo}</span>
+                  <span className="text-sm text-gray-800">{item.descricao}</span>
+                </li>
+              ))}
+            </ul>
+            {/* Footer */}
+            <div className="flex justify-end gap-2 px-6 py-4 bg-gray-50 border-t border-gray-100">
+              <Button variant="outline" size="sm" onClick={() => setVinculoPopup(null)}>
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={() => doConcluir()}
+              >
+                Confirmar e concluir
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

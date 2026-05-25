@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   BarChart3,
   TrendingUp,
@@ -98,8 +99,18 @@ function DrillDownModal({
   data: DrillDown;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const totalSubItens =
     data.subItens?.reduce((s, it) => s + it.valor, 0) || 1;
+
+  // ESC fecha o modal (padrão de sistema)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center">
@@ -138,8 +149,16 @@ function DrillDownModal({
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {(data.pedidosList ?? []).map((p) => (
-                  <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="px-5 py-3 font-mono text-xs text-gray-600">{p.numero}</td>
+                  <tr
+                    key={p.id}
+                    className="hover:bg-blue-50 cursor-pointer transition-colors group"
+                    title="Abrir pedido de compra"
+                    onClick={() => {
+                      onClose();
+                      router.push(`/suprimentos/pedidos-compra/${p.id}`);
+                    }}
+                  >
+                    <td className="px-5 py-3 font-mono text-xs text-blue-600 group-hover:underline">{p.numero}</td>
                     <td className="px-5 py-3 text-gray-800">{p.fornecedorNome}</td>
                     <td className="px-5 py-3 text-right text-gray-500 text-xs">{fmtDate(p.receiptDate)}</td>
                     <td className="px-5 py-3 text-right font-semibold text-gray-900">

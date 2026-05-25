@@ -174,6 +174,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Auto-vincular itens ao fornecedor em ProdutoFornecedor ────────────────
+    // Cria o vínculo apenas se ainda não existir (equivale a upsert com skip)
+    for (const item of pedido.itens) {
+      const exists = await tx.produtoFornecedor.findFirst({
+        where: { itemId: item.item.id, fornecedorId },
+        select: { id: true },
+      });
+      if (!exists) {
+        await tx.produtoFornecedor.create({
+          data: { itemId: item.item.id, fornecedorId },
+        });
+      }
+    }
+
     return pedido;
   });
 
