@@ -322,22 +322,22 @@ export default function PedidoForm({
       )}
 
       {/* ── Dados do Pedido ─────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-          <h2 className="font-semibold text-sm text-gray-800">Dados do Pedido</h2>
+      <div className="bg-white rounded-xl border border-gray-300 overflow-hidden shadow-sm">
+        <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-100">
+          <h2 className="font-bold text-sm text-gray-800 tracking-wide uppercase">Dados do Pedido</h2>
         </div>
-        <div className="p-4 space-y-4">
+        <div className="p-5 space-y-5">
 
           {/* Cliente */}
-          <div className="space-y-1">
-            <Label className="text-xs text-gray-600">Cliente *</Label>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Cliente *</Label>
             <div className="relative" ref={clienteRef}>
               <button
                 type="button"
                 onClick={() => { setClienteOpen((v) => !v); setClienteSearch(""); }}
                 className={cn(
-                  "w-full flex items-center justify-between h-9 px-3 rounded-lg border text-sm text-left transition-colors",
-                  clienteOpen ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-200 hover:border-gray-300",
+                  "w-full flex items-center justify-between h-10 px-3 rounded-lg border text-sm text-left transition-colors",
+                  clienteOpen ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-300 hover:border-gray-400",
                   clienteSelecionado ? "text-gray-900" : "text-gray-400"
                 )}
               >
@@ -383,28 +383,28 @@ export default function PedidoForm({
 
           <div className="grid grid-cols-2 gap-4">
             {/* Data Emissão */}
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-600">Data de Emissão</Label>
-              <Input type="date" value={dataEmissao} onChange={(e) => setDataEmissao(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data de Emissão</Label>
+              <Input type="date" value={dataEmissao} onChange={(e) => setDataEmissao(e.target.value)} className="h-10 border-gray-300" />
             </div>
 
             {/* Previsão de Entrega */}
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-600">Previsão de Entrega</Label>
-              <Input type="date" value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Previsão de Entrega</Label>
+              <Input type="date" value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} className="h-10 border-gray-300" />
             </div>
           </div>
 
           {/* Tabela de Preço */}
-          <div className="space-y-1">
-            <Label className="text-xs text-gray-600 flex items-center gap-1">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-1">
               <Tag className="w-3 h-3" /> Tabela de Preço
             </Label>
             <select
               value={tabelaPrecoId}
               onChange={(e) => setTabelaPrecoId(e.target.value)}
               disabled={tabelaLoading}
-              className="w-full h-9 rounded-lg border border-gray-200 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors"
             >
               <option value="">— Sem tabela de preço —</option>
               {tabelas.filter((t) => t.ativa !== false).map((t) => (
@@ -422,13 +422,13 @@ export default function PedidoForm({
           </div>
 
           {/* Condição de Pagamento */}
-          <div className="space-y-1">
-            <Label className="text-xs text-gray-600">Condição de Pagamento</Label>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Condição de Pagamento</Label>
             <select
               value={condicaoPagamento}
               onChange={(e) => setCondicaoPagamento(e.target.value)}
               disabled={condicoesLoading}
-              className="w-full h-9 rounded-lg border border-gray-200 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors disabled:opacity-50"
             >
               <option value="">— Selecionar condição —</option>
               {condicoes.map((c) => (
@@ -440,112 +440,115 @@ export default function PedidoForm({
       </div>
 
       {/* ── Itens do Pedido ─────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-          <h2 className="font-semibold text-sm text-gray-800">Itens do Pedido</h2>
-          <Button type="button" size="sm" variant="outline" onClick={addLinha}>
+      <div className="bg-white rounded-xl border border-gray-300 overflow-hidden shadow-sm">
+        <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-100 flex items-center justify-between">
+          <h2 className="font-bold text-sm text-gray-800 tracking-wide uppercase">Itens do Pedido</h2>
+          <Button type="button" size="sm" variant="outline" onClick={addLinha} className="border-gray-300 text-gray-700 hover:bg-gray-200">
             <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Item
           </Button>
         </div>
 
         {linhas.length === 0 ? (
-          <div className="py-12 text-center text-gray-400">
-            <p className="text-sm">Nenhum item adicionado. Clique em &quot;Adicionar Item&quot;.</p>
+          <div className="py-14 text-center">
+            <p className="text-sm text-gray-500 font-medium">Nenhum item adicionado.</p>
+            <p className="text-xs text-gray-400 mt-1">Clique em &quot;Adicionar Item&quot; para começar.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[860px]">
-              <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide">
+              <thead className="bg-gray-100 border-b border-gray-300 text-xs text-gray-700 uppercase tracking-wide">
                 <tr>
-                  <th className="text-center px-3 py-2.5 font-semibold w-12">Item</th>
-                  <th className="text-left px-3 py-2.5 font-semibold">Produto</th>
-                  <th className="text-center px-3 py-2.5 font-semibold w-16">Unidade</th>
-                  <th className="text-right px-3 py-2.5 font-semibold w-24">Quantidade</th>
-                  <th className="text-right px-3 py-2.5 font-semibold w-28">Preço Unit.</th>
-                  <th className="text-right px-3 py-2.5 font-semibold w-24">% Desconto</th>
-                  <th className="text-right px-3 py-2.5 font-semibold w-28">Vlr. Desconto</th>
-                  <th className="text-right px-3 py-2.5 font-semibold w-28">Valor Total</th>
-                  <th className="w-10 px-2 py-2.5" />
+                  <th className="text-center px-3 py-3 font-bold w-12">Item</th>
+                  <th className="text-left px-3 py-3 font-bold">Produto</th>
+                  <th className="text-center px-3 py-3 font-bold w-16">Unidade</th>
+                  <th className="text-right px-3 py-3 font-bold w-24">Quantidade</th>
+                  <th className="text-right px-3 py-3 font-bold w-28">Preço Unit.</th>
+                  <th className="text-right px-3 py-3 font-bold w-24">% Desconto</th>
+                  <th className="text-right px-3 py-3 font-bold w-28">Vlr. Desconto</th>
+                  <th className="text-right px-3 py-3 font-bold w-28">Valor Total</th>
+                  <th className="w-10 px-2 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-200">
                 {linhas.map((linha, idx) => (
-                  <tr key={linha._key} className="hover:bg-gray-50/60 group">
+                  <tr key={linha._key} className="hover:bg-blue-50/30 group transition-colors">
 
                     {/* # */}
-                    <td className="px-3 py-2 text-center text-xs font-mono text-gray-500 font-semibold">
-                      {idx + 1}
+                    <td className="px-3 py-2.5 text-center">
+                      <span className="text-xs font-bold font-mono text-gray-600 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">
+                        {idx + 1}
+                      </span>
                     </td>
 
                     {/* Produto — search popover (portal-based) */}
-                    <td className="px-3 py-2 min-w-[220px]">
+                    <td className="px-3 py-2.5 min-w-[220px]">
                       <button
                         data-item-search
                         type="button"
                         onClick={(e) => openItemSearch(linha._key, e.currentTarget, linha.codigo)}
                         className={cn(
-                          "w-full h-8 px-2.5 rounded-lg border text-left text-xs transition-colors",
+                          "w-full h-9 px-2.5 rounded-lg border text-left text-xs transition-colors",
                           linha.itemId
-                            ? "border-gray-200 bg-white text-gray-800 hover:border-blue-400"
-                            : "border-dashed border-gray-300 text-gray-400 hover:border-blue-400",
-                          itemSearchRow === linha._key && "border-blue-400 ring-1 ring-blue-200"
+                            ? "border-gray-300 bg-white text-gray-800 hover:border-blue-400"
+                            : "border-dashed border-gray-400 text-gray-500 hover:border-blue-400 hover:text-blue-500",
+                          itemSearchRow === linha._key && "border-blue-500 ring-2 ring-blue-100"
                         )}
                       >
                         {linha.itemId ? (
                           <span>
                             <span className="font-mono text-gray-500 mr-1.5">{linha.codigo}</span>
-                            <span className="text-gray-800">{linha.descricao}</span>
+                            <span className="font-medium text-gray-900">{linha.descricao}</span>
                           </span>
                         ) : (
-                          <span className="flex items-center gap-1"><Search className="w-3 h-3" /> Buscar produto...</span>
+                          <span className="flex items-center gap-1.5 text-gray-500"><Search className="w-3 h-3" /> Buscar produto...</span>
                         )}
                       </button>
                     </td>
 
                     {/* Unidade */}
-                    <td className="px-3 py-2 text-center">
-                      <span className="text-xs text-gray-600 font-mono bg-gray-100 px-1.5 py-0.5 rounded">
+                    <td className="px-3 py-2.5 text-center">
+                      <span className="text-xs font-semibold text-gray-700 font-mono bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">
                         {linha.unidade || "—"}
                       </span>
                     </td>
 
                     {/* Quantidade */}
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2.5">
                       <Input
                         type="number" min="0.001" step="0.001"
                         value={linha.quantidade}
                         onChange={(e) => updateLinha(linha._key, "quantidade", e.target.value)}
-                        className="h-8 text-xs text-right"
+                        className="h-9 text-xs text-right border-gray-300 font-medium"
                       />
                     </td>
 
                     {/* Preço Unit. */}
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2.5">
                       <Input
                         type="number" min="0" step="0.01"
                         value={linha.precoUnitario}
                         onChange={(e) => updateLinha(linha._key, "precoUnitario", e.target.value)}
-                        className="h-8 text-xs text-right"
+                        className="h-9 text-xs text-right border-gray-300 font-medium"
                       />
                     </td>
 
                     {/* % Desconto */}
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2.5">
                       <div className="relative">
                         <Input
                           type="number" min="0" max="100" step="0.01"
                           value={linha.descontoPct}
                           onChange={(e) => updateLinha(linha._key, "descontoPct", e.target.value)}
-                          className="h-8 text-xs text-right pr-6"
+                          className="h-9 text-xs text-right pr-7 border-gray-300 font-medium"
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-500">%</span>
                       </div>
                     </td>
 
                     {/* Vlr. Desconto — read-only computed */}
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-3 py-2.5 text-right">
                       <span className={cn(
-                        "text-xs font-medium",
+                        "text-xs font-semibold",
                         parseFloat(linha.valorDesconto) > 0 ? "text-red-600" : "text-gray-400"
                       )}>
                         {parseFloat(linha.valorDesconto) > 0
@@ -555,18 +558,18 @@ export default function PedidoForm({
                     </td>
 
                     {/* Valor Total */}
-                    <td className="px-3 py-2 text-right">
-                      <span className="text-sm font-semibold text-gray-900">
+                    <td className="px-3 py-2.5 text-right">
+                      <span className="text-sm font-bold text-gray-900">
                         {formatBRL(parseFloat(linha.valorTotal) || 0)}
                       </span>
                     </td>
 
                     {/* Remove */}
-                    <td className="px-2 py-2">
+                    <td className="px-2 py-2.5">
                       <button
                         type="button"
                         onClick={() => removeLinha(linha._key)}
-                        className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
+                        className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors border border-transparent hover:border-red-200"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -579,25 +582,25 @@ export default function PedidoForm({
         )}
 
         {/* Totals */}
-        <div className="px-4 py-4 border-t border-gray-100 flex justify-end">
-          <div className="w-72 space-y-2 text-sm">
-            <div className="flex justify-between text-gray-600">
+        <div className="px-5 py-5 border-t border-gray-200 bg-gray-50 flex justify-end">
+          <div className="w-80 space-y-2.5 text-sm">
+            <div className="flex justify-between text-gray-700 font-medium">
               <span>Subtotal</span>
-              <span>{formatBRL(subtotal)}</span>
+              <span className="font-semibold">{formatBRL(subtotal)}</span>
             </div>
-            <div className="flex justify-between items-center text-gray-600">
+            <div className="flex justify-between items-center text-gray-700 font-medium">
               <span>Frete (R$)</span>
               <Input
                 type="number" step="0.01" min="0"
                 value={valorFrete}
                 onChange={(e) => setValorFrete(e.target.value)}
-                className="h-7 w-28 text-xs text-right"
+                className="h-8 w-28 text-xs text-right border-gray-300"
               />
             </div>
-            <Separator />
-            <div className="flex justify-between font-semibold text-base">
+            <Separator className="bg-gray-300" />
+            <div className="flex justify-between font-bold text-lg text-gray-900">
               <span>Total</span>
-              <span>{formatBRL(totalGeral)}</span>
+              <span className="text-blue-700">{formatBRL(totalGeral)}</span>
             </div>
           </div>
         </div>
@@ -658,22 +661,24 @@ export default function PedidoForm({
       )}
 
       {/* Observações */}
-      <div className="space-y-1">
-        <Label className="text-xs text-gray-600">Observações</Label>
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Observações</Label>
         <Textarea
           value={observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
           rows={3}
           placeholder="Observações do pedido..."
+          className="border-gray-300 text-gray-800 placeholder:text-gray-400 resize-none"
         />
       </div>
 
       {/* Actions */}
-      <div className="flex gap-3">
+      <div className="flex gap-3 pt-1">
         <Button
           type="button" variant="outline"
           onClick={() => handleSubmit("ORCAMENTO")}
           disabled={!!submitting}
+          className="border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold"
         >
           {submitting === "orcamento" ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Salvando...</> : "Salvar como Orçamento"}
         </Button>
@@ -681,10 +686,11 @@ export default function PedidoForm({
           type="button"
           onClick={() => handleSubmit("CONFIRMADO")}
           disabled={!!submitting}
+          className="font-semibold"
         >
           {submitting === "confirmado" ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Confirmando...</> : "Confirmar Pedido"}
         </Button>
-        <Button type="button" variant="ghost" onClick={() => router.back()} disabled={!!submitting}>
+        <Button type="button" variant="ghost" onClick={() => router.back()} disabled={!!submitting} className="text-gray-500 hover:text-gray-700">
           Cancelar
         </Button>
       </div>
