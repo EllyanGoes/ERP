@@ -302,8 +302,10 @@ export default function RelatorioMtbfPage() {
   const [loadingApl, setLoadingApl] = useState(true);
 
   // Seleção
-  const [codAplSel, setCodAplSel] = useState<number | null>(null);
-  const [codemp, setCodemp]       = useState("1");
+  const [codAplSel,  setCodAplSel]  = useState<number | null>(null);
+  const [codemp,     setCodemp]     = useState("1");
+  const [dataInicio, setDataInicio] = useState("");   // "YYYY-MM-DD"
+  const [dataFim,    setDataFim]    = useState("");
 
   // Resultado
   const [resultado, setResultado] = useState<MtbfAplicacaoResponse | null>(null);
@@ -325,11 +327,16 @@ export default function RelatorioMtbfPage() {
   // ── Buscar MTBF ────────────────────────────────────────────────────────────
   const buscar = useCallback(async () => {
     if (!codAplSel) { setError("Selecione uma aplicação."); return; }
+    if (dataInicio && dataFim && dataInicio > dataFim) {
+      setError("Data Início não pode ser maior que Data Fim."); return;
+    }
     setError("");
     setLoading(true);
     setResultado(null);
     try {
       const params = new URLSearchParams({ codApl: String(codAplSel), codemp });
+      if (dataInicio) params.set("dataInicio", dataInicio);
+      if (dataFim)    params.set("dataFim",    dataFim);
       const res  = await fetch(`/api/pcm/relatorio-mtbf?${params}`);
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Erro ao carregar dados."); return; }
@@ -339,7 +346,7 @@ export default function RelatorioMtbfPage() {
     } finally {
       setLoading(false);
     }
-  }, [codAplSel, codemp]);
+  }, [codAplSel, codemp, dataInicio, dataFim]);
 
   // Calcular média da tendência para linha de referência
   const mediasMtbf = useMemo(() => {
@@ -378,9 +385,9 @@ export default function RelatorioMtbfPage() {
               Parâmetros
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Linha 1: Aplicação + Empresa */}
             <div className="flex flex-wrap items-end gap-4">
-              {/* Aplicação */}
               <div className="flex-1 min-w-[280px] space-y-1.5">
                 <Label className="text-xs text-gray-500">
                   Aplicação <span className="text-red-500">*</span>
@@ -392,8 +399,6 @@ export default function RelatorioMtbfPage() {
                   loading={loadingApl}
                 />
               </div>
-
-              {/* Empresa */}
               <div className="w-28 space-y-1.5">
                 <Label className="text-xs text-gray-500">Empresa (CODEMP)</Label>
                 <Input
@@ -403,12 +408,79 @@ export default function RelatorioMtbfPage() {
                   placeholder="1"
                 />
               </div>
+            </div>
 
-              {/* Botão */}
+            {/* Linha 2: Período + Botão */}
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Data Início</Label>
+                <div className="relative">
+                  <Input
+                    type="date"
+                    value={dataInicio}
+                    onChange={(e) => { setDataInicio(e.target.value); setResultado(null); }}
+                    className="h-10 text-sm w-44 pr-8"
+                  />
+                  {dataInicio && (
+                    <button
+                      type="button"
+                      onClick={() => { setDataInicio(""); setResultado(null); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">Data Fim</Label>
+                <div className="relative">
+                  <Input
+                    type="date"
+                    value={dataFim}
+                    onChange={(e) => { setDataFim(e.target.value); setResultado(null); }}
+                    className="h-10 text-sm w-44 pr-8"
+                  />
+                  {dataFim && (
+                    <button
+                      type="button"
+                      onClick={() => { setDataFim(""); setResultado(null); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              {/* Atalhos rápidos */}
+              <div className="flex gap-1.5 pb-0.5">
+                {[
+                  { label: "30d",  days: 30 },
+                  { label: "90d",  days: 90 },
+                  { label: "6m",   days: 180 },
+                  { label: "1a",   days: 365 },
+                ].map(({ label, days }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => {
+                      const fim   = new Date();
+                      const ini   = new Date(fim);
+                      ini.setDate(ini.getDate() - days);
+                      setDataInicio(ini.toISOString().slice(0, 10));
+                      setDataFim(fim.toISOString().slice(0, 10));
+                      setResultado(null);
+                    }}
+                    className="px-2.5 py-1 text-xs font-medium rounded-md border border-gray-200 text-gray-600 hover:border-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <Button
                 onClick={buscar}
                 disabled={loading || !codAplSel}
-                className="h-10 gap-2"
+                className="h-10 gap-2 ml-auto"
               >
                 {loading ? (
                   <><RefreshCw className="w-4 h-4 animate-spin" /> Calculando…</>
@@ -417,6 +489,23 @@ export default function RelatorioMtbfPage() {
                 )}
               </Button>
             </div>
+
+            {/* Período ativo */}
+            {(dataInicio || dataFim) && (
+              <p className="text-xs text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2 flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 shrink-0" />
+                Período filtrado: <strong>{dataInicio ? new Date(dataInicio + "T12:00:00").toLocaleDateString("pt-BR") : "início"}</strong>
+                {" até "}
+                <strong>{dataFim ? new Date(dataFim + "T12:00:00").toLocaleDateString("pt-BR") : "hoje"}</strong>
+                <button
+                  type="button"
+                  onClick={() => { setDataInicio(""); setDataFim(""); setResultado(null); }}
+                  className="ml-auto text-orange-400 hover:text-orange-600 underline text-xs"
+                >
+                  Limpar
+                </button>
+              </p>
+            )}
 
             {error && (
               <div className="mt-3 flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
