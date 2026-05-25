@@ -513,6 +513,7 @@ model Item {
   pesoBruto             Decimal?                @db.Decimal(10, 3)
   ativo                 Boolean                 @default(true)
   favorito              Boolean                 @default(false)
+  vendavel              Boolean                 @default(false)
   estoqueMinimo         Decimal?                @db.Decimal(15, 3)
   estoqueMaximo         Decimal?                @db.Decimal(15, 3)
   pontoReposicao        Decimal?                @db.Decimal(15, 3)

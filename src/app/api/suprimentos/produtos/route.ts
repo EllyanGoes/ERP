@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
         tipoProdutoId: body.tipoProdutoId || null,
         ncm: body.ncm?.trim() || null,
         precoVenda: parseFloat(body.precoVenda) || 0,
+        vendavel: body.vendavel === true,
       },
     });
 

@@ -50,6 +50,7 @@ type Item = {
   precoCusto: unknown;
   ativo: boolean;
   favorito: boolean;
+  vendavel: boolean;
   estoqueMinimo: unknown;
   estoqueMaximo: unknown;
   pontoReposicao: unknown;
@@ -761,6 +762,31 @@ export default function ProdutoDetailPage() {
                         </SelectContent>
                       </Select>
                     </Field>
+
+                    {/* Vendável — edit */}
+                    <div className="md:col-span-2">
+                      <label className="flex items-start gap-3 cursor-pointer select-none group">
+                        <div className="relative mt-0.5">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(form.vendavel)}
+                            onChange={(e) => setForm((p) => ({ ...p, vendavel: e.target.checked }))}
+                            className="sr-only peer"
+                          />
+                          <div className="w-5 h-5 rounded border-2 border-gray-300 bg-white peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-colors group-hover:border-blue-400 flex items-center justify-center">
+                            {Boolean(form.vendavel) && (
+                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">Este produto é vendável</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Pode ser incluído em Pedidos de Venda.</p>
+                        </div>
+                      </label>
+                    </div>
                   </>
                 ) : (
                   <>
@@ -830,6 +856,22 @@ export default function ProdutoDetailPage() {
                     </div>
 
                     <Info label="NCM" value={item.ncm} />
+                    {/* Vendável — view */}
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-gray-500">Vendável</p>
+                      <span className={cn(
+                        "inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full",
+                        item.vendavel
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-gray-100 text-gray-500"
+                      )}>
+                        {item.vendavel ? (
+                          <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Sim — disponível para venda</>
+                        ) : (
+                          <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>Não vendável</>
+                        )}
+                      </span>
+                    </div>
                     {item.observacoes && <Info label="Observações" value={item.observacoes} colSpan />}
                   </>
                 )}
