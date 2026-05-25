@@ -130,6 +130,14 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
+  // Close on scroll so the popover doesn't drift away from the trigger
+  useEffect(() => {
+    if (!open) return;
+    function onScroll() { setOpen(false); }
+    window.addEventListener("scroll", onScroll, true); // capture catches nested scrollers
+    return () => window.removeEventListener("scroll", onScroll, true);
+  }, [open]);
+
   // When opened: sync calendar view + compute fixed position for the portal
   useEffect(() => {
     if (!open) return;
