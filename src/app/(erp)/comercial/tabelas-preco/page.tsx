@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Tag, CheckCircle2, XCircle, ShoppingBag, Pencil } from "lucide-react";
+import { Plus, Search, Tag, CheckCircle2, XCircle, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 
@@ -158,10 +158,7 @@ export default function TabelasPrecoPage() {
                   <th className="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Descrição</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Data Inicial</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Data Final</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Cond. Pgto.</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Tipo Horário</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Tab. Ativa</th>
-                  <th className="text-center px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">E-Commerce</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-600 text-xs uppercase tracking-wide">Itens</th>
                   <th className="w-12 px-4 py-3" />
                 </tr>
@@ -177,17 +174,10 @@ export default function TabelasPrecoPage() {
                     <td className="px-4 py-3 font-medium text-gray-900 group-hover:text-blue-700">{t.descricao}</td>
                     <td className="px-4 py-3 text-gray-600">{fmtDate(t.dataInicial)}</td>
                     <td className="px-4 py-3 text-gray-500">{fmtDate(t.dataFinal)}</td>
-                    <td className="px-4 py-3 text-gray-600">{t.condicaoPagamento || "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{t.tipoHorario === "UNICO" ? "Único" : "Múltiplo"}</td>
                     <td className="px-4 py-3 text-center">
                       {t.ativa
                         ? <CheckCircle2 className="w-4 h-4 text-green-500 mx-auto" />
                         : <XCircle    className="w-4 h-4 text-gray-300 mx-auto" />}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {t.ecommerce
-                        ? <ShoppingBag className="w-4 h-4 text-blue-500 mx-auto" />
-                        : <span className="text-gray-300 text-xs">—</span>}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-gray-700 text-xs font-semibold">

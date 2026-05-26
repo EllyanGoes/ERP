@@ -47,6 +47,7 @@ export default function NovoProdutoPage() {
   const [form, setForm] = useState<FormData>({
     ...INITIAL,
     descricao: searchParams.get("descricao") ?? searchParams.get("nome") ?? "",
+    vendavel:  searchParams.get("vendavel") === "1" ? true : false,
   });
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [saving, setSaving] = useState(false);
