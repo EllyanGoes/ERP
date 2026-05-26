@@ -6,12 +6,15 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q              = searchParams.get("q") || "";
   const ativoParam     = searchParams.get("ativo");
+  const vendavelParam  = searchParams.get("vendavel");
   const tipoProdutoId  = searchParams.get("tipoProdutoId") || undefined;
 
-  const ativoFilter = ativoParam === "true" ? true : ativoParam === "false" ? false : undefined;
+  const ativoFilter    = ativoParam    === "true" ? true : ativoParam    === "false" ? false : undefined;
+  const vendavelFilter = vendavelParam === "true" ? true : vendavelParam === "false" ? false : undefined;
 
   const andClauses: object[] = [];
-  if (ativoFilter !== undefined) andClauses.push({ ativo: ativoFilter });
+  if (ativoFilter    !== undefined) andClauses.push({ ativo:    ativoFilter });
+  if (vendavelFilter !== undefined) andClauses.push({ vendavel: vendavelFilter });
   if (tipoProdutoId) andClauses.push({ tipoProdutoId });
   if (q) {
     andClauses.push({

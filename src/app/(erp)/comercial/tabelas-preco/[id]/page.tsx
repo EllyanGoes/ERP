@@ -214,7 +214,7 @@ export default function TabelaPrecoDetailPage() {
       setSearching(true);
       try {
         const q = searchQuery.trim();
-        const res = await fetch(`/api/suprimentos/produtos?q=${encodeURIComponent(q)}&limit=20`);
+        const res = await fetch(`/api/suprimentos/produtos?vendavel=true&q=${encodeURIComponent(q)}&limit=20`);
         const json = await res.json();
         setSearchResults(json.data ?? []);
       } catch { /* ignore */ }
