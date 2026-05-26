@@ -192,18 +192,20 @@ export default function LocaisEstoquePage() {
         )}
 
         {/* Summary */}
-        <div className="grid grid-cols-3 gap-4 max-w-lg">
-          <div className="rounded-xl p-4 bg-emerald-50 text-emerald-700">
-            <p className="text-sm font-medium opacity-75">Locais</p>
-            <p className="text-3xl font-bold mt-1">{locais.length}</p>
+        <div className="inline-flex items-stretch rounded-xl border border-gray-200 bg-white shadow-sm divide-x divide-gray-200 overflow-hidden">
+          <div className="px-5 py-3">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Locais</p>
+            <p className="text-2xl font-bold text-emerald-700 mt-0.5 tabular-nums">{locais.length}</p>
           </div>
-          <div className="rounded-xl p-4 bg-blue-50 text-blue-700">
-            <p className="text-sm font-medium opacity-75">Produtos alocados</p>
-            <p className="text-3xl font-bold mt-1">{totalProdutos}</p>
+          <div className="px-5 py-3">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Produtos alocados</p>
+            <p className="text-2xl font-bold text-blue-700 mt-0.5 tabular-nums">{totalProdutos}</p>
           </div>
-          <div className="rounded-xl p-4 bg-violet-50 text-violet-700">
-            <p className="text-sm font-medium opacity-75">Custo Total Estoque</p>
-            <p className="text-xl font-bold mt-1">{custoTotalGeral > 0 ? formatBRL(custoTotalGeral) : "—"}</p>
+          <div className="px-5 py-3">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Custo Total Estoque</p>
+            <p className="text-lg font-bold text-violet-700 mt-0.5 tabular-nums leading-tight">
+              {custoTotalGeral > 0 ? formatBRL(custoTotalGeral) : <span className="text-gray-300">—</span>}
+            </p>
           </div>
         </div>
 
