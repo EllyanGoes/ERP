@@ -21,6 +21,7 @@ import {
   UserCog, ShieldCheck,
   Settings2, Plug,
   Building2, Clock,
+  Wrench, Database, MessageCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -83,6 +84,8 @@ export const ROUTES: RouteEntry[] = [
   { href: "/suprimentos/formas-pagamento",         label: "Formas de Pagamento",     group: "Empresa",        section: "Compras",          icon: CreditCard },
   { href: "/empresa/centros-custo",                label: "Centros de Custo",        group: "Empresa",        section: "Financeiro",       icon: CircleDot },
 
+  { href: "/comercial/tabelas-preco",              label: "Tabelas de Preço",        group: "Comercial",      section: "Cadastros",        icon: Tag,            keywords: "tabela preço lista precos" },
+  { href: "/comercial/produtos-venda",             label: "Produtos para Venda",     group: "Comercial",      section: "Cadastros",        icon: Package,        keywords: "produto vendável catálogo" },
   { href: "/pedidos-venda",                        label: "Pedidos de Venda",        group: "Comercial",      section: "Comercial",        icon: ShoppingCart },
 
   { href: "/suprimentos/estoque",                  label: "Posição de Estoque",      group: "Almoxarifado",   section: "Estoque",          icon: PackageSearch },
@@ -90,10 +93,11 @@ export const ROUTES: RouteEntry[] = [
   { href: "/suprimentos/requisicoes-materiais",    label: "Req/Dev de Materiais",    group: "Almoxarifado",   section: "Estoque",          icon: ClipboardList,  keywords: "requisição devolução materiais" },
   { href: "/suprimentos/inventarios-materiais",    label: "Inventário",              group: "Almoxarifado",   section: "Estoque",          icon: ClipboardCheck },
 
-  { href: "/suprimentos/relatorios/movimentacoes", label: "Entradas e Saídas",       group: "Almoxarifado",   section: "Relatórios",       icon: FileBarChart2 },
-  { href: "/suprimentos/relatorios/curva-abc",     label: "Curva ABC",               group: "Almoxarifado",   section: "Relatórios",       icon: PieChart },
-  { href: "/suprimentos/relatorios/imd",           label: "IMD — Demandas",          group: "Almoxarifado",   section: "Relatórios",       icon: BarChart3,      keywords: "imd demandas" },
-  { href: "/suprimentos/relatorios/consumo",       label: "Análise de Consumo",      group: "Almoxarifado",   section: "Relatórios",       icon: Activity },
+  { href: "/suprimentos/relatorios/movimentacoes",  label: "Entradas e Saídas",       group: "Almoxarifado",   section: "Relatórios",       icon: FileBarChart2 },
+  { href: "/suprimentos/relatorios/curva-abc",      label: "Curva ABC",               group: "Almoxarifado",   section: "Relatórios",       icon: PieChart },
+  { href: "/suprimentos/relatorios/imd",            label: "IMD — Demandas",          group: "Almoxarifado",   section: "Relatórios",       icon: BarChart3,      keywords: "imd demandas" },
+  { href: "/suprimentos/relatorios/consumo",        label: "Análise de Consumo",      group: "Almoxarifado",   section: "Relatórios",       icon: Activity },
+  { href: "/suprimentos/relatorios/caracterizacao", label: "Caracterização",          group: "Almoxarifado",   section: "Relatórios",       icon: FileBarChart2,  keywords: "caracterização produtos laudo" },
 
   { href: "/aprovacoes",                           label: "Minhas Aprovações",       group: "Compras",        section: "Aprovações",       icon: ThumbsUp },
   { href: "/compras/necessidades",                 label: "Solicitação de Compras",  group: "Compras",        section: "Fluxo de Compras", icon: ClipboardList,  keywords: "SC necessidade" },
@@ -112,8 +116,15 @@ export const ROUTES: RouteEntry[] = [
   { href: "/admin/usuarios",                       label: "Usuários",                group: "Administração",  section: "Sistema",          icon: UserCog },
   { href: "/admin/perfis",                         label: "Perfis de Acesso",        group: "Administração",  section: "Sistema",          icon: ShieldCheck },
 
+  { href: "/pcm/dashboard",                        label: "PCM — Resultados",        group: "PCM",            section: "Manutenção",       icon: BarChart3,      keywords: "pcm manutenção resultados dashboard" },
+  { href: "/pcm/ordens",                           label: "Relatório de O.S.",       group: "PCM",            section: "Manutenção",       icon: ClipboardList,  keywords: "pcm ordens serviço OS manutenção" },
+  { href: "/pcm/relatorio-mtbf",                   label: "Relatório MTBF",          group: "PCM",            section: "Manutenção",       icon: Activity,       keywords: "pcm mtbf tempo médio falhas" },
+
   { href: "/configuracoes/aprovacoes",             label: "Aprovações",              group: "Configurações",  section: "Configurações",    icon: Settings2 },
   { href: "/configuracoes/integracoes",            label: "Integrações",             group: "Configurações",  section: "Configurações",    icon: Plug },
+  { href: "/configuracoes/integracoes/db-engeman", label: "Integração DB Engeman",   group: "Configurações",  section: "Configurações",    icon: Database,       keywords: "engeman integração banco dados" },
+  { href: "/configuracoes/integracoes/telegram",   label: "Integração Telegram",     group: "Configurações",  section: "Configurações",    icon: MessageCircle,  keywords: "telegram notificação bot" },
+  { href: "/configuracoes/integracoes/whatsapp",   label: "Integração WhatsApp",     group: "Configurações",  section: "Configurações",    icon: MessageCircle,  keywords: "whatsapp notificação mensagem" },
 ];
 
 // ── Lookup helpers ────────────────────────────────────────────────────────────
