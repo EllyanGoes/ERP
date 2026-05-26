@@ -32,7 +32,7 @@ type MinutaDoPedido = {
   status: "PENDENTE" | "SAIU_PARA_ENTREGA" | "ENTREGUE" | "CANCELADA";
   dataEmissao: string;
   dataEntrega: string | null;
-  motorista: string | null;
+  motorista: { id: string; nome: string } | null;
   placa: string | null;
   localEstoque: { id: string; nome: string } | null;
   itens: { id: string; pedidoVendaItemId: string; quantidade: string; quantidadeConvertida: string | null; unidade: { id: string; sigla: string } | null }[];
@@ -302,7 +302,7 @@ export default function PedidoDetail({ pedido }: PedidoDetailProps) {
                         </td>
                         <td className="py-2.5 text-gray-600">{fmtDate(m.dataEmissao)}</td>
                         <td className="py-2.5 text-gray-600">{fmtDate(m.dataEntrega)}</td>
-                        <td className="py-2.5 text-gray-600">{m.motorista ?? "—"}</td>
+                        <td className="py-2.5 text-gray-600">{m.motorista?.nome ?? "—"}</td>
                         <td className="py-2.5 text-gray-600">{m.localEstoque?.nome ?? "—"}</td>
                         <td className="py-2.5 text-right text-gray-600">{m.itens.length}</td>
                       </tr>

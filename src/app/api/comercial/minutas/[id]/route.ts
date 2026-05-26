@@ -27,6 +27,7 @@ const MINUTA_INCLUDE = {
     },
   },
   localEstoque: { select: { id: true, nome: true } },
+  motorista:    { select: { id: true, nome: true } },
   itens: {
     include: {
       item: { select: { id: true, codigo: true, descricao: true } },
@@ -85,7 +86,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     const updateData: Record<string, unknown> = {};
-    if (body.motorista    !== undefined) updateData.motorista    = body.motorista    || null;
+    if (body.motoristaId  !== undefined) updateData.motoristaId  = body.motoristaId  || null;
     if (body.placa        !== undefined) updateData.placa        = body.placa        || null;
     if (body.dataEntrega  !== undefined) updateData.dataEntrega  = body.dataEntrega  ? new Date(body.dataEntrega) : null;
     if (body.localEstoqueId !== undefined) updateData.localEstoqueId = body.localEstoqueId || null;

@@ -49,7 +49,7 @@ type PedidoVenda = {
 type LocalEstoque = {
   id: string;
   nome: string;
-  estoqueItens: { item: { id: string } }[];
+  estoqueItens: { itemId: string }[];
 };
 
 type Motorista = { id: string; nome: string };
@@ -366,7 +366,7 @@ export default function NovaMinutaPage() {
                 {(() => {
                   const itemIds = new Set(rows.map(r => r.itemId));
                   const locaisFiltrados = pedido && itemIds.size > 0
-                    ? locais.filter(l => l.estoqueItens.some(e => itemIds.has(e.item.id)))
+                    ? locais.filter(l => l.estoqueItens.some(e => itemIds.has(e.itemId)))
                     : locais;
                   return (
                     <Select value={localEstoqueId} onValueChange={setLocalEstoqueId}>

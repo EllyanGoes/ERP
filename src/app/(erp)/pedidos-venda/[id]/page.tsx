@@ -32,6 +32,7 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
       minutas: {
         include: {
           localEstoque: { select: { id: true, nome: true } },
+          motorista:    { select: { id: true, nome: true } },
           itens: {
             select: {
               id: true, pedidoVendaItemId: true, itemId: true,

@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
       _count: { select: { estoqueItens: true } },
       estoqueItens: {
         select: {
+          itemId: true,
           quantidadeAtual: true,
           item: { select: { precoCusto: true } },
         },
