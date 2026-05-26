@@ -121,7 +121,8 @@ export default function TabelaPrecoDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [saveError, setSaveError] = useState("");
+  const [saveError,   setSaveError]   = useState("");
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [dirty, setDirty] = useState(false);
 
   // Header form
@@ -259,7 +260,7 @@ export default function TabelaPrecoDetailPage() {
   async function handleSave() {
     if (!form.descricao.trim()) { setSaveError("Descrição obrigatória"); return; }
     if (!form.dataInicial)      { setSaveError("Data Inicial obrigatória"); return; }
-    setSaving(true); setSaveError("");
+    setSaving(true); setSaveError(""); setSaveSuccess(false);
     try {
       const payload = {
         ...form,
@@ -290,6 +291,8 @@ export default function TabelaPrecoDetailPage() {
       setTabela(t);
       setItens(t.itens.map(rowFromDB));
       setDirty(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 4000);
     } catch { setSaveError("Erro de conexão"); }
     finally { setSaving(false); }
   }
@@ -335,8 +338,17 @@ export default function TabelaPrecoDetailPage() {
       />
 
       <div className="px-8 pb-8 max-w-6xl space-y-6">
+        {saveSuccess && (
+          <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm font-medium">
+            <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+            Alterações salvas com sucesso!
+          </div>
+        )}
         {saveError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{saveError}</div>
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+            <XCircle className="w-4 h-4 shrink-0" />
+            {saveError}
+          </div>
         )}
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
