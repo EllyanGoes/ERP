@@ -6,7 +6,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Plus, Search, X, Loader2 } from "lucide-react";
-import { formatBRL, decimalToNumber, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 
 type Produto = {
@@ -106,7 +106,6 @@ export default function ProdutosVendaPage() {
                   <th className="text-left px-4 py-3 font-semibold">Descrição</th>
                   <th className="text-left px-4 py-3 font-semibold">Tipo</th>
                   <th className="text-center px-4 py-3 font-semibold w-16">U.M.</th>
-                  <th className="text-right px-4 py-3 font-semibold">Preço Venda</th>
                   <th className="text-center px-4 py-3 font-semibold w-24">Status</th>
                 </tr>
               </thead>
@@ -128,9 +127,6 @@ export default function ProdutosVendaPage() {
                       <span className="font-mono text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
                         {item.unidade?.sigla || item.unidadeMedida || "—"}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-gray-800">
-                      {item.precoVenda ? formatBRL(decimalToNumber(item.precoVenda)) : <span className="text-gray-400 font-normal text-xs">—</span>}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={cn(
