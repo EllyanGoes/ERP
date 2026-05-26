@@ -92,6 +92,7 @@ type TabsContextType = {
   activeHref: string;
   setTabTitle: (title: string) => void;
   closeTab: (id: string) => void;
+  closeOthers: () => void;
   reorderTabs: (fromId: string, toId: string, side: "before" | "after") => void;
 };
 
@@ -101,6 +102,7 @@ const TabsContext = createContext<TabsContextType>({
   activeHref: "/",
   setTabTitle: () => {},
   closeTab: () => {},
+  closeOthers: () => {},
   reorderTabs: () => {},
 });
 
@@ -212,6 +214,22 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
     });
   }, [pathname, router]);
 
+  const closeOthers = useCallback(() => {
+    setTabs((prev) => prev.filter((t) => t.href === pathname));
+  }, [pathname]);
+
+  // Cmd+R (Mac) / Ctrl+R (Windows) → close all other tabs, keep current
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "r" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setTabs((prev) => prev.filter((t) => t.href === pathname));
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [pathname]);
+
   const reorderTabs = useCallback((fromId: string, toId: string, side: "before" | "after") => {
     setTabs((prev) => {
       const fromIdx = prev.findIndex((t) => t.id === fromId);
@@ -226,7 +244,7 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <TabsContext.Provider value={{ tabs, activeHref: pathname, setTabTitle, closeTab, reorderTabs }}>
+    <TabsContext.Provider value={{ tabs, activeHref: pathname, setTabTitle, closeTab, closeOthers, reorderTabs }}>
       {children}
     </TabsContext.Provider>
   );
