@@ -825,15 +825,29 @@ model ProdutoFornecedor {
 
 // ── Minutas de Entrega ────────────────────────────────────────────────────────
 
+model Motorista {
+  id        String    @id @default(cuid())
+  nome      String
+  cpf       String?
+  cnh       String?
+  telefone  String?
+  ativo     Boolean   @default(true)
+  minutas   Minuta[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([ativo])
+}
+
 model Minuta {
   id             String       @id @default(cuid())
   numero         String       @unique
   pedidoVendaId  String
   localEstoqueId String?
+  motoristaId    String?
   status         StatusMinuta @default(PENDENTE)
   dataEmissao    DateTime     @default(now())
   dataEntrega    DateTime?
-  motorista      String?
   placa          String?
   observacoes    String?
   createdAt      DateTime     @default(now())
@@ -841,10 +855,12 @@ model Minuta {
 
   pedidoVenda  PedidoVenda   @relation(fields: [pedidoVendaId], references: [id])
   localEstoque LocalEstoque? @relation(fields: [localEstoqueId], references: [id])
+  motorista    Motorista?    @relation(fields: [motoristaId], references: [id])
   itens        MinutaItem[]
 
   @@index([pedidoVendaId])
   @@index([status])
+  @@index([motoristaId])
 }
 
 model MinutaItem {

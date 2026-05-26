@@ -52,6 +52,8 @@ type LocalEstoque = {
   estoqueItens: { item: { id: string } }[];
 };
 
+type Motorista = { id: string; nome: string };
+
 type ItemRow = {
   pvItemId: string;
   itemId: string;
@@ -84,11 +86,12 @@ export default function NovaMinutaPage() {
   const [pedidoVendaId, setPedidoVendaId] = useState(pedidoVendaIdParam ?? "");
   const [pedido, setPedido] = useState<PedidoVenda | null>(null);
   const [locais, setLocais] = useState<LocalEstoque[]>([]);
+  const [motoristas, setMotoristas] = useState<Motorista[]>([]);
 
   // Form fields
   const [localEstoqueId, setLocalEstoqueId] = useState("");
+  const [motoristaId, setMotoristaId] = useState("");
   const [dataEntrega, setDataEntrega] = useState("");
-  const [motorista, setMotorista] = useState("");
   const [placa, setPlaca] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [rows, setRows] = useState<ItemRow[]>([]);
@@ -106,11 +109,14 @@ export default function NovaMinutaPage() {
     }
   }, [pedidoVendaIdParam]);
 
-  // Load locais de estoque
+  // Load locais de estoque + motoristas
   useEffect(() => {
     fetch("/api/suprimentos/locais-estoque?ativo=true")
       .then(r => r.json())
       .then(j => setLocais(Array.isArray(j) ? j : []));
+    fetch("/api/comercial/motoristas?ativo=true")
+      .then(r => r.json())
+      .then(j => setMotoristas(Array.isArray(j) ? j : []));
   }, []);
 
   // Load selected pedido
@@ -211,8 +217,8 @@ export default function NovaMinutaPage() {
         body: JSON.stringify({
           pedidoVendaId,
           localEstoqueId: localEstoqueId || null,
+          motoristaId:    motoristaId || null,
           dataEntrega:    dataEntrega || null,
-          motorista:      motorista || null,
           placa:          placa || null,
           observacoes:    observacoes || null,
           itens,
@@ -389,12 +395,18 @@ export default function NovaMinutaPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Motorista</label>
-                <Input
-                  value={motorista}
-                  onChange={e => setMotorista(e.target.value)}
-                  className="h-10 border-gray-300"
-                  placeholder="Nome do motorista"
-                />
+                <Select value={motoristaId} onValueChange={setMotoristaId}>
+                  <SelectTrigger className="h-10 border-gray-300">
+                    <SelectValue placeholder="Selecione o motorista..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {motoristas.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-gray-400 italic">Nenhum motorista cadastrado</div>
+                    ) : motoristas.map(m => (
+                      <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Placa</label>

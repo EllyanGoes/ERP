@@ -31,7 +31,7 @@ type Minuta = {
   status: StatusMinuta;
   dataEmissao: string;
   dataEntrega: string | null;
-  motorista: string | null;
+  motorista: { id: string; nome: string } | null;
   placa: string | null;
   observacoes: string | null;
   pedidoVenda: {
@@ -281,7 +281,7 @@ export default function MinutaDetailPage() {
               </div>
               <div>
                 <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Motorista</div>
-                <div className="text-gray-800">{minuta.motorista ?? "—"}</div>
+                <div className="text-gray-800">{minuta.motorista?.nome ?? "—"}</div>
               </div>
               <div>
                 <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Placa</div>

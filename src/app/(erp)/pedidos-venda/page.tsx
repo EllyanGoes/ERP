@@ -29,6 +29,7 @@ type PedidoRow = {
   valorTotal: unknown;
   condicaoPagamento: string | null;
   cliente: { id: string; razaoSocial: string; nomeFantasia: string | null };
+  _count?: { minutas: number };
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -140,6 +141,21 @@ const COLS: ColDef<PedidoRow>[] = [
     thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden xl:table-cell",
     tdClass: "px-4 py-3 text-gray-500 text-sm hidden xl:table-cell",
     render: (p) => p.condicaoPagamento ?? <span className="text-gray-300">—</span>,
+  },
+  {
+    id: "minutas",
+    label: "Minutas",
+    thClass: "text-center px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-center",
+    render: (p) => {
+      const n = p._count?.minutas ?? 0;
+      if (n === 0) return <span className="text-gray-300 text-xs">—</span>;
+      return (
+        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
+          {n}
+        </span>
+      );
+    },
   },
   {
     id: "valorTotal",

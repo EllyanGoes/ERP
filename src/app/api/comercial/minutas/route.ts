@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
           },
         },
         localEstoque: { select: { id: true, nome: true } },
+        motorista: { select: { id: true, nome: true } },
         itens: {
           include: {
             item: { select: { id: true, codigo: true, descricao: true } },
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    const { pedidoVendaId, localEstoqueId, dataEntrega, motorista, placa, observacoes, itens } = body;
+    const { pedidoVendaId, localEstoqueId, motoristaId, dataEntrega, placa, observacoes, itens } = body;
 
     if (!pedidoVendaId) {
       return NextResponse.json({ error: "pedidoVendaId é obrigatório" }, { status: 400 });
@@ -69,9 +70,9 @@ export async function POST(req: NextRequest) {
           numero,
           pedidoVendaId,
           localEstoqueId: localEstoqueId || null,
+          motoristaId: motoristaId || null,
           status: "PENDENTE",
           dataEntrega: dataEntrega ? new Date(dataEntrega) : null,
-          motorista: motorista || null,
           placa: placa || null,
           observacoes: observacoes || null,
           itens: {
@@ -99,6 +100,7 @@ export async function POST(req: NextRequest) {
             },
           },
           localEstoque: { select: { id: true, nome: true } },
+          motorista: { select: { id: true, nome: true } },
           itens: {
             include: {
               item: { select: { id: true, codigo: true, descricao: true } },

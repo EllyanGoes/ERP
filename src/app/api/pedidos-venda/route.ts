@@ -26,7 +26,10 @@ export async function GET(req: NextRequest) {
   const [data, total] = await Promise.all([
     prisma.pedidoVenda.findMany({
       where,
-      include: { cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
+      include: {
+        cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+        _count: { select: { minutas: true } },
+      },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * limit,
       take: limit,
