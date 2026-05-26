@@ -179,7 +179,10 @@ export default function TabelaPrecoDetailPage() {
       if (!(e.target as HTMLElement).closest("[data-prod-search]"))
         closeSearch();
     }
-    function onScroll() { closeSearch(); }
+    function onScroll(e: Event) {
+      if ((e.target as HTMLElement).closest?.("[data-prod-search]")) return;
+      closeSearch();
+    }
     document.addEventListener("mousedown", handle);
     window.addEventListener("scroll", onScroll, true);
     return () => {

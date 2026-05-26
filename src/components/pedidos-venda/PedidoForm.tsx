@@ -146,7 +146,10 @@ export default function PedidoForm({
       if (!(e.target as HTMLElement).closest("[data-item-search]"))
         closeItemSearch();
     }
-    function onScroll() { closeItemSearch(); }
+    function onScroll(e: Event) {
+      if ((e.target as HTMLElement).closest?.("[data-item-search]")) return;
+      closeItemSearch();
+    }
     document.addEventListener("mousedown", h);
     window.addEventListener("scroll", onScroll, true);
     return () => {
