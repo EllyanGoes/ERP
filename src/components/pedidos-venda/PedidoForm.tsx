@@ -37,8 +37,9 @@ type LineItem = {
   unidadeBaseId: string;     // id da unidade base do item
   fatorConversao: number;    // qty_digitada × fator = qty_base
   itemUnidades: ItemUnidadeOption[]; // unidades disponíveis para o item
-  quantidade: string;
-  precoUnitario: string;
+  quantidade: string;           // em unidade selecionada (ex: PLT)
+  quantidadeUnitaria: string;   // em unidade base = quantidade × fator (ex: 400 UN)
+  precoUnitario: string;        // preço por unidade base
   descontoPct: string;   // %
   valorDesconto: string; // R$ computed
   valorTotal: string;    // R$ computed
@@ -58,7 +59,7 @@ function emptyLine(): LineItem {
     _key: crypto.randomUUID(), itemId: "",
     codigo: "", descricao: "", unidade: "",
     unidadeId: "", unidadeBaseId: "", fatorConversao: 1, itemUnidades: [],
-    quantidade: "1", precoUnitario: "0",
+    quantidade: "1", quantidadeUnitaria: "1", precoUnitario: "0",
     descontoPct: "0", valorDesconto: "0", valorTotal: "0",
   };
 }
@@ -272,18 +273,27 @@ export default function PedidoForm({
     setLinhas((prev) => prev.map((l) => {
       if (l._key !== key) return l;
       const updated = { ...l, [field]: value };
-      const qty   = parseFloat(field === "quantidade"    ? value : l.quantidade)    || 0;
-      const price = parseFloat(field === "precoUnitario" ? value : l.precoUnitario) || 0;
-      const bruto = qty * price;
 
-      if (field === "quantidade" || field === "precoUnitario" || field === "descontoPct") {
-        // % → recalc R$ value
+      // Quando quantidade muda → recalcula quantidadeUnitaria
+      if (field === "quantidade") {
+        const qty = parseFloat(value) || 0;
+        updated.quantidadeUnitaria = (qty * l.fatorConversao).toFixed(3).replace(/\.?0+$/, "");
+      }
+      // Quando quantidadeUnitaria é editada diretamente → mantém como está
+
+      // A base de cálculo é sempre quantidadeUnitaria
+      const qtdUnit = parseFloat(
+        field === "quantidadeUnitaria" ? value : updated.quantidadeUnitaria
+      ) || 0;
+      const price = parseFloat(field === "precoUnitario" ? value : l.precoUnitario) || 0;
+      const bruto = qtdUnit * price;
+
+      if (["quantidade", "quantidadeUnitaria", "precoUnitario", "descontoPct"].includes(field)) {
         const pct = parseFloat(field === "descontoPct" ? value : l.descontoPct) || 0;
-        const { valorDesconto, valorTotal } = calcLine(qty, price, pct);
+        const { valorDesconto, valorTotal } = calcLine(qtdUnit, price, pct);
         updated.valorDesconto = valorDesconto.toFixed(2);
         updated.valorTotal    = valorTotal.toFixed(2);
       } else if (field === "valorDesconto") {
-        // R$ value → back-calc %
         const vlrDesc = parseFloat(value) || 0;
         updated.descontoPct = bruto > 0 ? ((vlrDesc / bruto) * 100).toFixed(4) : "0";
         updated.valorTotal  = (bruto - vlrDesc).toFixed(2);
@@ -307,6 +317,7 @@ export default function PedidoForm({
     setLinhas((prev) => prev.map((l) => {
       if (l._key !== key) return l;
       const qty = parseFloat(l.quantidade) || 1;
+      // fator = 1 (unidade base selecionada), então qtdUnit = qty
       const { valorDesconto, valorTotal } = calcLine(qty, finalPrice, pct);
       return {
         ...l, itemId: prod.id,
@@ -314,6 +325,7 @@ export default function PedidoForm({
         unidade: baseUnitSigla, unidadeId: baseUnitId,
         unidadeBaseId: baseUnitId, fatorConversao: 1,
         itemUnidades,
+        quantidadeUnitaria: qty.toString(),
         precoUnitario: finalPrice.toFixed(2),
         descontoPct:   pct.toFixed(4),
         valorDesconto: valorDesconto.toFixed(2),
@@ -330,14 +342,16 @@ export default function PedidoForm({
 
       // Base unit (fator = 1)
       if (newUnidadeId === l.unidadeBaseId || !newUnidadeId) {
-        const qty   = parseFloat(l.quantidade) || 0;
-        const price = parseFloat(l.precoUnitario) || 0;
-        const pct   = parseFloat(l.descontoPct) || 0;
-        const { valorDesconto, valorTotal } = calcLine(qty, price, pct);
+        const qty     = parseFloat(l.quantidade) || 0;
+        const qtdUnit = qty; // fator = 1
+        const price   = parseFloat(l.precoUnitario) || 0;
+        const pct     = parseFloat(l.descontoPct) || 0;
+        const { valorDesconto, valorTotal } = calcLine(qtdUnit, price, pct);
         return {
           ...l,
           unidadeId: l.unidadeBaseId,
           fatorConversao: 1,
+          quantidadeUnitaria: qty.toString(),
           unidade: l.itemUnidades.find((u) => u.unidadeId === l.unidadeBaseId)?.unidade.sigla
             ?? l.unidade,
           valorDesconto: valorDesconto.toFixed(2),
@@ -348,17 +362,18 @@ export default function PedidoForm({
       // Alternative unit
       const iu = l.itemUnidades.find((u) => u.unidadeId === newUnidadeId);
       if (!iu) return l;
-      const fator = decimalToNumber(iu.fatorConversao) || 1;
-
-      const qty   = parseFloat(l.quantidade) || 0;
-      const price = parseFloat(l.precoUnitario) || 0;
-      const pct   = parseFloat(l.descontoPct) || 0;
-      const { valorDesconto, valorTotal } = calcLine(qty, price, pct);
+      const fator   = decimalToNumber(iu.fatorConversao) || 1;
+      const qty     = parseFloat(l.quantidade) || 0;
+      const qtdUnit = qty * fator;
+      const price   = parseFloat(l.precoUnitario) || 0;
+      const pct     = parseFloat(l.descontoPct) || 0;
+      const { valorDesconto, valorTotal } = calcLine(qtdUnit, price, pct);
 
       return {
         ...l,
         unidadeId: newUnidadeId,
         fatorConversao: fator,
+        quantidadeUnitaria: qtdUnit.toFixed(3).replace(/\.?0+$/, ""),
         unidade: iu.unidade.sigla,
         valorDesconto: valorDesconto.toFixed(2),
         valorTotal:    valorTotal.toFixed(2),
@@ -394,18 +409,15 @@ export default function PedidoForm({
         valorFrete: freteVal,
         observacoes: observacoes || null,
         itens: linhas.map((l) => {
-          const qtdDigitada  = parseFloat(l.quantidade)    || 0;
-          const fator        = l.fatorConversao            || 1;
-          const qtdBase      = qtdDigitada * fator;
-          const priceUnit    = parseFloat(l.precoUnitario) || 0;
-          // precoUnitario salvo é sempre por unidade base
-          const priceBase    = fator > 1 ? priceUnit / fator : priceUnit;
-          const pct          = parseFloat(l.descontoPct)   || 0;
-          const { valorDesconto, valorTotal } = calcLine(qtdBase, priceBase, pct);
+          // quantidadeUnitaria já está em unidade base (qty × fator)
+          const qtdBase = parseFloat(l.quantidadeUnitaria) || 0;
+          const price   = parseFloat(l.precoUnitario)      || 0;
+          const pct     = parseFloat(l.descontoPct)        || 0;
+          const { valorDesconto, valorTotal } = calcLine(qtdBase, price, pct);
           return {
             itemId:        l.itemId,
             quantidade:    qtdBase,
-            precoUnitario: priceBase,
+            precoUnitario: price,
             descontoPct:   pct,
             valorDesconto: valorDesconto,
             desconto:      valorDesconto,
@@ -624,8 +636,13 @@ export default function PedidoForm({
                 <tr>
                   <th className="text-center px-3 py-3 font-bold w-12">Item</th>
                   <th className="text-left px-3 py-3 font-bold">Produto</th>
-                  <th className="text-center px-3 py-3 font-bold w-16">Unidade</th>
+                  <th className="text-center px-3 py-3 font-bold w-28">Unidade</th>
                   <th className="text-right px-3 py-3 font-bold w-24">Quantidade</th>
+                  <th className="text-right px-3 py-3 font-bold w-28">
+                    <span className="flex flex-col items-end leading-tight">
+                      <span>Qtd.</span><span>Unitária</span>
+                    </span>
+                  </th>
                   <th className="text-right px-3 py-3 font-bold w-28">Preço Unit.</th>
                   <th className="text-right px-3 py-3 font-bold w-24">% Desconto</th>
                   <th className="text-right px-3 py-3 font-bold w-28">Vlr. Desconto</th>
@@ -698,6 +715,25 @@ export default function PedidoForm({
                         onChange={(e) => updateLinha(linha._key, "quantidade", e.target.value)}
                         className="h-9 text-xs text-right border-gray-300 font-medium"
                       />
+                    </td>
+
+                    {/* Qtd. Unitária — calculada (qty × fator), editável */}
+                    <td className="px-3 py-2.5">
+                      {linha.fatorConversao > 1 ? (
+                        <div className="relative">
+                          <Input
+                            type="number" min="0.001" step="0.001"
+                            value={linha.quantidadeUnitaria}
+                            onChange={(e) => updateLinha(linha._key, "quantidadeUnitaria", e.target.value)}
+                            className="h-9 text-xs text-right border-blue-300 bg-blue-50 font-semibold text-blue-700 focus:ring-blue-400"
+                            title={`${linha.quantidade} ${linha.unidade} × ${linha.fatorConversao} = ${linha.quantidadeUnitaria} un`}
+                          />
+                        </div>
+                      ) : (
+                        <span className="block text-xs text-right text-gray-400 pr-1 font-medium">
+                          {parseFloat(linha.quantidadeUnitaria) || "—"}
+                        </span>
+                      )}
                     </td>
 
                     {/* Preço Unit. */}
