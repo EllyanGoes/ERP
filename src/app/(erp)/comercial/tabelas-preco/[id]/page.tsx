@@ -413,8 +413,7 @@ export default function TabelaPrecoDetailPage() {
                     <th className="text-left px-3 py-2.5 font-semibold w-28">Cód. Produto</th>
                     <th className="text-left px-3 py-2.5 font-semibold">Descrição</th>
                     <th className="text-center px-3 py-2.5 font-semibold w-14">U.M.</th>
-                    <th className="text-right px-3 py-2.5 font-semibold w-28">Preço Base</th>
-                    <th className="text-right px-3 py-2.5 font-semibold w-28">Preço Venda</th>
+                    <th className="text-right px-3 py-2.5 font-semibold w-32">Preço Venda</th>
                     <th className="text-right px-3 py-2.5 font-semibold w-32">Vlr. Desconto</th>
                     <th className="w-10 px-2 py-2.5" />
                   </tr>
@@ -461,22 +460,6 @@ export default function TabelaPrecoDetailPage() {
                           value={row.unidadeMedida}
                           onChange={(e) => updateItem(row._key, "unidadeMedida", e.target.value)}
                           className="h-7 text-xs text-center w-14"
-                        />
-                      </td>
-
-                      {/* Preço Base */}
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          defaultValue={formatPrice4(row.precoBase)}
-                          key={row._key + "-pb-" + row.precoBase}
-                          onFocus={(e) => { e.target.value = row.precoBase === "0" ? "" : row.precoBase; }}
-                          onBlur={(e) => {
-                            const raw = parsePrice(e.target.value || "0");
-                            updateItem(row._key, "precoBase", raw);
-                            e.target.value = formatPrice4(raw);
-                          }}
-                          className="h-7 w-full rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
                         />
                       </td>
 
@@ -527,7 +510,7 @@ export default function TabelaPrecoDetailPage() {
                 </tbody>
                 <tfoot className="border-t-2 border-gray-200 bg-gray-50">
                   <tr>
-                    <td colSpan={8} className="px-4 py-2 text-xs text-gray-400">
+                    <td colSpan={7} className="px-4 py-2 text-xs text-gray-400">
                       {itens.length} {itens.length === 1 ? "item" : "itens"}
                     </td>
                   </tr>
@@ -573,26 +556,37 @@ export default function TabelaPrecoDetailPage() {
               />
             </div>
             <div className="max-h-56 overflow-y-auto">
-              {searching ? (
-                <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-gray-400">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando...
-                </div>
-              ) : searchResults.length === 0 ? (
-                <p className="px-4 py-3 text-xs text-gray-400 italic text-center">Nenhum produto encontrado</p>
-              ) : searchResults.map((p) => (
-                <button
-                  key={p.id}
-                  data-prod-search
-                  type="button"
-                  onMouseDown={() => selectProduct(searchRow, p)}
-                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-blue-50 text-left border-b border-gray-50 last:border-0"
-                >
-                  <span className="font-mono text-xs text-gray-500 shrink-0 w-20">{p.codigo}</span>
-                  <span className="text-sm text-gray-800 truncate flex-1">{p.descricao}</span>
-                  <span className="text-xs text-gray-400 shrink-0">{p.unidadeMedida}</span>
-                  <span className="text-xs font-medium text-blue-600 shrink-0">{formatBRL(decimalToNumber(p.precoVenda))}</span>
-                </button>
-              ))}
+              {(() => {
+                // IDs já na tabela, exceto a linha sendo editada agora
+                const usedIds = new Set(
+                  itens.filter((r) => r._key !== searchRow && r.itemId).map((r) => r.itemId)
+                );
+                const available = searchResults.filter((p) => !usedIds.has(p.id));
+                if (searching) return (
+                  <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-gray-400">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando...
+                  </div>
+                );
+                if (available.length === 0) return (
+                  <p className="px-4 py-3 text-xs text-gray-400 italic text-center">
+                    {searchResults.length > 0 ? "Todos os produtos já foram adicionados" : "Nenhum produto encontrado"}
+                  </p>
+                );
+                return available.map((p) => (
+                  <button
+                    key={p.id}
+                    data-prod-search
+                    type="button"
+                    onMouseDown={() => selectProduct(searchRow, p)}
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-blue-50 text-left border-b border-gray-50 last:border-0"
+                  >
+                    <span className="font-mono text-xs text-gray-500 shrink-0 w-20">{p.codigo}</span>
+                    <span className="text-sm text-gray-800 truncate flex-1">{p.descricao}</span>
+                    <span className="text-xs text-gray-400 shrink-0">{p.unidadeMedida}</span>
+                    <span className="text-xs font-medium text-blue-600 shrink-0">{formatBRL(decimalToNumber(p.precoVenda))}</span>
+                  </button>
+                ));
+              })()}
             </div>
           </div>,
           document.body
