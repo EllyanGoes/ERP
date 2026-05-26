@@ -223,14 +223,14 @@ export default function LocaisEstoquePage() {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Local</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Filial</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Descrição</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Produtos</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Custo Total</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600 w-20">Ações</th>
+                <tr className="text-xs text-gray-600 uppercase tracking-wider">
+                  <th className="text-left px-4 py-3 font-semibold">Local</th>
+                  <th className="text-left px-4 py-3 font-semibold">Filial</th>
+                  <th className="text-left px-4 py-3 font-semibold">Descrição</th>
+                  <th className="text-center px-4 py-3 font-semibold">Produtos</th>
+                  <th className="text-right px-4 py-3 font-semibold">Custo Total</th>
+                  <th className="text-center px-4 py-3 font-semibold">Status</th>
+                  <th className="text-center px-4 py-3 font-semibold w-20">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -242,7 +242,7 @@ export default function LocaisEstoquePage() {
                   return (
                     <tr
                       key={local.id}
-                      className="hover:bg-blue-50/40 transition-colors cursor-pointer"
+                      className="hover:bg-gray-50 transition-colors cursor-pointer"
                       onClick={() => router.push(`/suprimentos/locais-estoque/${local.id}`)}
                     >
                       <td className="px-4 py-3">
@@ -272,7 +272,7 @@ export default function LocaisEstoquePage() {
                         {custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-gray-300 font-normal">—</span>}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${local.ativo ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${local.ativo ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
                           {local.ativo ? "Ativo" : "Inativo"}
                         </span>
                       </td>
