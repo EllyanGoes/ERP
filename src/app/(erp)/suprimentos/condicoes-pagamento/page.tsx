@@ -5,7 +5,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Plus, Pencil, Check, X, ToggleLeft, ToggleRight, Loader2, Info,
+  Plus, Pencil, Check, ToggleLeft, ToggleRight, Loader2, Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -13,30 +13,13 @@ interface Condicao {
   id: string;
   nome: string;
   descricao: string | null;
-  numeroParcelas: number;
-  prazoInicial: number;
-  intervaloParcelas: number;
-  descontoVista: number | null;
   ativo: boolean;
 }
 
 const empty = (): Omit<Condicao, "id" | "ativo"> => ({
   nome: "",
   descricao: "",
-  numeroParcelas: 1,
-  prazoInicial: 0,
-  intervaloParcelas: 30,
-  descontoVista: null,
 });
-
-// Gera label do prazo, ex: "À Vista", "30 DDL", "30/60/90 DDL"
-function prazoLabel(c: Condicao) {
-  if (c.numeroParcelas === 1 && c.prazoInicial === 0) return "À Vista";
-  const parcelas = Array.from({ length: c.numeroParcelas }, (_, i) =>
-    c.prazoInicial + i * c.intervaloParcelas
-  );
-  return parcelas.join("/") + " DDL";
-}
 
 export default function CondicoesPagamentoPage() {
   const [rows, setRows] = useState<Condicao[]>([]);
@@ -57,11 +40,7 @@ export default function CondicoesPagamentoPage() {
 
   const startNew = () => { setForm(empty()); setEditingId("new"); setError(null); };
   const startEdit = (r: Condicao) => {
-    setForm({
-      nome: r.nome, descricao: r.descricao ?? "", numeroParcelas: r.numeroParcelas,
-      prazoInicial: r.prazoInicial, intervaloParcelas: r.intervaloParcelas,
-      descontoVista: r.descontoVista,
-    });
+    setForm({ nome: r.nome, descricao: r.descricao ?? "" });
     setEditingId(r.id); setError(null);
   };
   const cancel = () => { setEditingId(null); setError(null); };
@@ -87,31 +66,19 @@ export default function CondicoesPagamentoPage() {
     await load();
   };
 
-  const field = (key: keyof typeof form) => ({
-    value: form[key] ?? "",
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
-      setForm((f) => ({ ...f, [key]: e.target.value })),
-  });
-
-  // Preview the installment schedule
-  const previewParcelas = Array.from({ length: Math.min(form.numeroParcelas, 12) }, (_, i) =>
-    Number(form.prazoInicial) + i * Number(form.intervaloParcelas)
-  );
-
   return (
     <div>
       <PageHeader
         title="Condições de Pagamento"
         breadcrumbs={[{ label: "Suprimentos" }, { label: "Cadastros" }, { label: "Condições de Pagamento" }]}
       />
-      <div className="px-8 pb-8 max-w-4xl space-y-6">
+      <div className="px-8 pb-8 max-w-3xl space-y-6">
 
         {/* Info banner */}
         <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-700">
           <Info className="w-4 h-4 mt-0.5 shrink-0" />
           <p>
-            A condição de pagamento define as características financeiras de uma negociação comercial —
-            número de parcelas, prazos e eventuais descontos para pagamento à vista.
+            A condição de pagamento define a forma de pagamento acordada em uma negociação comercial.
           </p>
         </div>
 
@@ -127,8 +94,7 @@ export default function CondicoesPagamentoPage() {
         {editingId === "new" && (
           <CondicaoForm
             form={form} setForm={setForm} saving={saving} error={error}
-            onSave={save} onCancel={cancel} previewParcelas={previewParcelas}
-            isNew
+            onSave={save} onCancel={cancel} isNew
           />
         )}
 
@@ -138,8 +104,6 @@ export default function CondicoesPagamentoPage() {
             <thead>
               <tr className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
                 <th className="text-left px-4 py-3">Nome</th>
-                <th className="text-left px-4 py-3">Prazo / Parcelas</th>
-                <th className="text-right px-4 py-3">Desc. À Vista</th>
                 <th className="text-left px-4 py-3">Descrição</th>
                 <th className="text-center px-4 py-3 w-20">Ativo</th>
                 <th className="px-4 py-3 w-20" />
@@ -147,27 +111,14 @@ export default function CondicoesPagamentoPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-300" /></td></tr>
+                <tr><td colSpan={4} className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-300" /></td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={6} className="py-10 text-center text-gray-400 text-xs">Nenhuma condição cadastrada</td></tr>
+                <tr><td colSpan={4} className="py-10 text-center text-gray-400 text-xs">Nenhuma condição cadastrada</td></tr>
               ) : rows.map((r) => (
                 <>
                   <tr key={r.id} className={cn("border-b border-gray-100 last:border-0", !r.ativo && "opacity-50", editingId === r.id ? "bg-blue-50/30" : "hover:bg-gray-50")}>
                     <td className="px-4 py-3 font-medium text-gray-800">{r.nome}</td>
-                    <td className="px-4 py-3">
-                      <span className="font-mono text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                        {prazoLabel(r)}
-                      </span>
-                      <span className="ml-2 text-xs text-gray-400">
-                        {r.numeroParcelas}× / {r.intervaloParcelas}d
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {r.descontoVista != null
-                        ? <span className="text-green-600 font-medium">{Number(r.descontoVista).toFixed(1)}%</span>
-                        : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs max-w-[200px] truncate">{r.descricao ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs max-w-[260px] truncate">{r.descricao || "—"}</td>
                     <td className="px-4 py-3 text-center">
                       <button onClick={() => toggleAtivo(r)}>
                         {r.ativo
@@ -188,10 +139,10 @@ export default function CondicoesPagamentoPage() {
                   </tr>
                   {editingId === r.id && (
                     <tr key={`${r.id}-edit`} className="bg-blue-50/30 border-b">
-                      <td colSpan={6} className="px-4 py-4">
+                      <td colSpan={4} className="px-4 py-4">
                         <CondicaoForm
                           form={form} setForm={setForm} saving={saving} error={error}
-                          onSave={save} onCancel={cancel} previewParcelas={previewParcelas}
+                          onSave={save} onCancel={cancel}
                         />
                       </td>
                     </tr>
@@ -206,80 +157,35 @@ export default function CondicoesPagamentoPage() {
   );
 }
 
-function CondicaoForm({ form, setForm, saving, error, onSave, onCancel, previewParcelas, isNew }: {
+function CondicaoForm({ form, setForm, saving, error, onSave, onCancel, isNew }: {
   form: ReturnType<typeof empty>;
   setForm: React.Dispatch<React.SetStateAction<ReturnType<typeof empty>>>;
   saving: boolean; error: string | null;
   onSave: () => void; onCancel: () => void;
-  previewParcelas: number[];
   isNew?: boolean;
 }) {
-  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
   return (
     <div className={cn("rounded-xl border border-blue-200 bg-white p-5 space-y-4", isNew && "mb-2")}>
       <p className="text-sm font-semibold text-gray-700">{isNew ? "Nova condição de pagamento" : "Editar condição"}</p>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-4">
         {/* Nome */}
-        <div className="col-span-2">
+        <div>
           <label className="text-xs font-medium text-gray-500 mb-1 block">Nome *</label>
-          <Input value={form.nome} onChange={set("nome")} placeholder="Ex: 30/60/90 DDL" autoFocus={isNew}
+          <Input value={form.nome} onChange={set("nome")} placeholder="Ex: A Vista, 30/60 DDL, Faturado..." autoFocus={isNew}
             onKeyDown={(e) => { if (e.key === "Enter") onSave(); if (e.key === "Escape") onCancel(); }} />
         </div>
 
-        {/* Parcelas */}
-        <div>
-          <label className="text-xs font-medium text-gray-500 mb-1 block">Nº de Parcelas</label>
-          <Input type="number" min={1} max={48} value={form.numeroParcelas}
-            onChange={set("numeroParcelas")} />
-        </div>
-
-        {/* Prazo inicial */}
-        <div>
-          <label className="text-xs font-medium text-gray-500 mb-1 block">Prazo Inicial (dias)</label>
-          <Input type="number" min={0} value={form.prazoInicial} onChange={set("prazoInicial")} />
-        </div>
-
-        {/* Intervalo */}
-        <div>
-          <label className="text-xs font-medium text-gray-500 mb-1 block">Intervalo entre Parcelas (dias)</label>
-          <Input type="number" min={0} value={form.intervaloParcelas} onChange={set("intervaloParcelas")} />
-        </div>
-
-        {/* Desconto à vista */}
-        <div>
-          <label className="text-xs font-medium text-gray-500 mb-1 block">Desconto à Vista (%)</label>
-          <Input type="number" min={0} max={100} step={0.1}
-            value={form.descontoVista ?? ""}
-            onChange={(e) => setForm((f) => ({ ...f, descontoVista: e.target.value === "" ? null : Number(e.target.value) }))}
-            placeholder="Opcional" />
-        </div>
-
         {/* Descrição */}
-        <div className="col-span-2">
+        <div>
           <label className="text-xs font-medium text-gray-500 mb-1 block">Descrição</label>
-          <Input value={form.descricao ?? ""} onChange={set("descricao")} placeholder="Observação opcional" />
+          <Input value={form.descricao ?? ""} onChange={set("descricao")} placeholder="Observação opcional"
+            onKeyDown={(e) => { if (e.key === "Enter") onSave(); if (e.key === "Escape") onCancel(); }} />
         </div>
       </div>
-
-      {/* Preview das parcelas */}
-      {previewParcelas.length > 0 && (
-        <div className="bg-gray-50 rounded-lg p-3">
-          <p className="text-xs text-gray-500 mb-2 font-medium">Prévia do vencimento das parcelas:</p>
-          <div className="flex flex-wrap gap-1.5">
-            {previewParcelas.map((dias, i) => (
-              <span key={i} className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-mono">
-                {i + 1}ª: {dias === 0 ? "À Vista" : `${dias}d`}
-              </span>
-            ))}
-            {Number(form.numeroParcelas) > 12 && (
-              <span className="text-xs text-gray-400">+{Number(form.numeroParcelas) - 12} parcelas...</span>
-            )}
-          </div>
-        </div>
-      )}
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
