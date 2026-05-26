@@ -87,6 +87,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/comercial/tabelas-preco",              label: "Tabelas de Preço",        group: "Comercial",      section: "Cadastros",        icon: Tag,            keywords: "tabela preço lista precos" },
   { href: "/comercial/produtos-venda",             label: "Produtos para Venda",     group: "Comercial",      section: "Cadastros",        icon: Package,        keywords: "produto vendável catálogo" },
   { href: "/pedidos-venda",                        label: "Pedidos de Venda",        group: "Comercial",      section: "Comercial",        icon: ShoppingCart },
+  { href: "/comercial/minutas",                    label: "Minutas",                 group: "Comercial",      section: "Comercial",        icon: Truck,          keywords: "minuta entrega saída motorista placa" },
 
   { href: "/suprimentos/estoque",                  label: "Posição de Estoque",      group: "Almoxarifado",   section: "Estoque",          icon: PackageSearch },
   { href: "/suprimentos/movimentacoes",            label: "Movimentações",           group: "Almoxarifado",   section: "Estoque",          icon: ArrowLeftRight },

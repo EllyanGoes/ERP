@@ -533,6 +533,7 @@ model Item {
   necessidadeCompraItens NecessidadeCompraItem[]
   pedidoCompraItens      PedidoCompraItem[]
   pedidoVendaItens       PedidoVendaItem[]
+  minutaItens            MinutaItem[]
   produtosFornecedor     ProdutoFornecedor[]
   itensRequisicao        RequisicaoMaterialItem[]
   itensInventario        InventarioMaterialItem[]
@@ -592,6 +593,7 @@ model LocalEstoque {
   docEntradas          ConferenciaCompra[]
   requisicoesMateriais RequisicaoMaterial[]
   inventariosMateriais InventarioMaterial[]
+  minutas              Minuta[]
 }
 
 model LoteMovimentacao {
@@ -750,6 +752,7 @@ model PedidoVenda {
   cliente           Cliente           @relation(fields: [clienteId], references: [id])
   tabelaPreco       TabelaPreco?      @relation(fields: [tabelaPrecoId], references: [id])
   itens             PedidoVendaItem[]
+  minutas           Minuta[]
 
   @@index([clienteId])
   @@index([dataEmissao])
@@ -767,6 +770,7 @@ model PedidoVendaItem {
   valorDesconto       Decimal               @default(0) @db.Decimal(15, 2)
   valorTotal          Decimal               @db.Decimal(15, 2)
   movimentacoes MovimentacaoEstoque[]
+  minutaItens   MinutaItem[]
   item          Item                  @relation(fields: [itemId], references: [id])
   pedidoVenda   PedidoVenda           @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
 
@@ -817,6 +821,48 @@ model ProdutoFornecedor {
   item              Item       @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@unique([itemId, fornecedorId])
+}
+
+// ── Minutas de Entrega ────────────────────────────────────────────────────────
+
+model Minuta {
+  id             String       @id @default(cuid())
+  numero         String       @unique
+  pedidoVendaId  String
+  localEstoqueId String?
+  status         StatusMinuta @default(PENDENTE)
+  dataEmissao    DateTime     @default(now())
+  dataEntrega    DateTime?
+  motorista      String?
+  placa          String?
+  observacoes    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  pedidoVenda  PedidoVenda   @relation(fields: [pedidoVendaId], references: [id])
+  localEstoque LocalEstoque? @relation(fields: [localEstoqueId], references: [id])
+  itens        MinutaItem[]
+
+  @@index([pedidoVendaId])
+  @@index([status])
+}
+
+model MinutaItem {
+  id                   String   @id @default(cuid())
+  minutaId             String
+  pedidoVendaItemId    String
+  itemId               String
+  quantidade           Decimal  @db.Decimal(15, 3)
+  quantidadeConvertida Decimal? @db.Decimal(15, 3)
+  unidadeId            String?
+
+  minuta          Minuta          @relation(fields: [minutaId], references: [id], onDelete: Cascade)
+  pedidoVendaItem PedidoVendaItem @relation(fields: [pedidoVendaItemId], references: [id])
+  item            Item            @relation(fields: [itemId], references: [id])
+  unidade         Unidade?        @relation(fields: [unidadeId], references: [id])
+
+  @@index([minutaId])
+  @@index([pedidoVendaItemId])
 }
 
 model Sequencia {
@@ -889,6 +935,7 @@ model Unidade {
   itemUnidadesBase    ItemUnidade[]         @relation("ItemUnidade_baseUnidadeIdToUnidade")
   itemUnidades        ItemUnidade[]         @relation("ItemUnidade_unidadeIdToUnidade")
   movimentacoes       MovimentacaoEstoque[]
+  minutaItens         MinutaItem[]
   conversoesDestino   UnidadeConversao[]    @relation("UnidadeConversao_unidadeDestinoIdToUnidade")
   conversoesOrigem    UnidadeConversao[]    @relation("UnidadeConversao_unidadeOrigemIdToUnidade")
 }
@@ -991,6 +1038,13 @@ enum StatusPedidoCompra {
   RASCUNHO
   ENVIADO
   RECEBIDO
+}
+
+enum StatusMinuta {
+  PENDENTE
+  SAIU_PARA_ENTREGA
+  ENTREGUE
+  CANCELADA
 }
 
 enum StatusPedidoVenda {

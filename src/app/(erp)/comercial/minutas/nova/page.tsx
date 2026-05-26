@@ -1,0 +1,436 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import PageHeader from "@/components/shared/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { AlertCircle } from "lucide-react";
+import { useTabTitle } from "@/lib/tabs-context";
+import { cn } from "@/lib/utils";
+
+type PedidoVendaResumido = {
+  id: string;
+  numero: string;
+  status: string;
+  cliente: { razaoSocial: string; nomeFantasia: string | null };
+};
+
+type ItemUnidade = {
+  id: string;
+  fatorConversao: string | null;
+  unidade: { id: string; sigla: string; nome: string };
+};
+
+type PedidoVendaItem = {
+  id: string;
+  itemId: string;
+  quantidade: string;
+  item: {
+    id: string;
+    codigo: string;
+    descricao: string;
+    unidade: { id: string; sigla: string; nome: string } | null;
+    itemUnidades: ItemUnidade[];
+  };
+  minutaItens: { quantidade: string }[];
+};
+
+type PedidoVenda = {
+  id: string;
+  numero: string;
+  status: string;
+  cliente: { id: string; razaoSocial: string; nomeFantasia: string | null };
+  itens: PedidoVendaItem[];
+};
+
+type LocalEstoque = { id: string; nome: string };
+
+type ItemRow = {
+  pvItemId: string;
+  itemId: string;
+  descricao: string;
+  codigo: string;
+  unidadeBase: string;
+  saldoDisponivel: number;
+  quantidade: string;
+  unidadeId: string;
+  unidades: ItemUnidade[];
+};
+
+function calcSaldo(pvItem: PedidoVendaItem): number {
+  const total = parseFloat(pvItem.quantidade.toString());
+  const minutado = pvItem.minutaItens.reduce((s, mi) => s + parseFloat(mi.quantidade.toString()), 0);
+  return Math.max(total - minutado, 0);
+}
+
+function fmtQty(n: number) {
+  return n.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+}
+
+export default function NovaMinutaPage() {
+  useTabTitle("Nova Minuta");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pedidoVendaIdParam = searchParams.get("pedidoVendaId");
+
+  const [pedidos, setPedidos] = useState<PedidoVendaResumido[]>([]);
+  const [pedidoVendaId, setPedidoVendaId] = useState(pedidoVendaIdParam ?? "");
+  const [pedido, setPedido] = useState<PedidoVenda | null>(null);
+  const [locais, setLocais] = useState<LocalEstoque[]>([]);
+
+  // Form fields
+  const [localEstoqueId, setLocalEstoqueId] = useState("");
+  const [dataEntrega, setDataEntrega] = useState("");
+  const [motorista, setMotorista] = useState("");
+  const [placa, setPlaca] = useState("");
+  const [observacoes, setObservacoes] = useState("");
+  const [rows, setRows] = useState<ItemRow[]>([]);
+
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // Load pedidos (for select when no param)
+  useEffect(() => {
+    if (!pedidoVendaIdParam) {
+      fetch("/api/pedidos-venda?limit=200&status=CONFIRMADO")
+        .then(r => r.json())
+        .then(j => setPedidos(j.data ?? []));
+    }
+  }, [pedidoVendaIdParam]);
+
+  // Load locais de estoque
+  useEffect(() => {
+    fetch("/api/suprimentos/locais-estoque")
+      .then(r => r.json())
+      .then(j => setLocais(j.data ?? []));
+  }, []);
+
+  // Load selected pedido
+  const loadPedido = useCallback(async (id: string) => {
+    if (!id) { setPedido(null); setRows([]); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/pedidos-venda/${id}`);
+      const json = await res.json();
+      const pv: PedidoVenda = json.data;
+      setPedido(pv);
+
+      const newRows: ItemRow[] = pv.itens
+        .map((pvItem) => {
+          const saldo = calcSaldo(pvItem);
+          return {
+            pvItemId: pvItem.id,
+            itemId: pvItem.itemId,
+            descricao: pvItem.item.descricao,
+            codigo: pvItem.item.codigo,
+            unidadeBase: pvItem.item.unidade?.sigla ?? "UN",
+            saldoDisponivel: saldo,
+            quantidade: saldo > 0 ? String(saldo) : "0",
+            unidadeId: pvItem.item.unidade?.id ?? "",
+            unidades: pvItem.item.itemUnidades,
+          };
+        })
+        .filter(r => r.saldoDisponivel > 0);
+
+      setRows(newRows);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (pedidoVendaId) loadPedido(pedidoVendaId);
+  }, [pedidoVendaId, loadPedido]);
+
+  function updateRow(idx: number, field: keyof ItemRow, value: string) {
+    setRows(prev => {
+      const next = [...prev];
+      const row = { ...next[idx], [field]: value };
+
+      // If switching unidade, keep quantidade as-is (user adjusts)
+      if (field === "unidadeId") {
+        const selUn = row.unidades.find(u => u.unidade.id === value);
+        if (!selUn) {
+          // switching back to base unit
+          row.unidadeId = value;
+        }
+      }
+
+      next[idx] = row;
+      return next;
+    });
+  }
+
+  async function handleSave() {
+    if (!pedidoVendaId) { setError("Selecione um pedido de venda"); return; }
+    const validRows = rows.filter(r => parseFloat(r.quantidade || "0") > 0);
+    if (validRows.length === 0) { setError("Informe ao menos um item com quantidade"); return; }
+
+    setSaving(true); setError("");
+    try {
+      // Build itens for API - convert quantities to base unit
+      const itens = validRows.map(r => {
+        const qtdTyped = parseFloat(r.quantidade) || 0;
+
+        // Find selected unit
+        const selUn = r.unidades.find(u => u.unidade.id === r.unidadeId);
+        const isConversion = selUn && r.unidadeId !== (pedido?.itens.find(i => i.id === r.pvItemId)?.item.unidade?.id);
+
+        if (isConversion && selUn?.fatorConversao) {
+          const fator = parseFloat(selUn.fatorConversao.toString());
+          const qtdBase = qtdTyped * fator;
+          return {
+            pedidoVendaItemId: r.pvItemId,
+            itemId: r.itemId,
+            quantidade: qtdBase,
+            quantidadeConvertida: qtdTyped,
+            unidadeId: r.unidadeId,
+          };
+        }
+
+        return {
+          pedidoVendaItemId: r.pvItemId,
+          itemId: r.itemId,
+          quantidade: qtdTyped,
+          quantidadeConvertida: null,
+          unidadeId: r.unidadeId || null,
+        };
+      });
+
+      const res = await fetch("/api/comercial/minutas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pedidoVendaId,
+          localEstoqueId: localEstoqueId || null,
+          dataEntrega:    dataEntrega || null,
+          motorista:      motorista || null,
+          placa:          placa || null,
+          observacoes:    observacoes || null,
+          itens,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? "Erro ao criar minuta"); return; }
+      router.push(`/comercial/minutas/${json.data.id}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="px-8 pb-8 space-y-6">
+      <PageHeader title="Nova Minuta" />
+
+      <div className="grid grid-cols-3 gap-6 items-start">
+
+        {/* LEFT — dados da minuta */}
+        <div className="col-span-2 space-y-6">
+
+          {/* Pedido de Venda */}
+          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-200 bg-gray-100">
+              <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Pedido de Venda</h2>
+            </div>
+            <div className="p-5">
+              {pedidoVendaIdParam ? (
+                pedido ? (
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono font-semibold text-gray-800">{pedido.numero}</span>
+                    <span className="text-gray-500">·</span>
+                    <span className="text-gray-700">{pedido.cliente.nomeFantasia || pedido.cliente.razaoSocial}</span>
+                  </div>
+                ) : (
+                  <span className="text-gray-400 text-sm">Carregando...</span>
+                )
+              ) : (
+                <Select value={pedidoVendaId} onValueChange={setPedidoVendaId}>
+                  <SelectTrigger className="h-10 border-gray-300 max-w-md">
+                    <SelectValue placeholder="Selecione o pedido de venda..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pedidos.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.numero} — {p.cliente.nomeFantasia || p.cliente.razaoSocial}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          </div>
+
+          {/* Itens */}
+          {pedido && (
+            <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-200 bg-gray-100">
+                <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Itens a Entregar</h2>
+              </div>
+              {loading ? (
+                <div className="p-8 text-center text-gray-400 text-sm">Carregando itens...</div>
+              ) : rows.length === 0 ? (
+                <div className="p-8 text-center text-gray-400 text-sm">
+                  Nenhum item com saldo disponível neste pedido.
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500">Produto</th>
+                      <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-32">Saldo</th>
+                      <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-40">Qtd. Entrega</th>
+                      <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500 w-32">Unidade</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {rows.map((r, idx) => (
+                      <tr key={r.pvItemId} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 align-middle">
+                          <div className="font-medium text-gray-800">{r.descricao}</div>
+                          <div className="text-xs text-gray-400">{r.codigo}</div>
+                        </td>
+                        <td className="px-4 py-3 text-right align-middle text-gray-600 tabular-nums">
+                          {fmtQty(r.saldoDisponivel)} <span className="text-gray-400 text-xs">{r.unidadeBase}</span>
+                        </td>
+                        <td className="px-4 py-3 align-middle">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            value={r.quantidade}
+                            onChange={e => updateRow(idx, "quantidade", e.target.value)}
+                            className="h-8 text-right border-gray-300 text-sm w-full"
+                          />
+                        </td>
+                        <td className="px-4 py-3 align-middle">
+                          {r.unidades.length > 0 ? (
+                            <Select
+                              value={r.unidadeId}
+                              onValueChange={(v) => updateRow(idx, "unidadeId", v)}
+                            >
+                              <SelectTrigger className="h-8 border-gray-300 text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {/* Base unit option */}
+                                <SelectItem value={pedido.itens.find(i => i.id === r.pvItemId)?.item.unidade?.id ?? ""}>
+                                  {r.unidadeBase} (base)
+                                </SelectItem>
+                                {r.unidades.map(u => (
+                                  <SelectItem key={u.unidade.id} value={u.unidade.id}>
+                                    {u.unidade.sigla}
+                                    {u.fatorConversao ? ` (×${parseFloat(u.fatorConversao.toString())})` : ""}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-gray-500 text-sm px-1">{r.unidadeBase}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT — detalhes */}
+        <div className="col-span-1 space-y-4">
+
+          {/* Logística */}
+          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-200 bg-gray-100">
+              <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Logística</h2>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Local de Estoque</label>
+                <Select value={localEstoqueId} onValueChange={setLocalEstoqueId}>
+                  <SelectTrigger className="h-10 border-gray-300">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locais.map(l => (
+                      <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Data de Entrega</label>
+                <Input
+                  type="date"
+                  value={dataEntrega}
+                  onChange={e => setDataEntrega(e.target.value)}
+                  className="h-10 border-gray-300"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Motorista</label>
+                <Input
+                  value={motorista}
+                  onChange={e => setMotorista(e.target.value)}
+                  className="h-10 border-gray-300"
+                  placeholder="Nome do motorista"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Placa</label>
+                <Input
+                  value={placa}
+                  onChange={e => setPlaca(e.target.value)}
+                  className="h-10 border-gray-300"
+                  placeholder="AAA-0000"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Observações */}
+          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-200 bg-gray-100">
+              <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Observações</h2>
+            </div>
+            <div className="p-5">
+              <Textarea
+                value={observacoes}
+                onChange={e => setObservacoes(e.target.value)}
+                rows={4}
+                placeholder="Observações sobre a entrega..."
+                className="resize-none border-gray-300"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className={cn(
+          "flex items-center gap-2 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"
+        )}>
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-3">
+        <Button onClick={handleSave} disabled={saving || !pedidoVendaId} className="font-semibold">
+          {saving ? "Criando..." : "Criar Minuta"}
+        </Button>
+        <Button variant="outline" onClick={() => router.back()} className="border-gray-300 text-gray-600">
+          Cancelar
+        </Button>
+      </div>
+    </div>
+  );
+}
