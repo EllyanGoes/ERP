@@ -463,7 +463,7 @@ export default function ProdutoDetailPage() {
           unidadeId:     addUnidadeId,
           baseUnidadeId: addBaseUnidadeId || null,
           fatorConversao: addFatorConv ? parseFloat(addFatorConv) : null,
-          isPrincipal: itemUnidades.length === 0,
+          isPrincipal: false,
         }),
       });
       if (!res.ok) { setAddUnidadeError((await res.json()).error || "Erro"); return; }
