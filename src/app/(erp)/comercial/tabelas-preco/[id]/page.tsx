@@ -59,6 +59,23 @@ type TabelaPreco = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+/** Formata número com 4 casas decimais no padrão pt-BR: 1.234,5678 */
+function formatPrice4(v: string | number): string {
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  if (isNaN(n)) return "0,0000";
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  }).format(n);
+}
+
+/** Converte string pt-BR "1.234,5678" → "1234.5678" para armazenar */
+function parsePrice(s: string): string {
+  const cleaned = s.replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? "0" : String(n);
+}
+
 function toDateInput(iso: string | null | undefined): string {
   if (!iso) return "";
   return iso.slice(0, 10);
@@ -367,11 +384,7 @@ export default function TabelaPrecoDetailPage() {
                     <th className="text-center px-3 py-2.5 font-semibold w-14">U.M.</th>
                     <th className="text-right px-3 py-2.5 font-semibold w-28">Preço Base</th>
                     <th className="text-right px-3 py-2.5 font-semibold w-28">Preço Venda</th>
-                    <th className="text-right px-3 py-2.5 font-semibold w-28">Vlr. Desconto</th>
-                    <th className="text-center px-3 py-2.5 font-semibold w-16">Ativo</th>
-                    <th className="text-right px-3 py-2.5 font-semibold w-20">Fator</th>
-                    <th className="text-left px-3 py-2.5 font-semibold w-24">Tipo Oper.</th>
-                    <th className="text-right px-3 py-2.5 font-semibold w-24">Faixa</th>
+                    <th className="text-right px-3 py-2.5 font-semibold w-32">Vlr. Desconto</th>
                     <th className="w-10 px-2 py-2.5" />
                   </tr>
                 </thead>
@@ -456,74 +469,49 @@ export default function TabelaPrecoDetailPage() {
 
                       {/* Preço Base */}
                       <td className="px-3 py-2">
-                        <Input
-                          type="number" min="0" step="0.0001"
-                          value={row.precoBase}
-                          onChange={(e) => updateItem(row._key, "precoBase", e.target.value)}
-                          className="h-7 text-xs text-right"
+                        <input
+                          type="text"
+                          defaultValue={formatPrice4(row.precoBase)}
+                          key={row._key + "-pb-" + row.precoBase}
+                          onFocus={(e) => { e.target.value = row.precoBase === "0" ? "" : row.precoBase; }}
+                          onBlur={(e) => {
+                            const raw = parsePrice(e.target.value || "0");
+                            updateItem(row._key, "precoBase", raw);
+                            e.target.value = formatPrice4(raw);
+                          }}
+                          className="h-7 w-full rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
                         />
                       </td>
 
                       {/* Preço Venda */}
                       <td className="px-3 py-2">
-                        <Input
-                          type="number" min="0" step="0.0001"
-                          value={row.precoVenda}
-                          onChange={(e) => updateItem(row._key, "precoVenda", e.target.value)}
-                          className="h-7 text-xs text-right"
+                        <input
+                          type="text"
+                          defaultValue={formatPrice4(row.precoVenda)}
+                          key={row._key + "-pv-" + row.precoVenda}
+                          onFocus={(e) => { e.target.value = row.precoVenda === "0" ? "" : row.precoVenda; }}
+                          onBlur={(e) => {
+                            const raw = parsePrice(e.target.value || "0");
+                            updateItem(row._key, "precoVenda", raw);
+                            e.target.value = formatPrice4(raw);
+                          }}
+                          className="h-7 w-full rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
                         />
                       </td>
 
                       {/* Vlr. Desconto */}
                       <td className="px-3 py-2">
-                        <Input
-                          type="number" min="0" step="0.0001"
-                          value={row.vlrDesconto}
-                          onChange={(e) => updateItem(row._key, "vlrDesconto", e.target.value)}
-                          className="h-7 text-xs text-right"
-                        />
-                      </td>
-
-                      {/* Ativo */}
-                      <td className="px-3 py-2 text-center">
                         <input
-                          type="checkbox" checked={row.ativo}
-                          onChange={(e) => updateItem(row._key, "ativo", e.target.checked)}
-                          className="w-4 h-4 accent-green-600"
-                        />
-                      </td>
-
-                      {/* Fator */}
-                      <td className="px-3 py-2">
-                        <Input
-                          type="number" min="0" step="0.0001"
-                          value={row.fator}
-                          onChange={(e) => updateItem(row._key, "fator", e.target.value)}
-                          className="h-7 text-xs text-right"
-                        />
-                      </td>
-
-                      {/* Tipo Operação */}
-                      <td className="px-3 py-2">
-                        <select
-                          value={row.tipoOperacao}
-                          onChange={(e) => updateItem(row._key, "tipoOperacao", e.target.value)}
-                          className="w-full h-7 rounded border border-gray-200 px-2 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        >
-                          <option value="Todos">Todos</option>
-                          <option value="Venda">Venda</option>
-                          <option value="Devolução">Devolução</option>
-                          <option value="Transferência">Transferência</option>
-                        </select>
-                      </td>
-
-                      {/* Faixa */}
-                      <td className="px-3 py-2">
-                        <Input
-                          type="number" min="0" step="0.01"
-                          value={row.faixa}
-                          onChange={(e) => updateItem(row._key, "faixa", e.target.value)}
-                          className="h-7 text-xs text-right"
+                          type="text"
+                          defaultValue={formatPrice4(row.vlrDesconto)}
+                          key={row._key + "-vd-" + row.vlrDesconto}
+                          onFocus={(e) => { e.target.value = row.vlrDesconto === "0" ? "" : row.vlrDesconto; }}
+                          onBlur={(e) => {
+                            const raw = parsePrice(e.target.value || "0");
+                            updateItem(row._key, "vlrDesconto", raw);
+                            e.target.value = formatPrice4(raw);
+                          }}
+                          className="h-7 w-full rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
                         />
                       </td>
 
@@ -542,7 +530,7 @@ export default function TabelaPrecoDetailPage() {
                 </tbody>
                 <tfoot className="border-t-2 border-gray-200 bg-gray-50">
                   <tr>
-                    <td colSpan={12} className="px-4 py-2 text-xs text-gray-400">
+                    <td colSpan={8} className="px-4 py-2 text-xs text-gray-400">
                       {itens.length} {itens.length === 1 ? "item" : "itens"}
                     </td>
                   </tr>
