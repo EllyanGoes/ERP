@@ -22,6 +22,13 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
               id: true, codigo: true, descricao: true,
               tipo: true, ativo: true, unidadeMedida: true, precoCusto: true,
               unidade: { select: { sigla: true } },
+              itemUnidades: {
+                where: { isPrincipal: false },
+                select: {
+                  id: true, fatorConversao: true, isPrincipal: true,
+                  unidade: { select: { sigla: true, nome: true } },
+                },
+              },
               conferenciaCompraItens: {
                 where:   { vlrUnitario: { not: null } },
                 orderBy: { id: "desc" },

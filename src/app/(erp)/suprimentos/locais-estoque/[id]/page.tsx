@@ -15,6 +15,13 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatBRL } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+type ItemUnidade = {
+  id: string;
+  fatorConversao: unknown;
+  isPrincipal: boolean;
+  unidade: { sigla: string; nome: string };
+};
+
 type EstoqueItem = {
   id: string;
   quantidadeAtual: unknown;
@@ -30,6 +37,7 @@ type EstoqueItem = {
     unidadeMedida: string;
     precoCusto: unknown;
     unidade: { sigla: string } | null;
+    itemUnidades: ItemUnidade[];
   };
 };
 
@@ -414,10 +422,20 @@ export default function LocalEstoqueDetailPage() {
                             : <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-4 py-3.5 text-right">
-                          <span className={cn("font-bold text-base", abaixo ? "text-red-600" : "text-gray-900")}>
-                            {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                          </span>
-                          <span className="text-xs font-medium text-gray-500 ml-1">{unidade}</span>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <div>
+                              <span className={cn("font-bold text-base", abaixo ? "text-red-600" : "text-gray-900")}>
+                                {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                              </span>
+                              <span className="text-xs font-medium text-gray-500 ml-1">{unidade}</span>
+                            </div>
+                            {e.item.itemUnidades.filter((iu) => !iu.isPrincipal && iu.fatorConversao).map((iu) => (
+                              <div key={iu.id} className="text-xs text-gray-500 font-medium">
+                                {(atual / Number(iu.fatorConversao)).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                                <span className="ml-1">{iu.unidade.sigla}</span>
+                              </div>
+                            ))}
+                          </div>
                         </td>
                         <td className="px-4 py-3.5 text-right">
                           <span className={cn("font-medium text-sm", min > 0 ? "text-gray-700" : "text-gray-300")}>
