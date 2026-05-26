@@ -512,18 +512,9 @@ export default function TabelaPrecoDetailPage() {
                         )}
                       </td>
 
-                      {/* Descrição */}
+                      {/* Descrição — sempre read-only */}
                       <td className="px-3 py-2">
-                        {editing ? (
-                          <Input
-                            value={row.descricao}
-                            onChange={(e) => updateItem(row._key, "descricao", e.target.value)}
-                            className="h-7 text-xs"
-                            placeholder="Descrição do produto"
-                          />
-                        ) : (
-                          <span className="text-xs text-gray-800">{row.descricao || "—"}</span>
-                        )}
+                        <span className="text-xs text-gray-800">{row.descricao || "—"}</span>
                       </td>
 
                       {/* U.M. — sempre read-only */}
