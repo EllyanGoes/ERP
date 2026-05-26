@@ -600,6 +600,7 @@ model LoteMovimentacao {
   tipo                TipoMovimentacaoEstoque
   documento           String?
   observacoes         String?
+  dataMovimentacao    DateTime?
   createdAt           DateTime                @default(now())
   itens MovimentacaoEstoque[]
 }

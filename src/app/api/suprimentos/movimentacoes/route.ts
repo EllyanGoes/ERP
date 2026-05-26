@@ -15,11 +15,12 @@ const itemSchema = z.object({
 });
 
 const postSchema = z.object({
-  tipo:        z.enum(["ENTRADA", "SAIDA"]),
-  documento:   z.string().optional(),
-  observacoes: z.string().optional(),
-  fornecedorId: z.string().optional().nullable(), // optional: auto-link supplier on ENTRADA
-  itens:       z.array(itemSchema).min(1, "Adicione ao menos um item"),
+  tipo:             z.enum(["ENTRADA", "SAIDA"]),
+  documento:        z.string().optional(),
+  observacoes:      z.string().optional(),
+  fornecedorId:     z.string().optional().nullable(),
+  dataMovimentacao: z.string().optional().nullable(), // ISO date string
+  itens:            z.array(itemSchema).min(1, "Adicione ao menos um item"),
 });
 
 // ── POST — criar lote de movimentação ────────────────────────────────────────
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { tipo, documento, observacoes, fornecedorId, itens } = parsed.data;
+  const { tipo, documento, observacoes, fornecedorId, dataMovimentacao, itens } = parsed.data;
 
   try {
     const lote = await prisma.$transaction(async (tx) => {
@@ -48,7 +49,10 @@ export async function POST(req: NextRequest) {
 
       // Create the lote header
       const lote = await tx.loteMovimentacao.create({
-        data: { numero, tipo, documento, observacoes },
+        data: {
+          numero, tipo, documento, observacoes,
+          dataMovimentacao: dataMovimentacao ? new Date(dataMovimentacao) : null,
+        },
       });
 
       // Process each item

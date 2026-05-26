@@ -213,6 +213,7 @@ export default function ProdutoDetailPage() {
     custo: "",
     endereco: "",
     unidadeEntradaId: "", // ID da unidade escolhida para entrada
+    data: new Date().toISOString().slice(0, 10), // YYYY-MM-DD
   });
   const [saldoSaving, setSaldoSaving] = useState(false);
   const [saldoError, setSaldoError] = useState("");
@@ -309,14 +310,23 @@ export default function ProdutoDetailPage() {
 
   function openSaldoDialog() {
     const principalId = itemUnidades.find((iu) => iu.isPrincipal)?.unidade.id ?? item?.unidade?.id ?? "";
-    setSaldoForm({ localEstoqueId: "", saldo: "", custo: "", endereco: "", unidadeEntradaId: principalId });
+    const today = new Date().toISOString().slice(0, 10);
+    setSaldoForm({ localEstoqueId: "", saldo: "", custo: "", endereco: "", unidadeEntradaId: principalId, data: today });
     setSaldoFilialFilter("");
     setSaldoError("");
     setShowSaldoDialog(true);
     if (locaisEstoque.length === 0) {
       fetch("/api/suprimentos/locais-estoque").then((r) => r.json()).then((j) => {
-        setLocaisEstoque(Array.isArray(j) ? j : (j.data ?? []));
+        const lista: typeof locaisEstoque = Array.isArray(j) ? j : (j.data ?? []);
+        setLocaisEstoque(lista);
+        // Auto-select Tramontin filial
+        const tramontin = lista.find((l) => l.filial && /tramontin/i.test(l.filial.razaoSocial));
+        if (tramontin?.filial) setSaldoFilialFilter(tramontin.filial.id);
       });
+    } else {
+      // Already loaded — auto-select if not yet set
+      const tramontin = locaisEstoque.find((l) => l.filial && /tramontin/i.test(l.filial.razaoSocial));
+      if (tramontin?.filial) setSaldoFilialFilter(tramontin.filial.id);
     }
     if (!unidadesLoaded) loadItemUnidades();
   }
@@ -339,6 +349,7 @@ export default function ProdutoDetailPage() {
           tipo: "ENTRADA",
           documento: "SALDO-INICIAL",
           observacoes: "Saldo inicial inserido manualmente",
+          dataMovimentacao: saldoForm.data ? new Date(saldoForm.data).toISOString() : null,
           itens: [{
             itemId: id,
             localEstoqueId: saldoForm.localEstoqueId,
@@ -2444,6 +2455,17 @@ export default function ProdutoDetailPage() {
                   </div>
                 );
               })()}
+
+              {/* Data da movimentação */}
+              <div className="space-y-1.5">
+                <Label>Data <span className="text-red-500">*</span></Label>
+                <Input
+                  type="date"
+                  value={saldoForm.data}
+                  onChange={(e) => setSaldoForm((p) => ({ ...p, data: e.target.value }))}
+                  className="w-full"
+                />
+              </div>
 
               {/* Saldo + Saldo Disponível (convertido) */}
               {(() => {
