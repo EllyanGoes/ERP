@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
-import { generateDocNumber } from "@/lib/utils";
+import { generateSimpleDocNumber } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       update: { ultimo: { increment: 1 } },
       create: { prefixo: "PV", ultimo: 1 },
     });
-    const numero = generateDocNumber("PV", seq.ultimo);
+    const numero = generateSimpleDocNumber("PV", seq.ultimo);
 
     // Calculate totals
     const valorProdutos = itens.reduce((sum, i) => sum + i.valorTotal, 0);
