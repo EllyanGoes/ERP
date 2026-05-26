@@ -187,9 +187,12 @@ export default function UnidadesPage() {
   });
 
   // Units available for conversion destination (exclude self + already added)
-  const usedDestIds = new Set(conversoes.map(c => c.unidadeDestino.id));
+  const usedDestIds = new Set([
+    ...(selected ? [selected.id] : []),           // never show self
+    ...conversoes.map(c => c.unidadeDestino.id),  // never show already-converted
+  ]);
   const convDestOptions = unidades
-    .filter((u) => u.id !== selected?.id && !usedDestIds.has(u.id))
+    .filter((u) => !usedDestIds.has(u.id))
     .map((u) => ({ value: u.id, label: `${u.sigla} — ${u.nome}` }));
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -320,6 +323,7 @@ export default function UnidadesPage() {
                       </div>
                       <div className="w-52">
                         <ComboboxWithCreate
+                          key={selected?.id}
                           options={convDestOptions}
                           value={addDestId}
                           onChange={setAddDestId}

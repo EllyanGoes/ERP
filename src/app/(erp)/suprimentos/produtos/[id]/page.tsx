@@ -12,7 +12,7 @@ import {
   ChevronRight, Pencil, Save, X, Plus, Trash2,
   Loader2, Package, TrendingUp, TrendingDown, ArrowUpDown,
   BarChart2, ShieldCheck, RefreshCw, Clock, AlertOctagon, AlertTriangle,
-  ShoppingBag, ClipboardList, FileText, PackageCheck, ExternalLink, Info as InfoIcon, Star, Activity,
+  ShoppingBag, ClipboardList, FileText, PackageCheck, ExternalLink, Info as InfoIcon, Star, Activity, Ruler,
 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { TipoProdutoQuickCreate, UnidadeQuickCreate, LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
@@ -128,7 +128,7 @@ export default function ProdutoDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
-  const [tab, setTab] = useState<"dados" | "fornecedores" | "estoques" | "movimentacoes" | "compras" | "relatorio">("dados");
+  const [tab, setTab] = useState<"dados" | "fornecedores" | "estoques" | "movimentacoes" | "compras" | "relatorio" | "unidades">("dados");
   const [periodoDias, setPeriodoDias] = useState<30 | 90 | 180 | 365>(90);
   const [item, setItem] = useState<Item | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -198,6 +198,7 @@ export default function ProdutoDetailPage() {
     saldo: "",
     custo: "",
     endereco: "",
+    unidadeEntradaId: "", // ID da unidade escolhida para entrada
   });
   const [saldoSaving, setSaldoSaving] = useState(false);
   const [saldoError, setSaldoError] = useState("");
@@ -293,7 +294,8 @@ export default function ProdutoDetailPage() {
   }
 
   function openSaldoDialog() {
-    setSaldoForm({ localEstoqueId: "", saldo: "", custo: "", endereco: "" });
+    const principalId = itemUnidades.find((iu) => iu.isPrincipal)?.unidade.id ?? item?.unidade?.id ?? "";
+    setSaldoForm({ localEstoqueId: "", saldo: "", custo: "", endereco: "", unidadeEntradaId: principalId });
     setSaldoFilialFilter("");
     setSaldoError("");
     setShowSaldoDialog(true);
@@ -302,6 +304,7 @@ export default function ProdutoDetailPage() {
         setLocaisEstoque(Array.isArray(j) ? j : (j.data ?? []));
       });
     }
+    if (!unidadesLoaded) loadItemUnidades();
   }
 
   async function submitSaldo() {
@@ -309,6 +312,12 @@ export default function ProdutoDetailPage() {
     if (!saldoForm.saldo || parseFloat(saldoForm.saldo) <= 0) { setSaldoError("Informe o Saldo (deve ser maior que 0)"); return; }
     setSaldoSaving(true); setSaldoError("");
     try {
+      // Resolve conversion: quantity entered × fatorConversao → base unit quantity
+      const selectedIU = itemUnidades.find((iu) => iu.unidade.id === saldoForm.unidadeEntradaId);
+      const fator = (selectedIU && !selectedIU.isPrincipal && selectedIU.fatorConversao)
+        ? Number(selectedIU.fatorConversao) : 1;
+      const qtdBase = parseFloat(saldoForm.saldo) * fator;
+
       const res = await fetch("/api/suprimentos/movimentacoes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -319,7 +328,7 @@ export default function ProdutoDetailPage() {
           itens: [{
             itemId: id,
             localEstoqueId: saldoForm.localEstoqueId,
-            quantidade: parseFloat(saldoForm.saldo),
+            quantidade: qtdBase,
             valorUnitario: saldoForm.custo ? parseFloat(saldoForm.custo) : undefined,
             localizacao: saldoForm.endereco || undefined,
           }],
@@ -604,6 +613,7 @@ export default function ProdutoDetailPage() {
     { key: "estoques",       label: "Estoques" },
     { key: "movimentacoes",  label: `Movimentações (${item.movimentacoes?.length ?? 0})` },
     { key: "compras",        label: totalCompras !== null ? `Compras (${totalCompras})` : "Compras" },
+    { key: "unidades",       label: `Unidades${itemUnidades.length > 0 ? ` (${itemUnidades.length})` : ""}` },
     { key: "relatorio",      label: "Relatório" },
   ] as const;
 
@@ -689,7 +699,11 @@ export default function ProdutoDetailPage() {
           {TABS.map((t) => (
             <button
               key={t.key}
-              onClick={() => { setTab(t.key); if (t.key === "compras") loadCompras(); }}
+              onClick={() => {
+                setTab(t.key);
+                if (t.key === "compras") loadCompras();
+                if (t.key === "unidades" && !unidadesLoaded) loadItemUnidades();
+              }}
               className={cn(
                 "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
                 tab === t.key
@@ -2024,6 +2038,192 @@ export default function ProdutoDetailPage() {
           );
         })()}
 
+        {/* ── UNIDADES ───────────────────────────────────────────────────── */}
+        {tab === "unidades" && (() => {
+          const principalIU    = itemUnidades.find((iu) => iu.isPrincipal);
+          const principalSigla = principalIU?.unidade.sigla ?? item.unidade?.sigla ?? "UN";
+
+          return (
+            <div className="max-w-3xl space-y-6">
+              {/* Header row */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800">Unidades de Medida</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Unidades aceitas para movimentações e conversão automática para a unidade base.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setAddUnidadeId(""); setAddBaseUnidadeId(""); setAddFatorConv(""); setAddUnidadeError("");
+                    setShowAddUnidade(true);
+                  }}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1.5" /> Adicionar Unidade
+                </Button>
+              </div>
+
+              {addUnidadeError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{addUnidadeError}</p>
+              )}
+
+              {!unidadesLoaded ? (
+                <div className="flex items-center justify-center py-16 text-gray-400 gap-2 text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
+                </div>
+              ) : itemUnidades.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 border border-dashed border-gray-200 rounded-xl text-gray-400 gap-3">
+                  <Ruler className="w-8 h-8 opacity-40" />
+                  <p className="text-sm font-medium">Nenhuma unidade configurada</p>
+                  <p className="text-xs text-center max-w-xs">
+                    Adicione unidades de entrada (ex: CX, PCT) que serão convertidas automaticamente para a unidade base <span className="font-mono font-semibold">{principalSigla}</span>.
+                  </p>
+                  <Button
+                    size="sm" variant="outline"
+                    onClick={() => { setAddUnidadeId(""); setAddBaseUnidadeId(""); setAddFatorConv(""); setAddUnidadeError(""); setShowAddUnidade(true); }}
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1.5" /> Adicionar Unidade
+                  </Button>
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-semibold">Unidade</th>
+                        <th className="text-left px-4 py-3 font-semibold">Nome</th>
+                        <th className="text-left px-4 py-3 font-semibold">Fator de Conversão</th>
+                        <th className="text-center px-4 py-3 font-semibold w-24">Tipo</th>
+                        <th className="w-12 px-3 py-3" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {itemUnidades.map((iu) => (
+                        <tr key={iu.id} className="hover:bg-gray-50/60 group transition-colors">
+                          {/* Sigla */}
+                          <td className="px-4 py-3">
+                            <span className="font-mono text-sm font-bold text-gray-800 bg-gray-100 px-2 py-0.5 rounded">
+                              {iu.unidade.sigla}
+                            </span>
+                          </td>
+                          {/* Nome */}
+                          <td className="px-4 py-3 text-gray-700">{iu.unidade.nome}</td>
+                          {/* Conversão */}
+                          <td className="px-4 py-3">
+                            {iu.isPrincipal ? (
+                              <span className="text-gray-400 text-xs italic">— unidade base, sem conversão</span>
+                            ) : iu.fatorConversao ? (
+                              <span className="flex items-center gap-1.5 text-sm text-gray-700">
+                                <span className="font-mono font-semibold text-blue-700">
+                                  1 {iu.unidade.sigla}
+                                </span>
+                                <span className="text-gray-400">=</span>
+                                <span className="font-mono font-semibold text-emerald-700">
+                                  {Number(iu.fatorConversao).toLocaleString("pt-BR", { maximumFractionDigits: 6 })} {iu.baseUnidade?.sigla ?? principalSigla}
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="text-amber-600 text-xs">Fator não definido</span>
+                            )}
+                          </td>
+                          {/* Tipo */}
+                          <td className="px-4 py-3 text-center">
+                            {iu.isPrincipal ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                                Base
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => setPrincipal(iu.id, iu.unidade.id)}
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors border border-transparent hover:border-blue-200"
+                                title="Definir como unidade base"
+                              >
+                                Secundária
+                              </button>
+                            )}
+                          </td>
+                          {/* Remove */}
+                          <td className="px-3 py-3">
+                            {!iu.isPrincipal && (
+                              <button
+                                onClick={() => removeItemUnidade(iu.id)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 border border-transparent hover:border-red-200"
+                                title="Remover unidade"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50 text-xs text-gray-400">
+                    {itemUnidades.length} unidade{itemUnidades.length !== 1 ? "s" : ""} cadastrada{itemUnidades.length !== 1 ? "s" : ""}
+                    {" · "}Unidade base: <span className="font-mono font-semibold text-gray-600">{principalSigla}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Add unit inline form (shown when showAddUnidade) */}
+              {showAddUnidade && (
+                <div className="bg-white rounded-xl border border-blue-200 shadow-sm p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-gray-800">Nova Unidade</h4>
+                    <button onClick={() => setShowAddUnidade(false)} className="text-gray-400 hover:text-gray-600">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {addUnidadeError && (
+                    <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{addUnidadeError}</p>
+                  )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Unidade <span className="text-red-500">*</span></Label>
+                      <select
+                        value={addUnidadeId}
+                        onChange={(e) => setAddUnidadeId(e.target.value)}
+                        className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Selecionar...</option>
+                        {unidades
+                          .filter((u) => !itemUnidades.some((iu) => iu.unidade.id === u.id))
+                          .map((u) => (
+                            <option key={u.id} value={u.id}>{u.sigla} — {u.nome}</option>
+                          ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Fator de Conversão</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number" step="0.000001" min="0"
+                          value={addFatorConv}
+                          onChange={(e) => setAddFatorConv(e.target.value)}
+                          placeholder="Ex: 12"
+                        />
+                      </div>
+                      <p className="text-[11px] text-gray-400">
+                        1 {addUnidadeId ? (unidades.find((u) => u.id === addUnidadeId)?.sigla ?? "—") : "UN"} = ? {principalSigla}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end pt-1">
+                    <Button size="sm" variant="outline" onClick={() => setShowAddUnidade(false)} disabled={addUnidadeSaving}>
+                      Cancelar
+                    </Button>
+                    <Button size="sm" onClick={addItemUnidade} disabled={addUnidadeSaving || !addUnidadeId}>
+                      {addUnidadeSaving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+                      Adicionar
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
       </div>
 
       {/* ── Edit movimentação dialog ─────────────────────────────────────── */}
@@ -2211,29 +2411,66 @@ export default function ProdutoDetailPage() {
                 </select>
               </div>
 
-              {/* Saldo + Saldo Disponível */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Saldo <span className="text-red-500">*</span></Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number" step="0.001" min="0.001"
-                      value={saldoForm.saldo}
-                      onChange={(e) => setSaldoForm((p) => ({ ...p, saldo: e.target.value }))}
-                      placeholder="0"
-                    />
-                    <span className="text-xs text-gray-500 font-mono shrink-0">{item.unidade?.sigla || item.unidadeMedida}</span>
+              {/* Unidade de Entrada */}
+              {itemUnidades.length > 1 && (() => {
+                const principalIU  = itemUnidades.find((iu) => iu.isPrincipal);
+                const principalSigla = principalIU?.unidade.sigla ?? item.unidade?.sigla ?? item.unidadeMedida;
+                return (
+                  <div className="space-y-1.5">
+                    <Label>Unidade de Entrada</Label>
+                    <select
+                      value={saldoForm.unidadeEntradaId}
+                      onChange={(e) => setSaldoForm((p) => ({ ...p, unidadeEntradaId: e.target.value }))}
+                      className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {itemUnidades.map((iu) => (
+                        <option key={iu.id} value={iu.unidade.id}>
+                          {iu.unidade.sigla} — {iu.unidade.nome}
+                          {iu.isPrincipal ? " (unidade base)" : iu.fatorConversao ? ` (1 ${iu.unidade.sigla} = ${Number(iu.fatorConversao).toLocaleString("pt-BR", { maximumFractionDigits: 6 })} ${principalSigla})` : ""}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Saldo Disponível</Label>
-                  <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-gray-100 bg-gray-50">
-                    <span className="text-sm text-gray-600">{saldoForm.saldo ? parseFloat(saldoForm.saldo).toLocaleString("pt-BR", { maximumFractionDigits: 3 }) : "—"}</span>
-                    <span className="text-xs text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
-                    <span className="ml-auto text-[10px] text-gray-400">= saldo</span>
+                );
+              })()}
+
+              {/* Saldo + Saldo Disponível (convertido) */}
+              {(() => {
+                const principalIU    = itemUnidades.find((iu) => iu.isPrincipal);
+                const principalSigla = principalIU?.unidade.sigla ?? item.unidade?.sigla ?? item.unidadeMedida;
+                const selectedIU     = itemUnidades.find((iu) => iu.unidade.id === saldoForm.unidadeEntradaId);
+                const entradaSigla   = selectedIU?.unidade.sigla ?? principalSigla;
+                const fator          = (selectedIU && !selectedIU.isPrincipal && selectedIU.fatorConversao)
+                                         ? Number(selectedIU.fatorConversao) : 1;
+                const qtdBase        = saldoForm.saldo ? parseFloat(saldoForm.saldo) * fator : null;
+                const isConverted    = fator !== 1;
+                return (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Saldo <span className="text-red-500">*</span></Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number" step="0.001" min="0.001"
+                          value={saldoForm.saldo}
+                          onChange={(e) => setSaldoForm((p) => ({ ...p, saldo: e.target.value }))}
+                          placeholder="0"
+                        />
+                        <span className="text-xs text-gray-500 font-mono shrink-0">{entradaSigla}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Saldo em {principalSigla}</Label>
+                      <div className={`flex items-center gap-2 h-9 px-3 rounded-md border ${isConverted ? "border-blue-200 bg-blue-50" : "border-gray-100 bg-gray-50"}`}>
+                        <span className={`text-sm font-semibold ${isConverted ? "text-blue-700" : "text-gray-600"}`}>
+                          {qtdBase != null ? qtdBase.toLocaleString("pt-BR", { maximumFractionDigits: 3 }) : "—"}
+                        </span>
+                        <span className={`text-xs ml-1 ${isConverted ? "text-blue-500" : "text-gray-400"}`}>{principalSigla}</span>
+                        {isConverted && <span className="ml-auto text-[10px] text-blue-400">×{fator}</span>}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Custo + Custo Médio + Custo Total */}
               <div className="grid grid-cols-3 gap-3">
@@ -2258,9 +2495,12 @@ export default function ProdutoDetailPage() {
                   <Label>Custo Total</Label>
                   <div className="flex items-center h-9 px-3 rounded-md border border-gray-100 bg-blue-50">
                     <span className="text-sm text-blue-700 font-semibold">
-                      {saldoForm.custo && saldoForm.saldo
-                        ? formatBRL(parseFloat(saldoForm.custo) * parseFloat(saldoForm.saldo))
-                        : "—"}
+                      {(() => {
+                        if (!saldoForm.custo || !saldoForm.saldo) return "—";
+                        const selectedIU = itemUnidades.find((iu) => iu.unidade.id === saldoForm.unidadeEntradaId);
+                        const fator = (selectedIU && !selectedIU.isPrincipal && selectedIU.fatorConversao) ? Number(selectedIU.fatorConversao) : 1;
+                        return formatBRL(parseFloat(saldoForm.custo) * parseFloat(saldoForm.saldo) * fator);
+                      })()}
                     </span>
                   </div>
                 </div>

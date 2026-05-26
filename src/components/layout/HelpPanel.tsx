@@ -1,42 +1,52 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { X, Mail, MessageCircle, BookOpen, Keyboard } from "lucide-react";
 import { useShortcuts } from "@/lib/shortcuts-context";
 
-// ── Shortcut definitions ───────────────────────────────────────────────────────
-const SHORTCUT_SECTIONS = [
-  {
-    title: "Navegação",
-    items: [
-      { keys: ["⌘", "K"],  description: "Abrir paleta de navegação rápida" },
-      { keys: ["⌘", "R"],  description: "Recarregar a aba atual" },
-      { keys: ["⌘", "B"],  description: "Recolher / expandir a sidebar" },
-      { keys: ["?"],        description: "Abrir este painel de ajuda" },
-      { keys: ["Esc"],      description: "Fechar janela ou diálogo aberto" },
-    ],
-  },
-  {
-    title: "Paleta ⌘K",
-    items: [
-      { keys: ["↑", "↓"],  description: "Navegar entre resultados" },
-      { keys: ["↵"],        description: "Abrir a tela selecionada" },
-      { keys: ["Esc"],      description: "Fechar a paleta" },
-    ],
-  },
-  {
-    title: "Geral",
-    items: [
-      { keys: ["Tab"],      description: "Navegar entre campos do formulário" },
-    ],
-  },
-];
+function useModKey() {
+  const [mod, setMod] = useState("⌘");
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && !/Mac|iPhone|iPad|iPod/.test(navigator.platform)) {
+      setMod("Ctrl");
+    }
+  }, []);
+  return mod;
+}
 
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function HelpPanel() {
   const { open, openShortcuts, closeShortcuts } = useShortcuts();
+  const mod = useModKey();
+
+  const SHORTCUT_SECTIONS = [
+    {
+      title: "Navegação",
+      items: [
+        { keys: [mod, "K"],  description: "Abrir paleta de navegação rápida" },
+        { keys: [mod, "R"],  description: "Recarregar a aba atual" },
+        { keys: [mod, "B"],  description: "Recolher / expandir a sidebar" },
+        { keys: ["?"],        description: "Abrir este painel de ajuda" },
+        { keys: ["Esc"],      description: "Fechar janela ou diálogo aberto" },
+      ],
+    },
+    {
+      title: `Paleta ${mod}+K`,
+      items: [
+        { keys: ["↑", "↓"],  description: "Navegar entre resultados" },
+        { keys: ["↵"],        description: "Abrir a tela selecionada" },
+        { keys: ["Esc"],      description: "Fechar a paleta" },
+      ],
+    },
+    {
+      title: "Geral",
+      items: [
+        { keys: ["Tab"],      description: "Navegar entre campos do formulário" },
+      ],
+    },
+  ];
 
   // Global ? key listener
   useEffect(() => {

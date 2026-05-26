@@ -43,12 +43,16 @@ export default function CommandPalette() {
   const [selected, setSelected] = useState(0);
   const [mounted,  setMounted]  = useState(false);
   const [recents,  setRecents]  = useState<string[]>([]);
+  const [mod,      setMod]      = useState("⌘");
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef  = useRef<HTMLDivElement>(null);
   const router   = useRouter();
   const pathname = usePathname();
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+    if (!/Mac|iPhone|iPad|iPod/.test(navigator.platform)) setMod("Ctrl");
+  }, []);
 
   // Track page visits as recents
   useEffect(() => {
@@ -237,7 +241,7 @@ export default function CommandPalette() {
                 <KbdKey>↵</KbdKey> abrir
               </span>
               <span className="ml-auto flex items-center gap-1">
-                <KbdKey>⌘K</KbdKey> fechar
+                <KbdKey>{mod}K</KbdKey> fechar
               </span>
             </div>
           </div>

@@ -201,14 +201,21 @@ export default function PedidoForm({
     setLinhas((prev) => prev.map((l) => {
       if (l._key !== key) return l;
       const updated = { ...l, [field]: value };
-      // Recalc when relevant fields change
+      const qty   = parseFloat(field === "quantidade"    ? value : l.quantidade)    || 0;
+      const price = parseFloat(field === "precoUnitario" ? value : l.precoUnitario) || 0;
+      const bruto = qty * price;
+
       if (field === "quantidade" || field === "precoUnitario" || field === "descontoPct") {
-        const qty   = parseFloat(field === "quantidade"     ? value : l.quantidade)     || 0;
-        const price = parseFloat(field === "precoUnitario"  ? value : l.precoUnitario)  || 0;
-        const pct   = parseFloat(field === "descontoPct"    ? value : l.descontoPct)    || 0;
+        // % → recalc R$ value
+        const pct = parseFloat(field === "descontoPct" ? value : l.descontoPct) || 0;
         const { valorDesconto, valorTotal } = calcLine(qty, price, pct);
         updated.valorDesconto = valorDesconto.toFixed(2);
         updated.valorTotal    = valorTotal.toFixed(2);
+      } else if (field === "valorDesconto") {
+        // R$ value → back-calc %
+        const vlrDesc = parseFloat(value) || 0;
+        updated.descontoPct = bruto > 0 ? ((vlrDesc / bruto) * 100).toFixed(4) : "0";
+        updated.valorTotal  = (bruto - vlrDesc).toFixed(2);
       }
       return updated;
     }));
@@ -548,16 +555,14 @@ export default function PedidoForm({
                       </div>
                     </td>
 
-                    {/* Vlr. Desconto — read-only computed */}
-                    <td className="px-3 py-2.5 text-right">
-                      <span className={cn(
-                        "text-xs font-semibold",
-                        parseFloat(linha.valorDesconto) > 0 ? "text-red-600" : "text-gray-400"
-                      )}>
-                        {parseFloat(linha.valorDesconto) > 0
-                          ? `− ${formatBRL(parseFloat(linha.valorDesconto))}`
-                          : "—"}
-                      </span>
+                    {/* Vlr. Desconto — editable, syncs with % */}
+                    <td className="px-3 py-2.5">
+                      <Input
+                        type="number" min="0" step="0.01"
+                        value={linha.valorDesconto}
+                        onChange={(e) => updateLinha(linha._key, "valorDesconto", e.target.value)}
+                        className="h-9 text-xs text-right border-gray-300 font-medium"
+                      />
                     </td>
 
                     {/* Valor Total */}
@@ -655,7 +660,6 @@ export default function PedidoForm({
                 <span className="font-mono text-xs text-gray-500 shrink-0 w-20">{p.codigo}</span>
                 <span className="text-sm text-gray-800 truncate flex-1">{p.descricao}</span>
                 <span className="text-xs text-gray-500 shrink-0">{p.unidadeMedida}</span>
-                <span className="text-xs font-medium text-blue-600 shrink-0">{formatBRL(decimalToNumber(p.precoVenda))}</span>
               </button>
             ))}
           </div>

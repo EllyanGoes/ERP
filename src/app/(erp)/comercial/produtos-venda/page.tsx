@@ -53,7 +53,7 @@ export default function ProdutosVendaPage() {
         breadcrumbs={[{ label: "Comercial" }, { label: "Produtos para Venda" }]}
         action={
           <Button asChild>
-            <Link href="/suprimentos/produtos/novo?vendavel=1">
+            <Link href="/comercial/produtos-venda/novo">
               <Plus className="w-4 h-4 mr-2" />
               Novo Produto
             </Link>

@@ -534,6 +534,11 @@ export default function Sidebar() {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("sidebar-collapsed") === "1";
   });
+  const [modKey, setModKey] = useState("⌘");
+
+  useEffect(() => {
+    if (!/Mac|iPhone|iPad|iPod/.test(navigator.platform)) setModKey("Ctrl");
+  }, []);
 
   const draggingRef = useRef(false);
   const dragStartX  = useRef(0);
@@ -616,7 +621,7 @@ export default function Sidebar() {
         <div className="fixed left-0 top-0 h-screen w-6 z-40 group/reopen">
           <button
             onClick={() => setStripCollapsed(false)}
-            title="Expandir sidebar (⌘B)"
+            title={`Expandir sidebar (${modKey}B)`}
             className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center
               w-5 h-10 bg-gray-200 hover:bg-gray-300 text-gray-500 hover:text-gray-700
               rounded-r-lg transition-all shadow-md
@@ -709,7 +714,7 @@ export default function Sidebar() {
           <div className="flex flex-col items-center gap-1 pb-3 pt-2 border-t border-gray-800 mt-2">
 
             {/* Recolher sidebar */}
-            <StripTooltip label="Recolher sidebar (⌘B)">
+            <StripTooltip label={`Recolher sidebar (${modKey}B)`}>
               <button
                 onClick={() => setStripCollapsed(true)}
                 className="flex items-center justify-center w-9 h-9 rounded-xl
@@ -901,7 +906,7 @@ export default function Sidebar() {
             <div
               onMouseDown={onResizeMouseDown}
               className="group absolute right-0 top-0 h-full w-3 cursor-col-resize flex items-center justify-center z-10"
-              title="Arraste para redimensionar · ⌘B para recolher"
+              title={`Arraste para redimensionar · ${modKey}B para recolher`}
             >
               <div className="w-0.5 h-8 rounded-full bg-gray-200 group-hover:bg-blue-400 transition-colors" />
               <GripVertical className="absolute w-3 h-3 text-gray-300 group-hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100" />
