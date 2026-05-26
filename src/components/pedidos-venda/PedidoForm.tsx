@@ -99,8 +99,9 @@ export default function PedidoForm({
   const [savingCondicao,    setSavingCondicao]    = useState(false);
   const [showNewCondicao,   setShowNewCondicao]   = useState(false);
   const [condicaoDropPos,   setCondicaoDropPos]   = useState<{ top: number; left: number; width: number } | null>(null);
-  const condicaoRef    = useRef<HTMLDivElement>(null);
-  const condicaoBtnRef = useRef<HTMLButtonElement>(null);
+  const condicaoRef       = useRef<HTMLDivElement>(null);
+  const condicaoBtnRef    = useRef<HTMLButtonElement>(null);
+  const condicaoPortalRef = useRef<HTMLDivElement>(null);
 
   // Line items
   const [linhas, setLinhas] = useState<LineItem[]>([]);
@@ -158,20 +159,22 @@ export default function PedidoForm({
   // Outside click / scroll: close condição dropdown
   useEffect(() => {
     if (!condicaoOpen) return;
-    function h(e: MouseEvent) {
-      if (!(e.target as HTMLElement).closest("[data-condicao-dd]")) {
-        setCondicaoOpen(false);
-        setShowNewCondicao(false);
-        setNewCondicaoName("");
-        setCondicaoSearch("");
-      }
-    }
-    function onScroll(e: Event) {
-      if ((e.target as HTMLElement).closest?.("[data-condicao-dd]")) return;
+    function closeDD() {
       setCondicaoOpen(false);
       setShowNewCondicao(false);
       setNewCondicaoName("");
       setCondicaoSearch("");
+    }
+    function h(e: MouseEvent) {
+      const t = e.target as Node;
+      // Keep open if click is inside trigger button OR inside the portal
+      if (condicaoBtnRef.current?.contains(t)) return;
+      if (condicaoPortalRef.current?.contains(t)) return;
+      closeDD();
+    }
+    function onScroll(e: Event) {
+      if (condicaoPortalRef.current?.contains(e.target as Node)) return;
+      closeDD();
     }
     document.addEventListener("mousedown", h);
     window.addEventListener("scroll", onScroll, true);
@@ -835,7 +838,7 @@ export default function PedidoForm({
       {/* ── Portal: condição de pagamento dropdown ───────────────────── */}
       {portalMounted && condicaoOpen && condicaoDropPos && createPortal(
         <div
-          data-condicao-dd
+          ref={condicaoPortalRef}
           className="fixed z-[9999] bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden"
           style={{ top: condicaoDropPos.top, left: condicaoDropPos.left, width: condicaoDropPos.width }}
         >
@@ -843,7 +846,7 @@ export default function PedidoForm({
           <div className="relative border-b border-gray-100">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
             <input
-              autoFocus data-condicao-dd type="text"
+              autoFocus type="text"
               value={condicaoSearch}
               onChange={(e) => setCondicaoSearch(e.target.value)}
               placeholder="Buscar condição..."
@@ -852,13 +855,6 @@ export default function PedidoForm({
           </div>
           {/* Options */}
           <div className="max-h-44 overflow-y-auto">
-            <button
-              type="button"
-              onMouseDown={() => { setCondicaoPagamento(""); setCondicaoOpen(false); setCondicaoSearch(""); }}
-              className={cn("w-full text-left px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-50 border-b border-gray-50 italic", !condicaoPagamento && "bg-blue-50 text-blue-600 font-medium not-italic")}
-            >
-              — Sem condição —
-            </button>
             {condicoes
               .filter((c) => !condicaoSearch.trim() || c.nome.toLowerCase().includes(condicaoSearch.toLowerCase()))
               .map((c) => (
@@ -870,7 +866,7 @@ export default function PedidoForm({
                   {c.nome}
                 </button>
               ))}
-            {condicoes.filter((c) => !condicaoSearch.trim() || c.nome.toLowerCase().includes(condicaoSearch.toLowerCase())).length === 0 && condicaoSearch.trim() && (
+            {condicoes.filter((c) => !condicaoSearch.trim() || c.nome.toLowerCase().includes(condicaoSearch.toLowerCase())).length === 0 && (
               <p className="px-4 py-3 text-xs text-gray-400 italic text-center">Nenhuma condição encontrada</p>
             )}
           </div>
@@ -879,7 +875,7 @@ export default function PedidoForm({
             {!showNewCondicao ? (
               <button
                 type="button"
-                onMouseDown={(e) => { e.preventDefault(); setShowNewCondicao(true); setNewCondicaoName(condicaoSearch.trim()); }}
+                onClick={() => { setShowNewCondicao(true); setNewCondicaoName(condicaoSearch.trim()); }}
                 className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 font-medium transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" /> Adicionar nova condição
@@ -887,7 +883,7 @@ export default function PedidoForm({
             ) : (
               <div className="flex items-center gap-2 px-3 py-2">
                 <input
-                  autoFocus data-condicao-dd
+                  autoFocus
                   type="text"
                   value={newCondicaoName}
                   onChange={(e) => setNewCondicaoName(e.target.value)}
@@ -897,7 +893,7 @@ export default function PedidoForm({
                 />
                 <button
                   type="button"
-                  onMouseDown={(e) => { e.preventDefault(); saveNovaCondicao(); }}
+                  onClick={saveNovaCondicao}
                   disabled={savingCondicao || !newCondicaoName.trim()}
                   className="h-8 px-3 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 transition-colors shrink-0"
                 >
