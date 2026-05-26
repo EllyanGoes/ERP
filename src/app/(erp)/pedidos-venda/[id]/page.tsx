@@ -11,8 +11,37 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
     where: { id: params.id },
     include: {
       cliente: true,
-      itens: { include: { item: true } },
+      itens: {
+        include: {
+          item: {
+            include: {
+              unidade: { select: { id: true, sigla: true, nome: true } },
+              itemUnidades: {
+                where: { isPrincipal: false },
+                select: { id: true, fatorConversao: true, unidade: { select: { id: true, sigla: true, nome: true } } },
+              },
+            },
+          },
+          minutaItens: {
+            where: { minuta: { status: { not: "CANCELADA" } } },
+            select: { quantidade: true },
+          },
+        },
+      },
       contasReceber: true,
+      minutas: {
+        include: {
+          localEstoque: { select: { id: true, nome: true } },
+          itens: {
+            select: {
+              id: true, pedidoVendaItemId: true, itemId: true,
+              quantidade: true, quantidadeConvertida: true,
+              unidade: { select: { id: true, sigla: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
   if (!pedido) notFound();
