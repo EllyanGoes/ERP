@@ -239,6 +239,11 @@ export default function LocalEstoqueDetailPage() {
     (e) => toNum(e.quantidadeMin) > 0 && toNum(e.quantidadeAtual) < toNum(e.quantidadeMin)
   ).length;
 
+  // Detect which optional columns have at least one non-empty value
+  const hasEnderecos = local.estoqueItens.some((e) => !!e.localizacao);
+  const hasMin       = local.estoqueItens.some((e) => toNum(e.quantidadeMin) > 0);
+  const hasMax       = local.estoqueItens.some((e) => e.quantidadeMax != null && toNum(e.quantidadeMax) > 0);
+
   return (
     <div>
       {/* Breadcrumb */}
@@ -321,7 +326,8 @@ export default function LocalEstoqueDetailPage() {
               <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>
                 <Pencil className="w-4 h-4 mr-1" />Editar
               </Button>
-              <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50 hover:text-red-700 border-red-200" onClick={() => setShowDelete(true)}>
+              <span className="w-px h-6 bg-gray-200 mx-1 self-center" />
+              <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => setShowDelete(true)}>
                 <Trash2 className="w-4 h-4 mr-1" />Excluir
               </Button>
             </>
@@ -330,28 +336,33 @@ export default function LocalEstoqueDetailPage() {
       </div>
 
       <div className="px-8 pb-8 space-y-6">
-        {/* Summary cards */}
-        <div className="grid grid-cols-3 gap-4 max-w-lg">
-          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3.5">
-            <p className="text-xs text-blue-600 font-semibold uppercase tracking-wide">Produtos</p>
-            <p className="text-3xl font-bold text-blue-700 mt-1">{local.estoqueItens.length}</p>
+        {/* Summary bar */}
+        <div className="inline-flex items-stretch rounded-xl border border-gray-200 bg-white shadow-sm divide-x divide-gray-200 overflow-hidden">
+          <div className="px-5 py-3">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Produtos</p>
+            <p className="text-2xl font-bold text-blue-700 mt-0.5 tabular-nums">{local.estoqueItens.length}</p>
           </div>
-          <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3.5">
-            <p className="text-xs text-violet-600 font-semibold uppercase tracking-wide">Custo Total</p>
-            <p className="text-xl font-bold text-violet-700 mt-1 leading-tight">{custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-violet-400">—</span>}</p>
+          <div className="px-5 py-3">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Custo Total</p>
+            <p className="text-xl font-bold text-violet-700 mt-0.5 tabular-nums leading-tight">
+              {custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-gray-300">—</span>}
+            </p>
           </div>
           {abaixoMinimo > 0 ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+            <div className="px-5 py-3 bg-red-50 flex items-center gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
               <div>
-                <p className="text-xs text-red-600 font-semibold uppercase tracking-wide">Abaixo mín.</p>
-                <p className="text-3xl font-bold text-red-600 mt-1">{abaixoMinimo}</p>
+                <p className="text-xs text-red-600 font-medium uppercase tracking-wide">Abaixo do mínimo</p>
+                <p className="text-2xl font-bold text-red-600 mt-0.5 tabular-nums">{abaixoMinimo} produto{abaixoMinimo > 1 ? "s" : ""}</p>
               </div>
             </div>
           ) : (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3.5">
-              <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wide">Situação</p>
-              <p className="text-sm font-semibold text-emerald-700 mt-1">Tudo normal</p>
+            <div className="px-5 py-3 bg-emerald-50 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+              <div>
+                <p className="text-xs text-emerald-600 font-medium uppercase tracking-wide">Situação</p>
+                <p className="text-sm font-semibold text-emerald-700 mt-0.5">Tudo normal</p>
+              </div>
             </div>
           )}
         </div>
@@ -391,10 +402,10 @@ export default function LocalEstoqueDetailPage() {
                   <tr className="text-xs text-gray-600 uppercase tracking-wider">
                     <th className="text-left px-4 py-3 font-semibold">Código</th>
                     <th className="text-left px-4 py-3 font-semibold">Descrição</th>
-                    <th className="text-left px-4 py-3 font-semibold">Endereço</th>
+                    {hasEnderecos && <th className="text-left px-4 py-3 font-semibold">Endereço</th>}
                     <th className="text-right px-4 py-3 font-semibold">Qtd. Atual</th>
-                    <th className="text-right px-4 py-3 font-semibold">Mínimo</th>
-                    <th className="text-right px-4 py-3 font-semibold">Máximo</th>
+                    {hasMin && <th className="text-right px-4 py-3 font-semibold">Mínimo</th>}
+                    {hasMax && <th className="text-right px-4 py-3 font-semibold">Máximo</th>}
                     <th className="text-right px-4 py-3 font-semibold">Custo Total</th>
                     <th className="text-center px-4 py-3 font-semibold">Situação</th>
                   </tr>
@@ -416,37 +427,43 @@ export default function LocalEstoqueDetailPage() {
                           </Link>
                         </td>
                         <td className="px-4 py-3.5 font-semibold text-gray-800 align-middle">{e.item.descricao}</td>
-                        <td className="px-4 py-3.5 align-middle">
-                          {e.localizacao
-                            ? <span className="font-mono text-xs font-medium bg-gray-100 border border-gray-200 text-gray-700 px-1.5 py-0.5 rounded">{e.localizacao}</span>
-                            : <span className="text-gray-300">—</span>}
-                        </td>
+                        {hasEnderecos && (
+                          <td className="px-4 py-3.5 align-middle">
+                            {e.localizacao
+                              ? <span className="font-mono text-xs font-medium bg-gray-100 border border-gray-200 text-gray-700 px-1.5 py-0.5 rounded">{e.localizacao}</span>
+                              : <span className="text-gray-300">—</span>}
+                          </td>
+                        )}
                         <td className="px-4 py-3.5 text-right align-middle">
-                          <div className="flex flex-col items-end gap-0.5">
+                          <div className="flex flex-col items-end gap-1">
                             <div>
-                              <span className={cn("font-bold text-base", abaixo ? "text-red-600" : "text-gray-900")}>
+                              <span className={cn("font-bold text-base tabular-nums", abaixo ? "text-red-600" : "text-gray-900")}>
                                 {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                               </span>
                               <span className="text-xs font-medium text-gray-500 ml-1">{unidade}</span>
                             </div>
                             {e.item.itemUnidades.filter((iu) => !iu.isPrincipal && iu.fatorConversao).map((iu) => (
-                              <div key={iu.id} className="text-xs text-gray-500 font-medium">
+                              <span key={iu.id} className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded tabular-nums">
                                 {(atual / Number(iu.fatorConversao)).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                                <span className="ml-1">{iu.unidade.sigla}</span>
-                              </div>
+                                <span className="font-medium text-indigo-500">{iu.unidade.sigla}</span>
+                              </span>
                             ))}
                           </div>
                         </td>
-                        <td className="px-4 py-3.5 text-right align-middle">
-                          <span className={cn("font-medium text-sm", min > 0 ? "text-gray-700" : "text-gray-300")}>
-                            {min > 0 ? min.toLocaleString("pt-BR") : "—"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 text-right align-middle">
-                          <span className={cn("font-medium text-sm", max !== null ? "text-gray-700" : "text-gray-300")}>
-                            {max !== null ? max.toLocaleString("pt-BR") : "—"}
-                          </span>
-                        </td>
+                        {hasMin && (
+                          <td className="px-4 py-3.5 text-right align-middle">
+                            <span className={cn("font-medium text-sm tabular-nums", min > 0 ? "text-gray-700" : "text-gray-300")}>
+                              {min > 0 ? min.toLocaleString("pt-BR") : "—"}
+                            </span>
+                          </td>
+                        )}
+                        {hasMax && (
+                          <td className="px-4 py-3.5 text-right align-middle">
+                            <span className={cn("font-medium text-sm tabular-nums", max !== null ? "text-gray-700" : "text-gray-300")}>
+                              {max !== null ? max.toLocaleString("pt-BR") : "—"}
+                            </span>
+                          </td>
+                        )}
                         <td className="px-4 py-3.5 text-right font-semibold text-violet-700 align-middle">
                           {itemCusto > 0 ? formatBRL(itemCusto) : <span className="text-gray-300 font-normal">—</span>}
                         </td>
@@ -468,7 +485,7 @@ export default function LocalEstoqueDetailPage() {
                 {local.estoqueItens.length > 1 && (
                   <tfoot>
                     <tr className="border-t-2 border-gray-200 bg-gray-50">
-                      <td colSpan={6} className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Total</td>
+                      <td colSpan={2 + (hasEnderecos ? 1 : 0) + (hasMin ? 1 : 0) + (hasMax ? 1 : 0)} className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Total</td>
                       <td className="px-4 py-3 text-right font-bold text-violet-700 text-base">
                         {custoTotal > 0 ? formatBRL(custoTotal) : "—"}
                       </td>
