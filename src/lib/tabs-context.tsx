@@ -116,12 +116,61 @@ export function useTabTitle(title: string | null | undefined) {
   }, [title, setTabTitle]);
 }
 
+const TABS_STORAGE_KEY = "erp:open-tabs";
+
+type PersistedTab = { id: string; href: string; title: string; section?: string };
+
+function saveTabs(tabs: Tab[]) {
+  try {
+    const data: PersistedTab[] = tabs.map(({ id, href, title, section }) => ({ id, href, title, section }));
+    localStorage.setItem(TABS_STORAGE_KEY, JSON.stringify(data));
+  } catch { /* quota exceeded or SSR */ }
+}
+
+function loadTabs(): Tab[] {
+  try {
+    const raw = localStorage.getItem(TABS_STORAGE_KEY);
+    if (!raw) return [];
+    const data: PersistedTab[] = JSON.parse(raw);
+    return data.map((t) => ({
+      ...t,
+      icon: findRoute(t.href)?.icon,
+    }));
+  } catch { return []; }
+}
+
 // ── Provider ─────────────────────────────────────────────────────────────────
 export function TabsProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [tabs, setTabs] = useState<Tab[]>([]);
   const idCounterRef = useRef(0);
+  const initializedRef = useRef(false);
+
+  // Restore tabs from localStorage on first mount (client only)
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+    const restored = loadTabs();
+    if (restored.length > 0) {
+      // Ensure idCounter is beyond any restored ids to avoid collisions
+      const maxN = restored.reduce((max, t) => {
+        const n = parseInt(t.id.replace("tab-", ""), 10);
+        return isNaN(n) ? max : Math.max(max, n);
+      }, 0);
+      idCounterRef.current = maxN;
+      setTabs(restored);
+    }
+  }, []);
+
+  // Persist tabs whenever they change
+  useEffect(() => {
+    if (tabs.length > 0) {
+      saveTabs(tabs);
+    } else if (initializedRef.current) {
+      try { localStorage.removeItem(TABS_STORAGE_KEY); } catch { /* ignore */ }
+    }
+  }, [tabs]);
 
   // Add or activate tab on route change
   useEffect(() => {

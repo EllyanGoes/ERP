@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -117,6 +118,7 @@ const COLS: ColDef<Colaborador>[] = [
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ColaboradoresPage() {
+  const router = useRouter();
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [search,    setSearch]    = useState("");
@@ -242,7 +244,7 @@ export default function ColaboradoresPage() {
                 {colaboradores.map((c) => (
                   <tr
                     key={c.id}
-                    onClick={() => window.location.href = `/empresa/colaboradores/${c.id}`}
+                    onClick={() => router.push(`/empresa/colaboradores/${c.id}`)}
                     className="hover:bg-gray-50/60 cursor-pointer transition-colors"
                   >
                     {orderedCols.map((col) => (

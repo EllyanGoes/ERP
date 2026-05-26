@@ -328,6 +328,7 @@ function KanbanCard({ c, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
   onDragEnd: () => void;
   isDragging: boolean;
 }) {
+  const router = useRouter();
   const resp = c.fornecedores.filter((f) => f.status === "RESPONDIDA").length;
   const desc = c.fornecedores.filter((f) => f.status === "RECUSADA").length;
   const qtdProdutos = c.fornecedores[0]?.itens.length ?? 0;
@@ -371,7 +372,7 @@ function KanbanCard({ c, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
               <DropdownMenuItem onClick={() => onClick()}>
                 <Pencil className="h-4 w-4 mr-2" /> Editar
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => window.location.href = `/suprimentos/cotacoes/${c.id}/analise`}>
+              <DropdownMenuItem onClick={() => router.push(`/suprimentos/cotacoes/${c.id}/analise`)}>
                 <BarChart3 className="h-4 w-4 mr-2" /> Analisar
               </DropdownMenuItem>
             </DropdownMenuContent>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -74,6 +74,7 @@ function Field({ label, required, hint, children }: {
 
 export default function ColaboradorDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
 
   const [colaborador, setColaborador] = useState<Colaborador | null>(null);
   const [loading, setLoading]         = useState(true);
@@ -207,7 +208,7 @@ export default function ColaboradorDetailPage() {
         setDeleteError(json.error || "Não foi possível excluir");
         return;
       }
-      window.location.href = "/empresa/colaboradores";
+      router.push("/empresa/colaboradores");
     } catch {
       setDeleteError("Erro de conexão");
     } finally {
