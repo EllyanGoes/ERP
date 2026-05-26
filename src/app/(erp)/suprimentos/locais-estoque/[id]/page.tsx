@@ -396,9 +396,9 @@ export default function LocalEstoqueDetailPage() {
               <p className="text-sm mt-1">O estoque é alimentado ao registrar movimentações de entrada.</p>
             </div>
           ) : (
-            <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-gray-100 border-b-2 border-gray-200">
+                <thead className="bg-gray-50 border-b border-gray-200">
                   <tr className="text-xs text-gray-600 uppercase tracking-wider">
                     <th className="text-left px-4 py-3 font-semibold">Código</th>
                     <th className="text-left px-4 py-3 font-semibold">Descrição</th>
@@ -420,7 +420,7 @@ export default function LocalEstoqueDetailPage() {
                     const unidade = e.item.unidade?.sigla || e.item.unidadeMedida;
                     const itemCusto = toNum(e.item.precoCusto) * atual;
                     return (
-                      <tr key={e.id} className={cn("hover:bg-blue-50/30 transition-colors", abaixo && "bg-red-50/50 hover:bg-red-50/70", !e.item.ativo && "opacity-50")}>
+                      <tr key={e.id} className={cn("hover:bg-gray-50 transition-colors", abaixo && "bg-red-50/50 hover:bg-red-50/70", !e.item.ativo && "opacity-50")}>
                         <td className="px-4 py-3.5 align-middle">
                           <Link href={`/suprimentos/produtos/${e.item.id}`} className="font-mono text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline">
                             {e.item.codigo}
@@ -484,7 +484,7 @@ export default function LocalEstoqueDetailPage() {
                 </tbody>
                 {local.estoqueItens.length > 1 && (
                   <tfoot>
-                    <tr className="border-t-2 border-gray-200 bg-gray-50">
+                    <tr className="border-t border-gray-200 bg-gray-50">
                       <td colSpan={2 + (hasEnderecos ? 1 : 0) + (hasMin ? 1 : 0) + (hasMax ? 1 : 0)} className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Total</td>
                       <td className="px-4 py-3 text-right font-bold text-violet-700 text-base">
                         {custoTotal > 0 ? formatBRL(custoTotal) : "—"}
