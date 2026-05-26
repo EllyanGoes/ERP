@@ -81,8 +81,14 @@ export default function PedidoForm({
   const tabelaSelecionada = tabelas.find((t) => t.id === tabelaPrecoId) ?? null;
 
   // Condições de Pagamento
-  const [condicoes,      setCondicoes]      = useState<CondicaoOption[]>([]);
-  const [condicoesLoading, setCondicoesLoading] = useState(false);
+  const [condicoes,         setCondicoes]         = useState<CondicaoOption[]>([]);
+  const [condicoesLoading,  setCondicoesLoading]  = useState(false);
+  const [condicaoOpen,      setCondicaoOpen]      = useState(false);
+  const [condicaoSearch,    setCondicaoSearch]    = useState("");
+  const [newCondicaoName,   setNewCondicaoName]   = useState("");
+  const [savingCondicao,    setSavingCondicao]    = useState(false);
+  const [showNewCondicao,   setShowNewCondicao]   = useState(false);
+  const condicaoRef = useRef<HTMLDivElement>(null);
 
   // Line items
   const [linhas, setLinhas] = useState<LineItem[]>([]);
@@ -136,6 +142,44 @@ export default function PedidoForm({
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
+
+  // Outside click: close condição dropdown
+  useEffect(() => {
+    function h(e: MouseEvent) {
+      if (condicaoRef.current && !condicaoRef.current.contains(e.target as Node)) {
+        setCondicaoOpen(false);
+        setShowNewCondicao(false);
+        setNewCondicaoName("");
+        setCondicaoSearch("");
+      }
+    }
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  async function saveNovaCondicao() {
+    const nome = newCondicaoName.trim();
+    if (!nome) return;
+    setSavingCondicao(true);
+    try {
+      const res = await fetch("/api/suprimentos/condicoes-pagamento", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome }),
+      });
+      if (res.ok) {
+        const created: CondicaoOption = await res.json();
+        setCondicoes((prev) => [...prev, { id: created.id, nome: created.nome }].sort((a, b) => a.nome.localeCompare(b.nome)));
+        setCondicaoPagamento(created.nome);
+        setCondicaoOpen(false);
+        setShowNewCondicao(false);
+        setNewCondicaoName("");
+        setCondicaoSearch("");
+      }
+    } finally {
+      setSavingCondicao(false);
+    }
+  }
 
   useEffect(() => { setPortalMounted(true); }, []);
 
@@ -434,17 +478,107 @@ export default function PedidoForm({
           {/* Condição de Pagamento */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Condição de Pagamento</Label>
-            <select
-              value={condicaoPagamento}
-              onChange={(e) => setCondicaoPagamento(e.target.value)}
-              disabled={condicoesLoading}
-              className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors disabled:opacity-50"
-            >
-              <option value="">— Selecionar condição —</option>
-              {condicoes.map((c) => (
-                <option key={c.id} value={c.nome}>{c.nome}</option>
-              ))}
-            </select>
+            <div className="relative" ref={condicaoRef}>
+              <button
+                type="button"
+                onClick={() => { setCondicaoOpen((v) => !v); setCondicaoSearch(""); setShowNewCondicao(false); setNewCondicaoName(""); }}
+                disabled={condicoesLoading}
+                className={cn(
+                  "w-full flex items-center justify-between h-10 px-3 rounded-lg border text-sm text-left transition-colors",
+                  condicaoOpen ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-300 hover:border-gray-400",
+                  condicaoPagamento ? "text-gray-900" : "text-gray-400",
+                  condicoesLoading && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                <span className="truncate">{condicaoPagamento || "— Selecionar condição —"}</span>
+                <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {condicaoOpen && (
+                <div className="absolute z-50 w-full mt-1 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
+                  {/* Search */}
+                  <div className="relative border-b border-gray-100">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <input
+                      autoFocus type="text"
+                      value={condicaoSearch}
+                      onChange={(e) => setCondicaoSearch(e.target.value)}
+                      placeholder="Buscar condição..."
+                      className="w-full pl-8 pr-3 py-2.5 text-sm focus:outline-none bg-transparent"
+                    />
+                  </div>
+
+                  {/* Options list */}
+                  <div className="max-h-44 overflow-y-auto">
+                    {/* Clear option */}
+                    <button
+                      type="button"
+                      onMouseDown={() => { setCondicaoPagamento(""); setCondicaoOpen(false); setCondicaoSearch(""); }}
+                      className={cn("w-full text-left px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-50 border-b border-gray-50 italic", !condicaoPagamento && "bg-blue-50 text-blue-600 font-medium not-italic")}
+                    >
+                      — Sem condição —
+                    </button>
+                    {condicoes
+                      .filter((c) => !condicaoSearch.trim() || c.nome.toLowerCase().includes(condicaoSearch.toLowerCase()))
+                      .map((c) => (
+                        <button
+                          key={c.id} type="button"
+                          onMouseDown={() => { setCondicaoPagamento(c.nome); setCondicaoOpen(false); setCondicaoSearch(""); }}
+                          className={cn("w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 border-b border-gray-50 last:border-0", condicaoPagamento === c.nome && "bg-blue-50 text-blue-700 font-semibold")}
+                        >
+                          {c.nome}
+                        </button>
+                      ))
+                    }
+                    {condicoes.filter((c) => !condicaoSearch.trim() || c.nome.toLowerCase().includes(condicaoSearch.toLowerCase())).length === 0 && condicaoSearch.trim() && (
+                      <p className="px-4 py-3 text-xs text-gray-400 italic text-center">Nenhuma condição encontrada</p>
+                    )}
+                  </div>
+
+                  {/* Footer — add new */}
+                  <div className="border-t border-gray-100">
+                    {!showNewCondicao ? (
+                      <button
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); setShowNewCondicao(true); setNewCondicaoName(condicaoSearch.trim()); }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 font-medium transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Adicionar nova condição
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2 px-3 py-2">
+                        <input
+                          autoFocus
+                          type="text"
+                          value={newCondicaoName}
+                          onChange={(e) => setNewCondicaoName(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveNovaCondicao(); if (e.key === "Escape") { setShowNewCondicao(false); setNewCondicaoName(""); } }}
+                          placeholder="Nome da condição..."
+                          className="flex-1 h-8 px-2.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        />
+                        <button
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); saveNovaCondicao(); }}
+                          disabled={savingCondicao || !newCondicaoName.trim()}
+                          className="h-8 px-3 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 transition-colors shrink-0"
+                        >
+                          {savingCondicao ? "..." : "Salvar"}
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); setShowNewCondicao(false); setNewCondicaoName(""); }}
+                          className="h-8 px-2 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
