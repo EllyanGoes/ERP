@@ -47,41 +47,61 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const updateData: Record<string, unknown> = {};
   // codigo is auto-generated and immutable — never updated via PATCH
-  if (body.descricao !== undefined) updateData.descricao = body.descricao;
-  if (body.tipo !== undefined) updateData.tipo = body.tipo;
-  if (body.unidadeId !== undefined) updateData.unidadeId = body.unidadeId || null;
+  if (body.descricao   !== undefined) updateData.descricao   = body.descricao;
+  if (body.tipo        !== undefined) updateData.tipo        = body.tipo;
+  if (body.unidadeId   !== undefined) updateData.unidadeId   = body.unidadeId || null;
   if (body.tipoProdutoId !== undefined) updateData.tipoProdutoId = body.tipoProdutoId || null;
-  if (body.ncm !== undefined) updateData.ncm = body.ncm || null;
-  if (body.precoVenda !== undefined) updateData.precoVenda = parseFloat(body.precoVenda) || 0;
+  if (body.ncm         !== undefined) updateData.ncm         = body.ncm || null;
+  if (body.precoVenda  !== undefined) updateData.precoVenda  = parseFloat(body.precoVenda) || 0;
   // precoCusto is auto-maintained by CMPM (entrada movements) — never updated via PATCH
-  if (body.ativo !== undefined) updateData.ativo = body.ativo;
-  if (body.favorito !== undefined) updateData.favorito = Boolean(body.favorito);
-  if (body.vendavel !== undefined) updateData.vendavel = Boolean(body.vendavel);
-  if (body.estoqueMinimo !== undefined) updateData.estoqueMinimo = body.estoqueMinimo != null ? parseFloat(body.estoqueMinimo) : null;
-  if (body.estoqueMaximo !== undefined) updateData.estoqueMaximo = body.estoqueMaximo != null ? parseFloat(body.estoqueMaximo) : null;
+  if (body.ativo       !== undefined) updateData.ativo       = body.ativo;
+  if (body.favorito    !== undefined) updateData.favorito    = Boolean(body.favorito);
+  if (body.vendavel    !== undefined) updateData.vendavel    = Boolean(body.vendavel);
+  if (body.estoqueMinimo  !== undefined) updateData.estoqueMinimo  = body.estoqueMinimo  != null ? parseFloat(body.estoqueMinimo)  : null;
+  if (body.estoqueMaximo  !== undefined) updateData.estoqueMaximo  = body.estoqueMaximo  != null ? parseFloat(body.estoqueMaximo)  : null;
   if (body.pontoReposicao !== undefined) updateData.pontoReposicao = body.pontoReposicao != null ? parseFloat(body.pontoReposicao) : null;
-  if (body.leadTimeDias !== undefined) updateData.leadTimeDias = body.leadTimeDias != null ? parseInt(body.leadTimeDias) : null;
-  if (body.observacoes !== undefined) updateData.observacoes = body.observacoes || null;
+  if (body.leadTimeDias   !== undefined) updateData.leadTimeDias   = body.leadTimeDias   != null ? parseInt(body.leadTimeDias)     : null;
+  if (body.observacoes    !== undefined) updateData.observacoes    = body.observacoes    || null;
 
-  const updated = await prisma.item.update({
-    where: { id: params.id },
-    data: updateData,
-    include: {
-      tipoProduto: true,
-      unidade: true,
-      estoqueItems: {
-        include: {
-          localEstoque: {
-            include: { filial: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.item.update({ where: { id: params.id }, data: updateData });
+
+    // Sync principal ItemUnidade when unidadeId changes
+    if (body.unidadeId !== undefined) {
+      const newUnidadeId = body.unidadeId || null;
+      await tx.itemUnidade.updateMany({
+        where: { itemId: params.id, isPrincipal: true },
+        data:  { isPrincipal: false },
+      });
+      if (newUnidadeId) {
+        await tx.itemUnidade.upsert({
+          where:  { itemId_unidadeId: { itemId: params.id, unidadeId: newUnidadeId } },
+          create: { itemId: params.id, unidadeId: newUnidadeId, isPrincipal: true, fatorConversao: null, baseUnidadeId: null },
+          update: { isPrincipal: true },
+        });
+      }
+    }
+
+    return tx.item.findUnique({
+      where: { id: params.id },
+      include: {
+        tipoProduto: true,
+        unidade: true,
+        estoqueItems: {
+          include: {
+            localEstoque: {
+              include: { filial: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
+            },
           },
         },
+        produtosFornecedor: {
+          include: { fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
+        },
       },
-      produtosFornecedor: {
-        include: { fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
-      },
-    },
+    });
   });
 
+  if (!updated) return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 });
   const { produtosFornecedor, ...rest } = updated;
   return NextResponse.json({ data: { ...rest, fornecedores: produtosFornecedor } });
 }

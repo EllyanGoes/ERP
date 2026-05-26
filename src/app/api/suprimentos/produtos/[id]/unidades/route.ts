@@ -7,6 +7,24 @@ type Ctx = { params: { id: string } };
 
 // ── GET — list units for a product ──────────────────────────────────────────
 export async function GET(_req: NextRequest, { params }: Ctx) {
+  // Lazy backfill: if item has unidadeId but no principal ItemUnidade, create it
+  const item = await prisma.item.findUnique({
+    where: { id: params.id },
+    select: { unidadeId: true },
+  });
+  if (item?.unidadeId) {
+    const hasPrincipal = await prisma.itemUnidade.findFirst({
+      where: { itemId: params.id, isPrincipal: true },
+    });
+    if (!hasPrincipal) {
+      await prisma.itemUnidade.upsert({
+        where:  { itemId_unidadeId: { itemId: params.id, unidadeId: item.unidadeId } },
+        create: { itemId: params.id, unidadeId: item.unidadeId, isPrincipal: true, fatorConversao: null, baseUnidadeId: null },
+        update: { isPrincipal: true },
+      });
+    }
+  }
+
   const unidades = await prisma.itemUnidade.findMany({
     where: { itemId: params.id },
     include: {

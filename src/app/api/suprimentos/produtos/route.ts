@@ -71,6 +71,19 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Auto-create principal ItemUnidade for the base unit
+    if (body.unidadeId) {
+      await tx.itemUnidade.create({
+        data: {
+          itemId:        newItem.id,
+          unidadeId:     body.unidadeId,
+          isPrincipal:   true,
+          fatorConversao: null,
+          baseUnidadeId: null,
+        },
+      });
+    }
+
     // estoqueItems are created on demand when the first stock movement
     // is registered for a specific location — no "sem local" placeholder needed.
 
