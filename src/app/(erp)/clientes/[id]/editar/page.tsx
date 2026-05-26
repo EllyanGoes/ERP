@@ -10,12 +10,12 @@ export default async function EditarClientePage({ params }: { params: { id: stri
   if (!cliente) notFound();
 
   return (
-    <div>
+    <div className="flex flex-col h-full">
       <PageHeader
         title="Editar Cliente"
         breadcrumbs={[{ label: "Clientes", href: "/clientes" }, { label: cliente.razaoSocial, href: `/clientes/${cliente.id}` }, { label: "Editar" }]}
       />
-      <div className="px-8 pb-8 max-w-6xl">
+      <div className="px-8 pb-8 max-w-6xl flex-1 flex flex-col">
         <ClienteForm cliente={cliente as any} />
       </div>
     </div>

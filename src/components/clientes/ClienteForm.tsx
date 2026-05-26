@@ -53,10 +53,10 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 gap-6">
 
         {/* ── Two-column layout ──────────────────────────────────────────── */}
-        <div className="grid grid-cols-3 gap-6 items-stretch">
+        <div className="grid grid-cols-3 gap-6 items-stretch flex-1">
 
           {/* ── LEFT: Dados Cadastrais (2/3) ─────────────────────────────── */}
           <div className="col-span-2 bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">

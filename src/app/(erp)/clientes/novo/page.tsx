@@ -5,12 +5,12 @@ export const dynamic = "force-dynamic";
 
 export default function NovoClientePage() {
   return (
-    <div>
+    <div className="flex flex-col h-full">
       <PageHeader
         title="Novo Cliente"
         breadcrumbs={[{ label: "Clientes", href: "/clientes" }, { label: "Novo" }]}
       />
-      <div className="px-8 pb-8 max-w-6xl">
+      <div className="px-8 pb-8 max-w-6xl flex-1 flex flex-col">
         <ClienteForm />
       </div>
     </div>
