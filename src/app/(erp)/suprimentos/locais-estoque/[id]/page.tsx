@@ -421,20 +421,20 @@ export default function LocalEstoqueDetailPage() {
                     const itemCusto = toNum(e.item.precoCusto) * atual;
                     return (
                       <tr key={e.id} className={cn("hover:bg-gray-50 transition-colors", abaixo && "bg-red-50/50 hover:bg-red-50/70", !e.item.ativo && "opacity-50")}>
-                        <td className="px-4 py-3.5 align-middle">
+                        <td className="px-4 py-3 align-middle">
                           <Link href={`/suprimentos/produtos/${e.item.id}`} className="font-mono text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline">
                             {e.item.codigo}
                           </Link>
                         </td>
-                        <td className="px-4 py-3.5 font-semibold text-gray-800 align-middle">{e.item.descricao}</td>
+                        <td className="px-4 py-3 font-semibold text-gray-800 align-middle">{e.item.descricao}</td>
                         {hasEnderecos && (
-                          <td className="px-4 py-3.5 align-middle">
+                          <td className="px-4 py-3 align-middle">
                             {e.localizacao
                               ? <span className="font-mono text-xs font-medium bg-gray-100 border border-gray-200 text-gray-700 px-1.5 py-0.5 rounded">{e.localizacao}</span>
                               : <span className="text-gray-300">—</span>}
                           </td>
                         )}
-                        <td className="px-4 py-3.5 text-right align-middle">
+                        <td className="px-4 py-3 text-right align-middle">
                           <div className="flex flex-col items-end gap-1">
                             <div>
                               <span className={cn("font-bold text-base tabular-nums", abaixo ? "text-red-600" : "text-gray-900")}>
@@ -451,23 +451,23 @@ export default function LocalEstoqueDetailPage() {
                           </div>
                         </td>
                         {hasMin && (
-                          <td className="px-4 py-3.5 text-right align-middle">
+                          <td className="px-4 py-3 text-right align-middle">
                             <span className={cn("font-medium text-sm tabular-nums", min > 0 ? "text-gray-700" : "text-gray-300")}>
                               {min > 0 ? min.toLocaleString("pt-BR") : "—"}
                             </span>
                           </td>
                         )}
                         {hasMax && (
-                          <td className="px-4 py-3.5 text-right align-middle">
+                          <td className="px-4 py-3 text-right align-middle">
                             <span className={cn("font-medium text-sm tabular-nums", max !== null ? "text-gray-700" : "text-gray-300")}>
                               {max !== null ? max.toLocaleString("pt-BR") : "—"}
                             </span>
                           </td>
                         )}
-                        <td className="px-4 py-3.5 text-right font-semibold text-violet-700 align-middle">
+                        <td className="px-4 py-3 text-right font-semibold text-violet-700 align-middle">
                           {itemCusto > 0 ? formatBRL(itemCusto) : <span className="text-gray-300 font-normal">—</span>}
                         </td>
-                        <td className="px-4 py-3.5 text-center align-middle">
+                        <td className="px-4 py-3 text-center align-middle">
                           {abaixo ? (
                             <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 border border-red-200 px-2 py-0.5 rounded-full">
                               <AlertTriangle className="w-3 h-3" />Baixo
