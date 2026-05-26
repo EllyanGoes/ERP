@@ -15,7 +15,7 @@ export default async function EditarClientePage({ params }: { params: { id: stri
         title="Editar Cliente"
         breadcrumbs={[{ label: "Clientes", href: "/clientes" }, { label: cliente.razaoSocial, href: `/clientes/${cliente.id}` }, { label: "Editar" }]}
       />
-      <div className="px-8 pb-8 max-w-3xl">
+      <div className="px-8 pb-8 max-w-6xl">
         <ClienteForm cliente={cliente as any} />
       </div>
     </div>

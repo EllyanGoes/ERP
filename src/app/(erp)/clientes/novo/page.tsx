@@ -10,7 +10,7 @@ export default function NovoClientePage() {
         title="Novo Cliente"
         breadcrumbs={[{ label: "Clientes", href: "/clientes" }, { label: "Novo" }]}
       />
-      <div className="px-8 pb-8 max-w-3xl">
+      <div className="px-8 pb-8 max-w-6xl">
         <ClienteForm />
       </div>
     </div>
