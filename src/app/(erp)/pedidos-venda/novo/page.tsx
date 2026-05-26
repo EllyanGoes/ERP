@@ -7,7 +7,20 @@ export const dynamic = "force-dynamic";
 export default async function NovoPedidoPage() {
   const [clientes, itens] = await Promise.all([
     prisma.cliente.findMany({ where: { status: "ATIVO" }, orderBy: { razaoSocial: "asc" }, select: { id: true, razaoSocial: true, nomeFantasia: true } }),
-    prisma.item.findMany({ where: { ativo: true, vendavel: true }, orderBy: { codigo: "asc" }, select: { id: true, codigo: true, descricao: true, precoVenda: true, unidadeMedida: true } }),
+    prisma.item.findMany({
+      where: { ativo: true, vendavel: true },
+      orderBy: { codigo: "asc" },
+      select: {
+        id: true, codigo: true, descricao: true, precoVenda: true, unidadeMedida: true,
+        unidade: { select: { id: true, sigla: true } },
+        itemUnidades: {
+          select: {
+            unidadeId: true, fatorConversao: true,
+            unidade: { select: { id: true, sigla: true, nome: true } },
+          },
+        },
+      },
+    }),
   ]);
 
   return (
@@ -16,7 +29,7 @@ export default async function NovoPedidoPage() {
         title="Novo Pedido de Venda"
         breadcrumbs={[{ label: "Pedidos de Venda", href: "/pedidos-venda" }, { label: "Novo" }]}
       />
-      <div className="px-8 pb-8 max-w-5xl">
+      <div className="px-8 pb-8">
         <PedidoForm clientes={clientes as any} itens={itens as any} />
       </div>
     </div>

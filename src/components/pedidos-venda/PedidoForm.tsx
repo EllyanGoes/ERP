@@ -14,7 +14,12 @@ import { formatBRL, decimalToNumber, cn } from "@/lib/utils";
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type ClienteOption    = { id: string; razaoSocial: string; nomeFantasia: string | null };
-type ItemOption       = { id: string; codigo: string; descricao: string; precoVenda: unknown; unidadeMedida: string };
+type ItemUnidadeOption = { unidadeId: string; fatorConversao: unknown; unidade: { id: string; sigla: string; nome: string } };
+type ItemOption       = {
+  id: string; codigo: string; descricao: string; precoVenda: unknown; unidadeMedida: string;
+  unidade?: { id: string; sigla: string } | null;
+  itemUnidades?: ItemUnidadeOption[];
+};
 type TabelaOption     = {
   id: string; codigo: string; descricao: string;
   condicaoPagamento: string | null; ativa: boolean;
@@ -27,7 +32,11 @@ type LineItem = {
   itemId: string;
   codigo: string;
   descricao: string;
-  unidade: string;
+  unidade: string;           // sigla da unidade selecionada (display)
+  unidadeId: string;         // id da unidade selecionada
+  unidadeBaseId: string;     // id da unidade base do item
+  fatorConversao: number;    // qty_digitada × fator = qty_base
+  itemUnidades: ItemUnidadeOption[]; // unidades disponíveis para o item
   quantidade: string;
   precoUnitario: string;
   descontoPct: string;   // %
@@ -48,6 +57,7 @@ function emptyLine(): LineItem {
   return {
     _key: crypto.randomUUID(), itemId: "",
     codigo: "", descricao: "", unidade: "",
+    unidadeId: "", unidadeBaseId: "", fatorConversao: 1, itemUnidades: [],
     quantidade: "1", precoUnitario: "0",
     descontoPct: "0", valorDesconto: "0", valorTotal: "0",
   };
@@ -286,13 +296,21 @@ export default function PedidoForm({
     const finalPrice = tabelaItem ? decimalToNumber(tabelaItem.precoVenda) : price;
     const pct        = tabelaItem ? decimalToNumber(tabelaItem.vlrDesconto) : 0;
 
+    // Base unit info
+    const baseUnitId  = prod.unidade?.id ?? "";
+    const baseUnitSigla = prod.unidade?.sigla ?? prod.unidadeMedida;
+    const itemUnidades  = prod.itemUnidades ?? [];
+
     setLinhas((prev) => prev.map((l) => {
       if (l._key !== key) return l;
       const qty = parseFloat(l.quantidade) || 1;
       const { valorDesconto, valorTotal } = calcLine(qty, finalPrice, pct);
       return {
         ...l, itemId: prod.id,
-        codigo: prod.codigo, descricao: prod.descricao, unidade: prod.unidadeMedida,
+        codigo: prod.codigo, descricao: prod.descricao,
+        unidade: baseUnitSigla, unidadeId: baseUnitId,
+        unidadeBaseId: baseUnitId, fatorConversao: 1,
+        itemUnidades,
         precoUnitario: finalPrice.toFixed(2),
         descontoPct:   pct.toFixed(4),
         valorDesconto: valorDesconto.toFixed(2),
@@ -301,6 +319,48 @@ export default function PedidoForm({
     }));
     setItemSearchRow(null);
     setItemSearchQ("");
+  }
+
+  function changeUnidade(key: string, newUnidadeId: string) {
+    setLinhas((prev) => prev.map((l) => {
+      if (l._key !== key) return l;
+
+      // Base unit (fator = 1)
+      if (newUnidadeId === l.unidadeBaseId || !newUnidadeId) {
+        const qty   = parseFloat(l.quantidade) || 0;
+        const price = parseFloat(l.precoUnitario) || 0;
+        const pct   = parseFloat(l.descontoPct) || 0;
+        const { valorDesconto, valorTotal } = calcLine(qty, price, pct);
+        return {
+          ...l,
+          unidadeId: l.unidadeBaseId,
+          fatorConversao: 1,
+          unidade: l.itemUnidades.find((u) => u.unidadeId === l.unidadeBaseId)?.unidade.sigla
+            ?? l.unidade,
+          valorDesconto: valorDesconto.toFixed(2),
+          valorTotal:    valorTotal.toFixed(2),
+        };
+      }
+
+      // Alternative unit
+      const iu = l.itemUnidades.find((u) => u.unidadeId === newUnidadeId);
+      if (!iu) return l;
+      const fator = decimalToNumber(iu.fatorConversao) || 1;
+
+      const qty   = parseFloat(l.quantidade) || 0;
+      const price = parseFloat(l.precoUnitario) || 0;
+      const pct   = parseFloat(l.descontoPct) || 0;
+      const { valorDesconto, valorTotal } = calcLine(qty, price, pct);
+
+      return {
+        ...l,
+        unidadeId: newUnidadeId,
+        fatorConversao: fator,
+        unidade: iu.unidade.sigla,
+        valorDesconto: valorDesconto.toFixed(2),
+        valorTotal:    valorTotal.toFixed(2),
+      };
+    }));
   }
 
   // ── Totals ───────────────────────────────────────────────────────────────────
@@ -330,15 +390,25 @@ export default function PedidoForm({
         valorDesconto: 0,
         valorFrete: freteVal,
         observacoes: observacoes || null,
-        itens: linhas.map((l) => ({
-          itemId:        l.itemId,
-          quantidade:    parseFloat(l.quantidade) || 0,
-          precoUnitario: parseFloat(l.precoUnitario) || 0,
-          descontoPct:   parseFloat(l.descontoPct) || 0,
-          valorDesconto: parseFloat(l.valorDesconto) || 0,
-          desconto:      parseFloat(l.valorDesconto) || 0,
-          valorTotal:    parseFloat(l.valorTotal) || 0,
-        })),
+        itens: linhas.map((l) => {
+          const qtdDigitada  = parseFloat(l.quantidade)    || 0;
+          const fator        = l.fatorConversao            || 1;
+          const qtdBase      = qtdDigitada * fator;
+          const priceUnit    = parseFloat(l.precoUnitario) || 0;
+          // precoUnitario salvo é sempre por unidade base
+          const priceBase    = fator > 1 ? priceUnit / fator : priceUnit;
+          const pct          = parseFloat(l.descontoPct)   || 0;
+          const { valorDesconto, valorTotal } = calcLine(qtdBase, priceBase, pct);
+          return {
+            itemId:        l.itemId,
+            quantidade:    qtdBase,
+            precoUnitario: priceBase,
+            descontoPct:   pct,
+            valorDesconto: valorDesconto,
+            desconto:      valorDesconto,
+            valorTotal:    valorTotal,
+          };
+        }),
       };
 
       const res = await fetch("/api/pedidos-venda", {
@@ -385,6 +455,8 @@ export default function PedidoForm({
 
   return (
     <div className="space-y-6">
+      {/* ── Dados do Pedido — constrained width ─────────────────────────── */}
+      <div className="max-w-5xl space-y-6">
       {submitError && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{submitError}</div>
       )}
@@ -526,8 +598,9 @@ export default function PedidoForm({
           </div>
         </div>
       </div>
+      </div>{/* end max-w-5xl */}
 
-      {/* ── Itens do Pedido ─────────────────────────────────────────────── */}
+      {/* ── Itens do Pedido — full width ────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-gray-300 overflow-hidden shadow-sm">
         <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-100 flex items-center justify-between">
           <h2 className="font-bold text-sm text-gray-800 tracking-wide uppercase">Itens do Pedido</h2>
@@ -595,9 +668,23 @@ export default function PedidoForm({
 
                     {/* Unidade */}
                     <td className="px-3 py-2.5 text-center">
-                      <span className="text-xs font-semibold text-gray-700 font-mono bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">
-                        {linha.unidade || "—"}
-                      </span>
+                      {linha.itemId && linha.itemUnidades.length > 0 ? (
+                        <select
+                          value={linha.unidadeId}
+                          onChange={(e) => changeUnidade(linha._key, e.target.value)}
+                          className="h-8 rounded-md border border-gray-300 bg-white text-xs font-semibold font-mono text-gray-700 px-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400 hover:border-blue-400 transition-colors cursor-pointer"
+                        >
+                          {linha.itemUnidades.map((iu) => (
+                            <option key={iu.unidadeId} value={iu.unidadeId}>
+                              {iu.unidade.sigla}{decimalToNumber(iu.fatorConversao) !== 1 ? ` (×${decimalToNumber(iu.fatorConversao)})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs font-semibold text-gray-700 font-mono bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">
+                          {linha.unidade || "—"}
+                        </span>
+                      )}
                     </td>
 
                     {/* Quantidade */}
@@ -830,39 +917,42 @@ export default function PedidoForm({
         document.body
       )}
 
-      {/* Observações */}
-      <div className="space-y-1.5">
-        <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Observações</Label>
-        <Textarea
-          value={observacoes}
-          onChange={(e) => setObservacoes(e.target.value)}
-          rows={3}
-          placeholder="Observações do pedido..."
-          className="border-gray-300 text-gray-800 placeholder:text-gray-400 resize-none"
-        />
-      </div>
+      {/* ── Observações + Actions — constrained width ───────────────────── */}
+      <div className="max-w-5xl space-y-6">
+        {/* Observações */}
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Observações</Label>
+          <Textarea
+            value={observacoes}
+            onChange={(e) => setObservacoes(e.target.value)}
+            rows={3}
+            placeholder="Observações do pedido..."
+            className="border-gray-300 text-gray-800 placeholder:text-gray-400 resize-none"
+          />
+        </div>
 
-      {/* Actions */}
-      <div className="flex gap-3 pt-1">
-        <Button
-          type="button" variant="outline"
-          onClick={() => handleSubmit("ORCAMENTO")}
-          disabled={!!submitting}
-          className="border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold"
-        >
-          {submitting === "orcamento" ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Salvando...</> : "Salvar como Orçamento"}
-        </Button>
-        <Button
-          type="button"
-          onClick={() => handleSubmit("CONFIRMADO")}
-          disabled={!!submitting}
-          className="font-semibold"
-        >
-          {submitting === "confirmado" ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Confirmando...</> : "Confirmar Pedido"}
-        </Button>
-        <Button type="button" variant="ghost" onClick={() => router.back()} disabled={!!submitting} className="text-gray-500 hover:text-gray-700">
-          Cancelar
-        </Button>
+        {/* Actions */}
+        <div className="flex gap-3 pt-1">
+          <Button
+            type="button" variant="outline"
+            onClick={() => handleSubmit("ORCAMENTO")}
+            disabled={!!submitting}
+            className="border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold"
+          >
+            {submitting === "orcamento" ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Salvando...</> : "Salvar como Orçamento"}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => handleSubmit("CONFIRMADO")}
+            disabled={!!submitting}
+            className="font-semibold"
+          >
+            {submitting === "confirmado" ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Confirmando...</> : "Confirmar Pedido"}
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => router.back()} disabled={!!submitting} className="text-gray-500 hover:text-gray-700">
+            Cancelar
+          </Button>
+        </div>
       </div>
     </div>
   );
