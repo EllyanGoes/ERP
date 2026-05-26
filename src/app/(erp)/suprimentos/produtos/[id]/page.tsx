@@ -1283,7 +1283,7 @@ export default function ProdutoDetailPage() {
                             const isEditingRow = editingEstoqueId === e.id;
                             return (
                               <tr key={e.id} className={cn("hover:bg-indigo-50/40 transition-colors", abaixo && "bg-red-50/30", isEditingRow && "bg-amber-50/60 hover:bg-amber-50/80")}>
-                                <td className="px-4 py-3.5 text-gray-600 text-xs font-medium">{filialNome}</td>
+                                <td className="px-4 py-3.5 text-gray-700 text-xs font-semibold">{filialNome}</td>
                                 <td className="px-4 py-3.5 font-medium text-gray-900">
                                   <Link href={`/suprimentos/locais-estoque/${e.localEstoque!.id}`} className="hover:text-blue-600 hover:underline">
                                     {e.localEstoque!.nome}
@@ -1308,10 +1308,10 @@ export default function ProdutoDetailPage() {
                                         <span className={cn("font-bold", abaixo ? "text-red-600" : "text-gray-900")}>
                                           {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                                         </span>
-                                        <span className="text-xs text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                        <span className="text-xs text-gray-500 font-medium ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
                                       </div>
                                       {itemUnidades.filter((iu) => !iu.isPrincipal && iu.fatorConversao).map((iu) => (
-                                        <div key={iu.id} className="text-xs text-gray-400">
+                                        <div key={iu.id} className="text-xs text-gray-500 font-medium">
                                           {(atual / Number(iu.fatorConversao)).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                                           <span className="ml-1">{iu.unidade.sigla}</span>
                                         </div>
@@ -1326,10 +1326,10 @@ export default function ProdutoDetailPage() {
                                       <span className="font-semibold text-gray-800">
                                         {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                                       </span>
-                                      <span className="text-xs text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                      <span className="text-xs text-gray-500 font-medium ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
                                     </div>
                                     {itemUnidades.filter((iu) => !iu.isPrincipal && iu.fatorConversao).map((iu) => (
-                                      <div key={iu.id} className="text-xs text-gray-400">
+                                      <div key={iu.id} className="text-xs text-gray-500 font-medium">
                                         {(atual / Number(iu.fatorConversao)).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                                         <span className="ml-1">{iu.unidade.sigla}</span>
                                       </div>
@@ -1341,7 +1341,7 @@ export default function ProdutoDetailPage() {
                                 </td>
                                 <td className="px-4 py-3.5 text-right text-gray-500 text-xs">
                                   {custoLinha > 0 ? (
-                                    <span className="font-mono bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded">{formatBRL(custoLinha)}</span>
+                                    <span className="font-mono bg-violet-100 text-violet-800 border border-violet-200 px-1.5 py-0.5 rounded">{formatBRL(custoLinha)}</span>
                                   ) : <span className="text-gray-400">—</span>}
                                 </td>
                                 <td className="px-4 py-3.5 text-right font-semibold text-blue-700">
@@ -1349,7 +1349,7 @@ export default function ProdutoDetailPage() {
                                 </td>
 
                                 {/* Endereço */}
-                                <td className="px-4 py-3.5 text-gray-500 text-xs">
+                                <td className="px-4 py-3.5 text-gray-600 text-xs">
                                   {isEditingRow ? (
                                     <Input
                                       className="h-7 w-28 text-xs font-mono"
@@ -1406,11 +1406,11 @@ export default function ProdutoDetailPage() {
                               <td colSpan={2} className="px-4 py-2.5 text-xs font-semibold text-gray-600 uppercase">Total</td>
                               <td className="px-4 py-2.5 text-right font-bold text-gray-900">
                                 {estoqueTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                                <span className="text-xs font-normal text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                <span className="text-xs font-normal text-gray-500 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
                               </td>
                               <td className="px-4 py-2.5 text-right font-bold text-gray-800">
                                 {estoqueTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                                <span className="text-xs font-normal text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                <span className="text-xs font-normal text-gray-500 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
                               </td>
                               <td colSpan={2} />
                               <td className="px-4 py-2.5 text-right font-bold text-blue-800">
@@ -1458,7 +1458,7 @@ export default function ProdutoDetailPage() {
                     const isEditing = paramEdit === field;
                     return (
                       <div key={field} className="bg-white rounded-lg border border-gray-200 px-3 py-2.5">
-                        <p className="text-xs text-gray-500 mb-1">{label}</p>
+                        <p className="text-xs text-gray-600 font-medium mb-1">{label}</p>
                         {isEditing ? (
                           <div className="flex items-center gap-1">
                             <Input
