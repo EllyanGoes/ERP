@@ -454,13 +454,11 @@ export default function TabelaPrecoDetailPage() {
                         />
                       </td>
 
-                      {/* U.M. */}
+                      {/* U.M. — read-only, preenchido ao selecionar o produto */}
                       <td className="px-3 py-2 text-center">
-                        <Input
-                          value={row.unidadeMedida}
-                          onChange={(e) => updateItem(row._key, "unidadeMedida", e.target.value)}
-                          className="h-7 text-xs text-center w-14"
-                        />
+                        <span className="text-xs font-semibold font-mono text-gray-600 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">
+                          {row.unidadeMedida || "—"}
+                        </span>
                       </td>
 
                       {/* Preço Venda */}
