@@ -34,6 +34,10 @@ type Movimentacao = {
   pedidoVendaItemId: string | null;
   conferenciaItemId: string | null;
   loteId: string | null;
+  localEstoqueId?: string | null;
+  valorUnitario?: unknown;
+  lote?: { dataMovimentacao: string | null } | null;
+  localEstoque?: { id: string; nome: string; filial: { id: string; razaoSocial: string } | null } | null;
   unidade?: { id: string; sigla: string; nome: string } | null;
 };
 
@@ -214,6 +218,7 @@ export default function ProdutoDetailPage() {
     endereco: "",
     unidadeEntradaId: "", // ID da unidade escolhida para entrada
     data: new Date().toISOString().slice(0, 10), // YYYY-MM-DD
+    editMovId: "",        // non-empty = editing an existing movement
   });
   const [saldoSaving, setSaldoSaving] = useState(false);
   const [saldoError, setSaldoError] = useState("");
@@ -311,7 +316,7 @@ export default function ProdutoDetailPage() {
   function openSaldoDialog() {
     const principalId = itemUnidades.find((iu) => iu.isPrincipal)?.unidade.id ?? item?.unidade?.id ?? "";
     const today = new Date().toISOString().slice(0, 10);
-    setSaldoForm({ localEstoqueId: "", saldo: "", custo: "", endereco: "", unidadeEntradaId: principalId, data: today });
+    setSaldoForm({ localEstoqueId: "", saldo: "", custo: "", endereco: "", unidadeEntradaId: principalId, data: today, editMovId: "" });
     setSaldoFilialFilter("");
     setSaldoError("");
     setShowSaldoDialog(true);
@@ -331,6 +336,41 @@ export default function ProdutoDetailPage() {
     if (!unidadesLoaded) loadItemUnidades();
   }
 
+  function openEditSaldoDialog(m: Movimentacao) {
+    const today = new Date().toISOString().slice(0, 10);
+    const movDate = m.lote?.dataMovimentacao
+      ? new Date(m.lote.dataMovimentacao).toISOString().slice(0, 10)
+      : new Date(m.createdAt).toISOString().slice(0, 10);
+
+    // Determine what unit was used and reverse-convert quantity to that unit
+    const selectedIU = m.unidade ? itemUnidades.find((iu) => iu.unidade.id === m.unidade!.id) : null;
+    const fator = selectedIU && !selectedIU.isPrincipal && selectedIU.fatorConversao
+      ? Number(selectedIU.fatorConversao) : 1;
+    const qtdBase = parseFloat(String(m.quantidade));
+    const qtdDisplay = fator !== 1 ? (qtdBase / fator).toString() : qtdBase.toString();
+
+    const principalId = m.unidade?.id ?? itemUnidades.find((iu) => iu.isPrincipal)?.unidade.id ?? item?.unidade?.id ?? "";
+
+    setSaldoForm({
+      localEstoqueId: m.localEstoqueId ?? "",
+      saldo: qtdDisplay,
+      custo: m.valorUnitario ? String(parseFloat(String(m.valorUnitario))) : "",
+      endereco: "",
+      unidadeEntradaId: principalId,
+      data: movDate || today,
+      editMovId: m.id,
+    });
+    if (m.localEstoque?.filial) setSaldoFilialFilter(m.localEstoque.filial.id);
+    setSaldoError("");
+    setShowSaldoDialog(true);
+    if (locaisEstoque.length === 0) {
+      fetch("/api/suprimentos/locais-estoque").then((r) => r.json()).then((j) => {
+        setLocaisEstoque(Array.isArray(j) ? j : (j.data ?? []));
+      });
+    }
+    if (!unidadesLoaded) loadItemUnidades();
+  }
+
   async function submitSaldo() {
     if (!saldoForm.localEstoqueId) { setSaldoError("Selecione o Local de Estoque"); return; }
     if (!saldoForm.saldo || parseFloat(saldoForm.saldo) <= 0) { setSaldoError("Informe o Saldo (deve ser maior que 0)"); return; }
@@ -342,24 +382,40 @@ export default function ProdutoDetailPage() {
         ? Number(selectedIU.fatorConversao) : 1;
       const qtdBase = parseFloat(saldoForm.saldo) * fator;
 
-      const res = await fetch("/api/suprimentos/movimentacoes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tipo: "ENTRADA",
-          documento: "SALDO-INICIAL",
-          observacoes: "Saldo inicial inserido manualmente",
-          dataMovimentacao: saldoForm.data ? new Date(saldoForm.data).toISOString() : null,
-          itens: [{
-            itemId: id,
-            localEstoqueId: saldoForm.localEstoqueId,
+      if (saldoForm.editMovId) {
+        // ── Edit mode: PATCH existing movement ─────────────────────────────
+        const res = await fetch(`/api/suprimentos/movimentacoes/${saldoForm.editMovId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             quantidade: qtdBase,
-            valorUnitario: saldoForm.custo ? parseFloat(saldoForm.custo) : undefined,
-            localizacao: saldoForm.endereco || undefined,
-          }],
-        }),
-      });
-      if (!res.ok) { setSaldoError((await res.json()).error || "Erro ao registrar saldo"); return; }
+            unidadeId: saldoForm.unidadeEntradaId || null,
+            valorUnitario: saldoForm.custo ? parseFloat(saldoForm.custo) : null,
+            dataMovimentacao: saldoForm.data ? new Date(saldoForm.data).toISOString() : null,
+          }),
+        });
+        if (!res.ok) { setSaldoError((await res.json()).error || "Erro ao salvar"); return; }
+      } else {
+        // ── Create mode: POST new movement ─────────────────────────────────
+        const res = await fetch("/api/suprimentos/movimentacoes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tipo: "ENTRADA",
+            documento: "SALDO-INICIAL",
+            observacoes: "Saldo inicial inserido manualmente",
+            dataMovimentacao: saldoForm.data ? new Date(saldoForm.data).toISOString() : null,
+            itens: [{
+              itemId: id,
+              localEstoqueId: saldoForm.localEstoqueId,
+              quantidade: qtdBase,
+              valorUnitario: saldoForm.custo ? parseFloat(saldoForm.custo) : undefined,
+              localizacao: saldoForm.endereco || undefined,
+            }],
+          }),
+        });
+        if (!res.ok) { setSaldoError((await res.json()).error || "Erro ao registrar saldo"); return; }
+      }
       setShowSaldoDialog(false);
       await load();
     } catch { setSaldoError("Erro de conexão"); }
@@ -1606,12 +1662,13 @@ export default function ProdutoDetailPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1 justify-end opacity-0 group-hover/row:opacity-100 transition-opacity">
                             <button
-                              onClick={() => setEditMov({
-                                id: m.id,
-                                documento:   m.documento   ?? "",
-                                observacoes: m.observacoes ?? "",
-                                unidadeId:   m.unidade?.id ?? "",
-                              })}
+                              onClick={() => {
+                                if (m.documento === "SALDO-INICIAL" && !m.pedidoVendaItemId && !m.conferenciaItemId) {
+                                  openEditSaldoDialog(m);
+                                } else {
+                                  setEditMov({ id: m.id, documento: m.documento ?? "", observacoes: m.observacoes ?? "", unidadeId: m.unidade?.id ?? "" });
+                                }
+                              }}
                               className="p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                               title="Editar"
                             >
@@ -2406,7 +2463,9 @@ export default function ProdutoDetailPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-gray-900 text-base">Inserir Saldo</h3>
+                <h3 className="font-semibold text-gray-900 text-base">
+                  {saldoForm.editMovId ? "Editar Saldo" : "Inserir Saldo"}
+                </h3>
                 <p className="text-xs text-gray-400 mt-0.5 font-mono">{item.codigo} — {item.descricao}</p>
               </div>
               <button onClick={() => setShowSaldoDialog(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -2415,7 +2474,9 @@ export default function ProdutoDetailPage() {
             </div>
 
             <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-              Use este formulário para registrar estoque de itens que já estão físicamente no almoxarifado e não entraram pelo fluxo de compras.
+              {saldoForm.editMovId
+                ? "Editando um registro de saldo. O estoque será ajustado automaticamente com a diferença."
+                : "Use este formulário para registrar estoque de itens que já estão físicamente no almoxarifado e não entraram pelo fluxo de compras."}
             </p>
 
             <div className="space-y-4">
@@ -2448,7 +2509,8 @@ export default function ProdutoDetailPage() {
                 <select
                   value={saldoForm.localEstoqueId}
                   onChange={(e) => setSaldoForm((p) => ({ ...p, localEstoqueId: e.target.value }))}
-                  className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={!!saldoForm.editMovId}
+                  className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                 >
                   <option value="">Selecionar local...</option>
                   {locaisEstoque
@@ -2457,6 +2519,9 @@ export default function ProdutoDetailPage() {
                       <option key={l.id} value={l.id}>{l.nome}</option>
                     ))}
                 </select>
+                {saldoForm.editMovId && (
+                  <p className="text-[11px] text-gray-400">O local de estoque não pode ser alterado na edição.</p>
+                )}
               </div>
 
               {/* Unidade de Entrada */}
@@ -2582,7 +2647,7 @@ export default function ProdutoDetailPage() {
               <Button size="sm" onClick={submitSaldo} disabled={saldoSaving || !saldoForm.localEstoqueId || !saldoForm.saldo}>
                 {saldoSaving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
                 <PackageCheck className="w-3.5 h-3.5 mr-1.5" />
-                Inserir Saldo
+                {saldoForm.editMovId ? "Salvar Alterações" : "Inserir Saldo"}
               </Button>
             </div>
           </div>

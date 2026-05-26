@@ -5,13 +5,15 @@ import { z } from "zod";
 
 type Ctx = { params: { movId: string } };
 
-// ── PATCH — edit safe metadata fields ────────────────────────────────────────
-// Allows changing: documento, observacoes, unidadeId
-// Does NOT change tipo/quantidade (would break stock integrity)
+// ── PATCH — edit movement fields ─────────────────────────────────────────────
 const patchSchema = z.object({
-  documento:   z.string().nullable().optional(),
-  observacoes: z.string().nullable().optional(),
-  unidadeId:   z.string().nullable().optional(),
+  documento:        z.string().nullable().optional(),
+  observacoes:      z.string().nullable().optional(),
+  unidadeId:        z.string().nullable().optional(),
+  // Full edit (SALDO-INICIAL only):
+  quantidade:       z.coerce.number().positive().optional(),  // new total qty (base unit)
+  valorUnitario:    z.coerce.number().min(0).nullable().optional(),
+  dataMovimentacao: z.string().nullable().optional(),         // ISO string → update lote
 });
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
@@ -22,17 +24,83 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   }
 
   try {
-    const updated = await prisma.movimentacaoEstoque.update({
+    const { documento, observacoes, unidadeId, quantidade, valorUnitario, dataMovimentacao } = parsed.data;
+
+    // If quantity change requested, do it in a transaction (delta-based)
+    if (quantidade !== undefined) {
+      await prisma.$transaction(async (tx) => {
+        const mov = await tx.movimentacaoEstoque.findUniqueOrThrow({
+          where: { id: params.movId },
+          select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, loteId: true },
+        });
+
+        const oldQty = parseFloat(mov.quantidade.toString());
+        const newQty = quantidade;
+        const delta  = newQty - oldQty;
+
+        // Adjust stock balance
+        if (mov.localEstoqueId && delta !== 0) {
+          const sign = mov.tipo === "ENTRADA" ? 1 : -1;
+          await tx.estoqueItem.updateMany({
+            where: { itemId: mov.itemId, localEstoqueId: mov.localEstoqueId },
+            data:  { quantidadeAtual: { increment: sign * delta } },
+          });
+        }
+
+        // Update movement record
+        await tx.movimentacaoEstoque.update({
+          where: { id: params.movId },
+          data: {
+            quantidade: newQty,
+            saldoDepois: { increment: mov.tipo === "ENTRADA" ? delta : -delta },
+            ...(documento   !== undefined && { documento:   documento   ?? null }),
+            ...(observacoes !== undefined && { observacoes: observacoes ?? null }),
+            ...(unidadeId   !== undefined && { unidadeId:   unidadeId   || null }),
+            ...(valorUnitario !== undefined && { valorUnitario: valorUnitario ?? null }),
+          },
+        });
+
+        // Update lote dataMovimentacao if provided
+        if (dataMovimentacao !== undefined && mov.loteId) {
+          await tx.loteMovimentacao.update({
+            where: { id: mov.loteId },
+            data:  { dataMovimentacao: dataMovimentacao ? new Date(dataMovimentacao) : null },
+          });
+        }
+      });
+    } else {
+      // Metadata-only update (no quantity change)
+      await prisma.movimentacaoEstoque.update({
+        where: { id: params.movId },
+        data: {
+          ...(documento     !== undefined && { documento:     documento     ?? null }),
+          ...(observacoes   !== undefined && { observacoes:   observacoes   ?? null }),
+          ...(unidadeId     !== undefined && { unidadeId:     unidadeId     || null }),
+          ...(valorUnitario !== undefined && { valorUnitario: valorUnitario ?? null }),
+        },
+      });
+
+      // Update lote date if provided
+      if (dataMovimentacao !== undefined) {
+        const mov = await prisma.movimentacaoEstoque.findUnique({ where: { id: params.movId }, select: { loteId: true } });
+        if (mov?.loteId) {
+          await prisma.loteMovimentacao.update({
+            where: { id: mov.loteId },
+            data:  { dataMovimentacao: dataMovimentacao ? new Date(dataMovimentacao) : null },
+          });
+        }
+      }
+    }
+
+    const updated = await prisma.movimentacaoEstoque.findUnique({
       where: { id: params.movId },
-      data: {
-        documento:   parsed.data.documento   ?? undefined,
-        observacoes: parsed.data.observacoes ?? undefined,
-        unidadeId:   parsed.data.unidadeId   !== undefined ? (parsed.data.unidadeId || null) : undefined,
-      },
       select: {
         id: true, tipo: true, quantidade: true,
         saldoAntes: true, saldoDepois: true,
         documento: true, observacoes: true, createdAt: true,
+        localEstoqueId: true, valorUnitario: true,
+        lote: { select: { dataMovimentacao: true } },
+        localEstoque: { select: { id: true, nome: true, filial: { select: { id: true, razaoSocial: true } } } },
         unidade: { select: { id: true, sigla: true, nome: true } },
       },
     });
