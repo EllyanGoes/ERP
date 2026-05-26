@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Plus, Trash2, Save, X, Search, Loader2,
-  CheckCircle2, XCircle, ShoppingBag, Tag,
+  CheckCircle2, XCircle, Tag, Pencil,
 } from "lucide-react";
 import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -123,7 +123,8 @@ export default function TabelaPrecoDetailPage() {
   const [error, setError] = useState("");
   const [saveError,   setSaveError]   = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  const [dirty,       setDirty]       = useState(false);
+  const [editing,     setEditing]     = useState(false);
 
   // Header form
   const [form, setForm] = useState({
@@ -291,10 +292,18 @@ export default function TabelaPrecoDetailPage() {
       setTabela(t);
       setItens(t.itens.map(rowFromDB));
       setDirty(false);
+      setEditing(false);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 4000);
     } catch { setSaveError("Erro de conexão"); }
     finally { setSaving(false); }
+  }
+
+  async function handleCancelEdit() {
+    await load();
+    setEditing(false);
+    setSaveError("");
+    setDirty(false);
   }
 
   async function handleDelete() {
@@ -321,18 +330,31 @@ export default function TabelaPrecoDetailPage() {
         ]}
         action={
           <div className="flex items-center gap-2">
-            {dirty && (
-              <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">
-                Alterações não salvas
-              </span>
+            {editing ? (
+              <>
+                {dirty && (
+                  <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">
+                    Alterações não salvas
+                  </span>
+                )}
+                <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={saving}>
+                  <X className="w-3.5 h-3.5 mr-1" /> Cancelar
+                </Button>
+                <Button size="sm" onClick={handleSave} disabled={saving}>
+                  {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
+                  Salvar
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" onClick={() => router.push("/comercial/tabelas-preco")}>
+                  <X className="w-3.5 h-3.5 mr-1" /> Fechar
+                </Button>
+                <Button size="sm" onClick={() => setEditing(true)}>
+                  <Pencil className="w-3.5 h-3.5 mr-1" /> Editar
+                </Button>
+              </>
             )}
-            <Button variant="outline" size="sm" onClick={() => router.push("/comercial/tabelas-preco")}>
-              <X className="w-3.5 h-3.5 mr-1" /> Fechar
-            </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1" />}
-              Salvar
-            </Button>
           </div>
         }
       />
@@ -356,17 +378,27 @@ export default function TabelaPrecoDetailPage() {
           <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
             <h2 className="font-semibold text-sm text-gray-800">Dados da Tabela</h2>
             <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox" checked={form.ativa}
-                  onChange={(e) => { setForm((f) => ({ ...f, ativa: e.target.checked })); setDirty(true); }}
-                  className="w-4 h-4 accent-blue-600"
-                />
-                <span className="text-sm text-gray-700 flex items-center gap-1">
-                  {form.ativa ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <XCircle className="w-3.5 h-3.5 text-gray-300" />}
-                  Tab. Ativa
+              {editing ? (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox" checked={form.ativa}
+                    onChange={(e) => { setForm((f) => ({ ...f, ativa: e.target.checked })); setDirty(true); }}
+                    className="w-4 h-4 accent-blue-600"
+                  />
+                  <span className="text-sm text-gray-700 flex items-center gap-1">
+                    {form.ativa ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <XCircle className="w-3.5 h-3.5 text-gray-300" />}
+                    Tab. Ativa
+                  </span>
+                </label>
+              ) : (
+                <span className={cn(
+                  "flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-full",
+                  form.ativa ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                )}>
+                  {form.ativa ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                  {form.ativa ? "Ativa" : "Inativa"}
                 </span>
-              </label>
+              )}
             </div>
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -375,26 +407,42 @@ export default function TabelaPrecoDetailPage() {
               <Input value={tabela.codigo} readOnly className="bg-gray-50 font-mono font-semibold" />
             </div>
             <div className="col-span-3 space-y-1">
-              <Label className="text-xs text-gray-500">Descrição *</Label>
-              <Input
-                value={form.descricao}
-                onChange={(e) => { setForm((f) => ({ ...f, descricao: e.target.value })); setDirty(true); }}
-                placeholder="Descrição da tabela"
-              />
+              <Label className="text-xs text-gray-500">Descrição</Label>
+              {editing ? (
+                <Input
+                  value={form.descricao}
+                  onChange={(e) => { setForm((f) => ({ ...f, descricao: e.target.value })); setDirty(true); }}
+                  placeholder="Descrição da tabela"
+                />
+              ) : (
+                <p className="text-sm font-medium text-gray-900 py-1">{form.descricao || "—"}</p>
+              )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Data Inicial *</Label>
-              <Input
-                type="date" value={form.dataInicial}
-                onChange={(e) => { setForm((f) => ({ ...f, dataInicial: e.target.value })); setDirty(true); }}
-              />
+              <Label className="text-xs text-gray-500">Data Inicial</Label>
+              {editing ? (
+                <Input
+                  type="date" value={form.dataInicial}
+                  onChange={(e) => { setForm((f) => ({ ...f, dataInicial: e.target.value })); setDirty(true); }}
+                />
+              ) : (
+                <p className="text-sm text-gray-800 py-1">
+                  {form.dataInicial ? new Date(form.dataInicial + "T12:00:00").toLocaleDateString("pt-BR") : "—"}
+                </p>
+              )}
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Data Final</Label>
-              <Input
-                type="date" value={form.dataFinal}
-                onChange={(e) => { setForm((f) => ({ ...f, dataFinal: e.target.value })); setDirty(true); }}
-              />
+              {editing ? (
+                <Input
+                  type="date" value={form.dataFinal}
+                  onChange={(e) => { setForm((f) => ({ ...f, dataFinal: e.target.value })); setDirty(true); }}
+                />
+              ) : (
+                <p className="text-sm text-gray-800 py-1">
+                  {form.dataFinal ? new Date(form.dataFinal + "T12:00:00").toLocaleDateString("pt-BR") : "—"}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -403,18 +451,22 @@ export default function TabelaPrecoDetailPage() {
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
             <h2 className="font-semibold text-sm text-gray-800">Itens da Tabela</h2>
-            <Button size="sm" variant="outline" onClick={addRow}>
-              <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Item
-            </Button>
+            {editing && (
+              <Button size="sm" variant="outline" onClick={addRow}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Item
+              </Button>
+            )}
           </div>
 
           {itens.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-14 text-gray-400 gap-3">
               <Tag className="w-10 h-10 opacity-25" />
               <p className="text-sm">Nenhum item na tabela</p>
-              <Button size="sm" variant="outline" onClick={addRow}>
-                <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Item
-              </Button>
+              {editing && (
+                <Button size="sm" variant="outline" onClick={addRow}>
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Item
+                </Button>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -427,7 +479,7 @@ export default function TabelaPrecoDetailPage() {
                     <th className="text-center px-3 py-2.5 font-semibold w-14">U.M.</th>
                     <th className="text-right px-3 py-2.5 font-semibold w-32">Preço Venda</th>
                     <th className="text-right px-3 py-2.5 font-semibold w-32">Vlr. Desconto</th>
-                    <th className="w-10 px-2 py-2.5" />
+                    {editing && <th className="w-10 px-2 py-2.5" />}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -438,35 +490,43 @@ export default function TabelaPrecoDetailPage() {
                         {String(idx + 1).padStart(4, "0")}
                       </td>
 
-                      {/* Cód. Produto — portal search */}
+                      {/* Cód. Produto */}
                       <td className="px-3 py-2">
-                        <button
-                          data-prod-search
-                          type="button"
-                          onClick={(e) => openSearch(row._key, e.currentTarget, row.codigo)}
-                          className={cn(
-                            "w-full h-7 px-2 rounded border text-left text-xs font-mono transition-colors",
-                            row.codigo
-                              ? "border-gray-200 bg-white text-gray-800 hover:border-blue-400"
-                              : "border-dashed border-gray-300 text-gray-400 hover:border-blue-400",
-                            searchRow === row._key && "border-blue-400 ring-1 ring-blue-200"
-                          )}
-                        >
-                          {row.codigo || <span className="flex items-center gap-1"><Search className="w-3 h-3" />Buscar</span>}
-                        </button>
+                        {editing ? (
+                          <button
+                            data-prod-search
+                            type="button"
+                            onClick={(e) => openSearch(row._key, e.currentTarget, row.codigo)}
+                            className={cn(
+                              "w-full h-7 px-2 rounded border text-left text-xs font-mono transition-colors",
+                              row.codigo
+                                ? "border-gray-200 bg-white text-gray-800 hover:border-blue-400"
+                                : "border-dashed border-gray-300 text-gray-400 hover:border-blue-400",
+                              searchRow === row._key && "border-blue-400 ring-1 ring-blue-200"
+                            )}
+                          >
+                            {row.codigo || <span className="flex items-center gap-1"><Search className="w-3 h-3" />Buscar</span>}
+                          </button>
+                        ) : (
+                          <span className="text-xs font-mono font-semibold text-gray-700">{row.codigo || "—"}</span>
+                        )}
                       </td>
 
                       {/* Descrição */}
                       <td className="px-3 py-2">
-                        <Input
-                          value={row.descricao}
-                          onChange={(e) => updateItem(row._key, "descricao", e.target.value)}
-                          className="h-7 text-xs"
-                          placeholder="Descrição do produto"
-                        />
+                        {editing ? (
+                          <Input
+                            value={row.descricao}
+                            onChange={(e) => updateItem(row._key, "descricao", e.target.value)}
+                            className="h-7 text-xs"
+                            placeholder="Descrição do produto"
+                          />
+                        ) : (
+                          <span className="text-xs text-gray-800">{row.descricao || "—"}</span>
+                        )}
                       </td>
 
-                      {/* U.M. — read-only, preenchido ao selecionar o produto */}
+                      {/* U.M. — sempre read-only */}
                       <td className="px-3 py-2 text-center">
                         <span className="text-xs font-semibold font-mono text-gray-600 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">
                           {row.unidadeMedida || "—"}
@@ -474,53 +534,63 @@ export default function TabelaPrecoDetailPage() {
                       </td>
 
                       {/* Preço Venda */}
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          defaultValue={formatPrice4(row.precoVenda)}
-                          key={row._key + "-pv-" + row.precoVenda}
-                          onFocus={(e) => { e.target.value = row.precoVenda === "0" ? "" : row.precoVenda; }}
-                          onBlur={(e) => {
-                            const raw = parsePrice(e.target.value || "0");
-                            updateItem(row._key, "precoVenda", raw);
-                            e.target.value = formatPrice4(raw);
-                          }}
-                          className="h-7 w-full rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
-                        />
+                      <td className="px-3 py-2 text-right">
+                        {editing ? (
+                          <input
+                            type="text"
+                            defaultValue={formatPrice4(row.precoVenda)}
+                            key={row._key + "-pv-" + row.precoVenda}
+                            onFocus={(e) => { e.target.value = row.precoVenda === "0" ? "" : row.precoVenda; }}
+                            onBlur={(e) => {
+                              const raw = parsePrice(e.target.value || "0");
+                              updateItem(row._key, "precoVenda", raw);
+                              e.target.value = formatPrice4(raw);
+                            }}
+                            className="h-7 w-full rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                          />
+                        ) : (
+                          <span className="text-xs font-mono font-medium text-gray-800 tabular-nums">{formatPrice4(row.precoVenda)}</span>
+                        )}
                       </td>
 
                       {/* Vlr. Desconto */}
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          defaultValue={formatPrice4(row.vlrDesconto)}
-                          key={row._key + "-vd-" + row.vlrDesconto}
-                          onFocus={(e) => { e.target.value = row.vlrDesconto === "0" ? "" : row.vlrDesconto; }}
-                          onBlur={(e) => {
-                            const raw = parsePrice(e.target.value || "0");
-                            updateItem(row._key, "vlrDesconto", raw);
-                            e.target.value = formatPrice4(raw);
-                          }}
-                          className="h-7 w-full rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
-                        />
+                      <td className="px-3 py-2 text-right">
+                        {editing ? (
+                          <input
+                            type="text"
+                            defaultValue={formatPrice4(row.vlrDesconto)}
+                            key={row._key + "-vd-" + row.vlrDesconto}
+                            onFocus={(e) => { e.target.value = row.vlrDesconto === "0" ? "" : row.vlrDesconto; }}
+                            onBlur={(e) => {
+                              const raw = parsePrice(e.target.value || "0");
+                              updateItem(row._key, "vlrDesconto", raw);
+                              e.target.value = formatPrice4(raw);
+                            }}
+                            className="h-7 w-full rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                          />
+                        ) : (
+                          <span className="text-xs font-mono text-gray-600 tabular-nums">{formatPrice4(row.vlrDesconto)}</span>
+                        )}
                       </td>
 
-                      {/* Remove */}
-                      <td className="px-2 py-2">
-                        <button
-                          type="button"
-                          onClick={() => removeRow(row._key)}
-                          className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
+                      {/* Remove — só em modo edição */}
+                      {editing && (
+                        <td className="px-2 py-2">
+                          <button
+                            type="button"
+                            onClick={() => removeRow(row._key)}
+                            className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
                 <tfoot className="border-t-2 border-gray-200 bg-gray-50">
                   <tr>
-                    <td colSpan={7} className="px-4 py-2 text-xs text-gray-400">
+                    <td colSpan={editing ? 7 : 6} className="px-4 py-2 text-xs text-gray-400">
                       {itens.length} {itens.length === 1 ? "item" : "itens"}
                     </td>
                   </tr>
@@ -536,13 +606,19 @@ export default function TabelaPrecoDetailPage() {
             <h2 className="font-semibold text-sm text-gray-800">Observações</h2>
           </div>
           <div className="p-4">
-            <textarea
-              value={form.observacoes}
-              onChange={(e) => { setForm((f) => ({ ...f, observacoes: e.target.value })); setDirty(true); }}
-              rows={3}
-              placeholder="Observações adicionais..."
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            {editing ? (
+              <textarea
+                value={form.observacoes}
+                onChange={(e) => { setForm((f) => ({ ...f, observacoes: e.target.value })); setDirty(true); }}
+                rows={3}
+                placeholder="Observações adicionais..."
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            ) : (
+              <p className="text-sm text-gray-600 whitespace-pre-wrap min-h-[48px]">
+                {form.observacoes || <span className="text-gray-400 italic">Sem observações</span>}
+              </p>
+            )}
           </div>
         </div>
 
@@ -602,20 +678,18 @@ export default function TabelaPrecoDetailPage() {
           document.body
         )}
 
-        {/* ── Danger zone ──────────────────────────────────────────────────── */}
-        <div className="flex justify-between items-center pt-2">
-          <button
-            type="button"
-            onClick={handleDelete}
-            className="text-xs text-red-400 hover:text-red-600 transition-colors"
-          >
-            Excluir tabela
-          </button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Save className="w-4 h-4 mr-1.5" />}
-            Salvar alterações
-          </Button>
-        </div>
+        {/* ── Danger zone — só em modo edição ─────────────────────────────── */}
+        {editing && (
+          <div className="flex justify-between items-center pt-2">
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="text-xs text-red-400 hover:text-red-600 transition-colors"
+            >
+              Excluir tabela
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
