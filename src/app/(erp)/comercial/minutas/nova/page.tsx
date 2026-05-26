@@ -46,7 +46,11 @@ type PedidoVenda = {
   itens: PedidoVendaItem[];
 };
 
-type LocalEstoque = { id: string; nome: string };
+type LocalEstoque = {
+  id: string;
+  nome: string;
+  estoqueItens: { item: { id: string } }[];
+};
 
 type ItemRow = {
   pvItemId: string;
@@ -104,9 +108,9 @@ export default function NovaMinutaPage() {
 
   // Load locais de estoque
   useEffect(() => {
-    fetch("/api/suprimentos/locais-estoque")
+    fetch("/api/suprimentos/locais-estoque?ativo=true")
       .then(r => r.json())
-      .then(j => setLocais(j.data ?? []));
+      .then(j => setLocais(Array.isArray(j) ? j : []));
   }, []);
 
   // Load selected pedido
@@ -353,16 +357,26 @@ export default function NovaMinutaPage() {
             <div className="p-5 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Local de Estoque</label>
-                <Select value={localEstoqueId} onValueChange={setLocalEstoqueId}>
-                  <SelectTrigger className="h-10 border-gray-300">
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locais.map(l => (
-                      <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {(() => {
+                  const itemIds = new Set(rows.map(r => r.itemId));
+                  const locaisFiltrados = pedido && itemIds.size > 0
+                    ? locais.filter(l => l.estoqueItens.some(e => itemIds.has(e.item.id)))
+                    : locais;
+                  return (
+                    <Select value={localEstoqueId} onValueChange={setLocalEstoqueId}>
+                      <SelectTrigger className="h-10 border-gray-300">
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locaisFiltrados.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-gray-400 italic">Nenhum local com estoque</div>
+                        ) : locaisFiltrados.map(l => (
+                          <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  );
+                })()}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Data de Entrega</label>
