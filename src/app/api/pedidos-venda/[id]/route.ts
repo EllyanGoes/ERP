@@ -87,6 +87,22 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json({ data: pedido });
 }
 
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const body = await req.json();
+  const { status } = body as { status?: string };
+  if (!status) return NextResponse.json({ error: "status é obrigatório" }, { status: 400 });
+
+  const valid = ["ORCAMENTO", "CONFIRMADO", "EM_PRODUCAO", "FATURADO", "ENTREGUE", "CANCELADO"];
+  if (!valid.includes(status)) return NextResponse.json({ error: "Status inválido" }, { status: 400 });
+
+  const pedido = await prisma.pedidoVenda.update({
+    where: { id: params.id },
+    data: { status: status as never },
+    select: { id: true, status: true },
+  });
+  return NextResponse.json({ data: pedido });
+}
+
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   await prisma.pedidoVenda.update({ where: { id: params.id }, data: { status: "CANCELADO" } });
   return NextResponse.json({ data: { ok: true } });

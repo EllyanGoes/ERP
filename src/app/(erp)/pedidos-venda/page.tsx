@@ -297,12 +297,27 @@ function StatusFilterChip({
 }
 
 // ── Kanban card ───────────────────────────────────────────────────────────────
-function KanbanCard({ p, onClick }: { p: PedidoRow; onClick: () => void }) {
-  const col = STATUS_COLS.find((c) => c.key === p.status);
+function KanbanCard({
+  p, onClick, onDragStart, onDragEnd, isDragging,
+}: {
+  p: PedidoRow;
+  onClick: () => void;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  isDragging: boolean;
+}) {
   return (
     <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       onClick={onClick}
-      className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-pointer group"
+      className={cn(
+        "bg-white border border-gray-200 rounded-lg p-3 shadow-sm transition-all cursor-grab active:cursor-grabbing group",
+        isDragging
+          ? "opacity-40 scale-95 shadow-none"
+          : "hover:shadow-md hover:border-blue-300"
+      )}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <span className="font-mono text-xs font-semibold text-gray-800">{p.numero}</span>
@@ -335,6 +350,10 @@ export default function PedidosVendaPage() {
   const [pedidos, setPedidos] = useState<PedidoRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<Filters>(loadFilters);
+
+  // ── Drag-and-drop state ───────────────────────────────────────────────────
+  const [draggingId, setDraggingId]     = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol]   = useState<string | null>(null);
 
   // Column order + visibility
   const [colOrder, setColOrder]          = useColumnOrder("pedidos-venda", COLS.map((c) => c.id));
@@ -415,6 +434,50 @@ export default function PedidosVendaPage() {
   );
 
   const hasActive = filters.statuses.length > 0 || filters.search || filters.dateFrom || filters.dateTo;
+
+  // ── Drag-and-drop handlers ────────────────────────────────────────────────
+  async function moveCard(pedidoId: string, newStatus: string) {
+    // Optimistic update
+    setPedidos((prev) => prev.map((p) => p.id === pedidoId ? { ...p, status: newStatus } : p));
+    try {
+      await fetch(`/api/pedidos-venda/${pedidoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+    } catch {
+      // revert on failure
+      await load();
+    }
+  }
+
+  function handleDragStart(e: React.DragEvent, pedidoId: string) {
+    setDraggingId(pedidoId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("pedidoId", pedidoId);
+  }
+
+  function handleDragEnd() {
+    setDraggingId(null);
+    setDragOverCol(null);
+  }
+
+  function handleDragOver(e: React.DragEvent, colKey: string) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverCol(colKey);
+  }
+
+  function handleDrop(e: React.DragEvent, colKey: string) {
+    e.preventDefault();
+    const pedidoId = e.dataTransfer.getData("pedidoId");
+    const pedido = pedidos.find((p) => p.id === pedidoId);
+    if (pedidoId && pedido && pedido.status !== colKey) {
+      moveCard(pedidoId, colKey);
+    }
+    setDraggingId(null);
+    setDragOverCol(null);
+  }
 
   // ── PDF export ────────────────────────────────────────────────────────────
   async function downloadPDF() {
@@ -663,40 +726,71 @@ export default function PedidosVendaPage() {
         // ── Kanban view ────────────────────────────────────────────────────
         <div className="px-8 pb-8 flex-1 overflow-x-auto">
           <div className="flex gap-4 min-w-max">
-            {kanbanGroups.map((col) => (
-              <div key={col.key} className="w-72 flex-shrink-0">
-                <div className={cn(
-                  "flex items-center justify-between px-3 py-2.5 rounded-t-xl border border-b-0",
-                  col.bg, col.border
-                )}>
-                  <div className="flex items-center gap-2">
-                    <span className={cn("text-xs font-semibold uppercase tracking-wide", col.color)}>
-                      {col.label}
-                    </span>
-                    <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded-full border", col.bg, col.color, col.border)}>
-                      {col.items.length}
-                    </span>
+            {kanbanGroups.map((col) => {
+              const isOver = dragOverCol === col.key;
+              const draggingPedido = draggingId ? pedidos.find((p) => p.id === draggingId) : null;
+              const canDrop = draggingPedido && draggingPedido.status !== col.key;
+              return (
+                <div key={col.key} className="w-72 flex-shrink-0">
+                  <div className={cn(
+                    "flex items-center justify-between px-3 py-2.5 rounded-t-xl border border-b-0",
+                    col.bg, col.border
+                  )}>
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-xs font-semibold uppercase tracking-wide", col.color)}>
+                        {col.label}
+                      </span>
+                      <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded-full border", col.bg, col.color, col.border)}>
+                        {col.items.length}
+                      </span>
+                    </div>
+                    {col.items.length > 0 && (
+                      <span className="text-xs text-gray-500">
+                        {formatBRL(col.items.reduce((s, p) => s + decimalToNumber(p.valorTotal), 0))}
+                      </span>
+                    )}
                   </div>
-                  {col.items.length > 0 && (
-                    <span className="text-xs text-gray-500">
-                      {formatBRL(col.items.reduce((s, p) => s + decimalToNumber(p.valorTotal), 0))}
-                    </span>
-                  )}
+                  <div
+                    onDragOver={(e) => handleDragOver(e, col.key)}
+                    onDragLeave={() => setDragOverCol(null)}
+                    onDrop={(e) => handleDrop(e, col.key)}
+                    className={cn(
+                      "rounded-b-xl border min-h-[120px] p-2 space-y-2 transition-colors",
+                      col.border,
+                      isOver && canDrop
+                        ? "bg-blue-50/80 border-blue-300 border-dashed"
+                        : "bg-gray-50/60"
+                    )}
+                  >
+                    {col.items.length === 0 && !isOver ? (
+                      <div className="flex items-center justify-center py-8 text-xs text-gray-300">
+                        {draggingId ? "Soltar aqui" : "Vazio"}
+                      </div>
+                    ) : isOver && canDrop && col.items.length === 0 ? (
+                      <div className="flex items-center justify-center py-8 text-xs text-blue-400 font-medium">
+                        Soltar aqui
+                      </div>
+                    ) : (
+                      col.items.map((p) => (
+                        <KanbanCard
+                          key={p.id}
+                          p={p}
+                          isDragging={draggingId === p.id}
+                          onClick={() => { if (!draggingId) router.push(`/pedidos-venda/${p.id}`); }}
+                          onDragStart={(e) => handleDragStart(e, p.id)}
+                          onDragEnd={handleDragEnd}
+                        />
+                      ))
+                    )}
+                    {isOver && canDrop && col.items.length > 0 && (
+                      <div className="flex items-center justify-center py-3 text-xs text-blue-400 font-medium border-2 border-dashed border-blue-300 rounded-lg">
+                        Soltar aqui
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className={cn(
-                  "rounded-b-xl border min-h-[120px] p-2 space-y-2 bg-gray-50/60",
-                  col.border
-                )}>
-                  {col.items.length === 0 ? (
-                    <div className="flex items-center justify-center py-8 text-xs text-gray-300">Vazio</div>
-                  ) : (
-                    col.items.map((p) => (
-                      <KanbanCard key={p.id} p={p} onClick={() => router.push(`/pedidos-venda/${p.id}`)} />
-                    ))
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
