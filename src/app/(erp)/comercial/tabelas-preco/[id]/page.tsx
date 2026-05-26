@@ -336,14 +336,6 @@ export default function TabelaPrecoDetailPage() {
                 onChange={(e) => { setForm((f) => ({ ...f, dataFinal: e.target.value })); setDirty(true); }}
               />
             </div>
-            <div className="col-span-2 space-y-1">
-              <Label className="text-xs text-gray-500">Cond. Pagamento</Label>
-              <Input
-                value={form.condicaoPagamento}
-                onChange={(e) => { setForm((f) => ({ ...f, condicaoPagamento: e.target.value })); setDirty(true); }}
-                placeholder="Ex: 30/60/90 DDL"
-              />
-            </div>
           </div>
         </div>
 
