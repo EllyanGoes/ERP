@@ -56,7 +56,7 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
 
         {/* ── Two-column layout ──────────────────────────────────────────── */}
-        <div className="grid grid-cols-3 gap-6 items-start">
+        <div className="grid grid-cols-3 gap-6 items-stretch">
 
           {/* ── LEFT: Dados Cadastrais (2/3) ─────────────────────────────── */}
           <div className="col-span-2 bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
@@ -167,7 +167,7 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
           </div>
 
           {/* ── RIGHT: Endereço + Observações (1/3) ──────────────────────── */}
-          <div className="col-span-1 space-y-6">
+          <div className="col-span-1 flex flex-col gap-6">
 
             {/* Endereço */}
             <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
@@ -245,16 +245,16 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
             </div>
 
             {/* Observações */}
-            <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden flex flex-col flex-1">
               <SectionTitle>Observações</SectionTitle>
-              <div className="p-5">
+              <div className="p-5 flex-1 flex flex-col">
                 <FormField control={form.control} name="observacoes" render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
+                  <FormItem className="flex-1 flex flex-col">
+                    <FormControl className="flex-1">
                       <Textarea
-                        {...field} value={field.value ?? ""} rows={4}
+                        {...field} value={field.value ?? ""}
                         placeholder="Observações sobre o cliente..."
-                        className="resize-none border-gray-300 text-gray-800 placeholder:text-gray-400"
+                        className="resize-none border-gray-300 text-gray-800 placeholder:text-gray-400 h-full min-h-[80px]"
                       />
                     </FormControl>
                     <FormMessage />
