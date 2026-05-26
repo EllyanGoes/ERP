@@ -163,6 +163,19 @@ export default function ProdutoDetailPage() {
   const [addUnidadeSaving, setAddUnidadeSaving] = useState(false);
   const [addUnidadeError, setAddUnidadeError] = useState("");
   const [confirmPrincipal, setConfirmPrincipal] = useState<{ itemUnidadeId: string; unidadeId: string; sigla: string; nome: string } | null>(null);
+  // Edit/add unit modal
+  const [unidadeModal, setUnidadeModal] = useState<{
+    mode: "add" | "edit";
+    id?: string;          // itemUnidadeId (edit only)
+    unidadeId: string;
+    sigla: string;
+    nome: string;
+    fatorConversao: string;
+    baseUnidadeId: string;
+    isPrincipal: boolean;
+  } | null>(null);
+  const [unidadeModalSaving, setUnidadeModalSaving] = useState(false);
+  const [unidadeModalError, setUnidadeModalError] = useState("");
 
   // Movimentação rápida
   const [showMovDialog, setShowMovDialog] = useState(false);
@@ -478,6 +491,60 @@ export default function ProdutoDetailPage() {
   async function removeItemUnidade(itemUnidadeId: string) {
     await fetch(`/api/suprimentos/produtos/${id}/unidades/${itemUnidadeId}`, { method: "DELETE" });
     loadItemUnidades();
+  }
+
+  function openAddUnidadeModal() {
+    setUnidadeModalError("");
+    setUnidadeModal({ mode: "add", unidadeId: "", sigla: "", nome: "", fatorConversao: "", baseUnidadeId: "", isPrincipal: false });
+  }
+
+  function openEditUnidadeModal(iu: { id: string; unidade: { id: string; sigla: string; nome: string }; fatorConversao: string | number | null; baseUnidade: { id: string } | null; isPrincipal: boolean }) {
+    setUnidadeModalError("");
+    setUnidadeModal({
+      mode: "edit",
+      id: iu.id,
+      unidadeId: iu.unidade.id,
+      sigla: iu.unidade.sigla,
+      nome: iu.unidade.nome,
+      fatorConversao: iu.fatorConversao != null ? String(iu.fatorConversao) : "",
+      baseUnidadeId: iu.baseUnidade?.id ?? "",
+      isPrincipal: iu.isPrincipal,
+    });
+  }
+
+  async function saveUnidadeModal() {
+    if (!unidadeModal) return;
+    setUnidadeModalSaving(true);
+    setUnidadeModalError("");
+    try {
+      if (unidadeModal.mode === "add") {
+        if (!unidadeModal.unidadeId) { setUnidadeModalError("Selecione uma unidade."); setUnidadeModalSaving(false); return; }
+        const res = await fetch(`/api/suprimentos/produtos/${id}/unidades`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            unidadeId:     unidadeModal.unidadeId,
+            baseUnidadeId: unidadeModal.baseUnidadeId || null,
+            fatorConversao: unidadeModal.fatorConversao ? parseFloat(unidadeModal.fatorConversao) : null,
+            isPrincipal: false,
+          }),
+        });
+        if (!res.ok) { setUnidadeModalError((await res.json()).error || "Erro"); setUnidadeModalSaving(false); return; }
+      } else {
+        const res = await fetch(`/api/suprimentos/produtos/${id}/unidades/${unidadeModal.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fatorConversao: unidadeModal.fatorConversao ? parseFloat(unidadeModal.fatorConversao) : null,
+            baseUnidadeId: unidadeModal.baseUnidadeId || null,
+          }),
+        });
+        if (!res.ok) { setUnidadeModalError((await res.json()).error || "Erro"); setUnidadeModalSaving(false); return; }
+      }
+      setUnidadeModal(null);
+      loadItemUnidades();
+    } catch { setUnidadeModalError("Erro de conexão"); }
+    finally { setUnidadeModalSaving(false); }
   }
 
   async function setPrincipal(itemUnidadeId: string, unidadeId: string) {
@@ -2056,18 +2123,11 @@ export default function ProdutoDetailPage() {
                 </div>
                 <Button
                   size="sm"
-                  onClick={() => {
-                    setAddUnidadeId(""); setAddBaseUnidadeId(""); setAddFatorConv(""); setAddUnidadeError("");
-                    setShowAddUnidade(true);
-                  }}
+                  onClick={openAddUnidadeModal}
                 >
                   <Plus className="w-3.5 h-3.5 mr-1.5" /> Adicionar Unidade
                 </Button>
               </div>
-
-              {addUnidadeError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{addUnidadeError}</p>
-              )}
 
               {!unidadesLoaded ? (
                 <div className="flex items-center justify-center py-16 text-gray-400 gap-2 text-sm">
@@ -2082,7 +2142,7 @@ export default function ProdutoDetailPage() {
                   </p>
                   <Button
                     size="sm" variant="outline"
-                    onClick={() => { setAddUnidadeId(""); setAddBaseUnidadeId(""); setAddFatorConv(""); setAddUnidadeError(""); setShowAddUnidade(true); }}
+                    onClick={openAddUnidadeModal}
                   >
                     <Plus className="w-3.5 h-3.5 mr-1.5" /> Adicionar Unidade
                   </Button>
@@ -2101,7 +2161,11 @@ export default function ProdutoDetailPage() {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {itemUnidades.map((iu) => (
-                        <tr key={iu.id} className="hover:bg-gray-50/60 group transition-colors">
+                        <tr
+                          key={iu.id}
+                          className="hover:bg-gray-50/60 group transition-colors cursor-pointer"
+                          onClick={() => openEditUnidadeModal(iu)}
+                        >
                           {/* Sigla */}
                           <td className="px-4 py-3">
                             <span className="font-mono text-sm font-bold text-gray-800 bg-gray-100 px-2 py-0.5 rounded">
@@ -2136,7 +2200,7 @@ export default function ProdutoDetailPage() {
                               </span>
                             ) : (
                               <button
-                                onClick={() => setConfirmPrincipal({ itemUnidadeId: iu.id, unidadeId: iu.unidade.id, sigla: iu.unidade.sigla, nome: iu.unidade.nome })}
+                                onClick={(e) => { e.stopPropagation(); setConfirmPrincipal({ itemUnidadeId: iu.id, unidadeId: iu.unidade.id, sigla: iu.unidade.sigla, nome: iu.unidade.nome }); }}
                                 className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors border border-transparent hover:border-blue-200"
                                 title="Definir como unidade base"
                               >
@@ -2148,7 +2212,7 @@ export default function ProdutoDetailPage() {
                           <td className="px-3 py-3">
                             {!iu.isPrincipal && (
                               <button
-                                onClick={() => removeItemUnidade(iu.id)}
+                                onClick={(e) => { e.stopPropagation(); removeItemUnidade(iu.id); }}
                                 className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 border border-transparent hover:border-red-200"
                                 title="Remover unidade"
                               >
@@ -2167,60 +2231,6 @@ export default function ProdutoDetailPage() {
                 </div>
               )}
 
-              {/* Add unit inline form (shown when showAddUnidade) */}
-              {showAddUnidade && (
-                <div className="bg-white rounded-xl border border-blue-200 shadow-sm p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-gray-800">Nova Unidade</h4>
-                    <button onClick={() => setShowAddUnidade(false)} className="text-gray-400 hover:text-gray-600">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  {addUnidadeError && (
-                    <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{addUnidadeError}</p>
-                  )}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label>Unidade <span className="text-red-500">*</span></Label>
-                      <select
-                        value={addUnidadeId}
-                        onChange={(e) => setAddUnidadeId(e.target.value)}
-                        className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Selecionar...</option>
-                        {unidades
-                          .filter((u) => !itemUnidades.some((iu) => iu.unidade.id === u.id))
-                          .map((u) => (
-                            <option key={u.id} value={u.id}>{u.sigla} — {u.nome}</option>
-                          ))}
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Fator de Conversão</Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number" step="0.000001" min="0"
-                          value={addFatorConv}
-                          onChange={(e) => setAddFatorConv(e.target.value)}
-                          placeholder="Ex: 12"
-                        />
-                      </div>
-                      <p className="text-[11px] text-gray-400">
-                        1 {addUnidadeId ? (unidades.find((u) => u.id === addUnidadeId)?.sigla ?? "—") : "UN"} = ? {principalSigla}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 justify-end pt-1">
-                    <Button size="sm" variant="outline" onClick={() => setShowAddUnidade(false)} disabled={addUnidadeSaving}>
-                      Cancelar
-                    </Button>
-                    <Button size="sm" onClick={addItemUnidade} disabled={addUnidadeSaving || !addUnidadeId}>
-                      {addUnidadeSaving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
-                      Adicionar
-                    </Button>
-                  </div>
-                </div>
-              )}
             </div>
           );
         })()}
@@ -2617,11 +2627,124 @@ export default function ProdutoDetailPage() {
         </div>
       )}
 
+      {/* ── Modal: Adicionar / Editar unidade ──────────────────────────── */}
+      {unidadeModal && typeof window !== "undefined" && createPortal(
+        <>
+          <div className="fixed inset-0 z-[9200] bg-black/40 backdrop-blur-sm" onClick={() => setUnidadeModal(null)} />
+          <div className="fixed inset-0 z-[9201] flex items-center justify-center p-4 pointer-events-none">
+            <div
+              className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden pointer-events-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-900">
+                  {unidadeModal.mode === "add" ? "Adicionar Unidade" : `Editar ${unidadeModal.sigla} — ${unidadeModal.nome}`}
+                </h2>
+                <button onClick={() => setUnidadeModal(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-5 py-5 space-y-4">
+                {unidadeModalError && (
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{unidadeModalError}</p>
+                )}
+
+                {/* Unidade selector — only for add */}
+                {unidadeModal.mode === "add" && (() => {
+                  const principalIU    = itemUnidades.find((iu) => iu.isPrincipal);
+                  const principalSigla = principalIU?.unidade.sigla ?? item?.unidade?.sigla ?? "UN";
+                  const availableUnidades = unidades.filter((u) => !itemUnidades.some((iu) => iu.unidade.id === u.id));
+                  const selectedSigla = unidades.find((u) => u.id === unidadeModal.unidadeId)?.sigla ?? "?";
+                  return (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label>Unidade <span className="text-red-500">*</span></Label>
+                        <select
+                          value={unidadeModal.unidadeId}
+                          onChange={(e) => {
+                            const u = unidades.find((x) => x.id === e.target.value);
+                            setUnidadeModal((m) => m ? { ...m, unidadeId: e.target.value, sigla: u?.sigla ?? "", nome: u?.nome ?? "" } : m);
+                          }}
+                          className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Selecionar...</option>
+                          {availableUnidades.map((u) => (
+                            <option key={u.id} value={u.id}>{u.sigla} — {u.nome}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Fator de Conversão</Label>
+                        <Input
+                          type="number" step="0.000001" min="0"
+                          value={unidadeModal.fatorConversao}
+                          onChange={(e) => setUnidadeModal((m) => m ? { ...m, fatorConversao: e.target.value } : m)}
+                          placeholder="Ex: 325"
+                        />
+                        <p className="text-[11px] text-gray-400">
+                          1 {unidadeModal.unidadeId ? selectedSigla : "?"} = ? {principalSigla}
+                        </p>
+                      </div>
+                    </>
+                  );
+                })()}
+
+                {/* Edit mode — only fator */}
+                {unidadeModal.mode === "edit" && (() => {
+                  const principalIU    = itemUnidades.find((iu) => iu.isPrincipal);
+                  const principalSigla = principalIU?.unidade.sigla ?? item?.unidade?.sigla ?? "UN";
+                  return unidadeModal.isPrincipal ? (
+                    <p className="text-sm text-gray-500">
+                      Esta é a <span className="font-semibold text-blue-600">unidade base</span> do produto — ela não possui fator de conversão.
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <Label>Fator de Conversão</Label>
+                      <Input
+                        type="number" step="0.000001" min="0"
+                        value={unidadeModal.fatorConversao}
+                        onChange={(e) => setUnidadeModal((m) => m ? { ...m, fatorConversao: e.target.value } : m)}
+                        placeholder="Ex: 325"
+                        autoFocus
+                      />
+                      <p className="text-[11px] text-gray-400">
+                        1 {unidadeModal.sigla} = ? {principalSigla}
+                      </p>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Footer */}
+              <div className="flex gap-2 justify-end px-5 pb-5">
+                <Button variant="outline" size="sm" onClick={() => setUnidadeModal(null)} disabled={unidadeModalSaving}>
+                  Cancelar
+                </Button>
+                {!(unidadeModal.mode === "edit" && unidadeModal.isPrincipal) && (
+                  <Button
+                    size="sm"
+                    onClick={saveUnidadeModal}
+                    disabled={unidadeModalSaving || (unidadeModal.mode === "add" && !unidadeModal.unidadeId)}
+                  >
+                    {unidadeModalSaving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+                    {unidadeModal.mode === "add" ? "Adicionar" : "Salvar"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
+
       {/* ── Confirmação: promover unidade a base ───────────────────────── */}
       {confirmPrincipal && typeof window !== "undefined" && createPortal(
         <>
-          <div className="fixed inset-0 z-[9200] bg-black/40 backdrop-blur-sm" onClick={() => setConfirmPrincipal(null)} />
-          <div className="fixed inset-0 z-[9201] flex items-center justify-center p-4 pointer-events-none">
+          <div className="fixed inset-0 z-[9300] bg-black/40 backdrop-blur-sm" onClick={() => setConfirmPrincipal(null)} />
+          <div className="fixed inset-0 z-[9301] flex items-center justify-center p-4 pointer-events-none">
             <div
               className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
