@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -133,14 +134,17 @@ export default function TabelaPrecoDetailPage() {
   // Items
   const [itens, setItens] = useState<ItemRow[]>([]);
 
-  // Item search popover
-  const [searchRow, setSearchRow] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<ItemOpt[]>([]);
-  const [searching, setSearching] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
+  // Item search popover (portal)
+  const [searchRow,    setSearchRow]    = useState<string | null>(null);
+  const [searchQuery,  setSearchQuery]  = useState("");
+  const [searchResults,setSearchResults]= useState<ItemOpt[]>([]);
+  const [searching,    setSearching]    = useState(false);
+  const [searchDropPos,setSearchDropPos]= useState<{ top: number; left: number; width: number } | null>(null);
+  const [portalMounted,setPortalMounted]= useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useTabTitle(tabela ? `TP-${tabela.codigo}` : "Tabela de Preço");
+  useEffect(() => { setPortalMounted(true); }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -168,15 +172,39 @@ export default function TabelaPrecoDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Close item search on outside click
+  // Close item search on outside click or scroll
   useEffect(() => {
+    if (!searchRow) return;
     function handle(e: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node))
-        setSearchRow(null);
+      if (!(e.target as HTMLElement).closest("[data-prod-search]"))
+        closeSearch();
     }
+    function onScroll() { closeSearch(); }
     document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, []);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", handle);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [searchRow]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function closeSearch() {
+    setSearchRow(null);
+    setSearchDropPos(null);
+    setSearchQuery("");
+  }
+
+  function openSearch(key: string, triggerEl: HTMLElement, initialQ: string) {
+    const r = triggerEl.getBoundingClientRect();
+    setSearchDropPos({
+      top:   r.bottom + window.scrollY + 4,
+      left:  r.left   + window.scrollX,
+      width: Math.max(r.width, 340),
+    });
+    setSearchRow(key);
+    setSearchQuery(initialQ);
+    setTimeout(() => searchInputRef.current?.focus(), 0);
+  }
 
   // Search products
   useEffect(() => {
@@ -220,7 +248,7 @@ export default function TabelaPrecoDetailPage() {
       precoBase:    decimalToNumber(prod.precoVenda).toFixed(4),
       precoVenda:   decimalToNumber(prod.precoVenda).toFixed(4),
     }));
-    setSearchRow(null);
+    closeSearch();
     setSearchQuery("");
     setDirty(true);
   }
@@ -396,56 +424,22 @@ export default function TabelaPrecoDetailPage() {
                         {String(idx + 1).padStart(4, "0")}
                       </td>
 
-                      {/* Cód. Produto — search popover */}
-                      <td className="px-3 py-2 relative">
+                      {/* Cód. Produto — portal search */}
+                      <td className="px-3 py-2">
                         <button
+                          data-prod-search
                           type="button"
-                          onClick={() => { setSearchRow(row._key); setSearchQuery(row.codigo); }}
+                          onClick={(e) => openSearch(row._key, e.currentTarget, row.codigo)}
                           className={cn(
                             "w-full h-7 px-2 rounded border text-left text-xs font-mono transition-colors",
                             row.codigo
                               ? "border-gray-200 bg-white text-gray-800 hover:border-blue-400"
-                              : "border-dashed border-gray-300 text-gray-400 hover:border-blue-400"
+                              : "border-dashed border-gray-300 text-gray-400 hover:border-blue-400",
+                            searchRow === row._key && "border-blue-400 ring-1 ring-blue-200"
                           )}
                         >
                           {row.codigo || <span className="flex items-center gap-1"><Search className="w-3 h-3" />Buscar</span>}
                         </button>
-
-                        {searchRow === row._key && (
-                          <div ref={searchRef} className="absolute left-0 top-full mt-1 z-50 w-80 bg-white rounded-xl border border-gray-200 shadow-xl">
-                            <div className="relative border-b border-gray-100">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                              <input
-                                autoFocus
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Código ou descrição..."
-                                className="w-full pl-8 pr-3 py-2.5 text-sm focus:outline-none bg-transparent"
-                              />
-                            </div>
-                            <div className="max-h-52 overflow-y-auto">
-                              {searching ? (
-                                <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-gray-400">
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando...
-                                </div>
-                              ) : searchResults.length === 0 ? (
-                                <p className="px-4 py-3 text-xs text-gray-400 italic text-center">Nenhum produto encontrado</p>
-                              ) : searchResults.map((p) => (
-                                <button
-                                  key={p.id}
-                                  type="button"
-                                  onMouseDown={() => selectProduct(row._key, p)}
-                                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-blue-50 text-left border-b border-gray-50 last:border-0"
-                                >
-                                  <span className="font-mono text-xs text-gray-500 shrink-0">{p.codigo}</span>
-                                  <span className="text-sm text-gray-800 truncate">{p.descricao}</span>
-                                  <span className="text-xs text-gray-400 ml-auto shrink-0">{formatBRL(decimalToNumber(p.precoVenda))}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </td>
 
                       {/* Descrição */}
@@ -555,6 +549,51 @@ export default function TabelaPrecoDetailPage() {
             />
           </div>
         </div>
+
+        {/* ── Portal: product search dropdown ─────────────────────────────── */}
+        {portalMounted && searchRow && searchDropPos && createPortal(
+          <div
+            data-prod-search
+            className="fixed z-[9999] bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden"
+            style={{ top: searchDropPos.top, left: searchDropPos.left, width: searchDropPos.width }}
+          >
+            <div className="relative border-b border-gray-100">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              <input
+                ref={searchInputRef}
+                data-prod-search
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Código ou descrição..."
+                className="w-full pl-8 pr-3 py-2.5 text-sm focus:outline-none bg-transparent"
+              />
+            </div>
+            <div className="max-h-56 overflow-y-auto">
+              {searching ? (
+                <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-gray-400">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando...
+                </div>
+              ) : searchResults.length === 0 ? (
+                <p className="px-4 py-3 text-xs text-gray-400 italic text-center">Nenhum produto encontrado</p>
+              ) : searchResults.map((p) => (
+                <button
+                  key={p.id}
+                  data-prod-search
+                  type="button"
+                  onMouseDown={() => selectProduct(searchRow, p)}
+                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-blue-50 text-left border-b border-gray-50 last:border-0"
+                >
+                  <span className="font-mono text-xs text-gray-500 shrink-0 w-20">{p.codigo}</span>
+                  <span className="text-sm text-gray-800 truncate flex-1">{p.descricao}</span>
+                  <span className="text-xs text-gray-400 shrink-0">{p.unidadeMedida}</span>
+                  <span className="text-xs font-medium text-blue-600 shrink-0">{formatBRL(decimalToNumber(p.precoVenda))}</span>
+                </button>
+              ))}
+            </div>
+          </div>,
+          document.body
+        )}
 
         {/* ── Danger zone ──────────────────────────────────────────────────── */}
         <div className="flex justify-between items-center pt-2">
