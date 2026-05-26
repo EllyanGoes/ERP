@@ -162,6 +162,7 @@ export default function ProdutoDetailPage() {
   const [addFatorConv, setAddFatorConv] = useState("");
   const [addUnidadeSaving, setAddUnidadeSaving] = useState(false);
   const [addUnidadeError, setAddUnidadeError] = useState("");
+  const [confirmPrincipal, setConfirmPrincipal] = useState<{ itemUnidadeId: string; unidadeId: string; sigla: string; nome: string } | null>(null);
 
   // Movimentação rápida
   const [showMovDialog, setShowMovDialog] = useState(false);
@@ -2135,7 +2136,7 @@ export default function ProdutoDetailPage() {
                               </span>
                             ) : (
                               <button
-                                onClick={() => setPrincipal(iu.id, iu.unidade.id)}
+                                onClick={() => setConfirmPrincipal({ itemUnidadeId: iu.id, unidadeId: iu.unidade.id, sigla: iu.unidade.sigla, nome: iu.unidade.nome })}
                                 className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors border border-transparent hover:border-blue-200"
                                 title="Definir como unidade base"
                               >
@@ -2614,6 +2615,47 @@ export default function ProdutoDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Confirmação: promover unidade a base ───────────────────────── */}
+      {confirmPrincipal && typeof window !== "undefined" && createPortal(
+        <>
+          <div className="fixed inset-0 z-[9200] bg-black/40 backdrop-blur-sm" onClick={() => setConfirmPrincipal(null)} />
+          <div className="fixed inset-0 z-[9201] flex items-center justify-center p-4 pointer-events-none">
+            <div
+              className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden pointer-events-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 py-5">
+                <h2 className="text-sm font-semibold text-gray-900 mb-1">Alterar unidade base?</h2>
+                <p className="text-sm text-gray-500">
+                  A unidade{" "}
+                  <span className="font-semibold text-gray-800">
+                    {confirmPrincipal.sigla} — {confirmPrincipal.nome}
+                  </span>{" "}
+                  passará a ser a <span className="font-semibold text-blue-600">unidade base</span> do produto.
+                  Todos os estoques e conversões são referenciados pela unidade base.
+                </p>
+              </div>
+              <div className="flex gap-2 justify-end px-5 pb-5">
+                <Button variant="outline" size="sm" onClick={() => setConfirmPrincipal(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={() => {
+                    setPrincipal(confirmPrincipal.itemUnidadeId, confirmPrincipal.unidadeId);
+                    setConfirmPrincipal(null);
+                  }}
+                >
+                  Confirmar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>,
+        document.body
       )}
 
       {showMovDialog && (
