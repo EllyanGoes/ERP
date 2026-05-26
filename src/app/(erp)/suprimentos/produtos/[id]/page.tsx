@@ -1167,7 +1167,15 @@ export default function ProdutoDetailPage() {
                     Saldo por local de estoque ·{" "}
                     <span className="font-semibold text-gray-700">
                       {estoqueTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {item.unidade?.sigla || item.unidadeMedida}
-                    </span>{" "}
+                    </span>
+                    {itemUnidades.filter((iu) => !iu.isPrincipal && iu.fatorConversao).map((iu) => (
+                      <span key={iu.id} className="text-gray-400">
+                        {" · "}
+                        <span className="font-semibold text-gray-600">
+                          {(estoqueTotal / Number(iu.fatorConversao)).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {iu.unidade.sigla}
+                        </span>
+                      </span>
+                    ))}{" "}
                     total
                     {custoUnit > 0 && (
                       <> · custo total{" "}
@@ -1239,20 +1247,38 @@ export default function ProdutoDetailPage() {
                                       autoFocus
                                     />
                                   ) : (
-                                    <>
-                                      <span className={cn("font-bold", abaixo ? "text-red-600" : "text-gray-900")}>
-                                        {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                                      </span>
-                                      <span className="text-xs text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
-                                    </>
+                                    <div className="flex flex-col items-end gap-0.5">
+                                      <div>
+                                        <span className={cn("font-bold", abaixo ? "text-red-600" : "text-gray-900")}>
+                                          {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                                        </span>
+                                        <span className="text-xs text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                      </div>
+                                      {itemUnidades.filter((iu) => !iu.isPrincipal && iu.fatorConversao).map((iu) => (
+                                        <div key={iu.id} className="text-xs text-gray-400">
+                                          {(atual / Number(iu.fatorConversao)).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                                          <span className="ml-1">{iu.unidade.sigla}</span>
+                                        </div>
+                                      ))}
+                                    </div>
                                   )}
                                 </td>
 
                                 <td className="px-4 py-3.5 text-right">
-                                  <span className="font-semibold text-gray-800">
-                                    {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                                  </span>
-                                  <span className="text-xs text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                  <div className="flex flex-col items-end gap-0.5">
+                                    <div>
+                                      <span className="font-semibold text-gray-800">
+                                        {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                                      </span>
+                                      <span className="text-xs text-gray-400 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                    </div>
+                                    {itemUnidades.filter((iu) => !iu.isPrincipal && iu.fatorConversao).map((iu) => (
+                                      <div key={iu.id} className="text-xs text-gray-400">
+                                        {(atual / Number(iu.fatorConversao)).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                                        <span className="ml-1">{iu.unidade.sigla}</span>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </td>
                                 <td className="px-4 py-3.5 text-right font-semibold text-gray-700">
                                   {custoLinha > 0 ? formatBRL(custoLinha) : <span className="text-gray-400">—</span>}
