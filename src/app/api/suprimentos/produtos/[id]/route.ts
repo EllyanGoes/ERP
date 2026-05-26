@@ -43,6 +43,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
   const body = await req.json();
 
   const updateData: Record<string, unknown> = {};
@@ -104,6 +105,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!updated) return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 });
   const { produtosFornecedor, ...rest } = updated;
   return NextResponse.json({ data: { ...rest, fornecedores: produtosFornecedor } });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Erro interno ao atualizar produto";
+    console.error("[PATCH /api/suprimentos/produtos/[id]]", err);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
