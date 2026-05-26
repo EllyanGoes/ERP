@@ -324,21 +324,26 @@ export default function LocalEstoqueDetailPage() {
       <div className="px-8 pb-8 space-y-6">
         {/* Summary cards */}
         <div className="grid grid-cols-3 gap-4 max-w-lg">
-          <div className="rounded-xl bg-blue-50 px-4 py-3">
-            <p className="text-xs text-blue-600 font-medium">Produtos</p>
-            <p className="text-2xl font-bold text-blue-800 mt-0.5">{local.estoqueItens.length}</p>
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3.5">
+            <p className="text-xs text-blue-600 font-semibold uppercase tracking-wide">Produtos</p>
+            <p className="text-3xl font-bold text-blue-700 mt-1">{local.estoqueItens.length}</p>
           </div>
-          <div className="rounded-xl bg-violet-50 px-4 py-3">
-            <p className="text-xs text-violet-600 font-medium">Custo Total</p>
-            <p className="text-xl font-bold text-violet-800 mt-0.5">{custoTotal > 0 ? formatBRL(custoTotal) : "—"}</p>
+          <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3.5">
+            <p className="text-xs text-violet-600 font-semibold uppercase tracking-wide">Custo Total</p>
+            <p className="text-xl font-bold text-violet-700 mt-1 leading-tight">{custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-violet-400">—</span>}</p>
           </div>
-          {abaixoMinimo > 0 && (
-            <div className="rounded-xl bg-red-50 px-4 py-3 flex items-center gap-2">
+          {abaixoMinimo > 0 ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
               <div>
-                <p className="text-xs text-red-600 font-medium">Abaixo do mínimo</p>
-                <p className="text-2xl font-bold text-red-700 mt-0.5">{abaixoMinimo}</p>
+                <p className="text-xs text-red-600 font-semibold uppercase tracking-wide">Abaixo mín.</p>
+                <p className="text-3xl font-bold text-red-600 mt-1">{abaixoMinimo}</p>
               </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3.5">
+              <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wide">Situação</p>
+              <p className="text-sm font-semibold text-emerald-700 mt-1">Tudo normal</p>
             </div>
           )}
         </div>
@@ -372,18 +377,18 @@ export default function LocalEstoqueDetailPage() {
               <p className="text-sm mt-1">O estoque é alimentado ao registrar movimentações de entrada.</p>
             </div>
           ) : (
-            <div className="rounded-xl border border-gray-200 overflow-hidden">
+            <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr className="text-xs text-gray-400 uppercase tracking-wide">
-                    <th className="text-left px-4 py-2.5 font-medium">Código</th>
-                    <th className="text-left px-4 py-2.5 font-medium">Descrição</th>
-                    <th className="text-left px-4 py-2.5 font-medium">Endereço</th>
-                    <th className="text-right px-4 py-2.5 font-medium">Qtd. Atual</th>
-                    <th className="text-right px-4 py-2.5 font-medium">Mínimo</th>
-                    <th className="text-right px-4 py-2.5 font-medium">Máximo</th>
-                    <th className="text-right px-4 py-2.5 font-medium">Custo Total</th>
-                    <th className="text-center px-4 py-2.5 font-medium">Situação</th>
+                <thead className="bg-gray-100 border-b-2 border-gray-200">
+                  <tr className="text-xs text-gray-600 uppercase tracking-wider">
+                    <th className="text-left px-4 py-3 font-semibold">Código</th>
+                    <th className="text-left px-4 py-3 font-semibold">Descrição</th>
+                    <th className="text-left px-4 py-3 font-semibold">Endereço</th>
+                    <th className="text-right px-4 py-3 font-semibold">Qtd. Atual</th>
+                    <th className="text-right px-4 py-3 font-semibold">Mínimo</th>
+                    <th className="text-right px-4 py-3 font-semibold">Máximo</th>
+                    <th className="text-right px-4 py-3 font-semibold">Custo Total</th>
+                    <th className="text-center px-4 py-3 font-semibold">Situação</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -396,38 +401,46 @@ export default function LocalEstoqueDetailPage() {
                     const unidade = e.item.unidade?.sigla || e.item.unidadeMedida;
                     const itemCusto = toNum(e.item.precoCusto) * atual;
                     return (
-                      <tr key={e.id} className={cn("hover:bg-gray-50 transition-colors", abaixo && "bg-red-50/40 hover:bg-red-50/60", !e.item.ativo && "opacity-50")}>
-                        <td className="px-4 py-3">
-                          <Link href={`/suprimentos/produtos/${e.item.id}`} className="font-mono text-xs text-blue-600 hover:underline">
+                      <tr key={e.id} className={cn("hover:bg-blue-50/30 transition-colors", abaixo && "bg-red-50/50 hover:bg-red-50/70", !e.item.ativo && "opacity-50")}>
+                        <td className="px-4 py-3.5">
+                          <Link href={`/suprimentos/produtos/${e.item.id}`} className="font-mono text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline">
                             {e.item.codigo}
                           </Link>
                         </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">{e.item.descricao}</td>
-                        <td className="px-4 py-3 text-gray-500 text-xs">
+                        <td className="px-4 py-3.5 font-semibold text-gray-800">{e.item.descricao}</td>
+                        <td className="px-4 py-3.5">
                           {e.localizacao
-                            ? <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{e.localizacao}</span>
-                            : "—"}
+                            ? <span className="font-mono text-xs font-medium bg-gray-100 border border-gray-200 text-gray-700 px-1.5 py-0.5 rounded">{e.localizacao}</span>
+                            : <span className="text-gray-300">—</span>}
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3.5 text-right">
                           <span className={cn("font-bold text-base", abaixo ? "text-red-600" : "text-gray-900")}>
                             {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                           </span>
-                          <span className="text-xs text-gray-400 ml-1">{unidade}</span>
+                          <span className="text-xs font-medium text-gray-500 ml-1">{unidade}</span>
                         </td>
-                        <td className="px-4 py-3 text-right text-gray-500 text-sm">{min > 0 ? min.toLocaleString("pt-BR") : "—"}</td>
-                        <td className="px-4 py-3 text-right text-gray-500 text-sm">{max !== null ? max.toLocaleString("pt-BR") : "—"}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-violet-700">
+                        <td className="px-4 py-3.5 text-right">
+                          <span className={cn("font-medium text-sm", min > 0 ? "text-gray-700" : "text-gray-300")}>
+                            {min > 0 ? min.toLocaleString("pt-BR") : "—"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-right">
+                          <span className={cn("font-medium text-sm", max !== null ? "text-gray-700" : "text-gray-300")}>
+                            {max !== null ? max.toLocaleString("pt-BR") : "—"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-semibold text-violet-700">
                           {itemCusto > 0 ? formatBRL(itemCusto) : <span className="text-gray-300 font-normal">—</span>}
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-4 py-3.5 text-center">
                           {abaixo ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 border border-red-200 px-2 py-0.5 rounded-full">
                               <AlertTriangle className="w-3 h-3" />Baixo
                             </span>
                           ) : acima ? (
-                            <span className="text-xs font-medium text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">Acima máx.</span>
+                            <span className="text-xs font-semibold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">Acima máx.</span>
                           ) : (
-                            <span className="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">Normal</span>
+                            <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">Normal</span>
                           )}
                         </td>
                       </tr>
@@ -436,9 +449,9 @@ export default function LocalEstoqueDetailPage() {
                 </tbody>
                 {local.estoqueItens.length > 1 && (
                   <tfoot>
-                    <tr className="border-t border-gray-200 bg-gray-50">
-                      <td colSpan={6} className="px-4 py-2 text-xs font-medium text-gray-500">Total</td>
-                      <td className="px-4 py-2 text-right font-bold text-violet-700">
+                    <tr className="border-t-2 border-gray-200 bg-gray-50">
+                      <td colSpan={6} className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Total</td>
+                      <td className="px-4 py-3 text-right font-bold text-violet-700 text-base">
                         {custoTotal > 0 ? formatBRL(custoTotal) : "—"}
                       </td>
                       <td />
@@ -517,13 +530,13 @@ export default function LocalEstoqueDetailPage() {
                 <p className="text-xs mt-1">Clique em &quot;Novo Endereço&quot; para começar.</p>
               </div>
             ) : (
-              <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr className="text-xs text-gray-400 uppercase tracking-wide">
-                      <th className="text-left px-4 py-2.5 font-medium">Código</th>
-                      <th className="text-left px-4 py-2.5 font-medium">Descrição</th>
-                      <th className="text-center px-4 py-2.5 font-medium">Status</th>
+                  <thead className="bg-gray-100 border-b-2 border-gray-200">
+                    <tr className="text-xs text-gray-600 uppercase tracking-wider">
+                      <th className="text-left px-4 py-3 font-semibold">Código</th>
+                      <th className="text-left px-4 py-3 font-semibold">Descrição</th>
+                      <th className="text-center px-4 py-3 font-semibold">Status</th>
                       <th className="w-24" />
                     </tr>
                   </thead>
