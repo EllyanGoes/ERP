@@ -307,16 +307,6 @@ export default function TabelaPrecoDetailPage() {
                   Tab. Ativa
                 </span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox" checked={form.ecommerce}
-                  onChange={(e) => { setForm((f) => ({ ...f, ecommerce: e.target.checked })); setDirty(true); }}
-                  className="w-4 h-4 accent-blue-600"
-                />
-                <span className="text-sm text-gray-700 flex items-center gap-1">
-                  <ShoppingBag className="w-3.5 h-3.5 text-blue-400" /> E-Commerce
-                </span>
-              </label>
             </div>
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -324,24 +314,13 @@ export default function TabelaPrecoDetailPage() {
               <Label className="text-xs text-gray-500">Cód. Tabela</Label>
               <Input value={tabela.codigo} readOnly className="bg-gray-50 font-mono font-semibold" />
             </div>
-            <div className="col-span-2 space-y-1">
+            <div className="col-span-3 space-y-1">
               <Label className="text-xs text-gray-500">Descrição *</Label>
               <Input
                 value={form.descricao}
                 onChange={(e) => { setForm((f) => ({ ...f, descricao: e.target.value })); setDirty(true); }}
                 placeholder="Descrição da tabela"
               />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Tipo Horário</Label>
-              <select
-                value={form.tipoHorario}
-                onChange={(e) => { setForm((f) => ({ ...f, tipoHorario: e.target.value })); setDirty(true); }}
-                className="w-full h-9 rounded-md border border-gray-200 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="UNICO">1 - Único</option>
-                <option value="MULTIPLO">2 - Múltiplo</option>
-              </select>
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Data Inicial *</Label>

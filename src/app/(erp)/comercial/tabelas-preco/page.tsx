@@ -224,31 +224,14 @@ export default function TabelasPrecoPage() {
                   onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-gray-600">Data Inicial *</label>
-                  <Input type="date" value={form.dataInicial} onChange={(e) => setForm((f) => ({ ...f, dataInicial: e.target.value }))} />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-gray-600">Tipo Horário</label>
-                  <select
-                    value={form.tipoHorario}
-                    onChange={(e) => setForm((f) => ({ ...f, tipoHorario: e.target.value }))}
-                    className="w-full h-9 rounded-md border border-gray-200 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="UNICO">Único</option>
-                    <option value="MULTIPLO">Múltiplo</option>
-                  </select>
-                </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-600">Data Inicial *</label>
+                <Input type="date" value={form.dataInicial} onChange={(e) => setForm((f) => ({ ...f, dataInicial: e.target.value }))} />
               </div>
               <div className="flex items-center gap-6">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={form.ativa} onChange={(e) => setForm((f) => ({ ...f, ativa: e.target.checked }))} className="w-4 h-4 accent-blue-600" />
                   <span className="text-sm text-gray-700">Tab. Ativa</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.ecommerce} onChange={(e) => setForm((f) => ({ ...f, ecommerce: e.target.checked }))} className="w-4 h-4 accent-blue-600" />
-                  <span className="text-sm text-gray-700">E-Commerce</span>
                 </label>
               </div>
               {createError && <p className="text-xs text-red-600">{createError}</p>}
