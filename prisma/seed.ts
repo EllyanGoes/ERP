@@ -237,7 +237,7 @@ async function main() {
     data: {
       numero: `PV-${year}-${String(seq4.ultimo).padStart(4, "0")}`,
       clienteId: c1.id,
-      status: StatusPedidoVenda.FATURADO,
+      status: StatusPedidoVenda.EM_AGENDAMENTO,
       valorTotal: 2500.00,
       createdAt: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000),
       itens: {

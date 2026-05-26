@@ -35,15 +35,14 @@ function Field({ label, value }: { label: string; value: string | null | undefin
 const STATUS_PEDIDO_COLOR: Record<string, string> = {
   ORCAMENTO:    "bg-gray-100 text-gray-600",
   CONFIRMADO:   "bg-blue-100 text-blue-700",
-  EM_PRODUCAO:  "bg-amber-100 text-amber-700",
-  FATURADO:     "bg-purple-100 text-purple-700",
-  ENTREGUE:     "bg-green-100 text-green-700",
-  CANCELADO:    "bg-red-100 text-red-700",
+  EM_AGENDAMENTO: "bg-violet-100 text-violet-700",
+  ENTREGUE:       "bg-green-100 text-green-700",
+  CANCELADO:      "bg-red-100 text-red-700",
 };
 
 const STATUS_PEDIDO_LABEL: Record<string, string> = {
-  ORCAMENTO: "Orçamento", CONFIRMADO: "Confirmado", EM_PRODUCAO: "Em Produção",
-  FATURADO: "Faturado", ENTREGUE: "Entregue", CANCELADO: "Cancelado",
+  ORCAMENTO: "Orçamento", CONFIRMADO: "Confirmado", EM_AGENDAMENTO: "Em Agendamento",
+  ENTREGUE: "Entregue", CANCELADO: "Cancelado",
 };
 
 const STATUS_CONTA_COLOR: Record<string, string> = {

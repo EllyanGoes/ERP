@@ -1050,8 +1050,7 @@ enum StatusMinuta {
 enum StatusPedidoVenda {
   ORCAMENTO
   CONFIRMADO
-  EM_PRODUCAO
-  FATURADO
+  EM_AGENDAMENTO
   ENTREGUE
   CANCELADO
 }

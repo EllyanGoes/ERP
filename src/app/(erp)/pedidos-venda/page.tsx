@@ -37,8 +37,7 @@ const FILTER_KEY = "erp:pedidos-venda:filters:v2";
 const STATUS_COLS: { key: string; label: string; color: string; bg: string; border: string; dot: string }[] = [
   { key: "ORCAMENTO",   label: "Orçamento",   color: "text-gray-500",    bg: "bg-gray-50",    border: "border-gray-200",   dot: "bg-gray-400"   },
   { key: "CONFIRMADO",  label: "Confirmado",  color: "text-blue-600",    bg: "bg-blue-50",    border: "border-blue-200",   dot: "bg-blue-500"   },
-  { key: "EM_PRODUCAO", label: "Em Produção", color: "text-violet-700",  bg: "bg-violet-50",  border: "border-violet-200", dot: "bg-violet-500" },
-  { key: "FATURADO",    label: "Faturado",    color: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-200",  dot: "bg-amber-500"  },
+  { key: "EM_AGENDAMENTO", label: "Em Agendamento", color: "text-violet-700", bg: "bg-violet-50", border: "border-violet-200", dot: "bg-violet-500" },
   { key: "ENTREGUE",    label: "Entregue",    color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200",dot: "bg-emerald-500"},
   { key: "CANCELADO",   label: "Cancelado",   color: "text-red-500",     bg: "bg-red-50",     border: "border-red-200",    dot: "bg-red-400"    },
 ];
@@ -502,8 +501,7 @@ export default function PedidosVendaPage() {
     const STATUS_LABEL: Record<string, string> = {
       ORCAMENTO:   "Orçamento",
       CONFIRMADO:  "Confirmado",
-      EM_PRODUCAO: "Em Produção",
-      FATURADO:    "Faturado",
+      EM_AGENDAMENTO: "Em Agendamento",
       ENTREGUE:    "Entregue",
       CANCELADO:   "Cancelado",
     };

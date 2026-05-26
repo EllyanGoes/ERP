@@ -53,9 +53,8 @@ type PedidoDetailProps = {
 
 const NEXT_STATUS: Record<string, { label: string; next: string; variant?: "default" | "destructive" | "outline" }[]> = {
   ORCAMENTO:   [{ label: "Confirmar Pedido", next: "CONFIRMADO" }, { label: "Cancelar", next: "CANCELADO", variant: "destructive" }],
-  CONFIRMADO:  [{ label: "Iniciar Produção", next: "EM_PRODUCAO" }, { label: "Cancelar", next: "CANCELADO", variant: "destructive" }],
-  EM_PRODUCAO: [{ label: "Faturar", next: "FATURADO" }, { label: "Cancelar", next: "CANCELADO", variant: "destructive" }],
-  FATURADO:    [{ label: "Registrar Entrega", next: "ENTREGUE" }, { label: "Cancelar", next: "CANCELADO", variant: "destructive" }],
+  CONFIRMADO:     [{ label: "Agendar Entrega", next: "EM_AGENDAMENTO" }, { label: "Cancelar", next: "CANCELADO", variant: "destructive" }],
+  EM_AGENDAMENTO: [{ label: "Registrar Entrega", next: "ENTREGUE" }, { label: "Cancelar", next: "CANCELADO", variant: "destructive" }],
   ENTREGUE:    [],
   CANCELADO:   [],
 };
@@ -140,7 +139,7 @@ export default function PedidoDetail({ pedido }: PedidoDetailProps) {
   return (
     <div className="space-y-6">
       {/* Actions bar */}
-      {(actions.length > 0 || (pedido.status === "FATURADO" && pedido.contasReceber.length === 0)) && (
+      {(actions.length > 0 || (pedido.status === "EM_AGENDAMENTO" && pedido.contasReceber.length === 0)) && (
         <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-xl border border-gray-100">
           <span className="text-sm text-gray-500 mr-2">Ações:</span>
           {actions.map((a) => (
@@ -148,7 +147,7 @@ export default function PedidoDetail({ pedido }: PedidoDetailProps) {
               {a.label}
             </Button>
           ))}
-          {pedido.status === "FATURADO" && pedido.contasReceber.length === 0 && (
+          {pedido.status === "EM_AGENDAMENTO" && pedido.contasReceber.length === 0 && (
             <Button variant="outline" size="sm" onClick={gerarContaReceber} disabled={loading}>
               Gerar Conta a Receber
             </Button>

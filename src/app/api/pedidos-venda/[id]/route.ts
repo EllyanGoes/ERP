@@ -92,7 +92,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { status } = body as { status?: string };
   if (!status) return NextResponse.json({ error: "status é obrigatório" }, { status: 400 });
 
-  const valid = ["ORCAMENTO", "CONFIRMADO", "EM_PRODUCAO", "FATURADO", "ENTREGUE", "CANCELADO"];
+  const valid = ["ORCAMENTO", "CONFIRMADO", "EM_AGENDAMENTO", "ENTREGUE", "CANCELADO"];
   if (!valid.includes(status)) return NextResponse.json({ error: "Status inválido" }, { status: 400 });
 
   const pedido = await prisma.pedidoVenda.update({

@@ -108,10 +108,10 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Move pedido to EM_PRODUCAO when first minuta is created
+      // Move pedido to EM_AGENDAMENTO when first minuta is created
       await tx.pedidoVenda.update({
         where: { id: pedidoVendaId },
-        data: { status: "EM_PRODUCAO" },
+        data: { status: "EM_AGENDAMENTO" },
       });
 
       return created;

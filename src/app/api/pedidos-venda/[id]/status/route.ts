@@ -4,15 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 
-const schema = z.object({ status: z.enum(["CONFIRMADO","EM_PRODUCAO","FATURADO","ENTREGUE","CANCELADO"]) });
+const schema = z.object({ status: z.enum(["CONFIRMADO","EM_AGENDAMENTO","ENTREGUE","CANCELADO"]) });
 
 const TRANSITIONS: Record<string, string[]> = {
-  ORCAMENTO: ["CONFIRMADO", "CANCELADO"],
-  CONFIRMADO: ["EM_PRODUCAO", "CANCELADO"],
-  EM_PRODUCAO: ["FATURADO", "CANCELADO"],
-  FATURADO: ["ENTREGUE", "CANCELADO"],
-  ENTREGUE: [],
-  CANCELADO: [],
+  ORCAMENTO:      ["CONFIRMADO", "CANCELADO"],
+  CONFIRMADO:     ["EM_AGENDAMENTO", "CANCELADO"],
+  EM_AGENDAMENTO: ["ENTREGUE", "CANCELADO"],
+  ENTREGUE:       [],
+  CANCELADO:      [],
 };
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -38,7 +37,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
 
     // When delivered: create stock outflow for each item
-    if (parsed.data.status === "ENTREGUE") {
+    if (parsed.data.status === "ENTREGUE") { // eslint-disable-line @typescript-eslint/no-unnecessary-condition
       for (const item of pedido.itens) {
         const estoque = await tx.estoqueItem.findFirst({ where: { itemId: item.itemId } });
         if (estoque) {
