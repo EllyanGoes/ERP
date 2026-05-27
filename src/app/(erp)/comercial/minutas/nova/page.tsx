@@ -91,7 +91,10 @@ export default function NovaMinutaPage() {
   // Form fields
   const [localEstoqueId, setLocalEstoqueId] = useState("");
   const [motoristaId, setMotoristaId] = useState("");
-  const [dataEntrega, setDataEntrega] = useState("");
+  const [dataEntrega, setDataEntrega] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
   const [placa, setPlaca] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [rows, setRows] = useState<ItemRow[]>([]);
@@ -118,6 +121,16 @@ export default function NovaMinutaPage() {
       .then(r => r.json())
       .then(j => setMotoristas(Array.isArray(j) ? j : []));
   }, []);
+
+  // Auto-select local de estoque when there's only one option
+  useEffect(() => {
+    if (localEstoqueId) return; // already selected
+    const itemIds = new Set(rows.map(r => r.itemId));
+    const filtrados = pedido && itemIds.size > 0
+      ? locais.filter(l => l.estoqueItens.some(e => itemIds.has(e.itemId)))
+      : locais;
+    if (filtrados.length === 1) setLocalEstoqueId(filtrados[0].id);
+  }, [locais, rows, pedido, localEstoqueId]);
 
   // Load selected pedido
   const loadPedido = useCallback(async (id: string) => {
