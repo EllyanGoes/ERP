@@ -192,12 +192,23 @@ export default function ProdutoDetailPage() {
     valorUnitario: "",
     documento: "",
     observacoes: "",
+    dataMovimentacao: "",
   });
   const [movSaving, setMovSaving] = useState(false);
   const [movError, setMovError] = useState("");
 
   // Edit movimentação
-  const [editMov, setEditMov] = useState<{ id: string; documento: string; observacoes: string; unidadeId: string } | null>(null);
+  const [editMov, setEditMov] = useState<{
+    id: string;
+    tipo: string;
+    localEstoqueNome: string;
+    unidadeId: string;
+    quantidade: string;
+    valorUnitario: string;
+    documento: string;
+    observacoes: string;
+    dataMovimentacao: string;
+  } | null>(null);
   const [editMovSaving, setEditMovSaving] = useState(false);
   const [editMovError, setEditMovError] = useState("");
 
@@ -627,7 +638,8 @@ export default function ProdutoDetailPage() {
     // Pre-select the principal unit (may already be loaded)
     const principal = itemUnidades.find((iu) => iu.isPrincipal);
     const defaultUnidadeId = principal?.unidade.id ?? item?.unidade?.id ?? "";
-    setMovForm({ tipo: "ENTRADA", localEstoqueId: "", unidadeId: defaultUnidadeId, quantidade: "", valorUnitario: "", documento: "", observacoes: "" });
+    const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    setMovForm({ tipo: "ENTRADA", localEstoqueId: "", unidadeId: defaultUnidadeId, quantidade: "", valorUnitario: "", documento: "", observacoes: "", dataMovimentacao: nowLocal });
     setMovError("");
     setShowMovDialog(true);
     if (locaisEstoque.length === 0) {
@@ -666,6 +678,7 @@ export default function ProdutoDetailPage() {
             : fator !== 1
               ? `Convertido de ${parseFloat(movForm.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} ${selectedIU?.unidade.sigla ?? ""}`
               : undefined,
+          dataMovimentacao: movForm.dataMovimentacao ? new Date(movForm.dataMovimentacao).toISOString() : undefined,
           itens: [{
             itemId: id,
             localEstoqueId: movForm.localEstoqueId,
@@ -687,15 +700,29 @@ export default function ProdutoDetailPage() {
   // ── Edit movimentação ─────────────────────────────────────────────────────
   async function submitEditMov() {
     if (!editMov) return;
+    if (!editMov.quantidade || parseFloat(editMov.quantidade) <= 0) { setEditMovError("Informe a quantidade"); return; }
     setEditMovSaving(true); setEditMovError("");
     try {
+      // Convert quantity using selected unit
+      const selectedIU = itemUnidades.find((iu) => iu.unidade.id === editMov.unidadeId);
+      const fator = (selectedIU && !selectedIU.isPrincipal && selectedIU.fatorConversao)
+        ? Number(selectedIU.fatorConversao) : 1;
+      const qtdBase = parseFloat(editMov.quantidade) * fator;
+
       const res = await fetch(`/api/suprimentos/movimentacoes/${editMov.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          documento:   editMov.documento   || null,
-          observacoes: editMov.observacoes || null,
-          unidadeId:   editMov.unidadeId   || null,
+          documento:        editMov.documento   || null,
+          observacoes:      editMov.observacoes || null,
+          unidadeId:        editMov.unidadeId   || null,
+          quantidade:       qtdBase,
+          valorUnitario:    editMov.tipo === "ENTRADA" && editMov.valorUnitario
+                              ? parseFloat(editMov.valorUnitario) / fator
+                              : null,
+          dataMovimentacao: editMov.dataMovimentacao
+                              ? new Date(editMov.dataMovimentacao).toISOString()
+                              : null,
         }),
       });
       if (!res.ok) { setEditMovError((await res.json()).error || "Erro ao salvar"); return; }
@@ -1666,7 +1693,28 @@ export default function ProdutoDetailPage() {
                                 if (m.documento === "SALDO-INICIAL" && !m.pedidoVendaItemId && !m.conferenciaItemId) {
                                   openEditSaldoDialog(m);
                                 } else {
-                                  setEditMov({ id: m.id, documento: m.documento ?? "", observacoes: m.observacoes ?? "", unidadeId: m.unidade?.id ?? "" });
+                                  (() => {
+                                    // Reverse-convert qty to selected unit for display
+                                    const selIU = m.unidade ? itemUnidades.find((iu) => iu.unidade.id === m.unidade!.id) : null;
+                                    const fator = selIU && !selIU.isPrincipal && selIU.fatorConversao ? Number(selIU.fatorConversao) : 1;
+                                    const qtdBase = parseFloat(String(m.quantidade));
+                                    const qtdDisplay = fator !== 1 ? (qtdBase / fator) : qtdBase;
+                                    const movDate = m.lote?.dataMovimentacao
+                                      ? new Date(m.lote.dataMovimentacao)
+                                      : new Date(m.createdAt);
+                                    const localDT = new Date(movDate.getTime() - movDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                                    setEditMov({
+                                      id: m.id,
+                                      tipo: m.tipo,
+                                      localEstoqueNome: m.localEstoque?.nome ?? "",
+                                      unidadeId: m.unidade?.id ?? "",
+                                      quantidade: qtdDisplay.toLocaleString("en-US", { maximumFractionDigits: 3, useGrouping: false }),
+                                      valorUnitario: m.valorUnitario ? String(parseFloat(String(m.valorUnitario))) : "",
+                                      documento: m.documento ?? "",
+                                      observacoes: m.observacoes ?? "",
+                                      dataMovimentacao: localDT,
+                                    });
+                                  })()
                                 }
                               }}
                               className="p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
@@ -2334,58 +2382,160 @@ export default function ProdutoDetailPage() {
       {/* ── Edit movimentação dialog ─────────────────────────────────────── */}
       {editMov && typeof window !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-5">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-5">
+            {/* Header */}
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 text-base">Editar Movimentação</h3>
+              <div>
+                <h3 className="font-semibold text-gray-900">Editar Movimentação</h3>
+                <p className="text-xs text-gray-400 mt-0.5 font-mono">{item.codigo} — {item.descricao}</p>
+              </div>
               <button type="button" onClick={() => setEditMov(null)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-xs text-gray-500 -mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              Apenas documento, observações e unidade podem ser alterados para preservar o saldo.
-            </p>
-            <div className="space-y-4">
-              {editMovError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editMovError}</p>}
-              {/* Unidade */}
-              {itemUnidades.length > 0 && (
+
+            {/* Tipo indicator (read-only) */}
+            <div className="grid grid-cols-2 gap-2">
+              {(["ENTRADA", "SAIDA"] as const).map((t) => (
+                <div
+                  key={t}
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 text-sm font-medium",
+                    editMov.tipo === t
+                      ? t === "ENTRADA"
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                        : "border-red-500 bg-red-50 text-red-700"
+                      : "border-gray-100 text-gray-300 bg-gray-50"
+                  )}
+                >
+                  {t === "ENTRADA" ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                  {t === "ENTRADA" ? "Entrada" : "Saída"}
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              {/* Local de Estoque (read-only) */}
+              {editMov.localEstoqueNome && (
                 <div className="space-y-1.5">
-                  <Label>Unidade</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {itemUnidades.map((iu) => (
-                      <button
-                        key={iu.id} type="button"
-                        onClick={() => setEditMov((p) => p ? { ...p, unidadeId: p.unidadeId === iu.unidade.id ? "" : iu.unidade.id } : p)}
-                        className={cn(
-                          "px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors",
-                          editMov.unidadeId === iu.unidade.id
-                            ? "border-blue-500 bg-blue-50 text-blue-700"
-                            : "border-gray-200 text-gray-600 hover:border-gray-300"
-                        )}
-                      >
-                        {iu.unidade.sigla}
-                        {iu.isPrincipal && <span className="ml-1 text-[10px] text-gray-400">(padrão)</span>}
-                      </button>
-                    ))}
+                  <Label>Local de Estoque</Label>
+                  <div className="h-9 px-3 flex items-center text-sm bg-gray-50 border border-gray-200 rounded-md text-gray-500">
+                    {editMov.localEstoqueNome}
                   </div>
                 </div>
               )}
+
+              {/* Unidade + Quantidade */}
+              {(() => {
+                const principal = itemUnidades.find((iu) => iu.isPrincipal);
+                const selectedIU = itemUnidades.find((iu) => iu.unidade.id === editMov.unidadeId);
+                const isSecondary = selectedIU && !selectedIU.isPrincipal && !!selectedIU.fatorConversao;
+                const fator = isSecondary ? Number(selectedIU!.fatorConversao) : 1;
+                const qtd = parseFloat(editMov.quantidade) || 0;
+                const qtdConvertida = qtd * fator;
+                const principalSigla = principal?.unidade.sigla ?? item?.unidade?.sigla ?? item?.unidadeMedida ?? "un.";
+                return (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label>Unidade *</Label>
+                      {itemUnidades.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {itemUnidades.map((iu) => (
+                            <button
+                              key={iu.id} type="button"
+                              onClick={() => setEditMov((p) => p ? { ...p, unidadeId: iu.unidade.id } : p)}
+                              className={cn(
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors",
+                                editMov.unidadeId === iu.unidade.id
+                                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                                  : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                              )}
+                            >
+                              <span className="font-mono font-semibold">{iu.unidade.sigla}</span>
+                              {iu.isPrincipal && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded font-medium">padrão</span>}
+                              {!iu.isPrincipal && iu.fatorConversao && (
+                                <span className="text-[10px] text-gray-400">= {Number(iu.fatorConversao).toLocaleString("pt-BR", { maximumFractionDigits: 6 })} {principalSigla}</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 text-sm font-mono font-semibold">
+                          {principalSigla}
+                          <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded font-medium">padrão</span>
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>
+                        Quantidade *
+                        <span className="ml-1 text-xs font-normal text-gray-500">em {selectedIU?.unidade.sigla ?? principalSigla}</span>
+                      </Label>
+                      <Input
+                        type="number" step="0.001" min="0.001"
+                        value={editMov.quantidade}
+                        onChange={(e) => setEditMov((p) => p ? { ...p, quantidade: e.target.value } : p)}
+                        placeholder="0"
+                      />
+                      {isSecondary && qtd > 0 && (
+                        <div className="flex items-center gap-1.5 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-amber-800">
+                          <span className="font-mono font-semibold">{qtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {selectedIU!.unidade.sigla}</span>
+                          <span className="text-amber-500">→</span>
+                          <span className="font-mono font-bold text-emerald-700">{qtdConvertida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {principalSigla}</span>
+                          <span className="text-amber-600 ml-1">(unidade padrão)</span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+
+              {/* Custo unitário (só ENTRADA) */}
+              {editMov.tipo === "ENTRADA" && (
+                <div className="space-y-1.5">
+                  <Label>Custo Unitário (R$)</Label>
+                  <Input
+                    type="number" step="0.01" min="0"
+                    value={editMov.valorUnitario}
+                    onChange={(e) => setEditMov((p) => p ? { ...p, valorUnitario: e.target.value } : p)}
+                    placeholder="0,00"
+                  />
+                </div>
+              )}
+
+              {/* Data e Hora */}
               <div className="space-y-1.5">
-                <Label>Documento</Label>
+                <Label>Data e Hora</Label>
                 <Input
-                  value={editMov.documento}
-                  onChange={(e) => setEditMov((p) => p ? { ...p, documento: e.target.value } : p)}
-                  placeholder="NF, OS…"
+                  type="datetime-local"
+                  value={editMov.dataMovimentacao}
+                  onChange={(e) => setEditMov((p) => p ? { ...p, dataMovimentacao: e.target.value } : p)}
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label>Observações</Label>
-                <Input
-                  value={editMov.observacoes}
-                  onChange={(e) => setEditMov((p) => p ? { ...p, observacoes: e.target.value } : p)}
-                  placeholder="Opcional"
-                />
+
+              {/* Documento e Observações */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Documento</Label>
+                  <Input
+                    value={editMov.documento}
+                    onChange={(e) => setEditMov((p) => p ? { ...p, documento: e.target.value } : p)}
+                    placeholder="NF, OS…"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Observações</Label>
+                  <Input
+                    value={editMov.observacoes}
+                    onChange={(e) => setEditMov((p) => p ? { ...p, observacoes: e.target.value } : p)}
+                    placeholder="Opcional"
+                  />
+                </div>
               </div>
+
+              {editMovError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editMovError}</p>}
             </div>
+
             <div className="flex items-center justify-between pt-1">
               <Button
                 size="sm" variant="ghost"
@@ -2400,7 +2550,9 @@ export default function ProdutoDetailPage() {
               </Button>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => setEditMov(null)} disabled={editMovSaving}>Cancelar</Button>
-                <Button size="sm" onClick={submitEditMov} disabled={editMovSaving}>
+                <Button size="sm" onClick={submitEditMov} disabled={editMovSaving}
+                  className={editMov.tipo === "SAIDA" ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"}
+                >
                   {editMovSaving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
                   Salvar
                 </Button>
@@ -3072,6 +3224,16 @@ export default function ProdutoDetailPage() {
                   />
                 </div>
               )}
+
+              {/* Data e Hora */}
+              <div className="space-y-1.5">
+                <Label>Data e Hora</Label>
+                <Input
+                  type="datetime-local"
+                  value={movForm.dataMovimentacao}
+                  onChange={(e) => setMovForm((p) => ({ ...p, dataMovimentacao: e.target.value }))}
+                />
+              </div>
 
               {/* Documento e Observações */}
               <div className="grid grid-cols-2 gap-3">
