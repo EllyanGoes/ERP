@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
+import { useTabTitle } from "@/lib/tabs-context";
 import { Plus, Truck } from "lucide-react";
 
 type MinutaItemSummary = { quantidade: string };
@@ -85,6 +86,7 @@ function fmtDate(iso: string | null) {
 
 export default function PedidoDetail({ pedido }: PedidoDetailProps) {
   const router = useRouter();
+  useTabTitle(pedido.numero);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"itens" | "minutas">("itens");
 
