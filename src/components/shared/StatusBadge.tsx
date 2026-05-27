@@ -29,7 +29,8 @@ const configs: Record<string, { label: string; className: string }> = {
   ORCAMENTO: { label: "Orçamento", className: "bg-gray-100 text-gray-700" },
   CONFIRMADO: { label: "Confirmado", className: "bg-blue-100 text-blue-700" },
   EM_AGENDAMENTO: { label: "Em Agendamento", className: "bg-violet-100 text-violet-700" },
-  ENTREGUE: { label: "Entregue", className: "bg-green-100 text-green-700" },
+  ENTREGUE:  { label: "Entregue",  className: "bg-emerald-100 text-emerald-700" },
+  CONCLUIDO: { label: "Concluído", className: "bg-emerald-100 text-emerald-800 font-semibold" },
   CANCELADO: { label: "Cancelado", className: "bg-red-100 text-red-700" },
   // StatusConta
   ABERTA: { label: "Aberta", className: "bg-blue-100 text-blue-700" },

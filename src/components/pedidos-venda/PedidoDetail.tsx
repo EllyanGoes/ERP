@@ -55,8 +55,8 @@ type PedidoDetailProps = {
 const NEXT_STATUS: Record<string, { label: string; next: string; variant?: "default" | "destructive" | "outline" }[]> = {
   ORCAMENTO:   [{ label: "Confirmar Pedido", next: "CONFIRMADO" }, { label: "Cancelar", next: "CANCELADO", variant: "destructive" }],
   CONFIRMADO:     [{ label: "Agendar Entrega", next: "EM_AGENDAMENTO" }, { label: "Cancelar", next: "CANCELADO", variant: "destructive" }],
-  EM_AGENDAMENTO: [{ label: "Registrar Entrega", next: "ENTREGUE" }, { label: "Cancelar", next: "CANCELADO", variant: "destructive" }],
-  ENTREGUE:    [],
+  EM_AGENDAMENTO: [{ label: "Concluir Pedido", next: "CONCLUIDO" }, { label: "Cancelar", next: "CANCELADO", variant: "destructive" }],
+  CONCLUIDO:   [],
   CANCELADO:   [],
 };
 

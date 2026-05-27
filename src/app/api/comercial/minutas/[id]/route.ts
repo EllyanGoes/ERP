@@ -37,6 +37,57 @@ const MINUTA_INCLUDE = {
   },
 } as const;
 
+// ── Auto-conclusão do PedidoVenda ────────────────────────────────────────────
+// Chamada após uma Minuta ser marcada como ENTREGUE.
+// Se TODOS os itens do pedido tiverem saldo zero (qty pedida ≤ qty entregue em minutas ENTREGUE),
+// e o pedido estiver em CONFIRMADO, EM_AGENDAMENTO (ou qualquer status não-final),
+// o status do PedidoVenda é atualizado para CONCLUIDO automaticamente.
+async function checkAndConcludePedido(pedidoVendaId: string) {
+  try {
+    const pedido = await prisma.pedidoVenda.findUnique({
+      where: { id: pedidoVendaId },
+      select: {
+        id: true,
+        status: true,
+        itens: {
+          select: {
+            id: true,
+            quantidade: true,
+            minutaItens: {
+              where: { minuta: { status: "ENTREGUE" } },
+              select: { quantidade: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!pedido) return;
+    // Só conclui se ainda não está num status final
+    if (pedido.status === "CONCLUIDO" || pedido.status === "CANCELADO" || pedido.status === "ORCAMENTO") return;
+
+    // Verifica se todos os itens foram totalmente entregues
+    const todosEntregues = pedido.itens.every((item) => {
+      const qtdPedida   = parseFloat(item.quantidade.toString());
+      const qtdEntregue = item.minutaItens.reduce(
+        (sum, mi) => sum + parseFloat(mi.quantidade.toString()), 0
+      );
+      return qtdEntregue >= qtdPedida;
+    });
+
+    if (todosEntregues && pedido.itens.length > 0) {
+      await prisma.pedidoVenda.update({
+        where: { id: pedidoVendaId },
+        data:  { status: "CONCLUIDO" },
+      });
+      console.log(`[Minutas] PedidoVenda ${pedidoVendaId} concluído automaticamente.`);
+    }
+  } catch (err) {
+    // Não propaga — a conclusão do pedido é secundária, não deve derrubar o PATCH da minuta
+    console.error("[checkAndConcludePedido]", err);
+  }
+}
+
 // ── GET /api/comercial/minutas/[id] ──────────────────────────────────────────
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -178,6 +229,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       data:  updateData,
       include: MINUTA_INCLUDE,
     });
+
+    // ── Auto-conclusão do PedidoVenda quando Minuta vai para ENTREGUE ─────────
+    if (newStatus === "ENTREGUE") {
+      await checkAndConcludePedido(minuta.pedidoVendaId);
+    }
 
     return NextResponse.json({ data: updated });
   } catch (err: unknown) {

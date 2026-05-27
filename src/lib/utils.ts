@@ -66,7 +66,7 @@ export function getStatusPedidoColor(status: string): string {
     case "ORCAMENTO": return "gray"
     case "CONFIRMADO": return "blue"
     case "EM_AGENDAMENTO": return "violet"
-    case "ENTREGUE": return "green"
+    case "CONCLUIDO": return "green"
     case "CANCELADO": return "red"
     default: return "gray"
   }

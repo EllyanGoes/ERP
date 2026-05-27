@@ -39,7 +39,7 @@ const STATUS_COLS: { key: string; label: string; color: string; bg: string; bord
   { key: "ORCAMENTO",   label: "Orçamento",   color: "text-gray-500",    bg: "bg-gray-50",    border: "border-gray-200",   dot: "bg-gray-400"   },
   { key: "CONFIRMADO",  label: "Confirmado",  color: "text-blue-600",    bg: "bg-blue-50",    border: "border-blue-200",   dot: "bg-blue-500"   },
   { key: "EM_AGENDAMENTO", label: "Em Agendamento", color: "text-violet-700", bg: "bg-violet-50", border: "border-violet-200", dot: "bg-violet-500" },
-  { key: "ENTREGUE",    label: "Entregue",    color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200",dot: "bg-emerald-500"},
+  { key: "CONCLUIDO",   label: "Concluído",   color: "text-emerald-800", bg: "bg-emerald-50", border: "border-emerald-200",dot: "bg-emerald-600"},
   { key: "CANCELADO",   label: "Cancelado",   color: "text-red-500",     bg: "bg-red-50",     border: "border-red-200",    dot: "bg-red-400"    },
 ];
 
@@ -518,7 +518,7 @@ export default function PedidosVendaPage() {
       ORCAMENTO:   "Orçamento",
       CONFIRMADO:  "Confirmado",
       EM_AGENDAMENTO: "Em Agendamento",
-      ENTREGUE:    "Entregue",
+      CONCLUIDO:   "Concluído",
       CANCELADO:   "Cancelado",
     };
 

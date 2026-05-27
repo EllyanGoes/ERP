@@ -33,7 +33,7 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     // Pedidos em aberto (não entregues nem cancelados)
     prisma.pedidoVenda.count({
-      where: { status: { notIn: ["ENTREGUE", "CANCELADO"] } },
+      where: { status: { notIn: ["CONCLUIDO", "CANCELADO"] } },
     }),
 
     // Receita do mês (contas recebidas no mês atual)

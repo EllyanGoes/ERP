@@ -36,13 +36,13 @@ const STATUS_PEDIDO_COLOR: Record<string, string> = {
   ORCAMENTO:    "bg-gray-100 text-gray-600",
   CONFIRMADO:   "bg-blue-100 text-blue-700",
   EM_AGENDAMENTO: "bg-violet-100 text-violet-700",
-  ENTREGUE:       "bg-green-100 text-green-700",
+  CONCLUIDO:      "bg-emerald-100 text-emerald-800",
   CANCELADO:      "bg-red-100 text-red-700",
 };
 
 const STATUS_PEDIDO_LABEL: Record<string, string> = {
   ORCAMENTO: "Orçamento", CONFIRMADO: "Confirmado", EM_AGENDAMENTO: "Em Agendamento",
-  ENTREGUE: "Entregue", CANCELADO: "Cancelado",
+  CONCLUIDO: "Concluído", CANCELADO: "Cancelado",
 };
 
 const STATUS_CONTA_COLOR: Record<string, string> = {
