@@ -1,9 +1,9 @@
 "use client";
 
 import {
-  createContext, useContext, useState, useEffect, useCallback, useRef,
+  createContext, useContext, useState, useEffect, useCallback, useRef, Suspense,
 } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { findRoute } from "@/lib/route-registry";
 import type { LucideIcon } from "lucide-react";
 
@@ -140,14 +140,25 @@ function loadTabs(): Tab[] {
     const data: PersistedTab[] = JSON.parse(raw);
     return data.map((t) => ({
       ...t,
-      icon: findRoute(t.href)?.icon,
+      icon: findRoute(t.href.split("?")[0])?.icon,
     }));
   } catch { return []; }
 }
 
 // ── Provider ─────────────────────────────────────────────────────────────────
 export function TabsProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<>{children}</>}>
+      <TabsProviderCore>{children}</TabsProviderCore>
+    </Suspense>
+  );
+}
+
+function TabsProviderCore({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
+  const fullHref = search ? `${pathname}?${search}` : pathname;
   const router = useRouter();
   const [tabs, setTabs] = useState<Tab[]>([]);
   const idCounterRef = useRef(0);
@@ -180,28 +191,28 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
 
   // Add or activate tab on route change
   useEffect(() => {
-    if (!pathname) return;
+    if (!fullHref) return;
     setTabs((prev) => {
-      const existing = prev.find((t) => t.href === pathname);
+      const existing = prev.find((t) => t.href === fullHref);
       if (existing) return prev; // already open, just switch
       const id = `tab-${++idCounterRef.current}`;
       const routeEntry = findRoute(pathname);
       const newTab: Tab = {
         id,
-        href: pathname,
+        href: fullHref,
         title: guessTitle(pathname),
         icon: routeEntry?.icon,
         section: routeEntry?.section,
       };
       return [...prev, newTab];
     });
-  }, [pathname]);
+  }, [fullHref, pathname]);
 
   const setTabTitle = useCallback((title: string) => {
     setTabs((prev) =>
-      prev.map((t) => (t.href === pathname ? { ...t, title } : t))
+      prev.map((t) => (t.href === fullHref ? { ...t, title } : t))
     );
-  }, [pathname]);
+  }, [fullHref]);
 
   const closeTab = useCallback((id: string) => {
     setTabs((prev) => {
@@ -210,29 +221,29 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
       const closing = prev[idx];
       const next = prev.filter((t) => t.id !== id);
       // If closing the active tab, navigate to an adjacent one
-      if (closing.href === pathname && next.length > 0) {
+      if (closing.href === fullHref && next.length > 0) {
         const target = next[Math.min(idx, next.length - 1)];
         router.push(target.href);
       }
       return next;
     });
-  }, [pathname, router]);
+  }, [fullHref, router]);
 
   const closeOthers = useCallback(() => {
-    setTabs((prev) => prev.filter((t) => t.href === pathname));
-  }, [pathname]);
+    setTabs((prev) => prev.filter((t) => t.href === fullHref));
+  }, [fullHref]);
 
   // Cmd+R (Mac) / Ctrl+R (Windows) → close all other tabs, keep current
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "r" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setTabs((prev) => prev.filter((t) => t.href === pathname));
+        setTabs((prev) => prev.filter((t) => t.href === fullHref));
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pathname]);
+  }, [fullHref]);
 
   const reorderTabs = useCallback((fromId: string, toId: string, side: "before" | "after") => {
     setTabs((prev) => {
@@ -248,7 +259,7 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <TabsContext.Provider value={{ tabs, activeHref: pathname, setTabTitle, closeTab, closeOthers, reorderTabs }}>
+    <TabsContext.Provider value={{ tabs, activeHref: fullHref, setTabTitle, closeTab, closeOthers, reorderTabs }}>
       {children}
     </TabsContext.Provider>
   );
