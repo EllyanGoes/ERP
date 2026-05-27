@@ -1541,7 +1541,7 @@ export default function ProdutoDetailPage() {
           const inicio = movPeriodo.from ? new Date(movPeriodo.from + "T00:00:00") : null;
           const fim    = movPeriodo.to   ? new Date(movPeriodo.to   + "T23:59:59") : null;
           const movsVisiveis = item.movimentacoes.filter((m) => {
-            const d = new Date(m.createdAt);
+            const d = new Date(m.lote?.dataMovimentacao ?? m.createdAt);
             if (inicio && d < inicio) return false;
             if (fim    && d > fim)    return false;
             return true;
@@ -1640,7 +1640,7 @@ export default function ProdutoDetailPage() {
                     {movsVisiveis.map((m) => (
                       <tr key={m.id} className="hover:bg-blue-50/40 group/row">
                         <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">
-                          {formatDateTime(m.createdAt)}
+                          {formatDateTime(m.lote?.dataMovimentacao ?? m.createdAt)}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={cn(
@@ -1966,7 +1966,7 @@ export default function ProdutoDetailPage() {
           const corte = new Date();
           corte.setDate(corte.getDate() - periodoDias);
 
-          const movPeriodo  = item.movimentacoes.filter((m) => new Date(m.createdAt) >= corte);
+          const movPeriodo  = item.movimentacoes.filter((m) => new Date(m.lote?.dataMovimentacao ?? m.createdAt) >= corte);
           const saidasPer   = movPeriodo.filter((m) => m.tipo === "SAIDA");
           const entradasPer = movPeriodo.filter((m) => m.tipo === "ENTRADA");
 
