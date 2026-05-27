@@ -1,9 +1,9 @@
 "use client";
 
 import {
-  createContext, useContext, useState, useEffect, useCallback, useRef, Suspense,
+  createContext, useContext, useState, useEffect, useCallback, useRef,
 } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { findRoute } from "@/lib/route-registry";
 import type { LucideIcon } from "lucide-react";
 
@@ -147,19 +147,16 @@ function loadTabs(): Tab[] {
 
 // ── Provider ─────────────────────────────────────────────────────────────────
 export function TabsProvider({ children }: { children: React.ReactNode }) {
-  return (
-    <Suspense fallback={<>{children}</>}>
-      <TabsProviderCore>{children}</TabsProviderCore>
-    </Suspense>
-  );
-}
-
-function TabsProviderCore({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const search = searchParams.toString();
-  const fullHref = search ? `${pathname}?${search}` : pathname;
   const router = useRouter();
+
+  // Track full URL (with search params) using window.location — avoids useSearchParams/Suspense issues
+  const [fullHref, setFullHref] = useState(pathname);
+  useEffect(() => {
+    const search = typeof window !== "undefined" ? window.location.search : "";
+    setFullHref(search ? `${pathname}${search}` : pathname);
+  }, [pathname]);
+
   const [tabs, setTabs] = useState<Tab[]>([]);
   const idCounterRef = useRef(0);
   const initializedRef = useRef(false);
