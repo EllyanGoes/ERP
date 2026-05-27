@@ -140,7 +140,7 @@ function loadTabs(): Tab[] {
     const data: PersistedTab[] = JSON.parse(raw);
     return data.map((t) => ({
       ...t,
-      icon: findRoute(t.href.split("?")[0])?.icon,
+      icon: findRoute(t.href)?.icon,
     }));
   } catch { return []; }
 }
@@ -149,14 +149,6 @@ function loadTabs(): Tab[] {
 export function TabsProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-
-  // Track full URL (with search params) using window.location — avoids useSearchParams/Suspense issues
-  const [fullHref, setFullHref] = useState(pathname);
-  useEffect(() => {
-    const search = typeof window !== "undefined" ? window.location.search : "";
-    setFullHref(search ? `${pathname}${search}` : pathname);
-  }, [pathname]);
-
   const [tabs, setTabs] = useState<Tab[]>([]);
   const idCounterRef = useRef(0);
   const initializedRef = useRef(false);
@@ -188,28 +180,28 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
 
   // Add or activate tab on route change
   useEffect(() => {
-    if (!fullHref) return;
+    if (!pathname) return;
     setTabs((prev) => {
-      const existing = prev.find((t) => t.href === fullHref);
+      const existing = prev.find((t) => t.href === pathname);
       if (existing) return prev; // already open, just switch
       const id = `tab-${++idCounterRef.current}`;
       const routeEntry = findRoute(pathname);
       const newTab: Tab = {
         id,
-        href: fullHref,
+        href: pathname,
         title: guessTitle(pathname),
         icon: routeEntry?.icon,
         section: routeEntry?.section,
       };
       return [...prev, newTab];
     });
-  }, [fullHref, pathname]);
+  }, [pathname]);
 
   const setTabTitle = useCallback((title: string) => {
     setTabs((prev) =>
-      prev.map((t) => (t.href === fullHref ? { ...t, title } : t))
+      prev.map((t) => (t.href === pathname ? { ...t, title } : t))
     );
-  }, [fullHref]);
+  }, [pathname]);
 
   const closeTab = useCallback((id: string) => {
     setTabs((prev) => {
@@ -218,29 +210,29 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
       const closing = prev[idx];
       const next = prev.filter((t) => t.id !== id);
       // If closing the active tab, navigate to an adjacent one
-      if (closing.href === fullHref && next.length > 0) {
+      if (closing.href === pathname && next.length > 0) {
         const target = next[Math.min(idx, next.length - 1)];
         router.push(target.href);
       }
       return next;
     });
-  }, [fullHref, router]);
+  }, [pathname, router]);
 
   const closeOthers = useCallback(() => {
-    setTabs((prev) => prev.filter((t) => t.href === fullHref));
-  }, [fullHref]);
+    setTabs((prev) => prev.filter((t) => t.href === pathname));
+  }, [pathname]);
 
   // Cmd+R (Mac) / Ctrl+R (Windows) → close all other tabs, keep current
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "r" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setTabs((prev) => prev.filter((t) => t.href === fullHref));
+        setTabs((prev) => prev.filter((t) => t.href === pathname));
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [fullHref]);
+  }, [pathname]);
 
   const reorderTabs = useCallback((fromId: string, toId: string, side: "before" | "after") => {
     setTabs((prev) => {
@@ -256,7 +248,7 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <TabsContext.Provider value={{ tabs, activeHref: fullHref, setTabTitle, closeTab, closeOthers, reorderTabs }}>
+    <TabsContext.Provider value={{ tabs, activeHref: pathname, setTabTitle, closeTab, closeOthers, reorderTabs }}>
       {children}
     </TabsContext.Provider>
   );
