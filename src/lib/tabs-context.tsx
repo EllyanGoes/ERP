@@ -138,11 +138,16 @@ function loadTabs(): Tab[] {
     const raw = localStorage.getItem(TABS_STORAGE_KEY);
     if (!raw) return [];
     const data: PersistedTab[] = JSON.parse(raw);
-    return data.map((t) => ({
-      ...t,
-      icon: findRoute(t.href)?.icon,
-    }));
-  } catch { return []; }
+    // Strip any query params that might have been saved by a previous broken version
+    return data
+      .map((t) => ({ ...t, href: t.href.split("?")[0] }))
+      .filter((t) => t.href && t.href.startsWith("/"))
+      .map((t) => ({ ...t, icon: findRoute(t.href)?.icon }));
+  } catch {
+    // Clear corrupted data
+    try { localStorage.removeItem(TABS_STORAGE_KEY); } catch { /* ignore */ }
+    return [];
+  }
 }
 
 // ── Provider ─────────────────────────────────────────────────────────────────

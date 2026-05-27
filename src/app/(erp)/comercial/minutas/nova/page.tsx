@@ -84,11 +84,8 @@ export default function NovaMinutaPage() {
 
   const [pedidos, setPedidos] = useState<PedidoVendaResumido[]>([]);
 
-  // Persist pedidoVendaId in sessionStorage so it survives tab switches
   const SESSION_KEY = "nova-minuta:pedidoVendaId";
-  const resolvedPedidoId = pedidoVendaIdParam
-    ?? (typeof window !== "undefined" ? sessionStorage.getItem(SESSION_KEY) ?? "" : "");
-  const [pedidoVendaId, setPedidoVendaId] = useState(resolvedPedidoId);
+  const [pedidoVendaId, setPedidoVendaId] = useState(pedidoVendaIdParam ?? "");
   const [pedido, setPedido] = useState<PedidoVenda | null>(null);
   const [locais, setLocais] = useState<LocalEstoque[]>([]);
   const [motoristas, setMotoristas] = useState<Motorista[]>([]);
@@ -107,6 +104,15 @@ export default function NovaMinutaPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Restore from sessionStorage on mount (if no URL param)
+  useEffect(() => {
+    if (!pedidoVendaIdParam) {
+      const stored = sessionStorage.getItem(SESSION_KEY);
+      if (stored) setPedidoVendaId(stored);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Persist pedidoVendaId to sessionStorage whenever it changes
   useEffect(() => {
