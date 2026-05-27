@@ -402,7 +402,7 @@ export default function ProdutoDetailPage() {
             quantidade: qtdBase,
             unidadeId: saldoForm.unidadeEntradaId || null,
             valorUnitario: saldoForm.custo ? parseFloat(saldoForm.custo) : null,
-            dataMovimentacao: saldoForm.data ? new Date(saldoForm.data).toISOString() : null,
+            dataMovimentacao: saldoForm.data ? new Date(saldoForm.data + "T00:00:00").toISOString() : null,
           }),
         });
         if (!res.ok) { setSaldoError((await res.json()).error || "Erro ao salvar"); return; }
@@ -415,7 +415,7 @@ export default function ProdutoDetailPage() {
             tipo: "ENTRADA",
             documento: "SALDO-INICIAL",
             observacoes: "Saldo inicial inserido manualmente",
-            dataMovimentacao: saldoForm.data ? new Date(saldoForm.data).toISOString() : null,
+            dataMovimentacao: saldoForm.data ? new Date(saldoForm.data + "T00:00:00").toISOString() : null,
             itens: [{
               itemId: id,
               localEstoqueId: saldoForm.localEstoqueId,
