@@ -83,7 +83,12 @@ export default function NovaMinutaPage() {
   const pedidoVendaIdParam = searchParams.get("pedidoVendaId");
 
   const [pedidos, setPedidos] = useState<PedidoVendaResumido[]>([]);
-  const [pedidoVendaId, setPedidoVendaId] = useState(pedidoVendaIdParam ?? "");
+
+  // Persist pedidoVendaId in sessionStorage so it survives tab switches
+  const SESSION_KEY = "nova-minuta:pedidoVendaId";
+  const resolvedPedidoId = pedidoVendaIdParam
+    ?? (typeof window !== "undefined" ? sessionStorage.getItem(SESSION_KEY) ?? "" : "");
+  const [pedidoVendaId, setPedidoVendaId] = useState(resolvedPedidoId);
   const [pedido, setPedido] = useState<PedidoVenda | null>(null);
   const [locais, setLocais] = useState<LocalEstoque[]>([]);
   const [motoristas, setMotoristas] = useState<Motorista[]>([]);
@@ -102,6 +107,15 @@ export default function NovaMinutaPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Persist pedidoVendaId to sessionStorage whenever it changes
+  useEffect(() => {
+    if (pedidoVendaId) {
+      sessionStorage.setItem(SESSION_KEY, pedidoVendaId);
+    } else {
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+  }, [pedidoVendaId]);
 
   // Load pedidos (for select when no param)
   useEffect(() => {
@@ -240,6 +254,7 @@ export default function NovaMinutaPage() {
 
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Erro ao criar minuta"); return; }
+      sessionStorage.removeItem(SESSION_KEY);
       router.push(`/comercial/minutas/${json.data.id}`);
     } finally {
       setSaving(false);
