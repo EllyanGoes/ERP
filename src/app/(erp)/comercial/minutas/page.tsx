@@ -46,7 +46,7 @@ const STATUS_COLS: {
   { key: "PENDENTE",          label: "Pendente",        color: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-200",   dot: "bg-amber-400"   },
   { key: "SAIU_PARA_ENTREGA", label: "Saiu p/ Entrega", color: "text-blue-700",    bg: "bg-blue-50",    border: "border-blue-200",    dot: "bg-blue-500"    },
   { key: "ENTREGUE",          label: "Entregue",        color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", dot: "bg-emerald-500" },
-  { key: "CANCELADA",         label: "Cancelada",       color: "text-gray-500",    bg: "bg-gray-50",    border: "border-gray-200",    dot: "bg-gray-400"    },
+  { key: "CANCELADA",         label: "Cancelada",       color: "text-red-600",     bg: "bg-red-50",     border: "border-red-200",     dot: "bg-red-400"     },
 ];
 
 const STATUS_OPTIONS = STATUS_COLS.map((s) => ({ value: s.key, label: s.label }));
@@ -310,13 +310,33 @@ function StatusFilterChip({
   );
 }
 
+// ── Valid kanban transitions ──────────────────────────────────────────────────
+const VALID_KANBAN_TRANSITIONS: Record<Minuta["status"], Minuta["status"][]> = {
+  PENDENTE:          ["SAIU_PARA_ENTREGA", "CANCELADA"],
+  SAIU_PARA_ENTREGA: ["ENTREGUE"],
+  ENTREGUE:          [],
+  CANCELADA:         [],
+};
+
 // ── Kanban card ───────────────────────────────────────────────────────────────
-function MinutaKanbanCard({ m, onClick }: { m: Minuta; onClick: () => void }) {
+function MinutaKanbanCard({
+  m, onClick, onDragStart, isDragging,
+}: {
+  m: Minuta;
+  onClick: () => void;
+  onDragStart: (e: React.DragEvent) => void;
+  isDragging: boolean;
+}) {
   const cliente = m.pedidoVenda.cliente;
   return (
     <div
+      draggable
+      onDragStart={onDragStart}
       onClick={onClick}
-      className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-pointer group"
+      className={cn(
+        "bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-grab active:cursor-grabbing group select-none",
+        isDragging && "opacity-40 scale-95",
+      )}
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <span className="font-mono text-xs font-bold text-gray-800">{m.numero}</span>
@@ -356,6 +376,12 @@ export default function MinutasPage() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<Filters>(loadFilters);
 
+  // ── Kanban drag state ─────────────────────────────────────────────────────
+  const [draggingId,  setDraggingId]  = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [dragError,   setDragError]   = useState<string | null>(null);
+  const dragCounter = useRef<Record<string, number>>({});
+
   // Column order + visibility
   const [colOrder, setColOrder]          = useColumnOrder("minutas", COLS.map((c) => c.id));
   const [colVis, setColVis, showAllCols] = useColumnVisibility("minutas", COLS.map((c) => c.id));
@@ -383,6 +409,17 @@ export default function MinutasPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Clear drag state if user drops outside any column
+  useEffect(() => {
+    function onDragEnd() {
+      setDraggingId(null);
+      setDragOverCol(null);
+      dragCounter.current = {};
+    }
+    document.addEventListener("dragend", onDragEnd);
+    return () => document.removeEventListener("dragend", onDragEnd);
+  }, []);
 
   // ── Filtering + sorting ───────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -493,6 +530,49 @@ export default function MinutasPage() {
     });
 
     doc.save(`minutas-${new Date().toISOString().slice(0, 10)}.pdf`);
+  }
+
+  // ── Kanban drag handlers ──────────────────────────────────────────────────
+  async function handleDrop(targetStatus: Minuta["status"]) {
+    setDragOverCol(null);
+    dragCounter.current = {};
+    if (!draggingId) return;
+
+    const minuta = minutas.find((m) => m.id === draggingId);
+    setDraggingId(null);
+    if (!minuta) return;
+    if (minuta.status === targetStatus) return;
+
+    const allowed = VALID_KANBAN_TRANSITIONS[minuta.status];
+    if (!allowed.includes(targetStatus)) return;
+
+    // Optimistic update
+    setMinutas((prev) =>
+      prev.map((m) => m.id === minuta.id ? { ...m, status: targetStatus } : m)
+    );
+
+    try {
+      const res = await fetch(`/api/comercial/minutas/${minuta.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: targetStatus }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        // Revert
+        setMinutas((prev) =>
+          prev.map((m) => m.id === minuta.id ? { ...m, status: minuta.status } : m)
+        );
+        setDragError(json.error ?? "Erro ao atualizar status");
+        setTimeout(() => setDragError(null), 4000);
+      }
+    } catch {
+      setMinutas((prev) =>
+        prev.map((m) => m.id === minuta.id ? { ...m, status: minuta.status } : m)
+      );
+      setDragError("Erro de conexão");
+      setTimeout(() => setDragError(null), 4000);
+    }
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -676,36 +756,97 @@ export default function MinutasPage() {
       ) : (
         // ── Kanban view ────────────────────────────────────────────────────
         <div className="px-8 pb-8 flex-1 overflow-x-auto">
+          {/* Drag error toast */}
+          {dragError && (
+            <div className="mb-3 flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
+              <X className="w-4 h-4 shrink-0" />
+              {dragError}
+            </div>
+          )}
           <div className="flex gap-4 min-w-max">
-            {kanbanGroups.map((col) => (
-              <div key={col.key} className="w-72 flex-shrink-0">
-                <div className={cn(
-                  "flex items-center justify-between px-3 py-2.5 rounded-t-xl border border-b-0",
-                  col.bg, col.border
-                )}>
-                  <div className="flex items-center gap-2">
-                    <span className={cn("text-xs font-semibold uppercase tracking-wide", col.color)}>
-                      {col.label}
-                    </span>
-                    <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded-full border", col.bg, col.color, col.border)}>
-                      {col.items.length}
-                    </span>
+            {kanbanGroups.map((col) => {
+              // Determine if this column is a valid drop target for the dragging card
+              const draggingMinuta = draggingId ? minutas.find((m) => m.id === draggingId) : null;
+              const isValidTarget = draggingMinuta
+                ? VALID_KANBAN_TRANSITIONS[draggingMinuta.status].includes(col.key)
+                : false;
+              const isOver = dragOverCol === col.key && isValidTarget;
+
+              return (
+                <div
+                  key={col.key}
+                  className="w-72 flex-shrink-0"
+                  onDragOver={(e) => {
+                    if (isValidTarget) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    dragCounter.current[col.key] = (dragCounter.current[col.key] ?? 0) + 1;
+                    if (isValidTarget) setDragOverCol(col.key);
+                  }}
+                  onDragLeave={() => {
+                    dragCounter.current[col.key] = Math.max((dragCounter.current[col.key] ?? 1) - 1, 0);
+                    if (dragCounter.current[col.key] === 0) setDragOverCol((p) => p === col.key ? null : p);
+                  }}
+                  onDrop={(e) => { e.preventDefault(); handleDrop(col.key); }}
+                >
+                  <div className={cn(
+                    "flex items-center justify-between px-3 py-2.5 rounded-t-xl border border-b-0 transition-colors",
+                    isOver ? `${col.bg} ${col.border} ring-2 ring-inset ${col.border}` : `${col.bg} ${col.border}`,
+                  )}>
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-xs font-semibold uppercase tracking-wide", col.color)}>
+                        {col.label}
+                      </span>
+                      <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded-full border", col.bg, col.color, col.border)}>
+                        {col.items.length}
+                      </span>
+                    </div>
+                    {/* Show indicator if dragging card can go here */}
+                    {draggingId && isValidTarget && (
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", col.color, col.bg)}>
+                        Soltar aqui
+                      </span>
+                    )}
+                  </div>
+                  <div className={cn(
+                    "rounded-b-xl border min-h-[120px] p-2 space-y-2 transition-colors",
+                    isOver
+                      ? `bg-opacity-80 ${col.bg} ${col.border} ring-2 ring-inset ${col.border}`
+                      : `bg-gray-50/60 ${col.border}`,
+                    draggingId && isValidTarget && !isOver && "border-dashed",
+                  )}>
+                    {col.items.length === 0 && !isOver ? (
+                      <div className={cn(
+                        "flex items-center justify-center py-8 text-xs transition-colors",
+                        draggingId && isValidTarget ? col.color + " opacity-50" : "text-gray-300",
+                      )}>
+                        {draggingId && isValidTarget ? "Solte aqui" : "Vazio"}
+                      </div>
+                    ) : isOver && col.items.length === 0 ? (
+                      <div className={cn("flex items-center justify-center py-8 text-xs font-medium", col.color)}>
+                        Solte aqui
+                      </div>
+                    ) : (
+                      col.items.map((m) => (
+                        <MinutaKanbanCard
+                          key={m.id}
+                          m={m}
+                          isDragging={m.id === draggingId}
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = "move";
+                            e.dataTransfer.setData("text/plain", m.id);
+                            setDraggingId(m.id);
+                            dragCounter.current = {};
+                          }}
+                          onClick={() => { if (!draggingId) router.push(`/comercial/minutas/${m.id}`); }}
+                        />
+                      ))
+                    )}
                   </div>
                 </div>
-                <div className={cn(
-                  "rounded-b-xl border min-h-[120px] p-2 space-y-2 bg-gray-50/60",
-                  col.border
-                )}>
-                  {col.items.length === 0 ? (
-                    <div className="flex items-center justify-center py-8 text-xs text-gray-300">Vazio</div>
-                  ) : (
-                    col.items.map((m) => (
-                      <MinutaKanbanCard key={m.id} m={m} onClick={() => router.push(`/comercial/minutas/${m.id}`)} />
-                    ))
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
