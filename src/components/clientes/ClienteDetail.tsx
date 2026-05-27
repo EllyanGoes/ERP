@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTabTitle } from "@/lib/tabs-context";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -55,6 +56,7 @@ const STATUS_CONTA_COLOR: Record<string, string> = {
 
 export default function ClienteDetail({ cliente }: ClienteDetailProps) {
   const [tab, setTab] = useState<"dados" | "pedidos" | "contas">("dados");
+  useTabTitle(cliente.nomeFantasia || cliente.razaoSocial);
 
   const endereco = [
     cliente.logradouro,
