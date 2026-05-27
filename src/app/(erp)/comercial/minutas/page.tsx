@@ -25,7 +25,7 @@ type Minuta = {
   status: "PENDENTE" | "SAIU_PARA_ENTREGA" | "ENTREGUE" | "CANCELADA";
   dataEmissao: string;
   dataEntrega: string | null;
-  motorista: string | null;
+  motorista: { id: string; nome: string } | null;
   placa: string | null;
   pedidoVenda: {
     id: string;
@@ -153,7 +153,7 @@ const COLS: ColDef<Minuta>[] = [
     thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden xl:table-cell",
     tdClass: "px-4 py-3 text-gray-500 text-sm hidden xl:table-cell",
     render: (m) => m.motorista
-      ? <span>{m.motorista}{m.placa && <span className="text-gray-400"> · {m.placa}</span>}</span>
+      ? <span>{m.motorista.nome}{m.placa && <span className="text-gray-400"> · {m.placa}</span>}</span>
       : <span className="text-gray-300">—</span>,
   },
   {
@@ -329,7 +329,7 @@ function MinutaKanbanCard({ m, onClick }: { m: Minuta; onClick: () => void }) {
         <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
           <Truck className="w-3 h-3 shrink-0" />
           <span className="truncate">
-            {m.motorista}
+            {m.motorista?.nome}
             {m.placa && <span> · {m.placa}</span>}
           </span>
         </div>
@@ -405,7 +405,7 @@ export default function MinutasPage() {
         m.pedidoVenda.numero.toLowerCase().includes(q) ||
         (cliente.nomeFantasia ?? "").toLowerCase().includes(q) ||
         cliente.razaoSocial.toLowerCase().includes(q) ||
-        (m.motorista ?? "").toLowerCase().includes(q)
+        (m.motorista?.nome ?? "").toLowerCase().includes(q)
       );
     });
 
@@ -473,7 +473,7 @@ export default function MinutasPage() {
         STATUS_LABEL[m.status] ?? m.status,
         formatDate(m.dataEmissao),
         m.dataEntrega ? formatDate(m.dataEntrega) : "—",
-        m.motorista ? `${m.motorista}${m.placa ? ` · ${m.placa}` : ""}` : "—",
+        m.motorista ? `${m.motorista.nome}${m.placa ? ` · ${m.placa}` : ""}` : "—",
         String(m.itens.length),
       ]),
       styles: { fontSize: 8, cellPadding: 2 },
