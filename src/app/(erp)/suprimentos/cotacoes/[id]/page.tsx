@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -258,7 +258,9 @@ export default function CotacaoDetailPage() {
     }
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  const pathname = usePathname();
+  // Re-fetch quando a rota voltar para esta página (ex: retorno da proposta)
+  useEffect(() => { load(); }, [load, pathname]);
   useTabTitle(cotacao ? cotacao.numero : null);
 
   // ── Status transitions ────────────────────────────────────────────────────

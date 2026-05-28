@@ -366,6 +366,7 @@ export default function EditPropostaPage() {
       clearForm();
       setIsDirty(false);
       baselineRef.current = null;
+      router.refresh(); // invalida o cache do Next.js para que a cotação recarregue os dados atualizados
       router.push(`/suprimentos/cotacoes/${cotacaoId}`);
     } catch {
       setSaveError("Erro de conexão");
