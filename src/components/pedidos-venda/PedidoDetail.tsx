@@ -93,8 +93,12 @@ export default function PedidoDetail({ pedido }: PedidoDetailProps) {
 
   const actions = NEXT_STATUS[pedido.status] ?? [];
   const minutas = pedido.minutas ?? [];
-  // Editing is allowed before delivery scheduling starts (no minutas yet).
-  const canEdit = pedido.status === "ORCAMENTO" || pedido.status === "CONFIRMADO";
+  // Editing allowed up to and including scheduling. Note: saving fails at the DB
+  // if items are already linked to minutas (FK Restrict), which protects deliveries.
+  const canEdit =
+    pedido.status === "ORCAMENTO" ||
+    pedido.status === "CONFIRMADO" ||
+    pedido.status === "EM_AGENDAMENTO";
 
   async function changeStatus(next: string) {
     setLoading(true);
