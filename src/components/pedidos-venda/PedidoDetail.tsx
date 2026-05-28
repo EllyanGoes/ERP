@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
-import { Plus, Truck } from "lucide-react";
+import { Plus, Truck, Pencil } from "lucide-react";
 
 type MinutaItemSummary = { quantidade: string };
 
@@ -81,7 +81,8 @@ function fmtQty(v: unknown) {
 
 function fmtDate(iso: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("pt-BR");
+  // Format in UTC to match the entered day (date-only values are UTC midnight).
+  return new Date(iso).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 
 export default function PedidoDetail({ pedido }: PedidoDetailProps) {
@@ -92,6 +93,8 @@ export default function PedidoDetail({ pedido }: PedidoDetailProps) {
 
   const actions = NEXT_STATUS[pedido.status] ?? [];
   const minutas = pedido.minutas ?? [];
+  // Editing is allowed before delivery scheduling starts (no minutas yet).
+  const canEdit = pedido.status === "ORCAMENTO" || pedido.status === "CONFIRMADO";
 
   async function changeStatus(next: string) {
     setLoading(true);
@@ -141,9 +144,15 @@ export default function PedidoDetail({ pedido }: PedidoDetailProps) {
   return (
     <div className="space-y-6">
       {/* Actions bar */}
-      {(actions.length > 0 || (pedido.status === "EM_AGENDAMENTO" && pedido.contasReceber.length === 0)) && (
+      {(actions.length > 0 || canEdit || (pedido.status === "EM_AGENDAMENTO" && pedido.contasReceber.length === 0)) && (
         <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-xl border border-gray-100">
           <span className="text-sm text-gray-500 mr-2">Ações:</span>
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={() => router.push(`/pedidos-venda/${pedido.id}/editar`)} disabled={loading} className="gap-1.5">
+              <Pencil className="w-3.5 h-3.5" />
+              Editar
+            </Button>
+          )}
           {actions.map((a) => (
             <Button key={a.next} variant={a.variant ?? "default"} size="sm" onClick={() => changeStatus(a.next)} disabled={loading}>
               {a.label}

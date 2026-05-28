@@ -64,27 +64,94 @@ function emptyLine(): LineItem {
   };
 }
 
+// ── Edit mode ────────────────────────────────────────────────────────────────
+
+type PedidoInicialItem = {
+  itemId: string;
+  codigo: string;
+  descricao: string;
+  unidadeSigla: string;
+  unidadeBaseId: string;
+  itemUnidades: ItemUnidadeOption[];
+  quantidade: unknown;
+  precoUnitario: unknown;
+  desconto: unknown;     // valor do desconto em R$
+  valorTotal: unknown;
+};
+
+type PedidoInicial = {
+  id: string;
+  clienteId: string;
+  tabelaPrecoId: string | null;
+  dataEmissao: string;   // ISO
+  dataEntrega: string | null;
+  condicaoPagamento: string | null;
+  valorFrete: unknown;
+  observacoes: string | null;
+  itens: PedidoInicialItem[];
+};
+
+// Date-only value stored as UTC midnight → "YYYY-MM-DD" for <input type="date">.
+function isoToDateInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
+function buildInitialLinhas(pedido?: PedidoInicial): LineItem[] {
+  if (!pedido) return [];
+  return pedido.itens.map((it) => {
+    const qty     = decimalToNumber(it.quantidade);
+    const price   = decimalToNumber(it.precoUnitario);
+    const vlrDesc = decimalToNumber(it.desconto);
+    const total   = decimalToNumber(it.valorTotal);
+    const bruto   = qty * price;
+    const pct     = bruto > 0 ? (vlrDesc / bruto) * 100 : 0;
+    return {
+      _key: crypto.randomUUID(),
+      itemId: it.itemId,
+      codigo: it.codigo,
+      descricao: it.descricao,
+      unidade: it.unidadeSigla,
+      unidadeId: it.unidadeBaseId,
+      unidadeBaseId: it.unidadeBaseId,
+      fatorConversao: 1,
+      itemUnidades: it.itemUnidades ?? [],
+      quantidade: qty.toString(),
+      quantidadeUnitaria: qty.toString(),
+      precoUnitario: price.toFixed(2),
+      descontoPct: pct.toFixed(4),
+      valorDesconto: vlrDesc.toFixed(2),
+      valorTotal: total.toFixed(2),
+    };
+  });
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function PedidoForm({
   clientes,
   itens: catalogItens,
+  pedido,
 }: {
   clientes:   ClienteOption[];
   itens:      ItemOption[];
+  pedido?:    PedidoInicial;
 }) {
   const router = useRouter();
-  const [submitting, setSubmitting] = useState<"orcamento" | "confirmado" | null>(null);
+  const isEdit = !!pedido;
+  const [submitting, setSubmitting] = useState<"orcamento" | "confirmado" | "salvando" | null>(null);
   const [submitError, setSubmitError] = useState("");
 
   // Header form
-  const [clienteId,         setClienteId]         = useState("");
-  const [tabelaPrecoId,     setTabelaPrecoId]     = useState("");
-  const [dataEmissao,       setDataEmissao]       = useState(new Date().toISOString().slice(0, 10));
-  const [dataEntrega,       setDataEntrega]       = useState("");
-  const [condicaoPagamento, setCondicaoPagamento] = useState("");
-  const [valorFrete,        setValorFrete]        = useState("0");
-  const [observacoes,       setObservacoes]       = useState("");
+  const [clienteId,         setClienteId]         = useState(pedido?.clienteId ?? "");
+  const [tabelaPrecoId,     setTabelaPrecoId]     = useState(pedido?.tabelaPrecoId ?? "");
+  const [dataEmissao,       setDataEmissao]       = useState(pedido ? isoToDateInput(pedido.dataEmissao) : new Date().toISOString().slice(0, 10));
+  const [dataEntrega,       setDataEntrega]       = useState(pedido ? isoToDateInput(pedido.dataEntrega) : "");
+  const [condicaoPagamento, setCondicaoPagamento] = useState(pedido?.condicaoPagamento ?? "");
+  const [valorFrete,        setValorFrete]        = useState(pedido ? decimalToNumber(pedido.valorFrete).toString() : "0");
+  const [observacoes,       setObservacoes]       = useState(pedido?.observacoes ?? "");
 
   // Tabelas de Preço
   const [tabelas,        setTabelas]        = useState<TabelaOption[]>([]);
@@ -105,7 +172,7 @@ export default function PedidoForm({
   const condicaoPortalRef = useRef<HTMLDivElement>(null);
 
   // Line items
-  const [linhas, setLinhas] = useState<LineItem[]>([]);
+  const [linhas, setLinhas] = useState<LineItem[]>(() => buildInitialLinhas(pedido));
 
   // Cliente search
   const [clienteSearch,   setClienteSearch]   = useState("");
@@ -389,47 +456,53 @@ export default function PedidoForm({
 
   // ── Submit ───────────────────────────────────────────────────────────────────
 
-  async function handleSubmit(status: "ORCAMENTO" | "CONFIRMADO") {
+  function validate(): boolean {
     setSubmitError("");
-    if (!clienteId)     { setSubmitError("Selecione o cliente"); return; }
-    if (!dataEmissao)   { setSubmitError("Informe a data de emissão"); return; }
-    if (linhas.length === 0) { setSubmitError("Adicione pelo menos um item"); return; }
-    const invalid = linhas.find((l) => !l.itemId);
-    if (invalid) { setSubmitError("Selecione o produto em todas as linhas"); return; }
+    if (!clienteId)     { setSubmitError("Selecione o cliente"); return false; }
+    if (!dataEmissao)   { setSubmitError("Informe a data de emissão"); return false; }
+    if (linhas.length === 0) { setSubmitError("Adicione pelo menos um item"); return false; }
+    if (linhas.find((l) => !l.itemId)) { setSubmitError("Selecione o produto em todas as linhas"); return false; }
+    return true;
+  }
+
+  function buildPayload() {
+    return {
+      clienteId,
+      tabelaPrecoId: tabelaPrecoId || null,
+      dataEmissao,
+      dataEntrega: dataEntrega || null,
+      condicaoPagamento: condicaoPagamento || null,
+      valorDesconto: 0,
+      valorFrete: freteVal,
+      observacoes: observacoes || null,
+      itens: linhas.map((l) => {
+        // quantidadeUnitaria já está em unidade base (qty × fator)
+        const qtdBase = parseFloat(l.quantidadeUnitaria) || 0;
+        const price   = parseFloat(l.precoUnitario)      || 0;
+        const pct     = parseFloat(l.descontoPct)        || 0;
+        const { valorDesconto, valorTotal } = calcLine(qtdBase, price, pct);
+        return {
+          itemId:        l.itemId,
+          quantidade:    qtdBase,
+          precoUnitario: price,
+          descontoPct:   pct,
+          valorDesconto: valorDesconto,
+          desconto:      valorDesconto,
+          valorTotal:    valorTotal,
+        };
+      }),
+    };
+  }
+
+  async function handleSubmit(status: "ORCAMENTO" | "CONFIRMADO") {
+    if (!validate()) return;
 
     setSubmitting(status === "ORCAMENTO" ? "orcamento" : "confirmado");
     try {
-      const payload = {
-        clienteId,
-        tabelaPrecoId: tabelaPrecoId || null,
-        dataEmissao,
-        dataEntrega: dataEntrega || null,
-        condicaoPagamento: condicaoPagamento || null,
-        valorDesconto: 0,
-        valorFrete: freteVal,
-        observacoes: observacoes || null,
-        itens: linhas.map((l) => {
-          // quantidadeUnitaria já está em unidade base (qty × fator)
-          const qtdBase = parseFloat(l.quantidadeUnitaria) || 0;
-          const price   = parseFloat(l.precoUnitario)      || 0;
-          const pct     = parseFloat(l.descontoPct)        || 0;
-          const { valorDesconto, valorTotal } = calcLine(qtdBase, price, pct);
-          return {
-            itemId:        l.itemId,
-            quantidade:    qtdBase,
-            precoUnitario: price,
-            descontoPct:   pct,
-            valorDesconto: valorDesconto,
-            desconto:      valorDesconto,
-            valorTotal:    valorTotal,
-          };
-        }),
-      };
-
       const res = await fetch("/api/pedidos-venda", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(buildPayload()),
       });
 
       if (!res.ok) {
@@ -450,6 +523,29 @@ export default function PedidoForm({
       }
 
       router.push(`/pedidos-venda/${pedidoId}`);
+      router.refresh();
+    } catch { setSubmitError("Erro de conexão"); }
+    finally { setSubmitting(null); }
+  }
+
+  async function handleUpdate() {
+    if (!pedido || !validate()) return;
+
+    setSubmitting("salvando");
+    try {
+      const res = await fetch(`/api/pedidos-venda/${pedido.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildPayload()),
+      });
+
+      if (!res.ok) {
+        const json = await res.json();
+        setSubmitError(json.error || "Erro ao salvar pedido");
+        return;
+      }
+
+      router.push(`/pedidos-venda/${pedido.id}`);
       router.refresh();
     } catch { setSubmitError("Erro de conexão"); }
     finally { setSubmitting(null); }
@@ -965,22 +1061,35 @@ export default function PedidoForm({
 
         {/* Actions */}
         <div className="flex gap-3 pt-1">
-          <Button
-            type="button" variant="outline"
-            onClick={() => handleSubmit("ORCAMENTO")}
-            disabled={!!submitting}
-            className="border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold"
-          >
-            {submitting === "orcamento" ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Salvando...</> : "Salvar como Orçamento"}
-          </Button>
-          <Button
-            type="button"
-            onClick={() => handleSubmit("CONFIRMADO")}
-            disabled={!!submitting}
-            className="font-semibold"
-          >
-            {submitting === "confirmado" ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Confirmando...</> : "Confirmar Pedido"}
-          </Button>
+          {isEdit ? (
+            <Button
+              type="button"
+              onClick={handleUpdate}
+              disabled={!!submitting}
+              className="font-semibold"
+            >
+              {submitting === "salvando" ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Salvando...</> : "Salvar Alterações"}
+            </Button>
+          ) : (
+            <>
+              <Button
+                type="button" variant="outline"
+                onClick={() => handleSubmit("ORCAMENTO")}
+                disabled={!!submitting}
+                className="border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold"
+              >
+                {submitting === "orcamento" ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Salvando...</> : "Salvar como Orçamento"}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => handleSubmit("CONFIRMADO")}
+                disabled={!!submitting}
+                className="font-semibold"
+              >
+                {submitting === "confirmado" ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Confirmando...</> : "Confirmar Pedido"}
+              </Button>
+            </>
+          )}
           <Button type="button" variant="ghost" onClick={() => router.back()} disabled={!!submitting} className="text-gray-500 hover:text-gray-700">
             Cancelar
           </Button>

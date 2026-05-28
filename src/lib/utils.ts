@@ -32,7 +32,15 @@ export function formatCPFCNPJ(value: string): string {
 
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "-"
-  return format(new Date(date), "dd/MM/yyyy", { locale: ptBR })
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return "-"
+  // Date-only business fields (emissão, entrega, vencimento) are stored as UTC
+  // midnight. Format in UTC so the displayed day matches what was entered,
+  // regardless of the viewer's timezone (avoids the off-by-one-day shift).
+  const dd = String(d.getUTCDate()).padStart(2, "0")
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0")
+  const yyyy = d.getUTCFullYear()
+  return `${dd}/${mm}/${yyyy}`
 }
 
 export function formatDateTime(date: Date | string | null | undefined): string {
