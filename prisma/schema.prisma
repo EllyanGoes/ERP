@@ -83,7 +83,7 @@ model Cliente {
   tipoPessoa   TipoPessoa     @default(JURIDICA)
   razaoSocial  String
   nomeFantasia String?
-  cpfCnpj      String         @unique
+  cpfCnpj      String?        @unique
   ie           String?
   email        String?
   telefone     String?

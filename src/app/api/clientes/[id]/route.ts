@@ -21,7 +21,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (!parsed.success) {
     return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
-  const cliente = await prisma.cliente.update({ where: { id: params.id }, data: parsed.data });
+  const data = { ...parsed.data, cpfCnpj: parsed.data.cpfCnpj?.trim() || null };
+  const cliente = await prisma.cliente.update({ where: { id: params.id }, data });
   return NextResponse.json({ data: cliente });
 }
 

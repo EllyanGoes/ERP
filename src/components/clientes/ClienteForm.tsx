@@ -121,10 +121,10 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
                 <FormField control={form.control} name="cpfCnpj" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
-                      {tipoPessoa === "FISICA" ? "CPF" : "CNPJ"} *
+                      {tipoPessoa === "FISICA" ? "CPF" : "CNPJ"}
                     </FormLabel>
                     <FormControl>
-                      <Input {...field} className="h-10 border-gray-300"
+                      <Input {...field} value={field.value ?? ""} className="h-10 border-gray-300"
                         placeholder={tipoPessoa === "FISICA" ? "000.000.000-00" : "00.000.000/0001-00"} />
                     </FormControl>
                     <FormMessage />

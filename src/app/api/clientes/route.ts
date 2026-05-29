@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
-  const cliente = await prisma.cliente.create({ data: parsed.data });
+  const data = { ...parsed.data, cpfCnpj: parsed.data.cpfCnpj?.trim() || null };
+  const cliente = await prisma.cliente.create({ data });
   return NextResponse.json({ data: cliente }, { status: 201 });
 }

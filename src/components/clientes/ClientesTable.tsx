@@ -13,7 +13,7 @@ type ClienteRow = {
   id: string;
   razaoSocial: string;
   nomeFantasia: string | null;
-  cpfCnpj: string;
+  cpfCnpj: string | null;
   cidade: string | null;
   estado: string | null;
   status: string;
@@ -38,7 +38,7 @@ export default function ClientesTable({ clientes }: { clientes: ClienteRow[] }) 
       accessorKey: "cpfCnpj",
       header: "CPF/CNPJ",
       cell: ({ row }) => (
-        <span className="font-mono text-xs">{formatCPFCNPJ(row.original.cpfCnpj)}</span>
+        <span className="font-mono text-xs">{row.original.cpfCnpj ? formatCPFCNPJ(row.original.cpfCnpj) : "—"}</span>
       ),
     },
     {
