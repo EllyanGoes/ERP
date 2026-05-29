@@ -34,7 +34,31 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     },
   });
   if (!record) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
-  return NextResponse.json(record);
+
+  // Documentos de Entrada (conferências) deste fornecedor — ligados diretamente
+  // (fornecedorId) ou indiretamente através do pedido de compra.
+  const documentosEntrada = await prisma.conferenciaCompra.findMany({
+    where: {
+      OR: [
+        { fornecedorId: params.id },
+        { pedido: { fornecedorId: params.id } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      numero: true,
+      numeroNF: true,
+      status: true,
+      dtEmissao: true,
+      vrTotal: true,
+      createdAt: true,
+      pedido: { select: { id: true, numero: true } },
+      itens: { select: { id: true, vlrTotal: true } },
+    },
+  });
+
+  return NextResponse.json({ ...record, documentosEntrada });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

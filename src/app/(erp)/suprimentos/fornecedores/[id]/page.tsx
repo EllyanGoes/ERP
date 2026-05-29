@@ -87,6 +87,17 @@ type Fornecedor = {
     valorTotal: unknown;
     createdAt: string;
   }>;
+  documentosEntrada: Array<{
+    id: string;
+    numero: string;
+    numeroNF: string | null;
+    status: string;
+    dtEmissao: string | null;
+    vrTotal: unknown;
+    createdAt: string;
+    pedido: { id: string; numero: string } | null;
+    itens: Array<{ id: string; vlrTotal: unknown }>;
+  }>;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -107,7 +118,28 @@ const STATUS_COLOR: Record<string, string> = {
   CANCELADO:   "bg-red-100 text-red-700",
 };
 
-type PageTab = "dados" | "produtos" | "pedidos" | "contatos";
+// Documentos de Entrada (conferências de compra)
+const DOC_STATUS_LABELS: Record<string, string> = {
+  PENDENTE:       "Pendente",
+  EM_CONFERENCIA: "Em Conferência",
+  CONCLUIDA:      "Concluída",
+  DIVERGENCIA:    "Divergência",
+};
+
+const DOC_STATUS_COLOR: Record<string, string> = {
+  PENDENTE:       "bg-yellow-100 text-yellow-700",
+  EM_CONFERENCIA: "bg-blue-100 text-blue-700",
+  CONCLUIDA:      "bg-emerald-100 text-emerald-700",
+  DIVERGENCIA:    "bg-red-100 text-red-700",
+};
+
+function calcDocTotal(doc: { vrTotal: unknown; itens: Array<{ vlrTotal: unknown }> }): number {
+  const vr = decimalToNumber(doc.vrTotal);
+  if (vr > 0) return vr;
+  return doc.itens.reduce((s, i) => s + decimalToNumber(i.vlrTotal), 0);
+}
+
+type PageTab = "dados" | "produtos" | "pedidos" | "contatos" | "documentos";
 
 type ProdutoItem = { id: string; codigo: string; descricao: string };
 
@@ -354,6 +386,7 @@ export default function FornecedorDetailPage() {
     { key: "contatos",  label: "Contatos",         count: fornecedor.contatos?.length ?? 0 },
     { key: "produtos",  label: "Produtos",          count: fornecedor.produtos?.length ?? 0 },
     { key: "pedidos",   label: "Pedidos de Compra", count: fornecedor.pedidosCompra?.length ?? 0 },
+    { key: "documentos", label: "Documentos de Entrada", count: fornecedor.documentosEntrada?.length ?? 0 },
   ];
 
   return (
@@ -1065,6 +1098,66 @@ export default function FornecedorDetailPage() {
                           <td className="px-4 py-3">
                             <Link
                               href={`/suprimentos/pedidos-compra/${p.id}`}
+                              className="text-gray-300 hover:text-blue-500 transition-colors flex justify-center"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* ── Documentos de Entrada ─────────────────────────────────────── */}
+        {activeTab === "documentos" && (
+          <div className="max-w-5xl">
+            <Card>
+              <CardContent className="p-0">
+                {!fornecedor.documentosEntrada?.length ? (
+                  <div className="text-center py-16 text-gray-400 text-sm">
+                    Nenhum documento de entrada para este fornecedor
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Nº Doc</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Nº NF</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Pedido</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Status</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Emissão</th>
+                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Valor Total</th>
+                        <th className="w-10" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {fornecedor.documentosEntrada.map((d) => (
+                        <tr key={d.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">{d.numero}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-gray-600">{d.numeroNF || "—"}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-gray-500">{d.pedido?.numero || "—"}</td>
+                          <td className="px-4 py-3">
+                            <span className={cn(
+                              "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
+                              DOC_STATUS_COLOR[d.status] ?? "bg-gray-100 text-gray-600"
+                            )}>
+                              {DOC_STATUS_LABELS[d.status] ?? d.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">
+                            {d.dtEmissao ? formatDate(d.dtEmissao) : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-gray-800">
+                            {calcDocTotal(d) > 0 ? formatBRL(calcDocTotal(d)) : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Link
+                              href={`/suprimentos/conferencias/${d.id}`}
                               className="text-gray-300 hover:text-blue-500 transition-colors flex justify-center"
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
