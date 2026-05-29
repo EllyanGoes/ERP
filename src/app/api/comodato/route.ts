@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { comodatoMovimentoSchema } from "@/lib/validations/comodato";
+import { recalcPedidoValorTotal } from "@/lib/pedido-totais";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -34,23 +35,30 @@ export async function POST(req: NextRequest) {
     valor = item ? Number(item.precoVenda) : 0;
   }
 
-  const movimento = await prisma.movimentacaoComodato.create({
-    data: {
-      clienteId,
-      itemId,
-      tipo,
-      quantidade,
-      valorUnitario: valor,
-      origem: pedidoVendaId ? "AUTOMATICO" : "MANUAL",
-      pedidoVendaId: pedidoVendaId ?? null,
-      data: data ? new Date(data) : new Date(),
-      documento: documento ?? null,
-      observacoes: observacoes ?? null,
-    },
-    include: {
-      cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
-      item: { select: { id: true, codigo: true, descricao: true } },
-    },
+  const movimento = await prisma.$transaction(async (tx) => {
+    const mov = await tx.movimentacaoComodato.create({
+      data: {
+        clienteId,
+        itemId,
+        tipo,
+        quantidade,
+        valorUnitario: valor,
+        origem: pedidoVendaId ? "AUTOMATICO" : "MANUAL",
+        pedidoVendaId: pedidoVendaId ?? null,
+        data: data ? new Date(data) : new Date(),
+        documento: documento ?? null,
+        observacoes: observacoes ?? null,
+      },
+      include: {
+        cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+        item: { select: { id: true, codigo: true, descricao: true } },
+      },
+    });
+
+    // Comodato amarrado a um pedido entra no total dele → recalcula.
+    if (pedidoVendaId) await recalcPedidoValorTotal(tx, pedidoVendaId);
+
+    return mov;
   });
 
   return NextResponse.json({ data: movimento }, { status: 201 });

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
 import { generateDocNumber } from "@/lib/utils";
+import { recalcPedidoValorTotal } from "@/lib/pedido-totais";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const pedido = await prisma.pedidoVenda.findUnique({
@@ -151,6 +152,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           await tx.pedidoVendaItem.delete({ where: { id: exRows[k].id } });
         }
       }
+
+      // A edição não mexe no comodato, mas ele entra no total. Recalcula a partir
+      // dos itens já reconciliados + comodato existente, para não zerar a saída.
+      await recalcPedidoValorTotal(tx, params.id);
 
       return tx.pedidoVenda.findUnique({
         where: { id: params.id },

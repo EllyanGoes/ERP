@@ -502,10 +502,12 @@ export default function PedidoForm({
 
   const subtotal     = linhas.reduce((s, l) => s + (parseFloat(l.valorTotal) || 0), 0);
   const freteVal     = parseFloat(valorFrete) || 0;
-  const totalGeral   = subtotal + freteVal;
 
   const comodatoTotalQtd   = comodatoLinhas.reduce((s, l) => s + (parseFloat(l.quantidade) || 0), 0);
   const comodatoTotalValor = comodatoLinhas.reduce((s, l) => s + (parseFloat(l.quantidade) || 0) * (parseFloat(l.valorUnitario) || 0), 0);
+
+  // O comodato (saída) entra no total do pedido.
+  const totalGeral   = subtotal + freteVal + comodatoTotalValor;
 
   // ── Submit ───────────────────────────────────────────────────────────────────
 
@@ -1003,6 +1005,12 @@ export default function PedidoForm({
                 className="h-8 w-28 text-xs text-right border-gray-300"
               />
             </div>
+            {comodatoTotalValor > 0 && (
+              <div className="flex justify-between text-gray-700 font-medium">
+                <span>Comodato</span>
+                <span className="font-semibold">{formatBRL(comodatoTotalValor)}</span>
+              </div>
+            )}
             <Separator className="bg-gray-300" />
             <div className="flex justify-between font-bold text-lg text-gray-900">
               <span>Total</span>
@@ -1019,7 +1027,7 @@ export default function PedidoForm({
         <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-100 flex items-center justify-between">
           <div>
             <h2 className="font-bold text-sm text-gray-800 tracking-wide uppercase">Comodato — Saída</h2>
-            <p className="text-xs text-gray-500 mt-0.5 normal-case font-normal">Itens (vasilhames/pallets) que o cliente está levando em comodato. Não entram no total do pedido.</p>
+            <p className="text-xs text-gray-500 mt-0.5 normal-case font-normal">Itens (vasilhames/pallets) que o cliente está levando em comodato. Entram no total do pedido.</p>
           </div>
           <Button
             type="button" size="sm" variant="outline"

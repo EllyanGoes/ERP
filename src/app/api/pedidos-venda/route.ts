@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
 import { generateSimpleDocNumber } from "@/lib/utils";
+import { recalcPedidoValorTotal } from "@/lib/pedido-totais";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -121,6 +122,9 @@ export async function POST(req: NextRequest) {
           documento:     c.documento,
         })),
       });
+
+      // O comodato entra no total do pedido → recalcula valorTotal já com a saída.
+      await recalcPedidoValorTotal(tx, novoPedido.id);
     }
 
     return novoPedido;

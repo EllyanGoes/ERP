@@ -130,6 +130,15 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   // Comodato totals for this pedido (SAÍDA +, RETORNO −)
   const comodatoTotalQtd = movimentacoesComodato.reduce((s, m) => s + (m.tipo === "SAIDA" ? 1 : -1) * m.quantidade, 0);
   const comodatoTotalValor = movimentacoesComodato.reduce((s, m) => s + (m.tipo === "SAIDA" ? 1 : -1) * m.quantidade * m.valorUnitario, 0);
+
+  // Parcela de comodato embutida no Total persistido. Derivada do próprio total
+  // para o detalhamento sempre fechar (Subtotal − Desconto + Frete + Comodato = Total),
+  // inclusive em pedidos antigos cujo total ainda não incluía o comodato (→ ≈ 0).
+  const comodatoNoTotal =
+    decimalToNumber(pedido.valorTotal) -
+    decimalToNumber(pedido.valorProdutos) +
+    decimalToNumber(pedido.valorDesconto) -
+    decimalToNumber(pedido.valorFrete);
   // Editing allowed up to and including scheduling. Note: saving fails at the DB
   // if items are already linked to minutas (FK Restrict), which protects deliveries.
   const canEdit =
@@ -269,6 +278,9 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             <div className="flex justify-between"><span className="text-gray-500">Subtotal Produtos</span><span>{formatBRL(decimalToNumber(pedido.valorProdutos))}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Desconto</span><span className="text-red-500">- {formatBRL(decimalToNumber(pedido.valorDesconto))}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Frete</span><span>{formatBRL(decimalToNumber(pedido.valorFrete))}</span></div>
+            {Math.abs(comodatoNoTotal) > 0.005 && (
+              <div className="flex justify-between"><span className="text-gray-500">Comodato</span><span>{formatBRL(comodatoNoTotal)}</span></div>
+            )}
             <Separator />
             <div className="flex justify-between font-semibold text-base"><span>Total</span><span>{formatBRL(decimalToNumber(pedido.valorTotal))}</span></div>
           </CardContent>
