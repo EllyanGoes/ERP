@@ -141,6 +141,9 @@ const mainModules: Module[] = [
         { href: "/comercial/minutas",    label: "Minutas",          icon: Truck },
         { href: "/comodato",             label: "Comodato",         icon: Package },
       ]},
+      { kind: "Relatórios" as SubSection["kind"], items: [
+        { href: "/comercial/relatorios/faturamento", label: "Faturamento", icon: BarChart3 },
+      ]},
     ],
   },
   {
