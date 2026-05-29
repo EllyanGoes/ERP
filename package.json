@@ -8,6 +8,7 @@
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "next lint",
+    "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push && prisma generate",
     "db:studio": "prisma studio",
     "seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts"
