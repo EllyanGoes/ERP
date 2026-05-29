@@ -1,7 +1,17 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { clienteSchema } from "@/lib/validations/cliente";
+
+// Mensagem amigável quando o CPF/CNPJ (campo único) já existe.
+function cpfCnpjEmUso(err: unknown): boolean {
+  return (
+    err instanceof Prisma.PrismaClientKnownRequestError &&
+    err.code === "P2002" &&
+    (err.meta?.target as string[] | undefined)?.includes("cpfCnpj") === true
+  );
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -43,6 +53,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
   const data = { ...parsed.data, cpfCnpj: parsed.data.cpfCnpj?.trim() || null };
-  const cliente = await prisma.cliente.create({ data });
-  return NextResponse.json({ data: cliente }, { status: 201 });
+  try {
+    const cliente = await prisma.cliente.create({ data });
+    return NextResponse.json({ data: cliente }, { status: 201 });
+  } catch (err) {
+    if (cpfCnpjEmUso(err)) {
+      return NextResponse.json(
+        { error: "Já existe um cliente cadastrado com este CPF/CNPJ." },
+        { status: 409 },
+      );
+    }
+    throw err;
+  }
 }

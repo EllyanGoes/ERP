@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -36,6 +37,7 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
   });
 
   const tipoPessoa = form.watch("tipoPessoa");
+  const [serverError, setServerError] = useState<string | null>(null);
 
   const { confirmCreated, dialog } = useCreateFlow({
     entity: "cliente",
@@ -44,21 +46,29 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
   });
 
   async function onSubmit(data: ClienteFormData) {
+    setServerError(null);
     const url = cliente ? `/api/clientes/${cliente.id}` : "/api/clientes";
     const method = cliente ? "PUT" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      if (cliente) {
-        router.push(`/clientes/${cliente.id}`);
-        router.refresh();
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (cliente) {
+          router.push(`/clientes/${cliente.id}`);
+          router.refresh();
+        } else {
+          confirmCreated(json.data.id);
+        }
       } else {
-        confirmCreated(json.data.id);
+        const json = await res.json().catch(() => ({}));
+        setServerError(json.error ?? "Erro ao salvar cliente. Tente novamente.");
       }
+    } catch {
+      setServerError("Erro de conexão. Tente novamente.");
     }
   }
 
@@ -275,6 +285,13 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
             </div>
           </div>
         </div>
+
+        {/* ── Erro do servidor ──────────────────────────────────────────────── */}
+        {serverError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {serverError}
+          </div>
+        )}
 
         {/* ── Actions ───────────────────────────────────────────────────────── */}
         <div className="flex gap-3 pt-1">
