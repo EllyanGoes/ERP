@@ -10,11 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertCircle } from "lucide-react";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { cn } from "@/lib/utils";
 
 type PedidoVendaResumido = {
   id: string;
   numero: string;
+  numeroOrcamento: string | null;
   status: string;
   cliente: { razaoSocial: string; nomeFantasia: string | null };
 };
@@ -132,12 +134,17 @@ export default function NovaMinutaPage() {
     }
   }, [pedidoVendaId]);
 
-  // Load pedidos (for select when no param)
+  // Load pedidos (for select when no param) — apenas Confirmado e Em Agendamento
   useEffect(() => {
     if (!pedidoVendaIdParam) {
-      fetch("/api/pedidos-venda?limit=200&status=CONFIRMADO")
+      fetch("/api/pedidos-venda?limit=500")
         .then(r => r.json())
-        .then(j => setPedidos(j.data ?? []));
+        .then(j => {
+          const lista: PedidoVendaResumido[] = (j.data ?? []).filter(
+            (p: PedidoVendaResumido) => p.status === "CONFIRMADO" || p.status === "EM_AGENDAMENTO"
+          );
+          setPedidos(lista);
+        });
     }
   }, [pedidoVendaIdParam]);
 
@@ -304,18 +311,19 @@ export default function NovaMinutaPage() {
                   <span className="text-gray-400 text-sm">Carregando...</span>
                 )
               ) : (
-                <Select value={pedidoVendaId} onValueChange={setPedidoVendaId}>
-                  <SelectTrigger className="h-10 border-gray-300 max-w-md">
-                    <SelectValue placeholder="Selecione o pedido de venda..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {pedidos.map(p => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.numero} — {p.cliente.nomeFantasia || p.cliente.razaoSocial}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ComboboxWithCreate
+                  className="max-w-md"
+                  triggerClassName="h-10 border-gray-300"
+                  allowNone={false}
+                  value={pedidoVendaId}
+                  onChange={setPedidoVendaId}
+                  placeholder="Busque por PV, orçamento ou cliente..."
+                  options={pedidos.map((p) => {
+                    const cliente = p.cliente.nomeFantasia || p.cliente.razaoSocial;
+                    const orc = p.numeroOrcamento ? `  ·  Orç. ${p.numeroOrcamento}` : "";
+                    return { value: p.id, label: `${p.numero} — ${cliente}${orc}` };
+                  })}
+                />
               )}
             </div>
           </div>
