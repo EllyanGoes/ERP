@@ -25,6 +25,7 @@ type ItemWithEstoque = {
   pesoLiquido: unknown;
   pesoBruto: unknown;
   ativo: boolean;
+  comodato: boolean;
   observacoes: string | null;
   estoqueItems: Array<{ quantidadeMin: unknown; quantidadeMax: unknown | null; localizacao: string | null }>;
 };
@@ -43,6 +44,7 @@ export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
       precoVenda: decimalToNumber(item.precoVenda),
       precoCusto: item.precoCusto ? decimalToNumber(item.precoCusto) : undefined,
       ativo: item.ativo,
+      comodato: item.comodato,
       observacoes: item.observacoes ?? "",
       quantidadeMin: item.estoqueItems[0] ? decimalToNumber(item.estoqueItems[0].quantidadeMin) : 0,
       quantidadeMax: item.estoqueItems[0]?.quantidadeMax ? decimalToNumber(item.estoqueItems[0].quantidadeMax) : undefined,
@@ -136,6 +138,30 @@ export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
             </CardContent>
           </Card>
         )}
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Comodato</CardTitle></CardHeader>
+          <CardContent>
+            <FormField control={form.control} name="comodato" render={({ field }) => (
+              <FormItem className="flex flex-row items-center gap-3 space-y-0">
+                <FormControl>
+                  <input
+                    type="checkbox"
+                    checked={!!field.value}
+                    onChange={(e) => field.onChange(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                </FormControl>
+                <div>
+                  <FormLabel className="!mt-0">Item de comodato (vasilhame retornável)</FormLabel>
+                  <p className="text-xs text-gray-500">
+                    Pallets, engradados e outros itens emprestados ao cliente que devem retornar. Itens marcados aqui aparecem na tela de Comodato.
+                  </p>
+                </div>
+              </FormItem>
+            )} />
+          </CardContent>
+        </Card>
 
         <FormField control={form.control} name="observacoes" render={({ field }) => (
           <FormItem><FormLabel>Observações</FormLabel><FormControl><Textarea {...field} value={field.value ?? ""} rows={3} /></FormControl><FormMessage /></FormItem>

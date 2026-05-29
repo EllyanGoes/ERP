@@ -1,0 +1,56 @@
+export const dynamic = "force-dynamic";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { comodatoMovimentoSchema } from "@/lib/validations/comodato";
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const clienteId = searchParams.get("clienteId") || undefined;
+
+  const movimentos = await prisma.movimentacaoComodato.findMany({
+    where: clienteId ? { clienteId } : {},
+    include: {
+      cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+      item: { select: { id: true, codigo: true, descricao: true } },
+    },
+    orderBy: { data: "desc" },
+  });
+
+  return NextResponse.json({ data: movimentos });
+}
+
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const parsed = comodatoMovimentoSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const { clienteId, itemId, tipo, quantidade, valorUnitario, data, documento, observacoes } = parsed.data;
+
+  let valor = valorUnitario;
+  if (valor == null) {
+    const item = await prisma.item.findUnique({ where: { id: itemId }, select: { precoVenda: true } });
+    valor = item ? Number(item.precoVenda) : 0;
+  }
+
+  const movimento = await prisma.movimentacaoComodato.create({
+    data: {
+      clienteId,
+      itemId,
+      tipo,
+      quantidade,
+      valorUnitario: valor,
+      origem: "MANUAL",
+      data: data ? new Date(data) : new Date(),
+      documento: documento ?? null,
+      observacoes: observacoes ?? null,
+    },
+    include: {
+      cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+      item: { select: { id: true, codigo: true, descricao: true } },
+    },
+  });
+
+  return NextResponse.json({ data: movimento }, { status: 201 });
+}

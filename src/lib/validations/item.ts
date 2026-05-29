@@ -12,6 +12,7 @@ export const itemSchema = z.object({
   pesoLiquido: z.coerce.number().min(0).optional().nullable(),
   pesoBruto: z.coerce.number().min(0).optional().nullable(),
   ativo: z.boolean().default(true),
+  comodato: z.boolean().default(false),
   observacoes: z.string().optional().nullable(),
   quantidadeMin: z.coerce.number().min(0).optional().nullable(),
   quantidadeMax: z.coerce.number().min(0).optional().nullable(),

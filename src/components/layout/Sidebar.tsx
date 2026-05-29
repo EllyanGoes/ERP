@@ -139,6 +139,7 @@ const mainModules: Module[] = [
       { kind: "Processos", items: [
         { href: "/pedidos-venda",        label: "Pedidos de Venda", icon: ShoppingCart },
         { href: "/comercial/minutas",    label: "Minutas",          icon: Truck },
+        { href: "/comodato",             label: "Comodato",         icon: Package },
       ]},
     ],
   },

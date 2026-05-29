@@ -101,6 +101,7 @@ model Cliente {
   updatedAt    DateTime @updatedAt
   contasReceber ContaReceber[]
   pedidosVenda  PedidoVenda[]
+  movimentacoesComodato MovimentacaoComodato[]
 
   @@index([cpfCnpj])
   @@index([status])
@@ -514,6 +515,7 @@ model Item {
   ativo                 Boolean                 @default(true)
   favorito              Boolean                 @default(false)
   vendavel              Boolean                 @default(false)
+  comodato              Boolean                 @default(false)
   estoqueMinimo         Decimal?                @db.Decimal(15, 3)
   estoqueMaximo         Decimal?                @db.Decimal(15, 3)
   pontoReposicao        Decimal?                @db.Decimal(15, 3)
@@ -530,6 +532,7 @@ model Item {
   unidade                Unidade?                 @relation(fields: [unidadeId], references: [id])
   itemUnidades           ItemUnidade[]
   movimentacoes          MovimentacaoEstoque[]
+  movimentacoesComodato  MovimentacaoComodato[]
   necessidadeCompraItens NecessidadeCompraItem[]
   pedidoCompraItens      PedidoCompraItem[]
   pedidoVendaItens       PedidoVendaItem[]
@@ -635,6 +638,29 @@ model MovimentacaoEstoque {
   @@index([itemId])
   @@index([loteId])
   @@index([tipo])
+}
+
+model MovimentacaoComodato {
+  id             String                   @id @default(cuid())
+  clienteId      String
+  itemId         String
+  tipo           TipoMovimentacaoComodato
+  quantidade     Decimal                  @db.Decimal(15, 3)
+  valorUnitario  Decimal                  @db.Decimal(15, 2)
+  origem         OrigemMovimentacaoComodato @default(MANUAL)
+  pedidoVendaId  String?
+  minutaId       String?
+  documento      String?
+  observacoes    String?
+  data           DateTime                 @default(now())
+  criadoPor      String?
+  createdAt      DateTime                 @default(now())
+  cliente        Cliente                  @relation(fields: [clienteId], references: [id])
+  item           Item                     @relation(fields: [itemId], references: [id])
+
+  @@index([clienteId])
+  @@index([itemId])
+  @@index([data])
 }
 
 model NecessidadeCompra {
@@ -1206,6 +1232,16 @@ model InventarioMaterialItem {
 
   @@index([inventarioId])
   @@index([fornecedorId])
+}
+
+enum TipoMovimentacaoComodato {
+  SAIDA
+  RETORNO
+}
+
+enum OrigemMovimentacaoComodato {
+  MANUAL
+  AUTOMATICO
 }
 
 enum TipoRequisicaoMaterial {
