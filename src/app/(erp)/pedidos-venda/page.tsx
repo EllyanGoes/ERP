@@ -23,6 +23,7 @@ import {
 type PedidoRow = {
   id: string;
   numero: string;
+  numeroOrcamento: string | null;
   status: string;
   dataEmissao: string;
   dataEntrega: string | null;
@@ -115,6 +116,13 @@ const COLS: ColDef<PedidoRow>[] = [
         )}
       </div>
     ),
+  },
+  {
+    id: "numeroOrcamento",
+    label: "Nº Orçamento",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-gray-500 text-sm",
+    render: (p) => p.numeroOrcamento || <span className="text-gray-300">—</span>,
   },
   {
     id: "status",

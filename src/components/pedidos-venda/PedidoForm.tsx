@@ -676,6 +676,7 @@ export default function PedidoForm({
         </div>
         <div className="p-5 space-y-5">
 
+          <div className="grid grid-cols-2 gap-4">
           {/* Cliente */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Cliente *</Label>
@@ -736,9 +737,10 @@ export default function PedidoForm({
               type="text"
               value={numeroOrcamento}
               onChange={(e) => setNumeroOrcamento(e.target.value)}
-              placeholder="Número do orçamento no controle de pedido físico"
+              placeholder="Número no controle físico"
               className="h-10 border-gray-300"
             />
+          </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
