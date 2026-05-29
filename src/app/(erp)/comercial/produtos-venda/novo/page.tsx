@@ -8,10 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useTabsContext } from "@/lib/tabs-context";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { TipoProdutoQuickCreate, UnidadeQuickCreate } from "@/components/shared/QuickCreateDialogs";
-import { CheckCircle2, Plus, ShoppingBag, X } from "lucide-react";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
+import { ShoppingBag } from "lucide-react";
 
 type TipoProduto = { id: string; nome: string };
 type Unidade     = { id: string; sigla: string; nome: string };
@@ -43,7 +43,6 @@ const INITIAL: FormData = {
 export default function NovoProdutoVendaPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { tabs, closeTab } = useTabsContext();
   const [form, setForm] = useState<FormData>({
     ...INITIAL,
     descricao: searchParams.get("descricao") ?? searchParams.get("nome") ?? "",
@@ -51,7 +50,11 @@ export default function NovoProdutoVendaPage() {
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState("");
-  const [savedProduct, setSavedProduct] = useState<{ id: string; codigo: string; descricao: string } | null>(null);
+
+  const { confirmCreated, dialog } = useCreateFlow({
+    entity: "produto para venda",
+    onNew: () => { setForm({ ...INITIAL }); setErrors({}); setServerError(""); },
+  });
 
   const [tiposProduto, setTiposProduto] = useState<TipoProduto[]>([]);
   const [unidades, setUnidades] = useState<Unidade[]>([]);
@@ -107,7 +110,7 @@ export default function NovoProdutoVendaPage() {
         setServerError(json.error || "Erro ao salvar produto");
         return;
       }
-      setSavedProduct({ id: json.data.id, codigo: json.data.codigo, descricao: json.data.descricao });
+      confirmCreated(json.data.id);
     } catch {
       setServerError("Erro de conexão. Tente novamente.");
     } finally {
@@ -305,52 +308,7 @@ export default function NovoProdutoVendaPage() {
         </div>
       </form>
 
-      {/* ── Post-save confirmation dialog ──────────────────────────────── */}
-      {savedProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0 mt-0.5">
-                <CheckCircle2 className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="font-semibold text-gray-900">Produto cadastrado!</p>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  <span className="font-mono text-xs font-semibold text-blue-600">{savedProduct.codigo}</span>
-                  {" — "}{savedProduct.descricao}
-                </p>
-              </div>
-            </div>
-            <p className="text-sm text-gray-600">Deseja cadastrar outro produto para venda?</p>
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const tab = tabs.find((t) => t.href === "/comercial/produtos-venda/novo");
-                  if (tab) closeTab(tab.id);
-                  router.push("/comercial/produtos-venda");
-                }}
-              >
-                <X className="w-4 h-4 mr-1.5" />
-                Não, fechar
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setSavedProduct(null);
-                  setForm({ ...INITIAL }); // INITIAL already has vendavel: true
-                  setErrors({});
-                  setServerError("");
-                }}
-              >
-                <Plus className="w-4 h-4 mr-1.5" />
-                Sim, cadastrar outro
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {dialog}
     </div>
   );
 }

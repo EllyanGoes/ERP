@@ -12,8 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, ChevronDown, Loader2, Save, CheckCircle2, X, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, ChevronDown, Loader2, Save, X, AlertTriangle } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -341,6 +342,12 @@ type FormSnapshot = {
 export default function NovasolicitacaoPage() {
   const router   = useRouter();
   const { user } = useSession();
+  const { confirmCreated, dialog } = useCreateFlow({
+    entity: "solicitação",
+    gender: "f",
+    onNew: () => resetForm(),
+    viewHref: (id) => `/compras/necessidades/${id}`,
+  });
 
   const { save: saveForm, load: loadForm, clear: clearForm } = useFormPersist<FormSnapshot>("sc:nova");
   const formRestoredRef = useRef(false);
@@ -365,7 +372,6 @@ export default function NovasolicitacaoPage() {
   const [saving,      setSaving]      = useState(false);
   const [serverError, setServerError] = useState("");
   const [submitted,   setSubmitted]   = useState(false);
-  const [successDialog, setSuccessDialog] = useState<{ numero: string; id: string } | null>(null);
 
   const [showDuplicateWarning,  setShowDuplicateWarning]  = useState(false);
   const [duplicateConflicts,    setDuplicateConflicts]    = useState<ConflictItem[]>([]);
@@ -491,7 +497,7 @@ export default function NovasolicitacaoPage() {
       const json = await res.json();
       if (!res.ok) { setServerError(json.error || "Erro ao criar solicitação"); return; }
       clearForm();
-      setSuccessDialog({ numero: json.data.numero, id: json.data.id });
+      confirmCreated(json.data.id);
     } catch { setServerError("Erro de conexão. Tente novamente."); }
     finally { setSaving(false); }
   }
@@ -790,38 +796,7 @@ export default function NovasolicitacaoPage() {
         </div>
       )}
 
-      {/* ── Success Dialog ───────────────────────────────────────────────────── */}
-      {successDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 flex flex-col items-center gap-4 text-center">
-            <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center">
-              <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-            </div>
-            <div>
-              <p className="text-lg font-semibold text-gray-900">Solicitação criada!</p>
-              <p className="text-sm text-gray-500 mt-0.5">
-                <span className="font-mono font-bold text-gray-700">{successDialog.numero}</span> foi registrada com sucesso.
-              </p>
-            </div>
-            <p className="text-sm text-gray-600">Deseja criar outra solicitação?</p>
-            <div className="flex gap-3 w-full">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => { router.push(`/compras/necessidades/${successDialog.id}`); setSuccessDialog(null); }}
-              >
-                Ver solicitação
-              </Button>
-              <Button
-                className="flex-1"
-                onClick={() => { setSuccessDialog(null); resetForm(); }}
-              >
-                Criar outra
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {dialog}
     </div>
   );
 }

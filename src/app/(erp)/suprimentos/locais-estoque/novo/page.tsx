@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 
 export default function NovoLocalEstoquePage() {
   const router = useRouter();
@@ -15,6 +16,12 @@ export default function NovoLocalEstoquePage() {
   const [descricao, setDescricao] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { confirmCreated, dialog } = useCreateFlow({
+    entity: "local de estoque",
+    onNew: () => { setNome(""); setDescricao(""); setError(null); },
+    viewHref: (id) => `/suprimentos/locais-estoque/${id}`,
+  });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,7 +40,7 @@ export default function NovoLocalEstoquePage() {
         return;
       }
       const data = await res.json();
-      router.push(`/suprimentos/locais-estoque/${data.id}`);
+      confirmCreated(data.id);
     } catch {
       setError("Erro de conexão");
     } finally {
@@ -96,6 +103,7 @@ export default function NovoLocalEstoquePage() {
           </div>
         </form>
       </div>
+      {dialog}
     </div>
   );
 }

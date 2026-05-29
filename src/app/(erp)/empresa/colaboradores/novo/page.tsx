@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Save, X } from "lucide-react";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -37,8 +37,6 @@ function Field({ label, required, hint, children }: {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function NovoColaboradorPage() {
-  const router = useRouter();
-
   const [filiais,   setFiliais]   = useState<Filial[]>([]);
   const [usuarios,  setUsuarios]  = useState<Usuario[]>([]);
   const [setores,   setSetores]   = useState<SetorOpt[]>([]);
@@ -58,6 +56,16 @@ export default function NovoColaboradorPage() {
 
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
+
+  const { confirmCreated, dialog } = useCreateFlow({
+    entity: "colaborador",
+    onNew: () => {
+      setNome(""); setCpf(""); setRg(""); setEmail(""); setTelefone(""); setCargo("");
+      setSetorId(""); setDataAdmissao(""); setFilialIds([]); setUsuarioId("");
+      setAtivo(true); setObservacoes(""); setError("");
+    },
+    viewHref: (id) => `/empresa/colaboradores/${id}`,
+  });
 
   useEffect(() => {
     fetch("/api/empresa/filiais?ativo=true")
@@ -99,7 +107,7 @@ export default function NovoColaboradorPage() {
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error || "Erro ao salvar"); return; }
-      router.push(`/empresa/colaboradores/${json.id}`);
+      confirmCreated(json.id);
     } catch {
       setError("Erro de conexão. Tente novamente.");
     } finally {
@@ -300,6 +308,7 @@ export default function NovoColaboradorPage() {
           </Button>
         </div>
       </div>
+      {dialog}
     </div>
   );
 }

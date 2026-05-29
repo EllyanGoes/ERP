@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { cn } from "@/lib/utils";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -413,6 +414,12 @@ function ColaboradorQuickModal({
 export default function NovaRequisicaoPage() {
   useTabTitle("Nova Req/Dev de Materiais");
   const router       = useRouter();
+  const { confirmCreated, dialog: createdDialog } = useCreateFlow({
+    entity: "requisição",
+    gender: "f",
+    onNew: () => { window.location.href = "/suprimentos/requisicoes-materiais/nova"; },
+    viewHref: (id) => `/suprimentos/requisicoes-materiais/${id}`,
+  });
   const searchParams = useSearchParams();
 
   const [tipo,           setTipo]           = useState<"REQUISICAO" | "DEVOLUCAO">("REQUISICAO");
@@ -514,7 +521,7 @@ export default function NovaRequisicaoPage() {
           body: JSON.stringify({ status: "ABERTA" }),
         });
       }
-      router.push(`/suprimentos/requisicoes-materiais/${created.id}`);
+      confirmCreated(created.id);
     } catch (e) { setSaveError(String(e)); setSaving(false); }
   }
 
@@ -756,6 +763,7 @@ export default function NovaRequisicaoPage() {
           </Button>
         </div>
       </div>
+      {createdDialog}
     </div>
   );
 }

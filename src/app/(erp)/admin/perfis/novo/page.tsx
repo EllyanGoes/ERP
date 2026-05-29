@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Save, X, Loader2 } from "lucide-react";
 import { MODULOS, getAllPermissoes } from "@/lib/modules";
 import ModuloRow from "@/components/admin/ModuloRow";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 
 export default function NovoPerfisPage() {
   const router = useRouter();
@@ -21,6 +22,12 @@ export default function NovoPerfisPage() {
   const [permissoes, setPermissoes] = useState<string[]>([]);
 
   const allPerms = getAllPermissoes();
+
+  const { confirmCreated, dialog } = useCreateFlow({
+    entity: "perfil",
+    onNew: () => { setNome(""); setDescricao(""); setPermissoes([]); setError(""); },
+    viewHref: (id) => `/admin/perfis/${id}`,
+  });
 
   async function handleSave() {
     if (!nome.trim()) { setError("Nome é obrigatório"); return; }
@@ -34,7 +41,7 @@ export default function NovoPerfisPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Erro ao criar perfil"); return; }
-      router.push("/admin/perfis");
+      confirmCreated(data.id);
     } catch {
       setError("Erro de conexão");
     } finally {
@@ -125,6 +132,7 @@ export default function NovoPerfisPage() {
           </div>
         </section>
       </div>
+      {dialog}
     </div>
   );
 }

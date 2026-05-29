@@ -16,11 +16,21 @@ import {
 import { Eye, EyeOff, Save, X, ShieldCheck, Loader2, Zap } from "lucide-react";
 import { MODULOS, getAllPermissoes } from "@/lib/modules";
 import ModuloRow from "@/components/admin/ModuloRow";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 
 type PerfilAcesso = { id: string; nome: string; permissoes: string[] };
 
 export default function NovoUsuarioPage() {
   const router = useRouter();
+
+  const { confirmCreated, dialog } = useCreateFlow({
+    entity: "usuário",
+    onNew: () => {
+      setNome(""); setEmail(""); setSenha(""); setPerfil("USUARIO");
+      setPermissoes([]); setPerfilAcessoId("none"); setError("");
+    },
+    viewHref: (id) => `/admin/usuarios/${id}`,
+  });
 
   const [saving,         setSaving]         = useState(false);
   const [error,          setError]          = useState("");
@@ -84,7 +94,7 @@ export default function NovoUsuarioPage() {
         });
       }
 
-      router.push("/admin/usuarios");
+      confirmCreated(data.id);
     } catch {
       setError("Erro de conexão");
     } finally {
@@ -249,6 +259,7 @@ export default function NovoUsuarioPage() {
           </section>
         )}
       </div>
+      {dialog}
     </div>
   );
 }

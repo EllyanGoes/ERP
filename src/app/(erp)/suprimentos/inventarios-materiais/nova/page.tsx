@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTabTitle } from "@/lib/tabs-context";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { cn } from "@/lib/utils";
 import { createPortal } from "react-dom";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -198,6 +199,11 @@ function PortalMultiSelect<T extends { id: string }>({
 export default function NovoInventarioPage() {
   useTabTitle("Novo Inventário de Materiais");
   const router       = useRouter();
+  const { confirmCreated, dialog: createdDialog } = useCreateFlow({
+    entity: "inventário",
+    onNew: () => { window.location.href = "/suprimentos/inventarios-materiais/nova"; },
+    viewHref: (id) => `/suprimentos/inventarios-materiais/${id}`,
+  });
   const searchParams = useSearchParams();
 
   const [localEstoqueId, setLocalEstoqueId] = useState(searchParams.get("localEstoqueId") ?? "");
@@ -322,7 +328,7 @@ export default function NovoInventarioPage() {
         });
       }
 
-      router.push(`/suprimentos/inventarios-materiais/${created.id}`);
+      confirmCreated(created.id);
     } catch (e) {
       setSaveError(String(e));
       setSaving(false);
@@ -593,6 +599,7 @@ export default function NovoInventarioPage() {
           </Button>
         </div>
       </div>
+      {createdDialog}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 
 type ItemOption = { id: string; codigo: string; descricao: string };
 
@@ -28,6 +29,16 @@ export default function NovaNecessidadePage() {
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState("");
   const [itemOptions, setItemOptions] = useState<ItemOption[]>([]);
+
+  const { confirmCreated, dialog } = useCreateFlow({
+    entity: "necessidade",
+    gender: "f",
+    onNew: () => {
+      setSolicitante(""); setDataNecessidade(""); setJustificativa("");
+      setItens([{ itemId: "", quantidade: "1", observacao: "" }]); setServerError("");
+    },
+    viewHref: (id) => `/suprimentos/necessidades/${id}`,
+  });
 
   useEffect(() => {
     fetch("/api/suprimentos/produtos")
@@ -76,7 +87,7 @@ export default function NovaNecessidadePage() {
         setServerError(json.error || "Erro ao criar necessidade");
         return;
       }
-      router.push(`/suprimentos/necessidades/${json.data.id}`);
+      confirmCreated(json.data.id);
     } catch {
       setServerError("Erro de conexão. Tente novamente.");
     } finally {
@@ -197,6 +208,7 @@ export default function NovaNecessidadePage() {
           </Button>
         </div>
       </form>
+      {dialog}
     </div>
   );
 }

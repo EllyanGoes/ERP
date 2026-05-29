@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useFormPersist } from "@/lib/form-persist";
 import { useDirtyForm } from "@/lib/dirty-form-context";
 import {
@@ -101,6 +102,13 @@ export default function NovaCotacaoWizard() {
   const necessidadeIdParam = searchParams.get("necessidadeId");
 
   useTabTitle("Nova Cotação");
+
+  const { confirmCreated, dialog: createdDialog } = useCreateFlow({
+    entity: "cotação",
+    gender: "f",
+    onNew: () => { window.location.href = "/suprimentos/cotacoes/nova"; },
+    viewHref: (id) => `/suprimentos/cotacoes/${id}`,
+  });
 
   const { save: saveForm, load: loadForm, clear: clearForm } = useFormPersist<{
     step: number;
@@ -439,7 +447,7 @@ export default function NovaCotacaoWizard() {
       if (!res.ok) { setSaveError(json.error || "Erro ao criar cotação"); setSaving(false); return; }
       clearForm();
       setShowConfirm(false);
-      router.push(`/suprimentos/cotacoes/${json.data.id}`);
+      confirmCreated(json.data.id);
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : "Erro de conexão. Tente novamente.");
       setSaving(false);
@@ -935,6 +943,7 @@ export default function NovaCotacaoWizard() {
           </div>
         </div>
       )}
+      {createdDialog}
     </div>
   );
 }

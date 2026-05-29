@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { AlertCircle } from "lucide-react";
 import { useTabTitle } from "@/lib/tabs-context";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { cn } from "@/lib/utils";
 
 type PedidoVendaResumido = {
@@ -79,6 +80,12 @@ function fmtQty(n: number) {
 export default function NovaMinutaPage() {
   useTabTitle("Nova Minuta");
   const router = useRouter();
+  const { confirmCreated, dialog } = useCreateFlow({
+    entity: "minuta",
+    gender: "f",
+    onNew: () => { window.location.href = "/comercial/minutas/nova"; },
+    viewHref: (id) => `/comercial/minutas/${id}`,
+  });
   const searchParams = useSearchParams();
   const pedidoVendaIdParam = searchParams.get("pedidoVendaId");
 
@@ -261,7 +268,7 @@ export default function NovaMinutaPage() {
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Erro ao criar minuta"); return; }
       sessionStorage.removeItem(SESSION_KEY);
-      router.push(`/comercial/minutas/${json.data.id}`);
+      confirmCreated(json.data.id);
     } finally {
       setSaving(false);
     }
@@ -491,6 +498,7 @@ export default function NovaMinutaPage() {
           Cancelar
         </Button>
       </div>
+      {dialog}
     </div>
   );
 }

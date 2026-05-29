@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn, formatBRL } from "@/lib/utils";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { Plus, Trash2, Loader2, Save, CheckCircle2, LinkIcon } from "lucide-react";
 import { useEscToClose } from "@/lib/use-esc-to-close";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -51,6 +52,11 @@ const TIPO_FRETE_OPTIONS = [
 
 export default function NovoPedidoCompraPage() {
   const router = useRouter();
+  const { confirmCreated, dialog: createdDialog } = useCreateFlow({
+    entity: "pedido de compra",
+    onNew: () => { window.location.href = "/suprimentos/pedidos-compra/novo"; },
+    viewHref: (id) => `/suprimentos/pedidos-compra/${id}`,
+  });
   const { save: saveForm, load: loadForm, clear: clearForm } = useFormPersist<FormSnapshot>("pc:novo");
 
   // Data
@@ -228,7 +234,7 @@ export default function NovoPedidoCompraPage() {
       const json = await res.json();
       if (!res.ok) { setError(json.error || "Erro ao criar pedido"); return; }
       clearForm();
-      router.push(`/suprimentos/pedidos-compra/${json.data.id}`);
+      confirmCreated(json.data.id);
     } catch {
       setError("Erro de conexão. Tente novamente.");
     } finally {
@@ -569,6 +575,7 @@ export default function NovoPedidoCompraPage() {
           </div>
         </div>
       )}
+      {createdDialog}
     </div>
   );
 }

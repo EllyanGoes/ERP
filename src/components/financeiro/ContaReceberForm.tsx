@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 
 type ClienteOption = { id: string; razaoSocial: string };
 
@@ -20,13 +21,19 @@ export default function ContaReceberForm({ clientes }: { clientes: ClienteOption
     defaultValues: { dataVencimento: new Date().toISOString().split("T")[0] },
   });
 
+  const { confirmCreated, dialog } = useCreateFlow({
+    entity: "conta",
+    gender: "f",
+    onNew: () => form.reset({ dataVencimento: new Date().toISOString().split("T")[0] }),
+  });
+
   async function onSubmit(data: ContaReceberFormData) {
     const res = await fetch("/api/contas-receber", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (res.ok) { router.push("/contas-receber"); router.refresh(); }
+    if (res.ok) { const json = await res.json(); confirmCreated(json.data.id); }
   }
 
   return (
@@ -80,6 +87,7 @@ export default function ContaReceberForm({ clientes }: { clientes: ClienteOption
           <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
         </div>
       </form>
+      {dialog}
     </Form>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { decimalToNumber, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { Link2, X, Plus, Trash2, Search, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -194,7 +195,6 @@ function ProdSearchCell({
 }
 
 export default function NovoDocumentoEntradaPage() {
-  const router       = useRouter();
   const searchParams = useSearchParams();
 
   // Documento fields
@@ -244,6 +244,12 @@ export default function NovoDocumentoEntradaPage() {
   const [error, setError]           = useState("");
 
   useTabTitle("Novo Doc. Entrada");
+
+  const { confirmCreated, dialog: createdDialog } = useCreateFlow({
+    entity: "documento de entrada",
+    onNew: () => { window.location.href = "/suprimentos/conferencias/novo"; },
+    viewHref: (id) => `/suprimentos/conferencias/${id}`,
+  });
 
   // Load fornecedores
   useEffect(() => {
@@ -525,7 +531,7 @@ export default function NovoDocumentoEntradaPage() {
         setError(json.error || "Erro ao criar documento");
         return;
       }
-      router.push(`/suprimentos/conferencias/${json.data.id}`);
+      confirmCreated(json.data.id);
     } catch {
       setError("Erro de conexão");
     } finally {
@@ -1121,6 +1127,7 @@ export default function NovoDocumentoEntradaPage() {
           </Button>
         </div>
       </div>
+      {createdDialog}
     </div>
   );
 }

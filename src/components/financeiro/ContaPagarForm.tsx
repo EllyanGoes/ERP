@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 
 type FornecedorOption = { id: string; razaoSocial: string };
 const CATEGORIAS = ["Aluguel","Energia","Água","Internet","Folha de Pagamento","Impostos","Fornecedores","Marketing","Outros"];
@@ -21,13 +22,19 @@ export default function ContaPagarForm({ fornecedores }: { fornecedores: Fornece
     defaultValues: { dataVencimento: new Date().toISOString().split("T")[0] },
   });
 
+  const { confirmCreated, dialog } = useCreateFlow({
+    entity: "conta",
+    gender: "f",
+    onNew: () => form.reset({ dataVencimento: new Date().toISOString().split("T")[0] }),
+  });
+
   async function onSubmit(data: ContaPagarFormData) {
     const res = await fetch("/api/contas-pagar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (res.ok) { router.push("/contas-pagar"); router.refresh(); }
+    if (res.ok) { const json = await res.json(); confirmCreated(json.data.id); }
   }
 
   return (
@@ -84,6 +91,7 @@ export default function ContaPagarForm({ fornecedores }: { fornecedores: Fornece
           <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
         </div>
       </form>
+      {dialog}
     </Form>
   );
 }

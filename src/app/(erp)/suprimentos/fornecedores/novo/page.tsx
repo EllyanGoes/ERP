@@ -20,7 +20,6 @@ function maskCpfCnpj(value: string, tipo: "JURIDICA" | "FISICA"): string {
     return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12,14)}`;
   }
 }
-import { CheckCircle2, Plus, ArrowLeft } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 
 type FormData = {
   tipoPessoa: "JURIDICA" | "FISICA";
@@ -77,9 +77,13 @@ export default function NovoFornecedorPage() {
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState("");
-  const [savedName, setSavedName] = useState<string | null>(null); // nome do fornecedor salvo
-  const [savedId, setSavedId]   = useState<string | null>(null);
   const [nomeFantasiaEdited, setNomeFantasiaEdited] = useState(false);
+
+  const { confirmCreated, dialog } = useCreateFlow({
+    entity: "fornecedor",
+    onNew: resetForm,
+    viewHref: (id) => `/suprimentos/fornecedores/${id}`,
+  });
 
   function set(key: keyof FormData, value: string) {
     setForm((prev) => {
@@ -122,9 +126,7 @@ export default function NovoFornecedorPage() {
         setServerError(json.error || "Erro ao salvar fornecedor");
         return;
       }
-      // Show confirmation dialog instead of immediately redirecting
-      setSavedName(json.nomeFantasia || json.razaoSocial);
-      setSavedId(json.id);
+      confirmCreated(json.id);
     } catch {
       setServerError("Erro de conexão. Tente novamente.");
     } finally {
@@ -136,54 +138,13 @@ export default function NovoFornecedorPage() {
     setForm({ ...INITIAL });
     setErrors({});
     setServerError("");
-    setSavedName(null);
-    setSavedId(null);
     // Scroll to top
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   return (
     <div>
-      {/* ── Success modal ────────────────────────────────────────────────── */}
-      {savedName && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-sm mx-4 p-6 text-center">
-            <div className="flex justify-center mb-4">
-              <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
-                <CheckCircle2 className="w-7 h-7 text-emerald-600" />
-              </div>
-            </div>
-            <h3 className="text-base font-semibold text-gray-900">Fornecedor cadastrado!</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              <strong className="text-gray-700">{savedName}</strong> foi salvo com sucesso.
-            </p>
-            <p className="mt-4 text-sm font-medium text-gray-700">Deseja cadastrar outro fornecedor?</p>
-            <div className="flex flex-col gap-2 mt-4">
-              <Button
-                onClick={resetForm}
-                className="w-full"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Sim, cadastrar outro
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => router.push("/suprimentos/fornecedores")}
-                className="w-full"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Não, voltar para Fornecedores
-              </Button>
-              <button
-                onClick={() => router.push(`/suprimentos/fornecedores/${savedId}`)}
-                className="text-xs text-gray-400 hover:text-gray-600 mt-1"
-              >
-                Ver cadastro de {savedName} →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {dialog}
 
       <PageHeader
         title="Novo Fornecedor"

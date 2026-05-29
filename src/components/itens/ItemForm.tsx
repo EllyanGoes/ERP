@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { decimalToNumber } from "@/lib/utils";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 
 type ItemWithEstoque = {
   id: string;
@@ -60,13 +61,24 @@ export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
 
   const tipo = form.watch("tipo");
 
+  const { confirmCreated, dialog } = useCreateFlow({
+    entity: "item",
+    onNew: () => form.reset({ tipo: "PRODUTO", unidadeMedida: "UN", ativo: true, precoVenda: 0, quantidadeMin: 0 }),
+    viewHref: (id) => `/itens/${id}/editar`,
+  });
+
   async function onSubmit(data: ItemFormData) {
     const url = item ? `/api/itens/${item.id}` : "/api/itens";
     const method = item ? "PUT" : "POST";
     const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
     if (res.ok) {
-      router.push("/itens");
-      router.refresh();
+      if (item) {
+        router.push("/itens");
+        router.refresh();
+      } else {
+        const json = await res.json();
+        confirmCreated(json.data.id);
+      }
     }
   }
 
@@ -174,6 +186,7 @@ export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
           <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
         </div>
       </form>
+      {dialog}
     </Form>
   );
 }
