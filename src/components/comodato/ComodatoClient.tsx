@@ -80,7 +80,7 @@ export default function ComodatoClient({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!clienteId || !itemId || !quantidade) {
-      pushToast({ type: "error", message: "Preencha cliente, vasilhame e quantidade." });
+      pushToast({ type: "error", message: "Preencha cliente, item em comodato e quantidade." });
       return;
     }
     setSaving(true);
@@ -152,7 +152,7 @@ export default function ComodatoClient({
           <p className="text-3xl font-bold mt-1">{totais.clientesComSaldo}</p>
         </div>
         <div className="rounded-xl p-4 bg-amber-50 text-amber-700">
-          <p className="text-sm font-medium opacity-75">Vasilhames em poder dos clientes</p>
+          <p className="text-sm font-medium opacity-75">Itens em poder dos clientes</p>
           <p className="text-3xl font-bold mt-1">{totais.totalQtd.toLocaleString("pt-BR")}</p>
         </div>
         <div className="rounded-xl p-4 bg-emerald-50 text-emerald-700">
@@ -188,7 +188,7 @@ export default function ComodatoClient({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Vasilhame</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Item em Comodato</label>
               <select
                 value={itemId}
                 onChange={(e) => onItemChange(e.target.value)}
@@ -299,7 +299,7 @@ export default function ComodatoClient({
             <thead>
               <tr className="text-left text-gray-500 border-b border-gray-100">
                 <th className="px-6 py-3 font-medium">Cliente</th>
-                <th className="px-6 py-3 font-medium">Vasilhame</th>
+                <th className="px-6 py-3 font-medium">Item em Comodato</th>
                 <th className="px-6 py-3 font-medium text-right">Saldo (qtd)</th>
                 <th className="px-6 py-3 font-medium text-right">Valor</th>
               </tr>
@@ -333,7 +333,7 @@ export default function ComodatoClient({
               <tr className="text-left text-gray-500 border-b border-gray-100">
                 <th className="px-6 py-3 font-medium">Data</th>
                 <th className="px-6 py-3 font-medium">Cliente</th>
-                <th className="px-6 py-3 font-medium">Vasilhame</th>
+                <th className="px-6 py-3 font-medium">Item em Comodato</th>
                 <th className="px-6 py-3 font-medium">Tipo</th>
                 <th className="px-6 py-3 font-medium text-right">Qtd</th>
                 <th className="px-6 py-3 font-medium text-right">Valor</th>

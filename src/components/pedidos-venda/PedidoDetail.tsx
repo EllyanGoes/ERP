@@ -466,7 +466,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                 <p className="text-sm font-medium text-gray-700">Registrar saída de comodato (cliente levando)</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Vasilhame</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Item em Comodato</label>
                     <select
                       value={comodatoItemId}
                       onChange={(e) => onComodatoItemChange(e.target.value)}
@@ -550,7 +550,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                   <thead>
                     <tr className="border-b text-xs text-gray-400 uppercase">
                       <th className="text-left pb-2">Data</th>
-                      <th className="text-left pb-2">Vasilhame</th>
+                      <th className="text-left pb-2">Item em Comodato</th>
                       <th className="text-right pb-2">Qtd</th>
                       <th className="text-right pb-2">Valor Un.</th>
                       <th className="text-right pb-2">Total</th>
