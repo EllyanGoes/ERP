@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -64,11 +64,12 @@ type Filters = {
   view:      "list" | "kanban";
   dateFrom:  string;
   dateTo:    string;
+  groupByDate: boolean;
 };
 
 function loadFilters(): Filters {
   if (typeof window === "undefined")
-    return { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "" };
+    return { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "", groupByDate: false };
   try {
     const raw = localStorage.getItem(FILTER_KEY);
     if (raw) {
@@ -81,10 +82,11 @@ function loadFilters(): Filters {
         view:     f.view === "kanban" ? "kanban" : "list",
         dateFrom: f.dateFrom ?? "",
         dateTo:   f.dateTo   ?? "",
+        groupByDate: f.groupByDate === true,
       };
     }
   } catch {}
-  return { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "" };
+  return { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "", groupByDate: false };
 }
 
 function saveFilters(f: Filters) {
@@ -448,6 +450,33 @@ export default function PedidosVendaPage() {
     [filtered, filters.statuses, filters.statusOp]
   );
 
+  // ── Agrupado por data de emissão (visão lista) ────────────────────────────
+  const dateGroups = useMemo(() => {
+    const groups: { key: string; label: string; items: PedidoRow[]; total: number }[] = [];
+    const index = new Map<string, number>();
+    for (const p of filtered) {
+      const key = p.dataEmissao ? p.dataEmissao.slice(0, 10) : "sem-data";
+      let gi = index.get(key);
+      if (gi === undefined) {
+        gi = groups.length;
+        index.set(key, gi);
+        groups.push({
+          key,
+          label: p.dataEmissao ? formatDate(p.dataEmissao) : "Sem data",
+          items: [],
+          total: 0,
+        });
+      }
+      groups[gi].items.push(p);
+      groups[gi].total += decimalToNumber(p.valorTotal);
+    }
+    // Grupos sempre do mais recente para o mais antigo; "sem data" por último.
+    groups.sort((a, b) =>
+      a.key === "sem-data" ? 1 : b.key === "sem-data" ? -1 : b.key.localeCompare(a.key)
+    );
+    return groups;
+  }, [filtered]);
+
   const hasActive = filters.statuses.length > 0 || filters.search || filters.dateFrom || filters.dateTo;
 
   // ── Drag-and-drop handlers ────────────────────────────────────────────────
@@ -652,6 +681,23 @@ export default function PedidosVendaPage() {
           </div>
         )}
 
+        {/* Agrupar por data — list only */}
+        {filters.view === "list" && (
+          <button
+            onClick={() => updateFilters({ groupByDate: !filters.groupByDate })}
+            className={cn(
+              "flex items-center gap-1.5 h-8 px-2.5 text-xs border rounded-md transition-colors",
+              filters.groupByDate
+                ? "border-blue-300 bg-blue-50 text-blue-700"
+                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+            )}
+            title="Agrupar pedidos por data de emissão"
+          >
+            <CalendarDays className="w-3.5 h-3.5" />
+            Agrupar por data
+          </button>
+        )}
+
         {/* Column configurator */}
         {filters.view === "list" && (
           <ColumnConfigurator
@@ -721,17 +767,46 @@ export default function PedidosVendaPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((p) => (
-                  <tr
-                    key={p.id}
-                    className="hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => router.push(`/pedidos-venda/${p.id}`)}
-                  >
-                    {orderedCols.map((col) => (
-                      <td key={col.id} className={col.tdClass}>{col.render(p)}</td>
+                {filters.groupByDate
+                  ? dateGroups.map((g) => (
+                      <Fragment key={g.key}>
+                        <tr className="bg-gray-50/80">
+                          <td colSpan={orderedCols.length} className="px-4 py-2 border-y border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <span className="flex items-center gap-1.5 font-semibold text-gray-700 text-sm">
+                                <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
+                                {g.label}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {g.items.length} pedido{g.items.length !== 1 ? "s" : ""} · {formatBRL(g.total)}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        {g.items.map((p) => (
+                          <tr
+                            key={p.id}
+                            className="hover:bg-gray-50 cursor-pointer transition-colors"
+                            onClick={() => router.push(`/pedidos-venda/${p.id}`)}
+                          >
+                            {orderedCols.map((col) => (
+                              <td key={col.id} className={col.tdClass}>{col.render(p)}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </Fragment>
+                    ))
+                  : filtered.map((p) => (
+                      <tr
+                        key={p.id}
+                        className="hover:bg-gray-50 cursor-pointer transition-colors"
+                        onClick={() => router.push(`/pedidos-venda/${p.id}`)}
+                      >
+                        {orderedCols.map((col) => (
+                          <td key={col.id} className={col.tdClass}>{col.render(p)}</td>
+                        ))}
+                      </tr>
                     ))}
-                  </tr>
-                ))}
               </tbody>
             </table>
           </div>
