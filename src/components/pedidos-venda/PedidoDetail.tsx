@@ -55,7 +55,7 @@ type MovComodato = {
 
 type PedidoDetailProps = {
   pedido: {
-    id: string; numero: string; status: string;
+    id: string; numero: string; numeroOrcamento: string | null; status: string;
     dataEmissao: Date | string; dataEntrega: Date | string | null;
     condicaoPagamento: string | null; observacoes: string | null;
     valorProdutos: unknown; valorDesconto: unknown; valorFrete: unknown; valorTotal: unknown;
@@ -265,6 +265,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           <CardHeader><CardTitle className="text-base">Informações</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex justify-between"><span className="text-gray-500">Cliente</span><span className="font-medium">{pedido.cliente.razaoSocial}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Nº Orçamento</span><span>{pedido.numeroOrcamento || "—"}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Emissão</span><span>{formatDate(pedido.dataEmissao)}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Conclusão</span><span>{pedido.dataEntrega ? formatDate(pedido.dataEntrega) : "—"}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Cond. Pagamento</span><span>{pedido.condicaoPagamento || "—"}</span></div>

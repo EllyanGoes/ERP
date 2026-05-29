@@ -114,6 +114,7 @@ type PedidoInicialItem = {
 type PedidoInicial = {
   id: string;
   numero: string;
+  numeroOrcamento: string | null;
   clienteId: string;
   tabelaPrecoId: string | null;
   dataEmissao: string;   // ISO
@@ -191,6 +192,7 @@ export default function PedidoForm({
 
   // Header form
   const [clienteId,         setClienteId]         = useState(pedido?.clienteId ?? "");
+  const [numeroOrcamento,   setNumeroOrcamento]   = useState(pedido?.numeroOrcamento ?? "");
   const [tabelaPrecoId,     setTabelaPrecoId]     = useState(pedido?.tabelaPrecoId ?? "");
   const [dataEmissao,       setDataEmissao]       = useState(pedido ? isoToDateInput(pedido.dataEmissao) : new Date().toISOString().slice(0, 10));
   const [dataEntrega,       setDataEntrega]       = useState(pedido ? isoToDateInput(pedido.dataEntrega) : "");
@@ -551,6 +553,7 @@ export default function PedidoForm({
   function buildPayload() {
     return {
       clienteId,
+      numeroOrcamento: numeroOrcamento.trim() || null,
       tabelaPrecoId: tabelaPrecoId || null,
       dataEmissao,
       dataEntrega: dataEntrega || null,
@@ -724,6 +727,18 @@ export default function PedidoForm({
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Nº do Orçamento (controle de pedido físico) */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Nº do Orçamento</Label>
+            <Input
+              type="text"
+              value={numeroOrcamento}
+              onChange={(e) => setNumeroOrcamento(e.target.value)}
+              placeholder="Número do orçamento no controle de pedido físico"
+              className="h-10 border-gray-300"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

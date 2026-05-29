@@ -761,6 +761,7 @@ model PedidoCompraItem {
 model PedidoVenda {
   id                String            @id @default(cuid())
   numero            String            @unique
+  numeroOrcamento   String?
   clienteId         String
   tabelaPrecoId     String?
   status            StatusPedidoVenda @default(ORCAMENTO)

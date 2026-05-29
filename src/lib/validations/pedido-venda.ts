@@ -12,6 +12,7 @@ export const pedidoVendaItemSchema = z.object({
 
 export const pedidoVendaSchema = z.object({
   clienteId:         z.string().min(1, "Cliente é obrigatório"),
+  numeroOrcamento:   z.string().optional().nullable(),
   tabelaPrecoId:     z.string().optional().nullable(),
   dataEmissao:       z.string().or(z.date()),
   dataEntrega:       z.string().optional().nullable(),
