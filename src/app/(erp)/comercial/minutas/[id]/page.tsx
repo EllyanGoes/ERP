@@ -28,6 +28,7 @@ type LocalEstoque = { id: string; nome: string };
 type Minuta = {
   id: string;
   numero: string;
+  numeroFisico: string | null;
   tipo: TipoMinuta;
   status: StatusMinuta;
   dataEmissao: string;
@@ -285,6 +286,10 @@ export default function MinutaDetailPage() {
               <div>
                 <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Placa</div>
                 <div className="text-gray-800">{minuta.placa ?? "—"}</div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Nº da Minuta Física</div>
+                <div className="text-gray-800">{minuta.numeroFisico ?? "—"}</div>
               </div>
             </div>
           </div>

@@ -30,6 +30,7 @@ type ItemRow = {
 type MinutaDoPedido = {
   id: string;
   numero: string;
+  numeroFisico: string | null;
   status: "PENDENTE" | "SAIU_PARA_ENTREGA" | "ENTREGUE" | "CANCELADA";
   dataEmissao: string;
   dataEntrega: string | null;
@@ -399,6 +400,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                   <thead>
                     <tr className="border-b text-xs text-gray-400 uppercase">
                       <th className="text-left pb-2">Número</th>
+                      <th className="text-left pb-2">Nº Físico</th>
                       <th className="text-left pb-2">Status</th>
                       <th className="text-left pb-2">Emissão</th>
                       <th className="text-left pb-2">Entrega</th>
@@ -415,6 +417,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                         onClick={() => router.push(`/comercial/minutas/${m.id}`)}
                       >
                         <td className="py-2.5 font-mono font-semibold text-blue-600 hover:underline">{m.numero}</td>
+                        <td className="py-2.5 font-mono text-gray-600">{m.numeroFisico || "—"}</td>
                         <td className="py-2.5">
                           <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold", STATUS_COLOR[m.status])}>
                             {STATUS_LABEL[m.status]}

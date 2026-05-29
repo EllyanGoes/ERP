@@ -106,6 +106,7 @@ export default function NovaMinutaPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
   const [placa, setPlaca] = useState("");
+  const [numeroFisico, setNumeroFisico] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [rows, setRows] = useState<ItemRow[]>([]);
 
@@ -257,6 +258,7 @@ export default function NovaMinutaPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pedidoVendaId,
+          numeroFisico:   numeroFisico.trim() || null,
           tipo,
           localEstoqueId: localEstoqueId || null,
           motoristaId:    motoristaId || null,
@@ -404,6 +406,15 @@ export default function NovaMinutaPage() {
               <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Logística</h2>
             </div>
             <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Nº da Minuta Física</label>
+                <Input
+                  value={numeroFisico}
+                  onChange={e => setNumeroFisico(e.target.value)}
+                  className="h-10 border-gray-300"
+                  placeholder="Número do bloco físico"
+                />
+              </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Tipo</label>
                 <Select value={tipo} onValueChange={(v) => setTipo(v as "ENTREGA" | "RETIRADA")}>

@@ -23,6 +23,7 @@ import {
 type Minuta = {
   id: string;
   numero: string;
+  numeroFisico: string | null;
   tipo: TipoMinuta;
   status: "PENDENTE" | "SAIU_PARA_ENTREGA" | "ENTREGUE" | "CANCELADA";
   dataEmissao: string;
@@ -104,6 +105,13 @@ const COLS: ColDef<Minuta>[] = [
     thClass: "text-left px-4 py-3 font-medium text-gray-600",
     tdClass: "px-4 py-3 font-mono text-xs font-semibold text-gray-900",
     render: (m) => m.numero,
+  },
+  {
+    id: "numeroFisico",
+    label: "Nº Físico",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 font-mono text-xs text-gray-600",
+    render: (m) => m.numeroFisico || <span className="text-gray-300">—</span>,
   },
   {
     id: "pedido",
@@ -507,9 +515,10 @@ export default function MinutasPage() {
 
     autoTable(doc, {
       startY: 32,
-      head: [["Minuta", "Pedido", "Cliente", "Tipo", "Status", "Emissão", "Prev. Entrega", "Motorista / Placa", "Itens"]],
+      head: [["Minuta", "Nº Físico", "Pedido", "Cliente", "Tipo", "Status", "Emissão", "Prev. Entrega", "Motorista / Placa", "Itens"]],
       body: filtered.map((m) => [
         m.numero,
+        m.numeroFisico || "—",
         m.pedidoVenda.numero,
         m.pedidoVenda.cliente.nomeFantasia || m.pedidoVenda.cliente.razaoSocial,
         TIPO_MINUTA_LABEL[m.tipo] ?? "Entrega",
@@ -525,13 +534,14 @@ export default function MinutasPage() {
       columnStyles: {
         0: { cellWidth: 22, fontStyle: "bold" },
         1: { cellWidth: 22 },
-        2: { cellWidth: 50 },
-        3: { cellWidth: 18 },
-        4: { cellWidth: 26 },
-        5: { cellWidth: 22 },
+        2: { cellWidth: 22 },
+        3: { cellWidth: 50 },
+        4: { cellWidth: 18 },
+        5: { cellWidth: 26 },
         6: { cellWidth: 22 },
-        7: { cellWidth: 42 },
-        8: { cellWidth: 12, halign: "center" },
+        7: { cellWidth: 22 },
+        8: { cellWidth: 42 },
+        9: { cellWidth: 12, halign: "center" },
       },
       margin: { left: 14, right: 14 },
     });

@@ -869,6 +869,7 @@ model Motorista {
 model Minuta {
   id             String       @id @default(cuid())
   numero         String       @unique
+  numeroFisico   String?
   pedidoVendaId  String
   localEstoqueId String?
   motoristaId    String?
