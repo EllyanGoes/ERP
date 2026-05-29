@@ -15,8 +15,9 @@ export function formatBRL(value: number | string): string {
   }).format(num)
 }
 
-export function formatCPFCNPJ(value: string): string {
-  const digits = value.replace(/\D/g, "")
+export function formatCPFCNPJ(value: string | null | undefined): string {
+  const digits = (value ?? "").replace(/\D/g, "")
+  if (!digits) return ""
   if (digits.length <= 11) {
     return digits
       .replace(/(\d{3})(\d)/, "$1.$2")

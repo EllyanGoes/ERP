@@ -15,7 +15,7 @@ type ContaRow   = { id: string; numero: string; descricao: string; status: strin
 type ClienteDetailProps = {
   cliente: {
     id: string; tipoPessoa: string; razaoSocial: string; nomeFantasia: string | null;
-    cpfCnpj: string; ie: string | null; email: string | null; telefone: string | null; celular: string | null;
+    cpfCnpj: string | null; ie: string | null; email: string | null; telefone: string | null; celular: string | null;
     status: string; observacoes: string | null;
     cep: string | null; logradouro: string | null; numero: string | null;
     complemento: string | null; bairro: string | null; cidade: string | null; estado: string | null;
