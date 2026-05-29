@@ -3,49 +3,81 @@ import { notFound } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
 import PedidoDetail from "@/components/pedidos-venda/PedidoDetail";
+import { decimalToNumber } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function PedidoDetailPage({ params }: { params: { id: string } }) {
-  const pedido = await prisma.pedidoVenda.findUnique({
-    where: { id: params.id },
-    include: {
-      cliente: true,
-      itens: {
-        include: {
-          item: {
-            include: {
-              unidade: { select: { id: true, sigla: true, nome: true } },
-              itemUnidades: {
-                where: { isPrincipal: false },
-                select: { id: true, fatorConversao: true, unidade: { select: { id: true, sigla: true, nome: true } } },
+  const [pedido, itensComodatoRaw, movimentacoesRaw] = await Promise.all([
+    prisma.pedidoVenda.findUnique({
+      where: { id: params.id },
+      include: {
+        cliente: true,
+        itens: {
+          include: {
+            item: {
+              include: {
+                unidade: { select: { id: true, sigla: true, nome: true } },
+                itemUnidades: {
+                  where: { isPrincipal: false },
+                  select: { id: true, fatorConversao: true, unidade: { select: { id: true, sigla: true, nome: true } } },
+                },
+              },
+            },
+            minutaItens: {
+              where: { minuta: { status: { not: "CANCELADA" } } },
+              select: { quantidade: true },
+            },
+          },
+        },
+        contasReceber: true,
+        minutas: {
+          include: {
+            localEstoque: { select: { id: true, nome: true } },
+            motorista:    { select: { id: true, nome: true } },
+            itens: {
+              select: {
+                id: true, pedidoVendaItemId: true, itemId: true,
+                quantidade: true, quantidadeConvertida: true,
+                unidade: { select: { id: true, sigla: true } },
               },
             },
           },
-          minutaItens: {
-            where: { minuta: { status: { not: "CANCELADA" } } },
-            select: { quantidade: true },
-          },
+          orderBy: { createdAt: "desc" },
         },
       },
-      contasReceber: true,
-      minutas: {
-        include: {
-          localEstoque: { select: { id: true, nome: true } },
-          motorista:    { select: { id: true, nome: true } },
-          itens: {
-            select: {
-              id: true, pedidoVendaItemId: true, itemId: true,
-              quantidade: true, quantidadeConvertida: true,
-              unidade: { select: { id: true, sigla: true } },
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-      },
-    },
-  });
+    }),
+    prisma.item.findMany({
+      where: { comodato: true, ativo: true },
+      orderBy: { descricao: "asc" },
+      select: { id: true, codigo: true, descricao: true, precoVenda: true },
+    }),
+    prisma.movimentacaoComodato.findMany({
+      where: { pedidoVendaId: params.id },
+      orderBy: { data: "desc" },
+      include: { item: { select: { id: true, codigo: true, descricao: true } } },
+    }),
+  ]);
   if (!pedido) notFound();
+
+  const itensComodato = itensComodatoRaw.map((i) => ({
+    id: i.id,
+    codigo: i.codigo,
+    descricao: i.descricao,
+    precoVenda: decimalToNumber(i.precoVenda),
+  }));
+
+  const movimentacoesComodato = movimentacoesRaw.map((m) => ({
+    id: m.id,
+    itemId: m.itemId,
+    tipo: m.tipo as "SAIDA" | "RETORNO",
+    quantidade: decimalToNumber(m.quantidade),
+    valorUnitario: decimalToNumber(m.valorUnitario),
+    data: m.data.toISOString(),
+    documento: m.documento,
+    observacoes: m.observacoes,
+    item: m.item,
+  }));
 
   return (
     <div>
@@ -55,7 +87,7 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
         action={<StatusBadge status={pedido.status} />}
       />
       <div className="px-8 pb-8">
-        <PedidoDetail pedido={pedido as any} />
+        <PedidoDetail pedido={pedido as any} itensComodato={itensComodato} movimentacoesComodato={movimentacoesComodato} />
       </div>
     </div>
   );

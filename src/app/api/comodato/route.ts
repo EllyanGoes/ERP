@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { clienteId, itemId, tipo, quantidade, valorUnitario, data, documento, observacoes } = parsed.data;
+  const { clienteId, itemId, tipo, quantidade, valorUnitario, data, documento, observacoes, pedidoVendaId } = parsed.data;
 
   let valor = valorUnitario;
   if (valor == null) {
@@ -41,7 +41,8 @@ export async function POST(req: NextRequest) {
       tipo,
       quantidade,
       valorUnitario: valor,
-      origem: "MANUAL",
+      origem: pedidoVendaId ? "AUTOMATICO" : "MANUAL",
+      pedidoVendaId: pedidoVendaId ?? null,
       data: data ? new Date(data) : new Date(),
       documento: documento ?? null,
       observacoes: observacoes ?? null,

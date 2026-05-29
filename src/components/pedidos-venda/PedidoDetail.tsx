@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
-import { Plus, Truck, Pencil } from "lucide-react";
+import { Plus, Truck, Pencil, Package, Trash2 } from "lucide-react";
 
 type MinutaItemSummary = { quantidade: string };
 
@@ -39,6 +39,20 @@ type MinutaDoPedido = {
   itens: { id: string; pedidoVendaItemId: string; quantidade: string; quantidadeConvertida: string | null; unidade: { id: string; sigla: string } | null }[];
 };
 
+type ItemComodato = { id: string; codigo: string; descricao: string; precoVenda: number };
+
+type MovComodato = {
+  id: string;
+  itemId: string;
+  tipo: "SAIDA" | "RETORNO";
+  quantidade: number;
+  valorUnitario: number;
+  data: string;
+  documento: string | null;
+  observacoes: string | null;
+  item: { id: string; codigo: string; descricao: string };
+};
+
 type PedidoDetailProps = {
   pedido: {
     id: string; numero: string; status: string;
@@ -50,6 +64,8 @@ type PedidoDetailProps = {
     contasReceber: { id: string }[];
     minutas?: MinutaDoPedido[];
   };
+  itensComodato: ItemComodato[];
+  movimentacoesComodato: MovComodato[];
 };
 
 const NEXT_STATUS: Record<string, { label: string; next: string; variant?: "default" | "destructive" | "outline" }[]> = {
@@ -85,14 +101,35 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 
-export default function PedidoDetail({ pedido }: PedidoDetailProps) {
+function fmtNum(n: number) {
+  return n.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+}
+
+function todayInput() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export default function PedidoDetail({ pedido, itensComodato, movimentacoesComodato }: PedidoDetailProps) {
   const router = useRouter();
   useTabTitle(pedido.numero);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"itens" | "minutas">("itens");
+  const [activeTab, setActiveTab] = useState<"itens" | "minutas" | "comodato">("itens");
+
+  // Comodato (saída) form state
+  const [comodatoItemId, setComodatoItemId] = useState("");
+  const [comodatoQtd, setComodatoQtd] = useState("");
+  const [comodatoValor, setComodatoValor] = useState("");
+  const [comodatoData, setComodatoData] = useState(todayInput());
+  const [comodatoDoc, setComodatoDoc] = useState("");
+  const [comodatoObs, setComodatoObs] = useState("");
 
   const actions = NEXT_STATUS[pedido.status] ?? [];
   const minutas = pedido.minutas ?? [];
+
+  // Comodato totals for this pedido (SAÍDA +, RETORNO −)
+  const comodatoTotalQtd = movimentacoesComodato.reduce((s, m) => s + (m.tipo === "SAIDA" ? 1 : -1) * m.quantidade, 0);
+  const comodatoTotalValor = movimentacoesComodato.reduce((s, m) => s + (m.tipo === "SAIDA" ? 1 : -1) * m.quantidade * m.valorUnitario, 0);
   // Editing allowed up to and including scheduling. Note: saving fails at the DB
   // if items are already linked to minutas (FK Restrict), which protects deliveries.
   const canEdit =
@@ -126,6 +163,48 @@ export default function PedidoDetail({ pedido }: PedidoDetailProps) {
           : new Date().toISOString().split("T")[0],
       }),
     });
+    setLoading(false);
+    router.refresh();
+  }
+
+  function onComodatoItemChange(id: string) {
+    setComodatoItemId(id);
+    const it = itensComodato.find((i) => i.id === id);
+    if (it) setComodatoValor(String(it.precoVenda));
+  }
+
+  async function lancarComodato() {
+    if (!comodatoItemId || !comodatoQtd) return;
+    setLoading(true);
+    await fetch("/api/comodato", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clienteId: pedido.cliente.id,
+        pedidoVendaId: pedido.id,
+        itemId: comodatoItemId,
+        tipo: "SAIDA",
+        quantidade: comodatoQtd,
+        valorUnitario: comodatoValor || undefined,
+        data: comodatoData,
+        documento: comodatoDoc || undefined,
+        observacoes: comodatoObs || undefined,
+      }),
+    });
+    setComodatoItemId("");
+    setComodatoQtd("");
+    setComodatoValor("");
+    setComodatoData(todayInput());
+    setComodatoDoc("");
+    setComodatoObs("");
+    setLoading(false);
+    router.refresh();
+  }
+
+  async function removerComodato(id: string) {
+    if (!confirm("Remover este lançamento de comodato?")) return;
+    setLoading(true);
+    await fetch(`/api/comodato/${id}`, { method: "DELETE" });
     setLoading(false);
     router.refresh();
   }
@@ -196,7 +275,7 @@ export default function PedidoDetail({ pedido }: PedidoDetailProps) {
         </Card>
       </div>
 
-      {/* Tabs: Itens | Minutas */}
+      {/* Tabs: Itens | Minutas | Comodato */}
       <div>
         <div className="flex items-center border-b border-gray-200 mb-0">
           <button
@@ -221,6 +300,18 @@ export default function PedidoDetail({ pedido }: PedidoDetailProps) {
           >
             <Truck className="w-3.5 h-3.5" />
             Minutas {minutas.length > 0 && `(${minutas.length})`}
+          </button>
+          <button
+            onClick={() => setActiveTab("comodato")}
+            className={cn(
+              "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5",
+              activeTab === "comodato"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            )}
+          >
+            <Package className="w-3.5 h-3.5" />
+            Comodato {movimentacoesComodato.length > 0 && `(${movimentacoesComodato.length})`}
           </button>
         </div>
 
@@ -361,6 +452,142 @@ export default function PedidoDetail({ pedido }: PedidoDetailProps) {
                     </tbody>
                   </table>
                 </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* COMODATO TAB */}
+        {activeTab === "comodato" && (
+          <Card style={{ borderTopLeftRadius: 0 }}>
+            <CardContent className="pt-4 space-y-5">
+              {/* Formulário de saída */}
+              <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 space-y-4">
+                <p className="text-sm font-medium text-gray-700">Registrar saída de comodato (cliente levando)</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Vasilhame</label>
+                    <select
+                      value={comodatoItemId}
+                      onChange={(e) => onComodatoItemChange(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">Selecione...</option>
+                      {itensComodato.map((i) => (
+                        <option key={i.id} value={i.id}>{i.codigo} — {i.descricao}</option>
+                      ))}
+                    </select>
+                    {itensComodato.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        Nenhum item marcado como comodato. Marque a opção &quot;Comodato&quot; no cadastro do item.
+                      </p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Qtd</label>
+                      <input
+                        type="number" step="0.001" min="0"
+                        value={comodatoQtd}
+                        onChange={(e) => setComodatoQtd(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Valor un. (R$)</label>
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={comodatoValor}
+                        onChange={(e) => setComodatoValor(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Data</label>
+                      <input
+                        type="date"
+                        value={comodatoData}
+                        onChange={(e) => setComodatoData(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Documento (opcional)</label>
+                    <input
+                      type="text"
+                      value={comodatoDoc}
+                      onChange={(e) => setComodatoDoc(e.target.value)}
+                      placeholder="Ex: nota, romaneio..."
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Observações (opcional)</label>
+                    <input
+                      type="text"
+                      value={comodatoObs}
+                      onChange={(e) => setComodatoObs(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button size="sm" onClick={lancarComodato} disabled={loading || !comodatoItemId || !comodatoQtd} className="gap-1.5 font-semibold">
+                    <Plus className="w-4 h-4" />
+                    Lançar saída
+                  </Button>
+                </div>
+              </div>
+
+              {/* Lançamentos deste pedido */}
+              {movimentacoesComodato.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">Nenhum comodato lançado para este pedido.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-xs text-gray-400 uppercase">
+                      <th className="text-left pb-2">Data</th>
+                      <th className="text-left pb-2">Vasilhame</th>
+                      <th className="text-right pb-2">Qtd</th>
+                      <th className="text-right pb-2">Valor Un.</th>
+                      <th className="text-right pb-2">Total</th>
+                      <th className="pb-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {movimentacoesComodato.map((m) => (
+                      <tr key={m.id} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-2.5 text-gray-600">{fmtDate(m.data)}</td>
+                        <td className="py-2.5">{m.item.codigo} — {m.item.descricao}</td>
+                        <td className="py-2.5 text-right tabular-nums">{fmtNum(m.quantidade)}</td>
+                        <td className="py-2.5 text-right">{formatBRL(m.valorUnitario)}</td>
+                        <td className="py-2.5 text-right font-medium">{formatBRL(m.quantidade * m.valorUnitario)}</td>
+                        <td className="py-2.5 text-right">
+                          <Button
+                            variant="ghost" size="icon"
+                            onClick={() => removerComodato(m.id)}
+                            disabled={loading}
+                            className="h-7 w-7 text-gray-400 hover:text-red-600"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-gray-200 font-semibold">
+                      <td className="py-2.5" colSpan={2}>Total</td>
+                      <td className="py-2.5 text-right tabular-nums">{fmtNum(comodatoTotalQtd)}</td>
+                      <td></td>
+                      <td className="py-2.5 text-right">{formatBRL(comodatoTotalValor)}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
               )}
             </CardContent>
           </Card>
