@@ -142,6 +142,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (body.dataEntrega  !== undefined) updateData.dataEntrega  = body.dataEntrega  ? new Date(body.dataEntrega) : null;
     if (body.localEstoqueId !== undefined) updateData.localEstoqueId = body.localEstoqueId || null;
     if (body.observacoes  !== undefined) updateData.observacoes  = body.observacoes  || null;
+    if (body.tipo === "ENTREGA" || body.tipo === "RETIRADA") updateData.tipo = body.tipo;
     if (newStatus)                        updateData.status       = newStatus;
 
     // ── SAIU_PARA_ENTREGA → gera SAÍDA no estoque ─────────────────────────────

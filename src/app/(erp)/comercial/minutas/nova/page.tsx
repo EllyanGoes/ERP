@@ -98,6 +98,7 @@ export default function NovaMinutaPage() {
   const [motoristas, setMotoristas] = useState<Motorista[]>([]);
 
   // Form fields
+  const [tipo, setTipo] = useState<"ENTREGA" | "RETIRADA">("ENTREGA");
   const [localEstoqueId, setLocalEstoqueId] = useState("");
   const [motoristaId, setMotoristaId] = useState("");
   const [dataEntrega, setDataEntrega] = useState(() => {
@@ -256,6 +257,7 @@ export default function NovaMinutaPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pedidoVendaId,
+          tipo,
           localEstoqueId: localEstoqueId || null,
           motoristaId:    motoristaId || null,
           dataEntrega:    dataEntrega || null,
@@ -320,7 +322,7 @@ export default function NovaMinutaPage() {
           {pedido && (
             <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-200 bg-gray-100">
-                <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Itens a Entregar</h2>
+                <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Itens a {tipo === "RETIRADA" ? "Retirar" : "Entregar"}</h2>
               </div>
               {loading ? (
                 <div className="p-8 text-center text-gray-400 text-sm">Carregando itens...</div>
@@ -334,7 +336,7 @@ export default function NovaMinutaPage() {
                     <tr className="bg-gray-50 border-b border-gray-200">
                       <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500">Produto</th>
                       <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-32">Saldo</th>
-                      <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-40">Qtd. Entrega</th>
+                      <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-40">Qtd. {tipo === "RETIRADA" ? "Retirada" : "Entrega"}</th>
                       <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500 w-32">Unidade</th>
                     </tr>
                   </thead>
@@ -403,6 +405,18 @@ export default function NovaMinutaPage() {
             </div>
             <div className="p-5 space-y-4">
               <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Tipo</label>
+                <Select value={tipo} onValueChange={(v) => setTipo(v as "ENTREGA" | "RETIRADA")}>
+                  <SelectTrigger className="h-10 border-gray-300">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ENTREGA">Entrega</SelectItem>
+                    <SelectItem value="RETIRADA">Retirada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Local de Estoque</label>
                 {(() => {
                   const itemIds = new Set(rows.map(r => r.itemId));
@@ -426,7 +440,7 @@ export default function NovaMinutaPage() {
                 })()}
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Data de Entrega</label>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Data de {tipo === "RETIRADA" ? "Retirada" : "Entrega"}</label>
                 <Input
                   type="date"
                   value={dataEntrega}
@@ -471,7 +485,7 @@ export default function NovaMinutaPage() {
                 value={observacoes}
                 onChange={e => setObservacoes(e.target.value)}
                 rows={4}
-                placeholder="Observações sobre a entrega..."
+                placeholder={`Observações sobre a ${tipo === "RETIRADA" ? "retirada" : "entrega"}...`}
                 className="resize-none border-gray-300"
               />
             </div>

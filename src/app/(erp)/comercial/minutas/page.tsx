@@ -13,6 +13,7 @@ import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 import { useTabTitle } from "@/lib/tabs-context";
+import { statusMinutaLabel, TIPO_MINUTA_LABEL, type TipoMinuta } from "@/lib/minuta-labels";
 import {
   Plus, Search, X, LayoutList, Kanban, Loader2,
   ChevronDown as ChevronDownIcon, CalendarDays, Download, Check, Truck,
@@ -22,6 +23,7 @@ import {
 type Minuta = {
   id: string;
   numero: string;
+  tipo: TipoMinuta;
   status: "PENDENTE" | "SAIU_PARA_ENTREGA" | "ENTREGUE" | "CANCELADA";
   dataEmissao: string;
   dataEntrega: string | null;
@@ -127,11 +129,18 @@ const COLS: ColDef<Minuta>[] = [
     ),
   },
   {
+    id: "tipo",
+    label: "Tipo",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3 text-gray-600 text-sm",
+    render: (m) => TIPO_MINUTA_LABEL[m.tipo] ?? "Entrega",
+  },
+  {
     id: "status",
     label: "Status",
     thClass: "text-left px-4 py-3 font-medium text-gray-600",
     tdClass: "px-4 py-3",
-    render: (m) => <StatusBadge status={m.status} />,
+    render: (m) => <StatusBadge status={m.status} label={statusMinutaLabel(m.status, m.tipo)} />,
   },
   {
     id: "dataEmissao",
@@ -345,6 +354,9 @@ function MinutaKanbanCard({
       <p className="text-xs text-gray-700 font-medium mb-2 leading-snug line-clamp-2">
         {cliente.nomeFantasia || cliente.razaoSocial}
       </p>
+      <span className="inline-block text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 mb-2">
+        {TIPO_MINUTA_LABEL[m.tipo] ?? "Entrega"}
+      </span>
       {(m.motorista || m.placa) && (
         <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
           <Truck className="w-3 h-3 shrink-0" />
@@ -482,7 +494,7 @@ export default function MinutasPage() {
 
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text("Minutas de Entrega", 14, 16);
+    doc.text("Minutas", 14, 16);
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(120);
@@ -493,21 +505,15 @@ export default function MinutasPage() {
     doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}  |  ${filtered.length} minuta(s)`, 14, 27);
     doc.setTextColor(0);
 
-    const STATUS_LABEL: Record<string, string> = {
-      PENDENTE:          "Pendente",
-      SAIU_PARA_ENTREGA: "Saiu p/ Entrega",
-      ENTREGUE:          "Entregue",
-      CANCELADA:         "Cancelada",
-    };
-
     autoTable(doc, {
       startY: 32,
-      head: [["Minuta", "Pedido", "Cliente", "Status", "Emissão", "Prev. Entrega", "Motorista / Placa", "Itens"]],
+      head: [["Minuta", "Pedido", "Cliente", "Tipo", "Status", "Emissão", "Prev. Entrega", "Motorista / Placa", "Itens"]],
       body: filtered.map((m) => [
         m.numero,
         m.pedidoVenda.numero,
         m.pedidoVenda.cliente.nomeFantasia || m.pedidoVenda.cliente.razaoSocial,
-        STATUS_LABEL[m.status] ?? m.status,
+        TIPO_MINUTA_LABEL[m.tipo] ?? "Entrega",
+        statusMinutaLabel(m.status, m.tipo),
         formatDate(m.dataEmissao),
         m.dataEntrega ? formatDate(m.dataEntrega) : "—",
         m.motorista ? `${m.motorista.nome}${m.placa ? ` · ${m.placa}` : ""}` : "—",
@@ -517,14 +523,15 @@ export default function MinutasPage() {
       headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: "bold" },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
-        0: { cellWidth: 24, fontStyle: "bold" },
-        1: { cellWidth: 24 },
-        2: { cellWidth: 55 },
-        3: { cellWidth: 28 },
-        4: { cellWidth: 22 },
+        0: { cellWidth: 22, fontStyle: "bold" },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 18 },
+        4: { cellWidth: 26 },
         5: { cellWidth: 22 },
-        6: { cellWidth: 45 },
-        7: { cellWidth: 12, halign: "center" },
+        6: { cellWidth: 22 },
+        7: { cellWidth: 42 },
+        8: { cellWidth: 12, halign: "center" },
       },
       margin: { left: 14, right: 14 },
     });

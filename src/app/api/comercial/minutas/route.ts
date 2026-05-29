@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    const { pedidoVendaId, localEstoqueId, motoristaId, dataEntrega, placa, observacoes, itens } = body;
+    const { pedidoVendaId, localEstoqueId, motoristaId, tipo, dataEntrega, placa, observacoes, itens } = body;
 
     if (!pedidoVendaId) {
       return NextResponse.json({ error: "pedidoVendaId é obrigatório" }, { status: 400 });
@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
           pedidoVendaId,
           localEstoqueId: localEstoqueId || null,
           motoristaId: motoristaId || null,
+          tipo: tipo === "RETIRADA" ? "RETIRADA" : "ENTREGA",
           status: "PENDENTE",
           dataEntrega: dataEntrega ? new Date(dataEntrega) : null,
           placa: placa || null,

@@ -43,11 +43,11 @@ const configs: Record<string, { label: string; className: string }> = {
   PROSPECTO: { label: "Prospecto", className: "bg-sky-100 text-sky-700" },
 };
 
-export default function StatusBadge({ status }: { status: string }) {
+export default function StatusBadge({ status, label }: { status: string; label?: string }) {
   const cfg = configs[status] ?? { label: status, className: "bg-gray-100 text-gray-600" };
   return (
     <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium", cfg.className)}>
-      {cfg.label}
+      {label ?? cfg.label}
     </span>
   );
 }

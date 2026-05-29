@@ -871,6 +871,7 @@ model Minuta {
   pedidoVendaId  String
   localEstoqueId String?
   motoristaId    String?
+  tipo           TipoMinuta   @default(ENTREGA)
   status         StatusMinuta @default(PENDENTE)
   dataEmissao    DateTime     @default(now())
   dataEntrega    DateTime?
@@ -1080,6 +1081,11 @@ enum StatusPedidoCompra {
   RASCUNHO
   ENVIADO
   RECEBIDO
+}
+
+enum TipoMinuta {
+  ENTREGA
+  RETIRADA
 }
 
 enum StatusMinuta {

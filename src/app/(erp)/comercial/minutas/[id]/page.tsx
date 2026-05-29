@@ -5,9 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { CheckCircle2, XCircle, ArrowRight, AlertCircle } from "lucide-react";
 import { useTabTitle } from "@/lib/tabs-context";
+import { statusMinutaLabel, confirmacaoMinutaLabel, TIPO_MINUTA_LABEL, type TipoMinuta } from "@/lib/minuta-labels";
 import { cn } from "@/lib/utils";
 
 type StatusMinuta = "PENDENTE" | "SAIU_PARA_ENTREGA" | "ENTREGUE" | "CANCELADA";
@@ -28,6 +28,7 @@ type LocalEstoque = { id: string; nome: string };
 type Minuta = {
   id: string;
   numero: string;
+  tipo: TipoMinuta;
   status: StatusMinuta;
   dataEmissao: string;
   dataEntrega: string | null;
@@ -41,13 +42,6 @@ type Minuta = {
   };
   localEstoque: LocalEstoque | null;
   itens: MinutaItem[];
-};
-
-const STATUS_LABEL: Record<StatusMinuta, string> = {
-  PENDENTE:          "Pendente",
-  SAIU_PARA_ENTREGA: "Saiu p/ Entrega",
-  ENTREGUE:          "Entregue",
-  CANCELADA:         "Cancelada",
 };
 
 const STATUS_COLOR: Record<StatusMinuta, string> = {
@@ -140,9 +134,14 @@ export default function MinutaDetailPage() {
           { label: minuta.numero },
         ]}
         action={
-          <span className={cn("inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold", STATUS_COLOR[minuta.status])}>
-            {STATUS_LABEL[minuta.status]}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+              {TIPO_MINUTA_LABEL[minuta.tipo] ?? "Entrega"}
+            </span>
+            <span className={cn("inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold", STATUS_COLOR[minuta.status])}>
+              {statusMinutaLabel(minuta.status, minuta.tipo)}
+            </span>
+          </div>
         }
       />
 
@@ -184,7 +183,7 @@ export default function MinutaDetailPage() {
               className="gap-2 font-semibold bg-emerald-600 hover:bg-emerald-700"
             >
               <CheckCircle2 className="w-4 h-4" />
-              Confirmar Entrega
+              {confirmacaoMinutaLabel(minuta.tipo)}
             </Button>
           )}
         </div>
@@ -276,7 +275,7 @@ export default function MinutaDetailPage() {
                 <div className="text-gray-800">{fmtDate(minuta.dataEmissao)}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Data de Entrega</div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Data de {minuta.tipo === "RETIRADA" ? "Retirada" : "Entrega"}</div>
                 <div className="text-gray-800">{fmtDate(minuta.dataEntrega)}</div>
               </div>
               <div>
