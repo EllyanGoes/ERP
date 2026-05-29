@@ -225,30 +225,42 @@ export default function MinutaDetailPage() {
       ) : !isFinal && (
         <div className="flex items-center gap-3 flex-wrap">
           {minuta.status === "PENDENTE" && (
+            <Button
+              onClick={() => {
+                if (!minuta.localEstoque) {
+                  setShowSaidaModal(true);
+                } else {
+                  changeStatus("SAIU_PARA_ENTREGA");
+                }
+              }}
+              disabled={transitioning}
+              className="gap-2 font-semibold bg-blue-600 hover:bg-blue-700"
+            >
+              <ArrowRight className="w-4 h-4" />
+              Registrar Saída
+            </Button>
+          )}
+          {minuta.status === "SAIU_PARA_ENTREGA" && (
+            <Button
+              onClick={() => changeStatus("ENTREGUE")}
+              disabled={transitioning}
+              className="gap-2 font-semibold bg-emerald-600 hover:bg-emerald-700"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              {confirmacaoMinutaLabel(minuta.tipo)}
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            onClick={startEditing}
+            disabled={transitioning}
+            className="gap-2 border-gray-300 text-gray-700"
+          >
+            <Pencil className="w-4 h-4" />
+            Editar
+          </Button>
+          {minuta.status === "PENDENTE" && (
             <>
-              <Button
-                onClick={() => {
-                  if (!minuta.localEstoque) {
-                    setShowSaidaModal(true);
-                  } else {
-                    changeStatus("SAIU_PARA_ENTREGA");
-                  }
-                }}
-                disabled={transitioning}
-                className="gap-2 font-semibold bg-blue-600 hover:bg-blue-700"
-              >
-                <ArrowRight className="w-4 h-4" />
-                Registrar Saída
-              </Button>
-              <Button
-                variant="outline"
-                onClick={startEditing}
-                disabled={transitioning}
-                className="gap-2 border-gray-300 text-gray-700"
-              >
-                <Pencil className="w-4 h-4" />
-                Editar
-              </Button>
               <span className="w-px h-6 bg-gray-200" />
               <Button
                 variant="ghost"
@@ -260,16 +272,6 @@ export default function MinutaDetailPage() {
                 Cancelar Minuta
               </Button>
             </>
-          )}
-          {minuta.status === "SAIU_PARA_ENTREGA" && (
-            <Button
-              onClick={() => changeStatus("ENTREGUE")}
-              disabled={transitioning}
-              className="gap-2 font-semibold bg-emerald-600 hover:bg-emerald-700"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              {confirmacaoMinutaLabel(minuta.tipo)}
-            </Button>
           )}
         </div>
       )}
@@ -359,16 +361,23 @@ export default function MinutaDetailPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Local de Estoque</label>
-                  <Select value={eLocalEstoqueId} onValueChange={setELocalEstoqueId}>
-                    <SelectTrigger className="h-10 border-gray-300"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                    <SelectContent>
-                      {locais.length === 0 ? (
-                        <div className="px-3 py-2 text-xs text-gray-400 italic">Nenhum local cadastrado</div>
-                      ) : locais.map(l => (
-                        <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {minuta.status === "PENDENTE" ? (
+                    <Select value={eLocalEstoqueId} onValueChange={setELocalEstoqueId}>
+                      <SelectTrigger className="h-10 border-gray-300"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        {locais.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-gray-400 italic">Nenhum local cadastrado</div>
+                        ) : locais.map(l => (
+                          <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="text-gray-800 pt-2">
+                      {minuta.localEstoque?.nome ?? "—"}
+                      <span className="ml-1 text-xs text-gray-400">(estoque já baixado)</span>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Data de Emissão</div>

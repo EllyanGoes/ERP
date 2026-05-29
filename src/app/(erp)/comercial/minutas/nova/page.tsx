@@ -229,6 +229,7 @@ export default function NovaMinutaPage() {
     if (!pedidoVendaId) { setError("Selecione um pedido de venda"); return; }
     const validRows = rows.filter(r => parseFloat(r.quantidade || "0") > 0);
     if (validRows.length === 0) { setError("Informe ao menos um item com quantidade"); return; }
+    if (!localEstoqueId) { setError("Selecione o Local de Estoque (a saída do estoque é registrada ao criar a minuta)"); return; }
 
     setSaving(true); setError("");
     try {
@@ -451,7 +452,7 @@ export default function NovaMinutaPage() {
                 </Select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Local de Estoque</label>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Local de Estoque <span className="text-red-500">*</span></label>
                 {(() => {
                   const itemIds = new Set(rows.map(r => r.itemId));
                   const locaisFiltrados = pedido && itemIds.size > 0
@@ -539,7 +540,7 @@ export default function NovaMinutaPage() {
 
       {/* Actions */}
       <div className="flex gap-3">
-        <Button onClick={handleSave} disabled={saving || !pedidoVendaId} className="font-semibold">
+        <Button onClick={handleSave} disabled={saving || !pedidoVendaId || !localEstoqueId} className="font-semibold">
           {saving ? "Criando..." : "Criar Minuta"}
         </Button>
         <Button variant="outline" onClick={() => router.back()} className="border-gray-300 text-gray-600">
