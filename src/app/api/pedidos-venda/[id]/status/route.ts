@@ -30,9 +30,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   // Nota: movimentações de estoque são geradas pelas Minutas (SAIU_PARA_ENTREGA),
   // não mais pelo status do pedido. Aqui apenas atualizamos o status.
+  // Ao CONCLUIR, carimba a data de conclusão (se ainda não informada). Usa o dia
+  // em horário de Brasília, gravado como meia-noite UTC (padrão dos campos de data).
+  const updateData: { status: typeof parsed.data.status; dataEntrega?: Date } = { status: parsed.data.status };
+  if (parsed.data.status === "CONCLUIDO" && !pedido.dataEntrega) {
+    const hojeSP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    updateData.dataEntrega = new Date(`${hojeSP}T00:00:00.000Z`);
+  }
+
   const updated = await prisma.pedidoVenda.update({
     where: { id: params.id },
-    data: { status: parsed.data.status },
+    data: updateData,
   });
 
   return NextResponse.json({ data: updated });

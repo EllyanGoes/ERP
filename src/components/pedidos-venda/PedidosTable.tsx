@@ -43,7 +43,7 @@ export default function PedidosTable({ pedidos }: { pedidos: PedidoRow[] }) {
     },
     {
       accessorKey: "dataEntrega",
-      header: "Entrega",
+      header: "Conclusão",
       cell: ({ row }) => <span className="text-sm text-gray-500">{row.original.dataEntrega ? formatDate(row.original.dataEntrega) : "—"}</span>,
     },
     {

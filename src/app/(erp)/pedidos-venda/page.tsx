@@ -130,7 +130,7 @@ const COLS: ColDef<PedidoRow>[] = [
   },
   {
     id: "dataEntrega",
-    label: "Prev. Entrega",
+    label: "Conclusão",
     thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell",
     tdClass: "px-4 py-3 text-gray-500 text-sm hidden lg:table-cell",
     render: (p) => p.dataEntrega ? formatDate(p.dataEntrega) : "—",
@@ -524,7 +524,7 @@ export default function PedidosVendaPage() {
 
     autoTable(doc, {
       startY: 32,
-      head: [["Número", "Cliente", "Status", "Emissão", "Prev. Entrega", "Cond. Pagamento", "Total"]],
+      head: [["Número", "Cliente", "Status", "Emissão", "Conclusão", "Cond. Pagamento", "Total"]],
       body: filtered.map((p) => [
         p.numero,
         p.cliente.nomeFantasia || p.cliente.razaoSocial,

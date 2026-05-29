@@ -2,11 +2,12 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import PedidoForm from "@/components/pedidos-venda/PedidoForm";
+import { decimalToNumber } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function EditarPedidoPage({ params }: { params: { id: string } }) {
-  const [pedido, clientes, itens] = await Promise.all([
+  const [pedido, clientes, itens, itensComodatoRaw, movimentacoesComodato] = await Promise.all([
     prisma.pedidoVenda.findUnique({
       where: { id: params.id },
       include: {
@@ -43,9 +44,34 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
         },
       },
     }),
+    prisma.item.findMany({
+      where: { comodato: true, ativo: true },
+      orderBy: { descricao: "asc" },
+      select: { id: true, codigo: true, descricao: true, precoVenda: true },
+    }),
+    prisma.movimentacaoComodato.findMany({
+      where: { pedidoVendaId: params.id },
+      orderBy: { data: "asc" },
+      select: { id: true, itemId: true, quantidade: true, valorUnitario: true, documento: true },
+    }),
   ]);
 
   if (!pedido) notFound();
+
+  const itensComodato = itensComodatoRaw.map((i) => ({
+    id: i.id,
+    codigo: i.codigo,
+    descricao: i.descricao,
+    precoVenda: decimalToNumber(i.precoVenda),
+  }));
+
+  const comodatoInicial = movimentacoesComodato.map((m) => ({
+    id: m.id,
+    itemId: m.itemId,
+    quantidade: decimalToNumber(m.quantidade),
+    valorUnitario: decimalToNumber(m.valorUnitario),
+    documento: m.documento,
+  }));
 
   const pedidoInicial = {
     id: pedido.id,
@@ -85,7 +111,7 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
         ]}
       />
       <div className="px-8 pb-8">
-        <PedidoForm clientes={clientes as any} itens={itens as any} pedido={pedidoInicial as any} />
+        <PedidoForm clientes={clientes as any} itens={itens as any} pedido={pedidoInicial as any} itensComodato={itensComodato} comodatoInicial={comodatoInicial} />
       </div>
     </div>
   );

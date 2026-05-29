@@ -61,6 +61,20 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const valorProdutos = itens.reduce((sum, i) => sum + i.valorTotal, 0);
   const valorTotal = valorProdutos - (pedidoData.valorDesconto ?? 0) + (pedidoData.valorFrete ?? 0);
 
+  // Comodato (saída) editado como rascunho: linhas com `id` já existem (update),
+  // sem `id` são novas (create), e as que sumiram são removidas. Lido do corpo
+  // bruto porque o schema do pedido descarta chaves desconhecidas.
+  const comodatoRaw: any[] = Array.isArray(body.comodato) ? body.comodato : [];
+  const comodato = comodatoRaw
+    .filter((c) => c && typeof c.itemId === "string" && c.itemId && Number(c.quantidade) > 0)
+    .map((c) => ({
+      id:            typeof c.id === "string" && c.id ? c.id : null,
+      itemId:        c.itemId as string,
+      quantidade:    Number(c.quantidade),
+      valorUnitario: c.valorUnitario != null ? Number(c.valorUnitario) : null,
+      documento:     typeof c.documento === "string" && c.documento.trim() ? c.documento.trim() : null,
+    }));
+
   // Existing items + how much of each is already committed to a non-cancelled
   // minuta (delivery note). Rows with minutas must NOT be deleted (FK Restrict)
   // nor reduced below what was already minutado — that protects deliveries.
@@ -153,8 +167,54 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         }
       }
 
-      // A edição não mexe no comodato, mas ele entra no total. Recalcula a partir
-      // dos itens já reconciliados + comodato existente, para não zerar a saída.
+      // Reconcilia o comodato (rascunho) deste pedido: atualiza as linhas que
+      // continuaram, cria as novas e remove as que saíram. Só mexe nas
+      // movimentações amarradas a este pedido.
+      const existingComodato = await tx.movimentacaoComodato.findMany({
+        where: { pedidoVendaId: params.id },
+        select: { id: true },
+      });
+      const existingComodatoIds = new Set(existingComodato.map((m) => m.id));
+      const incomingComodatoIds = new Set(comodato.filter((c) => c.id).map((c) => c.id as string));
+      const dataMovEdit = pedidoData.dataEmissao ? new Date(pedidoData.dataEmissao) : new Date();
+
+      // valorUnitario obrigatório: quando não informado, usa o preço de venda do item.
+      const semValor = comodato.filter((c) => c.valorUnitario == null).map((c) => c.itemId);
+      const precos = semValor.length
+        ? await tx.item.findMany({ where: { id: { in: semValor } }, select: { id: true, precoVenda: true } })
+        : [];
+      const precoMap = new Map(precos.map((p) => [p.id, Number(p.precoVenda)]));
+
+      const comodatoParaRemover = existingComodato.filter((m) => !incomingComodatoIds.has(m.id)).map((m) => m.id);
+      if (comodatoParaRemover.length > 0) {
+        await tx.movimentacaoComodato.deleteMany({ where: { id: { in: comodatoParaRemover } } });
+      }
+      for (const c of comodato) {
+        const valor = c.valorUnitario ?? precoMap.get(c.itemId) ?? 0;
+        if (c.id && existingComodatoIds.has(c.id)) {
+          await tx.movimentacaoComodato.update({
+            where: { id: c.id },
+            data: { itemId: c.itemId, quantidade: c.quantidade, valorUnitario: valor, documento: c.documento },
+          });
+        } else {
+          await tx.movimentacaoComodato.create({
+            data: {
+              clienteId:     pedidoData.clienteId,
+              itemId:        c.itemId,
+              tipo:          "SAIDA" as const,
+              quantidade:    c.quantidade,
+              valorUnitario: valor,
+              origem:        "AUTOMATICO" as const,
+              pedidoVendaId: params.id,
+              data:          dataMovEdit,
+              documento:     c.documento,
+            },
+          });
+        }
+      }
+
+      // O comodato entra no total. Recalcula a partir dos itens já reconciliados
+      // + comodato atualizado.
       await recalcPedidoValorTotal(tx, params.id);
 
       return tx.pedidoVenda.findUnique({

@@ -29,8 +29,12 @@ type TabelaOption     = {
 type CondicaoOption   = { id: string; nome: string };
 type ItemComodatoOption = { id: string; codigo: string; descricao: string; precoVenda: number };
 
+// Comodato já lançado (modo edição) — vem do banco para pré-preencher o rascunho.
+type ComodatoInicial = { id: string; itemId: string; quantidade: unknown; valorUnitario: unknown; documento: string | null };
+
 type ComodatoLine = {
   _key: string;
+  id?: string;          // id da movimentação existente (edição); vazio = nova linha
   itemId: string;
   quantidade: string;
   valorUnitario: string;
@@ -75,7 +79,20 @@ function emptyLine(): LineItem {
 }
 
 function emptyComodatoLine(): ComodatoLine {
-  return { _key: crypto.randomUUID(), itemId: "", quantidade: "1", valorUnitario: "0", documento: "" };
+  return { _key: crypto.randomUUID(), id: "", itemId: "", quantidade: "1", valorUnitario: "0", documento: "" };
+}
+
+// Pré-preenche o rascunho de comodato a partir das movimentações já gravadas (edição).
+function buildInitialComodato(movs?: ComodatoInicial[]): ComodatoLine[] {
+  if (!movs || movs.length === 0) return [];
+  return movs.map((m) => ({
+    _key: crypto.randomUUID(),
+    id: m.id,
+    itemId: m.itemId,
+    quantidade: decimalToNumber(m.quantidade).toString(),
+    valorUnitario: decimalToNumber(m.valorUnitario).toFixed(2),
+    documento: m.documento ?? "",
+  }));
 }
 
 // ── Edit mode ────────────────────────────────────────────────────────────────
@@ -148,11 +165,13 @@ export default function PedidoForm({
   clientes,
   itens: catalogItens,
   itensComodato = [],
+  comodatoInicial = [],
   pedido,
 }: {
   clientes:      ClienteOption[];
   itens:         ItemOption[];
   itensComodato?: ItemComodatoOption[];
+  comodatoInicial?: ComodatoInicial[];
   pedido?:       PedidoInicial;
 }) {
   const router = useRouter();
@@ -195,11 +214,11 @@ export default function PedidoForm({
   // Line items
   const [linhas, setLinhas] = useState<LineItem[]>(() => buildInitialLinhas(pedido));
 
-  // Tabs (Itens | Comodato) — comodato só no cadastro de novo pedido
+  // Tabs (Itens | Comodato) — disponível no novo pedido e na edição
   const [activeTab, setActiveTab] = useState<"itens" | "comodato">("itens");
 
-  // Comodato (saída) — linhas a lançar junto com o pedido
-  const [comodatoLinhas, setComodatoLinhas] = useState<ComodatoLine[]>([]);
+  // Comodato (saída) — linhas a lançar/editar junto com o pedido
+  const [comodatoLinhas, setComodatoLinhas] = useState<ComodatoLine[]>(() => buildInitialComodato(comodatoInicial));
 
   // Cliente search
   const [clienteSearch,   setClienteSearch]   = useState("");
@@ -555,6 +574,7 @@ export default function PedidoForm({
       comodato: comodatoLinhas
         .filter((l) => l.itemId && (parseFloat(l.quantidade) || 0) > 0)
         .map((l) => ({
+          id:            l.id || undefined,
           itemId:        l.itemId,
           quantidade:    parseFloat(l.quantidade) || 0,
           valorUnitario: parseFloat(l.valorUnitario) || 0,
@@ -709,7 +729,7 @@ export default function PedidoForm({
 
             {/* Previsão de Entrega */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Previsão de Entrega</Label>
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data de Conclusão do Pedido</Label>
               <Input type="date" value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} className="h-10 border-gray-300" />
             </div>
           </div>
@@ -779,9 +799,8 @@ export default function PedidoForm({
       </div>
       </div>{/* end max-w-5xl */}
 
-      {/* ── Abas: Itens | Comodato (comodato só no cadastro de novo pedido) ─ */}
-      {!isEdit && (
-        <div className="flex items-center border-b border-gray-200">
+      {/* ── Abas: Itens | Comodato ─────────────────────────────────────── */}
+      <div className="flex items-center border-b border-gray-200">
           <button
             type="button"
             onClick={() => setActiveTab("itens")}
@@ -807,11 +826,10 @@ export default function PedidoForm({
             <Package className="w-3.5 h-3.5" />
             Comodato{comodatoLinhas.length > 0 ? ` (${comodatoLinhas.length})` : ""}
           </button>
-        </div>
-      )}
+      </div>
 
       {/* ── Itens do Pedido — full width ────────────────────────────────── */}
-      {(isEdit || activeTab === "itens") && (
+      {activeTab === "itens" && (
       <div className="bg-white rounded-xl border border-gray-300 overflow-hidden shadow-sm">
         <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-100 flex items-center justify-between">
           <h2 className="font-bold text-sm text-gray-800 tracking-wide uppercase">Itens do Pedido</h2>
@@ -1021,8 +1039,8 @@ export default function PedidoForm({
       </div>
       )}
 
-      {/* ── Comodato (saída) — só no cadastro de novo pedido ────────────── */}
-      {!isEdit && activeTab === "comodato" && (
+      {/* ── Comodato (saída) ───────────────────────────────────────────── */}
+      {activeTab === "comodato" && (
       <div className="bg-white rounded-xl border border-gray-300 overflow-hidden shadow-sm">
         <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-100 flex items-center justify-between">
           <div>
