@@ -13,6 +13,11 @@ export interface ComboboxOption {
   code?: string;
   /** Optional: stock balance shown in blue */
   saldo?: number | null;
+  /**
+   * Optional: fully custom rendering of the option content, used both in the
+   * dropdown list and in the trigger. `label` is still used for search matching.
+   */
+  render?: () => React.ReactNode;
 }
 
 export interface CreateModalArgs {
@@ -185,9 +190,11 @@ export default function ComboboxWithCreate({
       >
         <span className={cn("truncate flex items-baseline gap-1.5", !selected && "text-muted-foreground")}>
           {selected
-            ? selected.code
-              ? <><span className="font-bold text-gray-900">[{selected.code}]</span><span>{selected.label.replace(`[${selected.code}] `, "")}</span></>
-              : selected.label
+            ? selected.render
+              ? selected.render()
+              : selected.code
+                ? <><span className="font-bold text-gray-900">[{selected.code}]</span><span>{selected.label.replace(`[${selected.code}] `, "")}</span></>
+                : selected.label
             : placeholder}
         </span>
         <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", open && "rotate-180")} />
@@ -270,9 +277,11 @@ export default function ComboboxWithCreate({
                         : "hover:bg-gray-50"
                     )}
                   >
-                    {/* Label — with optional bold code + blue saldo */}
+                    {/* Label — custom render, or bold code + blue saldo */}
                     <span className="flex-1 min-w-0">
-                      {opt.code ? (
+                      {opt.render ? (
+                        opt.render()
+                      ) : opt.code ? (
                         <span className="flex items-baseline gap-1.5">
                           <span className="font-bold text-gray-900 shrink-0">[{opt.code}]</span>
                           <span className="truncate">{opt.label.replace(`[${opt.code}] `, "")}</span>

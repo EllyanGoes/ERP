@@ -6,8 +6,8 @@ export type TipoMinuta = "ENTREGA" | "RETIRADA";
 export type StatusMinuta = "PENDENTE" | "SAIU_PARA_ENTREGA" | "ENTREGUE" | "CANCELADA";
 
 export const TIPO_MINUTA_LABEL: Record<TipoMinuta, string> = {
-  ENTREGA: "Entrega",
-  RETIRADA: "Retirada",
+  ENTREGA: "CIF - Entrega",
+  RETIRADA: "FOB - Retirada",
 };
 
 const STATUS_LABEL_ENTREGA: Record<StatusMinuta, string> = {

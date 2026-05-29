@@ -11,6 +11,7 @@ import { AlertCircle } from "lucide-react";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { TIPO_MINUTA_LABEL } from "@/lib/minuta-labels";
 import { cn } from "@/lib/utils";
 
 type PedidoVendaResumido = {
@@ -320,8 +321,22 @@ export default function NovaMinutaPage() {
                   placeholder="Busque por PV, orçamento ou cliente..."
                   options={pedidos.map((p) => {
                     const cliente = p.cliente.nomeFantasia || p.cliente.razaoSocial;
-                    const orc = p.numeroOrcamento ? `  ·  Orç. ${p.numeroOrcamento}` : "";
-                    return { value: p.id, label: `${p.numero} — ${cliente}${orc}` };
+                    const orc = p.numeroOrcamento ?? "";
+                    return {
+                      value: p.id,
+                      // label alimenta a busca (casa PV, cliente e nº do orçamento)
+                      label: `${p.numero} — ${cliente}${orc ? `  ·  Orç. ${orc}` : ""}`,
+                      render: () => (
+                        <span className="flex items-baseline gap-1.5 truncate">
+                          <span className="font-bold text-gray-900 shrink-0">{p.numero}</span>
+                          <span className="text-gray-400 shrink-0">—</span>
+                          <span className="truncate">{cliente}</span>
+                          {orc && (
+                            <span className="ml-1 font-medium text-blue-600 shrink-0">Orç. {orc}</span>
+                          )}
+                        </span>
+                      ),
+                    };
                   })}
                 />
               )}
@@ -430,8 +445,8 @@ export default function NovaMinutaPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ENTREGA">Entrega</SelectItem>
-                    <SelectItem value="RETIRADA">Retirada</SelectItem>
+                    <SelectItem value="ENTREGA">{TIPO_MINUTA_LABEL.ENTREGA}</SelectItem>
+                    <SelectItem value="RETIRADA">{TIPO_MINUTA_LABEL.RETIRADA}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
