@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search, X, ChevronDown, LayoutList, Kanban, FileText, Calendar, MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Search, X, ChevronDown, LayoutList, Kanban, FileText, Calendar, CalendarDays, MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
 import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
@@ -53,14 +53,22 @@ const STATUS_COLS: { key: string; label: string; color: string; bg: string; bord
 const ALL_STATUSES = STATUS_COLS.map((s) => s.key);
 
 const FILTER_KEY = "erp:conferencias:filters:v1";
-type Filters = { search: string; statuses: string[]; view: "list" | "kanban" };
+type Filters = { search: string; statuses: string[]; view: "list" | "kanban"; groupByDate: boolean };
 
 function loadFilters(): Filters {
   try {
     const raw = localStorage.getItem(FILTER_KEY);
-    if (raw) return { ...JSON.parse(raw), view: JSON.parse(raw).view ?? "list" };
+    if (raw) {
+      const f = JSON.parse(raw);
+      return {
+        search: f.search ?? "",
+        statuses: Array.isArray(f.statuses) ? f.statuses : [...ALL_STATUSES],
+        view: f.view ?? "list",
+        groupByDate: f.groupByDate === true,
+      };
+    }
   } catch { /* ignore */ }
-  return { search: "", statuses: [...ALL_STATUSES], view: "list" };
+  return { search: "", statuses: [...ALL_STATUSES], view: "list", groupByDate: false };
 }
 
 // ── Column definitions ────────────────────────────────────────────────────────
@@ -308,6 +316,33 @@ export default function DocumentosEntradaPage() {
     [filtered, filters.statuses]
   );
 
+  // ── Agrupado por data de emissão (visão lista) ────────────────────────────
+  const dateGroups = useMemo(() => {
+    const groups: { key: string; label: string; items: ConferenciaRow[]; total: number }[] = [];
+    const index = new Map<string, number>();
+    for (const doc of filtered) {
+      const key = doc.dtEmissao ? doc.dtEmissao.slice(0, 10) : "sem-data";
+      let gi = index.get(key);
+      if (gi === undefined) {
+        gi = groups.length;
+        index.set(key, gi);
+        groups.push({
+          key,
+          label: doc.dtEmissao ? formatDate(doc.dtEmissao) : "Sem data",
+          items: [],
+          total: 0,
+        });
+      }
+      groups[gi].items.push(doc);
+      groups[gi].total += calcValorTotal(doc);
+    }
+    // Grupos sempre do mais recente para o mais antigo; "sem data" por último.
+    groups.sort((a, b) =>
+      a.key === "sem-data" ? 1 : b.key === "sem-data" ? -1 : b.key.localeCompare(a.key)
+    );
+    return groups;
+  }, [filtered]);
+
   return (
     <div className="flex flex-col h-full">
       <PageHeader
@@ -402,6 +437,23 @@ export default function DocumentosEntradaPage() {
           <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} visibility={colVis} onVisibilityChange={setColVis} onShowAll={showAllCols} />
         )}
 
+        {/* Agrupar por data — list only */}
+        {filters.view === "list" && (
+          <button
+            onClick={() => updateFilters({ groupByDate: !filters.groupByDate })}
+            className={cn(
+              "flex items-center gap-1.5 h-8 px-2.5 text-xs border rounded-md transition-colors",
+              filters.groupByDate
+                ? "border-blue-300 bg-blue-50 text-blue-700"
+                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+            )}
+            title="Agrupar documentos por data de emissão"
+          >
+            <CalendarDays className="w-3.5 h-3.5" />
+            Agrupar por data
+          </button>
+        )}
+
         {/* View toggle */}
         <div className="ml-auto flex items-center gap-1 border border-gray-200 rounded-lg p-0.5 bg-white">
           <button
@@ -445,20 +497,52 @@ export default function DocumentosEntradaPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((doc) => (
-                  <tr
-                    key={doc.id}
-                    className="hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => router.push(`/suprimentos/conferencias/${doc.id}`)}
-                  >
-                    {orderedCols.map((col) => (
-                      <td key={col.id} className={col.tdClass}>{col.render(doc)}</td>
+                {filters.groupByDate
+                  ? dateGroups.map((g) => (
+                      <Fragment key={g.key}>
+                        <tr className="bg-gray-50/80">
+                          <td colSpan={orderedCols.length + 1} className="px-4 py-2 border-y border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <span className="flex items-center gap-1.5 font-semibold text-gray-700 text-sm">
+                                <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
+                                {g.label}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {g.items.length} documento{g.items.length !== 1 ? "s" : ""} · {formatBRL(g.total)}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        {g.items.map((doc) => (
+                          <tr
+                            key={doc.id}
+                            className="hover:bg-gray-50 cursor-pointer transition-colors"
+                            onClick={() => router.push(`/suprimentos/conferencias/${doc.id}`)}
+                          >
+                            {orderedCols.map((col) => (
+                              <td key={col.id} className={col.tdClass}>{col.render(doc)}</td>
+                            ))}
+                            <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                              <RowActionsMenu doc={doc} onDeleted={load} />
+                            </td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    ))
+                  : filtered.map((doc) => (
+                      <tr
+                        key={doc.id}
+                        className="hover:bg-gray-50 cursor-pointer transition-colors"
+                        onClick={() => router.push(`/suprimentos/conferencias/${doc.id}`)}
+                      >
+                        {orderedCols.map((col) => (
+                          <td key={col.id} className={col.tdClass}>{col.render(doc)}</td>
+                        ))}
+                        <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                          <RowActionsMenu doc={doc} onDeleted={load} />
+                        </td>
+                      </tr>
                     ))}
-                    <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                      <RowActionsMenu doc={doc} onDeleted={load} />
-                    </td>
-                  </tr>
-                ))}
               </tbody>
             </table>
           </div>

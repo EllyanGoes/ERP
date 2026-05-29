@@ -425,6 +425,7 @@ export default function PedidosVendaPage() {
       if (!q) return true;
       return (
         p.numero.toLowerCase().includes(q) ||
+        (p.numeroOrcamento ?? "").toLowerCase().includes(q) ||
         p.cliente.razaoSocial.toLowerCase().includes(q) ||
         (p.cliente.nomeFantasia ?? "").toLowerCase().includes(q)
       );
@@ -618,7 +619,7 @@ export default function PedidosVendaPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <Input
             className="pl-9 h-9 text-sm"
-            placeholder="Número, cliente..."
+            placeholder="Número, orçamento, cliente..."
             value={filters.search}
             onChange={(e) => updateFilters({ search: e.target.value })}
           />
