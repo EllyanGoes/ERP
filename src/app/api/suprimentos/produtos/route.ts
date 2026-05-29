@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
           ncm: body.ncm?.trim() || null,
           precoVenda: parseFloat(body.precoVenda) || 0,
           vendavel: body.vendavel === true,
+          comodato: body.comodato === true,
         },
       });
 

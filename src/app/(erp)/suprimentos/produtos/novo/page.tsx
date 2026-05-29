@@ -26,6 +26,7 @@ type FormData = {
   estoqueMin: string;
   estoqueMax: string;
   vendavel: boolean;
+  comodato: boolean;
 };
 
 const INITIAL: FormData = {
@@ -38,6 +39,7 @@ const INITIAL: FormData = {
   estoqueMin: "",
   estoqueMax: "",
   vendavel: false,
+  comodato: false,
 };
 
 export default function NovoProdutoPage() {
@@ -94,6 +96,7 @@ export default function NovoProdutoPage() {
         estoqueMin: form.estoqueMin ? parseFloat(form.estoqueMin) : null,
         estoqueMax: form.estoqueMax ? parseFloat(form.estoqueMax) : null,
         vendavel: form.vendavel,
+        comodato: form.comodato,
       };
       if (form.tipoProdutoId) payload.tipoProdutoId = form.tipoProdutoId;
       if (form.unidadeId)    payload.unidadeId    = form.unidadeId;
@@ -236,6 +239,33 @@ export default function NovoProdutoPage() {
                   <p className="text-sm font-medium text-gray-800">Este produto é vendável</p>
                   <p className="text-xs text-gray-500 mt-0.5">
                     Marque se este produto pode ser comercializado e incluído em Pedidos de Venda.
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {/* Comodato */}
+            <div className="md:col-span-2">
+              <label className="flex items-start gap-3 cursor-pointer select-none group">
+                <div className="relative mt-0.5">
+                  <input
+                    type="checkbox"
+                    checked={form.comodato}
+                    onChange={(e) => setForm((prev) => ({ ...prev, comodato: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-5 h-5 rounded border-2 border-gray-300 bg-white peer-checked:bg-orange-500 peer-checked:border-orange-500 transition-colors group-hover:border-orange-400 flex items-center justify-center">
+                    {form.comodato && (
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Item de comodato (vasilhame retornável)</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Pallets, engradados e outros itens emprestados ao cliente que devem retornar. Aparece na tela de Comodato.
                   </p>
                 </div>
               </label>

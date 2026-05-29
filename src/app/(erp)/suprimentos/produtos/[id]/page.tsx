@@ -55,6 +55,7 @@ type Item = {
   ativo: boolean;
   favorito: boolean;
   vendavel: boolean;
+  comodato: boolean;
   estoqueMinimo: unknown;
   estoqueMaximo: unknown;
   pontoReposicao: unknown;
@@ -963,6 +964,31 @@ export default function ProdutoDetailPage() {
                         </div>
                       </label>
                     </div>
+
+                    {/* Comodato — edit */}
+                    <div className="md:col-span-2">
+                      <label className="flex items-start gap-3 cursor-pointer select-none group">
+                        <div className="relative mt-0.5">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(form.comodato)}
+                            onChange={(e) => setForm((p) => ({ ...p, comodato: e.target.checked }))}
+                            className="sr-only peer"
+                          />
+                          <div className="w-5 h-5 rounded border-2 border-gray-300 bg-white peer-checked:bg-orange-500 peer-checked:border-orange-500 transition-colors group-hover:border-orange-400 flex items-center justify-center">
+                            {Boolean(form.comodato) && (
+                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">Item de comodato (vasilhame retornável)</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Pallets, engradados e outros itens emprestados ao cliente. Aparece na tela de Comodato.</p>
+                        </div>
+                      </label>
+                    </div>
                   </>
                 ) : (
                   <>
@@ -1045,6 +1071,22 @@ export default function ProdutoDetailPage() {
                           <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Sim — disponível para venda</>
                         ) : (
                           <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>Não vendável</>
+                        )}
+                      </span>
+                    </div>
+                    {/* Comodato — view */}
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-gray-500">Comodato</p>
+                      <span className={cn(
+                        "inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full",
+                        item.comodato
+                          ? "bg-orange-100 text-orange-700"
+                          : "bg-gray-100 text-gray-500"
+                      )}>
+                        {item.comodato ? (
+                          <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Sim — vasilhame retornável</>
+                        ) : (
+                          <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>Não é comodato</>
                         )}
                       </span>
                     </div>
