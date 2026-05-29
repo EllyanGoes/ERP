@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Plus, CheckCircle2, AlertCircle, X, ArrowUpRight, ArrowDownLeft } from "lucide-react";
-import { formatBRL, formatDate } from "@/lib/utils";
+import { formatBRL, formatDate, cn } from "@/lib/utils";
 
 type Cliente = { id: string; razaoSocial: string; nomeFantasia: string | null };
 type Item = { id: string; codigo: string; descricao: string; precoVenda: number };
@@ -40,6 +40,7 @@ export default function ComodatoClient({
   movimentos: Movimento[];
 }) {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"saldos" | "lancamentos">("saldos");
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -287,11 +288,39 @@ export default function ComodatoClient({
         </form>
       )}
 
+      {/* Abas */}
+      <div className="flex border-b border-gray-200 gap-1">
+        {([
+          { key: "saldos", label: "Saldos por cliente", count: saldos.length },
+          { key: "lancamentos", label: "Últimos lançamentos", count: movimentos.length },
+        ] as const).map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setActiveTab(t.key)}
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+              activeTab === t.key
+                ? "border-blue-600 text-blue-700"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            )}
+          >
+            {t.label}
+            <span
+              className={cn(
+                "text-xs px-1.5 py-0.5 rounded-full font-semibold",
+                activeTab === t.key ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"
+              )}
+            >
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {/* Saldos por cliente */}
+      {activeTab === "saldos" && (
       <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900">Saldos por cliente</h2>
-        </div>
         {saldos.length === 0 ? (
           <p className="px-6 py-8 text-sm text-gray-400 text-center">Nenhum saldo de comodato em aberto.</p>
         ) : (
@@ -319,12 +348,11 @@ export default function ComodatoClient({
           </table>
         )}
       </div>
+      )}
 
       {/* Últimos lançamentos */}
+      {activeTab === "lancamentos" && (
       <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900">Últimos lançamentos</h2>
-        </div>
         {movimentos.length === 0 ? (
           <p className="px-6 py-8 text-sm text-gray-400 text-center">Nenhum lançamento ainda.</p>
         ) : (
@@ -366,6 +394,7 @@ export default function ComodatoClient({
           </table>
         )}
       </div>
+      )}
 
       {/* Toasts */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none">
