@@ -96,6 +96,8 @@ type TabsContextType = {
   activeHref: string;
   setTabTitle: (title: string) => void;
   closeTab: (id: string) => void;
+  closeCurrentTab: () => void;
+  replaceCurrentTab: (href: string) => void;
   closeOthers: () => void;
   reorderTabs: (fromId: string, toId: string, side: "before" | "after") => void;
 };
@@ -106,6 +108,8 @@ const TabsContext = createContext<TabsContextType>({
   activeHref: "/",
   setTabTitle: () => {},
   closeTab: () => {},
+  closeCurrentTab: () => {},
+  replaceCurrentTab: () => {},
   closeOthers: () => {},
   reorderTabs: () => {},
 });
@@ -223,6 +227,44 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
     });
   }, [pathname, router]);
 
+  const closeCurrentTab = useCallback(() => {
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => t.href === pathname);
+      if (idx === -1) return prev;
+      const next = prev.filter((_, i) => i !== idx);
+      if (next.length > 0) {
+        const target = next[Math.min(idx, next.length - 1)];
+        router.push(target.href);
+      }
+      return next;
+    });
+  }, [pathname, router]);
+
+  // Replace the current tab's destination in place (used after creating a record:
+  // navigate to the new record without leaving the "Novo …" tab behind).
+  const replaceCurrentTab = useCallback((href: string) => {
+    const dest = href.split("?")[0];
+    if (dest === pathname) return;
+    setTabs((prev) => {
+      const existingDest = prev.find((t) => t.href === dest);
+      // If the destination is already open elsewhere, just drop the current tab.
+      if (existingDest) return prev.filter((t) => t.href !== pathname);
+      const idx = prev.findIndex((t) => t.href === pathname);
+      if (idx === -1) return prev;
+      const routeEntry = findRoute(dest);
+      const next = [...prev];
+      next[idx] = {
+        ...prev[idx],
+        href: dest,
+        title: guessTitle(dest),
+        icon: routeEntry?.icon,
+        section: routeEntry?.section,
+      };
+      return next;
+    });
+    router.push(dest);
+  }, [pathname, router]);
+
   const closeOthers = useCallback(() => {
     setTabs((prev) => prev.filter((t) => t.href === pathname));
   }, [pathname]);
@@ -253,7 +295,7 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <TabsContext.Provider value={{ tabs, activeHref: pathname, setTabTitle, closeTab, closeOthers, reorderTabs }}>
+    <TabsContext.Provider value={{ tabs, activeHref: pathname, setTabTitle, closeTab, closeCurrentTab, replaceCurrentTab, closeOthers, reorderTabs }}>
       {children}
     </TabsContext.Provider>
   );

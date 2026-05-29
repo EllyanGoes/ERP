@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 
 type ClienteData = { id: string } & ClienteFormData;
 
@@ -36,6 +37,12 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
 
   const tipoPessoa = form.watch("tipoPessoa");
 
+  const { confirmCreated, dialog } = useCreateFlow({
+    entity: "cliente",
+    onNew: () => form.reset({ tipoPessoa: "JURIDICA", status: "ATIVO" }),
+    viewHref: (id) => `/clientes/${id}`,
+  });
+
   async function onSubmit(data: ClienteFormData) {
     const url = cliente ? `/api/clientes/${cliente.id}` : "/api/clientes";
     const method = cliente ? "PUT" : "POST";
@@ -46,8 +53,12 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
     });
     if (res.ok) {
       const json = await res.json();
-      router.push(`/clientes/${cliente?.id ?? json.data.id}`);
-      router.refresh();
+      if (cliente) {
+        router.push(`/clientes/${cliente.id}`);
+        router.refresh();
+      } else {
+        confirmCreated(json.data.id);
+      }
     }
   }
 
@@ -275,6 +286,7 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
           </Button>
         </div>
       </form>
+      {dialog}
     </Form>
   );
 }
