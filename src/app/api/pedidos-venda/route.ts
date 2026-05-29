@@ -49,6 +49,19 @@ export async function POST(req: NextRequest) {
 
   const { itens, ...pedidoData } = parsed.data;
 
+  // Comodato (saída) lançado junto com o pedido. Lido do corpo bruto porque o
+  // schema do pedido descarta chaves desconhecidas. Entra no mesmo livro-razão
+  // (MovimentacaoComodato) da tela /comodato, atualizando o saldo do cliente.
+  const comodatoRaw: any[] = Array.isArray(body.comodato) ? body.comodato : [];
+  const comodato = comodatoRaw
+    .filter((c) => c && typeof c.itemId === "string" && c.itemId && Number(c.quantidade) > 0)
+    .map((c) => ({
+      itemId:        c.itemId as string,
+      quantidade:    Number(c.quantidade),
+      valorUnitario: c.valorUnitario != null ? Number(c.valorUnitario) : null,
+      documento:     typeof c.documento === "string" && c.documento.trim() ? c.documento.trim() : null,
+    }));
+
   const pedido = await prisma.$transaction(async (tx) => {
     // Generate sequence number
     const seq = await tx.sequencia.upsert({
@@ -62,7 +75,7 @@ export async function POST(req: NextRequest) {
     const valorProdutos = itens.reduce((sum, i) => sum + i.valorTotal, 0);
     const valorTotal = valorProdutos - (pedidoData.valorDesconto ?? 0) + (pedidoData.valorFrete ?? 0);
 
-    return tx.pedidoVenda.create({
+    const novoPedido = await tx.pedidoVenda.create({
       data: {
         ...pedidoData,
         numero,
@@ -84,6 +97,33 @@ export async function POST(req: NextRequest) {
       },
       include: { cliente: true, itens: { include: { item: true } } },
     });
+
+    // Movimentações de comodato (SAÍDA) amarradas ao pedido recém-criado.
+    if (comodato.length > 0) {
+      const dataMov = pedidoData.dataEmissao ? new Date(pedidoData.dataEmissao) : new Date();
+      // valorUnitario é obrigatório; quando não informado, usa o preço de venda do item.
+      const semValor = comodato.filter((c) => c.valorUnitario == null).map((c) => c.itemId);
+      const precos = semValor.length
+        ? await tx.item.findMany({ where: { id: { in: semValor } }, select: { id: true, precoVenda: true } })
+        : [];
+      const precoMap = new Map(precos.map((p) => [p.id, Number(p.precoVenda)]));
+
+      await tx.movimentacaoComodato.createMany({
+        data: comodato.map((c) => ({
+          clienteId:     pedidoData.clienteId,
+          itemId:        c.itemId,
+          tipo:          "SAIDA" as const,
+          quantidade:    c.quantidade,
+          valorUnitario: c.valorUnitario ?? precoMap.get(c.itemId) ?? 0,
+          origem:        "AUTOMATICO" as const,
+          pedidoVendaId: novoPedido.id,
+          data:          dataMov,
+          documento:     c.documento,
+        })),
+      });
+    }
+
+    return novoPedido;
   });
 
   return NextResponse.json({ data: pedido }, { status: 201 });

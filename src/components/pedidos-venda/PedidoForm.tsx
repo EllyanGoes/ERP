@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, Search, Loader2, Tag } from "lucide-react";
+import { Plus, Trash2, Search, Loader2, Tag, Package } from "lucide-react";
 import { formatBRL, decimalToNumber, cn } from "@/lib/utils";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,15 @@ type TabelaOption     = {
   itens: Array<{ itemId: string | null; precoVenda: unknown; vlrDesconto: unknown }>;
 };
 type CondicaoOption   = { id: string; nome: string };
+type ItemComodatoOption = { id: string; codigo: string; descricao: string; precoVenda: number };
+
+type ComodatoLine = {
+  _key: string;
+  itemId: string;
+  quantidade: string;
+  valorUnitario: string;
+  documento: string;
+};
 
 type LineItem = {
   _key: string;
@@ -62,6 +72,10 @@ function emptyLine(): LineItem {
     quantidade: "1", quantidadeUnitaria: "1", precoUnitario: "0",
     descontoPct: "0", valorDesconto: "0", valorTotal: "0",
   };
+}
+
+function emptyComodatoLine(): ComodatoLine {
+  return { _key: crypto.randomUUID(), itemId: "", quantidade: "1", valorUnitario: "0", documento: "" };
 }
 
 // ── Edit mode ────────────────────────────────────────────────────────────────
@@ -133,14 +147,21 @@ function buildInitialLinhas(pedido?: PedidoInicial): LineItem[] {
 export default function PedidoForm({
   clientes,
   itens: catalogItens,
+  itensComodato = [],
   pedido,
 }: {
-  clientes:   ClienteOption[];
-  itens:      ItemOption[];
-  pedido?:    PedidoInicial;
+  clientes:      ClienteOption[];
+  itens:         ItemOption[];
+  itensComodato?: ItemComodatoOption[];
+  pedido?:       PedidoInicial;
 }) {
   const router = useRouter();
   const isEdit = !!pedido;
+  const { confirmCreated, dialog: createdDialog } = useCreateFlow({
+    entity: "pedido",
+    onNew: () => { window.location.href = "/pedidos-venda/novo"; },
+    viewHref: (id) => `/pedidos-venda/${id}`,
+  });
   const [submitting, setSubmitting] = useState<"orcamento" | "confirmado" | "salvando" | null>(null);
   const [submitError, setSubmitError] = useState("");
 
@@ -173,6 +194,12 @@ export default function PedidoForm({
 
   // Line items
   const [linhas, setLinhas] = useState<LineItem[]>(() => buildInitialLinhas(pedido));
+
+  // Tabs (Itens | Comodato) — comodato só no cadastro de novo pedido
+  const [activeTab, setActiveTab] = useState<"itens" | "comodato">("itens");
+
+  // Comodato (saída) — linhas a lançar junto com o pedido
+  const [comodatoLinhas, setComodatoLinhas] = useState<ComodatoLine[]>([]);
 
   // Cliente search
   const [clienteSearch,   setClienteSearch]   = useState("");
@@ -448,11 +475,37 @@ export default function PedidoForm({
     }));
   }
 
+  // ── Comodato (saída) helpers ─────────────────────────────────────────────────
+
+  function addComodatoLinha() {
+    setComodatoLinhas((prev) => [...prev, emptyComodatoLine()]);
+  }
+
+  function removeComodatoLinha(key: string) {
+    setComodatoLinhas((prev) => prev.filter((l) => l._key !== key));
+  }
+
+  function updateComodatoLinha(key: string, field: keyof ComodatoLine, value: string) {
+    setComodatoLinhas((prev) => prev.map((l) => {
+      if (l._key !== key) return l;
+      const updated = { ...l, [field]: value };
+      // Ao escolher o item, auto-preenche o valor unitário com o preço de venda
+      if (field === "itemId") {
+        const it = itensComodato.find((i) => i.id === value);
+        if (it) updated.valorUnitario = it.precoVenda.toFixed(2);
+      }
+      return updated;
+    }));
+  }
+
   // ── Totals ───────────────────────────────────────────────────────────────────
 
   const subtotal     = linhas.reduce((s, l) => s + (parseFloat(l.valorTotal) || 0), 0);
   const freteVal     = parseFloat(valorFrete) || 0;
   const totalGeral   = subtotal + freteVal;
+
+  const comodatoTotalQtd   = comodatoLinhas.reduce((s, l) => s + (parseFloat(l.quantidade) || 0), 0);
+  const comodatoTotalValor = comodatoLinhas.reduce((s, l) => s + (parseFloat(l.quantidade) || 0) * (parseFloat(l.valorUnitario) || 0), 0);
 
   // ── Submit ───────────────────────────────────────────────────────────────────
 
@@ -462,6 +515,10 @@ export default function PedidoForm({
     if (!dataEmissao)   { setSubmitError("Informe a data de emissão"); return false; }
     if (linhas.length === 0) { setSubmitError("Adicione pelo menos um item"); return false; }
     if (linhas.find((l) => !l.itemId)) { setSubmitError("Selecione o produto em todas as linhas"); return false; }
+    if (comodatoLinhas.some((l) => l.itemId && !(parseFloat(l.quantidade) > 0))) {
+      setSubmitError("Informe a quantidade dos itens em comodato");
+      return false;
+    }
     return true;
   }
 
@@ -491,6 +548,16 @@ export default function PedidoForm({
           valorTotal:    valorTotal,
         };
       }),
+      // Comodato (saída) lançado junto com o pedido. A rota POST lê esta chave
+      // separadamente; o schema do PUT ignora chaves desconhecidas (edição não usa).
+      comodato: comodatoLinhas
+        .filter((l) => l.itemId && (parseFloat(l.quantidade) || 0) > 0)
+        .map((l) => ({
+          itemId:        l.itemId,
+          quantidade:    parseFloat(l.quantidade) || 0,
+          valorUnitario: parseFloat(l.valorUnitario) || 0,
+          documento:     l.documento.trim() || null,
+        })),
     };
   }
 
@@ -522,8 +589,7 @@ export default function PedidoForm({
         });
       }
 
-      router.push(`/pedidos-venda/${pedidoId}`);
-      router.refresh();
+      confirmCreated(pedidoId);
     } catch { setSubmitError("Erro de conexão"); }
     finally { setSubmitting(null); }
   }
@@ -711,7 +777,39 @@ export default function PedidoForm({
       </div>
       </div>{/* end max-w-5xl */}
 
+      {/* ── Abas: Itens | Comodato (comodato só no cadastro de novo pedido) ─ */}
+      {!isEdit && (
+        <div className="flex items-center border-b border-gray-200">
+          <button
+            type="button"
+            onClick={() => setActiveTab("itens")}
+            className={cn(
+              "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+              activeTab === "itens"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            )}
+          >
+            Itens do Pedido{linhas.length > 0 ? ` (${linhas.length})` : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("comodato")}
+            className={cn(
+              "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5",
+              activeTab === "comodato"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            )}
+          >
+            <Package className="w-3.5 h-3.5" />
+            Comodato{comodatoLinhas.length > 0 ? ` (${comodatoLinhas.length})` : ""}
+          </button>
+        </div>
+      )}
+
       {/* ── Itens do Pedido — full width ────────────────────────────────── */}
+      {(isEdit || activeTab === "itens") && (
       <div className="bg-white rounded-xl border border-gray-300 overflow-hidden shadow-sm">
         <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-100 flex items-center justify-between">
           <h2 className="font-bold text-sm text-gray-800 tracking-wide uppercase">Itens do Pedido</h2>
@@ -913,6 +1011,133 @@ export default function PedidoForm({
           </div>
         </div>
       </div>
+      )}
+
+      {/* ── Comodato (saída) — só no cadastro de novo pedido ────────────── */}
+      {!isEdit && activeTab === "comodato" && (
+      <div className="bg-white rounded-xl border border-gray-300 overflow-hidden shadow-sm">
+        <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="font-bold text-sm text-gray-800 tracking-wide uppercase">Comodato — Saída</h2>
+            <p className="text-xs text-gray-500 mt-0.5 normal-case font-normal">Itens (vasilhames/pallets) que o cliente está levando em comodato. Não entram no total do pedido.</p>
+          </div>
+          <Button
+            type="button" size="sm" variant="outline"
+            onClick={addComodatoLinha}
+            disabled={itensComodato.length === 0}
+            className="border-gray-300 text-gray-700 hover:bg-gray-200"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Item em Comodato
+          </Button>
+        </div>
+
+        {itensComodato.length === 0 ? (
+          <div className="py-14 text-center">
+            <p className="text-sm text-gray-500 font-medium">Nenhum item marcado como comodato.</p>
+            <p className="text-xs text-gray-400 mt-1">Marque a opção &quot;Comodato&quot; no cadastro do item.</p>
+          </div>
+        ) : comodatoLinhas.length === 0 ? (
+          <div className="py-14 text-center">
+            <p className="text-sm text-gray-500 font-medium">Nenhum comodato adicionado.</p>
+            <p className="text-xs text-gray-400 mt-1">Clique em &quot;Adicionar Item em Comodato&quot; para começar.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[720px]">
+              <thead className="bg-gray-100 border-b border-gray-300 text-xs text-gray-700 uppercase tracking-wide">
+                <tr>
+                  <th className="text-center px-3 py-3 font-bold w-12">Item</th>
+                  <th className="text-left px-3 py-3 font-bold">Item em Comodato</th>
+                  <th className="text-right px-3 py-3 font-bold w-28">Quantidade</th>
+                  <th className="text-right px-3 py-3 font-bold w-32">Valor Un.</th>
+                  <th className="text-left px-3 py-3 font-bold w-40">Documento</th>
+                  <th className="text-right px-3 py-3 font-bold w-32">Total</th>
+                  <th className="w-10 px-2 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {comodatoLinhas.map((linha, idx) => {
+                  const total = (parseFloat(linha.quantidade) || 0) * (parseFloat(linha.valorUnitario) || 0);
+                  return (
+                    <tr key={linha._key} className="hover:bg-blue-50/30 transition-colors">
+                      {/* # */}
+                      <td className="px-3 py-2.5 text-center">
+                        <span className="text-xs font-bold font-mono text-gray-600 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">{idx + 1}</span>
+                      </td>
+                      {/* Item em Comodato */}
+                      <td className="px-3 py-2.5 min-w-[220px]">
+                        <select
+                          value={linha.itemId}
+                          onChange={(e) => updateComodatoLinha(linha._key, "itemId", e.target.value)}
+                          className="w-full h-9 rounded-lg border border-gray-300 bg-white px-2.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 hover:border-blue-400 transition-colors"
+                        >
+                          <option value="">Selecione...</option>
+                          {itensComodato.map((i) => (
+                            <option key={i.id} value={i.id}>{i.codigo} — {i.descricao}</option>
+                          ))}
+                        </select>
+                      </td>
+                      {/* Quantidade */}
+                      <td className="px-3 py-2.5">
+                        <Input
+                          type="number" min="0.001" step="0.001"
+                          value={linha.quantidade}
+                          onChange={(e) => updateComodatoLinha(linha._key, "quantidade", e.target.value)}
+                          className="h-9 text-xs text-right border-gray-300 font-medium"
+                        />
+                      </td>
+                      {/* Valor Un. */}
+                      <td className="px-3 py-2.5">
+                        <Input
+                          type="number" min="0" step="0.01"
+                          value={linha.valorUnitario}
+                          onChange={(e) => updateComodatoLinha(linha._key, "valorUnitario", e.target.value)}
+                          className="h-9 text-xs text-right border-gray-300 font-medium"
+                        />
+                      </td>
+                      {/* Documento (opcional) */}
+                      <td className="px-3 py-2.5">
+                        <Input
+                          type="text"
+                          value={linha.documento}
+                          onChange={(e) => updateComodatoLinha(linha._key, "documento", e.target.value)}
+                          placeholder="Opcional"
+                          className="h-9 text-xs border-gray-300"
+                        />
+                      </td>
+                      {/* Total */}
+                      <td className="px-3 py-2.5 text-right">
+                        <span className="text-sm font-bold text-gray-900">{formatBRL(total)}</span>
+                      </td>
+                      {/* Remove */}
+                      <td className="px-2 py-2.5">
+                        <button
+                          type="button"
+                          onClick={() => removeComodatoLinha(linha._key)}
+                          className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors border border-transparent hover:border-red-200"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-gray-800">
+                  <td className="px-3 py-3 text-right text-xs uppercase tracking-wide" colSpan={2}>Total</td>
+                  <td className="px-3 py-3 text-right tabular-nums">{comodatoTotalQtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}</td>
+                  <td></td>
+                  <td></td>
+                  <td className="px-3 py-3 text-right text-blue-700">{formatBRL(comodatoTotalValor)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+      )}
 
       {/* ── Portal: item search dropdown ─────────────────────────────── */}
       {portalMounted && itemSearchRow && itemDropPos && createPortal(
@@ -1095,6 +1320,7 @@ export default function PedidoForm({
           </Button>
         </div>
       </div>
+      {createdDialog}
     </div>
   );
 }

@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/shared/PageHeader";
 import PedidoForm from "@/components/pedidos-venda/PedidoForm";
+import { decimalToNumber } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function NovoPedidoPage() {
-  const [clientes, itens] = await Promise.all([
+  const [clientes, itens, itensComodatoRaw] = await Promise.all([
     prisma.cliente.findMany({ where: { status: "ATIVO" }, orderBy: { razaoSocial: "asc" }, select: { id: true, razaoSocial: true, nomeFantasia: true } }),
     prisma.item.findMany({
       where: { ativo: true, vendavel: true },
@@ -21,7 +22,19 @@ export default async function NovoPedidoPage() {
         },
       },
     }),
+    prisma.item.findMany({
+      where: { comodato: true, ativo: true },
+      orderBy: { descricao: "asc" },
+      select: { id: true, codigo: true, descricao: true, precoVenda: true },
+    }),
   ]);
+
+  const itensComodato = itensComodatoRaw.map((i) => ({
+    id: i.id,
+    codigo: i.codigo,
+    descricao: i.descricao,
+    precoVenda: decimalToNumber(i.precoVenda),
+  }));
 
   return (
     <div>
@@ -30,7 +43,7 @@ export default async function NovoPedidoPage() {
         breadcrumbs={[{ label: "Pedidos de Venda", href: "/pedidos-venda" }, { label: "Novo" }]}
       />
       <div className="px-8 pb-8">
-        <PedidoForm clientes={clientes as any} itens={itens as any} />
+        <PedidoForm clientes={clientes as any} itens={itens as any} itensComodato={itensComodato} />
       </div>
     </div>
   );
