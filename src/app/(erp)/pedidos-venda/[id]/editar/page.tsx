@@ -75,6 +75,7 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
 
   const pedidoInicial = {
     id: pedido.id,
+    numero: pedido.numero,
     clienteId: pedido.clienteId,
     tabelaPrecoId: pedido.tabelaPrecoId,
     dataEmissao: pedido.dataEmissao.toISOString(),

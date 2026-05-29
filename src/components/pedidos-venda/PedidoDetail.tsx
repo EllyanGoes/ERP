@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
-import { useTabTitle } from "@/lib/tabs-context";
+import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { Plus, Truck, Pencil, Package, Trash2 } from "lucide-react";
 
 type MinutaItemSummary = { quantidade: string };
@@ -112,6 +112,7 @@ function todayInput() {
 
 export default function PedidoDetail({ pedido, itensComodato, movimentacoesComodato }: PedidoDetailProps) {
   const router = useRouter();
+  const { replaceCurrentTab } = useTabsContext();
   useTabTitle(pedido.numero);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"itens" | "minutas" | "comodato">("itens");
@@ -240,7 +241,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
         <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-xl border border-gray-100">
           <span className="text-sm text-gray-500 mr-2">Ações:</span>
           {canEdit && (
-            <Button variant="outline" size="sm" onClick={() => router.push(`/pedidos-venda/${pedido.id}/editar`)} disabled={loading} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => replaceCurrentTab(`/pedidos-venda/${pedido.id}/editar`)} disabled={loading} className="gap-1.5">
               <Pencil className="w-3.5 h-3.5" />
               Editar
             </Button>

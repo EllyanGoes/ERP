@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
+import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 
 type ClienteData = { id: string } & ClienteFormData;
 
@@ -26,6 +27,8 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { replaceCurrentTab } = useTabsContext();
+  useTabTitle(cliente ? (cliente.nomeFantasia || cliente.razaoSocial) : null);
   const initialNome = !cliente ? (searchParams.get("nome") ?? searchParams.get("razaoSocial") ?? "") : "";
   const form = useForm<ClienteFormData>({
     resolver: zodResolver(clienteSchema),
@@ -58,7 +61,7 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
       if (res.ok) {
         const json = await res.json();
         if (cliente) {
-          router.push(`/clientes/${cliente.id}`);
+          replaceCurrentTab(`/clientes/${cliente.id}`);
           router.refresh();
         } else {
           confirmCreated(json.data.id);
@@ -298,7 +301,7 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
           <Button type="submit" disabled={form.formState.isSubmitting} className="font-semibold">
             {form.formState.isSubmitting ? "Salvando..." : cliente ? "Salvar Alterações" : "Criar Cliente"}
           </Button>
-          <Button type="button" variant="outline" onClick={() => router.back()} className="border-gray-300 text-gray-600">
+          <Button type="button" variant="outline" onClick={() => cliente ? replaceCurrentTab(`/clientes/${cliente.id}`) : router.back()} className="border-gray-300 text-gray-600">
             Cancelar
           </Button>
         </div>

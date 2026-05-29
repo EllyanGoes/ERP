@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { decimalToNumber } from "@/lib/utils";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
+import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 
 type ItemWithEstoque = {
   id: string;
@@ -34,6 +35,8 @@ type ItemWithEstoque = {
 
 export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
   const router = useRouter();
+  const { replaceCurrentTab } = useTabsContext();
+  useTabTitle(item ? item.descricao : null);
   const form = useForm<ItemFormData>({
     resolver: zodResolver(itemSchema) as Resolver<ItemFormData>,
     defaultValues: item ? {
@@ -78,7 +81,7 @@ export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       if (res.ok) {
         if (item) {
-          router.push("/itens");
+          replaceCurrentTab("/itens");
           router.refresh();
         } else {
           const json = await res.json();
@@ -200,7 +203,7 @@ export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
           <Button type="submit" disabled={form.formState.isSubmitting}>
             {form.formState.isSubmitting ? "Salvando..." : item ? "Salvar Alterações" : "Criar Item"}
           </Button>
-          <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
+          <Button type="button" variant="outline" onClick={() => item ? replaceCurrentTab("/itens") : router.back()}>Cancelar</Button>
         </div>
       </form>
       {dialog}

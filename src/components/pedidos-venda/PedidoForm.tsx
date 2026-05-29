@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Search, Loader2, Tag, Package } from "lucide-react";
 import { formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
+import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -112,6 +113,7 @@ type PedidoInicialItem = {
 
 type PedidoInicial = {
   id: string;
+  numero: string;
   clienteId: string;
   tabelaPrecoId: string | null;
   dataEmissao: string;   // ISO
@@ -176,6 +178,9 @@ export default function PedidoForm({
 }) {
   const router = useRouter();
   const isEdit = !!pedido;
+  // Ao editar, mantém o código do PV no título da aba (mesma aba do detalhe).
+  useTabTitle(pedido?.numero);
+  const { replaceCurrentTab } = useTabsContext();
   const { confirmCreated, dialog: createdDialog } = useCreateFlow({
     entity: "pedido",
     onNew: () => { window.location.href = "/pedidos-venda/novo"; },
@@ -633,7 +638,8 @@ export default function PedidoForm({
         return;
       }
 
-      router.push(`/pedidos-venda/${pedido.id}`);
+      // Volta ao detalhe na mesma aba (sem abrir uma nova).
+      replaceCurrentTab(`/pedidos-venda/${pedido.id}`);
       router.refresh();
     } catch { setSubmitError("Erro de conexão"); }
     finally { setSubmitting(null); }

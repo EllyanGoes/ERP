@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useFormPersist } from "@/lib/form-persist";
 import { useDirtyForm } from "@/lib/dirty-form-context";
+import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +52,7 @@ const TIPO_FRETE_OPTIONS = [
 
 export default function EditarPedidoCompraPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const { replaceCurrentTab } = useTabsContext();
   const { save: saveForm, load: loadForm, clear: clearForm } = useFormPersist<FormSnapshot>(`pc:edit:${id}`);
 
   // Data
@@ -62,6 +63,7 @@ export default function EditarPedidoCompraPage() {
   // Loading state
   const [loadingPedido, setLoadingPedido] = useState(true);
   const [pedidoNumero, setPedidoNumero]   = useState("");
+  useTabTitle(pedidoNumero || null);
   const baselineRef = useRef<string | null>(null);
 
   // Fornecedor section
@@ -315,7 +317,7 @@ export default function EditarPedidoCompraPage() {
     if (validItens.length === 0) { setError("Adicione pelo menos um item"); return; }
     try {
       await handleSaveOnly();
-      router.push(`/suprimentos/pedidos-compra/${id}`);
+      replaceCurrentTab(`/suprimentos/pedidos-compra/${id}`);
     } catch {
       // error already set inside handleSaveOnly; set fallback only if still empty
       setError((prev) => prev || "Erro de conexão. Tente novamente.");
@@ -342,7 +344,7 @@ export default function EditarPedidoCompraPage() {
         ]}
         action={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => router.push(`/suprimentos/pedidos-compra/${id}`)}>
+            <Button variant="outline" onClick={() => replaceCurrentTab(`/suprimentos/pedidos-compra/${id}`)}>
               Cancelar
             </Button>
             <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
