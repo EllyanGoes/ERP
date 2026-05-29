@@ -60,31 +60,117 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const valorProdutos = itens.reduce((sum, i) => sum + i.valorTotal, 0);
   const valorTotal = valorProdutos - (pedidoData.valorDesconto ?? 0) + (pedidoData.valorFrete ?? 0);
 
-  const pedido = await prisma.$transaction(async (tx) => {
-    await tx.pedidoVendaItem.deleteMany({ where: { pedidoVendaId: params.id } });
-    return tx.pedidoVenda.update({
-      where: { id: params.id },
-      data: {
-        ...pedidoData,
-        valorProdutos,
-        valorTotal,
-        dataEmissao: pedidoData.dataEmissao ? new Date(pedidoData.dataEmissao) : new Date(),
-        dataEntrega: pedidoData.dataEntrega ? new Date(pedidoData.dataEntrega) : null,
-        itens: {
-          create: itens.map((item) => ({
-            itemId: item.itemId,
-            quantidade: item.quantidade,
-            precoUnitario: item.precoUnitario,
-            desconto: item.desconto ?? 0,
-            valorTotal: item.valorTotal,
-          })),
-        },
-      },
-      include: { cliente: true, itens: { include: { item: true } } },
-    });
+  // Existing items + how much of each is already committed to a non-cancelled
+  // minuta (delivery note). Rows with minutas must NOT be deleted (FK Restrict)
+  // nor reduced below what was already minutado — that protects deliveries.
+  const existing = await prisma.pedidoVendaItem.findMany({
+    where: { pedidoVendaId: params.id },
+    include: {
+      item: { select: { descricao: true } },
+      minutaItens: { where: { minuta: { status: { not: "CANCELADA" } } }, select: { quantidade: true } },
+    },
   });
 
-  return NextResponse.json({ data: pedido });
+  const EPS = 1e-6;
+  const minutadoByRow = new Map<string, number>();
+  const minutadoByItem = new Map<string, number>();
+  const descByItem = new Map<string, string>();
+  for (const e of existing) {
+    const m = e.minutaItens.reduce((s, mi) => s + Number(mi.quantidade), 0);
+    minutadoByRow.set(e.id, m);
+    minutadoByItem.set(e.itemId, (minutadoByItem.get(e.itemId) ?? 0) + m);
+    descByItem.set(e.itemId, e.item.descricao);
+  }
+
+  const incomingQtyByItem = new Map<string, number>();
+  for (const it of itens) {
+    incomingQtyByItem.set(it.itemId, (incomingQtyByItem.get(it.itemId) ?? 0) + it.quantidade);
+  }
+
+  // Block removing/reducing any product below its already-minutado quantity.
+  const conflitos: string[] = [];
+  for (const [itemId, minutado] of Array.from(minutadoByItem)) {
+    if (minutado <= 0) continue;
+    const novaQtd = incomingQtyByItem.get(itemId) ?? 0;
+    if (novaQtd + EPS < minutado) {
+      conflitos.push(`${descByItem.get(itemId) ?? itemId} (minutado: ${minutado}, novo: ${novaQtd})`);
+    }
+  }
+  if (conflitos.length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Não é possível remover ou reduzir itens que já têm minutas: " +
+          conflitos.join("; ") +
+          ". Cancele as minutas correspondentes antes de alterar.",
+      },
+      { status: 409 },
+    );
+  }
+
+  const mapLine = (item: (typeof itens)[number]) => ({
+    itemId: item.itemId,
+    quantidade: item.quantidade,
+    precoUnitario: item.precoUnitario,
+    desconto: item.desconto ?? 0,
+    valorTotal: item.valorTotal,
+  });
+
+  try {
+    const pedido = await prisma.$transaction(async (tx) => {
+      await tx.pedidoVenda.update({
+        where: { id: params.id },
+        data: {
+          ...pedidoData,
+          valorProdutos,
+          valorTotal,
+          dataEmissao: pedidoData.dataEmissao ? new Date(pedidoData.dataEmissao) : new Date(),
+          dataEntrega: pedidoData.dataEntrega ? new Date(pedidoData.dataEntrega) : null,
+        },
+      });
+
+      // Reconcile items: update existing rows in place (FK-safe), create new
+      // lines, and delete only rows that have no minutas attached.
+      const allItemIds = new Set<string>([...existing.map((e) => e.itemId), ...itens.map((i) => i.itemId)]);
+      for (const itemId of Array.from(allItemIds)) {
+        // Rows WITH minutas first, so they get updated (kept), never deleted.
+        const exRows = existing
+          .filter((e) => e.itemId === itemId)
+          .sort((a, b) => (minutadoByRow.get(b.id) ?? 0) - (minutadoByRow.get(a.id) ?? 0));
+        const inLines = itens.filter((i) => i.itemId === itemId);
+        const pairCount = Math.min(exRows.length, inLines.length);
+
+        for (let k = 0; k < pairCount; k++) {
+          await tx.pedidoVendaItem.update({ where: { id: exRows[k].id }, data: mapLine(inLines[k]) });
+        }
+        for (let k = pairCount; k < inLines.length; k++) {
+          await tx.pedidoVendaItem.create({ data: { pedidoVendaId: params.id, ...mapLine(inLines[k]) } });
+        }
+        for (let k = pairCount; k < exRows.length; k++) {
+          if ((minutadoByRow.get(exRows[k].id) ?? 0) > 0) throw new Error("CONFLICT_MINUTA");
+          await tx.pedidoVendaItem.delete({ where: { id: exRows[k].id } });
+        }
+      }
+
+      return tx.pedidoVenda.findUnique({
+        where: { id: params.id },
+        include: { cliente: true, itens: { include: { item: true } } },
+      });
+    });
+
+    return NextResponse.json({ data: pedido });
+  } catch (err) {
+    if (err instanceof Error && err.message === "CONFLICT_MINUTA") {
+      return NextResponse.json(
+        { error: "Não é possível alterar este pedido: há itens com minutas que seriam removidos. Cancele as minutas primeiro." },
+        { status: 409 },
+      );
+    }
+    return NextResponse.json(
+      { error: "Erro ao salvar pedido. Verifique se há minutas vinculadas aos itens." },
+      { status: 400 },
+    );
+  }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
