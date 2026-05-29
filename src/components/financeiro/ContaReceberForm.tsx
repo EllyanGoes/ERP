@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -21,6 +22,8 @@ export default function ContaReceberForm({ clientes }: { clientes: ClienteOption
     defaultValues: { dataVencimento: new Date().toISOString().split("T")[0] },
   });
 
+  const [serverError, setServerError] = useState<string | null>(null);
+
   const { confirmCreated, dialog } = useCreateFlow({
     entity: "conta",
     gender: "f",
@@ -28,12 +31,23 @@ export default function ContaReceberForm({ clientes }: { clientes: ClienteOption
   });
 
   async function onSubmit(data: ContaReceberFormData) {
-    const res = await fetch("/api/contas-receber", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    if (res.ok) { const json = await res.json(); confirmCreated(json.data.id); }
+    setServerError(null);
+    try {
+      const res = await fetch("/api/contas-receber", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        confirmCreated(json.data.id);
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setServerError(json.error ?? "Erro ao salvar conta. Tente novamente.");
+      }
+    } catch {
+      setServerError("Erro de conexão. Tente novamente.");
+    }
   }
 
   return (
@@ -82,6 +96,11 @@ export default function ContaReceberForm({ clientes }: { clientes: ClienteOption
             )} />
           </CardContent>
         </Card>
+        {serverError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {serverError}
+          </div>
+        )}
         <div className="flex gap-3">
           <Button type="submit" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? "Salvando..." : "Criar Conta"}</Button>
           <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>

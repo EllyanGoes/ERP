@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -61,6 +62,8 @@ export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
 
   const tipo = form.watch("tipo");
 
+  const [serverError, setServerError] = useState<string | null>(null);
+
   const { confirmCreated, dialog } = useCreateFlow({
     entity: "item",
     onNew: () => form.reset({ tipo: "PRODUTO", unidadeMedida: "UN", ativo: true, precoVenda: 0, quantidadeMin: 0 }),
@@ -68,17 +71,25 @@ export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
   });
 
   async function onSubmit(data: ItemFormData) {
+    setServerError(null);
     const url = item ? `/api/itens/${item.id}` : "/api/itens";
     const method = item ? "PUT" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-    if (res.ok) {
-      if (item) {
-        router.push("/itens");
-        router.refresh();
+    try {
+      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (res.ok) {
+        if (item) {
+          router.push("/itens");
+          router.refresh();
+        } else {
+          const json = await res.json();
+          confirmCreated(json.data.id);
+        }
       } else {
-        const json = await res.json();
-        confirmCreated(json.data.id);
+        const json = await res.json().catch(() => ({}));
+        setServerError(json.error ?? "Erro ao salvar item. Tente novamente.");
       }
+    } catch {
+      setServerError("Erro de conexão. Tente novamente.");
     }
   }
 
@@ -178,6 +189,12 @@ export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
         <FormField control={form.control} name="observacoes" render={({ field }) => (
           <FormItem><FormLabel>Observações</FormLabel><FormControl><Textarea {...field} value={field.value ?? ""} rows={3} /></FormControl><FormMessage /></FormItem>
         )} />
+
+        {serverError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {serverError}
+          </div>
+        )}
 
         <div className="flex gap-3">
           <Button type="submit" disabled={form.formState.isSubmitting}>
