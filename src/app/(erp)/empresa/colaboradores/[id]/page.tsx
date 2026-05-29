@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, formatDate } from "@/lib/utils";
+import { useTabTitle } from "@/lib/tabs-context";
 import {
   Pencil, Trash2, Loader2, AlertTriangle, Save, X, Phone, UserCheck,
 } from "lucide-react";
@@ -77,6 +78,7 @@ export default function ColaboradorDetailPage() {
   const router = useRouter();
 
   const [colaborador, setColaborador] = useState<Colaborador | null>(null);
+  useTabTitle(colaborador?.nome ?? null);
   const [loading, setLoading]         = useState(true);
   const [error,   setError]           = useState("");
 

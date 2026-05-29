@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useTabsContext, useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -154,7 +155,7 @@ type SetorOpt       = { id: string; nome: string; ativo: boolean };
 
 export default function EditarSolicitacaoPage() {
   const { id }  = useParams<{ id: string }>();
-  const router  = useRouter();
+  const { replaceCurrentTab } = useTabsContext();
 
   const { save: saveForm, load: loadForm, clear: clearForm } = useFormPersist<FormSnapshot>(`sc:edit:${id}`);
   const formRestoredRef = useRef(false);
@@ -162,6 +163,7 @@ export default function EditarSolicitacaoPage() {
 
   const [ready,   setReady]   = useState(false);
   const [numero,  setNumero]  = useState("");
+  useTabTitle(numero || null);
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState("");
@@ -376,7 +378,7 @@ export default function EditarSolicitacaoPage() {
     if (!descricao.trim()) { setError("Descrição é obrigatória"); return; }
     try {
       await handleSaveOnly();
-      router.push(`/compras/necessidades/${id}`);
+      replaceCurrentTab(`/compras/necessidades/${id}`);
     } catch { /* error already set in handleSaveOnly */ }
   }
 
@@ -548,7 +550,7 @@ export default function EditarSolicitacaoPage() {
         </Card>
 
         <div className="flex gap-3 justify-end">
-          <Button type="button" variant="outline" onClick={() => router.push(`/compras/necessidades/${id}`)}>Cancelar</Button>
+          <Button type="button" variant="outline" onClick={() => replaceCurrentTab(`/compras/necessidades/${id}`)}>Cancelar</Button>
           <Button type="submit" disabled={saving}>
             {saving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Salvando...</> : <><Save className="w-4 h-4 mr-1" />Salvar Alterações</>}
           </Button>
