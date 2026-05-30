@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
-import { useSession } from "@/lib/session-context";
 import { Plus, Truck, Pencil, Package, Trash2 } from "lucide-react";
 
 type MinutaItemSummary = { quantidade: string };
@@ -115,8 +114,6 @@ function todayInput() {
 export default function PedidoDetail({ pedido, itensComodato, movimentacoesComodato }: PedidoDetailProps) {
   const router = useRouter();
   const { replaceCurrentTab } = useTabsContext();
-  const { user } = useSession();
-  const isAdmin = user?.perfil === "ADMIN";
   useTabTitle(pedido.numero);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"itens" | "minutas" | "comodato">("itens");
@@ -481,8 +478,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
         {activeTab === "comodato" && (
           <Card style={{ borderTopLeftRadius: 0 }}>
             <CardContent className="pt-4 space-y-5">
-              {/* Formulário de saída (apenas administradores) */}
-              {isAdmin && (
+              {/* Formulário de saída — liberado a qualquer usuário, pois fica amarrado ao pedido */}
               <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 space-y-4">
                 <p className="text-sm font-medium text-gray-700">Registrar saída de comodato (cliente levando)</p>
                 <div className="grid grid-cols-2 gap-4">
@@ -562,7 +558,6 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                   </Button>
                 </div>
               </div>
-              )}
 
               {/* Lançamentos deste pedido */}
               {movimentacoesComodato.length === 0 ? (
@@ -588,7 +583,6 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                         <td className="py-2.5 text-right">{formatBRL(m.valorUnitario)}</td>
                         <td className="py-2.5 text-right font-medium">{formatBRL(m.quantidade * m.valorUnitario)}</td>
                         <td className="py-2.5 text-right">
-                          {isAdmin && (
                           <Button
                             variant="ghost" size="icon"
                             onClick={() => removerComodato(m.id)}
@@ -597,7 +591,6 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
-                          )}
                         </td>
                       </tr>
                     ))}

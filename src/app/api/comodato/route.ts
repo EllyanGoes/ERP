@@ -22,10 +22,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  // Apenas administradores podem lançar comodato.
   const session = await getSession();
-  if (session?.perfil !== "ADMIN") {
-    return NextResponse.json({ error: "Apenas administradores podem lançar comodato" }, { status: 403 });
+  if (!session) {
+    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
   const body = await req.json();
@@ -35,6 +34,12 @@ export async function POST(req: NextRequest) {
   }
 
   const { clienteId, itemId, tipo, quantidade, valorUnitario, data, documento, observacoes, pedidoVendaId } = parsed.data;
+
+  // Comodato avulso (tela /comodato, sem pedido) é exclusivo de administradores.
+  // Amarrado a um pedido de venda, qualquer usuário (ex.: vendedor) pode lançar pela tela do pedido.
+  if (!pedidoVendaId && session.perfil !== "ADMIN") {
+    return NextResponse.json({ error: "Apenas administradores podem lançar comodato avulso" }, { status: 403 });
+  }
 
   let valor = valorUnitario;
   if (valor == null) {
