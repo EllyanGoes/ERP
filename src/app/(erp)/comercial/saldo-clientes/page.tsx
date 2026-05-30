@@ -25,6 +25,7 @@ export default async function SaldoClientesPage() {
         select: {
           id: true,
           quantidade: true,
+          valorTotal: true,
           item: {
             select: {
               codigo: true,
@@ -58,6 +59,10 @@ export default async function SaldoClientesPage() {
       );
       const pendente = pedida - minutado;
       if (pendente > EPS) {
+        // Valor monetário proporcional ao que ainda falta entregar
+        // (já líquido do desconto da linha — valorTotal é o total da linha).
+        const valorTotalLinha = decimalToNumber(it.valorTotal);
+        const valorPendente = pedida > 0 ? (pendente / pedida) * valorTotalLinha : 0;
         itensPendentes.push({
           id: it.id,
           codigo: it.item.codigo,
@@ -66,6 +71,7 @@ export default async function SaldoClientesPage() {
           pedida,
           minutado,
           pendente,
+          valorPendente,
         });
       }
     }
@@ -89,6 +95,7 @@ export default async function SaldoClientesPage() {
       dataEntrega: p.dataEntrega ? p.dataEntrega.toISOString() : null,
       itens: itensPendentes,
       totalPendente: itensPendentes.reduce((s, i) => s + i.pendente, 0),
+      valorPendente: itensPendentes.reduce((s, i) => s + i.valorPendente, 0),
     });
     cli.totalItensPendentes += itensPendentes.length;
   }

@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
-import { formatDate } from "@/lib/utils";
+import { formatBRL, formatDate } from "@/lib/utils";
 import {
   PackageSearch,
   ChevronDown,
   ChevronRight,
   Truck,
   Search,
+  Calendar,
   CalendarClock,
 } from "lucide-react";
 
@@ -24,6 +25,7 @@ export type ItemPendente = {
   pedida: number;
   minutado: number;
   pendente: number;
+  valorPendente: number;
 };
 
 export type PedidoComSaldo = {
@@ -35,6 +37,7 @@ export type PedidoComSaldo = {
   dataEntrega: string | null;
   itens: ItemPendente[];
   totalPendente: number;
+  valorPendente: number;
 };
 
 export type ClienteComSaldo = {
@@ -89,7 +92,12 @@ export default function SaldoClientesView({ clientes }: { clientes: ClienteComSa
       (s, c) => s + c.pedidos.reduce((ss, p) => ss + p.itens.length, 0),
       0,
     );
-    return { nClientes, nPedidos, nItens };
+    // Valor total a entregar (soma dos pedidos visíveis — respeita o filtro).
+    const valorTotal = filtered.reduce(
+      (s, c) => s + c.pedidos.reduce((ss, p) => ss + p.valorPendente, 0),
+      0,
+    );
+    return { nClientes, nPedidos, nItens, valorTotal };
   }, [filtered]);
 
   function toggle(id: string) {
@@ -130,6 +138,9 @@ export default function SaldoClientesView({ clientes }: { clientes: ClienteComSa
           <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2.5 py-1 font-medium">
             {totals.nItens} {totals.nItens === 1 ? "item pendente" : "itens pendentes"}
           </span>
+          <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-1 font-semibold">
+            {formatBRL(totals.valorTotal)} a entregar
+          </span>
         </div>
       </div>
 
@@ -150,6 +161,7 @@ export default function SaldoClientesView({ clientes }: { clientes: ClienteComSa
         ) : (
           filtered.map((cli) => {
             const isCollapsed = collapsed.has(cli.id);
+            const clienteValor = cli.pedidos.reduce((s, p) => s + p.valorPendente, 0);
             return (
               <div
                 key={cli.id}
@@ -166,6 +178,7 @@ export default function SaldoClientesView({ clientes }: { clientes: ClienteComSa
                     <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
                   )}
                   <span className="font-semibold text-gray-900 flex-1 truncate">{cli.nome}</span>
+                  <span className="text-sm font-semibold text-emerald-700">{formatBRL(clienteValor)}</span>
                   <span className="text-xs text-gray-400">
                     {cli.pedidos.length} {cli.pedidos.length === 1 ? "pedido" : "pedidos"}
                   </span>
@@ -182,6 +195,9 @@ export default function SaldoClientesView({ clientes }: { clientes: ClienteComSa
                             <span className="text-xs text-gray-400">Orç. {p.numeroOrcamento}</span>
                           )}
                           <StatusBadge status={p.status} />
+                          <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                            <Calendar className="w-3.5 h-3.5" /> Emissão {formatDate(p.dataEmissao)}
+                          </span>
                           {p.dataEntrega && (
                             <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                               <CalendarClock className="w-3.5 h-3.5" /> Entrega {formatDate(p.dataEntrega)}
@@ -202,9 +218,10 @@ export default function SaldoClientesView({ clientes }: { clientes: ClienteComSa
                             <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
                               <tr>
                                 <th className="text-left font-medium px-3 py-2">Produto</th>
-                                <th className="text-right font-medium px-3 py-2 w-28">Pedida</th>
-                                <th className="text-right font-medium px-3 py-2 w-28">Em minuta</th>
-                                <th className="text-right font-medium px-3 py-2 w-32">Falta entregar</th>
+                                <th className="text-right font-medium px-3 py-2 w-24">Pedida</th>
+                                <th className="text-right font-medium px-3 py-2 w-24">Em minuta</th>
+                                <th className="text-right font-medium px-3 py-2 w-28">Falta entregar</th>
+                                <th className="text-right font-medium px-3 py-2 w-36">Valor a entregar</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
@@ -223,9 +240,25 @@ export default function SaldoClientesView({ clientes }: { clientes: ClienteComSa
                                   <td className="px-3 py-2 text-right tabular-nums font-semibold text-blue-700">
                                     {numberFmt.format(it.pendente)} {it.unidade}
                                   </td>
+                                  <td className="px-3 py-2 text-right tabular-nums font-semibold text-gray-900">
+                                    {formatBRL(it.valorPendente)}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
+                            <tfoot className="bg-gray-50 border-t border-gray-200">
+                              <tr>
+                                <td
+                                  className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-gray-500"
+                                  colSpan={4}
+                                >
+                                  Total a entregar
+                                </td>
+                                <td className="px-3 py-2 text-right tabular-nums font-bold text-emerald-700">
+                                  {formatBRL(p.valorPendente)}
+                                </td>
+                              </tr>
+                            </tfoot>
                           </table>
                         </div>
                       </div>
