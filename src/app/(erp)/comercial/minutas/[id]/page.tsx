@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, XCircle, ArrowRight, AlertCircle, Pencil, Save } from "lucide-react";
 import { useTabTitle } from "@/lib/tabs-context";
+import { useSession } from "@/lib/session-context";
 import { statusMinutaLabel, confirmacaoMinutaLabel, TIPO_MINUTA_LABEL, type TipoMinuta } from "@/lib/minuta-labels";
 import { cn } from "@/lib/utils";
 
@@ -69,6 +70,8 @@ function fmtQty(n: string | number) {
 export default function MinutaDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
   const [minuta, setMinuta] = useState<Minuta | null>(null);
   const [locais, setLocais] = useState<LocalEstoque[]>([]);
   const [motoristas, setMotoristas] = useState<Motorista[]>([]);
@@ -80,7 +83,8 @@ export default function MinutaDetailPage() {
   const [saindoLocalId, setSaindoLocalId] = useState("");
   const [showSaidaModal, setShowSaidaModal] = useState(false);
 
-  // Edit mode (only while PENDENTE)
+  // Edit mode — disponível para todos enquanto não finalizada;
+  // administradores podem editar em qualquer status (inclusive Entregue/Cancelada).
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [eNumeroFisico, setENumeroFisico]   = useState("");
@@ -222,7 +226,7 @@ export default function MinutaDetailPage() {
             Cancelar
           </Button>
         </div>
-      ) : !isFinal && (
+      ) : (!isFinal || isAdmin) && (
         <div className="flex items-center gap-3 flex-wrap">
           {minuta.status === "PENDENTE" && (
             <Button
@@ -375,7 +379,9 @@ export default function MinutaDetailPage() {
                   ) : (
                     <div className="text-gray-800 pt-2">
                       {minuta.localEstoque?.nome ?? "—"}
-                      <span className="ml-1 text-xs text-gray-400">(estoque já baixado)</span>
+                      {(minuta.status === "SAIU_PARA_ENTREGA" || minuta.status === "ENTREGUE") && (
+                        <span className="ml-1 text-xs text-gray-400">(estoque já baixado)</span>
+                      )}
                     </div>
                   )}
                 </div>
