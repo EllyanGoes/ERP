@@ -324,7 +324,7 @@ export default function EditarMinutaPage() {
                           step="0.001"
                           value={r.quantidade}
                           onChange={e => updateRow(idx, "quantidade", e.target.value)}
-                          className="h-8 text-right border-gray-300 text-sm w-full"
+                          className="h-8 w-full text-right text-sm font-semibold border-blue-400 bg-blue-50 text-blue-900 focus-visible:border-blue-500 focus-visible:ring-blue-500"
                         />
                       </td>
                       <td className="px-4 py-3 align-middle">
