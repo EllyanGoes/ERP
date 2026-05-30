@@ -10,6 +10,8 @@ import {
   PackageSearch,
   ChevronDown,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Truck,
   Search,
   Calendar,
@@ -109,6 +111,14 @@ export default function SaldoClientesView({ clientes }: { clientes: ClienteComSa
     });
   }
 
+  // Todos recolhidos? (considera apenas os clientes visíveis no filtro atual)
+  const allCollapsed =
+    filtered.length > 0 && filtered.every((c) => collapsed.has(c.id));
+
+  function toggleAll() {
+    setCollapsed(allCollapsed ? new Set() : new Set(clientes.map((c) => c.id)));
+  }
+
   return (
     <div className="flex flex-col h-full">
       <PageHeader
@@ -142,6 +152,16 @@ export default function SaldoClientesView({ clientes }: { clientes: ClienteComSa
             {formatBRL(totals.valorTotal)} a entregar
           </span>
         </div>
+        {filtered.length > 1 && (
+          <Button variant="outline" size="sm" onClick={toggleAll} className="ml-auto">
+            {allCollapsed ? (
+              <ChevronsUpDown className="w-4 h-4" />
+            ) : (
+              <ChevronsDownUp className="w-4 h-4" />
+            )}
+            {allCollapsed ? "Expandir todos" : "Recolher todos"}
+          </Button>
+        )}
       </div>
 
       {/* Conteúdo */}
