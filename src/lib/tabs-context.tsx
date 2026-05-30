@@ -269,16 +269,21 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
     setTabs((prev) => prev.filter((t) => t.href === pathname));
   }, [pathname]);
 
-  // Cmd+R (Mac) / Ctrl+R (Windows) → close all other tabs, keep current
+  // Cmd+R (Mac) / Ctrl+R (Windows) → close all other tabs, keep current.
+  // Usa a FASE DE CAPTURA para rodar antes de qualquer outro handler e antes do
+  // navegador: no Windows o Ctrl+R é o "recarregar página" nativo, então o
+  // preventDefault precisa acontecer o mais cedo possível para vencer essa ação.
+  // - key.toLowerCase(): cobre Caps Lock / Shift (que mandam "R").
+  // - !e.altKey: ignora o AltGr (no Windows AltGr = Ctrl+Alt) p/ não disparar à toa.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "r" && (e.metaKey || e.ctrlKey)) {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "r") {
         e.preventDefault();
         setTabs((prev) => prev.filter((t) => t.href === pathname));
       }
     }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
   }, [pathname]);
 
   const reorderTabs = useCallback((fromId: string, toId: string, side: "before" | "after") => {
