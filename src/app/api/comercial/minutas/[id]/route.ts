@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 const MINUTA_INCLUDE = {
   pedidoVenda: {
@@ -222,6 +223,141 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         where: { id: params.id },
         include: MINUTA_INCLUDE,
       });
+      return NextResponse.json({ data: updated });
+    }
+
+    // ── Edição de itens (com reconciliação de estoque) ───────────────────────
+    // Acionada pela tela de edição (que envia `itens` sem mudar o status).
+    // A minuta já baixou o estoque ao nascer (SAIU_PARA_ENTREGA), então ao trocar
+    // quantidades/itens/local devolvemos o que estava baixado e baixamos o novo —
+    // tudo via saldo líquido por (item + local) para gerar o mínimo de movimentos.
+    if (Array.isArray(body.itens)) {
+      const novosItens = body.itens as Array<{
+        pedidoVendaItemId: string;
+        itemId: string;
+        quantidade: number;
+        quantidadeConvertida?: number | null;
+        unidadeId?: string | null;
+      }>;
+      if (novosItens.length === 0) {
+        return NextResponse.json({ error: "Informe ao menos um item com quantidade" }, { status: 400 });
+      }
+
+      // Minutas finalizadas (entregue/cancelada) só o administrador edita.
+      const isFinal = minuta.status === "ENTREGUE" || minuta.status === "CANCELADA";
+      if (isFinal) {
+        const session = await getSession();
+        if (session?.perfil !== "ADMIN") {
+          return NextResponse.json({ error: "Apenas administradores podem editar minutas finalizadas" }, { status: 403 });
+        }
+      }
+
+      const oldLocal = minuta.localEstoqueId;
+      const newLocal = body.localEstoqueId !== undefined ? (body.localEstoqueId || null) : oldLocal;
+
+      // A minuta movimenta estoque apenas quando está em SAIU_PARA_ENTREGA ou ENTREGUE.
+      const movimentaEstoque = minuta.status === "SAIU_PARA_ENTREGA" || minuta.status === "ENTREGUE";
+      if (movimentaEstoque && !newLocal) {
+        return NextResponse.json({ error: "Informe o Local de Estoque para registrar a saída" }, { status: 400 });
+      }
+
+      // Saldo líquido por (item + local): devolve as quantidades antigas (+) e baixa as novas (−).
+      const net = new Map<string, { itemId: string; localEstoqueId: string; delta: number }>();
+      if (movimentaEstoque) {
+        for (const it of minuta.itens) {
+          if (!oldLocal) continue;
+          const key = `${it.itemId}|${oldLocal}`;
+          const cur = net.get(key) ?? { itemId: it.itemId, localEstoqueId: oldLocal, delta: 0 };
+          cur.delta += parseFloat(it.quantidade.toString());
+          net.set(key, cur);
+        }
+        for (const it of novosItens) {
+          const key = `${it.itemId}|${newLocal}`;
+          const cur = net.get(key) ?? { itemId: it.itemId, localEstoqueId: newLocal as string, delta: 0 };
+          cur.delta -= Number(it.quantidade) || 0;
+          net.set(key, cur);
+        }
+      }
+
+      await prisma.$transaction(async (tx) => {
+        // Substitui os itens da minuta
+        await tx.minutaItem.deleteMany({ where: { minutaId: params.id } });
+        await tx.minutaItem.createMany({
+          data: novosItens.map((it) => ({
+            minutaId: params.id,
+            pedidoVendaItemId: it.pedidoVendaItemId,
+            itemId: it.itemId,
+            quantidade: it.quantidade,
+            quantidadeConvertida: it.quantidadeConvertida ?? null,
+            unidadeId: it.unidadeId || null,
+          })),
+        });
+
+        // Reconcilia o estoque (apenas onde o saldo líquido ≠ 0)
+        const ajustes = Array.from(net.values()).filter((n) => Math.abs(n.delta) > 0.0001);
+        if (ajustes.length > 0) {
+          const year = new Date().getFullYear();
+          const seq = await tx.sequencia.upsert({
+            where:  { prefixo: "MOV" },
+            create: { prefixo: "MOV", ultimo: 1 },
+            update: { ultimo: { increment: 1 } },
+          });
+          const movNumero = `MOV-${year}-${String(seq.ultimo).padStart(4, "0")}`;
+          const lote = await tx.loteMovimentacao.create({
+            data: {
+              numero:      movNumero,
+              tipo:        "AJUSTE",
+              documento:   minuta.numero,
+              observacoes: `Ajuste por edição da minuta ${minuta.numero}`,
+            },
+          });
+
+          for (const aj of ajustes) {
+            let estoque = await tx.estoqueItem.findFirst({
+              where: { itemId: aj.itemId, localEstoqueId: aj.localEstoqueId },
+            });
+            if (!estoque) {
+              estoque = await tx.estoqueItem.create({
+                data: { itemId: aj.itemId, localEstoqueId: aj.localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0 },
+              });
+            }
+            const saldoAntes  = parseFloat(estoque.quantidadeAtual.toString());
+            const saldoDepois = saldoAntes + aj.delta;
+            await tx.estoqueItem.update({
+              where: { id: estoque.id },
+              data:  { quantidadeAtual: saldoDepois },
+            });
+            await tx.movimentacaoEstoque.create({
+              data: {
+                itemId:        aj.itemId,
+                localEstoqueId: aj.localEstoqueId,
+                loteId:        lote.id,
+                tipo:          aj.delta > 0 ? "ENTRADA" : "SAIDA",
+                quantidade:    Math.abs(aj.delta),
+                saldoAntes,
+                saldoDepois,
+                documento:     minuta.numero,
+                observacoes:   `Ajuste por edição da minuta ${minuta.numero}`,
+              },
+            });
+          }
+        }
+
+        // Atualiza logística + local de estoque
+        await tx.minuta.update({
+          where: { id: params.id },
+          data:  { ...updateData, localEstoqueId: newLocal },
+        });
+      });
+
+      const updated = await prisma.minuta.findUnique({
+        where: { id: params.id },
+        include: MINUTA_INCLUDE,
+      });
+
+      // Se a minuta editada está ENTREGUE, reavalia a conclusão do pedido.
+      if (minuta.status === "ENTREGUE") await checkAndConcludePedido(minuta.pedidoVendaId);
+
       return NextResponse.json({ data: updated });
     }
 

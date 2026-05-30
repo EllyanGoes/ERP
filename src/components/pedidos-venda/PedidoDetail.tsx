@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
+import { useSession } from "@/lib/session-context";
 import { Plus, Truck, Pencil, Package, Trash2 } from "lucide-react";
 
 type MinutaItemSummary = { quantidade: string };
@@ -114,6 +115,8 @@ function todayInput() {
 export default function PedidoDetail({ pedido, itensComodato, movimentacoesComodato }: PedidoDetailProps) {
   const router = useRouter();
   const { replaceCurrentTab } = useTabsContext();
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
   useTabTitle(pedido.numero);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"itens" | "minutas" | "comodato">("itens");
@@ -407,6 +410,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                       <th className="text-left pb-2">Motorista</th>
                       <th className="text-left pb-2">Local</th>
                       <th className="text-right pb-2">Itens</th>
+                      <th className="pb-2"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -428,6 +432,18 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                         <td className="py-2.5 text-gray-600">{m.motorista?.nome ?? "—"}</td>
                         <td className="py-2.5 text-gray-600">{m.localEstoque?.nome ?? "—"}</td>
                         <td className="py-2.5 text-right text-gray-600">{m.itens.length}</td>
+                        <td className="py-2.5 text-right">
+                          {((m.status !== "ENTREGUE" && m.status !== "CANCELADA") || isAdmin) && (
+                            <Button
+                              variant="ghost" size="icon"
+                              onClick={(e) => { e.stopPropagation(); router.push(`/comercial/minutas/${m.id}/editar`); }}
+                              className="h-7 w-7 text-gray-400 hover:text-blue-600"
+                              title="Editar minuta"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
