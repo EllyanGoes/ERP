@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Plus, CheckCircle2, AlertCircle, X, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { formatBRL, formatDate, cn } from "@/lib/utils";
+import { useSession } from "@/lib/session-context";
 
 type Cliente = { id: string; razaoSocial: string; nomeFantasia: string | null };
 type Item = { id: string; codigo: string; descricao: string; precoVenda: number };
@@ -40,6 +41,8 @@ export default function ComodatoClient({
   movimentos: Movimento[];
 }) {
   const router = useRouter();
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
   const [activeTab, setActiveTab] = useState<"saldos" | "lancamentos">("saldos");
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -162,15 +165,17 @@ export default function ComodatoClient({
         </div>
       </div>
 
-      <div className="flex justify-end">
-        <Button onClick={() => setShowForm((v) => !v)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Novo lançamento
-        </Button>
-      </div>
+      {isAdmin && (
+        <div className="flex justify-end">
+          <Button onClick={() => setShowForm((v) => !v)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Novo lançamento
+          </Button>
+        </div>
+      )}
 
-      {/* Formulário de lançamento manual */}
-      {showForm && (
+      {/* Formulário de lançamento manual (apenas administradores) */}
+      {isAdmin && showForm && (
         <form onSubmit={handleSubmit} className="rounded-xl border border-gray-200 bg-white p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>

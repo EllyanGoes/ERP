@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { comodatoMovimentoSchema } from "@/lib/validations/comodato";
 import { recalcPedidoValorTotal } from "@/lib/pedido-totais";
+import { getSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -21,6 +22,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Apenas administradores podem lançar comodato.
+  const session = await getSession();
+  if (session?.perfil !== "ADMIN") {
+    return NextResponse.json({ error: "Apenas administradores podem lançar comodato" }, { status: 403 });
+  }
+
   const body = await req.json();
   const parsed = comodatoMovimentoSchema.safeParse(body);
   if (!parsed.success) {
