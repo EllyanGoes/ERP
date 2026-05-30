@@ -11,6 +11,7 @@ import { ExternalLink } from "lucide-react";
 
 type PedidoRow  = { id: string; numero: string; status: string; dataEmissao: Date | string; valorTotal: unknown };
 type ContaRow   = { id: string; numero: string; descricao: string; status: string; dataVencimento: Date | string; valorOriginal: unknown; valorPago: unknown };
+type ComodatoMov = { id: string; itemId: string; tipo: "SAIDA" | "RETORNO"; quantidade: number; valorUnitario: number; item: { id: string; codigo: string; descricao: string } };
 
 type ClienteDetailProps = {
   cliente: {
@@ -22,7 +23,12 @@ type ClienteDetailProps = {
     pedidosVenda: PedidoRow[];
     contasReceber: ContaRow[];
   };
+  comodato: ComodatoMov[];
 };
+
+function fmtNum(n: number) {
+  return n.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+}
 
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -54,8 +60,8 @@ const STATUS_CONTA_COLOR: Record<string, string> = {
   PARCIAL:  "bg-amber-100 text-amber-700",
 };
 
-export default function ClienteDetail({ cliente }: ClienteDetailProps) {
-  const [tab, setTab] = useState<"dados" | "pedidos" | "contas">("dados");
+export default function ClienteDetail({ cliente, comodato }: ClienteDetailProps) {
+  const [tab, setTab] = useState<"dados" | "pedidos" | "contas" | "comodato">("dados");
   useTabTitle(cliente.nomeFantasia || cliente.razaoSocial);
 
   const endereco = [
@@ -67,10 +73,27 @@ export default function ClienteDetail({ cliente }: ClienteDetailProps) {
     cliente.cep,
   ].filter(Boolean).join(", ");
 
+  // Saldo de comodato por item: SAÍDA soma (+), RETORNO subtrai (−).
+  // Mantém só itens com saldo diferente de zero.
+  const comodatoSaldos = (() => {
+    const map = new Map<string, { itemId: string; item: ComodatoMov["item"]; qtd: number; valor: number }>();
+    for (const m of comodato) {
+      const sign = m.tipo === "SAIDA" ? 1 : -1;
+      const cur = map.get(m.itemId) ?? { itemId: m.itemId, item: m.item, qtd: 0, valor: 0 };
+      cur.qtd += sign * m.quantidade;
+      cur.valor += sign * m.quantidade * m.valorUnitario;
+      map.set(m.itemId, cur);
+    }
+    return Array.from(map.values()).filter((s) => Math.abs(s.qtd) > 0.0001 || Math.abs(s.valor) > 0.0001);
+  })();
+  const comodatoTotalQtd = comodatoSaldos.reduce((s, x) => s + x.qtd, 0);
+  const comodatoTotalValor = comodatoSaldos.reduce((s, x) => s + x.valor, 0);
+
   const TABS = [
-    { key: "dados",   label: "Dados Cadastrais" },
-    { key: "pedidos", label: `Pedidos de Venda (${cliente.pedidosVenda.length})` },
-    { key: "contas",  label: `Contas a Receber (${cliente.contasReceber.length})` },
+    { key: "dados",    label: "Dados Cadastrais" },
+    { key: "pedidos",  label: `Pedidos de Venda (${cliente.pedidosVenda.length})` },
+    { key: "contas",   label: `Contas a Receber (${cliente.contasReceber.length})` },
+    { key: "comodato", label: `Saldo Comodato (${comodatoSaldos.length})` },
   ] as const;
 
   return (
@@ -241,6 +264,49 @@ export default function ClienteDetail({ cliente }: ClienteDetailProps) {
               <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50 text-xs text-gray-400">
                 {cliente.contasReceber.length} conta{cliente.contasReceber.length !== 1 ? "s" : ""}
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── SALDO COMODATO ────────────────────────────────────────────── */}
+      {tab === "comodato" && (
+        <div>
+          {comodatoSaldos.length === 0 ? (
+            <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+              <p className="font-medium">Nenhum saldo de comodato</p>
+              <p className="text-xs mt-1">Este cliente não possui itens em comodato no momento.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wide">Item em Comodato</th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wide">Saldo (Qtd)</th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-600 text-xs uppercase tracking-wide">Valor</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {comodatoSaldos.map((s) => (
+                    <tr key={s.itemId} className="hover:bg-blue-50/40 transition-colors">
+                      <td className="px-4 py-3 text-gray-700">
+                        <span className="font-mono text-xs font-semibold text-gray-500">{s.item.codigo}</span>
+                        {" — "}{s.item.descricao}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{fmtNum(s.qtd)}</td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-800">{formatBRL(s.valor)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
+                    <td className="px-4 py-3 text-gray-700">Total em comodato</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{fmtNum(comodatoTotalQtd)}</td>
+                    <td className="px-4 py-3 text-right">{formatBRL(comodatoTotalValor)}</td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           )}
         </div>
