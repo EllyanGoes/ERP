@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { AlertCircle } from "lucide-react";
 import { useTabTitle } from "@/lib/tabs-context";
-import { TIPO_MINUTA_LABEL } from "@/lib/minuta-labels";
+import { TIPO_MINUTA_LABEL, statusMinutaLabel, type StatusMinuta } from "@/lib/minuta-labels";
 import { cn } from "@/lib/utils";
 
 type ItemUnidade = {
@@ -135,6 +135,7 @@ export default function EditarMinutaPage() {
   const [motoristas, setMotoristas] = useState<Motorista[]>([]);
 
   // Form fields
+  const [status, setStatus] = useState<StatusMinuta>("SAIU_PARA_ENTREGA");
   const [tipo, setTipo] = useState<"ENTREGA" | "RETIRADA">("ENTREGA");
   const [localEstoqueId, setLocalEstoqueId] = useState("");
   const [motoristaId, setMotoristaId] = useState("");
@@ -164,6 +165,7 @@ export default function EditarMinutaPage() {
       setMotoristas(Array.isArray(motJson) ? motJson : (motJson.data ?? []));
 
       if (m) {
+        setStatus(m.status);
         setTipo(m.tipo);
         setLocalEstoqueId(m.localEstoque?.id ?? "");
         setMotoristaId(m.motorista?.id ?? "");
@@ -191,7 +193,10 @@ export default function EditarMinutaPage() {
   async function handleSave() {
     const validRows = rows.filter(r => parseFloat(r.quantidade || "0") > 0);
     if (validRows.length === 0) { setError("Informe ao menos um item com quantidade"); return; }
-    if (!localEstoqueId) { setError("Selecione o Local de Estoque (a saída do estoque é reajustada ao salvar)"); return; }
+    if ((status === "SAIU_PARA_ENTREGA" || status === "ENTREGUE") && !localEstoqueId) {
+      setError("Selecione o Local de Estoque para registrar a saída");
+      return;
+    }
 
     setSaving(true); setError("");
     try {
@@ -224,6 +229,7 @@ export default function EditarMinutaPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          status,
           numeroFisico:   numeroFisico.trim() || null,
           tipo,
           localEstoqueId: localEstoqueId || null,
@@ -257,6 +263,7 @@ export default function EditarMinutaPage() {
   }
 
   const cliente = minuta.pedidoVenda.cliente.nomeFantasia || minuta.pedidoVenda.cliente.razaoSocial;
+  const precisaLocal = status === "SAIU_PARA_ENTREGA" || status === "ENTREGUE";
 
   return (
     <div className="px-8 pb-8 space-y-6">
@@ -364,6 +371,23 @@ export default function EditarMinutaPage() {
             </div>
             <div className="p-5 space-y-4">
               <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Status</label>
+                <Select value={status} onValueChange={(v) => setStatus(v as StatusMinuta)}>
+                  <SelectTrigger className="h-10 border-gray-300">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PENDENTE">{statusMinutaLabel("PENDENTE", tipo)}</SelectItem>
+                    <SelectItem value="SAIU_PARA_ENTREGA">{statusMinutaLabel("SAIU_PARA_ENTREGA", tipo)}</SelectItem>
+                    <SelectItem value="ENTREGUE">{statusMinutaLabel("ENTREGUE", tipo)}</SelectItem>
+                    <SelectItem value="CANCELADA">{statusMinutaLabel("CANCELADA", tipo)}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-gray-400">
+                  O estoque é ajustado automaticamente conforme o status.
+                </p>
+              </div>
+              <div>
                 <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Nº da Minuta Física</label>
                 <Input
                   value={numeroFisico}
@@ -385,7 +409,7 @@ export default function EditarMinutaPage() {
                 </Select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Local de Estoque <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Local de Estoque {precisaLocal && <span className="text-red-500">*</span>}</label>
                 <Select value={localEstoqueId} onValueChange={setLocalEstoqueId}>
                   <SelectTrigger className="h-10 border-gray-300">
                     <SelectValue placeholder="Selecione..." />
@@ -465,7 +489,7 @@ export default function EditarMinutaPage() {
 
       {/* Actions */}
       <div className="flex gap-3">
-        <Button onClick={handleSave} disabled={saving || !localEstoqueId} className="font-semibold">
+        <Button onClick={handleSave} disabled={saving || (precisaLocal && !localEstoqueId)} className="font-semibold">
           {saving ? "Salvando..." : "Salvar Alterações"}
         </Button>
         <Button variant="outline" onClick={() => router.back()} className="border-gray-300 text-gray-600">

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
 import { generateDocNumber } from "@/lib/utils";
-import { recalcPedidoValorTotal } from "@/lib/pedido-totais";
+import { recalcPedidoValorTotal, getItensPendentesEntrega } from "@/lib/pedido-totais";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const pedido = await prisma.pedidoVenda.findUnique({
@@ -245,6 +245,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const valid = ["ORCAMENTO", "CONFIRMADO", "EM_AGENDAMENTO", "CONCLUIDO", "CANCELADO"];
   if (!valid.includes(status)) return NextResponse.json({ error: "Status inválido" }, { status: 400 });
+
+  // Não permite concluir enquanto houver material pendente de entrega
+  // (qtd pedida ainda não totalmente coberta por minutas ENTREGUE).
+  if (status === "CONCLUIDO") {
+    const pendentes = await getItensPendentesEntrega(params.id);
+    if (pendentes.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Há material pendente de entrega. Conclua as entregas (minutas marcadas como Entregue) antes de finalizar o pedido.",
+          pendentes,
+        },
+        { status: 422 },
+      );
+    }
+  }
 
   const pedido = await prisma.pedidoVenda.update({
     where: { id: params.id },

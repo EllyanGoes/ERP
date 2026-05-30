@@ -16,7 +16,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import {
   Plus, Search, X, LayoutList, Kanban, Loader2,
   ChevronDown as ChevronDownIcon, CalendarDays, Download, Check,
-  ShoppingCart,
+  ShoppingCart, AlertTriangle,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -31,6 +31,11 @@ type PedidoRow = {
   condicaoPagamento: string | null;
   cliente: { id: string; razaoSocial: string; nomeFantasia: string | null };
   _count?: { minutas: number };
+};
+
+type ItemPendente = {
+  codigo: string; descricao: string; unidade: string;
+  pedida: number; entregue: number; pendente: number;
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -379,6 +384,7 @@ export default function PedidosVendaPage() {
   // ── Drag-and-drop state ───────────────────────────────────────────────────
   const [draggingId, setDraggingId]     = useState<string | null>(null);
   const [dragOverCol, setDragOverCol]   = useState<string | null>(null);
+  const [blockModal, setBlockModal]     = useState<{ msg: string; pendentes: ItemPendente[] } | null>(null);
 
   // Column order + visibility
   const [colOrder, setColOrder]          = useColumnOrder("pedidos-venda", COLS.map((c) => c.id));
@@ -493,11 +499,20 @@ export default function PedidosVendaPage() {
     // Optimistic update
     setPedidos((prev) => prev.map((p) => p.id === pedidoId ? { ...p, status: newStatus } : p));
     try {
-      await fetch(`/api/pedidos-venda/${pedidoId}`, {
+      const res = await fetch(`/api/pedidos-venda/${pedidoId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        // Desfaz o movimento otimista (recarrega do servidor) e avisa o usuário.
+        await load();
+        setBlockModal({
+          msg: json.error ?? "Não foi possível mover o pedido para este status.",
+          pendentes: Array.isArray(json.pendentes) ? json.pendentes : [],
+        });
+      }
     } catch {
       // revert on failure
       await load();
@@ -889,6 +904,57 @@ export default function PedidosVendaPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {blockModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setBlockModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">Não é possível concluir o pedido</h3>
+                <p className="text-sm text-gray-600 mt-0.5">{blockModal.msg}</p>
+              </div>
+            </div>
+            {blockModal.pendentes.length > 0 && (
+              <div className="rounded-lg border border-gray-200 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                      <th className="text-left px-3 py-2 font-semibold">Item</th>
+                      <th className="text-right px-3 py-2 font-semibold">Falta entregar</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {blockModal.pendentes.map((p) => (
+                      <tr key={p.codigo}>
+                        <td className="px-3 py-2">
+                          <div className="font-medium text-gray-800">{p.descricao}</div>
+                          <div className="text-xs text-gray-400">{p.codigo}</div>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-amber-700">
+                          {p.pendente.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}{" "}
+                          <span className="text-gray-400 text-xs font-normal">{p.unidade}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="flex justify-end pt-1">
+              <Button onClick={() => setBlockModal(null)} className="font-semibold">Entendi</Button>
+            </div>
           </div>
         </div>
       )}

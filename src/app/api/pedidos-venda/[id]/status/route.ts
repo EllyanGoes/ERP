@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getItensPendentesEntrega } from "@/lib/pedido-totais";
 import { z } from "zod";
 
 const schema = z.object({ status: z.enum(["CONFIRMADO","EM_AGENDAMENTO","CONCLUIDO","CANCELADO"]) });
@@ -26,6 +27,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const allowed = TRANSITIONS[pedido.status] ?? [];
   if (!allowed.includes(parsed.data.status)) {
     return NextResponse.json({ error: `Transição inválida: ${pedido.status} → ${parsed.data.status}` }, { status: 422 });
+  }
+
+  // Não permite concluir enquanto houver material pendente de entrega
+  // (qtd pedida ainda não totalmente coberta por minutas ENTREGUE).
+  if (parsed.data.status === "CONCLUIDO") {
+    const pendentes = await getItensPendentesEntrega(params.id);
+    if (pendentes.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Há material pendente de entrega. Conclua as entregas (minutas marcadas como Entregue) antes de finalizar o pedido.",
+          pendentes,
+        },
+        { status: 422 },
+      );
+    }
   }
 
   // Nota: movimentações de estoque são geradas pelas Minutas (SAIU_PARA_ENTREGA),

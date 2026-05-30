@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
-import { Plus, Truck, Pencil, Package, Trash2 } from "lucide-react";
+import { Plus, Truck, Pencil, Package, Trash2, AlertTriangle } from "lucide-react";
 
 type MinutaItemSummary = { quantidade: string };
 
@@ -53,6 +53,11 @@ type MovComodato = {
   documento: string | null;
   observacoes: string | null;
   item: { id: string; codigo: string; descricao: string };
+};
+
+type ItemPendente = {
+  codigo: string; descricao: string; unidade: string;
+  pedida: number; entregue: number; pendente: number;
 };
 
 type PedidoDetailProps = {
@@ -120,6 +125,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   useTabTitle(pedido.numero);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"itens" | "minutas" | "comodato">("itens");
+  const [blockModal, setBlockModal] = useState<{ msg: string; pendentes: ItemPendente[] } | null>(null);
 
   // Comodato (saída) form state
   const [comodatoItemId, setComodatoItemId] = useState("");
@@ -153,13 +159,24 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
 
   async function changeStatus(next: string) {
     setLoading(true);
-    await fetch(`/api/pedidos-venda/${pedido.id}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: next }),
-    });
-    setLoading(false);
-    router.refresh();
+    try {
+      const res = await fetch(`/api/pedidos-venda/${pedido.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setBlockModal({
+          msg: json.error ?? "Não foi possível alterar o status do pedido.",
+          pendentes: Array.isArray(json.pendentes) ? json.pendentes : [],
+        });
+        return;
+      }
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function gerarContaReceber() {
@@ -626,6 +643,56 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           </Card>
         )}
       </div>
+
+      {blockModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setBlockModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">Não é possível concluir o pedido</h3>
+                <p className="text-sm text-gray-600 mt-0.5">{blockModal.msg}</p>
+              </div>
+            </div>
+            {blockModal.pendentes.length > 0 && (
+              <div className="rounded-lg border border-gray-200 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                      <th className="text-left px-3 py-2 font-semibold">Item</th>
+                      <th className="text-right px-3 py-2 font-semibold">Falta entregar</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {blockModal.pendentes.map((p) => (
+                      <tr key={p.codigo}>
+                        <td className="px-3 py-2">
+                          <div className="font-medium text-gray-800">{p.descricao}</div>
+                          <div className="text-xs text-gray-400">{p.codigo}</div>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-amber-700">
+                          {fmtNum(p.pendente)} <span className="text-gray-400 text-xs font-normal">{p.unidade}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="flex justify-end pt-1">
+              <Button onClick={() => setBlockModal(null)} className="font-semibold">Entendi</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

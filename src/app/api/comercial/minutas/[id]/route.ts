@@ -121,7 +121,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const newStatus = body.status as string | undefined;
 
     // Validate status transitions
-    if (newStatus) {
+    // A tela de edição (que envia `itens`) define qualquer status livremente para
+    // corrigir erros — o estoque é reconciliado adiante. As ações rápidas do detalhe
+    // (que enviam só `status`) continuam presas ao fluxo PENDENTE→SAIU→ENTREGUE.
+    if (newStatus && !Array.isArray(body.itens)) {
       const validTransitions: Record<string, string[]> = {
         PENDENTE:          ["SAIU_PARA_ENTREGA", "CANCELADA"],
         SAIU_PARA_ENTREGA: ["ENTREGUE"],
@@ -148,7 +151,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (newStatus)                        updateData.status       = newStatus;
 
     // ── SAIU_PARA_ENTREGA → gera SAÍDA no estoque ─────────────────────────────
-    if (newStatus === "SAIU_PARA_ENTREGA") {
+    // Apenas a ação rápida do detalhe (só `status`). Pela tela de edição (com `itens`)
+    // a saída é tratada na reconciliação abaixo, evitando baixa em dobro.
+    if (newStatus === "SAIU_PARA_ENTREGA" && !Array.isArray(body.itens)) {
       const localEstoqueId = body.localEstoqueId || minuta.localEstoqueId;
       if (!localEstoqueId) {
         return NextResponse.json(
@@ -226,11 +231,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ data: updated });
     }
 
-    // ── Edição de itens (com reconciliação de estoque) ───────────────────────
-    // Acionada pela tela de edição (que envia `itens` sem mudar o status).
-    // A minuta já baixou o estoque ao nascer (SAIU_PARA_ENTREGA), então ao trocar
-    // quantidades/itens/local devolvemos o que estava baixado e baixamos o novo —
-    // tudo via saldo líquido por (item + local) para gerar o mínimo de movimentos.
+    // ── Edição completa pela tela de edição (itens + logística + status) ─────
+    // Envia sempre `itens`. Como a minuta pode trocar de quantidades, local e status,
+    // a reconciliação abaixo devolve o que estava baixado e baixa o novo conforme o
+    // status efetivo — tudo por saldo líquido (item + local) p/ gerar o mínimo de movimentos.
     if (Array.isArray(body.itens)) {
       const novosItens = body.itens as Array<{
         pedidoVendaItemId: string;
@@ -255,25 +259,35 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       const oldLocal = minuta.localEstoqueId;
       const newLocal = body.localEstoqueId !== undefined ? (body.localEstoqueId || null) : oldLocal;
 
-      // A minuta movimenta estoque apenas quando está em SAIU_PARA_ENTREGA ou ENTREGUE.
-      const movimentaEstoque = minuta.status === "SAIU_PARA_ENTREGA" || minuta.status === "ENTREGUE";
-      if (movimentaEstoque && !newLocal) {
+      // Status efetivo depois da edição (a tela pode alterá-lo livremente).
+      const effectiveStatus = newStatus ?? minuta.status;
+
+      // O estoque fica "baixado" quando a minuta está em SAIU_PARA_ENTREGA ou ENTREGUE.
+      // Comparamos o antes (oldOut) com o depois (newOut):
+      //   • estava baixado  → devolve as quantidades antigas ao estoque (+);
+      //   • fica baixado    → baixa as quantidades novas (−).
+      // Assim, mudar de status já acerta o estoque: Saiu→Cancelada/Pendente devolve,
+      // Pendente/Cancelada→Saiu/Entregue baixa — tudo no mesmo saldo líquido.
+      const oldOut = minuta.status === "SAIU_PARA_ENTREGA" || minuta.status === "ENTREGUE";
+      const newOut = effectiveStatus === "SAIU_PARA_ENTREGA" || effectiveStatus === "ENTREGUE";
+      if (newOut && !newLocal) {
         return NextResponse.json({ error: "Informe o Local de Estoque para registrar a saída" }, { status: 400 });
       }
 
       // Saldo líquido por (item + local): devolve as quantidades antigas (+) e baixa as novas (−).
       const net = new Map<string, { itemId: string; localEstoqueId: string; delta: number }>();
-      if (movimentaEstoque) {
+      if (oldOut && oldLocal) {
         for (const it of minuta.itens) {
-          if (!oldLocal) continue;
           const key = `${it.itemId}|${oldLocal}`;
           const cur = net.get(key) ?? { itemId: it.itemId, localEstoqueId: oldLocal, delta: 0 };
           cur.delta += parseFloat(it.quantidade.toString());
           net.set(key, cur);
         }
+      }
+      if (newOut && newLocal) {
         for (const it of novosItens) {
           const key = `${it.itemId}|${newLocal}`;
-          const cur = net.get(key) ?? { itemId: it.itemId, localEstoqueId: newLocal as string, delta: 0 };
+          const cur = net.get(key) ?? { itemId: it.itemId, localEstoqueId: newLocal, delta: 0 };
           cur.delta -= Number(it.quantidade) || 0;
           net.set(key, cur);
         }
@@ -355,8 +369,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         include: MINUTA_INCLUDE,
       });
 
-      // Se a minuta editada está ENTREGUE, reavalia a conclusão do pedido.
-      if (minuta.status === "ENTREGUE") await checkAndConcludePedido(minuta.pedidoVendaId);
+      // Se a minuta ficou (ou continuou) ENTREGUE, reavalia a conclusão do pedido.
+      if (minuta.status === "ENTREGUE" || effectiveStatus === "ENTREGUE") {
+        await checkAndConcludePedido(minuta.pedidoVendaId);
+      }
 
       return NextResponse.json({ data: updated });
     }

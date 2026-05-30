@@ -1,5 +1,59 @@
 import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
+
+export type ItemPendenteEntrega = {
+  codigo: string;
+  descricao: string;
+  unidade: string;
+  pedida: number;
+  entregue: number;
+  pendente: number;
+};
+
+/**
+ * Lista os itens do pedido que ainda têm saldo NÃO entregue
+ * (quantidade pedida − quantidade já confirmada em minutas ENTREGUE).
+ *
+ * Lista vazia ⇒ todo o material foi entregue, e o pedido pode ser concluído.
+ * É a regra inversa da auto-conclusão (checkAndConcludePedido): aqui usamos a
+ * mesma definição de "entregue" (somente minutas com status ENTREGUE contam).
+ */
+export async function getItensPendentesEntrega(pedidoVendaId: string): Promise<ItemPendenteEntrega[]> {
+  const pedido = await prisma.pedidoVenda.findUnique({
+    where: { id: pedidoVendaId },
+    select: {
+      itens: {
+        select: {
+          quantidade: true,
+          item: {
+            select: { codigo: true, descricao: true, unidade: { select: { sigla: true } } },
+          },
+          minutaItens: {
+            where: { minuta: { status: "ENTREGUE" } },
+            select: { quantidade: true },
+          },
+        },
+      },
+    },
+  });
+  if (!pedido) return [];
+
+  return pedido.itens
+    .map((it) => {
+      const pedida = decimalToNumber(it.quantidade);
+      const entregue = it.minutaItens.reduce((s, mi) => s + decimalToNumber(mi.quantidade), 0);
+      return {
+        codigo: it.item.codigo,
+        descricao: it.item.descricao,
+        unidade: it.item.unidade?.sigla ?? "UN",
+        pedida,
+        entregue,
+        pendente: pedida - entregue,
+      };
+    })
+    .filter((p) => p.pendente > 0.0001);
+}
 
 /**
  * Recalcula e persiste os totais monetários de um pedido a partir dos seus
