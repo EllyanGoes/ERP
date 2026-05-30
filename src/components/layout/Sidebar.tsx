@@ -137,9 +137,10 @@ const mainModules: Module[] = [
         { href: "/comercial/motoristas",       label: "Motoristas",          icon: Truck },
       ]},
       { kind: "Processos", items: [
-        { href: "/pedidos-venda",        label: "Pedidos de Venda", icon: ShoppingCart },
-        { href: "/comercial/minutas",    label: "Minutas",          icon: Truck },
-        { href: "/comodato",             label: "Comodato",         icon: Package },
+        { href: "/pedidos-venda",          label: "Pedidos de Venda", icon: ShoppingCart },
+        { href: "/comercial/saldo-clientes", label: "Saldo por Cliente", icon: PackageSearch },
+        { href: "/comercial/minutas",      label: "Minutas",          icon: Truck },
+        { href: "/comodato",               label: "Comodato",         icon: Package },
       ]},
       { kind: "Relatórios" as SubSection["kind"], items: [
         { href: "/comercial/relatorios/faturamento", label: "Faturamento", icon: BarChart3 },
