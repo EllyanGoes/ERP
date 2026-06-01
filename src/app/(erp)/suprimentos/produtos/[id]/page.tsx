@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
 import {
-  ChevronRight, Pencil, Save, X, Plus, Trash2,
+  ChevronRight, Pencil, Save, X, Plus, Trash2, Printer,
   Loader2, Package, TrendingUp, TrendingDown, ArrowUpDown,
   BarChart2, ShieldCheck, RefreshCw, Clock, AlertOctagon, AlertTriangle,
   ShoppingBag, ClipboardList, FileText, PackageCheck, ExternalLink, Info as InfoIcon, Star, Activity, Ruler,
@@ -743,6 +743,134 @@ export default function ProdutoDetailPage() {
       await load();
     } catch { alert("Erro de conexão"); }
     finally { setDeletingMovId(null); }
+  }
+
+  // ── PDF: relatório de movimentações (extrato/kardex) ──────────────────────
+  // Gera um PDF com o histórico de movimentações do produto e o saldo corrido
+  // (Saldo Antes / Saldo Depois) para acompanhar furos de estoque e saldo.
+  async function downloadMovimentacoes(movs: Movimentacao[], periodo: DateRange) {
+    if (!item) return;
+    const it = item;
+    const { default: jsPDF }     = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+
+    const doc   = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+
+    // Ordena cronologicamente (mais antigo → mais recente) para o saldo correr de cima a baixo
+    const ordenadas = [...movs].sort((a, b) => {
+      const da = new Date(a.lote?.dataMovimentacao ?? a.createdAt).getTime();
+      const db = new Date(b.lote?.dataMovimentacao ?? b.createdAt).getTime();
+      return da - db;
+    });
+
+    const un = it.unidade?.sigla || it.unidadeMedida;
+    const nf = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+
+    const totalEntrada = ordenadas.filter((m) => m.tipo === "ENTRADA").reduce((s, m) => s + decimalToNumber(m.quantidade), 0);
+    const totalSaida   = ordenadas.filter((m) => m.tipo === "SAIDA").reduce((s, m) => s + decimalToNumber(m.quantidade), 0);
+    const saldoFinal   = ordenadas.length ? decimalToNumber(ordenadas[ordenadas.length - 1].saldoDepois) : 0;
+
+    // Cabeçalho com faixa azul (relatório de movimentações)
+    doc.setFillColor(37, 99, 235);
+    doc.rect(0, 0, pageW, 24, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(15);
+    doc.setFont("helvetica", "bold");
+    doc.text("Relatório de Movimentações de Estoque", 14, 11);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${it.codigo} — ${it.descricao}`, 14, 18);
+
+    // Linha de informações (período + contagem)
+    let periodoTxt = "Todo o histórico";
+    if (periodo.from || periodo.to) {
+      const f = periodo.from ? new Date(periodo.from + "T00:00:00").toLocaleDateString("pt-BR") : "início";
+      const t = periodo.to   ? new Date(periodo.to   + "T00:00:00").toLocaleDateString("pt-BR") : "hoje";
+      periodoTxt = `Período: ${f} a ${t}`;
+    }
+    doc.setTextColor(90);
+    doc.setFontSize(8);
+    doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}   ·   ${ordenadas.length} movimentação(ões)   ·   ${periodoTxt}`, 14, 30);
+
+    // Resumo destacado (espelha os cards da tela)
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(5, 150, 105);
+    doc.text(`Entradas: +${nf(totalEntrada)} ${un}`, 14, 37);
+    doc.setTextColor(220, 38, 38);
+    doc.text(`Saídas: -${nf(totalSaida)} ${un}`, 100, 37);
+    doc.setTextColor(37, 99, 235);
+    doc.text(`Saldo atual: ${nf(saldoFinal)} ${un}`, 180, 37);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(0);
+
+    const body = ordenadas.map((m) => {
+      const sign   = m.tipo === "SAIDA" ? "-" : m.tipo === "ENTRADA" ? "+" : "";
+      const unLin  = m.unidade?.sigla || un;
+      const origem = (m.pedidoVendaItemId || m.conferenciaItemId) ? "Automática" : "Manual";
+      return [
+        formatDateTime(m.lote?.dataMovimentacao ?? m.createdAt),
+        m.tipo,
+        `${sign}${nf(decimalToNumber(m.quantidade))}`,
+        unLin,
+        nf(decimalToNumber(m.saldoAntes)),
+        nf(decimalToNumber(m.saldoDepois)),
+        origem,
+        m.documento || "—",
+        m.observacoes || "—",
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 42,
+      head: [["Data", "Tipo", "Quantidade", "Un.", "Saldo Antes", "Saldo Depois", "Origem", "Documento", "Obs."]],
+      body,
+      foot: [[
+        { content: "Totais do período", colSpan: 4, styles: { halign: "left", fontStyle: "bold" } },
+        { content: `Entradas: +${nf(totalEntrada)}   ·   Saídas: -${nf(totalSaida)}`, colSpan: 3, styles: { halign: "left" } },
+        { content: `Saldo final: ${nf(saldoFinal)} ${un}`, colSpan: 2, styles: { halign: "right", fontStyle: "bold" } },
+      ]],
+      styles: { fontSize: 7.5, cellPadding: 2, valign: "middle", lineColor: [220, 220, 220], lineWidth: 0.1 },
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold" },
+      footStyles: { fillColor: [243, 244, 246], textColor: [31, 41, 55], fontSize: 8 },
+      alternateRowStyles: { fillColor: [239, 246, 255] },
+      columnStyles: {
+        0: { cellWidth: 30 },
+        1: { cellWidth: 24 },
+        2: { cellWidth: 26, halign: "right", fontStyle: "bold" },
+        3: { cellWidth: 14, halign: "center" },
+        4: { cellWidth: 26, halign: "right" },
+        5: { cellWidth: 26, halign: "right", fontStyle: "bold" },
+        6: { cellWidth: 22 },
+        7: { cellWidth: 30 },
+      },
+      margin: { left: 14, right: 14 },
+      // Pinta tipo/quantidade conforme entrada (verde) / saída (vermelho)
+      didParseCell: (data) => {
+        if (data.section === "body" && (data.column.index === 1 || data.column.index === 2)) {
+          const tipo = ordenadas[data.row.index]?.tipo;
+          if (tipo === "ENTRADA")   data.cell.styles.textColor = [5, 150, 105];
+          else if (tipo === "SAIDA") data.cell.styles.textColor = [220, 38, 38];
+        }
+      },
+      didDrawPage: (data) => {
+        doc.setFontSize(7);
+        doc.setTextColor(150);
+        doc.text(`${it.codigo} — ${it.descricao}`, 14, pageH - 8);
+        doc.text(`Página ${data.pageNumber}`, pageW - 14, pageH - 8, { align: "right" });
+        doc.setTextColor(0);
+      },
+    });
+
+    const slug = it.codigo
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    doc.save(`movimentacoes-${slug || "produto"}-${new Date().toISOString().slice(0, 10)}.pdf`);
   }
 
   // Set tab title once item is loaded
@@ -1594,10 +1722,22 @@ export default function ProdutoDetailPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-500">Histórico de movimentações deste produto</p>
-              <Button size="sm" onClick={openMovDialog}>
-                <ArrowUpDown className="w-4 h-4 mr-1.5" />
-                Nova Movimentação
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => downloadMovimentacoes(movsVisiveis, movPeriodo)}
+                  disabled={movsVisiveis.length === 0}
+                  className="text-blue-700 hover:bg-blue-50 border-blue-200"
+                >
+                  <Printer className="w-4 h-4 mr-1.5" />
+                  Baixar PDF
+                </Button>
+                <Button size="sm" onClick={openMovDialog}>
+                  <ArrowUpDown className="w-4 h-4 mr-1.5" />
+                  Nova Movimentação
+                </Button>
+              </div>
             </div>
 
             {/* Period filter bar */}
