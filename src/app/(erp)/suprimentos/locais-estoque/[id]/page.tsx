@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   MapPin, Package, AlertTriangle, ChevronRight, ArrowLeft,
   Pencil, Trash2, Save, X, Loader2, Plus, Hash, CheckCircle2, Circle,
-  ClipboardList, ClipboardCheck,
+  ClipboardList, ClipboardCheck, Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -222,6 +222,140 @@ export default function LocalEstoqueDetailPage() {
     setDeleteEndLoading(false);
   }
 
+  // ── Folha de conferência (PDF para impressão) ─────────────────────────────────
+  async function downloadConferencia() {
+    if (!local) return;
+    const loc = local;
+    const { default: jsPDF }     = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+
+    const doc   = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+
+    // Cabeçalho com faixa colorida (verde = módulo Almoxarifado/Estoque)
+    doc.setFillColor(5, 150, 105);
+    doc.rect(0, 0, pageW, 24, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(15);
+    doc.setFont("helvetica", "bold");
+    doc.text("Folha de Conferência de Estoque", 14, 11);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(loc.nome, 14, 18);
+    if (loc.filial) {
+      doc.setFontSize(8);
+      doc.text(loc.filial.nomeFantasia || loc.filial.razaoSocial, pageW - 14, 18, { align: "right" });
+    }
+
+    // Linha de informações
+    const custoTotalPdf = loc.estoqueItens.reduce(
+      (s, e) => s + toNum(e.item.precoCusto) * toNum(e.quantidadeAtual),
+      0,
+    );
+    doc.setTextColor(90);
+    doc.setFontSize(8);
+    doc.text(
+      `Gerado em: ${new Date().toLocaleString("pt-BR")}   ·   ${loc.estoqueItens.length} produto(s)` +
+        (custoTotalPdf > 0 ? `   ·   Custo total: ${formatBRL(custoTotalPdf)}` : ""),
+      14,
+      30,
+    );
+    doc.setTextColor(0);
+
+    const hasEnderecosPdf = loc.estoqueItens.some((e) => !!e.localizacao);
+
+    // Linhas: código, descrição, [endereço], qtd. sistema (com conversões), qtd. contada (em branco)
+    const body = loc.estoqueItens.map((e) => {
+      const atual   = toNum(e.quantidadeAtual);
+      const unidade = e.item.unidade?.sigla || e.item.unidadeMedida;
+      let qtdStr = `${atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} ${unidade}`;
+      const convs = e.item.itemUnidades
+        .filter((iu) => !iu.isPrincipal && Number(iu.fatorConversao) > 0)
+        .map(
+          (iu) =>
+            `${(atual / Number(iu.fatorConversao)).toLocaleString("pt-BR", {
+              maximumFractionDigits: 3,
+            })} ${iu.unidade.sigla}`,
+        );
+      if (convs.length) qtdStr += `\n${convs.join("  ·  ")}`;
+
+      const row: string[] = [e.item.codigo, e.item.descricao];
+      if (hasEnderecosPdf) row.push(e.localizacao || "—");
+      row.push(qtdStr);
+      row.push(""); // Qtd. contada — preenchida à mão
+      return row;
+    });
+
+    const head = [
+      [
+        "Código",
+        "Descrição",
+        ...(hasEnderecosPdf ? ["Endereço"] : []),
+        "Qtd. Sistema",
+        "Qtd. Contada",
+      ],
+    ];
+
+    // Larguras das colunas (índices deslocam conforme a coluna Endereço aparece)
+    const idxQtd     = hasEnderecosPdf ? 3 : 2;
+    const idxContada = hasEnderecosPdf ? 4 : 3;
+    const columnStyles: Record<number, Partial<{ cellWidth: number; halign: "right"; fontStyle: "bold" }>> = {
+      0: { cellWidth: 26, fontStyle: "bold" },
+      [idxQtd]:     { cellWidth: 34, halign: "right" },
+      [idxContada]: { cellWidth: 38, halign: "right" },
+    };
+    if (hasEnderecosPdf) columnStyles[2] = { cellWidth: 24 };
+
+    autoTable(doc, {
+      startY: 34,
+      head,
+      body,
+      styles: {
+        fontSize: 8,
+        cellPadding: 2.5,
+        valign: "middle",
+        minCellHeight: 9,
+        lineColor: [210, 210, 210],
+        lineWidth: 0.1,
+      },
+      headStyles: { fillColor: [5, 150, 105], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [240, 253, 244] },
+      columnStyles,
+      margin: { left: 14, right: 14 },
+      didDrawPage: (data) => {
+        doc.setFontSize(7);
+        doc.setTextColor(150);
+        doc.text(loc.nome, 14, pageH - 8);
+        doc.text(`Página ${data.pageNumber}`, pageW - 14, pageH - 8, { align: "right" });
+        doc.setTextColor(0);
+      },
+    });
+
+    // Linhas de assinatura no fim do relatório
+    let y = (doc as InstanceType<typeof jsPDF> & { lastAutoTable: { finalY: number } })
+      .lastAutoTable.finalY + 18;
+    if (y > pageH - 24) { doc.addPage(); y = 34; }
+    const colW = (pageW - 28) / 2;
+    doc.setDrawColor(150);
+    doc.setLineWidth(0.3);
+    doc.line(14, y, 14 + colW - 12, y);
+    doc.line(14 + colW + 12, y, pageW - 14, y);
+    doc.setFontSize(8);
+    doc.setTextColor(90);
+    doc.text("Contado por / Data", 14, y + 4);
+    doc.text("Conferido por / Data", 14 + colW + 12, y + 4);
+    doc.setTextColor(0);
+
+    const slug = loc.nome
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    doc.save(`conferencia-${slug || "estoque"}-${new Date().toISOString().slice(0, 10)}.pdf`);
+  }
+
   // ── Tab title ────────────────────────────────────────────────────────────────
   useTabTitle(local?.nome ?? null);
 
@@ -318,6 +452,11 @@ export default function LocalEstoqueDetailPage() {
               <Button size="sm" variant="outline" className="text-teal-700 hover:bg-teal-50 border-teal-200"
                 onClick={() => router.push(`/suprimentos/requisicoes-materiais/nova?localEstoqueId=${local.id}`)}>
                 <ClipboardList className="w-4 h-4 mr-1" />Req/Dev
+              </Button>
+              <Button size="sm" variant="outline" className="text-emerald-700 hover:bg-emerald-50 border-emerald-200"
+                onClick={downloadConferencia} disabled={local.estoqueItens.length === 0}
+                title="Baixar folha de conferência para impressão">
+                <Printer className="w-4 h-4 mr-1" />Conferência
               </Button>
               <Button size="sm" variant="outline" className="text-indigo-700 hover:bg-indigo-50 border-indigo-200"
                 onClick={() => router.push(`/suprimentos/inventarios-materiais/nova?localEstoqueId=${local.id}`)}>
