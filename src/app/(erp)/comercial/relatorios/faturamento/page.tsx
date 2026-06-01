@@ -4,15 +4,18 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  PieChart, Pie,
 } from "recharts";
 import PageHeader from "@/components/shared/PageHeader";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatBRL, cn } from "@/lib/utils";
-import { BarChart3, Loader2, ChevronRight, TrendingUp, ShoppingCart, Users } from "lucide-react";
+import { BarChart3, Loader2, ChevronRight, TrendingUp, ShoppingCart, Users, Package, X } from "lucide-react";
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
+type ItemRow = { itemId: string; codigo: string; descricao: string; valor: number };
+
 type Row = {
   id: string;
   numero: string;
@@ -21,10 +24,33 @@ type Row = {
   valor: number;
   clienteId: string;
   clienteNome: string;
+  itens: ItemRow[];
 };
 
 type DiaAgg     = { key: string; label: string; valor: number; pedidos: number };
 type ClienteAgg = { key: string; label: string; valor: number; pedidos: number };
+
+// Agregações do período inteiro (novas seções)
+type ClientePareto = {
+  id: string; nome: string; valor: number; pedidos: number; pct: number; pctAcumulado: number;
+};
+type ProdutoLite = { codigo: string; nome: string; valor: number };
+type ProdutoFatia = {
+  itemId: string; codigo: string; label: string; valor: number; pct: number;
+  isOutros?: boolean; produtos?: ProdutoLite[];
+};
+type PedidoLite = {
+  id: string; numero: string; clienteNome: string; status: string; data: string; valor: number;
+};
+type DrillDown =
+  | { kind: "pedidos";  title: string; subtitle: string; pedidos: PedidoLite[] }
+  | { kind: "produtos"; title: string; subtitle: string; produtos: ProdutoLite[] };
+
+// Paleta da rosca (mesma do relatório de Spend, para consistência visual)
+const PIE_COLORS = [
+  "#3b82f6", "#f59e0b", "#10b981", "#8b5cf6",
+  "#ef4444", "#06b6d4", "#f97316", "#84cc16",
+];
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function diaLabel(iso: string): string {
@@ -143,6 +169,78 @@ export default function FaturamentoReportPage() {
   function handleClienteClick(entry: ClienteAgg) {
     if (!entry?.key) return;
     setSelectedCliente((prev) => (prev?.id === entry.key ? null : { id: entry.key, nome: entry.label }));
+  }
+
+  // ── Novas seções: agregações do período inteiro ────────────────────────────
+  const [drill, setDrill] = useState<DrillDown | null>(null);
+
+  // Faturamento por Cliente (ranking / Curva ABC)
+  const porClientePareto = useMemo<ClientePareto[]>(() => {
+    const map = new Map<string, ClientePareto>();
+    for (const r of rows) {
+      const g = map.get(r.clienteId) ??
+        { id: r.clienteId, nome: r.clienteNome, valor: 0, pedidos: 0, pct: 0, pctAcumulado: 0 };
+      g.valor += r.valor; g.pedidos += 1;
+      map.set(r.clienteId, g);
+    }
+    const arr = Array.from(map.values()).sort((a, b) => b.valor - a.valor);
+    const total = arr.reduce((s, c) => s + c.valor, 0) || 1;
+    let acc = 0;
+    for (const c of arr) { c.pct = (c.valor / total) * 100; acc += c.pct; c.pctAcumulado = acc; }
+    return arr;
+  }, [rows]);
+
+  // Faturamento por Produto (rosca: top 7 + "Outros")
+  const porProduto = useMemo<ProdutoFatia[]>(() => {
+    const map = new Map<string, { itemId: string; codigo: string; nome: string; valor: number }>();
+    for (const r of rows) for (const it of r.itens ?? []) {
+      const g = map.get(it.itemId) ??
+        { itemId: it.itemId, codigo: it.codigo, nome: it.descricao, valor: 0 };
+      g.valor += it.valor;
+      map.set(it.itemId, g);
+    }
+    const arr = Array.from(map.values()).sort((a, b) => b.valor - a.valor);
+    const total = arr.reduce((s, p) => s + p.valor, 0) || 1;
+    const TOP = 7;
+    const fatias: ProdutoFatia[] = arr.slice(0, TOP).map((p) => ({
+      itemId: p.itemId, codigo: p.codigo, label: p.nome,
+      valor: p.valor, pct: (p.valor / total) * 100,
+    }));
+    const resto = arr.slice(TOP);
+    if (resto.length) {
+      const restoValor = resto.reduce((s, p) => s + p.valor, 0);
+      fatias.push({
+        itemId: "__outros__", codigo: "", label: `Outros (${resto.length})`,
+        valor: restoValor, pct: (restoValor / total) * 100, isOutros: true,
+        produtos: resto.map((p) => ({ codigo: p.codigo, nome: p.nome, valor: p.valor })),
+      });
+    }
+    return fatias;
+  }, [rows]);
+
+  const faturamentoTotal = useMemo(() => rows.reduce((s, r) => s + r.valor, 0), [rows]);
+
+  // Drill-down das novas seções
+  function abrirCliente(c: ClientePareto) {
+    const pedidos: PedidoLite[] = rows
+      .filter((r) => r.clienteId === c.id)
+      .map((r) => ({ id: r.id, numero: r.numero, clienteNome: r.clienteNome, status: r.status, data: r.data, valor: r.valor }))
+      .sort((a, b) => b.valor - a.valor);
+    setDrill({ kind: "pedidos", title: c.nome, subtitle: `${c.pedidos} pedido(s) · ${formatBRL(c.valor)} faturado`, pedidos });
+  }
+  function abrirProduto(p: ProdutoFatia) {
+    if (p.isOutros) {
+      setDrill({ kind: "produtos", title: "Outros produtos", subtitle: `${p.produtos?.length ?? 0} produto(s) · ${formatBRL(p.valor)}`, produtos: p.produtos ?? [] });
+      return;
+    }
+    const pedidos: PedidoLite[] = [];
+    for (const r of rows) {
+      let v = 0;
+      for (const it of r.itens ?? []) if (it.itemId === p.itemId) v += it.valor;
+      if (v > 0) pedidos.push({ id: r.id, numero: r.numero, clienteNome: r.clienteNome, status: r.status, data: r.data, valor: v });
+    }
+    pedidos.sort((a, b) => b.valor - a.valor);
+    setDrill({ kind: "pedidos", title: p.label, subtitle: `${pedidos.length} pedido(s) · ${formatBRL(p.valor)} faturado`, pedidos });
   }
 
   const chartData = selectedDay ? porCliente : porDia;
@@ -288,6 +386,253 @@ export default function FaturamentoReportPage() {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+
+        {/* ── Faturamento por Cliente (ranking / Curva ABC) ──────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              <Users className="w-4 h-4 text-gray-400" /> Faturamento por Cliente
+            </p>
+            <span className="text-xs text-gray-400">
+              {porClientePareto.length} cliente{porClientePareto.length !== 1 ? "s" : ""} · clique na linha para ver os pedidos
+            </span>
+          </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-gray-400 gap-2">
+              <Loader2 className="w-5 h-5 animate-spin" /> <span className="text-sm">Carregando…</span>
+            </div>
+          ) : porClientePareto.length === 0 ? (
+            <div className="text-center py-12 text-gray-400 text-sm">Nenhum faturamento no período selecionado</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+                  <tr>
+                    <th className="text-left px-5 py-3 font-semibold">#</th>
+                    <th className="text-left px-5 py-3 font-semibold">Cliente</th>
+                    <th className="text-right px-5 py-3 font-semibold">Pedidos</th>
+                    <th className="text-right px-5 py-3 font-semibold">Total Faturado</th>
+                    <th className="text-right px-5 py-3 font-semibold">% Participação</th>
+                    <th className="text-right px-5 py-3 font-semibold">% Acumulado</th>
+                    <th className="px-5 py-3 w-40" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {porClientePareto.map((c, i) => {
+                    const curvaClass = c.pctAcumulado <= 80 ? "bg-blue-500" : c.pctAcumulado <= 95 ? "bg-amber-400" : "bg-rose-400";
+                    const curvaLabel = c.pctAcumulado <= 80 ? "A" : c.pctAcumulado <= 95 ? "B" : "C";
+                    return (
+                      <tr key={c.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => abrirCliente(c)}>
+                        <td className="px-5 py-3 text-gray-400 text-xs">{i + 1}</td>
+                        <td className="px-5 py-3 font-medium text-gray-800">{c.nome}</td>
+                        <td className="px-5 py-3 text-right text-gray-600">{c.pedidos}</td>
+                        <td className="px-5 py-3 text-right font-semibold text-gray-900">{formatBRL(c.valor)}</td>
+                        <td className="px-5 py-3 text-right text-gray-600">{c.pct.toFixed(2)}%</td>
+                        <td className="px-5 py-3 text-right font-medium text-gray-700">{c.pctAcumulado.toFixed(2)}%</td>
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(c.pct * 5, 100)}%` }} />
+                            </div>
+                            <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded text-white shrink-0", curvaClass)}>{curvaLabel}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+                  <tr>
+                    <td colSpan={3} className="px-5 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide">Total</td>
+                    <td className="px-5 py-3 text-right font-bold text-gray-900">{formatBRL(faturamentoTotal)}</td>
+                    <td className="px-5 py-3 text-right font-bold text-gray-600">100,00%</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* ── Faturamento por Produto (rosca) ────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+            <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              <Package className="w-4 h-4 text-gray-400" /> Faturamento por Produto
+            </p>
+            <span className="text-xs text-gray-400">Principais produtos · clique para detalhar</span>
+          </div>
+          {loading ? (
+            <div className="flex items-center justify-center h-40 text-gray-400 gap-2">
+              <Loader2 className="w-5 h-5 animate-spin" /> <span className="text-sm">Carregando…</span>
+            </div>
+          ) : porProduto.length === 0 ? (
+            <div className="flex items-center justify-center h-40 text-gray-300 text-sm">Sem dados no período</div>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              <div className="w-44 h-44 shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={porProduto}
+                      dataKey="valor"
+                      nameKey="label"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={44}
+                      outerRadius={74}
+                      paddingAngle={1}
+                      stroke="none"
+                      style={{ cursor: "pointer" }}
+                      onClick={(_, i) => abrirProduto(porProduto[i])}
+                    >
+                      {porProduto.map((e, i) => (
+                        <Cell key={e.itemId} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<ProdutoTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1.5">
+                {porProduto.map((p, i) => (
+                  <button
+                    key={p.itemId}
+                    onClick={() => abrirProduto(p)}
+                    className="flex items-center gap-2 min-w-0 group text-left"
+                    title={p.label}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                    <span className="text-xs text-gray-600 truncate flex-1 group-hover:text-blue-600 transition-colors">{p.label}</span>
+                    <span className="text-xs text-gray-400 shrink-0 tabular-nums">{formatBRL(p.valor)}</span>
+                    <span className="text-xs font-semibold text-gray-800 shrink-0 w-12 text-right tabular-nums">{p.pct.toFixed(1)}%</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Drill-down (cliente → pedidos · produto → pedidos / lista) */}
+      {drill && <DrillModal data={drill} onClose={() => setDrill(null)} />}
+    </div>
+  );
+}
+
+// Tooltip da rosca "por produto"
+function ProdutoTooltip({ active, payload }: {
+  active?: boolean; payload?: Array<{ payload: ProdutoFatia }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0].payload;
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm text-xs">
+      <div className="font-semibold text-gray-800 max-w-[220px] truncate">{p.label}</div>
+      <div className="text-gray-600 mt-0.5">{formatBRL(p.valor)}</div>
+      <div className="text-gray-400">{p.pct.toFixed(1)}% do faturamento</div>
+    </div>
+  );
+}
+
+// Modal de drill-down reutilizado pelas duas novas seções
+function DrillModal({ data, onClose }: { data: DrillDown; onClose: () => void }) {
+  const router = useRouter();
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+
+  const totalProdutos = data.kind === "produtos"
+    ? (data.produtos.reduce((s, it) => s + it.valor, 0) || 1)
+    : 1;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
+        <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">{data.title}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{data.subtitle}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="ml-4 flex items-center justify-center h-8 w-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1">
+          {data.kind === "pedidos" && (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide sticky top-0">
+                <tr>
+                  <th className="text-left px-5 py-3 font-semibold">Pedido</th>
+                  <th className="text-left px-5 py-3 font-semibold">Cliente</th>
+                  <th className="text-right px-5 py-3 font-semibold">Emissão</th>
+                  <th className="text-right px-5 py-3 font-semibold">Valor</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {data.pedidos.map((p) => (
+                  <tr
+                    key={p.id + p.numero}
+                    className="hover:bg-blue-50 cursor-pointer transition-colors group"
+                    title="Abrir pedido de venda"
+                    onClick={() => { onClose(); router.push(`/pedidos-venda/${p.id}`); }}
+                  >
+                    <td className="px-5 py-3 font-mono text-xs text-blue-600 group-hover:underline">{p.numero}</td>
+                    <td className="px-5 py-3 text-gray-800">{p.clienteNome}</td>
+                    <td className="px-5 py-3 text-right text-gray-500 text-xs">{diaLabelLongo(p.data)}</td>
+                    <td className="px-5 py-3 text-right font-semibold text-gray-900">{formatBRL(p.valor)}</td>
+                  </tr>
+                ))}
+                {data.pedidos.length === 0 && (
+                  <tr><td colSpan={4} className="text-center py-10 text-gray-400 text-sm">Nenhum pedido encontrado</td></tr>
+                )}
+              </tbody>
+            </table>
+          )}
+
+          {data.kind === "produtos" && (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide sticky top-0">
+                <tr>
+                  <th className="text-left px-5 py-3 font-semibold">Código</th>
+                  <th className="text-left px-5 py-3 font-semibold">Produto</th>
+                  <th className="text-right px-5 py-3 font-semibold">Faturamento</th>
+                  <th className="px-5 py-3 w-28" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {data.produtos.map((it, i) => {
+                  const pct = (it.valor / totalProdutos) * 100;
+                  return (
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="px-5 py-3 font-mono text-xs text-gray-500">{it.codigo || "—"}</td>
+                      <td className="px-5 py-3 text-gray-800">{it.nome}</td>
+                      <td className="px-5 py-3 text-right font-semibold text-gray-900">{formatBRL(it.valor)}</td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
+                          </div>
+                          <span className="text-xs text-gray-400 w-10 text-right shrink-0">{pct.toFixed(1)}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {data.produtos.length === 0 && (
+                  <tr><td colSpan={4} className="text-center py-10 text-gray-400 text-sm">Nenhum produto encontrado</td></tr>
+                )}
+              </tbody>
+            </table>
           )}
         </div>
       </div>

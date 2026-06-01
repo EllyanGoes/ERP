@@ -40,6 +40,13 @@ export async function GET(req: NextRequest) {
       dataEmissao: true,
       valorTotal: true,
       cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+      // Itens da venda — usados no front para o "Faturamento por Produto".
+      itens: {
+        select: {
+          valorTotal: true,
+          item: { select: { id: true, codigo: true, descricao: true } },
+        },
+      },
     },
     orderBy: { dataEmissao: "asc" },
   });
@@ -52,6 +59,12 @@ export async function GET(req: NextRequest) {
     valor: decimalToNumber(p.valorTotal),
     clienteId: p.cliente.id,
     clienteNome: p.cliente.nomeFantasia || p.cliente.razaoSocial,
+    itens: p.itens.map((it) => ({
+      itemId: it.item.id,
+      codigo: it.item.codigo,
+      descricao: it.item.descricao,
+      valor: decimalToNumber(it.valorTotal),
+    })),
   }));
 
   return NextResponse.json({
