@@ -106,7 +106,6 @@ const mainModules: Module[] = [
           { href: "/suprimentos/produtos",       label: "Produtos",           icon: Package },
           { href: "/suprimentos/tipos-produto",  label: "Tipos de Produto",   icon: Tag },
           { href: "/suprimentos/unidades",       label: "Unidades de Medida", icon: Ruler },
-          { href: "/suprimentos/locais-estoque", label: "Locais de Estoque",  icon: MapPin },
         ],
       },
       {
@@ -155,6 +154,7 @@ const mainModules: Module[] = [
       {
         kind: "Estoque",
         items: [
+          { href: "/suprimentos/locais-estoque",           label: "Locais de Estoque",   icon: MapPin },
           { href: "/suprimentos/estoque",                  label: "Posição de Estoque",  icon: PackageSearch },
           { href: "/suprimentos/movimentacoes",            label: "Movimentações",       icon: ArrowLeftRight },
           { href: "/suprimentos/requisicoes-materiais",    label: "Req/Dev de Materiais", icon: ClipboardList },

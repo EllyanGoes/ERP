@@ -77,7 +77,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/suprimentos/produtos",                 label: "Produtos",                group: "Empresa",        section: "Almoxarifado",     icon: Package },
   { href: "/suprimentos/tipos-produto",            label: "Tipos de Produto",        group: "Empresa",        section: "Almoxarifado",     icon: Tag },
   { href: "/suprimentos/unidades",                 label: "Unidades de Medida",      group: "Empresa",        section: "Almoxarifado",     icon: Ruler },
-  { href: "/suprimentos/locais-estoque",           label: "Locais de Estoque",       group: "Empresa",        section: "Almoxarifado",     icon: MapPin },
+  { href: "/suprimentos/locais-estoque",           label: "Locais de Estoque",       group: "Almoxarifado",   section: "Estoque",          icon: MapPin },
 
   { href: "/suprimentos/fornecedores",             label: "Fornecedores",            group: "Empresa",        section: "Compras",          icon: Truck },
   { href: "/suprimentos/condicoes-pagamento",      label: "Condições de Pagamento",  group: "Empresa",        section: "Compras",          icon: CalendarDays },
