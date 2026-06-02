@@ -28,6 +28,8 @@ const MANAGED_KEYS = [
   "tg_chat_id_label",
   "tg_chat_estoque",
   "tg_chat_estoque_label",
+  "tg_chat_pedidos",
+  "tg_chat_pedidos_label",
 ] as const;
 
 export async function GET() {

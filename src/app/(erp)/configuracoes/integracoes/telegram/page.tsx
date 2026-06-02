@@ -176,6 +176,8 @@ export default function TelegramIntegracaoPage() {
   const [tgChatIdLabel,     setTgChatIdLabel]     = useState("Canal Suprimentos");
   const [tgChatEstoque,     setTgChatEstoque]     = useState("");
   const [tgChatEstoqueLabel, setTgChatEstoqueLabel] = useState("Canal Estoque");
+  const [tgChatPedidos,     setTgChatPedidos]     = useState("");
+  const [tgChatPedidosLabel, setTgChatPedidosLabel] = useState("Canal Pedidos");
 
   const [status,    setStatus]    = useState<ConnStatus>("idle");
   const [statusMsg, setStatusMsg] = useState("");
@@ -201,6 +203,8 @@ export default function TelegramIntegracaoPage() {
       setTgChatIdLabel(cfg.tg_chat_id_label || "Canal Suprimentos");
       setTgChatEstoque(cfg.tg_chat_estoque ?? "");
       setTgChatEstoqueLabel(cfg.tg_chat_estoque_label || "Canal Estoque");
+      setTgChatPedidos(cfg.tg_chat_pedidos ?? "");
+      setTgChatPedidosLabel(cfg.tg_chat_pedidos_label || "Canal Pedidos");
       setStatus(!!(cfg.tg_bot_token && cfg.tg_chat_id) ? "ok" : "unconfigured");
 
       // Load webhook info
@@ -228,6 +232,8 @@ export default function TelegramIntegracaoPage() {
           tg_chat_id_label:       tgChatIdLabel.trim()       || null,
           tg_chat_estoque:        tgChatEstoque.trim()       || null,
           tg_chat_estoque_label:  tgChatEstoqueLabel.trim()  || null,
+          tg_chat_pedidos:        tgChatPedidos.trim()       || null,
+          tg_chat_pedidos_label:  tgChatPedidosLabel.trim()  || null,
         }),
       });
       if (!res.ok) {
@@ -387,6 +393,30 @@ export default function TelegramIntegracaoPage() {
             />
 
             {testMsg?.key === "tg_chat_estoque" && (
+              <div className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-lg text-xs border mt-3",
+                testMsg.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"
+              )}>
+                {testMsg.type === "ok" ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+                <span>{testMsg.text}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-gray-100 pt-4">
+            <ChatRow
+              label={tgChatPedidosLabel}
+              onLabelChange={(v) => { setTgChatPedidosLabel(v); mark(); }}
+              value={tgChatPedidos}
+              onValueChange={(v) => { setTgChatPedidos(v); mark(); }}
+              placeholder="-1003906509071"
+              description="Canal que recebe os avisos de novos pedidos de venda e o relatório diário"
+              onTest={handleTestChat}
+              testing={testingChat}
+              configKey="tg_chat_pedidos"
+            />
+
+            {testMsg?.key === "tg_chat_pedidos" && (
               <div className={cn(
                 "flex items-center gap-2 px-3 py-2 rounded-lg text-xs border mt-3",
                 testMsg.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"
