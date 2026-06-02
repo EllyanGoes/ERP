@@ -3,7 +3,47 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const search = (searchParams.get("search") || "").trim();
+  const limitParam = parseInt(searchParams.get("limit") || "", 10);
+  const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : undefined;
+
+  // ── Modo busca ────────────────────────────────────────────────────────────
+  // Usado ao vincular um Pedido de Compra a um Documento de Entrada
+  // (/suprimentos/conferencias/novo). Filtra por número ou nome do fornecedor,
+  // limita os resultados e — diferente da listagem — inclui os `itens` (com o
+  // item), pois a tela usa esses dados para pré-preencher a conferência.
+  // Pedidos CANCELADOS não aparecem (não há o que receber).
+  if (search) {
+    const data = await prisma.pedidoCompra.findMany({
+      where: {
+        status: { not: "CANCELADO" },
+        OR: [
+          { numero: { contains: search, mode: "insensitive" } },
+          { fornecedor: { razaoSocial: { contains: search, mode: "insensitive" } } },
+          { fornecedor: { nomeFantasia: { contains: search, mode: "insensitive" } } },
+        ],
+      },
+      select: {
+        id: true,
+        numero: true,
+        fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+        itens: {
+          select: {
+            id: true,
+            quantidade: true,
+            item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit ?? 10,
+    });
+    return NextResponse.json({ data });
+  }
+
+  // ── Listagem completa (tela de Pedidos de Compra) ──────────────────────────
   const data = await prisma.pedidoCompra.findMany({
     include: {
       fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
