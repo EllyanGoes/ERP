@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie,
 } from "recharts";
 import PageHeader from "@/components/shared/PageHeader";
@@ -297,7 +297,7 @@ export default function FaturamentoReportPage() {
               )}
             </div>
             <span className="text-xs text-gray-400">
-              {selectedDay ? "Por cliente — clique numa barra para filtrar os pedidos" : "Clique numa barra (dia) para detalhar"}
+              {selectedDay ? "Por cliente — clique numa barra para filtrar os pedidos" : "Clique num ponto (dia) para detalhar"}
             </span>
           </div>
 
@@ -311,9 +311,10 @@ export default function FaturamentoReportPage() {
                 <BarChart3 className="w-8 h-8 text-gray-300" />
                 <p className="text-sm font-medium">Nenhum faturamento no período</p>
               </div>
-            ) : (
+            ) : selectedDay ? (
+              // ── Nível cliente (categórico) — barras ──────────────────────
               <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={chartData} margin={{ top: 8, right: 12, left: 12, bottom: 5 }} style={{ cursor: "pointer" }}>
+                <BarChart data={porCliente} margin={{ top: 8, right: 12, left: 12, bottom: 5 }} style={{ cursor: "pointer" }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis
                     dataKey="label"
@@ -321,9 +322,9 @@ export default function FaturamentoReportPage() {
                     axisLine={false}
                     tickLine={false}
                     interval="preserveStartEnd"
-                    angle={selectedDay ? -15 : 0}
-                    textAnchor={selectedDay ? "end" : "middle"}
-                    height={selectedDay ? 50 : 30}
+                    angle={-15}
+                    textAnchor="end"
+                    height={50}
                   />
                   <YAxis
                     tick={{ fontSize: 11, fill: "#94a3b8" }}
@@ -331,23 +332,57 @@ export default function FaturamentoReportPage() {
                     tickLine={false}
                     tickFormatter={(v: number) => (v >= 1000 ? `R$ ${(v / 1000).toFixed(0)}k` : `R$ ${v}`)}
                   />
-                  <Tooltip content={<ChartTooltip labelKey={selectedDay ? "cliente" : "dia"} />} cursor={{ fill: "#f8fafc" }} />
+                  <Tooltip content={<ChartTooltip labelKey="cliente" />} cursor={{ fill: "#f8fafc" }} />
                   <Bar
                     dataKey="valor"
                     radius={[4, 4, 0, 0]}
                     name="Faturamento"
-                    onClick={(entry) =>
-                      selectedDay
-                        ? handleClienteClick(entry as unknown as ClienteAgg)
-                        : handleDiaClick(entry as unknown as DiaAgg)
-                    }
+                    onClick={(entry) => handleClienteClick(entry as unknown as ClienteAgg)}
                   >
-                    {chartData.map((e) => {
-                      const isSel = selectedDay ? selectedCliente?.id === e.key : selectedDay === e.key;
-                      return <Cell key={e.key} fill={isSel ? "#1d4ed8" : "#3b82f6"} />;
-                    })}
+                    {porCliente.map((e) => (
+                      <Cell key={e.key} fill={selectedCliente?.id === e.key ? "#1d4ed8" : "#3b82f6"} />
+                    ))}
                   </Bar>
                 </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              // ── Nível dia (série temporal) — linha; clique no ponto drilla ─
+              <ResponsiveContainer width="100%" height={320}>
+                <LineChart
+                  data={porDia}
+                  margin={{ top: 8, right: 12, left: 12, bottom: 5 }}
+                  style={{ cursor: "pointer" }}
+                  onClick={(state) => {
+                    const idx = (state as { activeTooltipIndex?: number })?.activeTooltipIndex;
+                    if (idx != null && porDia[idx]) handleDiaClick(porDia[idx]);
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval="preserveStartEnd"
+                    height={30}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v: number) => (v >= 1000 ? `R$ ${(v / 1000).toFixed(0)}k` : `R$ ${v}`)}
+                  />
+                  <Tooltip content={<ChartTooltip labelKey="dia" />} cursor={{ stroke: "#cbd5e1", strokeDasharray: "3 3" }} />
+                  <Line
+                    type="monotone"
+                    dataKey="valor"
+                    name="Faturamento"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "#3b82f6" }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
               </ResponsiveContainer>
             )}
           </div>
