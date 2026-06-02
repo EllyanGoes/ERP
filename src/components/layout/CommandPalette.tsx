@@ -4,13 +4,32 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Search, X, Clock, ExternalLink } from "lucide-react";
+import { Search, X, Clock, ExternalLink, Package, Users, Truck, ShoppingCart, ClipboardList, type LucideIcon } from "lucide-react";
 import { ROUTES, routeColor } from "@/lib/route-registry";
 import type { RouteEntry as Route } from "@/lib/route-registry";
 
 const ROUTE_MAP = new Map(ROUTES.map((r) => [r.href, r]));
 const RECENTS_KEY = "cmd-palette-recents";
 const MAX_RECENTS = 6;
+
+// ── Busca de registros (o Cmd+K vai além das telas) ─────────────────────────────
+type SearchResult = {
+  tipo: "produto" | "cliente" | "fornecedor" | "pedido-venda" | "pedido-compra";
+  id: string;
+  titulo: string;
+  subtitulo?: string;
+  codigo?: string;
+  href: string;
+};
+
+// Ícone, rótulo e cor (via section do route-registry) por tipo de registro.
+const RECORD_META: Record<SearchResult["tipo"], { label: string; icon: LucideIcon; section: string }> = {
+  "produto":       { label: "Produto",          icon: Package,       section: "Almoxarifado"     },
+  "cliente":       { label: "Cliente",          icon: Users,         section: "Comercial"        },
+  "fornecedor":    { label: "Fornecedor",       icon: Truck,         section: "Compras"          },
+  "pedido-venda":  { label: "Pedido de Venda",  icon: ShoppingCart,  section: "Comercial"        },
+  "pedido-compra": { label: "Pedido de Compra", icon: ClipboardList, section: "Fluxo de Compras" },
+};
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function normalize(str: string) {
@@ -44,8 +63,11 @@ export default function CommandPalette() {
   const [mounted,  setMounted]  = useState(false);
   const [recents,  setRecents]  = useState<string[]>([]);
   const [mod,      setMod]      = useState("⌘");
+  const [records,        setRecords]        = useState<SearchResult[]>([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef  = useRef<HTMLDivElement>(null);
+  const reqId    = useRef(0); // protege contra respostas de busca fora de ordem
   const router   = useRouter();
   const pathname = usePathname();
 
@@ -84,6 +106,30 @@ export default function CommandPalette() {
     if (open) setTimeout(() => inputRef.current?.focus(), 30);
   }, [open]);
 
+  // ── Busca de registros no banco (debounce + proteção contra resposta velha) ──
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2) { setRecords([]); setRecordsLoading(false); return; }
+
+    const id = ++reqId.current;
+    const ctrl = new AbortController();
+    setRecordsLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const res  = await fetch(`/api/search?q=${encodeURIComponent(term)}`, { signal: ctrl.signal });
+        const json = await res.json();
+        if (id === reqId.current) {              // só aplica se ainda é a busca mais recente
+          setRecords(Array.isArray(json.results) ? json.results : []);
+          setRecordsLoading(false);
+        }
+      } catch {
+        if (id === reqId.current) setRecordsLoading(false);
+      }
+    }, 280);
+
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [query]);
+
   // ── Results ────────────────────────────────────────────────────────────────
   const filteredResults = useMemo(() => {
     if (!query.trim()) return ROUTES;
@@ -95,15 +141,16 @@ export default function CommandPalette() {
   }, [query]);
 
   // Flat list used for keyboard index
-  const flatList = useMemo(() => {
-    if (query.trim()) return filteredResults;
+  const flatList = useMemo<(Route | SearchResult)[]>(() => {
+    if (query.trim()) return [...filteredResults, ...records]; // telas + registros
     // Recents first, then all routes (deduped)
     const recentRoutes = recents.flatMap((h) => { const r = ROUTE_MAP.get(h); return r ? [r] : []; });
     const recentHrefs  = new Set(recentRoutes.map((r) => r.href));
     return [...recentRoutes, ...ROUTES.filter((r) => !recentHrefs.has(r.href))];
-  }, [filteredResults, recents, query]);
+  }, [filteredResults, records, recents, query]);
 
-  useEffect(() => { setSelected(0); }, [flatList]);
+  // Reseta o destaque ao mudar o texto — não quando os registros chegam (async).
+  useEffect(() => { setSelected(0); }, [query]);
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   const navigate = useCallback((href: string, newTab = false) => {
@@ -161,7 +208,7 @@ export default function CommandPalette() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onInputKey}
-                placeholder="Pesquise ou navegue para uma tela…"
+                placeholder="Pesquise telas, produtos, clientes, pedidos…"
                 className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none"
               />
               {query ? (
@@ -177,7 +224,7 @@ export default function CommandPalette() {
 
             {/* ── Results ────────────────────────────────────────────────── */}
             <div ref={listRef} className="max-h-[440px] overflow-y-auto py-1.5">
-              {flatList.length === 0 ? (
+              {flatList.length === 0 && !recordsLoading ? (
                 <p className="py-12 text-center text-sm text-gray-400">Nenhum resultado encontrado.</p>
               ) : sections ? (
                 // Grouped no-query view
@@ -210,24 +257,51 @@ export default function CommandPalette() {
                   </div>
                 ))
               ) : (
-                // Flat filtered view
+                // Flat filtered view — telas + registros do banco
                 <>
-                  <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
-                    Resultados
-                  </p>
-                  {filteredResults.map((route, idx) => (
-                    <RouteItem
-                      key={route.href}
-                      route={route}
-                      idx={idx}
-                      selected={selected === idx}
-                      onHover={() => setSelected(idx)}
-                      onClick={() => navigate(route.href)}
-                      onNewTab={() => navigate(route.href, true)}
-                      showGroup
-                      showSection
-                    />
-                  ))}
+                  {filteredResults.length > 0 && (
+                    <>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                        Telas
+                      </p>
+                      {filteredResults.map((route, idx) => (
+                        <RouteItem
+                          key={route.href}
+                          route={route}
+                          idx={idx}
+                          selected={selected === idx}
+                          onHover={() => setSelected(idx)}
+                          onClick={() => navigate(route.href)}
+                          onNewTab={() => navigate(route.href, true)}
+                          showGroup
+                          showSection
+                        />
+                      ))}
+                    </>
+                  )}
+
+                  {(records.length > 0 || recordsLoading) && (
+                    <>
+                      <p className="flex items-center gap-2 px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                        Registros
+                        {recordsLoading && <span className="normal-case font-normal tracking-normal text-gray-300">carregando…</span>}
+                      </p>
+                      {records.map((rec, i) => {
+                        const idx = filteredResults.length + i;
+                        return (
+                          <RecordItem
+                            key={`${rec.tipo}-${rec.id}`}
+                            record={rec}
+                            idx={idx}
+                            selected={selected === idx}
+                            onHover={() => setSelected(idx)}
+                            onClick={() => navigate(rec.href)}
+                            onNewTab={() => navigate(rec.href, true)}
+                          />
+                        );
+                      })}
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -296,6 +370,69 @@ function RouteItem({
           selected ? "text-gray-900" : "text-gray-800"
         )}>
           {route.label}
+        </span>
+        {subtitle && (
+          <span className="block truncate text-[11px] text-gray-400">{subtitle}</span>
+        )}
+      </span>
+
+      {/* Hover actions */}
+      <div className={cn(
+        "flex items-center gap-1 transition-opacity",
+        selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+      )}>
+        <ActionBtn title="Abrir em nova aba" onClick={(e) => { e.stopPropagation(); onNewTab(); }}>
+          <ExternalLink className="h-3.5 w-3.5" />
+        </ActionBtn>
+        <ActionBtn title="Abrir" onClick={(e) => { e.stopPropagation(); onClick(); }}>
+          <KbdKey>↵</KbdKey>
+        </ActionBtn>
+      </div>
+    </div>
+  );
+}
+
+// ── RecordItem (resultado vindo do banco) ───────────────────────────────────────
+function RecordItem({
+  record, idx, selected, onHover, onClick, onNewTab,
+}: {
+  record:   SearchResult;
+  idx:      number;
+  selected: boolean;
+  onHover:  () => void;
+  onClick:  () => void;
+  onNewTab: () => void;
+}) {
+  const meta     = RECORD_META[record.tipo];
+  const Icon     = meta.icon;
+  const color    = routeColor(meta.section);
+  const subtitle = [meta.label, record.subtitulo].filter(Boolean).join(" · ");
+
+  return (
+    <div
+      data-idx={idx}
+      onMouseEnter={onHover}
+      className={cn(
+        "group flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors",
+        selected ? "bg-gray-50" : "hover:bg-gray-50"
+      )}
+    >
+      {/* Icon */}
+      <span className={cn(
+        "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors",
+        selected ? `${color.selBg} ${color.selText}` : `${color.bg} ${color.text}`
+      )}>
+        <Icon className="h-4 w-4" />
+      </span>
+
+      {/* Título + subtítulo */}
+      <span className="flex-1 min-w-0" onClick={onClick}>
+        <span className={cn(
+          "block truncate text-sm font-medium",
+          selected ? "text-gray-900" : "text-gray-800"
+        )}>
+          {record.codigo && <span className="mr-1.5 font-mono text-gray-400">{record.codigo}</span>}
+          {record.titulo}
         </span>
         {subtitle && (
           <span className="block truncate text-[11px] text-gray-400">{subtitle}</span>
