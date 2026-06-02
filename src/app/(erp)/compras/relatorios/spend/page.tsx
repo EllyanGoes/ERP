@@ -148,7 +148,7 @@ function DrillDownModal({
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide sticky top-0">
                 <tr>
-                  <th className="text-left px-5 py-3 font-semibold">Nº PC</th>
+                  <th className="text-left px-5 py-3 font-semibold">Nº Doc.</th>
                   <th className="text-left px-5 py-3 font-semibold">Fornecedor</th>
                   <th className="text-right px-5 py-3 font-semibold">Data Recebimento</th>
                   <th className="text-right px-5 py-3 font-semibold">Valor</th>
@@ -159,10 +159,10 @@ function DrillDownModal({
                   <tr
                     key={p.id}
                     className="hover:bg-blue-50 cursor-pointer transition-colors group"
-                    title="Abrir pedido de compra"
+                    title="Abrir documento de entrada"
                     onClick={() => {
                       onClose();
-                      router.push(`/suprimentos/pedidos-compra/${p.id}`);
+                      router.push(`/suprimentos/conferencias/${p.id}`);
                     }}
                   >
                     <td className="px-5 py-3 font-mono text-xs text-blue-600 group-hover:underline">{p.numero}</td>
@@ -176,7 +176,7 @@ function DrillDownModal({
                 {(data.pedidosList ?? []).length === 0 && (
                   <tr>
                     <td colSpan={4} className="text-center py-10 text-gray-400 text-sm">
-                      Nenhum pedido encontrado
+                      Nenhum documento encontrado
                     </td>
                   </tr>
                 )}
@@ -562,8 +562,8 @@ export default function SpendPage() {
     if (!entry) return;
     const label = fmtLabel(month, groupBy);
     setDrillDown({
-      title:    `Pedidos — ${label}`,
-      subtitle: `${entry.pedidos} pedido(s) recebidos em ${label}`,
+      title:    `Documentos — ${label}`,
+      subtitle: `${entry.pedidos} documento(s) de entrada em ${label}`,
       content:  "pedidos",
       pedidosList: entry.pedidosList,
     });
@@ -583,7 +583,7 @@ export default function SpendPage() {
   function handleFornecedorClick(fornecedor: SpendData["byFornecedor"][number]) {
     setDrillDown({
       title:    fornecedor.nome,
-      subtitle: `${fornecedor.pedidos} pedido(s) recebidos • ${formatBRL(fornecedor.valor)} total`,
+      subtitle: `${fornecedor.pedidos} documento(s) de entrada • ${formatBRL(fornecedor.valor)} total`,
       content:  "pedidos",
       pedidosList: fornecedor.pedidosList,
     });
@@ -603,7 +603,7 @@ export default function SpendPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Spend Analysis</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Gastos em pedidos com recebimento confirmado por fornecedor, categoria e período
+            Gastos com base nos documentos de entrada (notas fiscais), por fornecedor, categoria e período
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -633,9 +633,9 @@ export default function SpendPage() {
               color="bg-amber-50"
             />
             <SummaryCard
-              label="Pedidos de Compra"
+              label="Documentos de Entrada"
               value={(s?.totalPedidos ?? 0).toLocaleString("pt-BR")}
-              sub="pedidos com recebimento confirmado"
+              sub="documentos de entrada lançados"
               icon={<ShoppingBag className="w-5 h-5 text-blue-600" />}
               color="bg-blue-50"
             />
@@ -646,7 +646,7 @@ export default function SpendPage() {
               color="bg-emerald-50"
             />
             <SummaryCard
-              label="Ticket Médio / PC"
+              label="Ticket Médio / Doc"
               value={formatBRL(s?.ticketMedio ?? 0)}
               icon={<TrendingUp className="w-5 h-5 text-violet-600" />}
               color="bg-violet-50"

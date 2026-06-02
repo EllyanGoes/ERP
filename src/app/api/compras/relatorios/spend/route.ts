@@ -16,15 +16,15 @@ export async function GET(req: NextRequest) {
   const to      = searchParams.get("to");
   const groupBy = (searchParams.get("groupBy") ?? "month") as "month" | "day";
 
-  // Fetch all received orders that have a conferencia
-  const pedidos = await prisma.pedidoCompra.findMany({
+  // Fetch all entry documents (Documentos de Entrada / ConferenciaCompra) that are finalized.
+  // O gasto é calculado SOBRE os documentos de entrada — não sobre os pedidos de compra
+  // (muitos documentos não têm pedido vinculado e ficariam de fora).
+  const docs = await prisma.conferenciaCompra.findMany({
     where: {
-      status: "RECEBIDO",
-      conferencia: { isNot: null },
+      status: { in: ["CONCLUIDA", "DIVERGENCIA"] },
     },
     include: {
       fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
-      conferencia: { select: { id: true, numero: true, createdAt: true } },
       itens: {
         include: {
           item: {
@@ -33,43 +33,57 @@ export async function GET(req: NextRequest) {
         },
       },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { dataConferencia: "asc" },
   });
 
-  // Post-filter by conferencia.createdAt date range
+  // Data base = data da conferência (recebimento); fallbacks por segurança.
+  const docDate = (c: (typeof docs)[number]): Date =>
+    c.dataConferencia ?? c.dtEmissao ?? c.createdAt;
+
+  // Valor do documento = soma dos itens (vlrTotal); fallback p/ total do cabeçalho.
+  const docValor = (c: (typeof docs)[number]): number => {
+    const somaItens = c.itens.reduce((s, it) => s + Number(it.vlrTotal ?? 0), 0);
+    return somaItens > 0 ? somaItens : Number(c.vrTotal ?? 0);
+  };
+
+  const fornecedorId   = (c: (typeof docs)[number]): string => c.fornecedorId ?? "__sem__";
+  const fornecedorNome = (c: (typeof docs)[number]): string =>
+    c.fornecedor ? (c.fornecedor.nomeFantasia || c.fornecedor.razaoSocial) : "Sem fornecedor";
+
+  // Post-filter by data base range
   // Use explicit Brazil timezone offset (UTC-3) so midnight BRT aligns correctly with UTC-stored dates
   const fromDate = from ? new Date(from + "T00:00:00-03:00") : null;
   const toDate   = to   ? new Date(to   + "T23:59:59-03:00") : null;
 
-  const filtered = pedidos.filter((p) => {
-    if (!p.conferencia) return false;
-    const d = p.conferencia.createdAt;
+  const filtered = docs.filter((c) => {
+    const d = docDate(c);
     if (fromDate && d < fromDate) return false;
     if (toDate   && d > toDate)   return false;
     return true;
   });
 
   // ── Summary ──────────────────────────────────────────────────────────────────
-  const totalSpend        = filtered.reduce((s, p) => s + Number(p.valorTotal), 0);
+  const totalSpend        = filtered.reduce((s, c) => s + docValor(c), 0);
   const totalPedidos      = filtered.length;
-  const totalFornecedores = new Set(filtered.map((p) => p.fornecedorId)).size;
+  const totalFornecedores = new Set(filtered.map((c) => fornecedorId(c))).size;
   const ticketMedio       = totalPedidos > 0 ? totalSpend / totalPedidos : 0;
 
-  // ── Spend por mês / dia (group by conferencia date) ──────────────────────
+  // ── Spend por mês / dia (group by data base do documento) ──────────────────
   const byMonthMap = new Map<string, { valor: number; pedidos: number; pedidosList: PedidoDetail[] }>();
-  for (const p of filtered) {
+  for (const c of filtered) {
+    const d = docDate(c);
     const key = groupBy === "day"
-      ? p.conferencia!.createdAt.toISOString().slice(0, 10) // "YYYY-MM-DD"
-      : p.conferencia!.createdAt.toISOString().slice(0, 7); // "YYYY-MM"
+      ? d.toISOString().slice(0, 10) // "YYYY-MM-DD"
+      : d.toISOString().slice(0, 7); // "YYYY-MM"
     const prev = byMonthMap.get(key) ?? { valor: 0, pedidos: 0, pedidosList: [] };
-    prev.valor += Number(p.valorTotal);
+    prev.valor += docValor(c);
     prev.pedidos += 1;
     prev.pedidosList.push({
-      id: p.id,
-      numero: p.numero,
-      fornecedorNome: p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial,
-      valor: Number(p.valorTotal),
-      receiptDate: p.conferencia!.createdAt.toISOString(),
+      id: c.id,
+      numero: c.numero,
+      fornecedorNome: fornecedorNome(c),
+      valor: docValor(c),
+      receiptDate: d.toISOString(),
     });
     byMonthMap.set(key, prev);
   }
@@ -84,10 +98,10 @@ export async function GET(req: NextRequest) {
   };
   const byCatMap = new Map<string, CatEntry>();
 
-  for (const p of filtered) {
-    for (const it of p.itens) {
+  for (const c of filtered) {
+    for (const it of c.itens) {
       const cat     = it.item.tipoProduto?.nome ?? "Sem Categoria";
-      const itValor = Number(it.valorTotal);
+      const itValor = Number(it.vlrTotal ?? 0);
       const entry   = byCatMap.get(cat) ?? { valor: 0, subItensMap: new Map() };
 
       entry.valor += itValor;
@@ -108,12 +122,12 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Fallback: if no item details, attribute full order value to "Sem Categoria"
+  // Fallback: if no item details, attribute full document value to "Sem Categoria"
   if (byCatMap.size === 0) {
-    for (const p of filtered) {
+    for (const c of filtered) {
       const cat   = "Sem Categoria";
       const entry = byCatMap.get(cat) ?? { valor: 0, subItensMap: new Map() };
-      entry.valor += Number(p.valorTotal);
+      entry.valor += docValor(c);
       byCatMap.set(cat, entry);
     }
   }
@@ -135,23 +149,24 @@ export async function GET(req: NextRequest) {
     { nome: string; valor: number; pedidos: number; pedidosList: PedidoDetail[] }
   >();
 
-  for (const p of filtered) {
-    const prev = byFornMap.get(p.fornecedorId) ?? {
-      nome: p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial,
+  for (const c of filtered) {
+    const fid = fornecedorId(c);
+    const prev = byFornMap.get(fid) ?? {
+      nome: fornecedorNome(c),
       valor: 0,
       pedidos: 0,
       pedidosList: [],
     };
-    prev.valor += Number(p.valorTotal);
+    prev.valor += docValor(c);
     prev.pedidos += 1;
     prev.pedidosList.push({
-      id: p.id,
-      numero: p.numero,
-      fornecedorNome: p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial,
-      valor: Number(p.valorTotal),
-      receiptDate: p.conferencia!.createdAt.toISOString(),
+      id: c.id,
+      numero: c.numero,
+      fornecedorNome: fornecedorNome(c),
+      valor: docValor(c),
+      receiptDate: docDate(c).toISOString(),
     });
-    byFornMap.set(p.fornecedorId, prev);
+    byFornMap.set(fid, prev);
   }
 
   const sorted = Array.from(byFornMap.entries())
