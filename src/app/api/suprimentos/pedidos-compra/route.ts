@@ -34,11 +34,13 @@ export async function GET(req: NextRequest) {
       select: {
         id: true,
         numero: true,
+        valorTotal: true,
         fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
         itens: {
           select: {
             id: true,
             quantidade: true,
+            precoUnitario: true,
             item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } },
           },
         },

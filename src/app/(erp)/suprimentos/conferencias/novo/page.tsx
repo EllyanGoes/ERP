@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { decimalToNumber, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
-import { Link2, X, Plus, Trash2, Search, ExternalLink, AlertTriangle, FileText } from "lucide-react";
+import { Link2, X, Plus, Trash2, Search, ExternalLink, AlertTriangle, FileText, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
@@ -43,10 +43,12 @@ type LocalEstoque = {
 type PedidoOption = {
   id: string;
   numero: string;
+  valorTotal?: unknown;
   fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null };
   itens: Array<{
     id: string;
     quantidade: unknown;
+    precoUnitario?: unknown;
     item: { id: string; codigo: string; descricao: string; unidadeMedida: string };
   }>;
 };
@@ -247,6 +249,8 @@ export default function NovoDocumentoEntradaPage() {
   // Pulado quando o PC já vem pela URL (?pedidoId=).
   const [choiceOpen, setChoiceOpen] = useState(() => !searchParams.get("pedidoId"));
   const [choiceStep, setChoiceStep] = useState<"choose" | "vincular">("choose");
+  // PCs com itens expandidos na lista de vínculo
+  const [expandedPcs, setExpandedPcs] = useState<Set<string>>(() => new Set());
 
   // Local de Estoque (Global vs Por Item)
   const [modoLocalEstoque, setModoLocalEstoque] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
@@ -336,6 +340,18 @@ export default function NovoDocumentoEntradaPage() {
     const t = setTimeout(() => searchPedidos(pedidoSearch), pedidoSearch.trim() ? 300 : 0);
     return () => clearTimeout(t);
   }, [pcPickerOpen, pedidoSearch, searchPedidos]);
+
+  // Agrupa os PCs da lista de vínculo por fornecedor (ordem alfabética).
+  const pedidoGroups = useMemo(() => {
+    const map = new Map<string, { nome: string; pedidos: PedidoOption[] }>();
+    for (const p of pedidoOptions) {
+      const nome = p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial || "Sem fornecedor";
+      const key = p.fornecedor.id || nome;
+      if (!map.has(key)) map.set(key, { nome, pedidos: [] });
+      map.get(key)!.pedidos.push(p);
+    }
+    return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [pedidoOptions]);
 
   // Chave estável dos itens escolhidos (ids únicos, ordenados) para disparar a busca
   const itemIdsKey = useMemo(() => {
@@ -447,6 +463,17 @@ export default function NovoDocumentoEntradaPage() {
     setChoiceOpen(false);
     setChoiceStep("choose");
     setPedidoSearch("");
+    setExpandedPcs(new Set());
+  }
+
+  // Expande/recolhe os itens de um PC na lista de vínculo.
+  function toggleExpand(id: string) {
+    setExpandedPcs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   function selectPedido(p: PedidoOption) {
@@ -1338,14 +1365,27 @@ export default function NovoDocumentoEntradaPage() {
                   ? "Como deseja criar este documento?"
                   : "Vincular a um Pedido de Compra"}
               </h2>
-              <button
-                type="button"
-                onClick={closeChoice}
-                className="text-gray-400 hover:text-gray-600"
-                aria-label="Fechar"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              {/* Sem escape "silencioso": no passo de escolha o X cancela e
+                  volta para a lista; no passo de vínculo ele apenas retorna à
+                  escolha. Assim o usuário é obrigado a optar (vincular ou avulso). */}
+              {choiceStep === "choose" ? (
+                <Link
+                  href="/suprimentos/conferencias"
+                  className="text-gray-400 hover:text-gray-600"
+                  aria-label="Cancelar e voltar"
+                >
+                  <X className="w-4 h-4" />
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setChoiceStep("choose"); setPedidoSearch(""); }}
+                  className="text-gray-400 hover:text-gray-600"
+                  aria-label="Voltar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             {choiceStep === "choose" ? (
@@ -1405,26 +1445,67 @@ export default function NovoDocumentoEntradaPage() {
                   </div>
                 </div>
 
-                {/* List */}
-                <div className="max-h-64 overflow-y-auto">
+                {/* Lista agrupada por fornecedor */}
+                <div className="max-h-72 overflow-y-auto">
                   {pedidoLoading && pedidoOptions.length === 0 ? (
                     <p className="px-4 py-4 text-xs text-gray-400 italic text-center">Carregando…</p>
                   ) : pedidoOptions.length === 0 ? (
                     <p className="px-4 py-4 text-xs text-gray-400 italic text-center">
                       {pedidoSearch.trim() ? "Nenhum resultado." : "Nenhum Pedido de Compra em aberto para vincular."}
                     </p>
-                  ) : pedidoOptions.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => { selectPedido(p); closeChoice(); }}
-                      className="w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0 text-left"
-                    >
-                      <span className="font-mono font-semibold text-gray-800">{p.numero}</span>
-                      <span className="text-xs text-gray-400 truncate max-w-[160px]">
-                        {p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial}
-                      </span>
-                    </button>
+                  ) : pedidoGroups.map((g) => (
+                    <div key={g.nome}>
+                      <div className="px-4 py-1.5 bg-gray-50 border-b border-gray-100">
+                        <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                          {g.nome}
+                        </span>
+                      </div>
+                      {g.pedidos.map((p) => {
+                        const expanded = expandedPcs.has(p.id);
+                        return (
+                          <div key={p.id} className="border-b border-gray-50 last:border-0">
+                            <div className="flex items-stretch">
+                              <button
+                                type="button"
+                                onClick={() => { selectPedido(p); closeChoice(); }}
+                                className="flex-1 flex items-center justify-between px-4 py-2.5 text-sm hover:bg-blue-50 text-left transition-colors"
+                              >
+                                <span className="font-mono font-semibold text-gray-800">{p.numero}</span>
+                                <span className="flex items-center gap-2 text-xs">
+                                  <span className="text-gray-400">
+                                    {p.itens.length} {p.itens.length === 1 ? "item" : "itens"}
+                                  </span>
+                                  <span className="font-semibold text-gray-700">
+                                    {p.valorTotal != null ? formatBRL(decimalToNumber(p.valorTotal)) : "—"}
+                                  </span>
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); toggleExpand(p.id); }}
+                                className="px-3 text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                                aria-label={expanded ? "Ocultar itens" : "Ver itens"}
+                              >
+                                <ChevronRight className={cn("w-4 h-4 transition-transform", expanded && "rotate-90")} />
+                              </button>
+                            </div>
+                            {expanded && (
+                              <ul className="px-4 pb-2.5 pt-0.5 bg-gray-50/60 space-y-1">
+                                {p.itens.map((it) => (
+                                  <li key={it.id} className="flex items-baseline gap-2 text-xs text-gray-600">
+                                    <span className="font-mono text-gray-400 shrink-0 w-24 text-right">
+                                      {decimalToNumber(it.quantidade)} {it.item.unidadeMedida}
+                                    </span>
+                                    <span className="font-mono text-gray-500 shrink-0">{it.item.codigo}</span>
+                                    <span className="truncate">{it.item.descricao}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   ))}
                 </div>
 
