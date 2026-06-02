@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
+import { findMatchingPedidos } from "@/lib/pc-match";
 
 export async function GET() {
   const data = await prisma.conferenciaCompra.findMany({
@@ -106,6 +107,7 @@ export async function POST(req: NextRequest) {
     despesas,
     desconto,
     itens,
+    confirmAvulso,
   } = body;
 
   if (!fornecedorId) {
@@ -149,6 +151,30 @@ export async function POST(req: NextRequest) {
           { status: 409 }
         );
       }
+    }
+  }
+
+  // ── Anti-duplicidade: sugerir vínculo com PC compatível ──────────────────
+  // Se o DE não está vinculado a um PC e o usuário ainda não confirmou que é um
+  // documento avulso, procura Pedidos de Compra do mesmo fornecedor (ainda sem
+  // Documento de Entrada) com itens em comum. Se houver candidatos, bloqueia a
+  // criação (409) e devolve a lista para o usuário decidir: vincular ou confirmar
+  // que é mesmo avulso. Evita DEs órfãos que não dão baixa em SC/PC.
+  if (!linkedPedidoId && !confirmAvulso) {
+    const itemIds = (itens as Array<{ itemId?: string }>)
+      .map((it) => it.itemId)
+      .filter((id): id is string => Boolean(id));
+    const matches = await findMatchingPedidos(fornecedorId, itemIds);
+    if (matches.length > 0) {
+      return NextResponse.json(
+        {
+          error: "PC_COMPATIVEL",
+          message:
+            "Foram encontrados Pedidos de Compra compatíveis (mesmo fornecedor e itens em comum). Vincule um deles ou confirme que este é um documento avulso.",
+          matches,
+        },
+        { status: 409 }
+      );
     }
   }
 

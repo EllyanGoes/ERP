@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { decimalToNumber, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
-import { Link2, X, Plus, Trash2, Search, ExternalLink } from "lucide-react";
+import { Link2, X, Plus, Trash2, Search, ExternalLink, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
@@ -49,6 +49,19 @@ type PedidoOption = {
     quantidade: unknown;
     item: { id: string; codigo: string; descricao: string; unidadeMedida: string };
   }>;
+};
+
+// Pedido de Compra compatível sugerido pelo endpoint /match (anti-duplicidade).
+type MatchResult = {
+  id: string;
+  numero: string;
+  status: string;
+  fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null };
+  necessidadeNumero: string | null;
+  cotacaoNumero: string | null;
+  matchCount: number;
+  totalItens: number;
+  itens: PedidoOption["itens"];
 };
 
 type ItemRow = {
@@ -223,6 +236,12 @@ export default function NovoDocumentoEntradaPage() {
   const [pedidoOptions, setPedidoOptions]     = useState<PedidoOption[]>([]);
   const pcPopoverRef = useRef<HTMLDivElement>(null);
 
+  // Anti-duplicidade — PCs compatíveis sugeridos quando o DE não está vinculado
+  const [pcMatches, setPcMatches]             = useState<MatchResult[]>([]);
+  const [pcMatchLoading, setPcMatchLoading]   = useState(false);
+  const [avulsoConfirmed, setAvulsoConfirmed] = useState(false);
+  const matchReqId = useRef(0);
+
   // Local de Estoque (Global vs Por Item)
   const [modoLocalEstoque, setModoLocalEstoque] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
   const [localEstoqueGlobalId, setLocalEstoqueGlobalId] = useState("");
@@ -298,6 +317,46 @@ export default function NovoDocumentoEntradaPage() {
     return () => clearTimeout(t);
   }, [pedidoSearch, searchPedidos]);
 
+  // Chave estável dos itens escolhidos (ids únicos, ordenados) para disparar a busca
+  const itemIdsKey = useMemo(() => {
+    const ids = Array.from(new Set(itens.map((r) => r.itemId).filter(Boolean)));
+    ids.sort();
+    return ids.join(",");
+  }, [itens]);
+
+  // Anti-duplicidade: busca PCs compatíveis (debounce) quando há fornecedor + itens
+  // e nenhum PC já vinculado. Protege contra respostas fora de ordem com matchReqId.
+  useEffect(() => {
+    if (vinculadoPedido || !fornecedorId || !itemIdsKey) {
+      setPcMatches([]);
+      setPcMatchLoading(false);
+      return;
+    }
+    const id = ++matchReqId.current;
+    const ctrl = new AbortController();
+    setPcMatchLoading(true);
+    const t = setTimeout(() => {
+      fetch(
+        `/api/suprimentos/pedidos-compra/match?fornecedorId=${encodeURIComponent(fornecedorId)}&itemIds=${encodeURIComponent(itemIdsKey)}`,
+        { signal: ctrl.signal }
+      )
+        .then((r) => r.json())
+        .then((j) => {
+          if (id !== matchReqId.current) return;
+          setPcMatches(Array.isArray(j.matches) ? j.matches : []);
+          setPcMatchLoading(false);
+        })
+        .catch(() => {
+          if (id !== matchReqId.current) return;
+          setPcMatchLoading(false);
+        });
+    }, 400);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [fornecedorId, vinculadoPedido, itemIdsKey]);
+
   // Auto-fill from pedidoId URL param
   useEffect(() => {
     const pedidoId = searchParams.get("pedidoId");
@@ -361,6 +420,7 @@ export default function NovoDocumentoEntradaPage() {
 
   function selectFornecedor(f: Fornecedor) {
     setFornecedorId(f.id);
+    setAvulsoConfirmed(false);
   }
 
   function selectPedido(p: PedidoOption) {
@@ -486,12 +546,19 @@ export default function NovoDocumentoEntradaPage() {
       }
     }
 
+    // Anti-duplicidade: se há PC compatível e o usuário não vinculou nem confirmou avulso
+    if (!vinculadoPedido && !avulsoConfirmed && pcMatches.length > 0) {
+      setError("Existe Pedido de Compra compatível. Vincule um PC ou confirme que este é um documento avulso.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload: Record<string, unknown> = {
         fornecedorId,
         responsavel: responsavel || null,
         pedidoId: vinculadoPedido?.id ?? null,
+        confirmAvulso: avulsoConfirmed,
         modoLocalEstoque,
         localEstoqueId: modoLocalEstoque === "GLOBAL" ? (localEstoqueGlobalId || null) : null,
         tipoNota: tipoDocumento,
@@ -528,6 +595,13 @@ export default function NovoDocumentoEntradaPage() {
       });
       const json = await res.json();
       if (!res.ok) {
+        // Servidor detectou PC compatível — mostra os candidatos no banner
+        if (json.error === "PC_COMPATIVEL") {
+          setPcMatches(Array.isArray(json.matches) ? json.matches : []);
+          setAvulsoConfirmed(false);
+          setError(json.message || "Existe Pedido de Compra compatível. Vincule um PC ou confirme que este é um documento avulso.");
+          return;
+        }
         setError(json.error || "Erro ao criar documento");
         return;
       }
@@ -639,6 +713,103 @@ export default function NovoDocumentoEntradaPage() {
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
             {error}
+          </div>
+        )}
+
+        {/* ── Anti-duplicidade: PCs compatíveis ────────────────────────────── */}
+        {!vinculadoPedido && !avulsoConfirmed && pcMatchLoading && pcMatches.length === 0 && (
+          <div className="text-xs text-gray-400 flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+            Verificando Pedidos de Compra compatíveis…
+          </div>
+        )}
+
+        {!vinculadoPedido && !avulsoConfirmed && pcMatches.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+              <div className="text-sm text-amber-800">
+                <p className="font-medium">
+                  {pcMatches.length === 1
+                    ? "Encontramos 1 Pedido de Compra compatível com este documento."
+                    : `Encontramos ${pcMatches.length} Pedidos de Compra compatíveis com este documento.`}
+                </p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Mesmo fornecedor e itens em comum. Vincule um deles para dar baixa automática na Solicitação e no Pedido, ou confirme que este é um documento avulso.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {pcMatches.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex items-center justify-between gap-3 bg-white border border-amber-100 rounded-lg px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-semibold text-gray-800 text-sm">{m.numero}</span>
+                      {m.necessidadeNumero && (
+                        <span className="text-xs text-gray-500">SC {m.necessidadeNumero}</span>
+                      )}
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                        {m.matchCount} de {m.totalItens} {m.totalItens === 1 ? "item" : "itens"} em comum
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400 truncate">
+                      {m.fornecedor.nomeFantasia || m.fornecedor.razaoSocial}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      href={`/suprimentos/pedidos-compra/${m.id}`}
+                      target="_blank"
+                      className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-0.5"
+                    >
+                      Abrir <ExternalLink className="w-3 h-3" />
+                    </Link>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() =>
+                        selectPedido({
+                          id: m.id,
+                          numero: m.numero,
+                          fornecedor: m.fornecedor,
+                          itens: m.itens,
+                        })
+                      }
+                      className="h-7 gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <Link2 className="w-3 h-3" /> Vincular
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setAvulsoConfirmed(true)}
+                className="text-xs text-amber-700 hover:text-amber-900 underline"
+              >
+                Não, este é um documento avulso
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!vinculadoPedido && avulsoConfirmed && (
+          <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-500">
+            <span>Documento avulso — sem vínculo com Pedido de Compra.</span>
+            <button
+              type="button"
+              onClick={() => setAvulsoConfirmed(false)}
+              className="text-gray-400 hover:text-gray-600 underline"
+            >
+              Revisar
+            </button>
           </div>
         )}
 
