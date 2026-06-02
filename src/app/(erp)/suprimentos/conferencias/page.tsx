@@ -7,11 +7,12 @@ import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search, X, ChevronDown, LayoutList, Kanban, FileText, Calendar, CalendarDays, MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Search, X, ChevronDown, LayoutList, Kanban, FileText, Calendar, CalendarDays, Building2, MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
 import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
+import GroupByControl, { GroupByValue } from "@/components/shared/GroupByControl";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ConferenciaRow = {
@@ -53,22 +54,29 @@ const STATUS_COLS: { key: string; label: string; color: string; bg: string; bord
 const ALL_STATUSES = STATUS_COLS.map((s) => s.key);
 
 const FILTER_KEY = "erp:conferencias:filters:v1";
-type Filters = { search: string; statuses: string[]; view: "list" | "kanban"; groupByDate: boolean };
+type Filters = { search: string; statuses: string[]; view: "list" | "kanban"; groupBy: GroupByValue };
 
 function loadFilters(): Filters {
   try {
     const raw = localStorage.getItem(FILTER_KEY);
     if (raw) {
       const f = JSON.parse(raw);
+      // Migração: versões antigas guardavam `groupByDate: boolean`.
+      const groupBy: GroupByValue =
+        f.groupBy === "fornecedor" || f.groupBy === "dia" || f.groupBy === "none"
+          ? f.groupBy
+          : f.groupByDate === true
+          ? "dia"
+          : "none";
       return {
         search: f.search ?? "",
         statuses: Array.isArray(f.statuses) ? f.statuses : [...ALL_STATUSES],
         view: f.view ?? "list",
-        groupByDate: f.groupByDate === true,
+        groupBy,
       };
     }
   } catch { /* ignore */ }
-  return { search: "", statuses: [...ALL_STATUSES], view: "list", groupByDate: false };
+  return { search: "", statuses: [...ALL_STATUSES], view: "list", groupBy: "none" };
 }
 
 // ── Column definitions ────────────────────────────────────────────────────────
@@ -316,32 +324,44 @@ export default function DocumentosEntradaPage() {
     [filtered, filters.statuses]
   );
 
-  // ── Agrupado por data de emissão (visão lista) ────────────────────────────
-  const dateGroups = useMemo(() => {
+  // ── Agrupamento (visão lista): por fornecedor ou por dia ──────────────────
+  const groups = useMemo(() => {
+    if (filters.groupBy === "none") return null;
     const groups: { key: string; label: string; items: ConferenciaRow[]; total: number }[] = [];
     const index = new Map<string, number>();
     for (const doc of filtered) {
-      const key = doc.dtEmissao ? doc.dtEmissao.slice(0, 10) : "sem-data";
+      let key: string;
+      let label: string;
+      if (filters.groupBy === "fornecedor") {
+        const nome = getFornecedorNome(doc);
+        key = nome === "—" ? "sem-fornecedor" : nome.toLowerCase();
+        label = nome === "—" ? "Sem fornecedor" : nome;
+      } else {
+        key = doc.dtEmissao ? doc.dtEmissao.slice(0, 10) : "sem-data";
+        label = doc.dtEmissao ? formatDate(doc.dtEmissao) : "Sem data";
+      }
       let gi = index.get(key);
       if (gi === undefined) {
         gi = groups.length;
         index.set(key, gi);
-        groups.push({
-          key,
-          label: doc.dtEmissao ? formatDate(doc.dtEmissao) : "Sem data",
-          items: [],
-          total: 0,
-        });
+        groups.push({ key, label, items: [], total: 0 });
       }
       groups[gi].items.push(doc);
       groups[gi].total += calcValorTotal(doc);
     }
-    // Grupos sempre do mais recente para o mais antigo; "sem data" por último.
-    groups.sort((a, b) =>
-      a.key === "sem-data" ? 1 : b.key === "sem-data" ? -1 : b.key.localeCompare(a.key)
-    );
+    if (filters.groupBy === "dia") {
+      // Mais recente → mais antigo; "sem data" por último.
+      groups.sort((a, b) =>
+        a.key === "sem-data" ? 1 : b.key === "sem-data" ? -1 : b.key.localeCompare(a.key)
+      );
+    } else {
+      // Ordem alfabética; "sem fornecedor" por último.
+      groups.sort((a, b) =>
+        a.key === "sem-fornecedor" ? 1 : b.key === "sem-fornecedor" ? -1 : a.label.localeCompare(b.label, "pt-BR")
+      );
+    }
     return groups;
-  }, [filtered]);
+  }, [filtered, filters.groupBy]);
 
   return (
     <div className="flex flex-col h-full">
@@ -437,21 +457,9 @@ export default function DocumentosEntradaPage() {
           <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} visibility={colVis} onVisibilityChange={setColVis} onShowAll={showAllCols} />
         )}
 
-        {/* Agrupar por data — list only */}
+        {/* Agrupamento — list only */}
         {filters.view === "list" && (
-          <button
-            onClick={() => updateFilters({ groupByDate: !filters.groupByDate })}
-            className={cn(
-              "flex items-center gap-1.5 h-8 px-2.5 text-xs border rounded-md transition-colors",
-              filters.groupByDate
-                ? "border-blue-300 bg-blue-50 text-blue-700"
-                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-            )}
-            title="Agrupar documentos por data de emissão"
-          >
-            <CalendarDays className="w-3.5 h-3.5" />
-            Agrupar por data
-          </button>
+          <GroupByControl value={filters.groupBy} onChange={(v) => updateFilters({ groupBy: v })} />
         )}
 
         {/* View toggle */}
@@ -497,14 +505,16 @@ export default function DocumentosEntradaPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filters.groupByDate
-                  ? dateGroups.map((g) => (
+                {filters.groupBy !== "none" && groups
+                  ? groups.map((g) => (
                       <Fragment key={g.key}>
                         <tr className="bg-gray-50/80">
                           <td colSpan={orderedCols.length + 1} className="px-4 py-2 border-y border-gray-200">
                             <div className="flex items-center justify-between">
                               <span className="flex items-center gap-1.5 font-semibold text-gray-700 text-sm">
-                                <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
+                                {filters.groupBy === "dia"
+                                  ? <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
+                                  : <Building2 className="w-3.5 h-3.5 text-gray-400" />}
                                 {g.label}
                               </span>
                               <span className="text-xs text-gray-400">

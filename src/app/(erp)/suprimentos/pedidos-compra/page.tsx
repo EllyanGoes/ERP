@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session-context";
@@ -14,9 +14,10 @@ import PedidoActionsMenu from "./PedidoActionsMenu";
 import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
+import GroupByControl, { GroupByValue } from "@/components/shared/GroupByControl";
 import {
   Plus, Search, X, LayoutList, Kanban, Loader2,
-  ChevronDown as ChevronDownIcon, ChevronRight, Calendar, Building2, ClipboardList, FileText,
+  ChevronDown as ChevronDownIcon, ChevronRight, Calendar, CalendarDays, Building2, ClipboardList, FileText,
   CheckCircle2, AlertCircle, ExternalLink, Download, Check,
 } from "lucide-react";
 
@@ -197,23 +198,24 @@ const COLS: ColDef<Pedido>[] = [
 ];
 
 // ── Persist helpers ───────────────────────────────────────────────────────────
-type Filters = { search: string; statuses: string[]; statusOp: FilterOp; view: "list" | "kanban" };
+type Filters = { search: string; statuses: string[]; statusOp: FilterOp; view: "list" | "kanban"; groupBy: GroupByValue };
 
 function loadFilters(): Filters {
-  if (typeof window === "undefined") return { search: "", statuses: [], statusOp: "is_not", view: "list" };
+  if (typeof window === "undefined") return { search: "", statuses: [], statusOp: "is_not", view: "list", groupBy: "none" };
   try {
     const raw = localStorage.getItem(FILTER_KEY);
     if (raw) {
-      const f = JSON.parse(raw) as Filters;
+      const f = JSON.parse(raw) as Partial<Filters>;
       return {
         search:   f.search   ?? "",
         statuses: Array.isArray(f.statuses) ? f.statuses : [],
         statusOp: f.statusOp === "is" ? "is" : "is_not",
         view:     f.view === "kanban" ? "kanban" : "list",
+        groupBy:  f.groupBy === "fornecedor" || f.groupBy === "dia" ? f.groupBy : "none",
       };
     }
   } catch {}
-  return { search: "", statuses: [], statusOp: "is_not", view: "list" };
+  return { search: "", statuses: [], statusOp: "is_not", view: "list", groupBy: "none" };
 }
 
 function saveFilters(f: Filters) {
@@ -621,6 +623,45 @@ export default function PedidosCompraPage() {
     [filtered, filters.statuses, filters.statusOp]
   );
 
+  // ── Agrupamento (visão lista): por fornecedor ou por dia ──────────────────
+  const groups = useMemo(() => {
+    if (filters.groupBy === "none") return null;
+    const groups: { key: string; label: string; items: Pedido[]; total: number }[] = [];
+    const index = new Map<string, number>();
+    for (const p of filtered) {
+      let key: string;
+      let label: string;
+      if (filters.groupBy === "fornecedor") {
+        const nome = p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial || "—";
+        key = nome === "—" ? "sem-fornecedor" : nome.toLowerCase();
+        label = nome === "—" ? "Sem fornecedor" : nome;
+      } else {
+        key = p.createdAt ? p.createdAt.slice(0, 10) : "sem-data";
+        label = p.createdAt ? formatDate(p.createdAt) : "Sem data";
+      }
+      let gi = index.get(key);
+      if (gi === undefined) {
+        gi = groups.length;
+        index.set(key, gi);
+        groups.push({ key, label, items: [], total: 0 });
+      }
+      groups[gi].items.push(p);
+      groups[gi].total += decimalToNumber(p.valorTotal);
+    }
+    if (filters.groupBy === "dia") {
+      // Mais recente → mais antigo; "sem data" por último.
+      groups.sort((a, b) =>
+        a.key === "sem-data" ? 1 : b.key === "sem-data" ? -1 : b.key.localeCompare(a.key)
+      );
+    } else {
+      // Ordem alfabética; "sem fornecedor" por último.
+      groups.sort((a, b) =>
+        a.key === "sem-fornecedor" ? 1 : b.key === "sem-fornecedor" ? -1 : a.label.localeCompare(b.label, "pt-BR")
+      );
+    }
+    return groups;
+  }, [filtered, filters.groupBy]);
+
   // ── PDF export ────────────────────────────────────────────────────────────
   async function downloadPDF() {
     const { default: jsPDF } = await import("jspdf");
@@ -760,6 +801,11 @@ export default function PedidosCompraPage() {
           <ColumnConfigurator columns={COLS} order={colOrder} onOrderChange={setColOrder} visibility={colVis} onVisibilityChange={setColVis} onShowAll={showAllCols} />
         )}
 
+        {/* Agrupamento — list only */}
+        {filters.view === "list" && (
+          <GroupByControl value={filters.groupBy} onChange={(v) => updateFilters({ groupBy: v })} />
+        )}
+
         {/* PDF download */}
         <button
           onClick={downloadPDF}
@@ -818,20 +864,54 @@ export default function PedidosCompraPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((p) => (
-                  <tr
-                    key={p.id}
-                    className="hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => router.push(`/suprimentos/pedidos-compra/${p.id}`)}
-                  >
-                    {orderedCols.map((col) => (
-                      <td key={col.id} className={col.tdClass}>{col.render(p)}</td>
+                {filters.groupBy !== "none" && groups
+                  ? groups.map((g) => (
+                      <Fragment key={g.key}>
+                        <tr className="bg-gray-50/80">
+                          <td colSpan={orderedCols.length + 1} className="px-4 py-2 border-y border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <span className="flex items-center gap-1.5 font-semibold text-gray-700 text-sm">
+                                {filters.groupBy === "dia"
+                                  ? <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
+                                  : <Building2 className="w-3.5 h-3.5 text-gray-400" />}
+                                {g.label}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {g.items.length} pedido{g.items.length !== 1 ? "s" : ""} · {formatBRL(g.total)}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        {g.items.map((p) => (
+                          <tr
+                            key={p.id}
+                            className="hover:bg-gray-50 cursor-pointer transition-colors"
+                            onClick={() => router.push(`/suprimentos/pedidos-compra/${p.id}`)}
+                          >
+                            {orderedCols.map((col) => (
+                              <td key={col.id} className={col.tdClass}>{col.render(p)}</td>
+                            ))}
+                            <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                              <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} isAdmin={isAdmin} />
+                            </td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    ))
+                  : filtered.map((p) => (
+                      <tr
+                        key={p.id}
+                        className="hover:bg-gray-50 cursor-pointer transition-colors"
+                        onClick={() => router.push(`/suprimentos/pedidos-compra/${p.id}`)}
+                      >
+                        {orderedCols.map((col) => (
+                          <td key={col.id} className={col.tdClass}>{col.render(p)}</td>
+                        ))}
+                        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                          <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} isAdmin={isAdmin} />
+                        </td>
+                      </tr>
                     ))}
-                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                      <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} isAdmin={isAdmin} />
-                    </td>
-                  </tr>
-                ))}
               </tbody>
             </table>
           </div>
