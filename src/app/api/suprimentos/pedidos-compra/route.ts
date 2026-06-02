@@ -1,30 +1,36 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const search = (searchParams.get("search") || "").trim();
+  const semDE = searchParams.get("semDE") === "1" || searchParams.get("semDE") === "true";
   const limitParam = parseInt(searchParams.get("limit") || "", 10);
   const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : undefined;
 
-  // ── Modo busca ────────────────────────────────────────────────────────────
+  // ── Modo busca / vincular ──────────────────────────────────────────────────
   // Usado ao vincular um Pedido de Compra a um Documento de Entrada
   // (/suprimentos/conferencias/novo). Filtra por número ou nome do fornecedor,
   // limita os resultados e — diferente da listagem — inclui os `itens` (com o
   // item), pois a tela usa esses dados para pré-preencher a conferência.
-  // Pedidos CANCELADOS não aparecem (não há o que receber).
-  if (search) {
+  // Pedidos CANCELADOS não aparecem (não há o que receber). Com semDE=1, lista
+  // só os PCs ainda SEM Documento de Entrada — os "em aberto" para vincular —
+  // mesmo sem termo de busca (popover já abre com a lista).
+  if (search || semDE) {
+    const where: Prisma.PedidoCompraWhereInput = { status: { not: "CANCELADO" } };
+    if (semDE) where.conferencia = { is: null };
+    if (search) {
+      where.OR = [
+        { numero: { contains: search, mode: "insensitive" } },
+        { fornecedor: { razaoSocial: { contains: search, mode: "insensitive" } } },
+        { fornecedor: { nomeFantasia: { contains: search, mode: "insensitive" } } },
+      ];
+    }
     const data = await prisma.pedidoCompra.findMany({
-      where: {
-        status: { not: "CANCELADO" },
-        OR: [
-          { numero: { contains: search, mode: "insensitive" } },
-          { fornecedor: { razaoSocial: { contains: search, mode: "insensitive" } } },
-          { fornecedor: { nomeFantasia: { contains: search, mode: "insensitive" } } },
-        ],
-      },
+      where,
       select: {
         id: true,
         numero: true,
@@ -38,7 +44,7 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: { createdAt: "desc" },
-      take: limit ?? 10,
+      take: limit ?? (search ? 10 : 20),
     });
     return NextResponse.json({ data });
   }
@@ -72,7 +78,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const {
     fornecedorId, cotacaoId, dataEntregaPrevista, observacoes, itens = [],
-    frete, tipoFrete, desconto, vrDesconto, despesas, seguro,
+    frete, tipoFrete, desconto, despesas, seguro,
     condicoesPagamento, contato, email, descricao,
   } = body;
 

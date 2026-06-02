@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { decimalToNumber, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
-import { Link2, X, Plus, Trash2, Search, ExternalLink, AlertTriangle } from "lucide-react";
+import { Link2, X, Plus, Trash2, Search, ExternalLink, AlertTriangle, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
@@ -234,6 +234,7 @@ export default function NovoDocumentoEntradaPage() {
   const [pcPopoverOpen, setPcPopoverOpen]     = useState(false);
   const [pedidoSearch, setPedidoSearch]       = useState("");
   const [pedidoOptions, setPedidoOptions]     = useState<PedidoOption[]>([]);
+  const [pedidoLoading, setPedidoLoading]     = useState(false);
   const pcPopoverRef = useRef<HTMLDivElement>(null);
 
   // Anti-duplicidade — PCs compatíveis sugeridos quando o DE não está vinculado
@@ -241,6 +242,11 @@ export default function NovoDocumentoEntradaPage() {
   const [pcMatchLoading, setPcMatchLoading]   = useState(false);
   const [avulsoConfirmed, setAvulsoConfirmed] = useState(false);
   const matchReqId = useRef(0);
+
+  // Popup de escolha ao abrir a tela: vincular um PC ou marcar como avulso.
+  // Pulado quando o PC já vem pela URL (?pedidoId=).
+  const [choiceOpen, setChoiceOpen] = useState(() => !searchParams.get("pedidoId"));
+  const [choiceStep, setChoiceStep] = useState<"choose" | "vincular">("choose");
 
   // Local de Estoque (Global vs Por Item)
   const [modoLocalEstoque, setModoLocalEstoque] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
@@ -302,20 +308,34 @@ export default function NovoDocumentoEntradaPage() {
       .catch(() => {});
   }, []);
 
-  // Search pedidos when typing
+  // Busca PCs para vincular. Sem termo → lista os PCs "em aberto" (sem DE);
+  // com termo → filtra por número/fornecedor. Sempre semDE=1 (só dá para
+  // vincular um PC que ainda não tem Documento de Entrada).
   const searchPedidos = useCallback(async (q: string) => {
-    if (!q.trim()) { setPedidoOptions([]); return; }
+    setPedidoLoading(true);
     try {
-      const res = await fetch(`/api/suprimentos/pedidos-compra?search=${encodeURIComponent(q)}&limit=10`);
+      const qs = q.trim()
+        ? `search=${encodeURIComponent(q.trim())}&semDE=1&limit=10`
+        : `semDE=1&limit=20`;
+      const res = await fetch(`/api/suprimentos/pedidos-compra?${qs}`);
       const json = await res.json();
       setPedidoOptions(json.data ?? []);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    } finally {
+      setPedidoLoading(false);
+    }
   }, []);
 
+  // O seletor de PC está ativo no popover do header OU no passo "vincular" do popup.
+  const pcPickerOpen = pcPopoverOpen || (choiceOpen && choiceStep === "vincular");
+
+  // Ao abrir o seletor, carrega os PCs em aberto na hora; ao digitar, debounce.
   useEffect(() => {
-    const t = setTimeout(() => searchPedidos(pedidoSearch), 300);
+    if (!pcPickerOpen) return;
+    const t = setTimeout(() => searchPedidos(pedidoSearch), pedidoSearch.trim() ? 300 : 0);
     return () => clearTimeout(t);
-  }, [pedidoSearch, searchPedidos]);
+  }, [pcPickerOpen, pedidoSearch, searchPedidos]);
 
   // Chave estável dos itens escolhidos (ids únicos, ordenados) para disparar a busca
   const itemIdsKey = useMemo(() => {
@@ -420,7 +440,13 @@ export default function NovoDocumentoEntradaPage() {
 
   function selectFornecedor(f: Fornecedor) {
     setFornecedorId(f.id);
-    setAvulsoConfirmed(false);
+  }
+
+  // Fecha o popup de escolha e volta ao passo inicial.
+  function closeChoice() {
+    setChoiceOpen(false);
+    setChoiceStep("choose");
+    setPedidoSearch("");
   }
 
   function selectPedido(p: PedidoOption) {
@@ -669,9 +695,11 @@ export default function NovoDocumentoEntradaPage() {
 
                 {/* Results */}
                 <div className="max-h-52 overflow-y-auto">
-                  {pedidoOptions.length === 0 ? (
+                  {pedidoLoading && pedidoOptions.length === 0 ? (
+                    <p className="px-4 py-3 text-xs text-gray-400 italic text-center">Carregando…</p>
+                  ) : pedidoOptions.length === 0 ? (
                     <p className="px-4 py-3 text-xs text-gray-400 italic text-center">
-                      {pedidoSearch.trim() ? "Nenhum resultado." : "Digite para buscar um Pedido de Compra."}
+                      {pedidoSearch.trim() ? "Nenhum resultado." : "Nenhum Pedido de Compra em aberto para vincular."}
                     </p>
                   ) : pedidoOptions.map((p) => (
                     <button
@@ -1298,6 +1326,131 @@ export default function NovoDocumentoEntradaPage() {
           </Button>
         </div>
       </div>
+
+      {/* ── Popup de escolha (vincular PC ou avulso) ──────────────────────── */}
+      {choiceOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 className="text-base font-semibold text-gray-800">
+                {choiceStep === "choose"
+                  ? "Como deseja criar este documento?"
+                  : "Vincular a um Pedido de Compra"}
+              </h2>
+              <button
+                type="button"
+                onClick={closeChoice}
+                className="text-gray-400 hover:text-gray-600"
+                aria-label="Fechar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {choiceStep === "choose" ? (
+              <div className="p-5 space-y-3">
+                <p className="text-sm text-gray-500">
+                  Para evitar registros duplicados, informe se esta entrada vem de um Pedido de Compra.
+                </p>
+
+                {/* Vincular */}
+                <button
+                  type="button"
+                  onClick={() => setChoiceStep("vincular")}
+                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-left transition-colors"
+                >
+                  <Link2 className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                  <span>
+                    <span className="block text-sm font-semibold text-blue-800">
+                      Vincular a um Pedido de Compra
+                    </span>
+                    <span className="block text-xs text-blue-700 mt-0.5">
+                      Puxa fornecedor e itens do PC e dá baixa automática na Solicitação e no Pedido ao concluir.
+                    </span>
+                  </span>
+                </button>
+
+                {/* Avulso */}
+                <button
+                  type="button"
+                  onClick={() => { setAvulsoConfirmed(true); closeChoice(); }}
+                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-left transition-colors"
+                >
+                  <FileText className="w-5 h-5 text-gray-500 mt-0.5 shrink-0" />
+                  <span>
+                    <span className="block text-sm font-semibold text-gray-800">
+                      Não, é um documento avulso
+                    </span>
+                    <span className="block text-xs text-gray-500 mt-0.5">
+                      Entrada sem Pedido de Compra. Você preenche fornecedor e itens manualmente.
+                    </span>
+                  </span>
+                </button>
+              </div>
+            ) : (
+              <div>
+                {/* Search */}
+                <div className="p-4 border-b border-gray-100">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <input
+                      autoFocus
+                      type="text"
+                      value={pedidoSearch}
+                      onChange={(e) => setPedidoSearch(e.target.value)}
+                      placeholder="Buscar PC… (ou escolha um abaixo)"
+                      className="w-full pl-8 pr-3 h-9 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* List */}
+                <div className="max-h-64 overflow-y-auto">
+                  {pedidoLoading && pedidoOptions.length === 0 ? (
+                    <p className="px-4 py-4 text-xs text-gray-400 italic text-center">Carregando…</p>
+                  ) : pedidoOptions.length === 0 ? (
+                    <p className="px-4 py-4 text-xs text-gray-400 italic text-center">
+                      {pedidoSearch.trim() ? "Nenhum resultado." : "Nenhum Pedido de Compra em aberto para vincular."}
+                    </p>
+                  ) : pedidoOptions.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => { selectPedido(p); closeChoice(); }}
+                      className="w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0 text-left"
+                    >
+                      <span className="font-mono font-semibold text-gray-800">{p.numero}</span>
+                      <span className="text-xs text-gray-400 truncate max-w-[160px]">
+                        {p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
+                  <button
+                    type="button"
+                    onClick={() => { setChoiceStep("choose"); setPedidoSearch(""); }}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    ← Voltar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAvulsoConfirmed(true); closeChoice(); }}
+                    className="text-xs text-gray-500 hover:text-gray-700 underline"
+                  >
+                    É um documento avulso
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {createdDialog}
     </div>
   );
