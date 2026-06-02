@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { recalcPedidoValorTotal } from "@/lib/pedido-totais";
+import { notifyPedidoVendaCriado } from "@/lib/notify-pedido-venda";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -129,6 +130,9 @@ export async function POST(req: NextRequest) {
 
     return novoPedido;
   });
+
+  // Avisa o grupo do Telegram a cada novo pedido (não bloqueia em caso de erro).
+  await notifyPedidoVendaCriado(pedido);
 
   return NextResponse.json({ data: pedido }, { status: 201 });
 }
