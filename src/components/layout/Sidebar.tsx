@@ -56,6 +56,10 @@ import {
   RefreshCw,
   Activity,
   Clock,
+  Route,
+  Landmark,
+  Wallet,
+  FolderTree,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -139,6 +143,7 @@ const mainModules: Module[] = [
         { href: "/pedidos-venda",          label: "Pedidos de Venda", icon: ShoppingCart },
         { href: "/comercial/saldo-clientes", label: "Saldo por Cliente", icon: PackageSearch },
         { href: "/comercial/minutas",      label: "Minutas",          icon: Truck },
+        { href: "/comercial/agenda-entregas", label: "Agenda de Entregas", icon: Route },
         { href: "/comodato",               label: "Comodato",         icon: Package },
       ]},
       { kind: "Relatórios" as SubSection["kind"], items: [
@@ -207,6 +212,14 @@ const mainModules: Module[] = [
     label: "Financeiro",
     icon: BarChart3,
     sections: [
+      {
+        kind: "Cadastros",
+        items: [
+          { href: "/financeiro/contas",       label: "Contas Bancárias", icon: Wallet },
+          { href: "/financeiro/bancos",       label: "Bancos",           icon: Landmark },
+          { href: "/financeiro/plano-contas", label: "Plano de Contas",  icon: FolderTree },
+        ],
+      },
       {
         kind: "Processos",
         items: [

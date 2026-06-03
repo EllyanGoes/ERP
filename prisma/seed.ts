@@ -329,6 +329,10 @@ async function main() {
     { mesesAtras: 1, valor: 35800 },
   ];
 
+  const caixaGeral = await prisma.contaBancaria.create({
+    data: { nome: "Caixa Geral", tipo: "CAIXA", saldoInicial: 0 },
+  });
+
   for (const l of lancamentos) {
     const dataLancamento = new Date(now.getFullYear(), now.getMonth() - l.mesesAtras, 15);
     const cr = await prisma.contaReceber.create({
@@ -344,13 +348,14 @@ async function main() {
       },
     });
 
-    await prisma.lancamentoCaixa.create({
+    await prisma.lancamentoFinanceiro.create({
       data: {
         tipo: "RECEITA",
         valor: l.valor,
         descricao: `Receita — mês -${l.mesesAtras}`,
         dataLancamento,
         contaReceberId: cr.id,
+        contaBancariaId: caixaGeral.id,
       },
     });
   }

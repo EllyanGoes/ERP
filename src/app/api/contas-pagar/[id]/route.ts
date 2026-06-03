@@ -38,13 +38,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         status: newStatus,
       },
     });
-    await tx.lancamentoCaixa.create({
+    await tx.lancamentoFinanceiro.create({
       data: {
         tipo: "DESPESA",
         descricao: `Pagamento ${conta.numero}`,
         valor: valorPago + valorMulta + valorJuros,
         dataLancamento: new Date(dataPagamento),
         contaPagarId: params.id,
+        contaBancariaId: body.contaBancariaId ?? conta.contaBancariaId ?? "caixa-geral",
+        categoriaFinanceiraId: conta.categoriaFinanceiraId ?? undefined,
+        centroCustoId: conta.centroCustoId ?? undefined,
       },
     });
     return result;

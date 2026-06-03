@@ -1,0 +1,48 @@
+export const dynamic = "force-dynamic";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { lancamentoFinanceiroSchema } from "@/lib/validations/financeiro";
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const contaBancariaId = searchParams.get("contaBancariaId") || undefined;
+  const tipo = searchParams.get("tipo") || undefined;
+
+  const data = await prisma.lancamentoFinanceiro.findMany({
+    where: {
+      ...(contaBancariaId ? { contaBancariaId } : {}),
+      ...(tipo ? { tipo: tipo as any } : {}),
+    },
+    include: {
+      contaBancaria: { select: { id: true, nome: true } },
+      categoriaFinanceira: { select: { id: true, nome: true } },
+      contaReceber: { select: { id: true, numero: true } },
+      contaPagar: { select: { id: true, numero: true } },
+    },
+    orderBy: [{ dataLancamento: "desc" }, { createdAt: "desc" }],
+    take: 200,
+  });
+  return NextResponse.json({ data });
+}
+
+// Lançamento avulso (não vinculado a título). Movimenta o caixa diretamente.
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const parsed = lancamentoFinanceiroSchema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
+
+  const lancamento = await prisma.lancamentoFinanceiro.create({
+    data: {
+      tipo: parsed.data.tipo,
+      descricao: parsed.data.descricao,
+      valor: parsed.data.valor,
+      dataLancamento: new Date(parsed.data.dataLancamento),
+      contaBancariaId: parsed.data.contaBancariaId,
+      categoriaFinanceiraId: parsed.data.categoriaFinanceiraId || null,
+      centroCustoId: parsed.data.centroCustoId || null,
+      favorecido: parsed.data.favorecido || null,
+      observacoes: parsed.data.observacoes || null,
+    },
+  });
+  return NextResponse.json({ data: lancamento }, { status: 201 });
+}

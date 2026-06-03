@@ -8,7 +8,7 @@ export type {
   PedidoVendaItem,
   ContaReceber,
   ContaPagar,
-  LancamentoCaixa,
+  LancamentoFinanceiro,
   Sequencia,
 } from "@prisma/client"
 

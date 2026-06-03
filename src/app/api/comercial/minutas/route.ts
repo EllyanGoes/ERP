@@ -9,18 +9,45 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const pedidoVendaId = searchParams.get("pedidoVendaId");
     const status = searchParams.get("status");
+    const dataFrom = searchParams.get("dataFrom");
+    const dataTo = searchParams.get("dataTo");
+
+    // Filtro por dataEntrega prevista (usado pela Agenda de Entregas).
+    const dataEntregaFilter =
+      dataFrom || dataTo
+        ? {
+            dataEntrega: {
+              ...(dataFrom ? { gte: new Date(dataFrom) } : {}),
+              ...(dataTo ? { lte: new Date(dataTo) } : {}),
+            },
+          }
+        : {};
 
     const minutas = await prisma.minuta.findMany({
       where: {
         ...(pedidoVendaId ? { pedidoVendaId } : {}),
         ...(status ? { status: status as never } : {}),
+        ...dataEntregaFilter,
       },
       include: {
         pedidoVenda: {
           select: {
             id: true,
             numero: true,
-            cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+            cliente: {
+              select: {
+                id: true,
+                razaoSocial: true,
+                nomeFantasia: true,
+                cidade: true,
+                bairro: true,
+                logradouro: true,
+                numero: true,
+                estado: true,
+                telefone: true,
+                celular: true,
+              },
+            },
           },
         },
         localEstoque: { select: { id: true, nome: true } },
