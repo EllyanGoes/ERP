@@ -321,6 +321,20 @@ export default function AgendaEntregasPage() {
     );
   }, [search]);
 
+  // Filtra o "Saldo a entregar" pelo mesmo termo de busca: por nome do cliente
+  // (mantém todos os pedidos do cliente) ou por nº do pedido (mantém só os que casam).
+  const filteredSaldo = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return saldo;
+    return saldo
+      .map((cli) => {
+        if (cli.nome.toLowerCase().includes(q)) return cli;
+        const pedidos = cli.pedidos.filter((p) => p.numero.toLowerCase().includes(q));
+        return pedidos.length > 0 ? { ...cli, pedidos } : null;
+      })
+      .filter((cli): cli is SaldoCliente => cli !== null);
+  }, [saldo, search]);
+
   // ── Lanes (Dia) ───────────────────────────────────────────────────────────
   // Ordena minutas de uma raia (motoristaId | null) a partir do estado atual.
   const stopsForLane = useCallback(
@@ -718,7 +732,7 @@ export default function AgendaEntregasPage() {
             tab={railTab}
             setTab={setRailTab}
             pendentes={pendentes.filter(matchesSearch)}
-            saldo={saldo}
+            saldo={filteredSaldo}
             draggingId={draggingId}
             onDragStartCard={(id) => setDraggingId(id)}
             onOpen={(id) => router.push(`/comercial/minutas/${id}`)}
