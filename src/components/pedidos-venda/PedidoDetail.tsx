@@ -8,6 +8,7 @@ import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { Plus, Truck, Pencil, Package, Trash2, AlertTriangle } from "lucide-react";
+import MinutaActionsMenu from "./MinutaActionsMenu";
 
 type MinutaItemSummary = { quantidade: string };
 
@@ -450,16 +451,9 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                         <td className="py-2.5 text-gray-600">{m.localEstoque?.nome ?? "—"}</td>
                         <td className="py-2.5 text-right text-gray-600">{m.itens.length}</td>
                         <td className="py-2.5 text-right">
-                          {((m.status !== "ENTREGUE" && m.status !== "CANCELADA") || isAdmin) && (
-                            <Button
-                              variant="ghost" size="icon"
-                              onClick={(e) => { e.stopPropagation(); router.push(`/comercial/minutas/${m.id}/editar`); }}
-                              className="h-7 w-7 text-gray-400 hover:text-blue-600"
-                              title="Editar minuta"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                          )}
+                          <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+                            <MinutaActionsMenu id={m.id} numero={m.numero} status={m.status} isAdmin={isAdmin} />
+                          </div>
                         </td>
                       </tr>
                     ))}
