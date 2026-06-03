@@ -60,6 +60,8 @@ import {
   Landmark,
   Wallet,
   FolderTree,
+  Repeat,
+  CalendarClock,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -223,9 +225,11 @@ const mainModules: Module[] = [
       {
         kind: "Processos",
         items: [
-          { href: "/contas-receber", label: "Contas a Receber", icon: TrendingUp },
-          { href: "/contas-pagar",   label: "Contas a Pagar",   icon: TrendingDown },
-          { href: "/fluxo-caixa",    label: "Fluxo de Caixa",   icon: BarChart3 },
+          { href: "/contas-receber",       label: "Contas a Receber",  icon: TrendingUp },
+          { href: "/contas-pagar",         label: "Contas a Pagar",    icon: TrendingDown },
+          { href: "/financeiro/agenda",    label: "Agenda Financeira", icon: CalendarClock },
+          { href: "/financeiro/recorrencias", label: "Recorrências",   icon: Repeat },
+          { href: "/fluxo-caixa",          label: "Fluxo de Caixa",    icon: BarChart3 },
         ],
       },
     ],

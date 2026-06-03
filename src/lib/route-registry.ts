@@ -22,7 +22,7 @@ import {
   Settings2, Plug,
   Building2, Clock,
   Wrench, Database, MessageCircle,
-  Landmark, Wallet, FolderTree,
+  Landmark, Wallet, FolderTree, Repeat, CalendarClock,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -119,6 +119,8 @@ export const ROUTES: RouteEntry[] = [
   { href: "/financeiro/plano-contas",              label: "Plano de Contas",         group: "Financeiro",     section: "Financeiro",       icon: FolderTree,     keywords: "categoria plano contas grupo receita despesa" },
   { href: "/contas-receber",                       label: "Contas a Receber",        group: "Financeiro",     section: "Financeiro",       icon: TrendingUp },
   { href: "/contas-pagar",                         label: "Contas a Pagar",          group: "Financeiro",     section: "Financeiro",       icon: TrendingDown },
+  { href: "/financeiro/agenda",                    label: "Agenda Financeira",       group: "Financeiro",     section: "Financeiro",       icon: CalendarClock, keywords: "agenda vencimento baixa lote a vencer" },
+  { href: "/financeiro/recorrencias",              label: "Recorrências",            group: "Financeiro",     section: "Financeiro",       icon: Repeat,        keywords: "recorrência recorrente mensal aluguel salário fixa" },
   { href: "/fluxo-caixa",                          label: "Fluxo de Caixa",          group: "Financeiro",     section: "Financeiro",       icon: BarChart3 },
 
   { href: "/admin/usuarios",                       label: "Usuários",                group: "Administração",  section: "Sistema",          icon: UserCog },

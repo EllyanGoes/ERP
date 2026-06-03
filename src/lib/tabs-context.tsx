@@ -22,6 +22,8 @@ const ROUTE_TITLES: Record<string, string> = {
   "/financeiro/contas": "Contas Bancárias",
   "/financeiro/bancos": "Bancos",
   "/financeiro/plano-contas": "Plano de Contas",
+  "/financeiro/recorrencias": "Recorrências",
+  "/financeiro/agenda": "Agenda Financeira",
   "/contas-receber": "Contas a Receber",
   "/contas-receber/nova": "Nova Conta a Receber",
   "/contas-pagar": "Contas a Pagar",

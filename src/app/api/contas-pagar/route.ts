@@ -30,19 +30,61 @@ export async function POST(req: NextRequest) {
   const parsed = contaPagarSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
 
-  const seq = await prisma.sequencia.upsert({
-    where: { prefixo: "CP" },
-    update: { ultimo: { increment: 1 } },
-    create: { prefixo: "CP", ultimo: 1 },
+  // Parcelamento (Fase 2): nº de parcelas e intervalo (dias) lidos do corpo bruto.
+  const parcelas = Math.max(1, Math.floor(Number(body.parcelas) || 1));
+  const intervaloDias = Math.max(1, Math.floor(Number(body.intervaloDias) || 30));
+
+  if (parcelas <= 1) {
+    const seq = await prisma.sequencia.upsert({
+      where: { prefixo: "CP" },
+      update: { ultimo: { increment: 1 } },
+      create: { prefixo: "CP", ultimo: 1 },
+    });
+    const conta = await prisma.contaPagar.create({
+      data: {
+        ...parsed.data,
+        numero: generateDocNumber("CP", seq.ultimo),
+        dataVencimento: new Date(parsed.data.dataVencimento),
+      },
+    });
+    return NextResponse.json({ data: conta }, { status: 201 });
+  }
+
+  const total = parsed.data.valorOriginal;
+  const base = Math.floor((total / parcelas) * 100) / 100;
+  const grupoParcelamentoId = crypto.randomUUID();
+  const venc0 = new Date(parsed.data.dataVencimento);
+  const { valorOriginal: _v, dataVencimento: _d, descricao, ...resto } = parsed.data;
+
+  const contas = await prisma.$transaction(async (tx) => {
+    const seq = await tx.sequencia.upsert({
+      where: { prefixo: "CP" },
+      update: { ultimo: { increment: parcelas } },
+      create: { prefixo: "CP", ultimo: parcelas },
+    });
+    const primeiro = seq.ultimo - parcelas + 1;
+    const criadas = [];
+    for (let i = 0; i < parcelas; i++) {
+      const venc = new Date(venc0);
+      venc.setDate(venc.getDate() + i * intervaloDias);
+      const valor = i === parcelas - 1 ? total - base * (parcelas - 1) : base;
+      criadas.push(
+        await tx.contaPagar.create({
+          data: {
+            ...resto,
+            descricao: `${descricao} (${i + 1}/${parcelas})`,
+            numero: generateDocNumber("CP", primeiro + i),
+            valorOriginal: valor,
+            dataVencimento: venc,
+            grupoParcelamentoId,
+            parcelaNumero: i + 1,
+            parcelaTotal: parcelas,
+          },
+        }),
+      );
+    }
+    return criadas;
   });
 
-  const conta = await prisma.contaPagar.create({
-    data: {
-      ...parsed.data,
-      numero: generateDocNumber("CP", seq.ultimo),
-      dataVencimento: new Date(parsed.data.dataVencimento),
-    },
-  });
-
-  return NextResponse.json({ data: conta }, { status: 201 });
+  return NextResponse.json({ data: contas, grupoParcelamentoId }, { status: 201 });
 }

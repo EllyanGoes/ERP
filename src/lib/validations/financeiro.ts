@@ -84,6 +84,35 @@ export const transferenciaSchema = z.object({
   path: ["contaDestinoId"],
 })
 
+// ── Recorrências & parcelamento (Fase 2) ────────────────────────────────────
+
+export const recorrenciaSchema = z.object({
+  tipo: z.enum(["RECEBER", "PAGAR"]),
+  descricao: z.string().min(2, "Descrição é obrigatória"),
+  valor: z.coerce.number().min(0.01, "Valor inválido"),
+  categoriaFinanceiraId: z.string().optional().nullable(),
+  contaBancariaId: z.string().optional().nullable(),
+  clienteId: z.string().optional().nullable(),
+  fornecedorId: z.string().optional().nullable(),
+  centroCustoId: z.string().optional().nullable(),
+  periodicidade: z.enum(["SEMANAL", "MENSAL", "BIMESTRAL", "TRIMESTRAL", "SEMESTRAL", "ANUAL"]).default("MENSAL"),
+  diaVencimento: z.coerce.number().int().min(1).max(31).default(1),
+  proximaGeracao: z.string().min(1, "Data da próxima geração é obrigatória"),
+  ativo: z.boolean().default(true),
+  observacoes: z.string().optional().nullable(),
+})
+
+// Baixa em lote (agendamento) — quita vários títulos de uma vez numa conta.
+export const baixaLoteSchema = z.object({
+  tipo: z.enum(["RECEBER", "PAGAR"]),
+  ids: z.array(z.string()).min(1, "Selecione ao menos um título"),
+  contaBancariaId: z.string().min(1, "Conta bancária é obrigatória"),
+  dataPagamento: z.string().min(1, "Data é obrigatória"),
+})
+
+export type RecorrenciaFormData = z.infer<typeof recorrenciaSchema>
+export type BaixaLoteFormData = z.infer<typeof baixaLoteSchema>
+
 export type ContaReceberFormData = z.infer<typeof contaReceberSchema>
 export type ContaPagarFormData = z.infer<typeof contaPagarSchema>
 export type PagamentoFormData = z.infer<typeof pagamentoSchema>

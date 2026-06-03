@@ -82,6 +82,8 @@ export const MODULOS: ModuloDef[] = [
       { key: "plano-contas",     label: "Plano de Contas",  acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "contas-receber",   label: "Contas a Receber", acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "contas-pagar",     label: "Contas a Pagar",   acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "agenda-financeira", label: "Agenda Financeira", acoes: ["ver", "editar"] },
+      { key: "recorrencias",     label: "Recorrências",     acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "fluxo-caixa",      label: "Fluxo de Caixa",   acoes: ["ver"] },
     ],
   },

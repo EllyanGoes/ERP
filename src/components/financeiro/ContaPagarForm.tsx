@@ -24,11 +24,13 @@ export default function ContaPagarForm({ fornecedores }: { fornecedores: Fornece
   });
 
   const [serverError, setServerError] = useState<string | null>(null);
+  const [parcelas, setParcelas] = useState("1");
+  const [intervaloDias, setIntervaloDias] = useState("30");
 
   const { confirmCreated, dialog } = useCreateFlow({
     entity: "conta",
     gender: "f",
-    onNew: () => form.reset({ dataVencimento: new Date().toISOString().split("T")[0] }),
+    onNew: () => { form.reset({ dataVencimento: new Date().toISOString().split("T")[0] }); setParcelas("1"); setIntervaloDias("30"); },
   });
 
   async function onSubmit(data: ContaPagarFormData) {
@@ -37,7 +39,7 @@ export default function ContaPagarForm({ fornecedores }: { fornecedores: Fornece
       const res = await fetch("/api/contas-pagar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, parcelas: Number(parcelas) || 1, intervaloDias: Number(intervaloDias) || 30 }),
       });
       if (res.ok) {
         const json = await res.json();
@@ -98,6 +100,24 @@ export default function ContaPagarForm({ fornecedores }: { fornecedores: Fornece
             <FormField control={form.control} name="observacoes" render={({ field }) => (
               <FormItem className="col-span-2"><FormLabel>Observações</FormLabel><FormControl><Textarea {...field} value={field.value ?? ""} rows={3} /></FormControl><FormMessage /></FormItem>
             )} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-base">Parcelamento</CardTitle></CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Nº de parcelas</label>
+              <Input type="number" min="1" step="1" value={parcelas} onChange={(e) => setParcelas(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Intervalo entre parcelas (dias)</label>
+              <Input type="number" min="1" step="1" value={intervaloDias} onChange={(e) => setIntervaloDias(e.target.value)} />
+            </div>
+            {Number(parcelas) > 1 && (
+              <p className="col-span-2 text-xs text-gray-500">
+                Serão geradas {parcelas} parcelas, vencendo a cada {intervaloDias} dias a partir do vencimento informado. O valor é dividido entre elas.
+              </p>
+            )}
           </CardContent>
         </Card>
         {serverError && (

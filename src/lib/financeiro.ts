@@ -1,5 +1,21 @@
 import { prisma } from "@/lib/prisma";
 
+export type Periodicidade = "SEMANAL" | "MENSAL" | "BIMESTRAL" | "TRIMESTRAL" | "SEMESTRAL" | "ANUAL";
+
+/** Avança uma data conforme a periodicidade da recorrência. */
+export function avancarData(data: Date, periodicidade: Periodicidade): Date {
+  const d = new Date(data);
+  switch (periodicidade) {
+    case "SEMANAL":    d.setDate(d.getDate() + 7); break;
+    case "MENSAL":     d.setMonth(d.getMonth() + 1); break;
+    case "BIMESTRAL":  d.setMonth(d.getMonth() + 2); break;
+    case "TRIMESTRAL": d.setMonth(d.getMonth() + 3); break;
+    case "SEMESTRAL":  d.setMonth(d.getMonth() + 6); break;
+    case "ANUAL":      d.setFullYear(d.getFullYear() + 1); break;
+  }
+  return d;
+}
+
 /**
  * Saldo de uma conta = saldoInicial + Σ RECEITA − Σ DESPESA + Σ TRANSFERENCIA.
  * As pernas de transferência são gravadas com `valor` já sinalizado (negativo na

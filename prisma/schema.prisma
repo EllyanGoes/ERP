@@ -78,6 +78,7 @@ model CentroCusto {
   lancamentosFinanceiros LancamentoFinanceiro[]
   contasReceber          ContaReceber[]
   contasPagar            ContaPagar[]
+  recorrencias           Recorrencia[]
 
   @@index([grupoCentroCustoId])
 }
@@ -106,6 +107,7 @@ model Cliente {
   contasReceber         ContaReceber[]
   pedidosVenda          PedidoVenda[]
   movimentacoesComodato MovimentacaoComodato[]
+  recorrencias          Recorrencia[]
 
   @@index([cpfCnpj])
   @@index([status])
@@ -239,6 +241,9 @@ model ContaPagar {
   centroCustoId         String?
   contaBancariaId       String?
   grupoParcelamentoId   String?
+  recorrenciaId         String?
+  parcelaNumero         Int?
+  parcelaTotal          Int?
   valorOriginal         Decimal                @db.Decimal(15, 2)
   valorPago             Decimal                @default(0) @db.Decimal(15, 2)
   valorMulta            Decimal                @default(0) @db.Decimal(15, 2)
@@ -255,12 +260,14 @@ model ContaPagar {
   categoriaFinanceira   CategoriaFinanceira?   @relation(fields: [categoriaFinanceiraId], references: [id])
   centroCusto           CentroCusto?           @relation(fields: [centroCustoId], references: [id])
   contaBancaria         ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
+  recorrencia           Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
   lancamentos           LancamentoFinanceiro[]
 
   @@index([dataVencimento])
   @@index([fornecedorId])
   @@index([status])
   @@index([grupoParcelamentoId])
+  @@index([recorrenciaId])
 }
 
 model ContaReceber {
@@ -273,6 +280,9 @@ model ContaReceber {
   centroCustoId         String?
   contaBancariaId       String?
   grupoParcelamentoId   String?
+  recorrenciaId         String?
+  parcelaNumero         Int?
+  parcelaTotal          Int?
   valorOriginal         Decimal                @db.Decimal(15, 2)
   valorPago             Decimal                @default(0) @db.Decimal(15, 2)
   valorMulta            Decimal                @default(0) @db.Decimal(15, 2)
@@ -290,11 +300,13 @@ model ContaReceber {
   categoriaFinanceira   CategoriaFinanceira?   @relation(fields: [categoriaFinanceiraId], references: [id])
   centroCusto           CentroCusto?           @relation(fields: [centroCustoId], references: [id])
   contaBancaria         ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
+  recorrencia           Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
   lancamentos           LancamentoFinanceiro[]
 
   @@index([clienteId])
   @@index([dataVencimento])
   @@index([status])
+  @@index([recorrenciaId])
   @@index([grupoParcelamentoId])
 }
 
@@ -323,6 +335,7 @@ model ContaBancaria {
   lancamentos   LancamentoFinanceiro[]
   contasReceber ContaReceber[]
   contasPagar   ContaPagar[]
+  recorrencias  Recorrencia[]
 
   @@index([bancoId])
 }
@@ -342,9 +355,39 @@ model CategoriaFinanceira {
   lancamentos   LancamentoFinanceiro[]
   contasReceber ContaReceber[]
   contasPagar   ContaPagar[]
+  recorrencias  Recorrencia[]
 
   @@index([paiId])
   @@index([tipo])
+}
+
+model Recorrencia {
+  id                    String                   @id @default(cuid())
+  tipo                  TipoRecorrencia
+  descricao             String
+  valor                 Decimal                  @db.Decimal(15, 2)
+  categoriaFinanceiraId String?
+  contaBancariaId       String?
+  clienteId             String?
+  fornecedorId          String?
+  centroCustoId         String?
+  periodicidade         PeriodicidadeRecorrencia @default(MENSAL)
+  diaVencimento         Int                      @default(1)
+  proximaGeracao        DateTime
+  ativo                 Boolean                  @default(true)
+  observacoes           String?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  categoriaFinanceira   CategoriaFinanceira?     @relation(fields: [categoriaFinanceiraId], references: [id])
+  contaBancaria         ContaBancaria?           @relation(fields: [contaBancariaId], references: [id])
+  cliente               Cliente?                 @relation(fields: [clienteId], references: [id])
+  fornecedor            Fornecedor?              @relation(fields: [fornecedorId], references: [id])
+  centroCusto           CentroCusto?             @relation(fields: [centroCustoId], references: [id])
+  contasReceber         ContaReceber[]
+  contasPagar           ContaPagar[]
+
+  @@index([ativo])
+  @@index([proximaGeracao])
 }
 
 model CotacaoCompra {
@@ -544,6 +587,7 @@ model Fornecedor {
   produtos        ProdutoFornecedor[]
   docEntradas     ConferenciaCompra[]
   inventarioItens InventarioMaterialItem[]
+  recorrencias    Recorrencia[]
 }
 
 model FornecedorContato {
@@ -1228,6 +1272,20 @@ enum TipoContaBancaria {
 enum TipoCategoriaFinanceira {
   RECEITA
   DESPESA
+}
+
+enum TipoRecorrencia {
+  RECEBER
+  PAGAR
+}
+
+enum PeriodicidadeRecorrencia {
+  SEMANAL
+  MENSAL
+  BIMESTRAL
+  TRIMESTRAL
+  SEMESTRAL
+  ANUAL
 }
 
 enum TipoMovimentacaoEstoque {
