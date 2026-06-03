@@ -113,6 +113,28 @@ export const baixaLoteSchema = z.object({
 export type RecorrenciaFormData = z.infer<typeof recorrenciaSchema>
 export type BaixaLoteFormData = z.infer<typeof baixaLoteSchema>
 
+// ── Conciliação bancária OFX (Fase 3) ───────────────────────────────────────
+
+export const ofxImportarSchema = z.object({
+  contaBancariaId: z.string().min(1, "Conta bancária é obrigatória"),
+  nomeArquivo: z.string().optional().nullable(),
+  conteudo: z.string().min(1, "Arquivo OFX vazio"),
+})
+
+export const ofxConciliarSchema = z.object({
+  linhaId: z.string().min(1),
+  lancamentoId: z.string().min(1),
+})
+
+export const ofxCriarLancamentoSchema = z.object({
+  linhaId: z.string().min(1),
+  categoriaFinanceiraId: z.string().optional().nullable(),
+  centroCustoId: z.string().optional().nullable(),
+})
+
+export type OfxImportarData = z.infer<typeof ofxImportarSchema>
+export type OfxConciliarData = z.infer<typeof ofxConciliarSchema>
+
 export type ContaReceberFormData = z.infer<typeof contaReceberSchema>
 export type ContaPagarFormData = z.infer<typeof contaPagarSchema>
 export type PagamentoFormData = z.infer<typeof pagamentoSchema>

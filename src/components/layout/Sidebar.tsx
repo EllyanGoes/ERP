@@ -62,6 +62,7 @@ import {
   FolderTree,
   Repeat,
   CalendarClock,
+  FileCheck2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -229,6 +230,7 @@ const mainModules: Module[] = [
           { href: "/contas-pagar",         label: "Contas a Pagar",    icon: TrendingDown },
           { href: "/financeiro/agenda",    label: "Agenda Financeira", icon: CalendarClock },
           { href: "/financeiro/recorrencias", label: "Recorrências",   icon: Repeat },
+          { href: "/financeiro/conciliacao", label: "Conciliação (OFX)", icon: FileCheck2 },
           { href: "/fluxo-caixa",          label: "Fluxo de Caixa",    icon: BarChart3 },
         ],
       },

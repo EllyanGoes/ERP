@@ -84,6 +84,7 @@ export const MODULOS: ModuloDef[] = [
       { key: "contas-pagar",     label: "Contas a Pagar",   acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "agenda-financeira", label: "Agenda Financeira", acoes: ["ver", "editar"] },
       { key: "recorrencias",     label: "Recorrências",     acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "conciliacao-ofx",  label: "Conciliação (OFX)", acoes: ["ver", "inserir", "editar"] },
       { key: "fluxo-caixa",      label: "Fluxo de Caixa",   acoes: ["ver"] },
     ],
   },

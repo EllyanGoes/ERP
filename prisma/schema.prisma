@@ -331,11 +331,12 @@ model ContaBancaria {
   ativo         Boolean                @default(true)
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
-  banco         Banco?                 @relation(fields: [bancoId], references: [id])
-  lancamentos   LancamentoFinanceiro[]
-  contasReceber ContaReceber[]
-  contasPagar   ContaPagar[]
-  recorrencias  Recorrencia[]
+  banco          Banco?                 @relation(fields: [bancoId], references: [id])
+  lancamentos    LancamentoFinanceiro[]
+  contasReceber  ContaReceber[]
+  contasPagar    ContaPagar[]
+  recorrencias   Recorrencia[]
+  importacoesOFX ImportacaoOFX[]
 
   @@index([bancoId])
 }
@@ -698,12 +699,41 @@ model LancamentoFinanceiro {
   contaReceber          ContaReceber?         @relation(fields: [contaReceberId], references: [id])
   transferenciaPar      LancamentoFinanceiro? @relation("Transferencia", fields: [transferenciaParId], references: [id])
   transferenciaParDe    LancamentoFinanceiro? @relation("Transferencia")
+  linhaOFX              LinhaOFX?
 
   @@index([dataLancamento])
   @@index([tipo])
   @@index([contaBancariaId])
   @@index([categoriaFinanceiraId])
   @@map("LancamentoCaixa")
+}
+
+model ImportacaoOFX {
+  id              String        @id @default(cuid())
+  contaBancariaId String
+  nomeArquivo     String?
+  dataImportacao  DateTime      @default(now())
+  totalLinhas     Int           @default(0)
+  createdAt       DateTime      @default(now())
+  contaBancaria   ContaBancaria @relation(fields: [contaBancariaId], references: [id])
+  linhas          LinhaOFX[]
+
+  @@index([contaBancariaId])
+}
+
+model LinhaOFX {
+  id                     String                @id @default(cuid())
+  importacaoId           String
+  fitId                  String?
+  data                   DateTime
+  valor                  Decimal               @db.Decimal(15, 2)
+  descricao              String?
+  lancamentoConciliadoId String?               @unique
+  createdAt              DateTime              @default(now())
+  importacao             ImportacaoOFX         @relation(fields: [importacaoId], references: [id], onDelete: Cascade)
+  lancamentoConciliado   LancamentoFinanceiro? @relation(fields: [lancamentoConciliadoId], references: [id])
+
+  @@index([importacaoId])
 }
 
 model LocalEstoque {
