@@ -11,6 +11,7 @@ import { statusMinutaLabel, confirmacaoMinutaLabel, TIPO_MINUTA_LABEL, type Tipo
 import {
   Search, X, Loader2, Truck, MapPin, GripVertical, CalendarDays, CalendarRange,
   ChevronLeft, ChevronRight, Route, PackageCheck, Send, UserX, ClipboardList,
+  Plus, Boxes, PackageOpen,
 } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -44,6 +45,12 @@ type Minuta = {
 };
 
 type Motorista = { id: string; nome: string; ativo: boolean };
+
+type SaldoCliente = {
+  id: string;
+  nome: string;
+  pedidos: { id: string; numero: string; itensPendentes: number; totalPendente: number }[];
+};
 
 type RoteiroUpdate = {
   id: string;
@@ -236,6 +243,8 @@ export default function AgendaEntregasPage() {
 
   const [minutas, setMinutas] = useState<Minuta[]>([]);
   const [pendentes, setPendentes] = useState<Minuta[]>([]);
+  const [saldo, setSaldo] = useState<SaldoCliente[]>([]);
+  const [railTab, setRailTab] = useState<"pendentes" | "saldo">("pendentes");
   const [motoristas, setMotoristas] = useState<Motorista[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -261,18 +270,21 @@ export default function AgendaEntregasPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [minRes, pendRes, motRes] = await Promise.all([
+      const [minRes, pendRes, motRes, saldoRes] = await Promise.all([
         fetch(`/api/comercial/minutas?dataFrom=${range.from}&dataTo=${range.to}`),
         fetch("/api/comercial/minutas?semData=true"),
         fetch("/api/comercial/motoristas?ativo=true"),
+        fetch("/api/comercial/saldo-entregar"),
       ]);
       const minJson = await minRes.json();
       const pendJson = await pendRes.json();
       const motJson = await motRes.json();
+      const saldoJson = await saldoRes.json();
       setMinutas((minJson.data ?? []) as Minuta[]);
       // Pendentes de agendamento: sem data e ainda não entregues/canceladas.
       setPendentes(((pendJson.data ?? []) as Minuta[]).filter((m) => m.status !== "CANCELADA" && m.status !== "ENTREGUE"));
       setMotoristas(Array.isArray(motJson) ? motJson : (motJson.data ?? []));
+      setSaldo((saldoJson.data ?? []) as SaldoCliente[]);
     } catch {
       showError("Erro ao carregar a agenda");
     } finally {
@@ -525,7 +537,9 @@ export default function AgendaEntregasPage() {
 
   // ── Totais do topo ──────────────────────────────────────────────────────────
   const total = boardMinutas.length;
-  const semMotorista = boardMinutas.filter((m) => !m.motorista).length;
+  // Retiradas não precisam de motorista (o cliente retira), então não contam como "sem motorista".
+  const semMotorista = boardMinutas.filter((m) => !m.motorista && m.tipo !== "RETIRADA").length;
+  const retiradas = boardMinutas.filter((m) => m.tipo === "RETIRADA").length;
 
   const weekDays = useMemo(() => weekDaysISO(day), [day]);
 
@@ -597,9 +611,23 @@ export default function AgendaEntregasPage() {
             <UserX className="w-3.5 h-3.5" /> {semMotorista} sem motorista
           </span>
         )}
+        {!loading && retiradas > 0 && (
+          <span className="inline-flex items-center gap-1 text-xs text-violet-600">
+            <PackageCheck className="w-3.5 h-3.5" /> {retiradas} retirada{retiradas !== 1 ? "s" : ""}
+          </span>
+        )}
 
-        {/* Toggle Dia | Semana */}
-        <div className="ml-auto flex items-center gap-1 border border-gray-200 rounded-lg p-0.5 bg-white">
+        {/* Agendar saldo a entregar */}
+        <button
+          onClick={() => setRailTab("saldo")}
+          className="ml-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors"
+          title="Criar minuta e agendar o saldo a entregar dos clientes"
+        >
+          <Plus className="w-3.5 h-3.5" /> Agendar saldo a entregar
+        </button>
+
+        {/* Toggle Dia | Semana | Mês */}
+        <div className="flex items-center gap-1 border border-gray-200 rounded-lg p-0.5 bg-white">
           <button
             className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
               view === "dia" ? "bg-gray-100 text-gray-800" : "text-gray-500 hover:text-gray-700")}
@@ -686,11 +714,15 @@ export default function AgendaEntregasPage() {
             )}
           </div>
 
-          <PendingPanel
+          <RightRail
+            tab={railTab}
+            setTab={setRailTab}
             pendentes={pendentes.filter(matchesSearch)}
+            saldo={saldo}
             draggingId={draggingId}
             onDragStartCard={(id) => setDraggingId(id)}
             onOpen={(id) => router.push(`/comercial/minutas/${id}`)}
+            onAgendar={(pedidoId) => router.push(`/comercial/minutas/nova?pedidoVendaId=${pedidoId}`)}
           />
         </div>
       )}
@@ -698,66 +730,129 @@ export default function AgendaEntregasPage() {
   );
 }
 
-// ── Painel de pendentes (fonte para arrastar e agendar) ─────────────────────────
-function PendingPanel({
-  pendentes, draggingId, onDragStartCard, onOpen,
+// ── Painel lateral com abas: Pendentes (minutas sem data) | Saldo a entregar ────
+function RightRail({
+  tab, setTab, pendentes, saldo, draggingId, onDragStartCard, onOpen, onAgendar,
 }: {
+  tab: "pendentes" | "saldo";
+  setTab: (t: "pendentes" | "saldo") => void;
   pendentes: Minuta[];
+  saldo: SaldoCliente[];
   draggingId: string | null;
   onDragStartCard: (id: string) => void;
   onOpen: (id: string) => void;
+  onAgendar: (pedidoId: string) => void;
 }) {
+  const totalSaldoPedidos = saldo.reduce((s, c) => s + c.pedidos.length, 0);
+
   return (
-    <aside className="w-72 shrink-0 border-l border-gray-200 bg-gray-50 flex flex-col">
-      <div className="px-4 py-3 border-b border-gray-200 bg-white">
-        <div className="flex items-center gap-2">
-          <ClipboardList className="w-4 h-4 text-amber-500" />
-          <h2 className="text-sm font-semibold text-gray-800">Pendentes de agendamento</h2>
-        </div>
-        <p className="text-xs text-gray-400 mt-0.5">Arraste para um dia/motorista na agenda</p>
+    <aside className="w-80 shrink-0 border-l border-gray-200 bg-gray-50 flex flex-col">
+      {/* Abas */}
+      <div className="flex border-b border-gray-200 bg-white">
+        <button
+          onClick={() => setTab("pendentes")}
+          className={cn("flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors",
+            tab === "pendentes" ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700")}
+        >
+          <ClipboardList className="w-3.5 h-3.5" /> Pendentes
+          {pendentes.length > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">{pendentes.length}</span>}
+        </button>
+        <button
+          onClick={() => setTab("saldo")}
+          className={cn("flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors",
+            tab === "saldo" ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700")}
+        >
+          <Boxes className="w-3.5 h-3.5" /> Saldo a entregar
+          {totalSaldoPedidos > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">{totalSaldoPedidos}</span>}
+        </button>
       </div>
-      <div className="flex-1 overflow-auto p-2 space-y-2">
-        {pendentes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center text-xs text-gray-400">
-            <PackageCheck className="w-6 h-6 mb-2 text-gray-300" />
-            Nenhuma minuta pendente de agendamento.
-          </div>
-        ) : (
-          pendentes.map((m) => {
-            const cliente = m.pedidoVenda.cliente;
-            const local = clienteLocal(cliente);
-            return (
-              <div
-                key={m.id}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = "move";
-                  e.dataTransfer.setData("text/plain", m.id);
-                  onDragStartCard(m.id);
-                }}
-                onClick={() => { if (!draggingId) onOpen(m.id); }}
-                className={cn(
-                  "bg-white border border-gray-200 rounded-lg p-2.5 shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-300 hover:shadow transition-all select-none",
-                  m.id === draggingId && "opacity-40",
-                )}
-              >
-                <div className="flex items-center gap-1.5 mb-1">
-                  <GripVertical className="w-3.5 h-3.5 text-gray-300 shrink-0" />
-                  <span className="font-mono text-xs font-bold text-gray-700">{m.numero}</span>
-                  <span className="font-mono text-[11px] text-gray-400 ml-auto">{m.pedidoVenda.numero}</span>
-                </div>
-                <p className="text-xs font-medium text-gray-800 leading-snug line-clamp-2">{clienteNome(cliente)}</p>
-                {local && (
-                  <div className="flex items-center gap-1 text-[11px] text-gray-400 mt-0.5">
-                    <MapPin className="w-3 h-3 shrink-0" />
-                    <span className="truncate">{local}</span>
+
+      {tab === "pendentes" ? (
+        <div className="flex-1 overflow-auto p-2 space-y-2">
+          <p className="text-[11px] text-gray-400 px-1 pb-1">Minutas sem data — arraste para um dia/motorista na agenda.</p>
+          {pendentes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center text-xs text-gray-400">
+              <PackageCheck className="w-6 h-6 mb-2 text-gray-300" />
+              Nenhuma minuta pendente de agendamento.
+            </div>
+          ) : (
+            pendentes.map((m) => {
+              const cliente = m.pedidoVenda.cliente;
+              const local = clienteLocal(cliente);
+              const isRetirada = m.tipo === "RETIRADA";
+              return (
+                <div
+                  key={m.id}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", m.id);
+                    onDragStartCard(m.id);
+                  }}
+                  onClick={() => { if (!draggingId) onOpen(m.id); }}
+                  className={cn(
+                    "bg-white border border-gray-300 rounded-lg p-2.5 shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 hover:shadow transition-all select-none border-l-4",
+                    isRetirada ? "border-l-violet-400" : "border-l-amber-400",
+                    m.id === draggingId && "opacity-40",
+                  )}
+                >
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <GripVertical className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                    <span className="font-mono text-xs font-bold text-gray-700">{m.numero}</span>
+                    {isRetirada && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">
+                        <PackageOpen className="w-3 h-3" /> Retirada
+                      </span>
+                    )}
+                    <span className="font-mono text-[11px] text-gray-400 ml-auto">{m.pedidoVenda.numero}</span>
                   </div>
-                )}
+                  <p className="text-xs font-medium text-gray-800 leading-snug line-clamp-2">{clienteNome(cliente)}</p>
+                  {local && (
+                    <div className="flex items-center gap-1 text-[11px] text-gray-400 mt-0.5">
+                      <MapPin className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{local}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto p-2 space-y-2">
+          <p className="text-[11px] text-gray-400 px-1 pb-1">Pedidos confirmados com saldo a entregar. Crie a minuta para agendar.</p>
+          {saldo.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center text-xs text-gray-400">
+              <Boxes className="w-6 h-6 mb-2 text-gray-300" />
+              Nenhum saldo a entregar.
+            </div>
+          ) : (
+            saldo.map((cli) => (
+              <div key={cli.id} className="bg-white border border-gray-300 rounded-lg overflow-hidden">
+                <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+                  <p className="text-xs font-semibold text-gray-800 truncate">{cli.nome}</p>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {cli.pedidos.map((p) => (
+                    <div key={p.id} className="flex items-center gap-2 px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-mono text-xs font-bold text-gray-700">{p.numero}</p>
+                        <p className="text-[11px] text-gray-400">{p.itensPendentes} item{p.itensPendentes !== 1 ? "s" : ""} pendente{p.itensPendentes !== 1 ? "s" : ""}</p>
+                      </div>
+                      <button
+                        onClick={() => onAgendar(p.id)}
+                        className="shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors"
+                      >
+                        <Plus className="w-3 h-3" /> Agendar
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            );
-          })
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      )}
     </aside>
   );
 }
@@ -962,27 +1057,32 @@ function WeekGrid({
                       onDrop={(e) => { e.preventDefault(); onDrop(lane.id, d); }}
                     >
                       <div className="space-y-1">
-                        {cellMinutas.map((m) => (
-                          <div
-                            key={m.id}
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.effectAllowed = "move";
-                              e.dataTransfer.setData("text/plain", m.id);
-                              onDragStartCard(m.id);
-                            }}
-                            onClick={() => { if (!draggingId) onOpen(m.id); }}
-                            className={cn(
-                              "flex items-center gap-1.5 rounded-md border bg-white px-1.5 py-1 cursor-grab active:cursor-grabbing hover:border-blue-300 text-[11px] transition-colors",
-                              m.id === draggingId ? "opacity-40" : "border-gray-200",
-                              !matchesSearch(m) && "opacity-30",
-                            )}
-                            title={`${m.numero} · ${clienteNome(m.pedidoVenda.cliente)}`}
-                          >
-                            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", STATUS_DOT[m.status])} />
-                            <span className="truncate text-gray-700">{clienteNome(m.pedidoVenda.cliente)}</span>
-                          </div>
-                        ))}
+                        {cellMinutas.map((m) => {
+                          const isRetirada = m.tipo === "RETIRADA";
+                          return (
+                            <div
+                              key={m.id}
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.effectAllowed = "move";
+                                e.dataTransfer.setData("text/plain", m.id);
+                                onDragStartCard(m.id);
+                              }}
+                              onClick={() => { if (!draggingId) onOpen(m.id); }}
+                              className={cn(
+                                "flex items-center gap-1.5 rounded-md border border-gray-300 border-l-[3px] bg-white px-1.5 py-1 shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 text-[11px] transition-colors",
+                                isRetirada ? "border-l-violet-400" : "border-l-blue-400",
+                                m.id === draggingId && "opacity-40",
+                                !matchesSearch(m) && "opacity-30",
+                              )}
+                              title={`${m.numero} · ${clienteNome(m.pedidoVenda.cliente)}${isRetirada ? " · Retirada" : ""}`}
+                            >
+                              <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", STATUS_DOT[m.status])} />
+                              <span className="truncate text-gray-700">{clienteNome(m.pedidoVenda.cliente)}</span>
+                              {isRetirada && <PackageOpen className="w-3 h-3 text-violet-500 shrink-0 ml-auto" />}
+                            </div>
+                          );
+                        })}
                       </div>
                     </td>
                   );
@@ -1065,27 +1165,32 @@ function MonthGrid({
                     {Number(dd)}
                   </button>
                   <div className="flex flex-col gap-0.5 overflow-hidden">
-                    {dayMinutas.slice(0, 4).map((m) => (
-                      <div
-                        key={m.id}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.effectAllowed = "move";
-                          e.dataTransfer.setData("text/plain", m.id);
-                          onDragStartCard(m.id);
-                        }}
-                        onClick={(e) => { e.stopPropagation(); if (!draggingId) onOpen(m.id); }}
-                        className={cn(
-                          "flex items-center gap-1 rounded border bg-white px-1 py-0.5 cursor-grab active:cursor-grabbing hover:border-blue-300 text-[10px] transition-colors",
-                          m.id === draggingId ? "opacity-40" : "border-gray-200",
-                          !matchesSearch(m) && "opacity-30",
-                        )}
-                        title={`${m.numero} · ${clienteNome(m.pedidoVenda.cliente)}${m.motorista ? ` · ${m.motorista.nome}` : ""}`}
-                      >
-                        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", STATUS_DOT[m.status])} />
-                        <span className="truncate text-gray-700">{clienteNome(m.pedidoVenda.cliente)}</span>
-                      </div>
-                    ))}
+                    {dayMinutas.slice(0, 4).map((m) => {
+                      const isRetirada = m.tipo === "RETIRADA";
+                      return (
+                        <div
+                          key={m.id}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = "move";
+                            e.dataTransfer.setData("text/plain", m.id);
+                            onDragStartCard(m.id);
+                          }}
+                          onClick={(e) => { e.stopPropagation(); if (!draggingId) onOpen(m.id); }}
+                          className={cn(
+                            "flex items-center gap-1 rounded border border-gray-300 border-l-[3px] bg-white px-1 py-0.5 shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 text-[10px] transition-colors",
+                            isRetirada ? "border-l-violet-400" : "border-l-blue-400",
+                            m.id === draggingId && "opacity-40",
+                            !matchesSearch(m) && "opacity-30",
+                          )}
+                          title={`${m.numero} · ${clienteNome(m.pedidoVenda.cliente)}${m.motorista ? ` · ${m.motorista.nome}` : ""}${isRetirada ? " · Retirada" : ""}`}
+                        >
+                          <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", STATUS_DOT[m.status])} />
+                          <span className="truncate text-gray-700">{clienteNome(m.pedidoVenda.cliente)}</span>
+                          {isRetirada && <PackageOpen className="w-2.5 h-2.5 text-violet-500 shrink-0 ml-auto" />}
+                        </div>
+                      );
+                    })}
                     {dayMinutas.length > 4 && (
                       <button onClick={() => onOpenDay(d)} className="text-[10px] text-blue-600 hover:underline text-left pl-1">
                         +{dayMinutas.length - 4} mais
