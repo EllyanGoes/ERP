@@ -70,7 +70,7 @@ type Cotacao = {
   infoEntrega: string | null;
   necessidade: { id: string; numero: string; itens: SCItem[] } | null;
   fornecedores: CotacaoFornecedor[];
-  pedidos: Array<{ id: string; numero: string; status: string }>;
+  pedidos: Array<{ id: string; numero: string; status: string; conferencia: { id: string } | null }>;
 };
 
 type HistoricoEntry = {
@@ -1090,9 +1090,15 @@ export default function CotacaoDetailPage() {
               <p className="font-semibold text-gray-900">Excluir cotação {cotacao.numero}?</p>
               <p className="text-sm text-gray-500 mt-1">
                 Esta ação remove a cotação e todas as propostas dos fornecedores vinculadas.
-                {cotacao.pedidos.length > 0 && (
-                  <> Também serão excluídos <strong className="text-red-600">{cotacao.pedidos.length} pedido(s) de compra</strong> gerados a partir desta cotação.</>
-                )}
+                {cotacao.pedidos.length > 0 && (() => {
+                  const nDE = cotacao.pedidos.filter((p) => p.conferencia).length;
+                  return (
+                    <> Também serão <strong className="text-red-600">
+                      excluídos {cotacao.pedidos.length} pedido(s) de compra
+                      {nDE > 0 ? ` e ${nDE} documento(s) de entrada` : ""}
+                    </strong> gerados a partir desta cotação{nDE > 0 ? ", revertendo o estoque lançado" : ""}.</>
+                  );
+                })()}
                 {" "}Não pode ser desfeita.
               </p>
               {deleteError && (

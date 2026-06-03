@@ -1325,12 +1325,14 @@ export default function NecessidadeDetailPage() {
               {(() => {
                 const nCot = necessidade.cotacoes?.length ?? 0;
                 const nPed = necessidade.pedidosCompra?.length ?? 0;
+                const nDE  = (necessidade.pedidosCompra ?? []).filter((p) => p.conferencia).length;
                 const vinc = [
                   nCot > 0 ? `${nCot} cotação(ões)` : null,
                   nPed > 0 ? `${nPed} pedido(s) de compra` : null,
-                ].filter(Boolean).join(" e ");
+                  nDE  > 0 ? `${nDE} documento(s) de entrada` : null,
+                ].filter(Boolean).join(", ");
                 return vinc
-                  ? <>Também serão excluídos os vínculos: <strong className="text-red-600">{vinc}</strong>. Esta ação é permanente e não pode ser desfeita.</>
+                  ? <>Também serão <strong className="text-red-600">excluídos: {vinc}</strong>{nDE > 0 ? " — revertendo o estoque lançado por esses documentos" : ""}. Esta ação é permanente e não pode ser desfeita.</>
                   : <>Esta ação é permanente e não pode ser desfeita.</>;
               })()}
             </p>

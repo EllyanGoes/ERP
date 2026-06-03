@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { reverterEExcluirConferencias } from "@/lib/compras-cascade";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.cotacaoCompra.findUnique({
@@ -32,7 +33,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         },
         orderBy: { createdAt: "asc" },
       },
-      pedidos: { select: { id: true, numero: true, status: true } },
+      pedidos: { select: { id: true, numero: true, status: true, conferencia: { select: { id: true } } } },
     },
   });
 
@@ -71,11 +72,25 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   });
   if (!cotacao) return NextResponse.json({ error: "Cotação não encontrada" }, { status: 404 });
 
-  // Exclusão em cascata: remove também os pedidos de compra gerados a partir
-  // desta cotação (itens cascateiam; documentos de entrada têm o vínculo zerado).
-  // As propostas dos fornecedores cascateiam ao excluir a cotação.
+  // Exclusão em cascata: remove os pedidos de compra gerados a partir desta
+  // cotação E os documentos de entrada vinculados a esses pedidos, revertendo
+  // o estoque lançado. Propostas dos fornecedores cascateiam ao excluir a cotação.
   await prisma.$transaction(async (tx) => {
-    await tx.pedidoCompra.deleteMany({ where: { cotacaoId: params.id } });
+    const pedidos = await tx.pedidoCompra.findMany({
+      where: { cotacaoId: params.id },
+      select: { id: true },
+    });
+    const pedidoIds = pedidos.map((p) => p.id);
+
+    if (pedidoIds.length > 0) {
+      const confs = await tx.conferenciaCompra.findMany({
+        where: { pedidoId: { in: pedidoIds } },
+        select: { id: true },
+      });
+      await reverterEExcluirConferencias(tx, confs.map((c) => c.id));
+      await tx.pedidoCompra.deleteMany({ where: { id: { in: pedidoIds } } });
+    }
+
     await tx.cotacaoCompra.delete({ where: { id: params.id } });
   });
 

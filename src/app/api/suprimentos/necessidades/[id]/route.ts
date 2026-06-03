@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { reverterEExcluirConferencias } from "@/lib/compras-cascade";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.necessidadeCompra.findUnique({
@@ -110,19 +111,31 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   });
   if (!sc) return NextResponse.json({ error: "SC não encontrada" }, { status: 404 });
 
-  // Exclusão em cascata (forçada): remove também os pedidos de compra e as
-  // cotações vinculados à SC. Itens/propostas/aprovações cascateiam; documentos
-  // de entrada ligados aos pedidos têm o vínculo zerado (sobrevivem).
+  // Exclusão em cascata (forçada): remove os pedidos de compra e as cotações
+  // vinculados à SC E os documentos de entrada ligados a esses pedidos,
+  // revertendo o estoque lançado. Itens/propostas/aprovações cascateiam.
   const cotacaoIds = sc.cotacoes.map((c) => c.id);
   await prisma.$transaction(async (tx) => {
-    await tx.pedidoCompra.deleteMany({
+    const pedidos = await tx.pedidoCompra.findMany({
       where: {
         OR: [
           { necessidadeId: params.id },
           ...(cotacaoIds.length ? [{ cotacaoId: { in: cotacaoIds } }] : []),
         ],
       },
+      select: { id: true },
     });
+    const pedidoIds = pedidos.map((p) => p.id);
+
+    if (pedidoIds.length > 0) {
+      const confs = await tx.conferenciaCompra.findMany({
+        where: { pedidoId: { in: pedidoIds } },
+        select: { id: true },
+      });
+      await reverterEExcluirConferencias(tx, confs.map((c) => c.id));
+      await tx.pedidoCompra.deleteMany({ where: { id: { in: pedidoIds } } });
+    }
+
     await tx.cotacaoCompra.deleteMany({ where: { necessidadeId: params.id } });
     await tx.necessidadeCompra.delete({ where: { id: params.id } });
   });
