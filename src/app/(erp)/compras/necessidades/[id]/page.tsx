@@ -40,6 +40,7 @@ type Necessidade = {
   dataNecessidade: string | null; observacoes: string | null;
   aprovadoPor: string | null; dataAprovacao: string | null;
   motivoReprovacao: string | null;
+  motivoCancelamento: string | null; dataCancelamento: string | null;
   tipoCompra: string | null; motivo: string | null; categoria: string | null;
   projeto: string | null; classificacaoAuxiliar: string | null;
   filialId: string | null; localEstoqueId: string | null; centroCustoId: string | null;
@@ -246,6 +247,8 @@ export default function NecessidadeDetailPage() {
   const [motivoReprovacao, setMotivoReprovacao]  = useState("");
   const [showApproveForm, setShowApproveForm]   = useState(false);
   const [showRejectForm, setShowRejectForm]     = useState(false);
+  const [showCancelForm, setShowCancelForm]     = useState(false);
+  const [motivoCancelamento, setMotivoCancelamento] = useState("");
   const [submittingAprovacao, setSubmittingAprovacao] = useState(false);
   const [submittingAprovacaoError, setSubmittingAprovacaoError] = useState("");
   // Modal WhatsApp
@@ -316,7 +319,7 @@ export default function NecessidadeDetailPage() {
       });
       const json = await res.json();
       if (!res.ok) { setActionError(json.error || "Erro na operação"); return; }
-      setShowApproveForm(false); setShowRejectForm(false);
+      setShowApproveForm(false); setShowRejectForm(false); setShowCancelForm(false);
       await load();
     } catch { setActionError("Erro de conexão"); }
     finally   { setActioning(false); }
@@ -595,7 +598,11 @@ export default function NecessidadeDetailPage() {
   if (!necessidade) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
   const isRascunho = necessidade.status === "RASCUNHO";
-  const canEdit    = isAdmin || ["RASCUNHO", "AGUARDANDO_APROVACAO", "REJEITADA"].includes(necessidade.status);
+  const isCancelada = necessidade.status === "CANCELADA";
+  // Editar nunca em SC cancelada (estado final); senão admin sempre, ou estados iniciais.
+  const canEdit    = !isCancelada && (isAdmin || ["RASCUNHO", "AGUARDANDO_APROVACAO", "REJEITADA"].includes(necessidade.status));
+  // Cancelar (soft) disponível em todos os estados de trabalho, exceto os terminais já atendidos.
+  const canCancel  = ["RASCUNHO", "AGUARDANDO_APROVACAO", "APROVADA", "REJEITADA", "EM_COTACAO", "EM_PEDIDO"].includes(necessidade.status);
 
   // ── Edit mode view ───────────────────────────────────────────────────────────
   if (editMode) {
@@ -788,6 +795,17 @@ export default function NecessidadeDetailPage() {
               </Button>
             )}
 
+            {/* Cancelar SC — soft-cancel com motivo (não exclui registros); estado final */}
+            {canCancel && (
+              <Button size="sm" variant="outline"
+                className="border-gray-300 text-gray-600 hover:bg-gray-50 gap-1.5"
+                onClick={() => { setShowCancelForm(true); setActionError(""); setMotivoCancelamento(""); }}
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                Cancelar SC
+              </Button>
+            )}
+
             {/* Excluir — apenas admin, qualquer status */}
             {isAdmin && (
               <Button size="sm" variant="outline"
@@ -922,9 +940,13 @@ export default function NecessidadeDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Approval info */}
-            {(necessidade.status === "APROVADA" || necessidade.status === "REJEITADA") && (
-              <Card className={necessidade.status === "APROVADA" ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
+            {/* Approval / rejection / cancellation info */}
+            {(necessidade.status === "APROVADA" || necessidade.status === "REJEITADA" || isCancelada) && (
+              <Card className={
+                necessidade.status === "APROVADA" ? "border-green-200 bg-green-50"
+                : isCancelada ? "border-gray-200 bg-gray-50"
+                : "border-red-200 bg-red-50"
+              }>
                 <CardContent className="pt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {necessidade.status === "APROVADA" && (
                     <>
@@ -936,6 +958,15 @@ export default function NecessidadeDetailPage() {
                     <div className="sm:col-span-3">
                       <p className="text-xs text-red-600">Motivo da Rejeição</p>
                       <p className="text-sm text-red-800 mt-1">{necessidade.motivoReprovacao || "—"}</p>
+                    </div>
+                  )}
+                  {isCancelada && (
+                    <div className="sm:col-span-3">
+                      <p className="text-xs text-gray-500">Motivo do Cancelamento</p>
+                      <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap">{necessidade.motivoCancelamento || "—"}</p>
+                      {necessidade.dataCancelamento && (
+                        <p className="text-xs text-gray-400 mt-1.5">Cancelada em {formatDate(necessidade.dataCancelamento)}</p>
+                      )}
                     </div>
                   )}
                 </CardContent>
@@ -1155,6 +1186,39 @@ export default function NecessidadeDetailPage() {
               <Button size="sm" variant="destructive"
                 onClick={() => changeStatus("REJEITADA", { motivoReprovacao })} disabled={actioning}>
                 {actioning ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />Reprovando...</> : "Confirmar Reprovação"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel modal — soft-cancel da SC com motivo obrigatório (estado final) */}
+      {showCancelForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                <XCircle className="w-5 h-5 text-gray-500" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">Cancelar solicitação</p>
+                <p className="text-sm text-gray-500">{necessidade.numero}</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600">
+              A SC será marcada como <strong>Cancelada</strong> — os registros não são excluídos. Esta ação é definitiva.
+            </p>
+            <div className="space-y-1.5">
+              <Label>Motivo do cancelamento <span className="text-red-500">*</span></Label>
+              <Textarea value={motivoCancelamento} onChange={(e) => setMotivoCancelamento(e.target.value)} placeholder="Descreva o motivo..." rows={3} autoFocus />
+            </div>
+            {actionError && <p className="text-sm text-red-600">{actionError}</p>}
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="outline" onClick={() => setShowCancelForm(false)} disabled={actioning}>Voltar</Button>
+              <Button size="sm" variant="destructive"
+                onClick={() => changeStatus("CANCELADA", { motivoCancelamento })}
+                disabled={actioning || !motivoCancelamento.trim()}>
+                {actioning ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />Cancelando...</> : "Confirmar Cancelamento"}
               </Button>
             </div>
           </div>

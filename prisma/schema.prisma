@@ -321,16 +321,16 @@ model Banco {
 }
 
 model ContaBancaria {
-  id            String                 @id @default(cuid())
-  nome          String
-  bancoId       String?
-  agencia       String?
-  numero        String?
-  tipo          TipoContaBancaria      @default(CORRENTE)
-  saldoInicial  Decimal                @default(0) @db.Decimal(15, 2)
-  ativo         Boolean                @default(true)
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @updatedAt
+  id             String                 @id @default(cuid())
+  nome           String
+  bancoId        String?
+  agencia        String?
+  numero         String?
+  tipo           TipoContaBancaria      @default(CORRENTE)
+  saldoInicial   Decimal                @default(0) @db.Decimal(15, 2)
+  ativo          Boolean                @default(true)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
   banco          Banco?                 @relation(fields: [bancoId], references: [id])
   lancamentos    LancamentoFinanceiro[]
   contasReceber  ContaReceber[]
@@ -833,6 +833,8 @@ model NecessidadeCompra {
   aprovadoPor           String?
   dataAprovacao         DateTime?
   motivoReprovacao      String?
+  motivoCancelamento    String?
+  dataCancelamento      DateTime?
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
   categoria             String?
@@ -1232,6 +1234,7 @@ enum StatusNecessidade {
   EM_PEDIDO
   TOTALMENTE_ATENDIDA
   PARCIALMENTE_ATENDIDA
+  CANCELADA
 }
 
 enum StatusPedidoCompra {

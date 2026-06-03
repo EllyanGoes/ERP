@@ -56,6 +56,7 @@ const STATUS_OPTIONS = [
   { value: "EM_PEDIDO",             label: "Em Pedido" },
   { value: "TOTALMENTE_ATENDIDA",   label: "Totalmente Atendida" },
   { value: "PARCIALMENTE_ATENDIDA", label: "Parcialmente Atendida" },
+  { value: "CANCELADA",             label: "Cancelada" },
 ];
 
 // Column config: which statuses show in kanban and their accent colors
@@ -68,6 +69,7 @@ const KANBAN_COLUMNS: { status: string; label: string; color: string; dot: strin
   { status: "EM_PEDIDO",             label: "Em Pedido",             color: "bg-indigo-50 border-indigo-200",   dot: "bg-indigo-500" },
   { status: "TOTALMENTE_ATENDIDA",   label: "Totalmente Atendida",   color: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-600" },
   { status: "PARCIALMENTE_ATENDIDA", label: "Parcialmente Atendida", color: "bg-orange-50 border-orange-200",   dot: "bg-orange-500" },
+  { status: "CANCELADA",             label: "Cancelada",             color: "bg-gray-100 border-gray-300",      dot: "bg-gray-500" },
 ];
 
 const SORT_OPTIONS = [
