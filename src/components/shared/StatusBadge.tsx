@@ -7,6 +7,7 @@ const configs: Record<string, { label: string; className: string }> = {
   APROVADA: { label: "Aprovada", className: "bg-green-100 text-green-700" },
   REJEITADA: { label: "Rejeitada", className: "bg-red-100 text-red-700" },
   EM_COTACAO: { label: "Em Cotação", className: "bg-blue-100 text-blue-700" },
+  EM_PEDIDO: { label: "Em Pedido", className: "bg-indigo-100 text-indigo-700" },
   TOTALMENTE_ATENDIDA: { label: "Totalmente Atendida", className: "bg-emerald-100 text-emerald-700" },
   PARCIALMENTE_ATENDIDA: { label: "Parcialmente Atendida", className: "bg-orange-100 text-orange-700" },
   // StatusCotacaoCompra (3 estados)

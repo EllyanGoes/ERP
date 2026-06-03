@@ -12,7 +12,7 @@ import Link from "next/link";
 import {
   Plus, Trash2, Loader2, AlertTriangle, ChevronRight, Building2,
   Search, X, ArrowUpDown, ChevronUp, ChevronDown as ChevronDownIcon, Check,
-  LayoutList, Kanban, MoreHorizontal,
+  LayoutList, Kanban, MoreHorizontal, Users, Layers, Tag,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -53,6 +53,7 @@ const STATUS_OPTIONS = [
   { value: "APROVADA",              label: "Aprovada" },
   { value: "REJEITADA",             label: "Rejeitada" },
   { value: "EM_COTACAO",            label: "Em Cotação" },
+  { value: "EM_PEDIDO",             label: "Em Pedido" },
   { value: "TOTALMENTE_ATENDIDA",   label: "Totalmente Atendida" },
   { value: "PARCIALMENTE_ATENDIDA", label: "Parcialmente Atendida" },
 ];
@@ -64,6 +65,7 @@ const KANBAN_COLUMNS: { status: string; label: string; color: string; dot: strin
   { status: "APROVADA",              label: "Aprovada",              color: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-500" },
   { status: "REJEITADA",             label: "Rejeitada",             color: "bg-red-50 border-red-200",         dot: "bg-red-500" },
   { status: "EM_COTACAO",            label: "Em Cotação",            color: "bg-blue-50 border-blue-200",       dot: "bg-blue-500" },
+  { status: "EM_PEDIDO",             label: "Em Pedido",             color: "bg-indigo-50 border-indigo-200",   dot: "bg-indigo-500" },
   { status: "TOTALMENTE_ATENDIDA",   label: "Totalmente Atendida",   color: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-600" },
   { status: "PARCIALMENTE_ATENDIDA", label: "Parcialmente Atendida", color: "bg-orange-50 border-orange-200",   dot: "bg-orange-500" },
 ];
@@ -77,6 +79,20 @@ const SORT_OPTIONS = [
   { value: "prioridade_asc",  label: "Prioridade ↓" },
 ];
 
+// Agrupamento da listagem (visão Lista)
+const GROUP_OPTIONS = [
+  { value: "filial",      label: "Filial" },
+  { value: "solicitante", label: "Solicitante" },
+  { value: "setor",       label: "Setor" },
+  { value: "status",      label: "Status" },
+];
+const GROUP_ICON: Record<string, typeof Building2> = {
+  filial:      Building2,
+  solicitante: Users,
+  setor:       Layers,
+  status:      Tag,
+};
+
 const PRIORIDADE_LABEL: Record<number, { label: string; color: string }> = {
   1: { label: "Muito Baixa", color: "text-gray-400" },
   2: { label: "Baixa",       color: "text-blue-400" },
@@ -84,6 +100,58 @@ const PRIORIDADE_LABEL: Record<number, { label: string; color: string }> = {
   4: { label: "Alta",        color: "text-orange-500" },
   5: { label: "Crítica",     color: "text-red-600" },
 };
+
+// ── RecordChips ─────────────────────────────────────────────────────────────
+// Chips com a cadeia ATIVA em destaque e os cancelados/substituídos recolhidos.
+// Usado nas colunas Pedidos de Compra e Doc. de Entrada. `secondary` = registros
+// de uma cadeia cancelada/substituída — escondidos atrás de um "+N" (ou esmaecidos
+// quando não há nenhum ativo). É componente próprio porque o toggle de expandir
+// precisa de useState por célula (as funções render de NECESSIDADES_COLS são puras).
+function RecordChips({
+  primary,
+  secondary,
+  hrefBase,
+}: {
+  primary: Array<{ id: string; numero: string; status: string }>;
+  secondary?: Array<{ id: string; numero: string; status: string }>;
+  hrefBase: string;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const sec = secondary ?? [];
+  if (primary.length === 0 && sec.length === 0) {
+    return <span className="text-gray-300 text-xs">—</span>;
+  }
+  const hasPrimary = primary.length > 0;
+  const expanded   = showAll || !hasPrimary;
+  const visiveis   = expanded ? [...primary, ...sec] : primary;
+  const dimIds     = new Set(sec.map((s) => s.id));
+  const chipClass  =
+    "inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 transition-colors";
+  return (
+    <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
+      {visiveis.map((it) => (
+        <Link
+          key={it.id}
+          href={`${hrefBase}/${it.id}`}
+          className={cn(chipClass, dimIds.has(it.id) && "opacity-50")}
+        >
+          <span className="font-mono text-[10px] font-medium text-gray-600 hover:text-blue-700">{it.numero}</span>
+          <StatusBadge status={it.status} />
+        </Link>
+      ))}
+      {hasPrimary && sec.length > 0 && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setShowAll((s) => !s); }}
+          className="inline-flex items-center px-1.5 py-0.5 rounded border border-dashed border-gray-300 text-[10px] font-medium text-gray-400 hover:text-gray-600 hover:border-gray-400 transition-colors"
+          title={`${sec.length} cancelado(s)/substituído(s)`}
+        >
+          {showAll ? "recolher" : `+${sec.length}`}
+        </button>
+      )}
+    </div>
+  );
+}
 
 // ── Column definitions ────────────────────────────────────────────────────────
 // sortKey is needed for SortHeader in th — we define COLS with static th content
@@ -199,21 +267,9 @@ const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
         allIds.add(p.id);
         return true;
       });
-      if (pedidos.length === 0) return <span className="text-gray-300 text-xs">—</span>;
-      return (
-        <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
-          {pedidos.map((p) => (
-            <Link
-              key={p.id}
-              href={`/suprimentos/pedidos-compra/${p.id}`}
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 transition-colors"
-            >
-              <span className="font-mono text-[10px] font-medium text-gray-600 hover:text-blue-700">{p.numero}</span>
-              <StatusBadge status={p.status} />
-            </Link>
-          ))}
-        </div>
-      );
+      const ativos     = pedidos.filter((p) => p.status !== "CANCELADO");
+      const cancelados = pedidos.filter((p) => p.status === "CANCELADO");
+      return <RecordChips primary={ativos} secondary={cancelados} hrefBase="/suprimentos/pedidos-compra" />;
     },
   },
   {
@@ -225,25 +281,15 @@ const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
       const viaCotacoes = (n.cotacoes ?? []).flatMap((c) => c.pedidos ?? []);
       const diretos = n.pedidosCompra ?? [];
       const allPedidos = [...diretos, ...viaCotacoes].filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
-      const conferencias = allPedidos
-        .map((p) => p.conferencia)
-        .filter((c): c is NonNullable<typeof c> => c !== null)
-        .filter((c, i, arr) => arr.findIndex((x) => x.id === c.id) === i);
-      if (conferencias.length === 0) return <span className="text-gray-300 text-xs">—</span>;
-      return (
-        <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
-          {conferencias.map((c) => (
-            <Link
-              key={c.id}
-              href={`/suprimentos/conferencias/${c.id}`}
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 transition-colors"
-            >
-              <span className="font-mono text-[10px] font-medium text-gray-600 hover:text-blue-700">{c.numero}</span>
-              <StatusBadge status={c.status} />
-            </Link>
-          ))}
-        </div>
-      );
+      // DE não tem status "CANCELADO": o "substituído" é o DE cujo pedido pai está cancelado.
+      const dedupeConf = (peds: typeof allPedidos) =>
+        peds
+          .map((p) => p.conferencia)
+          .filter((c): c is NonNullable<typeof c> => c !== null)
+          .filter((c, i, arr) => arr.findIndex((x) => x.id === c.id) === i);
+      const ativas = dedupeConf(allPedidos.filter((p) => p.status !== "CANCELADO"));
+      const outras = dedupeConf(allPedidos.filter((p) => p.status === "CANCELADO"));
+      return <RecordChips primary={ativas} secondary={outras} hrefBase="/suprimentos/conferencias" />;
     },
   },
 ];
@@ -622,7 +668,7 @@ export default function NecessidadesPage() {
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
   function canDeleteSC(n: { status: string }) {
-    if (["APROVADA", "EM_COTACAO", "TOTALMENTE_ATENDIDA", "PARCIALMENTE_ATENDIDA"].includes(n.status)) return isAdmin;
+    if (["APROVADA", "EM_COTACAO", "EM_PEDIDO", "TOTALMENTE_ATENDIDA", "PARCIALMENTE_ATENDIDA"].includes(n.status)) return isAdmin;
     return true;
   }
   const [necessidades, setNecessidades] = useState<Necessidade[]>([]);
@@ -635,14 +681,16 @@ export default function NecessidadesPage() {
     filterStatusOp: "is_not" as FilterOp,
     filterFilial:   "",
     sortKey:        "createdAt_desc",
+    groupBy:        "filial",
     view:           "list" as "list" | "kanban",
   });
-  const { search, filterStatuses, filterStatusOp, filterFilial, sortKey, view } = f;
+  const { search, filterStatuses, filterStatusOp, filterFilial, sortKey, groupBy, view } = f;
   const setSearch         = (v: string)           => setF({ search: v });
   const setFilterStatuses = (v: string[])         => setF({ filterStatuses: v });
   const setFilterStatusOp = (v: FilterOp)         => setF({ filterStatusOp: v });
   const setFilterFilial   = (v: string)           => setF({ filterFilial: v });
   const setSortKey        = (v: string)           => setF({ sortKey: v });
+  const setGroupBy        = (v: string)           => setF({ groupBy: v });
   const setView           = (v: "list" | "kanban") => setF({ view: v });
 
   // Delete
@@ -724,17 +772,38 @@ export default function NecessidadesPage() {
     return list;
   }, [necessidades, search, filterStatuses, filterStatusOp, filterFilial, sortKey]);
 
-  type Group = { filialId: string | null; filialLabel: string; items: Necessidade[] };
+  type Group = { key: string; label: string; items: Necessidade[] };
   const groups = useMemo<Group[]>(() => {
     const map = new Map<string, Group>();
+    const statusLabel = (s: string) => STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s;
     for (const n of filtered) {
-      const key   = n.filial?.id ?? "__sem_filial__";
-      const label = n.filial ? (n.filial.nomeFantasia || n.filial.razaoSocial) : "Sem Filial";
-      if (!map.has(key)) map.set(key, { filialId: key, filialLabel: label, items: [] });
+      let key: string, label: string;
+      switch (groupBy) {
+        case "solicitante":
+          key   = n.solicitante?.trim() || "__sem__";
+          label = n.solicitante?.trim() || "Sem Solicitante";
+          break;
+        case "setor":
+          key   = n.setor?.id ?? "__sem__";
+          label = n.setor?.nome ?? "Sem Setor";
+          break;
+        case "status":
+          key   = n.status;
+          label = statusLabel(n.status);
+          break;
+        case "filial":
+        default:
+          key   = n.filial?.id ?? "__sem__";
+          label = n.filial ? (n.filial.nomeFantasia || n.filial.razaoSocial) : "Sem Filial";
+          break;
+      }
+      if (!map.has(key)) map.set(key, { key, label, items: [] });
       map.get(key)!.items.push(n);
     }
     return Array.from(map.values());
-  }, [filtered]);
+  }, [filtered, groupBy]);
+
+  const GroupIcon = GROUP_ICON[groupBy] ?? Building2;
 
   const hasFilters = search || filterStatuses.length > 0 || filterFilial;
 
@@ -809,6 +878,20 @@ export default function NecessidadesPage() {
                 className="h-9 px-3 pr-8 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
               >
                 {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Group by — list view only */}
+          {view === "list" && (
+            <div className="flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <select
+                value={groupBy}
+                onChange={(e) => setGroupBy(e.target.value)}
+                className="h-9 px-3 pr-8 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+              >
+                {GROUP_OPTIONS.map((o) => <option key={o.value} value={o.value}>Agrupar: {o.label}</option>)}
               </select>
             </div>
           )}
@@ -899,15 +982,15 @@ export default function NecessidadesPage() {
             </div>
           ) : (
             groups.map((group) => (
-              <div key={group.filialId ?? "sem"}>
+              <div key={group.key}>
                 <div className="flex items-center gap-2 mb-2">
-                  <Building2 className="w-3.5 h-3.5 text-blue-400" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-blue-500">{group.filialLabel}</span>
+                  <GroupIcon className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-blue-500">{group.label}</span>
                   <span className="text-xs text-gray-400">({group.items.length})</span>
                 </div>
 
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-4">
-                  <table className="w-full text-sm">
+                <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto mb-4">
+                  <table className="w-full min-w-[1100px] text-sm">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
                         {orderedNecCols.map((col) => {

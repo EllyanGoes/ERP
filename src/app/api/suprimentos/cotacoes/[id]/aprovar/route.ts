@@ -115,6 +115,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         },
       });
 
+      // ── Atualiza a SC → EM_PEDIDO ────────────────────────────────────────
+      // Agora existe um Pedido de Compra gerado a partir desta Solicitação;
+      // ela deixa de estar "Em Cotação". O "atendida" (parcial/total) só será
+      // determinado no recebimento (conclusão do Documento de Entrada).
+      if (cotacao.necessidadeId) {
+        await tx.necessidadeCompra.updateMany({
+          where: {
+            id: cotacao.necessidadeId,
+            status: { in: ["EM_COTACAO", "APROVADA"] },
+          },
+          data: { status: "EM_PEDIDO" },
+        });
+      }
+
       return { cotacao: updatedCotacao, pedidoCompra };
     });
 

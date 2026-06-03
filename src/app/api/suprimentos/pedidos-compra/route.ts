@@ -190,51 +190,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Update necessidade status when a pedido is placed
-    if (cotacaoId) {
-      const cotacao = await tx.cotacaoCompra.findUnique({
+    // ── Atualiza a SC → EM_PEDIDO ──────────────────────────────────────────
+    // Quando o pedido nasce de uma Solicitação (direto pela SC ou via cotação),
+    // a SC passa a "Em Pedido". O "atendida" (parcial/total) só é determinado
+    // no recebimento (conclusão do Documento de Entrada).
+    let scId: string | null = necessidadeId || null;
+    if (!scId && cotacaoId) {
+      const cot = await tx.cotacaoCompra.findUnique({
         where: { id: cotacaoId },
-        select: {
-          necessidadeId: true,
-          necessidade: {
-            select: {
-              itens: { select: { itemId: true } },
-            },
-          },
-        },
+        select: { necessidadeId: true },
       });
-
-      if (cotacao?.necessidadeId && cotacao.necessidade) {
-        // Check how many distinct itemIds from the necessidade already have a pedido
-        const necessidadeId = cotacao.necessidadeId;
-        const necessidadeItemIds = new Set(cotacao.necessidade.itens.map((i) => i.itemId));
-
-        // Get all pedido items linked (via cotacao) to this necessidade
-        const pedidosExistentes = await tx.pedidoCompra.findMany({
-          where: { cotacaoId },
-          select: { itens: { select: { itemId: true } } },
-        });
-
-        const atendidosIds = new Set(
-          pedidosExistentes.flatMap((p) => p.itens.map((i) => i.itemId))
-        );
-
-        const totalNec    = necessidadeItemIds.size;
-        const totalAtend  = Array.from(necessidadeItemIds).filter((id) => atendidosIds.has(id)).length;
-
-        const novoStatus =
-          totalNec > 0 && totalAtend >= totalNec
-            ? "TOTALMENTE_ATENDIDA"
-            : "PARCIALMENTE_ATENDIDA";
-
-        await tx.necessidadeCompra.updateMany({
-          where: {
-            id: necessidadeId,
-            status: { in: ["EM_COTACAO", "APROVADA", "PARCIALMENTE_ATENDIDA"] },
-          },
-          data: { status: novoStatus },
-        });
-      }
+      scId = cot?.necessidadeId ?? null;
+    }
+    if (scId) {
+      await tx.necessidadeCompra.updateMany({
+        where: {
+          id: scId,
+          status: { in: ["EM_COTACAO", "APROVADA"] },
+        },
+        data: { status: "EM_PEDIDO" },
+      });
     }
 
     // ── Auto-vincular itens ao fornecedor em ProdutoFornecedor ────────────────

@@ -3,7 +3,7 @@
  * excluindo as já totalmente atendidas.
  * Agrupado por filial.
  *
- * Status incluídos: RASCUNHO, AGUARDANDO_APROVACAO, APROVADA, EM_COTACAO, PARCIALMENTE_ATENDIDA
+ * Status incluídos: RASCUNHO, AGUARDANDO_APROVACAO, APROVADA, EM_COTACAO, EM_PEDIDO, PARCIALMENTE_ATENDIDA
  * Status excluídos: TOTALMENTE_ATENDIDA, REJEITADA
  */
 
@@ -24,6 +24,7 @@ const STATUS_META: Record<string, { label: string; color: [number, number, numbe
   AGUARDANDO_APROVACAO:  { label: "Ag. Aprovação",  color: [234, 179,   8] },
   APROVADA:              { label: "Aprovada",        color: [22,  163,  74] },
   EM_COTACAO:            { label: "Em Cotação",      color: [37,   99, 235] },
+  EM_PEDIDO:             { label: "Em Pedido",       color: [79,   70, 229] },
   PARCIALMENTE_ATENDIDA: { label: "Parc. Atendida", color: [249, 115,  22] },
 };
 
@@ -87,6 +88,7 @@ export async function buildRelatorioSolicitacoes(): Promise<RelatorioSolicitacoe
   if (contadores.AGUARDANDO_APROVACAO)  partes.push(`${contadores.AGUARDANDO_APROVACAO} ag\\. aprovação`);
   if (contadores.APROVADA)              partes.push(`${contadores.APROVADA} aprovada${contadores.APROVADA > 1 ? "s" : ""}`);
   if (contadores.EM_COTACAO)            partes.push(`${contadores.EM_COTACAO} em cotação`);
+  if (contadores.EM_PEDIDO)             partes.push(`${contadores.EM_PEDIDO} em pedido`);
   if (contadores.PARCIALMENTE_ATENDIDA) partes.push(`${contadores.PARCIALMENTE_ATENDIDA} parc\\. atendida${contadores.PARCIALMENTE_ATENDIDA > 1 ? "s" : ""}`);
   if (partes.length > 0) captionLines.push(partes.join(" · "));
   if (scs.length === 0) captionLines.push(``, `✅ _Nenhuma solicitação ativa no momento\\._`);

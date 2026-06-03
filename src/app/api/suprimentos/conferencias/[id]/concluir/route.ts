@@ -161,7 +161,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
       if (!necessidade) return;
       // Only update if SC is in a relevant status
-      const statusElegiveis = ["EM_COTACAO", "APROVADA", "PARCIALMENTE_ATENDIDA", "TOTALMENTE_ATENDIDA"];
+      const statusElegiveis = ["EM_COTACAO", "EM_PEDIDO", "APROVADA", "PARCIALMENTE_ATENDIDA", "TOTALMENTE_ATENDIDA"];
       if (!statusElegiveis.includes(necessidade.status)) return;
 
       const scItems = necessidade.itens;
