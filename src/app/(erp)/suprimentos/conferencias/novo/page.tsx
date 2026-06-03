@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { decimalToNumber, formatBRL } from "@/lib/utils";
-import { useTabTitle } from "@/lib/tabs-context";
+import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { Link2, X, Plus, Trash2, Search, ExternalLink, AlertTriangle, FileText, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -273,6 +273,7 @@ export default function NovoDocumentoEntradaPage() {
   const [error, setError]           = useState("");
 
   useTabTitle("Novo Doc. Entrada");
+  const { closeCurrentTab } = useTabsContext();
 
   const { confirmCreated, dialog: createdDialog } = useCreateFlow({
     entity: "documento de entrada",
@@ -340,6 +341,12 @@ export default function NovoDocumentoEntradaPage() {
     const t = setTimeout(() => searchPedidos(pedidoSearch), pedidoSearch.trim() ? 300 : 0);
     return () => clearTimeout(t);
   }, [pcPickerOpen, pedidoSearch, searchPedidos]);
+
+  // Ao fechar o seletor, recolhe os itens expandidos (estado é compartilhado
+  // entre o popover do header e o popup de escolha).
+  useEffect(() => {
+    if (!pcPickerOpen) setExpandedPcs(new Set());
+  }, [pcPickerOpen]);
 
   // Agrupa os PCs da lista de vínculo por fornecedor (ordem alfabética).
   const pedidoGroups = useMemo(() => {
@@ -682,12 +689,16 @@ export default function NovoDocumentoEntradaPage() {
           <div className="relative" ref={pcPopoverRef}>
             <Button
               type="button"
-              variant={vinculadoPedido ? "default" : "outline"}
+              variant="outline"
               size="sm"
               onClick={() => setPcPopoverOpen((v) => !v)}
               className={cn(
-                "gap-1.5",
-                vinculadoPedido && "bg-blue-600 hover:bg-blue-700 text-white"
+                "gap-1.5 transition-colors",
+                vinculadoPedido
+                  // Vinculado: azul sólido (vínculo ativo)
+                  ? "border-blue-600 bg-blue-600 text-white hover:bg-blue-700 hover:text-white"
+                  // Sem vínculo: azul claro (clicável, mas nada vinculado ainda)
+                  : "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
               )}
             >
               <Link2 className="w-3.5 h-3.5" />
@@ -704,7 +715,7 @@ export default function NovoDocumentoEntradaPage() {
             </Button>
 
             {pcPopoverOpen && (
-              <div className="absolute right-0 top-full mt-2 z-50 w-80 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
+              <div className="absolute right-0 top-full mt-2 z-50 w-96 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
                 {/* Search */}
                 <div className="p-3 border-b border-gray-100">
                   <div className="relative">
@@ -714,34 +725,23 @@ export default function NovoDocumentoEntradaPage() {
                       type="text"
                       value={pedidoSearch}
                       onChange={(e) => setPedidoSearch(e.target.value)}
-                      placeholder="Buscar PC… (ex: PC-2025-0001)"
+                      placeholder="Buscar PC… (ou escolha um abaixo)"
                       className="w-full pl-8 pr-3 h-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
 
-                {/* Results */}
-                <div className="max-h-52 overflow-y-auto">
-                  {pedidoLoading && pedidoOptions.length === 0 ? (
-                    <p className="px-4 py-3 text-xs text-gray-400 italic text-center">Carregando…</p>
-                  ) : pedidoOptions.length === 0 ? (
-                    <p className="px-4 py-3 text-xs text-gray-400 italic text-center">
-                      {pedidoSearch.trim() ? "Nenhum resultado." : "Nenhum Pedido de Compra em aberto para vincular."}
-                    </p>
-                  ) : pedidoOptions.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onMouseDown={() => selectPedido(p)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
-                    >
-                      <span className="font-mono font-semibold text-gray-800">{p.numero}</span>
-                      <span className="text-xs text-gray-400 truncate max-w-[140px]">
-                        {p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                {/* Lista agrupada por fornecedor (mesmo componente do popup de escolha) */}
+                <PcLinkList
+                  pedidoOptions={pedidoOptions}
+                  pedidoGroups={pedidoGroups}
+                  loading={pedidoLoading}
+                  searchActive={!!pedidoSearch.trim()}
+                  expandedPcs={expandedPcs}
+                  onToggleExpand={toggleExpand}
+                  onSelect={selectPedido}
+                  maxHeightClass="max-h-72"
+                />
 
                 {/* Linked summary */}
                 {vinculadoPedido && (
@@ -1365,17 +1365,20 @@ export default function NovoDocumentoEntradaPage() {
                   ? "Como deseja criar este documento?"
                   : "Vincular a um Pedido de Compra"}
               </h2>
-              {/* Sem escape "silencioso": no passo de escolha o X cancela e
-                  volta para a lista; no passo de vínculo ele apenas retorna à
-                  escolha. Assim o usuário é obrigado a optar (vincular ou avulso). */}
+              {/* Sem escape "silencioso": no passo de escolha o X fecha o
+                  diálogo E a página (aba), pois ficar no formulário sem optar é
+                  justamente o que queremos impedir; no passo de vínculo o X
+                  apenas retorna à escolha. Assim o usuário é obrigado a optar
+                  (vincular ou avulso) — ou fechar a página de vez. */}
               {choiceStep === "choose" ? (
-                <Link
-                  href="/suprimentos/conferencias"
+                <button
+                  type="button"
+                  onClick={closeCurrentTab}
                   className="text-gray-400 hover:text-gray-600"
-                  aria-label="Cancelar e voltar"
+                  aria-label="Fechar página"
                 >
                   <X className="w-4 h-4" />
-                </Link>
+                </button>
               ) : (
                 <button
                   type="button"
@@ -1445,69 +1448,17 @@ export default function NovoDocumentoEntradaPage() {
                   </div>
                 </div>
 
-                {/* Lista agrupada por fornecedor */}
-                <div className="max-h-72 overflow-y-auto">
-                  {pedidoLoading && pedidoOptions.length === 0 ? (
-                    <p className="px-4 py-4 text-xs text-gray-400 italic text-center">Carregando…</p>
-                  ) : pedidoOptions.length === 0 ? (
-                    <p className="px-4 py-4 text-xs text-gray-400 italic text-center">
-                      {pedidoSearch.trim() ? "Nenhum resultado." : "Nenhum Pedido de Compra em aberto para vincular."}
-                    </p>
-                  ) : pedidoGroups.map((g) => (
-                    <div key={g.nome}>
-                      <div className="px-4 py-1.5 bg-gray-50 border-b border-gray-100">
-                        <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-                          {g.nome}
-                        </span>
-                      </div>
-                      {g.pedidos.map((p) => {
-                        const expanded = expandedPcs.has(p.id);
-                        return (
-                          <div key={p.id} className="border-b border-gray-50 last:border-0">
-                            <div className="flex items-stretch">
-                              <button
-                                type="button"
-                                onClick={() => { selectPedido(p); closeChoice(); }}
-                                className="flex-1 flex items-center justify-between px-4 py-2.5 text-sm hover:bg-blue-50 text-left transition-colors"
-                              >
-                                <span className="font-mono font-semibold text-gray-800">{p.numero}</span>
-                                <span className="flex items-center gap-2 text-xs">
-                                  <span className="text-gray-400">
-                                    {p.itens.length} {p.itens.length === 1 ? "item" : "itens"}
-                                  </span>
-                                  <span className="font-semibold text-gray-700">
-                                    {p.valorTotal != null ? formatBRL(decimalToNumber(p.valorTotal)) : "—"}
-                                  </span>
-                                </span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); toggleExpand(p.id); }}
-                                className="px-3 text-gray-400 hover:text-gray-600 hover:bg-gray-50"
-                                aria-label={expanded ? "Ocultar itens" : "Ver itens"}
-                              >
-                                <ChevronRight className={cn("w-4 h-4 transition-transform", expanded && "rotate-90")} />
-                              </button>
-                            </div>
-                            {expanded && (
-                              <ul className="px-4 pb-2.5 pt-0.5 bg-gray-50/60 space-y-1">
-                                {p.itens.map((it) => (
-                                  <li key={it.id} className="flex items-baseline gap-2 text-xs text-gray-600">
-                                    <span className="font-mono text-gray-400 shrink-0 w-24 text-right">
-                                      {decimalToNumber(it.quantidade)} {it.item.unidadeMedida}
-                                    </span>
-                                    <span className="font-mono text-gray-500 shrink-0">{it.item.codigo}</span>
-                                    <span className="truncate">{it.item.descricao}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
+                {/* Lista agrupada por fornecedor (componente compartilhado) */}
+                <PcLinkList
+                  pedidoOptions={pedidoOptions}
+                  pedidoGroups={pedidoGroups}
+                  loading={pedidoLoading}
+                  searchActive={!!pedidoSearch.trim()}
+                  expandedPcs={expandedPcs}
+                  onToggleExpand={toggleExpand}
+                  onSelect={(p) => { selectPedido(p); closeChoice(); }}
+                  maxHeightClass="max-h-72"
+                />
 
                 {/* Footer */}
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
@@ -1533,6 +1484,94 @@ export default function NovoDocumentoEntradaPage() {
       )}
 
       {createdDialog}
+    </div>
+  );
+}
+
+// ── Lista de PCs para vincular (compartilhada) ───────────────────────────────
+// Mesma UI usada no popover do botão "Vincular PC" e no popup de escolha:
+// agrupada por fornecedor, com nº/itens/valor e expandir para ver os itens.
+function PcLinkList({
+  pedidoOptions,
+  pedidoGroups,
+  loading,
+  searchActive,
+  expandedPcs,
+  onToggleExpand,
+  onSelect,
+  maxHeightClass = "max-h-72",
+}: {
+  pedidoOptions: PedidoOption[];
+  pedidoGroups: { nome: string; pedidos: PedidoOption[] }[];
+  loading: boolean;
+  searchActive: boolean;
+  expandedPcs: Set<string>;
+  onToggleExpand: (id: string) => void;
+  onSelect: (p: PedidoOption) => void;
+  maxHeightClass?: string;
+}) {
+  return (
+    <div className={cn(maxHeightClass, "overflow-y-auto")}>
+      {loading && pedidoOptions.length === 0 ? (
+        <p className="px-4 py-4 text-xs text-gray-400 italic text-center">Carregando…</p>
+      ) : pedidoOptions.length === 0 ? (
+        <p className="px-4 py-4 text-xs text-gray-400 italic text-center">
+          {searchActive ? "Nenhum resultado." : "Nenhum Pedido de Compra em aberto para vincular."}
+        </p>
+      ) : pedidoGroups.map((g) => (
+        <div key={g.nome}>
+          <div className="px-4 py-1.5 bg-gray-50 border-b border-gray-100">
+            <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+              {g.nome}
+            </span>
+          </div>
+          {g.pedidos.map((p) => {
+            const expanded = expandedPcs.has(p.id);
+            return (
+              <div key={p.id} className="border-b border-gray-50 last:border-0">
+                <div className="flex items-stretch">
+                  <button
+                    type="button"
+                    onClick={() => onSelect(p)}
+                    className="flex-1 flex items-center justify-between px-4 py-2.5 text-sm hover:bg-blue-50 text-left transition-colors"
+                  >
+                    <span className="font-mono font-semibold text-gray-800">{p.numero}</span>
+                    <span className="flex items-center gap-2 text-xs">
+                      <span className="text-gray-400">
+                        {p.itens.length} {p.itens.length === 1 ? "item" : "itens"}
+                      </span>
+                      <span className="font-semibold text-gray-700">
+                        {p.valorTotal != null ? formatBRL(decimalToNumber(p.valorTotal)) : "—"}
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onToggleExpand(p.id); }}
+                    className="px-3 text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                    aria-label={expanded ? "Ocultar itens" : "Ver itens"}
+                  >
+                    <ChevronRight className={cn("w-4 h-4 transition-transform", expanded && "rotate-90")} />
+                  </button>
+                </div>
+                {expanded && (
+                  <ul className="px-4 pb-2.5 pt-0.5 bg-gray-50/60 space-y-1">
+                    {p.itens.map((it) => (
+                      <li key={it.id} className="flex items-baseline gap-2 text-xs text-gray-600">
+                        <span className="font-mono text-gray-400 shrink-0 w-24 text-right">
+                          {decimalToNumber(it.quantidade)} {it.item.unidadeMedida}
+                        </span>
+                        <span className="font-mono text-gray-500 shrink-0">{it.item.codigo}</span>
+                        <span className="truncate">{it.item.descricao}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
