@@ -540,15 +540,15 @@ export default function NovoPedidoCompraPage() {
               Revisar
             </button>
           </div>
-        ) : avulsoConfirmed && (
+        ) : (!choiceOpen && !cotacaoMatchLoading && (cotacaoMatches.length === 0 || avulsoConfirmed)) && (
           <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-500">
             <span>Pedido avulso — sem vínculo com SC.</span>
             <button
               type="button"
-              onClick={() => setAvulsoConfirmed(false)}
-              className="text-gray-400 hover:text-gray-600 underline"
+              onClick={() => { setChoiceOpen(true); setChoiceStep("choose"); }}
+              className="text-blue-600 hover:text-blue-800 underline font-medium"
             >
-              Revisar
+              Vincular a uma SC/Cotação
             </button>
           </div>
         )}
