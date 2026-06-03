@@ -1076,24 +1076,33 @@ export default function NovoPedidoCompraPage() {
                     <ul className="max-h-72 overflow-y-auto divide-y divide-gray-50">
                       {lista.map((sc) => {
                         const cot = cotacaoEmAndamento(sc);
+                        const desc = sc.justificativa?.trim();
                         return (
                           <li key={sc.id}>
                             <button
                               type="button"
                               onClick={() => setSelectedSc(sc)}
-                              className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-blue-50 transition-colors"
+                              className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-blue-50 transition-colors"
                             >
-                              <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                              <FileText className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                               <span className="min-w-0 flex-1">
                                 <span className="flex items-center gap-2 flex-wrap">
                                   <span className="font-mono font-semibold text-sm text-gray-800">{sc.numero}</span>
                                   <span className="text-xs text-gray-400">{sc.itens.length} {sc.itens.length === 1 ? "item" : "itens"}</span>
-                                  {cot && (
-                                    <span className="text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">cotação {cot.numero}</span>
+                                  {cot ? (
+                                    <span className="inline-flex items-center gap-1 text-xs">
+                                      <span className="font-mono text-gray-500">{cot.numero}</span>
+                                      <StatusBadge status={cot.status} />
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-gray-300">sem cotação</span>
                                   )}
                                 </span>
+                                {desc && (
+                                  <span className="block text-xs text-gray-500 mt-0.5 truncate">{desc}</span>
+                                )}
                               </span>
-                              <ExternalLink className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                              <ExternalLink className="w-3.5 h-3.5 text-gray-300 shrink-0 mt-0.5" />
                             </button>
                           </li>
                         );
