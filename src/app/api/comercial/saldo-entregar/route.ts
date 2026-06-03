@@ -5,8 +5,11 @@ import { decimalToNumber } from "@/lib/utils";
 
 const EPS = 1e-6;
 
-// Saldo a entregar por cliente: o que ainda falta minutar dos pedidos confirmados.
-// Mesma regra usada em /comercial/saldo-clientes e na Nova Minuta.
+// Saldo a entregar por cliente: o que ainda falta ENTREGAR dos pedidos confirmados.
+// O saldo só é baixado quando a minuta está ENTREGUE — uma minuta PENDENTE ou que
+// apenas SAIU_PARA_ENTREGA ainda não entregou o material, então não reduz o saldo.
+// (Atenção: difere de /comercial/saldo-clientes e da Nova Minuta, que descontam por
+// minuta criada/não-cancelada para evitar minutar a mesma quantidade duas vezes.)
 export async function GET() {
   const pedidos = await prisma.pedidoVenda.findMany({
     where: { status: { in: ["CONFIRMADO", "EM_AGENDAMENTO"] } },
@@ -18,7 +21,7 @@ export async function GET() {
         select: {
           quantidade: true,
           minutaItens: {
-            where: { minuta: { status: { not: "CANCELADA" } } },
+            where: { minuta: { status: "ENTREGUE" } },
             select: { quantidade: true },
           },
         },

@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
 
 const MINUTA_INCLUDE = {
   pedidoVenda: {
@@ -247,14 +246,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         return NextResponse.json({ error: "Informe ao menos um item com quantidade" }, { status: 400 });
       }
 
-      // Minutas finalizadas (entregue/cancelada) só o administrador edita.
-      const isFinal = minuta.status === "ENTREGUE" || minuta.status === "CANCELADA";
-      if (isFinal) {
-        const session = await getSession();
-        if (session?.perfil !== "ADMIN") {
-          return NextResponse.json({ error: "Apenas administradores podem editar minutas finalizadas" }, { status: 403 });
-        }
-      }
+      // Edição liberada para qualquer usuário, inclusive em minutas finalizadas
+      // (entregue/cancelada): o estoque é reconciliado pelo delta logo abaixo.
 
       const oldLocal = minuta.localEstoqueId;
       const newLocal = body.localEstoqueId !== undefined ? (body.localEstoqueId || null) : oldLocal;

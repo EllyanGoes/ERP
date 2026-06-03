@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertCircle } from "lucide-react";
-import { useTabTitle } from "@/lib/tabs-context";
+import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { TIPO_MINUTA_LABEL, statusMinutaLabel, type StatusMinuta } from "@/lib/minuta-labels";
 import { cn } from "@/lib/utils";
 
@@ -129,6 +129,7 @@ function buildRows(minuta: Minuta): ItemRow[] {
 export default function EditarMinutaPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { replaceCurrentTab } = useTabsContext();
 
   const [minuta, setMinuta] = useState<Minuta | null>(null);
   const [locais, setLocais] = useState<LocalEstoque[]>([]);
@@ -243,7 +244,9 @@ export default function EditarMinutaPage() {
 
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Erro ao salvar minuta"); return; }
-      router.push(`/comercial/minutas/${params.id}`);
+      // Volta para o detalhe reaproveitando a aba de edição (sem deixar a aba
+      // "Editar …" para trás), espelhando o fluxo do Pedido de Venda.
+      replaceCurrentTab(`/comercial/minutas/${params.id}`);
       router.refresh();
     } finally {
       setSaving(false);

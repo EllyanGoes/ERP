@@ -229,7 +229,7 @@ export default function NovaMinutaPage() {
     if (!pedidoVendaId) { setError("Selecione um pedido de venda"); return; }
     const validRows = rows.filter(r => parseFloat(r.quantidade || "0") > 0);
     if (validRows.length === 0) { setError("Informe ao menos um item com quantidade"); return; }
-    if (!localEstoqueId) { setError("Selecione o Local de Estoque (a saída do estoque é registrada ao criar a minuta)"); return; }
+    if (!localEstoqueId) { setError("Selecione o Local de Estoque (de onde a saída será baixada quando a minuta sair para entrega)"); return; }
 
     setSaving(true); setError("");
     try {

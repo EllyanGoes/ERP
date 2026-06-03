@@ -4,17 +4,18 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
+import { useTabsContext } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 
 type Props = {
   id: string;
   numero: string;
   status: string;
-  isAdmin?: boolean;
 };
 
-export default function MinutaActionsMenu({ id, numero, status, isAdmin = false }: Props) {
+export default function MinutaActionsMenu({ id, numero, status }: Props) {
   const router = useRouter();
+  const { replaceCurrentTab } = useTabsContext();
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -44,9 +45,9 @@ export default function MinutaActionsMenu({ id, numero, status, isAdmin = false 
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  // Editar: liberado para minutas não-terminais — ou sempre, para admin.
-  // (mesma regra do antigo ícone de lápis).
-  const canEdit = isAdmin || (status !== "ENTREGUE" && status !== "CANCELADA");
+  // Editar: liberado para qualquer minuta e qualquer usuário. A edição abre a
+  // tela completa, que reconcilia o estoque pelo delta — não exige mais admin.
+  const canEdit = true;
   // Excluir: somente minutas PENDENTE. A API bloqueia as demais (estoque já
   // movimentado em minutas que saíram/foram entregues).
   const canDelete = status === "PENDENTE";
@@ -73,7 +74,9 @@ export default function MinutaActionsMenu({ id, numero, status, isAdmin = false 
 
   function confirmEdit() {
     setShowEditConfirm(false);
-    router.push(`/comercial/minutas/${id}/editar`);
+    // Reaproveita a aba atual em vez de abrir uma nova (mesmo padrão do "Editar"
+    // do Pedido de Venda), evitando o acúmulo de abas ao editar minutas.
+    replaceCurrentTab(`/comercial/minutas/${id}/editar`);
   }
 
   function handleDeleteClick(e: React.MouseEvent) {

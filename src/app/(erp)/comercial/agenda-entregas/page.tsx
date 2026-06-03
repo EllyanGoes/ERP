@@ -39,7 +39,7 @@ type Minuta = {
   ordemEntrega: number | null;
   motorista: { id: string; nome: string } | null;
   placa: string | null;
-  pedidoVenda: { id: string; numero: string; cliente: Cliente };
+  pedidoVenda: { id: string; numero: string; numeroOrcamento: string | null; cliente: Cliente };
   localEstoque: { id: string; nome: string } | null;
   itens: { id: string }[];
 };
@@ -180,6 +180,9 @@ function StopCard({
       <p className="text-xs text-gray-700 font-medium leading-snug line-clamp-2">
         {clienteNome(cliente)}
       </p>
+      {m.pedidoVenda.numeroOrcamento && (
+        <p className="text-[11px] text-gray-400 mt-0.5">Orç. {m.pedidoVenda.numeroOrcamento}</p>
+      )}
       {local && (
         <div className="flex items-center gap-1 text-[11px] text-gray-400 mt-0.5">
           <MapPin className="w-3 h-3 shrink-0" />
@@ -272,7 +275,7 @@ export default function AgendaEntregasPage() {
     try {
       const [minRes, pendRes, motRes, saldoRes] = await Promise.all([
         fetch(`/api/comercial/minutas?dataFrom=${range.from}&dataTo=${range.to}`),
-        fetch("/api/comercial/minutas?semData=true"),
+        fetch("/api/comercial/minutas?status=PENDENTE"),
         fetch("/api/comercial/motoristas?ativo=true"),
         fetch("/api/comercial/saldo-entregar"),
       ]);
@@ -281,8 +284,8 @@ export default function AgendaEntregasPage() {
       const motJson = await motRes.json();
       const saldoJson = await saldoRes.json();
       setMinutas((minJson.data ?? []) as Minuta[]);
-      // Pendentes de agendamento: sem data e ainda não entregues/canceladas.
-      setPendentes(((pendJson.data ?? []) as Minuta[]).filter((m) => m.status !== "CANCELADA" && m.status !== "ENTREGUE"));
+      // Pendentes de agendamento = minutas no status PENDENTE (a API já filtra por status).
+      setPendentes((pendJson.data ?? []) as Minuta[]);
       setMotoristas(Array.isArray(motJson) ? motJson : (motJson.data ?? []));
       setSaldo((saldoJson.data ?? []) as SaldoCliente[]);
     } catch {
@@ -821,6 +824,9 @@ function RightRail({
                     <span className="font-mono text-[11px] text-gray-400 ml-auto">{m.pedidoVenda.numero}</span>
                   </div>
                   <p className="text-xs font-medium text-gray-800 leading-snug line-clamp-2">{clienteNome(cliente)}</p>
+                  {m.pedidoVenda.numeroOrcamento && (
+                    <p className="text-[11px] text-gray-400 mt-0.5">Orç. {m.pedidoVenda.numeroOrcamento}</p>
+                  )}
                   {local && (
                     <div className="flex items-center gap-1 text-[11px] text-gray-400 mt-0.5">
                       <MapPin className="w-3 h-3 shrink-0" />
@@ -1089,7 +1095,7 @@ function WeekGrid({
                                 m.id === draggingId && "opacity-40",
                                 !matchesSearch(m) && "opacity-30",
                               )}
-                              title={`${m.numero} · ${clienteNome(m.pedidoVenda.cliente)}${isRetirada ? " · Retirada" : ""}`}
+                              title={`${m.numero} · ${clienteNome(m.pedidoVenda.cliente)}${m.pedidoVenda.numeroOrcamento ? ` · Orç. ${m.pedidoVenda.numeroOrcamento}` : ""}${isRetirada ? " · Retirada" : ""}`}
                             >
                               <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", STATUS_DOT[m.status])} />
                               <span className="truncate text-gray-700">{clienteNome(m.pedidoVenda.cliente)}</span>
@@ -1197,7 +1203,7 @@ function MonthGrid({
                             m.id === draggingId && "opacity-40",
                             !matchesSearch(m) && "opacity-30",
                           )}
-                          title={`${m.numero} · ${clienteNome(m.pedidoVenda.cliente)}${m.motorista ? ` · ${m.motorista.nome}` : ""}${isRetirada ? " · Retirada" : ""}`}
+                          title={`${m.numero} · ${clienteNome(m.pedidoVenda.cliente)}${m.pedidoVenda.numeroOrcamento ? ` · Orç. ${m.pedidoVenda.numeroOrcamento}` : ""}${m.motorista ? ` · ${m.motorista.nome}` : ""}${isRetirada ? " · Retirada" : ""}`}
                         >
                           <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", STATUS_DOT[m.status])} />
                           <span className="truncate text-gray-700">{clienteNome(m.pedidoVenda.cliente)}</span>

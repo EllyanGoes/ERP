@@ -9,7 +9,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, XCircle, ArrowRight, AlertCircle, Pencil, Save } from "lucide-react";
 import { useTabTitle } from "@/lib/tabs-context";
-import { useSession } from "@/lib/session-context";
 import { statusMinutaLabel, confirmacaoMinutaLabel, TIPO_MINUTA_LABEL, type TipoMinuta } from "@/lib/minuta-labels";
 import { cn } from "@/lib/utils";
 
@@ -70,8 +69,6 @@ function fmtQty(n: string | number) {
 export default function MinutaDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useSession();
-  const isAdmin = user?.perfil === "ADMIN";
   const [minuta, setMinuta] = useState<Minuta | null>(null);
   const [locais, setLocais] = useState<LocalEstoque[]>([]);
   const [motoristas, setMotoristas] = useState<Motorista[]>([]);
@@ -184,8 +181,6 @@ export default function MinutaDetailPage() {
     return <div className="px-8 pb-8 text-gray-500">Minuta não encontrada.</div>;
   }
 
-  const isFinal = minuta.status === "ENTREGUE" || minuta.status === "CANCELADA";
-
   return (
     <div className="px-8 pb-8 space-y-6">
       <PageHeader
@@ -226,7 +221,7 @@ export default function MinutaDetailPage() {
             Cancelar
           </Button>
         </div>
-      ) : (!isFinal || isAdmin) && (
+      ) : (
         <div className="flex items-center gap-3 flex-wrap">
           {minuta.status === "PENDENTE" && (
             <Button

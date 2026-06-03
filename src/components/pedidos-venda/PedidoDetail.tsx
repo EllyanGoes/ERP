@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
-import { useSession } from "@/lib/session-context";
 import { Plus, Truck, Pencil, Package, Trash2, AlertTriangle } from "lucide-react";
 import MinutaActionsMenu from "./MinutaActionsMenu";
 
@@ -121,8 +120,6 @@ function todayInput() {
 export default function PedidoDetail({ pedido, itensComodato, movimentacoesComodato }: PedidoDetailProps) {
   const router = useRouter();
   const { replaceCurrentTab } = useTabsContext();
-  const { user } = useSession();
-  const isAdmin = user?.perfil === "ADMIN";
   useTabTitle(pedido.numero);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"itens" | "minutas" | "comodato">("itens");
@@ -452,7 +449,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                         <td className="py-2.5 text-right text-gray-600">{m.itens.length}</td>
                         <td className="py-2.5 text-right">
                           <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
-                            <MinutaActionsMenu id={m.id} numero={m.numero} status={m.status} isAdmin={isAdmin} />
+                            <MinutaActionsMenu id={m.id} numero={m.numero} status={m.status} />
                           </div>
                         </td>
                       </tr>

@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
           select: {
             id: true,
             numero: true,
+            numeroOrcamento: true,
             cliente: {
               select: {
                 id: true,
@@ -85,11 +86,9 @@ export async function POST(req: NextRequest) {
     if (!itens || itens.length === 0) {
       return NextResponse.json({ error: "Informe ao menos um item" }, { status: 400 });
     }
-    // A minuta nasce já como SAIU_PARA_ENTREGA e dá baixa no estoque na criação,
-    // por isso o Local de Estoque é obrigatório.
-    if (!localEstoqueId) {
-      return NextResponse.json({ error: "Selecione o Local de Estoque para registrar a saída" }, { status: 400 });
-    }
+    // A minuta nasce PENDENTE e NÃO baixa estoque na criação. O Local de Estoque é
+    // opcional aqui: a baixa só ocorre ao "Marcar saída" (PENDENTE→SAIU_PARA_ENTREGA),
+    // quando o local passa a ser exigido. Se informado agora, fica guardado p/ essa etapa.
 
     const minuta = await prisma.$transaction(async (tx) => {
       // Generate sequential number MIN-0001
@@ -108,7 +107,7 @@ export async function POST(req: NextRequest) {
           localEstoqueId: localEstoqueId || null,
           motoristaId: motoristaId || null,
           tipo: tipo === "RETIRADA" ? "RETIRADA" : "ENTREGA",
-          status: "SAIU_PARA_ENTREGA",
+          status: "PENDENTE",
           dataEntrega: dataEntrega ? new Date(dataEntrega) : null,
           placa: placa || null,
           observacoes: observacoes || null,
@@ -147,61 +146,11 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // ── Gera a SAÍDA no estoque (a minuta nasce em SAIU_PARA_ENTREGA) ─────────
-      const year = new Date().getFullYear();
-      const movSeq = await tx.sequencia.upsert({
-        where:  { prefixo: "MOV" },
-        create: { prefixo: "MOV", ultimo: 1 },
-        update: { ultimo: { increment: 1 } },
-      });
-      const movNumero = `MOV-${year}-${String(movSeq.ultimo).padStart(4, "0")}`;
+      // A minuta nasce PENDENTE e não movimenta estoque aqui — a SAÍDA é gerada
+      // depois, na transição PENDENTE→SAIU_PARA_ENTREGA ("Marcar saída"), tratada
+      // no PATCH /api/comercial/minutas/[id].
 
-      const lote = await tx.loteMovimentacao.create({
-        data: {
-          numero:      movNumero,
-          tipo:        "SAIDA",
-          documento:   created.numero,
-          observacoes: `Saída por minuta ${created.numero}`,
-        },
-      });
-
-      for (const item of created.itens) {
-        const quantidade = parseFloat(item.quantidade.toString());
-
-        let estoque = await tx.estoqueItem.findFirst({
-          where: { itemId: item.itemId, localEstoqueId },
-        });
-        if (!estoque) {
-          estoque = await tx.estoqueItem.create({
-            data: { itemId: item.itemId, localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0 },
-          });
-        }
-
-        const saldoAntes  = parseFloat(estoque.quantidadeAtual.toString());
-        const saldoDepois = saldoAntes - quantidade;
-
-        await tx.estoqueItem.update({
-          where: { id: estoque.id },
-          data:  { quantidadeAtual: saldoDepois },
-        });
-
-        await tx.movimentacaoEstoque.create({
-          data: {
-            itemId:       item.itemId,
-            localEstoqueId,
-            unidadeId:    item.unidadeId ?? null,
-            loteId:       lote.id,
-            tipo:         "SAIDA",
-            quantidade,
-            saldoAntes,
-            saldoDepois,
-            documento:    created.numero,
-            observacoes:  `Saída por minuta ${created.numero}`,
-          },
-        });
-      }
-
-      // Move pedido to EM_AGENDAMENTO when first minuta is created
+      // Move pedido para EM_AGENDAMENTO quando a primeira minuta é criada.
       await tx.pedidoVenda.update({
         where: { id: pedidoVendaId },
         data: { status: "EM_AGENDAMENTO" },
