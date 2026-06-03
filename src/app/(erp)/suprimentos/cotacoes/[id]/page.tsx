@@ -18,8 +18,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Loader2, CheckCircle2, ChevronDown, ChevronRight,
-  Plus, ArrowLeft, BarChart3, X, Pencil, Search,
+  Plus, ArrowLeft, BarChart3, X, Pencil, Search, Trash2,
 } from "lucide-react";
+import { useSession } from "@/lib/session-context";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type FornecedorOption = {
@@ -96,11 +97,18 @@ const STATUS_RESP_BADGE: Record<string, { label: string; cls: string }> = {
 export default function CotacaoDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
 
   const [cotacao, setCotacao] = useState<Cotacao | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [itensOpen, setItensOpen] = useState(true);
+
+  // Exclusão (apenas admin)
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const [actioning, setActioning] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -327,6 +335,24 @@ export default function CotacaoDetailPage() {
     }
   }
 
+  async function excluirCotacao() {
+    setDeleteLoading(true);
+    setDeleteError("");
+    try {
+      const res = await fetch(`/api/suprimentos/cotacoes/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setDeleteError(json.error || "Não foi possível excluir a cotação.");
+        setDeleteLoading(false);
+        return;
+      }
+      router.push("/suprimentos/cotacoes");
+    } catch {
+      setDeleteError("Erro de conexão. Tente novamente.");
+      setDeleteLoading(false);
+    }
+  }
+
   async function openHistorico(cfId: string, fornNome: string) {
     setHistoricoTarget({ cfId, fornNome });
     setHistoricoData([]);
@@ -373,7 +399,7 @@ export default function CotacaoDetailPage() {
   }
 
   const respondidas = cotacao.fornecedores.filter((cf) => cf.status === "RESPONDIDA");
-  const canEdit = cotacao.status !== "CONCLUIDA";
+  const canEdit = isAdmin || cotacao.status !== "CONCLUIDA";
 
   return (
     <div>
@@ -422,6 +448,16 @@ export default function CotacaoDetailPage() {
               <Button variant="outline" onClick={openAddModal}>
                 <Plus className="w-4 h-4 mr-2" />
                 Novo participante
+              </Button>
+            )}
+            {isAdmin && (
+              <Button
+                variant="outline"
+                onClick={() => { setDeleteError(""); setShowDeleteModal(true); }}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Excluir
               </Button>
             )}
             <Button variant="outline" onClick={() => router.push("/suprimentos/cotacoes")}>
@@ -1040,6 +1076,38 @@ export default function CotacaoDetailPage() {
             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end">
               <Button onClick={() => setShowSemPropostaModal(false)} className="bg-blue-600 hover:bg-blue-700">
                 Entendido
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal — Excluir cotação (admin) */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+            <div className="px-6 py-5">
+              <p className="font-semibold text-gray-900">Excluir cotação {cotacao.numero}?</p>
+              <p className="text-sm text-gray-500 mt-1">
+                Esta ação remove a cotação e todas as propostas dos fornecedores vinculadas.
+                Não pode ser desfeita.
+              </p>
+              {deleteError && (
+                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {deleteError}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowDeleteModal(false)} disabled={deleteLoading}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={excluirCotacao}
+                disabled={deleteLoading}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {deleteLoading ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />Excluindo...</> : <><Trash2 className="w-4 h-4 mr-1" />Excluir</>}
               </Button>
             </div>
           </div>
