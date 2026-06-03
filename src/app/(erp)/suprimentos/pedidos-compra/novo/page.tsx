@@ -48,16 +48,6 @@ type FormSnapshot = {
   itens: ItemRow[];
 };
 
-// Cotação elegível p/ formalização (modo busca do endpoint de cotações).
-type CotacaoEligible = {
-  id: string;
-  numero: string;
-  nome: string | null;
-  necessidade: { id: string; numero: string } | null;
-  _count: { fornecedores: number };
-  fornecedores: { fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null } }[];
-};
-
 // Cotação aberta compatível (anti-duplicidade) — retornada por /cotacoes/match.
 type CotacaoMatch = {
   id: string;
@@ -68,6 +58,20 @@ type CotacaoMatch = {
   totalItens: number;
   fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null };
 };
+
+// SC elegível para vincular o pedido (com itens p/ pré-preenchimento e cotações p/ ramificar o fluxo).
+type ScEligible = {
+  id: string;
+  numero: string;
+  status: string;
+  cotacoes: { id: string; numero: string; status: string }[];
+  itens: { quantidade: unknown; item: { id: string; codigo: string; descricao: string; unidadeMedida: string } | null }[];
+};
+
+// Cotação "em andamento" de uma SC = ainda não concluída/cancelada.
+function cotacaoEmAndamento(sc: ScEligible) {
+  return sc.cotacoes.find((c) => c.status === "PENDENTE" || c.status === "EM_ANALISE") ?? null;
+}
 
 const TIPO_FRETE_OPTIONS = [
   { value: "C", label: "C-CIF" },
@@ -122,19 +126,21 @@ export default function NovoPedidoCompraPage() {
   // ── Tabs (fechar / transferir a aba do "Novo PC") ───────────────────────────
   const { closeCurrentTab, replaceCurrentTab } = useTabsContext();
 
-  // ── Popup de escolha ao abrir: vincular a uma Cotação ou criar avulso ───────
+  // ── Popup de escolha ao abrir: vincular a uma SC ou criar avulso ────────────
   const [choiceOpen, setChoiceOpen] = useState(true);
   const [choiceStep, setChoiceStep] = useState<"choose" | "vincular">("choose");
 
-  // Picker de cotações (passo "vincular")
-  const [cotacaoSearch, setCotacaoSearch]   = useState("");
-  const [cotacaoOptions, setCotacaoOptions] = useState<CotacaoEligible[]>([]);
-  const [cotacaoLoading, setCotacaoLoading] = useState(false);
+  // Picker de Solicitações de Compra (passo "vincular")
+  const [scSearch, setScSearch]     = useState("");
+  const [scOptions, setScOptions]   = useState<ScEligible[]>([]);
+  const [scLoading, setScLoading]   = useState(false);
+  const [selectedSc, setSelectedSc] = useState<ScEligible | null>(null);
+
+  // Vínculo direto com a SC (sem passar por cotação)
+  const [necessidadeId, setNecessidadeId]         = useState("");
+  const [necessidadeNumero, setNecessidadeNumero] = useState("");
 
   // Anti-duplicidade: cotações abertas compatíveis + confirmação de avulso.
-  // Atenção: escolher "avulso" no popup apenas libera o formulário (closeChoice)
-  // e NÃO marca avulsoConfirmed — assim o aviso ainda dispara se houver Cotação
-  // aberta compatível. avulsoConfirmed só é setado ao dispensar o aviso.
   const [cotacaoMatches, setCotacaoMatches]           = useState<CotacaoMatch[]>([]);
   const [cotacaoMatchLoading, setCotacaoMatchLoading] = useState(false);
   const [avulsoConfirmed, setAvulsoConfirmed]         = useState(false);
@@ -142,34 +148,58 @@ export default function NovoPedidoCompraPage() {
   function closeChoice() {
     setChoiceOpen(false);
     setChoiceStep("choose");
-    setCotacaoSearch("");
+    setScSearch("");
+    setSelectedSc(null);
   }
 
-  // Vincular = ir formalizar a Cotação existente (que gera o próprio PC ao
-  // concluir, com baixa na Solicitação). Limpa o rascunho e troca esta aba.
+  // Ir formalizar a Cotação existente da SC (gera o próprio PC ao concluir).
   function goToFormalizacao(cotacaoId: string) {
     clearForm();
     replaceCurrentTab(`/suprimentos/cotacoes/${cotacaoId}/formalizacao`);
   }
 
-  // Busca de cotações formalizáveis no passo "vincular" (com debounce).
+  // Iniciar uma cotação a partir da SC.
+  function iniciarCotacao(sc: ScEligible) {
+    clearForm();
+    replaceCurrentTab(`/suprimentos/cotacoes/nova?necessidadeId=${sc.id}`);
+  }
+
+  // Criar o PC direto, vinculado à SC (preenche itens da SC; libera o formulário).
+  function criarDiretoNaSc(sc: ScEligible) {
+    setNecessidadeId(sc.id);
+    setNecessidadeNumero(sc.numero);
+    const rows = sc.itens
+      .filter((it) => it.item)
+      .map((it) => ({
+        itemId: it.item!.id,
+        quantidade: String(Number(it.quantidade) || 1),
+        precoUnitario: "",
+        situacao: "CONSIDERA" as const,
+      }));
+    if (rows.length) setItens(rows);
+    setAvulsoConfirmed(true); // optou conscientemente — pula o aviso de anti-duplicidade
+    closeChoice();
+  }
+
+  // Carrega as SCs elegíveis ao entrar no passo "vincular".
   useEffect(() => {
     if (!(choiceOpen && choiceStep === "vincular")) return;
     const ctrl = new AbortController();
-    const q = cotacaoSearch.trim();
-    setCotacaoLoading(true);
-    const t = setTimeout(() => {
-      const url = q
-        ? `/api/suprimentos/cotacoes?search=${encodeURIComponent(q)}`
-        : `/api/suprimentos/cotacoes?formalizaveis=1`;
-      fetch(url, { signal: ctrl.signal })
-        .then((r) => r.json())
-        .then((j) => setCotacaoOptions(Array.isArray(j?.data) ? j.data : []))
-        .catch(() => { /* abort/erro — ignora */ })
-        .finally(() => setCotacaoLoading(false));
-    }, q ? 280 : 0);
-    return () => { clearTimeout(t); ctrl.abort(); };
-  }, [choiceOpen, choiceStep, cotacaoSearch]);
+    setScLoading(true);
+    fetch("/api/suprimentos/necessidades", { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((j) => {
+        const all: ScEligible[] = Array.isArray(j?.data) ? j.data : [];
+        // SCs que ainda podem gerar pedido de compra.
+        const elegiveis = all.filter((sc) =>
+          ["APROVADA", "EM_COTACAO", "PARCIALMENTE_ATENDIDA"].includes(sc.status)
+        );
+        setScOptions(elegiveis);
+      })
+      .catch(() => { /* abort/erro — ignora */ })
+      .finally(() => setScLoading(false));
+    return () => ctrl.abort();
+  }, [choiceOpen, choiceStep]);
 
   // Itens selecionados (só itemIds) — chave estável p/ o efeito anti-duplicidade.
   const itemIdsKey = itens.map((r) => r.itemId).filter(Boolean).join(",");
@@ -323,6 +353,7 @@ export default function NovoPedidoCompraPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fornecedorId,
+          necessidadeId: necessidadeId || null,
           descricao: descricao.trim() || null,
           contato: contato || null,
           email:   email   || null,
@@ -466,9 +497,26 @@ export default function NovoPedidoCompraPage() {
           </div>
         )}
 
-        {avulsoConfirmed && (
+        {necessidadeId ? (
+          <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
+            <span>Vinculado à Solicitação de Compras <span className="font-mono font-semibold">{necessidadeNumero}</span>.</span>
+            <button
+              type="button"
+              onClick={() => {
+                setNecessidadeId("");
+                setNecessidadeNumero("");
+                setAvulsoConfirmed(false);
+                setChoiceOpen(true);
+                setChoiceStep("choose");
+              }}
+              className="text-blue-500 hover:text-blue-700 underline"
+            >
+              Revisar
+            </button>
+          </div>
+        ) : avulsoConfirmed && (
           <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-500">
-            <span>Pedido avulso — sem vínculo com Cotação.</span>
+            <span>Pedido avulso — sem vínculo com SC.</span>
             <button
               type="button"
               onClick={() => setAvulsoConfirmed(false)}
@@ -796,7 +844,9 @@ export default function NovoPedidoCompraPage() {
               <h2 className="text-base font-semibold text-gray-800">
                 {choiceStep === "choose"
                   ? "Como deseja criar este pedido de compra?"
-                  : "Vincular a uma Cotação"}
+                  : selectedSc
+                    ? `Solicitação ${selectedSc.numero}`
+                    : "Vincular a uma Solicitação de Compras"}
               </h2>
               {/* Sem escape "silencioso": no passo de escolha o X fecha o diálogo
                   E a página (aba) — ficar no formulário sem optar é o que
@@ -813,7 +863,10 @@ export default function NovoPedidoCompraPage() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => { setChoiceStep("choose"); setCotacaoSearch(""); }}
+                  onClick={() => {
+                    if (selectedSc) setSelectedSc(null);
+                    else { setChoiceStep("choose"); setScSearch(""); }
+                  }}
                   className="text-gray-400 hover:text-gray-600"
                   aria-label="Voltar"
                 >
@@ -825,10 +878,10 @@ export default function NovoPedidoCompraPage() {
             {choiceStep === "choose" ? (
               <div className="p-5 space-y-3">
                 <p className="text-sm text-gray-500">
-                  Para evitar registros duplicados, informe se este pedido vem de uma Cotação.
+                  O pedido nasce de uma Solicitação de Compras (SC). Escolha a SC — ela pode já ter uma cotação em andamento ou não.
                 </p>
 
-                {/* Vincular */}
+                {/* Vincular a uma SC */}
                 <button
                   type="button"
                   onClick={() => setChoiceStep("vincular")}
@@ -837,10 +890,10 @@ export default function NovoPedidoCompraPage() {
                   <Link2 className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
                   <span>
                     <span className="block text-sm font-semibold text-blue-800">
-                      Vincular a uma Cotação
+                      Vincular a uma Solicitação de Compras (SC)
                     </span>
                     <span className="block text-xs text-blue-700 mt-0.5">
-                      Abre a Formalização da Cotação, que gera o Pedido a partir da proposta vencedora e dá baixa na Solicitação.
+                      Se a SC já tem cotação, você pode formalizá-la; se não, cria o pedido direto na SC ou inicia uma cotação.
                     </span>
                   </span>
                 </button>
@@ -857,11 +910,91 @@ export default function NovoPedidoCompraPage() {
                       Pedido avulso
                     </span>
                     <span className="block text-xs text-gray-500 mt-0.5">
-                      Pedido sem Cotação. Você preenche fornecedor e itens manualmente.
+                      Pedido sem SC. Você preenche fornecedor e itens manualmente.
                     </span>
                   </span>
                 </button>
               </div>
+            ) : selectedSc ? (
+              /* ── Painel de ações da SC selecionada ───────────────────── */
+              (() => {
+                const cot = cotacaoEmAndamento(selectedSc);
+                const nItens = selectedSc.itens.length;
+                return (
+                  <div className="p-5 space-y-3">
+                    <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 text-sm">
+                      <span className="font-mono font-semibold text-gray-800">{selectedSc.numero}</span>
+                      <span className="text-gray-400"> · {nItens} {nItens === 1 ? "item" : "itens"}</span>
+                      {cot ? (
+                        <span className="block text-xs text-amber-700 mt-0.5">
+                          Já existe a cotação <span className="font-mono">{cot.numero}</span> em andamento.
+                        </span>
+                      ) : (
+                        <span className="block text-xs text-gray-500 mt-0.5">Sem cotação em andamento.</span>
+                      )}
+                    </div>
+
+                    {cot && (
+                      <button
+                        type="button"
+                        onClick={() => goToFormalizacao(cot.id)}
+                        className="w-full flex items-start gap-3 p-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-left transition-colors"
+                      >
+                        <FileSpreadsheet className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                        <span>
+                          <span className="block text-sm font-semibold text-blue-800">Ir para a Formalização da cotação</span>
+                          <span className="block text-xs text-blue-700 mt-0.5">
+                            Gera o pedido a partir da proposta vencedora e dá baixa na SC.
+                          </span>
+                        </span>
+                      </button>
+                    )}
+
+                    {/* Criar direto na SC */}
+                    <button
+                      type="button"
+                      onClick={() => criarDiretoNaSc(selectedSc)}
+                      className={cn(
+                        "w-full flex items-start gap-3 p-4 rounded-xl border text-left transition-colors",
+                        cot ? "border-gray-200 bg-white hover:bg-gray-50" : "border-blue-200 bg-blue-50 hover:bg-blue-100"
+                      )}
+                    >
+                      <FileText className={cn("w-5 h-5 mt-0.5 shrink-0", cot ? "text-gray-500" : "text-blue-600")} />
+                      <span>
+                        <span className={cn("block text-sm font-semibold", cot ? "text-gray-800" : "text-blue-800")}>
+                          Criar pedido direto na SC
+                        </span>
+                        <span className={cn("block text-xs mt-0.5", cot ? "text-gray-500" : "text-blue-700")}>
+                          Abre o formulário já vinculado à SC, com os itens pré-preenchidos.
+                        </span>
+                      </span>
+                    </button>
+
+                    {/* Iniciar cotação (só quando não há cotação) */}
+                    {!cot && (
+                      <button
+                        type="button"
+                        onClick={() => iniciarCotacao(selectedSc)}
+                        className="w-full flex items-start gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-left transition-colors"
+                      >
+                        <FileSpreadsheet className="w-5 h-5 text-gray-500 mt-0.5 shrink-0" />
+                        <span>
+                          <span className="block text-sm font-semibold text-gray-800">Iniciar uma cotação</span>
+                          <span className="block text-xs text-gray-500 mt-0.5">
+                            Cria uma cotação a partir da SC; o pedido nasce ao formalizá-la.
+                          </span>
+                        </span>
+                      </button>
+                    )}
+
+                    <div className="pt-1">
+                      <button type="button" onClick={() => setSelectedSc(null)} className="text-xs text-gray-500 hover:text-gray-700">
+                        ← Escolher outra SC
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()
             ) : (
               <div>
                 {/* Busca */}
@@ -871,27 +1004,64 @@ export default function NovoPedidoCompraPage() {
                     <input
                       autoFocus
                       type="text"
-                      value={cotacaoSearch}
-                      onChange={(e) => setCotacaoSearch(e.target.value)}
-                      placeholder="Buscar Cotação… (nº, SC ou fornecedor)"
+                      value={scSearch}
+                      onChange={(e) => setScSearch(e.target.value)}
+                      placeholder="Buscar SC… (número)"
                       className="w-full pl-8 pr-3 h-9 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
 
-                {/* Lista de cotações formalizáveis */}
-                <CotacaoPickList
-                  cotacoes={cotacaoOptions}
-                  loading={cotacaoLoading}
-                  searchActive={!!cotacaoSearch.trim()}
-                  onSelect={(c) => goToFormalizacao(c.id)}
-                />
+                {/* Lista de SCs elegíveis */}
+                {scLoading && scOptions.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-gray-400 flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Carregando…
+                  </div>
+                ) : (() => {
+                  const q = scSearch.trim().toLowerCase();
+                  const lista = q ? scOptions.filter((sc) => sc.numero.toLowerCase().includes(q)) : scOptions;
+                  if (lista.length === 0) {
+                    return (
+                      <div className="px-4 py-8 text-center text-sm text-gray-400">
+                        {q ? "Nenhuma SC encontrada." : "Nenhuma Solicitação de Compras elegível."}
+                      </div>
+                    );
+                  }
+                  return (
+                    <ul className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+                      {lista.map((sc) => {
+                        const cot = cotacaoEmAndamento(sc);
+                        return (
+                          <li key={sc.id}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedSc(sc)}
+                              className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-blue-50 transition-colors"
+                            >
+                              <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                              <span className="min-w-0 flex-1">
+                                <span className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-mono font-semibold text-sm text-gray-800">{sc.numero}</span>
+                                  <span className="text-xs text-gray-400">{sc.itens.length} {sc.itens.length === 1 ? "item" : "itens"}</span>
+                                  {cot && (
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">cotação {cot.numero}</span>
+                                  )}
+                                </span>
+                              </span>
+                              <ExternalLink className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  );
+                })()}
 
                 {/* Footer */}
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
                   <button
                     type="button"
-                    onClick={() => { setChoiceStep("choose"); setCotacaoSearch(""); }}
+                    onClick={() => { setChoiceStep("choose"); setScSearch(""); }}
                     className="text-xs text-gray-500 hover:text-gray-700"
                   >
                     ← Voltar
@@ -912,69 +1082,5 @@ export default function NovoPedidoCompraPage() {
 
       {createdDialog}
     </div>
-  );
-}
-
-// ── Lista de Cotações formalizáveis (picker do popup de vínculo) ──────────────
-// Mostra cotações ainda abertas com ao menos uma proposta RESPONDIDA. Selecionar
-// leva à Formalização (onde se escolhe a proposta vencedora e gera-se o PC).
-function CotacaoPickList({
-  cotacoes,
-  loading,
-  searchActive,
-  onSelect,
-}: {
-  cotacoes: CotacaoEligible[];
-  loading: boolean;
-  searchActive: boolean;
-  onSelect: (c: CotacaoEligible) => void;
-}) {
-  if (loading && cotacoes.length === 0) {
-    return (
-      <div className="px-4 py-8 text-center text-sm text-gray-400 flex items-center justify-center gap-2">
-        <Loader2 className="w-4 h-4 animate-spin" /> Carregando…
-      </div>
-    );
-  }
-  if (cotacoes.length === 0) {
-    return (
-      <div className="px-4 py-8 text-center text-sm text-gray-400">
-        {searchActive
-          ? "Nenhuma cotação encontrada."
-          : "Nenhuma cotação pronta para formalização."}
-      </div>
-    );
-  }
-  return (
-    <ul className="max-h-72 overflow-y-auto divide-y divide-gray-50">
-      {cotacoes.map((c) => {
-        const respondidas = c.fornecedores.length;
-        const total = c._count.fornecedores;
-        return (
-          <li key={c.id}>
-            <button
-              type="button"
-              onClick={() => onSelect(c)}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-blue-50 transition-colors"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-blue-600 shrink-0" />
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono font-semibold text-sm text-gray-800">{c.numero}</span>
-                  {c.necessidade?.numero && (
-                    <span className="text-xs text-gray-500">SC {c.necessidade.numero}</span>
-                  )}
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">
-                    {respondidas} de {total} {total === 1 ? "proposta" : "propostas"}
-                  </span>
-                </span>
-                {c.nome && <span className="block text-xs text-gray-400 truncate">{c.nome}</span>}
-              </span>
-              <ExternalLink className="w-3.5 h-3.5 text-gray-300 shrink-0" />
-            </button>
-          </li>
-        );
-      })}
-    </ul>
   );
 }

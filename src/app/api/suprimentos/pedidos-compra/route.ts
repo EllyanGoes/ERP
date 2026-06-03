@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const {
-    fornecedorId, cotacaoId, dataEntregaPrevista, observacoes, itens = [],
+    fornecedorId, cotacaoId, necessidadeId, dataEntregaPrevista, observacoes, itens = [],
     frete, tipoFrete, desconto, despesas, seguro,
     condicoesPagamento, contato, email, descricao, confirmAvulso,
   } = body;
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
   // verifica se há Cotação aberta do mesmo fornecedor com itens em comum — para
   // evitar duplicar o fluxo de compra (a Cotação geraria seu próprio PC ao ser
   // formalizada). O front mostra o aviso e reenvia com confirmAvulso=true.
-  if (!cotacaoId && !confirmAvulso) {
+  if (!cotacaoId && !necessidadeId && !confirmAvulso) {
     const itemIds = (itens as Array<{ itemId: string }>).map((i) => i.itemId).filter(Boolean);
     const matches = await findMatchingCotacoes(fornecedorId, itemIds);
     if (matches.length > 0) {
@@ -152,6 +152,7 @@ export async function POST(req: NextRequest) {
         status:             "AGUARDANDO_PAGAMENTO",
         fornecedorId,
         cotacaoId:          cotacaoId || null,
+        necessidadeId:      necessidadeId || null,
         valorTotal,
         dataEntregaPrevista: dataEntregaPrevista ? new Date(dataEntregaPrevista) : null,
         observacoes:         observacoes?.trim() || null,
