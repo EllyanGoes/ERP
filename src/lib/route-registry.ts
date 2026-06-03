@@ -13,7 +13,7 @@ import {
   GitBranch, UserCheck, Layers, Users,
   Package, Tag, Ruler, MapPin,
   Truck, CalendarDays, CreditCard, CircleDot,
-  ShoppingCart,
+  ShoppingCart, Route,
   PackageSearch, ArrowLeftRight, ClipboardList, ClipboardCheck,
   FileBarChart2, PieChart, BarChart3, Activity,
   ThumbsUp, FileSearch, FilePlus, PackageCheck,
@@ -91,6 +91,8 @@ export const ROUTES: RouteEntry[] = [
   { href: "/pedidos-venda",                        label: "Pedidos de Venda",        group: "Comercial",      section: "Comercial",        icon: ShoppingCart },
   { href: "/comercial/saldo-clientes",             label: "Saldo por Cliente",       group: "Comercial",      section: "Comercial",        icon: PackageSearch,  keywords: "saldo cliente pendente falta entregar entrega minuta agendar" },
   { href: "/comercial/minutas",                    label: "Minutas",                 group: "Comercial",      section: "Comercial",        icon: Truck,          keywords: "minuta entrega saída motorista placa" },
+  { href: "/comercial/agenda-entregas",            label: "Agenda de Entregas",      group: "Comercial",      section: "Comercial",        icon: Route,          keywords: "agenda entregas roteiro roteirização minutas calendário" },
+  { href: "/comodato",                             label: "Comodato",                group: "Comercial",      section: "Comercial",        icon: Package,        keywords: "comodato vasilhame retornável saldo cliente" },
   { href: "/comercial/relatorios/faturamento",     label: "Faturamento",             group: "Comercial",      section: "Relatórios",       icon: BarChart3,      keywords: "faturamento volume faturado vendas receita relatório" },
 
   { href: "/suprimentos/estoque",                  label: "Posição de Estoque",      group: "Almoxarifado",   section: "Estoque",          icon: PackageSearch },
