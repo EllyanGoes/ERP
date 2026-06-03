@@ -104,34 +104,28 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   if (!session) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   if (session.perfil !== "ADMIN") return NextResponse.json({ error: "Apenas administradores podem excluir solicitações" }, { status: 403 });
 
-  // Block if there are active purchase orders or quotes linked
   const sc = await prisma.necessidadeCompra.findUnique({
     where: { id: params.id },
-    select: {
-      numero: true,
-      pedidosCompra: { select: { id: true, status: true } },
-      cotacoes:      { select: { id: true, status: true } },
-    },
+    select: { id: true, cotacoes: { select: { id: true } } },
   });
-
   if (!sc) return NextResponse.json({ error: "SC não encontrada" }, { status: 404 });
 
-  const pedidosAtivos = sc.pedidosCompra.filter((p) => p.status !== "CANCELADO");
-  if (pedidosAtivos.length > 0) {
-    return NextResponse.json(
-      { error: `Não é possível excluir: SC possui ${pedidosAtivos.length} pedido(s) de compra vinculado(s). Cancele os pedidos primeiro.` },
-      { status: 409 }
-    );
-  }
+  // Exclusão em cascata (forçada): remove também os pedidos de compra e as
+  // cotações vinculados à SC. Itens/propostas/aprovações cascateiam; documentos
+  // de entrada ligados aos pedidos têm o vínculo zerado (sobrevivem).
+  const cotacaoIds = sc.cotacoes.map((c) => c.id);
+  await prisma.$transaction(async (tx) => {
+    await tx.pedidoCompra.deleteMany({
+      where: {
+        OR: [
+          { necessidadeId: params.id },
+          ...(cotacaoIds.length ? [{ cotacaoId: { in: cotacaoIds } }] : []),
+        ],
+      },
+    });
+    await tx.cotacaoCompra.deleteMany({ where: { necessidadeId: params.id } });
+    await tx.necessidadeCompra.delete({ where: { id: params.id } });
+  });
 
-  const cotacoesAtivas = sc.cotacoes.filter((c) => c.status !== "CANCELADA" && c.status !== "CANCELADO");
-  if (cotacoesAtivas.length > 0) {
-    return NextResponse.json(
-      { error: `Não é possível excluir: SC possui ${cotacoesAtivas.length} cotação(ões) vinculada(s). Cancele as cotações primeiro.` },
-      { status: 409 }
-    );
-  }
-
-  await prisma.necessidadeCompra.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }

@@ -67,19 +67,17 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
 
   const cotacao = await prisma.cotacaoCompra.findUnique({
     where: { id: params.id },
-    select: { id: true, pedidos: { select: { id: true, status: true } } },
+    select: { id: true },
   });
   if (!cotacao) return NextResponse.json({ error: "Cotação não encontrada" }, { status: 404 });
 
-  // Bloqueia se houver pedido de compra ativo gerado a partir desta cotação
-  const pedidosAtivos = cotacao.pedidos.filter((p) => p.status !== "CANCELADO");
-  if (pedidosAtivos.length > 0) {
-    return NextResponse.json(
-      { error: `Não é possível excluir: a cotação possui ${pedidosAtivos.length} pedido(s) de compra vinculado(s). Cancele os pedidos primeiro.` },
-      { status: 409 }
-    );
-  }
+  // Exclusão em cascata: remove também os pedidos de compra gerados a partir
+  // desta cotação (itens cascateiam; documentos de entrada têm o vínculo zerado).
+  // As propostas dos fornecedores cascateiam ao excluir a cotação.
+  await prisma.$transaction(async (tx) => {
+    await tx.pedidoCompra.deleteMany({ where: { cotacaoId: params.id } });
+    await tx.cotacaoCompra.delete({ where: { id: params.id } });
+  });
 
-  await prisma.cotacaoCompra.delete({ where: { id: params.id } });
   return NextResponse.json({ success: true });
 }

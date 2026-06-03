@@ -1090,7 +1090,10 @@ export default function CotacaoDetailPage() {
               <p className="font-semibold text-gray-900">Excluir cotação {cotacao.numero}?</p>
               <p className="text-sm text-gray-500 mt-1">
                 Esta ação remove a cotação e todas as propostas dos fornecedores vinculadas.
-                Não pode ser desfeita.
+                {cotacao.pedidos.length > 0 && (
+                  <> Também serão excluídos <strong className="text-red-600">{cotacao.pedidos.length} pedido(s) de compra</strong> gerados a partir desta cotação.</>
+                )}
+                {" "}Não pode ser desfeita.
               </p>
               {deleteError && (
                 <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

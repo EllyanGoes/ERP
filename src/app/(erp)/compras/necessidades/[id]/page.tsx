@@ -1321,7 +1321,19 @@ export default function NecessidadeDetailPage() {
                 <p className="text-sm text-gray-500 mt-0.5">{necessidade.numero}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-4">Esta ação é permanente e não pode ser desfeita.</p>
+            <p className="text-sm text-gray-600 mb-4">
+              {(() => {
+                const nCot = necessidade.cotacoes?.length ?? 0;
+                const nPed = necessidade.pedidosCompra?.length ?? 0;
+                const vinc = [
+                  nCot > 0 ? `${nCot} cotação(ões)` : null,
+                  nPed > 0 ? `${nPed} pedido(s) de compra` : null,
+                ].filter(Boolean).join(" e ");
+                return vinc
+                  ? <>Também serão excluídos os vínculos: <strong className="text-red-600">{vinc}</strong>. Esta ação é permanente e não pode ser desfeita.</>
+                  : <>Esta ação é permanente e não pode ser desfeita.</>;
+              })()}
+            </p>
             {deleteError && (
               <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{deleteError}</p>
             )}
