@@ -8,11 +8,12 @@ import { SessionProvider } from "@/lib/session-context";
 import { DirtyFormProvider } from "@/lib/dirty-form-context";
 import { ShortcutsProvider } from "@/lib/shortcuts-context";
 import { getSession } from "@/lib/auth";
+import { getUserModulos } from "@/lib/permissions";
 
 export default async function ErpLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   const user = session
-    ? { id: session.sub, nome: session.nome, email: session.email, perfil: session.perfil, modulos: session.modulos }
+    ? { id: session.sub, nome: session.nome, email: session.email, perfil: session.perfil, modulos: await getUserModulos(session.sub) }
     : null;
 
   return (

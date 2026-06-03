@@ -71,16 +71,12 @@ export async function GET(req: NextRequest) {
     }
 
     // 4. Issue JWT cookie (same flow as email/password login)
-    const modulos = user.perfil === "ADMIN"
-      ? ["*"]
-      : user.permissoes.map((p) => p.modulo);
-
+    // O token carrega só identidade — módulos vêm do banco (evita cookie > 4KB).
     const payload: SessionPayload = {
       sub:    user.id,
       email:  user.email,
       nome:   user.nome,
       perfil: user.perfil,
-      modulos,
     };
 
     const token = signToken(payload);

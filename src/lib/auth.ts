@@ -12,7 +12,9 @@ export type SessionPayload = {
   email: string;
   nome: string;
   perfil: "ADMIN" | "USUARIO";
-  modulos: string[]; // permitted module keys (ADMIN = ["*"])
+  // NOTE: os módulos NÃO entram aqui de propósito — embutir a lista de permissões
+  // estourava o limite de ~4KB do cookie. Use getUserModulos()/hasModulo() de
+  // "@/lib/permissions" para carregar e checar acesso a partir do banco.
 };
 
 export async function hashPassword(password: string) {
@@ -41,11 +43,4 @@ export async function getSession(): Promise<SessionPayload | null> {
   const token = cookieStore.get(COOKIE_NAME)?.value;
   if (!token) return null;
   return verifyToken(token);
-}
-
-export function canAccess(session: SessionPayload, modulo: string): boolean {
-  if (session.perfil === "ADMIN") return true;
-  if (session.modulos.includes("*")) return true;
-  // Permissions are stored as "modulo.recurso.acao" — match exact key OR any sub-permission
-  return session.modulos.some((m) => m === modulo || m.startsWith(`${modulo}.`));
 }

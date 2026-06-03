@@ -32,12 +32,12 @@ export async function POST() {
     ? ["*"]
     : user.permissoes.map((p) => p.modulo);
 
+  // O token carrega só identidade — módulos vêm do banco (evita cookie > 4KB).
   const payload: SessionPayload = {
     sub:    user.id,
     email:  user.email,
     nome:   user.nome,
     perfil: user.perfil as "ADMIN" | "USUARIO",
-    modulos,
   };
 
   const token = signToken(payload);
