@@ -11,10 +11,13 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status");
     const dataFrom = searchParams.get("dataFrom");
     const dataTo = searchParams.get("dataTo");
+    const semData = searchParams.get("semData"); // minutas sem dataEntrega (pendentes de agendamento)
 
     // Filtro por dataEntrega prevista (usado pela Agenda de Entregas).
     const dataEntregaFilter =
-      dataFrom || dataTo
+      semData === "true"
+        ? { dataEntrega: null }
+        : dataFrom || dataTo
         ? {
             dataEntrega: {
               ...(dataFrom ? { gte: new Date(dataFrom) } : {}),

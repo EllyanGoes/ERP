@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useEscToClose } from "@/lib/use-esc-to-close";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import StatusBadge from "@/components/shared/StatusBadge";
 
 type Fornecedor = {
   id: string; razaoSocial: string; nomeFantasia: string | null;
@@ -64,13 +65,37 @@ type ScEligible = {
   id: string;
   numero: string;
   status: string;
-  cotacoes: { id: string; numero: string; status: string }[];
-  itens: { quantidade: unknown; item: { id: string; codigo: string; descricao: string; unidadeMedida: string } | null }[];
+  justificativa: string | null;
+  cotacoes: {
+    id: string; numero: string; status: string;
+    pedidos: { id: string; numero: string; status: string }[];
+  }[];
+  pedidosCompra: { id: string; numero: string; status: string }[];
+  itens: {
+    quantidade: unknown;
+    unidade: string | null;
+    item: {
+      id: string; codigo: string; descricao: string;
+      unidadeMedida: string; unidade: { sigla: string } | null;
+    } | null;
+  }[];
 };
 
 // Cotação "em andamento" de uma SC = ainda não concluída/cancelada.
 function cotacaoEmAndamento(sc: ScEligible) {
   return sc.cotacoes.find((c) => c.status === "PENDENTE" || c.status === "EM_ANALISE") ?? null;
+}
+
+// SC já tem Pedido de Compra ativo (direto ou via cotação)? Pedido cancelado não conta.
+function temPedidoAtivo(sc: ScEligible) {
+  const direto     = sc.pedidosCompra.some((p) => p.status !== "CANCELADO");
+  const viaCotacao = sc.cotacoes.some((c) => c.pedidos.some((p) => p.status !== "CANCELADO"));
+  return direto || viaCotacao;
+}
+
+// Rótulo de unidade de um item da SC.
+function unidadeItem(it: ScEligible["itens"][number]) {
+  return it.item?.unidade?.sigla || it.unidade || it.item?.unidadeMedida || "UN";
 }
 
 const TIPO_FRETE_OPTIONS = [
@@ -190,9 +215,10 @@ export default function NovoPedidoCompraPage() {
       .then((r) => r.json())
       .then((j) => {
         const all: ScEligible[] = Array.isArray(j?.data) ? j.data : [];
-        // SCs que ainda podem gerar pedido de compra.
-        const elegiveis = all.filter((sc) =>
-          ["APROVADA", "EM_COTACAO", "PARCIALMENTE_ATENDIDA"].includes(sc.status)
+        // SCs que ainda podem gerar pedido de compra: aprovadas/em cotação e
+        // que ainda NÃO têm um pedido ativo (direto ou via cotação).
+        const elegiveis = all.filter(
+          (sc) => ["APROVADA", "EM_COTACAO"].includes(sc.status) && !temPedidoAtivo(sc)
         );
         setScOptions(elegiveis);
       })
@@ -920,18 +946,37 @@ export default function NovoPedidoCompraPage() {
               (() => {
                 const cot = cotacaoEmAndamento(selectedSc);
                 const nItens = selectedSc.itens.length;
+                const desc = selectedSc.justificativa?.trim();
                 return (
                   <div className="p-5 space-y-3">
-                    <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 text-sm">
-                      <span className="font-mono font-semibold text-gray-800">{selectedSc.numero}</span>
-                      <span className="text-gray-400"> · {nItens} {nItens === 1 ? "item" : "itens"}</span>
-                      {cot ? (
-                        <span className="block text-xs text-amber-700 mt-0.5">
-                          Já existe a cotação <span className="font-mono">{cot.numero}</span> em andamento.
-                        </span>
-                      ) : (
-                        <span className="block text-xs text-gray-500 mt-0.5">Sem cotação em andamento.</span>
+                    <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2.5 text-sm space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-semibold text-gray-800">{selectedSc.numero}</span>
+                        <span className="text-gray-400">· {nItens} {nItens === 1 ? "item" : "itens"}</span>
+                        {cot ? (
+                          <span className="inline-flex items-center gap-1 text-xs">
+                            <span className="text-gray-400">cotação</span>
+                            <span className="font-mono text-gray-600">{cot.numero}</span>
+                            <StatusBadge status={cot.status} />
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">sem cotação</span>
+                        )}
+                      </div>
+                      {desc && (
+                        <p className="text-xs text-gray-600 whitespace-pre-wrap">{desc}</p>
                       )}
+                      <ul className="divide-y divide-gray-100 border-t border-gray-100 max-h-40 overflow-y-auto">
+                        {selectedSc.itens.map((it, i) => (
+                          <li key={it.item?.id ?? i} className="flex items-center gap-2 py-1 text-xs">
+                            <span className="font-mono text-gray-400 shrink-0">{it.item?.codigo ?? "—"}</span>
+                            <span className="flex-1 min-w-0 truncate text-gray-700">{it.item?.descricao ?? "—"}</span>
+                            <span className="shrink-0 text-gray-500">
+                              {(Number(it.quantidade) || 0).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {unidadeItem(it)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
 
                     {cot && (

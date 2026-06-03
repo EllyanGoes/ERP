@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
             status: true,
             prioridade: true,
             justificativa: true,
+            motivo: true,
             solicitante: true,
             createdAt: true,
             filial: { select: { id: true, nomeFantasia: true, razaoSocial: true } },

@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { statusMinutaLabel, confirmacaoMinutaLabel, TIPO_MINUTA_LABEL, type TipoMinuta } from "@/lib/minuta-labels";
 import {
-  Search, X, Loader2, Truck, MapPin, GripVertical, CalendarDays,
-  ChevronLeft, ChevronRight, Route, PackageCheck, Send, UserX,
+  Search, X, Loader2, Truck, MapPin, GripVertical, CalendarDays, CalendarRange,
+  ChevronLeft, ChevronRight, Route, PackageCheck, Send, UserX, ClipboardList,
 } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -85,6 +85,25 @@ function weekDaysISO(s: string): string[] {
   const deltaToMonday = dow === 0 ? -6 : 1 - dow;
   const monday = addDaysISO(s, deltaToMonday);
   return Array.from({ length: 7 }, (_, i) => addDaysISO(monday, i));
+}
+function addMonthsISO(s: string, n: number): string {
+  const d = parseISODate(s);
+  d.setUTCMonth(d.getUTCMonth() + n);
+  return toISODate(d);
+}
+/** 42 dias (6 semanas, iniciando na segunda) cobrindo o mês de `s`. */
+function monthGridDaysISO(s: string): string[] {
+  const d = parseISODate(s);
+  const firstISO = toISODate(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)));
+  const dow = parseISODate(firstISO).getUTCDay();
+  const deltaToMonday = dow === 0 ? -6 : 1 - dow;
+  const start = addDaysISO(firstISO, deltaToMonday);
+  return Array.from({ length: 42 }, (_, i) => addDaysISO(start, i));
+}
+function monthLabel(s: string): string {
+  const d = parseISODate(s);
+  const meses = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  return `${meses[d.getUTCMonth()]} de ${d.getUTCFullYear()}`;
 }
 /** Dia (YYYY-MM-DD) de um dataEntrega ISO, ou null. */
 function entregaDay(iso: string | null): string | null {
@@ -211,11 +230,12 @@ export default function AgendaEntregasPage() {
   useTabTitle("Agenda de Entregas");
   const router = useRouter();
 
-  const [view, setView] = useState<"dia" | "semana">("dia");
+  const [view, setView] = useState<"dia" | "semana" | "mes">("semana");
   const [day, setDay] = useState<string>(() => toISODate(new Date()));
   const [search, setSearch] = useState("");
 
   const [minutas, setMinutas] = useState<Minuta[]>([]);
+  const [pendentes, setPendentes] = useState<Minuta[]>([]);
   const [motoristas, setMotoristas] = useState<Motorista[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -234,20 +254,24 @@ export default function AgendaEntregasPage() {
   // ── Load ────────────────────────────────────────────────────────────────
   const range = useMemo(() => {
     if (view === "dia") return dayBounds(day);
-    const days = weekDaysISO(day);
-    return { from: `${days[0]}T00:00:00.000Z`, to: `${days[6]}T23:59:59.999Z` };
+    const days = view === "semana" ? weekDaysISO(day) : monthGridDaysISO(day);
+    return { from: `${days[0]}T00:00:00.000Z`, to: `${days[days.length - 1]}T23:59:59.999Z` };
   }, [view, day]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [minRes, motRes] = await Promise.all([
+      const [minRes, pendRes, motRes] = await Promise.all([
         fetch(`/api/comercial/minutas?dataFrom=${range.from}&dataTo=${range.to}`),
+        fetch("/api/comercial/minutas?semData=true"),
         fetch("/api/comercial/motoristas?ativo=true"),
       ]);
       const minJson = await minRes.json();
+      const pendJson = await pendRes.json();
       const motJson = await motRes.json();
       setMinutas((minJson.data ?? []) as Minuta[]);
+      // Pendentes de agendamento: sem data e ainda não entregues/canceladas.
+      setPendentes(((pendJson.data ?? []) as Minuta[]).filter((m) => m.status !== "CANCELADA" && m.status !== "ENTREGUE"));
       setMotoristas(Array.isArray(motJson) ? motJson : (motJson.data ?? []));
     } catch {
       showError("Erro ao carregar a agenda");
@@ -317,6 +341,12 @@ export default function AgendaEntregasPage() {
     setDragOver(null);
     if (!dragId) return;
 
+    // Minuta pendente (sem data) arrastada do painel → agenda no dia atual.
+    if (pendentes.some((m) => m.id === dragId)) {
+      await scheduleFromPending(dragId, { dayISO: day, motoristaId: targetLaneId === NONE ? null : targetLaneId });
+      return;
+    }
+
     const dragged = boardMinutas.find((m) => m.id === dragId);
     if (!dragged) return;
 
@@ -359,6 +389,12 @@ export default function AgendaEntregasPage() {
     setDraggingId(null);
     setDragOver(null);
     if (!dragId) return;
+
+    // Minuta pendente (sem data) arrastada do painel → agenda no dia/motorista alvo.
+    if (pendentes.some((m) => m.id === dragId)) {
+      await scheduleFromPending(dragId, { dayISO, motoristaId: targetLaneId === NONE ? null : targetLaneId });
+      return;
+    }
 
     const dragged = boardMinutas.find((m) => m.id === dragId);
     if (!dragged) return;
@@ -418,6 +454,51 @@ export default function AgendaEntregasPage() {
     }
   }
 
+  // Agenda uma minuta pendente (sem data) num dia/motorista; depois recarrega.
+  async function scheduleFromPending(id: string, { dayISO, motoristaId }: { dayISO: string; motoristaId?: string | null }) {
+    const cellCount = boardMinutas.filter(
+      (m) => (m.motorista?.id ?? null) === (motoristaId ?? null) && entregaDay(m.dataEntrega) === dayISO
+    ).length;
+    try {
+      const res = await fetch("/api/comercial/minutas/roteiro", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          updates: [{
+            id,
+            dataEntrega: `${dayISO}T00:00:00.000Z`,
+            ...(motoristaId !== undefined ? { motoristaId } : {}),
+            ordemEntrega: cellCount + 1,
+          }],
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        showError(j.error ?? "Erro ao agendar a minuta");
+        return;
+      }
+      await load();
+    } catch {
+      showError("Erro de conexão ao agendar a minuta");
+    }
+  }
+
+  // ── Drop handler (Mês) — agenda no dia (mantém motorista atual) ───────────────
+  async function handleMonthDrop(dayISO: string) {
+    const dragId = draggingId;
+    setDraggingId(null);
+    setDragOver(null);
+    if (!dragId) return;
+
+    if (pendentes.some((m) => m.id === dragId)) {
+      await scheduleFromPending(dragId, { dayISO });
+      return;
+    }
+    const dragged = boardMinutas.find((m) => m.id === dragId);
+    if (!dragged || entregaDay(dragged.dataEntrega) === dayISO) return;
+    await commitUpdates([{ id: dragId, dataEntrega: `${dayISO}T00:00:00.000Z` }]);
+  }
+
   // ── Status pelo card (reusa PATCH /minutas/[id]) ─────────────────────────────
   async function changeStatus(m: Minuta, next: StatusMinuta) {
     setBusyId(m.id);
@@ -461,9 +542,9 @@ export default function AgendaEntregasPage() {
         {/* Navegação de data */}
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setDay((d) => addDaysISO(d, view === "dia" ? -1 : -7))}
+            onClick={() => setDay((d) => view === "dia" ? addDaysISO(d, -1) : view === "semana" ? addDaysISO(d, -7) : addMonthsISO(d, -1))}
             className="h-8 w-8 flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
-            title={view === "dia" ? "Dia anterior" : "Semana anterior"}
+            title={view === "dia" ? "Dia anterior" : view === "semana" ? "Semana anterior" : "Mês anterior"}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -474,9 +555,9 @@ export default function AgendaEntregasPage() {
             className="h-8 w-40 border-gray-200 text-sm"
           />
           <button
-            onClick={() => setDay((d) => addDaysISO(d, view === "dia" ? 1 : 7))}
+            onClick={() => setDay((d) => view === "dia" ? addDaysISO(d, 1) : view === "semana" ? addDaysISO(d, 7) : addMonthsISO(d, 1))}
             className="h-8 w-8 flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
-            title={view === "dia" ? "Próximo dia" : "Próxima semana"}
+            title={view === "dia" ? "Próximo dia" : view === "semana" ? "Próxima semana" : "Próximo mês"}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -533,6 +614,13 @@ export default function AgendaEntregasPage() {
           >
             <CalendarDays className="w-3.5 h-3.5" /> Semana
           </button>
+          <button
+            className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
+              view === "mes" ? "bg-gray-100 text-gray-800" : "text-gray-500 hover:text-gray-700")}
+            onClick={() => setView("mes")}
+          >
+            <CalendarRange className="w-3.5 h-3.5" /> Mês
+          </button>
         </div>
       </div>
 
@@ -549,37 +637,128 @@ export default function AgendaEntregasPage() {
           <Loader2 className="w-5 h-5 animate-spin" />
           <span className="text-sm">Carregando agenda…</span>
         </div>
-      ) : view === "dia" ? (
-        <DayBoard
-          lanes={dayLanes}
-          stopsForLane={stopsForLane}
-          matchesSearch={matchesSearch}
-          draggingId={draggingId}
-          dragOver={dragOver}
-          setDragOver={setDragOver}
-          onDragStartCard={(id) => setDraggingId(id)}
-          onDrop={handleDayDrop}
-          onOpen={(id) => router.push(`/comercial/minutas/${id}`)}
-          onStatus={changeStatus}
-          busyId={busyId}
-          dayLabel={formatDayLabel(day)}
-        />
       ) : (
-        <WeekGrid
-          weekDays={weekDays}
-          lanes={dayLanes}
-          boardMinutas={boardMinutas}
-          matchesSearch={matchesSearch}
-          draggingId={draggingId}
-          dragOver={dragOver}
-          setDragOver={setDragOver}
-          onDragStartCard={(id) => setDraggingId(id)}
-          onDrop={handleWeekDrop}
-          onOpenDay={(d) => { setDay(d); setView("dia"); }}
-          onOpen={(id) => router.push(`/comercial/minutas/${id}`)}
-        />
+        <div className="flex-1 flex min-h-0">
+          <div className="flex-1 min-w-0 flex flex-col">
+            {view === "dia" ? (
+              <DayBoard
+                lanes={dayLanes}
+                stopsForLane={stopsForLane}
+                matchesSearch={matchesSearch}
+                draggingId={draggingId}
+                dragOver={dragOver}
+                setDragOver={setDragOver}
+                onDragStartCard={(id) => setDraggingId(id)}
+                onDrop={handleDayDrop}
+                onOpen={(id) => router.push(`/comercial/minutas/${id}`)}
+                onStatus={changeStatus}
+                busyId={busyId}
+                dayLabel={formatDayLabel(day)}
+              />
+            ) : view === "semana" ? (
+              <WeekGrid
+                weekDays={weekDays}
+                lanes={dayLanes}
+                boardMinutas={boardMinutas}
+                matchesSearch={matchesSearch}
+                draggingId={draggingId}
+                dragOver={dragOver}
+                setDragOver={setDragOver}
+                onDragStartCard={(id) => setDraggingId(id)}
+                onDrop={handleWeekDrop}
+                onOpenDay={(d) => { setDay(d); setView("dia"); }}
+                onOpen={(id) => router.push(`/comercial/minutas/${id}`)}
+              />
+            ) : (
+              <MonthGrid
+                monthDays={monthGridDaysISO(day)}
+                refMonth={day}
+                boardMinutas={boardMinutas}
+                matchesSearch={matchesSearch}
+                draggingId={draggingId}
+                dragOver={dragOver}
+                setDragOver={setDragOver}
+                onDragStartCard={(id) => setDraggingId(id)}
+                onDrop={handleMonthDrop}
+                onOpenDay={(d) => { setDay(d); setView("dia"); }}
+                onOpen={(id) => router.push(`/comercial/minutas/${id}`)}
+              />
+            )}
+          </div>
+
+          <PendingPanel
+            pendentes={pendentes.filter(matchesSearch)}
+            draggingId={draggingId}
+            onDragStartCard={(id) => setDraggingId(id)}
+            onOpen={(id) => router.push(`/comercial/minutas/${id}`)}
+          />
+        </div>
       )}
     </div>
+  );
+}
+
+// ── Painel de pendentes (fonte para arrastar e agendar) ─────────────────────────
+function PendingPanel({
+  pendentes, draggingId, onDragStartCard, onOpen,
+}: {
+  pendentes: Minuta[];
+  draggingId: string | null;
+  onDragStartCard: (id: string) => void;
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <aside className="w-72 shrink-0 border-l border-gray-200 bg-gray-50 flex flex-col">
+      <div className="px-4 py-3 border-b border-gray-200 bg-white">
+        <div className="flex items-center gap-2">
+          <ClipboardList className="w-4 h-4 text-amber-500" />
+          <h2 className="text-sm font-semibold text-gray-800">Pendentes de agendamento</h2>
+        </div>
+        <p className="text-xs text-gray-400 mt-0.5">Arraste para um dia/motorista na agenda</p>
+      </div>
+      <div className="flex-1 overflow-auto p-2 space-y-2">
+        {pendentes.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center text-xs text-gray-400">
+            <PackageCheck className="w-6 h-6 mb-2 text-gray-300" />
+            Nenhuma minuta pendente de agendamento.
+          </div>
+        ) : (
+          pendentes.map((m) => {
+            const cliente = m.pedidoVenda.cliente;
+            const local = clienteLocal(cliente);
+            return (
+              <div
+                key={m.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", m.id);
+                  onDragStartCard(m.id);
+                }}
+                onClick={() => { if (!draggingId) onOpen(m.id); }}
+                className={cn(
+                  "bg-white border border-gray-200 rounded-lg p-2.5 shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-300 hover:shadow transition-all select-none",
+                  m.id === draggingId && "opacity-40",
+                )}
+              >
+                <div className="flex items-center gap-1.5 mb-1">
+                  <GripVertical className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                  <span className="font-mono text-xs font-bold text-gray-700">{m.numero}</span>
+                  <span className="font-mono text-[11px] text-gray-400 ml-auto">{m.pedidoVenda.numero}</span>
+                </div>
+                <p className="text-xs font-medium text-gray-800 leading-snug line-clamp-2">{clienteNome(cliente)}</p>
+                {local && (
+                  <div className="flex items-center gap-1 text-[11px] text-gray-400 mt-0.5">
+                    <MapPin className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{local}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </aside>
   );
 }
 
@@ -716,24 +895,25 @@ function WeekGrid({
 
   return (
     <div className="px-8 pb-8 flex-1 overflow-auto">
+      <div className="rounded-xl border border-gray-300 shadow-sm bg-white">
       <table className="w-full border-separate border-spacing-0 min-w-[900px]">
         <thead>
           <tr>
-            <th className="sticky left-0 z-10 bg-white text-left text-xs font-semibold text-gray-500 px-3 py-2 w-44 border-b border-gray-200">
+            <th className="sticky left-0 z-10 bg-gray-100 text-left text-xs font-bold uppercase tracking-wide text-gray-600 px-3 py-2.5 w-44 border-b-2 border-gray-300">
               Motorista
             </th>
             {weekDays.map((d, i) => (
-              <th key={d} className="border-b border-l border-gray-200 px-2 py-2">
+              <th key={d} className={cn(
+                "border-b-2 border-l border-gray-300 px-2 py-2.5",
+                d === todayISO ? "bg-blue-100" : "bg-gray-100",
+              )}>
                 <button
                   onClick={() => onOpenDay(d)}
-                  className={cn(
-                    "w-full flex flex-col items-center rounded-md py-1 hover:bg-blue-50 transition-colors",
-                    d === todayISO && "bg-blue-50",
-                  )}
+                  className="w-full flex flex-col items-center rounded-md py-1 hover:bg-white/60 transition-colors"
                   title="Ver roteiro deste dia"
                 >
-                  <span className="text-[11px] font-semibold text-gray-500 uppercase">{WEEKDAYS[i]}</span>
-                  <span className={cn("text-xs", d === todayISO ? "text-blue-700 font-semibold" : "text-gray-400")}>
+                  <span className="text-[11px] font-bold text-gray-600 uppercase">{WEEKDAYS[i]}</span>
+                  <span className={cn("text-xs font-medium", d === todayISO ? "text-blue-700 font-bold" : "text-gray-500")}>
                     {formatDayLabel(d).slice(0, 5)}
                   </span>
                 </button>
@@ -746,16 +926,16 @@ function WeekGrid({
             const motoristaId = lane.id === NONE ? null : lane.id;
             const isNone = lane.id === NONE;
             return (
-              <tr key={lane.id}>
+              <tr key={lane.id} className="group/row">
                 <td className={cn(
-                  "sticky left-0 z-10 bg-white px-3 py-2 border-b border-gray-100 align-top w-44",
-                  isNone && "text-amber-700",
+                  "sticky left-0 z-10 px-3 py-2 border-b border-gray-200 align-top w-44",
+                  isNone ? "bg-amber-50" : "bg-gray-50 group-hover/row:bg-gray-100",
                 )}>
                   <div className="flex items-center gap-1.5">
                     {isNone
                       ? <UserX className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                       : <Truck className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
-                    <span className="text-xs font-medium text-gray-700 truncate">{lane.nome}</span>
+                    <span className={cn("text-xs font-semibold truncate", isNone ? "text-amber-700" : "text-gray-800")}>{lane.nome}</span>
                   </div>
                 </td>
                 {weekDays.map((d) => {
@@ -766,13 +946,15 @@ function WeekGrid({
                   );
                   const key = cellKey(lane.id, d);
                   const isOver = dragOver?.laneId === key;
+                  const isToday = d === todayISO;
                   return (
                     <td
                       key={d}
                       className={cn(
-                        "border-b border-l border-gray-100 p-1.5 align-top min-w-[110px] transition-colors",
-                        isOver && "bg-blue-50 ring-2 ring-inset ring-blue-300",
-                        draggingId && !isOver && "bg-gray-50/40",
+                        "border-b border-l border-gray-200 p-1.5 align-top min-w-[110px] transition-colors",
+                        isOver ? "bg-blue-50 ring-2 ring-inset ring-blue-300"
+                          : draggingId ? "bg-gray-100/60"
+                          : isToday ? "bg-blue-50/40" : "bg-white",
                       )}
                       onDragOver={(e) => {
                         if (draggingId) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOver({ laneId: key, index: 0 }); }
@@ -810,6 +992,112 @@ function WeekGrid({
           })}
         </tbody>
       </table>
+      </div>
+    </div>
+  );
+}
+
+// ── MonthGrid (visão mensal, agregada por dia) ──────────────────────────────────
+function MonthGrid({
+  monthDays, refMonth, boardMinutas, matchesSearch, draggingId, dragOver, setDragOver,
+  onDragStartCard, onDrop, onOpenDay, onOpen,
+}: {
+  monthDays: string[];
+  refMonth: string;
+  boardMinutas: Minuta[];
+  matchesSearch: (m: Minuta) => boolean;
+  draggingId: string | null;
+  dragOver: { laneId: string; index: number } | null;
+  setDragOver: (v: { laneId: string; index: number } | null) => void;
+  onDragStartCard: (id: string) => void;
+  onDrop: (dayISO: string) => void;
+  onOpenDay: (dayISO: string) => void;
+  onOpen: (id: string) => void;
+}) {
+  const todayISO = toISODate(new Date());
+  const refMes = parseISODate(refMonth).getUTCMonth();
+  const weeks: string[][] = Array.from({ length: 6 }, (_, w) => monthDays.slice(w * 7, w * 7 + 7));
+
+  return (
+    <div className="px-8 pb-8 flex-1 overflow-auto">
+      <p className="text-xs font-semibold text-gray-500 mb-3 capitalize">{monthLabel(refMonth)}</p>
+      <div className="rounded-xl border border-gray-300 overflow-hidden shadow-sm bg-white">
+        {/* Cabeçalho dos dias da semana */}
+        <div className="grid grid-cols-7 bg-gray-100 border-b-2 border-gray-300">
+          {WEEKDAYS.map((w) => (
+            <div key={w} className="px-2 py-2 text-center text-[11px] font-bold uppercase text-gray-600 border-l first:border-l-0 border-gray-200">
+              {w}
+            </div>
+          ))}
+        </div>
+        {/* Semanas */}
+        {weeks.map((week, wi) => (
+          <div key={wi} className="grid grid-cols-7 border-b border-gray-200 last:border-b-0">
+            {week.map((d) => {
+              const foraDoMes = parseISODate(d).getUTCMonth() !== refMes;
+              const isToday = d === todayISO;
+              const dayMinutas = sortStops(boardMinutas.filter((m) => entregaDay(m.dataEntrega) === d));
+              const isOver = dragOver?.laneId === d;
+              const [, , dd] = d.split("-");
+              return (
+                <div
+                  key={d}
+                  className={cn(
+                    "border-l first:border-l-0 border-gray-200 min-h-[104px] p-1.5 flex flex-col gap-1 transition-colors",
+                    isOver ? "bg-blue-50 ring-2 ring-inset ring-blue-300"
+                      : draggingId ? "bg-gray-100/50"
+                      : foraDoMes ? "bg-gray-50/70"
+                      : isToday ? "bg-blue-50/40" : "bg-white",
+                  )}
+                  onDragOver={(e) => {
+                    if (draggingId) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOver({ laneId: d, index: 0 }); }
+                  }}
+                  onDrop={(e) => { e.preventDefault(); onDrop(d); }}
+                >
+                  <button
+                    onClick={() => onOpenDay(d)}
+                    className={cn(
+                      "self-end text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors",
+                      isToday ? "bg-blue-600 text-white hover:bg-blue-600" : foraDoMes ? "text-gray-300" : "text-gray-600",
+                    )}
+                    title="Ver roteiro deste dia"
+                  >
+                    {Number(dd)}
+                  </button>
+                  <div className="flex flex-col gap-0.5 overflow-hidden">
+                    {dayMinutas.slice(0, 4).map((m) => (
+                      <div
+                        key={m.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", m.id);
+                          onDragStartCard(m.id);
+                        }}
+                        onClick={(e) => { e.stopPropagation(); if (!draggingId) onOpen(m.id); }}
+                        className={cn(
+                          "flex items-center gap-1 rounded border bg-white px-1 py-0.5 cursor-grab active:cursor-grabbing hover:border-blue-300 text-[10px] transition-colors",
+                          m.id === draggingId ? "opacity-40" : "border-gray-200",
+                          !matchesSearch(m) && "opacity-30",
+                        )}
+                        title={`${m.numero} · ${clienteNome(m.pedidoVenda.cliente)}${m.motorista ? ` · ${m.motorista.nome}` : ""}`}
+                      >
+                        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", STATUS_DOT[m.status])} />
+                        <span className="truncate text-gray-700">{clienteNome(m.pedidoVenda.cliente)}</span>
+                      </div>
+                    ))}
+                    {dayMinutas.length > 4 && (
+                      <button onClick={() => onOpenDay(d)} className="text-[10px] text-blue-600 hover:underline text-left pl-1">
+                        +{dayMinutas.length - 4} mais
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

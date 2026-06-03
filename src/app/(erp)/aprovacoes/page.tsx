@@ -22,7 +22,7 @@ type SCItem = {
 
 type SC = {
   id: string; numero: string; status: string; prioridade: number;
-  justificativa: string | null; solicitante: string | null; createdAt: string;
+  justificativa: string | null; motivo: string | null; solicitante: string | null; createdAt: string;
   filial: { id: string; nomeFantasia: string | null; razaoSocial: string } | null;
   itens: SCItem[];
 };
@@ -143,10 +143,21 @@ function AprovacaoCard({
         </div>
       </div>
 
-      {/* Descrição */}
+      {/* Motivo da solicitação */}
+      {sc.motivo && (
+        <div className="px-4 pb-2">
+          <p className="text-sm text-gray-700">
+            <span className="font-medium text-gray-500">Motivo:</span> {sc.motivo}
+          </p>
+        </div>
+      )}
+
+      {/* Descrição / justificativa */}
       {sc.justificativa && (
         <div className="px-4 pb-2">
-          <p className="text-sm text-gray-600 line-clamp-2">{sc.justificativa}</p>
+          <p className="text-sm text-gray-600">
+            <span className="font-medium text-gray-500">Descrição:</span> {sc.justificativa}
+          </p>
         </div>
       )}
 
