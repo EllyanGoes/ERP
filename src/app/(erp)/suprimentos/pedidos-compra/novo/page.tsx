@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useFormPersist } from "@/lib/form-persist";
 import { useDirtyForm } from "@/lib/dirty-form-context";
 import PageHeader from "@/components/shared/PageHeader";
@@ -11,7 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn, formatBRL } from "@/lib/utils";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
-import { Plus, Trash2, Loader2, Save, CheckCircle2, LinkIcon } from "lucide-react";
+import { useTabsContext } from "@/lib/tabs-context";
+import {
+  Plus, Trash2, Loader2, Save, CheckCircle2, LinkIcon,
+  X, Search, AlertTriangle, ExternalLink, FileText, Link2, FileSpreadsheet,
+} from "lucide-react";
 import { useEscToClose } from "@/lib/use-esc-to-close";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
@@ -41,6 +46,27 @@ type FormSnapshot = {
   condicoesPagamento: string;
   dataEntregaPrevista: string;
   itens: ItemRow[];
+};
+
+// Cotação elegível p/ formalização (modo busca do endpoint de cotações).
+type CotacaoEligible = {
+  id: string;
+  numero: string;
+  nome: string | null;
+  necessidade: { id: string; numero: string } | null;
+  _count: { fornecedores: number };
+  fornecedores: { fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null } }[];
+};
+
+// Cotação aberta compatível (anti-duplicidade) — retornada por /cotacoes/match.
+type CotacaoMatch = {
+  id: string;
+  numero: string;
+  nome: string | null;
+  necessidadeNumero: string | null;
+  matchCount: number;
+  totalItens: number;
+  fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null };
 };
 
 const TIPO_FRETE_OPTIONS = [
@@ -92,6 +118,83 @@ export default function NovoPedidoCompraPage() {
   type VinculoItem = { id: string; codigo: string; descricao: string };
   const [vinculoPopup, setVinculoPopup] = useState<{ fornecedorNome: string; novos: VinculoItem[] } | null>(null);
   useEscToClose(() => setVinculoPopup(null), !!vinculoPopup);
+
+  // ── Tabs (fechar / transferir a aba do "Novo PC") ───────────────────────────
+  const { closeCurrentTab, replaceCurrentTab } = useTabsContext();
+
+  // ── Popup de escolha ao abrir: vincular a uma Cotação ou criar avulso ───────
+  const [choiceOpen, setChoiceOpen] = useState(true);
+  const [choiceStep, setChoiceStep] = useState<"choose" | "vincular">("choose");
+
+  // Picker de cotações (passo "vincular")
+  const [cotacaoSearch, setCotacaoSearch]   = useState("");
+  const [cotacaoOptions, setCotacaoOptions] = useState<CotacaoEligible[]>([]);
+  const [cotacaoLoading, setCotacaoLoading] = useState(false);
+
+  // Anti-duplicidade: cotações abertas compatíveis + confirmação de avulso.
+  // Atenção: escolher "avulso" no popup apenas libera o formulário (closeChoice)
+  // e NÃO marca avulsoConfirmed — assim o aviso ainda dispara se houver Cotação
+  // aberta compatível. avulsoConfirmed só é setado ao dispensar o aviso.
+  const [cotacaoMatches, setCotacaoMatches]           = useState<CotacaoMatch[]>([]);
+  const [cotacaoMatchLoading, setCotacaoMatchLoading] = useState(false);
+  const [avulsoConfirmed, setAvulsoConfirmed]         = useState(false);
+
+  function closeChoice() {
+    setChoiceOpen(false);
+    setChoiceStep("choose");
+    setCotacaoSearch("");
+  }
+
+  // Vincular = ir formalizar a Cotação existente (que gera o próprio PC ao
+  // concluir, com baixa na Solicitação). Limpa o rascunho e troca esta aba.
+  function goToFormalizacao(cotacaoId: string) {
+    clearForm();
+    replaceCurrentTab(`/suprimentos/cotacoes/${cotacaoId}/formalizacao`);
+  }
+
+  // Busca de cotações formalizáveis no passo "vincular" (com debounce).
+  useEffect(() => {
+    if (!(choiceOpen && choiceStep === "vincular")) return;
+    const ctrl = new AbortController();
+    const q = cotacaoSearch.trim();
+    setCotacaoLoading(true);
+    const t = setTimeout(() => {
+      const url = q
+        ? `/api/suprimentos/cotacoes?search=${encodeURIComponent(q)}`
+        : `/api/suprimentos/cotacoes?formalizaveis=1`;
+      fetch(url, { signal: ctrl.signal })
+        .then((r) => r.json())
+        .then((j) => setCotacaoOptions(Array.isArray(j?.data) ? j.data : []))
+        .catch(() => { /* abort/erro — ignora */ })
+        .finally(() => setCotacaoLoading(false));
+    }, q ? 280 : 0);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [choiceOpen, choiceStep, cotacaoSearch]);
+
+  // Itens selecionados (só itemIds) — chave estável p/ o efeito anti-duplicidade.
+  const itemIdsKey = itens.map((r) => r.itemId).filter(Boolean).join(",");
+
+  // Anti-duplicidade: avisa se há Cotação aberta compatível (mesmo fornecedor +
+  // itens em comum). Não roda com o popup aberto nem após confirmar avulso.
+  useEffect(() => {
+    if (choiceOpen || avulsoConfirmed || !fornecedorId || !itemIdsKey) {
+      setCotacaoMatches([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    setCotacaoMatchLoading(true);
+    const t = setTimeout(() => {
+      fetch(
+        `/api/suprimentos/cotacoes/match?fornecedorId=${encodeURIComponent(fornecedorId)}&itemIds=${encodeURIComponent(itemIdsKey)}`,
+        { signal: ctrl.signal },
+      )
+        .then((r) => r.json())
+        .then((j) => setCotacaoMatches(Array.isArray(j?.matches) ? j.matches : []))
+        .catch(() => { /* abort/erro — ignora */ })
+        .finally(() => setCotacaoMatchLoading(false));
+    }, 400);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [choiceOpen, avulsoConfirmed, fornecedorId, itemIdsKey]);
 
   const isDirty = !!(fornecedorId || itens.some(r => r.itemId));
   useDirtyForm(isDirty);
@@ -182,6 +285,13 @@ export default function NovoPedidoCompraPage() {
     );
     if (validItens.length === 0) { setError("Adicione pelo menos um item"); return; }
 
+    // Anti-duplicidade: se há Cotação aberta compatível e o usuário não confirmou
+    // que é avulso, bloqueia o envio e mantém o aviso (já visível no banner).
+    if (!avulsoConfirmed && cotacaoMatches.length > 0) {
+      setError("Existe Cotação aberta compatível. Vá para a Formalização dela ou confirme que este é um pedido avulso.");
+      return;
+    }
+
     // Verificar novos vínculos fornecedor × produto antes de criar o pedido
     const itemIds = validItens.map((r) => r.itemId).join(",");
     try {
@@ -224,6 +334,7 @@ export default function NovoPedidoCompraPage() {
           despesas:            despesasVal || null,
           seguro:              seguroVal   || null,
           condicoesPagamento:  condicoesPagamento || null,
+          confirmAvulso:       avulsoConfirmed,
           itens: validItens.map((row) => ({
             itemId:       row.itemId,
             quantidade:   parseFloat(row.quantidade),
@@ -232,7 +343,18 @@ export default function NovoPedidoCompraPage() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) { setError(json.error || "Erro ao criar pedido"); return; }
+      if (!res.ok) {
+        // Rede de segurança do servidor: existe Cotação aberta compatível.
+        // Mostra o aviso (banner) em vez de uma mensagem de erro genérica.
+        if (res.status === 409 && json.error === "COTACAO_COMPATIVEL") {
+          setCotacaoMatches(Array.isArray(json.matches) ? json.matches : []);
+          setAvulsoConfirmed(false);
+          setError("Existe Cotação aberta compatível. Vá para a Formalização dela ou confirme que este é um pedido avulso.");
+          return;
+        }
+        setError(json.error || "Erro ao criar pedido");
+        return;
+      }
       clearForm();
       confirmCreated(json.data.id);
     } catch {
@@ -265,6 +387,96 @@ export default function NovoPedidoCompraPage() {
       <div className="px-8 pb-8 max-w-5xl space-y-6">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
+        )}
+
+        {/* ── Anti-duplicidade: Cotações abertas compatíveis ───────────────── */}
+        {!avulsoConfirmed && cotacaoMatchLoading && cotacaoMatches.length === 0 && (
+          <div className="text-xs text-gray-400 flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+            Verificando Cotações compatíveis…
+          </div>
+        )}
+
+        {!avulsoConfirmed && cotacaoMatches.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+              <div className="text-sm text-amber-800">
+                <p className="font-medium">
+                  {cotacaoMatches.length === 1
+                    ? "Encontramos 1 Cotação aberta compatível com este pedido."
+                    : `Encontramos ${cotacaoMatches.length} Cotações abertas compatíveis com este pedido.`}
+                </p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Mesmo fornecedor e itens em comum. Formalize a Cotação para gerar o Pedido a partir dela (com baixa na Solicitação), ou confirme que este é um pedido avulso.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {cotacaoMatches.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex items-center justify-between gap-3 bg-white border border-amber-100 rounded-lg px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-semibold text-gray-800 text-sm">{m.numero}</span>
+                      {m.necessidadeNumero && (
+                        <span className="text-xs text-gray-500">SC {m.necessidadeNumero}</span>
+                      )}
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                        {m.matchCount} de {m.totalItens} {m.totalItens === 1 ? "item" : "itens"} em comum
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400 truncate">
+                      {m.nome || m.fornecedor.nomeFantasia || m.fornecedor.razaoSocial}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      href={`/suprimentos/cotacoes/${m.id}`}
+                      target="_blank"
+                      className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-0.5"
+                    >
+                      Abrir <ExternalLink className="w-3 h-3" />
+                    </Link>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => goToFormalizacao(m.id)}
+                      className="h-7 gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <Link2 className="w-3 h-3" /> Ir p/ Formalização
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setAvulsoConfirmed(true)}
+                className="text-xs text-amber-700 hover:text-amber-900 underline"
+              >
+                Não, criar pedido avulso mesmo assim
+              </button>
+            </div>
+          </div>
+        )}
+
+        {avulsoConfirmed && (
+          <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-500">
+            <span>Pedido avulso — sem vínculo com Cotação.</span>
+            <button
+              type="button"
+              onClick={() => setAvulsoConfirmed(false)}
+              className="text-gray-400 hover:text-gray-600 underline"
+            >
+              Revisar
+            </button>
+          </div>
         )}
 
         {/* ── Seção Fornecedor ─────────────────────────────────────────── */}
@@ -575,7 +787,194 @@ export default function NovoPedidoCompraPage() {
           </div>
         </div>
       )}
+      {/* ── Popup de escolha (vincular a uma Cotação ou avulso) ───────────── */}
+      {choiceOpen && (
+        <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 className="text-base font-semibold text-gray-800">
+                {choiceStep === "choose"
+                  ? "Como deseja criar este pedido de compra?"
+                  : "Vincular a uma Cotação"}
+              </h2>
+              {/* Sem escape "silencioso": no passo de escolha o X fecha o diálogo
+                  E a página (aba) — ficar no formulário sem optar é o que
+                  queremos impedir; no passo de vínculo o X volta à escolha. */}
+              {choiceStep === "choose" ? (
+                <button
+                  type="button"
+                  onClick={closeCurrentTab}
+                  className="text-gray-400 hover:text-gray-600"
+                  aria-label="Fechar página"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setChoiceStep("choose"); setCotacaoSearch(""); }}
+                  className="text-gray-400 hover:text-gray-600"
+                  aria-label="Voltar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {choiceStep === "choose" ? (
+              <div className="p-5 space-y-3">
+                <p className="text-sm text-gray-500">
+                  Para evitar registros duplicados, informe se este pedido vem de uma Cotação.
+                </p>
+
+                {/* Vincular */}
+                <button
+                  type="button"
+                  onClick={() => setChoiceStep("vincular")}
+                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-left transition-colors"
+                >
+                  <Link2 className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                  <span>
+                    <span className="block text-sm font-semibold text-blue-800">
+                      Vincular a uma Cotação
+                    </span>
+                    <span className="block text-xs text-blue-700 mt-0.5">
+                      Abre a Formalização da Cotação, que gera o Pedido a partir da proposta vencedora e dá baixa na Solicitação.
+                    </span>
+                  </span>
+                </button>
+
+                {/* Avulso */}
+                <button
+                  type="button"
+                  onClick={closeChoice}
+                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-left transition-colors"
+                >
+                  <FileText className="w-5 h-5 text-gray-500 mt-0.5 shrink-0" />
+                  <span>
+                    <span className="block text-sm font-semibold text-gray-800">
+                      Pedido avulso
+                    </span>
+                    <span className="block text-xs text-gray-500 mt-0.5">
+                      Pedido sem Cotação. Você preenche fornecedor e itens manualmente.
+                    </span>
+                  </span>
+                </button>
+              </div>
+            ) : (
+              <div>
+                {/* Busca */}
+                <div className="p-4 border-b border-gray-100">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <input
+                      autoFocus
+                      type="text"
+                      value={cotacaoSearch}
+                      onChange={(e) => setCotacaoSearch(e.target.value)}
+                      placeholder="Buscar Cotação… (nº, SC ou fornecedor)"
+                      className="w-full pl-8 pr-3 h-9 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Lista de cotações formalizáveis */}
+                <CotacaoPickList
+                  cotacoes={cotacaoOptions}
+                  loading={cotacaoLoading}
+                  searchActive={!!cotacaoSearch.trim()}
+                  onSelect={(c) => goToFormalizacao(c.id)}
+                />
+
+                {/* Footer */}
+                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
+                  <button
+                    type="button"
+                    onClick={() => { setChoiceStep("choose"); setCotacaoSearch(""); }}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    ← Voltar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeChoice}
+                    className="text-xs text-gray-500 hover:text-gray-700 underline"
+                  >
+                    É um pedido avulso
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {createdDialog}
     </div>
+  );
+}
+
+// ── Lista de Cotações formalizáveis (picker do popup de vínculo) ──────────────
+// Mostra cotações ainda abertas com ao menos uma proposta RESPONDIDA. Selecionar
+// leva à Formalização (onde se escolhe a proposta vencedora e gera-se o PC).
+function CotacaoPickList({
+  cotacoes,
+  loading,
+  searchActive,
+  onSelect,
+}: {
+  cotacoes: CotacaoEligible[];
+  loading: boolean;
+  searchActive: boolean;
+  onSelect: (c: CotacaoEligible) => void;
+}) {
+  if (loading && cotacoes.length === 0) {
+    return (
+      <div className="px-4 py-8 text-center text-sm text-gray-400 flex items-center justify-center gap-2">
+        <Loader2 className="w-4 h-4 animate-spin" /> Carregando…
+      </div>
+    );
+  }
+  if (cotacoes.length === 0) {
+    return (
+      <div className="px-4 py-8 text-center text-sm text-gray-400">
+        {searchActive
+          ? "Nenhuma cotação encontrada."
+          : "Nenhuma cotação pronta para formalização."}
+      </div>
+    );
+  }
+  return (
+    <ul className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+      {cotacoes.map((c) => {
+        const respondidas = c.fornecedores.length;
+        const total = c._count.fornecedores;
+        return (
+          <li key={c.id}>
+            <button
+              type="button"
+              onClick={() => onSelect(c)}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-blue-50 transition-colors"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-blue-600 shrink-0" />
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono font-semibold text-sm text-gray-800">{c.numero}</span>
+                  {c.necessidade?.numero && (
+                    <span className="text-xs text-gray-500">SC {c.necessidade.numero}</span>
+                  )}
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">
+                    {respondidas} de {total} {total === 1 ? "proposta" : "propostas"}
+                  </span>
+                </span>
+                {c.nome && <span className="block text-xs text-gray-400 truncate">{c.nome}</span>}
+              </span>
+              <ExternalLink className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

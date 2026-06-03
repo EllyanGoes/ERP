@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
+import { findMatchingCotacoes } from "@/lib/cotacao-match";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -81,11 +82,24 @@ export async function POST(req: NextRequest) {
   const {
     fornecedorId, cotacaoId, dataEntregaPrevista, observacoes, itens = [],
     frete, tipoFrete, desconto, despesas, seguro,
-    condicoesPagamento, contato, email, descricao,
+    condicoesPagamento, contato, email, descricao, confirmAvulso,
   } = body;
 
   if (!fornecedorId) return NextResponse.json({ error: "Fornecedor obrigatório" }, { status: 400 });
   if (!itens.length)  return NextResponse.json({ error: "Adicione pelo menos um item" }, { status: 400 });
+
+  // ── Anti-duplicidade: avisar se já existe Cotação aberta compatível ────────
+  // Quando o PC é avulso (sem cotacaoId) e o usuário ainda não confirmou,
+  // verifica se há Cotação aberta do mesmo fornecedor com itens em comum — para
+  // evitar duplicar o fluxo de compra (a Cotação geraria seu próprio PC ao ser
+  // formalizada). O front mostra o aviso e reenvia com confirmAvulso=true.
+  if (!cotacaoId && !confirmAvulso) {
+    const itemIds = (itens as Array<{ itemId: string }>).map((i) => i.itemId).filter(Boolean);
+    const matches = await findMatchingCotacoes(fornecedorId, itemIds);
+    if (matches.length > 0) {
+      return NextResponse.json({ error: "COTACAO_COMPATIVEL", matches }, { status: 409 });
+    }
+  }
 
   // ── Impedir mais de um PC ativo para a mesma SC ───────────────────────────
   if (cotacaoId) {
