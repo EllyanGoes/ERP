@@ -206,6 +206,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
               localEstoqueId,
               unidadeId:    item.unidadeId ?? null,
               loteId:       lote.id,
+              pedidoVendaItemId: item.pedidoVendaItemId,
               tipo:         "SAIDA",
               quantidade,
               saldoAntes,
@@ -268,20 +269,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
 
       // Saldo líquido por (item + local): devolve as quantidades antigas (+) e baixa as novas (−).
-      const net = new Map<string, { itemId: string; localEstoqueId: string; delta: number }>();
+      const net = new Map<string, { itemId: string; localEstoqueId: string; delta: number; pedidoVendaItemId: string | null }>();
       if (oldOut && oldLocal) {
         for (const it of minuta.itens) {
           const key = `${it.itemId}|${oldLocal}`;
-          const cur = net.get(key) ?? { itemId: it.itemId, localEstoqueId: oldLocal, delta: 0 };
+          const cur = net.get(key) ?? { itemId: it.itemId, localEstoqueId: oldLocal, delta: 0, pedidoVendaItemId: null };
           cur.delta += parseFloat(it.quantidade.toString());
+          if (!cur.pedidoVendaItemId) cur.pedidoVendaItemId = it.pedidoVendaItemId ?? null;
           net.set(key, cur);
         }
       }
       if (newOut && newLocal) {
         for (const it of novosItens) {
           const key = `${it.itemId}|${newLocal}`;
-          const cur = net.get(key) ?? { itemId: it.itemId, localEstoqueId: newLocal, delta: 0 };
+          const cur = net.get(key) ?? { itemId: it.itemId, localEstoqueId: newLocal, delta: 0, pedidoVendaItemId: null };
           cur.delta -= Number(it.quantidade) || 0;
+          if (!cur.pedidoVendaItemId) cur.pedidoVendaItemId = it.pedidoVendaItemId ?? null;
           net.set(key, cur);
         }
       }
@@ -338,6 +341,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
               data: {
                 itemId:        aj.itemId,
                 localEstoqueId: aj.localEstoqueId,
+                pedidoVendaItemId: aj.pedidoVendaItemId,
                 loteId:        lote.id,
                 tipo:          aj.delta > 0 ? "ENTRADA" : "SAIDA",
                 quantidade:    Math.abs(aj.delta),
