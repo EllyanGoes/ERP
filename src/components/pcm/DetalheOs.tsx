@@ -220,6 +220,11 @@ export default function DetalheOs({
                     {!o.comJanela && o.horas > 0 && (
                       <TriangleAlert className="inline w-3 h-3 text-amber-400 ml-1 align-middle" aria-label="estimado (HOREXEREA)" />
                     )}
+                    {o.paradaAdicional > 0 && (
+                      <div className="text-[10px] text-gray-400" title="Inclui paradas adicionais do Engeman (ORDXPAR)">
+                        inclui +{fmtH(o.paradaAdicional)} adic.
+                      </div>
+                    )}
                   </td>
                   <td className="px-2 py-1.5 text-center">
                     {o.contabilizada ? <span className="text-red-600 font-bold">✓</span> : <span className="text-gray-300">—</span>}

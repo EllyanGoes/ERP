@@ -77,10 +77,16 @@ export async function getAgregadoMensalEngeman(
           RTRIM(ISNULL(a.DESCRICAO, 'Sem descrição'))          AS DESCRICAO,
           COUNT(*) AS NUMERO_FALHAS,
           SUM(
-            CASE WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
+            (CASE WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
               THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
               ELSE ISNULL(o.HOREXEREA, 0)
-            END
+            END)
+            -- + paradas adicionais (ORDXPAR): janela MAQPAR→MAQFUN, fallback HORINTPARAD
+            + ISNULL((
+                SELECT SUM(CASE WHEN xp.MAQPAR IS NOT NULL AND xp.MAQFUN IS NOT NULL
+                    THEN ABS(DATEDIFF(MINUTE, xp.MAQPAR, xp.MAQFUN)) / 60.0
+                    ELSE ISNULL(xp.HORINTPARAD, 0) END)
+                FROM ORDXPAR xp WHERE xp.CODORD = o.CODORD), 0)
           ) AS HORAS_PARADA,
           SUM(CASE WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL THEN 1 ELSE 0 END) AS COM_CARIMBO
         FROM ORDSERV o

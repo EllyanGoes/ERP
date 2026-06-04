@@ -13,7 +13,8 @@ export interface OsDetalhe {
   comJanela: boolean; // tem carimbo MAQPAR→MAQFUN; senão usa HOREXEREA (estimado)
   inicio: string | null; // ISO (MAQPAR, fallback DATPRO)
   fim: string | null; // ISO (MAQFUN, fallback DATFEC)
-  horas: number; // parada (MAQPAR→MAQFUN ou HOREXEREA)
+  horas: number; // parada total (principal + adicionais ORDXPAR)
+  paradaAdicional: number; // parte vinda das paradas adicionais (ORDXPAR)
   statord: string;
   descricao: string; // Solicitação (ORDSERV.OBS)
   osNumero: string; // nº da O.S. (ORDSERV.TAG) — CODORD é só o "reduzido"
@@ -168,6 +169,35 @@ export async function GET(req: NextRequest) {
         if (rr.SERVICO) e.se.add(rr.SERVICO);
       }
 
+      // Paradas adicionais (ORDXPAR) por OS — somam na parada e viram janelas na timeline.
+      const parAddRes = await pool
+        .request()
+        .input("codApl", sql.Int, codApl)
+        .input("ano", sql.Int, ano)
+        .input("mes", sql.Int, mes)
+        .query<{ CODORD: number; MAQPAR: Date | null; MAQFUN: Date | null; HORAS: number }>(`
+          SELECT xp.CODORD, xp.MAQPAR, xp.MAQFUN,
+            CASE WHEN xp.MAQPAR IS NOT NULL AND xp.MAQFUN IS NOT NULL
+              THEN ABS(DATEDIFF(MINUTE, xp.MAQPAR, xp.MAQFUN)) / 60.0
+              ELSE ISNULL(xp.HORINTPARAD, 0) END AS HORAS
+          FROM ORDXPAR xp
+          WHERE EXISTS (
+            SELECT 1 FROM ORDSERV o
+            WHERE o.CODORD = xp.CODORD AND o.CODAPL = @codApl
+              AND YEAR(o.DATPRO) = @ano AND MONTH(o.DATPRO) = @mes
+          )
+        `);
+      const parAddMap = new Map<number, { horas: number; janelas: { maqpar: Date; maqfun: Date; horas: number }[] }>();
+      for (const p of parAddRes.recordset) {
+        let e = parAddMap.get(p.CODORD);
+        if (!e) {
+          e = { horas: 0, janelas: [] };
+          parAddMap.set(p.CODORD, e);
+        }
+        e.horas += p.HORAS ?? 0;
+        if (p.MAQPAR && p.MAQFUN) e.janelas.push({ maqpar: p.MAQPAR, maqfun: p.MAQFUN, horas: p.HORAS ?? 0 });
+      }
+
       // Janela do mês (para a timeline em %).
       const inicioMes = new Date(Date.UTC(ano, mes - 1, 1));
       const fimMes = new Date(Date.UTC(ano, mes, 1)); // exclusivo
@@ -182,9 +212,12 @@ export async function GET(req: NextRequest) {
 
       for (const r of result.recordset) {
         const comJanela = !!(r.MAQPAR && r.MAQFUN);
-        const horas = comJanela
+        const mainHoras = comJanela
           ? Math.abs((r.MAQFUN!.getTime() - r.MAQPAR!.getTime()) / 3600000)
           : (r.HOREXEREA ?? 0);
+        const add = parAddMap.get(r.CODORD);
+        const paradaAdicional = add?.horas ?? 0;
+        const horas = mainHoras + paradaAdicional;
         const temDefeito = r.TEM_DEFEITO === 1;
         const planejada = r.CODTIPMAN != null ? !corretivos.has(r.CODTIPMAN) : !temDefeito;
         // Desconta = OS de TIPO corretivo (inspeção/preventiva não contam, mesmo com
@@ -201,6 +234,7 @@ export async function GET(req: NextRequest) {
           inicio: iso(r.MAQPAR ?? r.DATPRO),
           fim: iso(r.MAQFUN ?? r.DATFEC),
           horas: round2(horas),
+          paradaAdicional: round2(paradaAdicional),
           statord: r.STATORD ?? "A",
           descricao: stripRtf(r.OBS) || "",
           osNumero: r.OS_NUMERO ?? String(r.CODORD),
@@ -216,8 +250,20 @@ export async function GET(req: NextRequest) {
             tipo: contabilizada ? "naoPlanejada" : "planejada",
             inicioPct: round2(pct(r.MAQPAR!)),
             fimPct: round2(pct(r.MAQFUN!)),
-            horas: round2(horas),
+            horas: round2(mainHoras),
           });
+        }
+        // Janelas das paradas adicionais (ORDXPAR) também entram na timeline.
+        if (add) {
+          for (const j of add.janelas) {
+            segmentos.push({
+              codord: r.CODORD,
+              tipo: contabilizada ? "naoPlanejada" : "planejada",
+              inicioPct: round2(pct(j.maqpar)),
+              fimPct: round2(pct(j.maqfun)),
+              horas: round2(j.horas),
+            });
+          }
         }
       }
 
