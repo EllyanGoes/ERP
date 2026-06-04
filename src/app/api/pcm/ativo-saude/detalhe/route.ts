@@ -9,8 +9,8 @@ export interface OsDetalhe {
   tipo: string; // TIPMANUT.DESCRICAO
   planejada: boolean; // true = tipo NÃO corretivo (não desconta)
   temDefeito: boolean; // REGSERV.CODDEF preenchido
-  contabilizada: boolean; // entra na parada não planejada (regra atual = temDefeito)
-  comJanela: boolean; // tem carimbo MAQPAR→MAQFUN; senão usa HOREXEREA (estimado)
+  contabilizada: boolean; // entra na parada não planejada (regra = tipo corretivo)
+  comJanela: boolean; // tem carimbo de parada MAQPAR→MAQFUN; senão a parada principal fica 0
   inicio: string | null; // ISO (MAQPAR, fallback DATPRO)
   fim: string | null; // ISO (MAQFUN, fallback DATFEC)
   horas: number; // parada total (principal + adicionais ORDXPAR)
@@ -45,7 +45,7 @@ export interface DetalheResponse {
     nFalhas: number; // contagem das contabilizadas
     paradaDemais: number; // soma das NÃO contabilizadas
     nDemais: number;
-    semJanela: number; // contabilizadas sem MAQPAR→MAQFUN (estimadas via HOREXEREA)
+    semJanela: number; // contabilizadas sem carimbo de parada MAQPAR→MAQFUN (parada principal = 0)
   };
   source: "db";
 }
@@ -103,7 +103,6 @@ export async function GET(req: NextRequest) {
           DATFEC: Date | null;
           MAQPAR: Date | null;
           MAQFUN: Date | null;
-          HOREXEREA: number | null;
           STATORD: string | null;
           CODTIPMAN: number | null;
           TIPO: string | null;
@@ -118,7 +117,6 @@ export async function GET(req: NextRequest) {
             o.DATFEC,
             o.MAQPAR,
             o.MAQFUN,
-            ISNULL(o.HOREXEREA, 0) AS HOREXEREA,
             ISNULL(o.STATORD, 'A') AS STATORD,
             o.CODTIPMAN,
             ISNULL(RTRIM(t.DESCRICAO), 'Tipo ' + CAST(ISNULL(o.CODTIPMAN, 0) AS VARCHAR)) AS TIPO,
@@ -212,9 +210,12 @@ export async function GET(req: NextRequest) {
 
       for (const r of result.recordset) {
         const comJanela = !!(r.MAQPAR && r.MAQFUN);
+        // Parada principal = só a janela de máquina parada (MAQPAR→MAQFUN). Sem
+        // carimbo → 0h. NÃO usa HOREXEREA (homem-hora, pode se sobrepor entre
+        // mecânicos e não é tempo de máquina parada). Parada adicional vem do ORDXPAR.
         const mainHoras = comJanela
           ? Math.abs((r.MAQFUN!.getTime() - r.MAQPAR!.getTime()) / 3600000)
-          : (r.HOREXEREA ?? 0);
+          : 0;
         const add = parAddMap.get(r.CODORD);
         const paradaAdicional = add?.horas ?? 0;
         const horas = mainHoras + paradaAdicional;

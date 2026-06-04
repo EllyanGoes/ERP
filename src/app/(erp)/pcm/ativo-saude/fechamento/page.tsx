@@ -211,7 +211,7 @@ export default function FechamentoPage() {
           <button
             type="button"
             onClick={() => setSoRevisar((v) => !v)}
-            title="Mostrar só os ativos cuja parada veio (em parte) de estimativa (HOREXEREA), sem o carimbo MAQPAR→MAQFUN"
+            title="Mostrar só os ativos com falha sem o carimbo de parada MAQPAR→MAQFUN (parada principal entrou como 0h)"
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium border transition-colors",
               soRevisar
@@ -249,10 +249,11 @@ export default function FechamentoPage() {
         <div className="mx-8 mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           <TriangleAlert className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
           <span>
-            A tag <strong>Revisar</strong> indica que a <strong>parada não planejada</strong> foi
-            (parcialmente) <strong>estimada</strong> pelo Engeman via <code>HOREXEREA</code>, sem o
-            carimbo <code>MAQPAR→MAQFUN</code> de parada real — vale conferir o valor antes de fechar
-            o mês. Use o filtro <strong>“Só a revisar”</strong> para ver apenas esses ativos.
+            A tag <strong>Revisar</strong> indica que há <strong>falha sem o carimbo de parada</strong>{" "}
+            <code>MAQPAR→MAQFUN</code> no Engeman — nesse caso a parada principal entra como{" "}
+            <strong>0h</strong> (só contam paradas adicionais, se houver). Vale conferir/preencher
+            antes de fechar o mês. Use o filtro <strong>“Só a revisar”</strong> para ver apenas
+            esses ativos.
           </span>
         </div>
       )}
@@ -345,7 +346,7 @@ export default function FechamentoPage() {
                           <div className="flex justify-end mb-1">
                             <span
                               className="inline-flex items-center gap-1 rounded bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] font-semibold"
-                              title="Parte da parada veio de estimativa (HOREXEREA), não do carimbo MAQPAR→MAQFUN. Confira antes de fechar."
+                              title="Há falha sem o carimbo de parada MAQPAR→MAQFUN — a parada principal entrou como 0h. Confira/preencha antes de fechar."
                             >
                               <TriangleAlert className="w-3 h-3" /> Revisar
                             </span>
@@ -355,7 +356,7 @@ export default function FechamentoPage() {
                           type="number" min={0} step={0.5}
                           value={row.horasParadaNaoPlanejada}
                           disabled={row.fechado || saving}
-                          title={row.temEstimativa ? "Parte da parada veio de estimativa (HOREXEREA), não de carimbo MAQPAR→MAQFUN" : `Engeman: ${numFmt.format(row.engemanParada)} h`}
+                          title={row.temEstimativa ? "Há falha sem o carimbo de parada MAQPAR→MAQFUN (parada principal = 0h)" : `Engeman: ${numFmt.format(row.engemanParada)} h`}
                           onChange={(e) => setCampo(row.codApl, "horasParadaNaoPlanejada", e.target.value === "" ? 0 : Number(e.target.value))}
                           className="w-24 rounded border border-gray-200 px-2 py-1 text-right tabular-nums disabled:bg-gray-50 disabled:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />

@@ -86,8 +86,11 @@ export default function DetalheOs({
           Demais OS (não descontadas): {r.nDemais} · {fmtH(r.paradaDemais)}
         </span>
         {r.semJanela > 0 && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 px-2.5 py-1 font-medium">
-            <TriangleAlert className="w-3 h-3" /> {r.semJanela} sem carimbo (estimadas via HOREXEREA)
+          <span
+            className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 px-2.5 py-1 font-medium"
+            title="Falhas sem o carimbo de parada MAQPAR→MAQFUN. A parada principal entrou como 0h — confira/preencha no Engeman."
+          >
+            <TriangleAlert className="w-3 h-3" /> {r.semJanela} sem carimbo de parada — revisar
           </span>
         )}
         <span className="text-gray-400">
@@ -217,8 +220,11 @@ export default function DetalheOs({
                   <td className="px-2 py-1.5 text-gray-600 tabular-nums whitespace-nowrap">{fmtDT(o.fim)}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums text-gray-700 whitespace-nowrap">
                     {fmtH(o.horas)}
-                    {!o.comJanela && o.horas > 0 && (
-                      <TriangleAlert className="inline w-3 h-3 text-amber-400 ml-1 align-middle" aria-label="estimado (HOREXEREA)" />
+                    {o.contabilizada && !o.comJanela && (
+                      <TriangleAlert
+                        className="inline w-3 h-3 text-amber-400 ml-1 align-middle"
+                        aria-label="sem carimbo de parada (MAQPAR→MAQFUN)"
+                      />
                     )}
                     {o.paradaAdicional > 0 && (
                       <div className="text-[10px] text-gray-400" title="Inclui paradas adicionais do Engeman (ORDXPAR)">

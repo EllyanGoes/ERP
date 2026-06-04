@@ -6,9 +6,9 @@ export interface AgregadoMensalAtivo {
   codApl: number;
   tag: string;
   descricao: string;
-  numeroFalhas: number; // OS corretivas com defeito registrado no mês
-  horasParada: number; // parada não planejada (h)
-  falhasComCarimbo: number; // quantas usaram MAQPAR→MAQFUN (resto = HOREXEREA estimado)
+  numeroFalhas: number; // OS de tipo corretivo no mês
+  horasParada: number; // parada não planejada (h) = janelas de máquina parada
+  falhasComCarimbo: number; // quantas têm carimbo MAQPAR→MAQFUN (resto = sem janela de parada)
 }
 
 /** Dias do mês (mes de 1 a 12). */
@@ -40,12 +40,13 @@ export function calcMttr(horasParada: number, numeroFalhas: number): number | nu
 }
 
 /**
- * Agregado mensal por ativo do Engeman: nº de falhas (OS corretivas com defeito
- * registrado) e horas de parada não planejada (MAQPAR→MAQFUN; fallback HOREXEREA).
- * Mesma definição usada em src/app/api/pcm/indicadores/route.ts (CTE FALHAS), aqui
- * agrupada por CODAPL dentro do mês. Usa EXISTS (em vez de JOIN com REGSERV) para
- * não multiplicar a linha quando a OS tem mais de um defeito. Lança se o Engeman
- * estiver inacessível (o chamador trata como 503).
+ * Agregado mensal por ativo do Engeman: nº de falhas (OS de tipo corretivo,
+ * configurável via pcm_tipos_corretivos) e horas de parada não planejada.
+ * A parada vem SÓ das janelas de máquina parada — principal (MAQPAR→MAQFUN) +
+ * adicionais (ORDXPAR). NÃO usa HOREXEREA: aquilo é homem-hora de mão de obra
+ * (soma dos REGSERV, pode se sobrepor) e não representa tempo de máquina parada.
+ * Sem carimbo de parada, a OS entra com 0h (e é sinalizada para revisão).
+ * Lança se o Engeman estiver inacessível (o chamador trata como 503).
  */
 export async function getAgregadoMensalEngeman(
   ano: number,
@@ -77,9 +78,11 @@ export async function getAgregadoMensalEngeman(
           RTRIM(ISNULL(a.DESCRICAO, 'Sem descrição'))          AS DESCRICAO,
           COUNT(*) AS NUMERO_FALHAS,
           SUM(
+            -- Parada principal = janela de máquina parada (MAQPAR→MAQFUN).
+            -- Sem carimbo → 0h. NÃO usa HOREXEREA (homem-hora, pode se sobrepor).
             (CASE WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
               THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
-              ELSE ISNULL(o.HOREXEREA, 0)
+              ELSE 0
             END)
             -- + paradas adicionais (ORDXPAR), pré-agregadas no LEFT JOIN abaixo
             -- (não dá pra usar subconsulta com SUM dentro de outro SUM no SQL Server)

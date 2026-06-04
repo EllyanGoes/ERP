@@ -30,7 +30,7 @@ export interface FechamentoRow {
   // referência do Engeman (origem / detecção de ajuste)
   engemanFalhas: number;
   engemanParada: number;
-  temEstimativa: boolean; // parada usou fallback HOREXEREA em alguma OS
+  temEstimativa: boolean; // tem falha sem carimbo de parada MAQPAR→MAQFUN (parada principal = 0h)
 }
 
 export interface FechamentoResponse {
