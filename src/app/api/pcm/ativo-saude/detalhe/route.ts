@@ -16,6 +16,8 @@ export interface OsDetalhe {
   horas: number; // parada (MAQPAR→MAQFUN ou HOREXEREA)
   statord: string;
   descricao: string;
+  ocorrencia: string | null; // DEFEITO (REGSERV.CODDEF → DEFEITO.DESCRICAO)
+  causa: string | null; // CAUSA (REGSERV.CODCAU → CAUSA.DESCRICAO)
 }
 
 export interface Segmento {
@@ -115,6 +117,38 @@ export async function GET(req: NextRequest) {
           ORDER BY o.MAQPAR, o.DATPRO
         `);
 
+      // Ocorrência (DEFEITO) e Causa (CAUSA) por OS via REGSERV — uma OS pode ter vários.
+      const regservRes = await pool
+        .request()
+        .input("codApl", sql.Int, codApl)
+        .input("ano", sql.Int, ano)
+        .input("mes", sql.Int, mes)
+        .query<{ CODORD: number; OCORRENCIA: string | null; CAUSA: string | null }>(`
+          SELECT
+            r.CODORD,
+            RTRIM(ISNULL(d.DESCRICAO, '')) AS OCORRENCIA,
+            RTRIM(ISNULL(c.DESCRICAO, '')) AS CAUSA
+          FROM REGSERV r
+          LEFT JOIN DEFEITO d ON d.CODDEF = r.CODDEF
+          LEFT JOIN CAUSA   c ON c.CODCAU = r.CODCAU
+          WHERE r.CODDEF IS NOT NULL
+            AND EXISTS (
+              SELECT 1 FROM ORDSERV o
+              WHERE o.CODORD = r.CODORD AND o.CODAPL = @codApl
+                AND YEAR(o.DATPRO) = @ano AND MONTH(o.DATPRO) = @mes
+            )
+        `);
+      const regMap = new Map<number, { oc: Set<string>; ca: Set<string> }>();
+      for (const rr of regservRes.recordset) {
+        let e = regMap.get(rr.CODORD);
+        if (!e) {
+          e = { oc: new Set<string>(), ca: new Set<string>() };
+          regMap.set(rr.CODORD, e);
+        }
+        if (rr.OCORRENCIA) e.oc.add(rr.OCORRENCIA);
+        if (rr.CAUSA) e.ca.add(rr.CAUSA);
+      }
+
       // Janela do mês (para a timeline em %).
       const inicioMes = new Date(Date.UTC(ano, mes - 1, 1));
       const fimMes = new Date(Date.UTC(ano, mes, 1)); // exclusivo
@@ -150,6 +184,8 @@ export async function GET(req: NextRequest) {
           horas: round2(horas),
           statord: r.STATORD ?? "A",
           descricao: stripRtf(r.OBS) || "Sem descrição",
+          ocorrencia: regMap.get(r.CODORD)?.oc.size ? Array.from(regMap.get(r.CODORD)!.oc).join(" / ") : null,
+          causa: regMap.get(r.CODORD)?.ca.size ? Array.from(regMap.get(r.CODORD)!.ca).join(" / ") : null,
         });
 
         if (comJanela) {

@@ -121,8 +121,11 @@ export default function DetalheOs({
                 OS {hover.codord}
                 {hoverOs ? ` · ${hoverOs.tipo}` : ""} · {fmtH(hover.horas)}
               </div>
-              {hoverOs?.descricao && hoverOs.descricao !== "Sem descrição" && (
-                <div className="text-gray-300 max-w-[260px] truncate">{hoverOs.descricao}</div>
+              {hoverOs?.ocorrencia && (
+                <div className="text-gray-300 max-w-[260px] truncate">Ocorrência: {hoverOs.ocorrencia}</div>
+              )}
+              {hoverOs?.causa && (
+                <div className="text-gray-300 max-w-[260px] truncate">Causa: {hoverOs.causa}</div>
               )}
             </div>
           )}
@@ -144,11 +147,13 @@ export default function DetalheOs({
         <p className="text-xs text-gray-400">Nenhuma OS no Engeman para este ativo no mês.</p>
       ) : (
         <div className="rounded-lg border border-gray-200 overflow-x-auto bg-white">
-          <table className="w-full min-w-[760px] text-xs">
+          <table className="w-full min-w-[1000px] text-xs">
             <thead className="bg-gray-50 text-gray-500 uppercase tracking-wider">
               <tr>
                 <th className="text-left font-medium px-2 py-1.5 w-20">OS</th>
                 <th className="text-left font-medium px-2 py-1.5">Tipo</th>
+                <th className="text-left font-medium px-2 py-1.5">Ocorrência</th>
+                <th className="text-left font-medium px-2 py-1.5">Causa</th>
                 <th className="text-center font-medium px-2 py-1.5 w-32">Classificação</th>
                 <th className="text-left font-medium px-2 py-1.5 w-28">Início</th>
                 <th className="text-left font-medium px-2 py-1.5 w-28">Fim</th>
@@ -161,11 +166,25 @@ export default function DetalheOs({
                 <tr key={o.codord} className={cn(o.contabilizada && "bg-red-50/40")}>
                   <td className="px-2 py-1.5 font-mono text-gray-700">{o.codord}</td>
                   <td className="px-2 py-1.5 text-gray-700">
-                    <div className="truncate max-w-[280px]">{o.tipo}</div>
+                    <div className="truncate max-w-[240px]">{o.tipo}</div>
                     {o.descricao && o.descricao !== "Sem descrição" && (
-                      <div className="text-[10px] text-gray-400 truncate max-w-[280px]" title={o.descricao}>
+                      <div className="text-[10px] text-gray-400 truncate max-w-[240px]" title={o.descricao}>
                         {o.descricao}
                       </div>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 text-gray-600">
+                    {o.ocorrencia ? (
+                      <span className="truncate inline-block max-w-[150px] align-middle" title={o.ocorrencia}>{o.ocorrencia}</span>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 text-gray-600">
+                    {o.causa ? (
+                      <span className="truncate inline-block max-w-[150px] align-middle" title={o.causa}>{o.causa}</span>
+                    ) : (
+                      <span className="text-gray-300">—</span>
                     )}
                   </td>
                   <td className="px-2 py-1.5 text-center">
