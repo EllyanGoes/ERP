@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
+import { getSaldoMateriaisAEntregar } from "@/lib/saldo-materiais";
 import SaldoClientesView, {
   type ClienteComSaldo,
   type ItemPendente,
@@ -104,5 +105,8 @@ export default async function SaldoClientesPage() {
     a.nome.localeCompare(b.nome, "pt-BR"),
   );
 
-  return <SaldoClientesView clientes={clientes} />;
+  // Mesma tela, alternável: visão por material (regra ENTREGUE, formato planilha).
+  const materiais = await getSaldoMateriaisAEntregar();
+
+  return <SaldoClientesView clientes={clientes} materiais={materiais} />;
 }

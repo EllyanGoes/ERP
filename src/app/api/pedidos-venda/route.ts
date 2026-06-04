@@ -18,7 +18,9 @@ export async function GET(req: NextRequest) {
       q ? {
         OR: [
           { numero: { contains: q, mode: "insensitive" } },
+          { numeroOrcamento: { contains: q, mode: "insensitive" } },
           { cliente: { razaoSocial: { contains: q, mode: "insensitive" } } },
+          { minutas: { some: { numeroFisico: { contains: q, mode: "insensitive" } } } },
         ],
       } : {},
       status ? { status } : {},
@@ -30,6 +32,7 @@ export async function GET(req: NextRequest) {
       where,
       include: {
         cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+        minutas: { select: { numeroFisico: true } },
         _count: { select: { minutas: true } },
       },
       orderBy: { createdAt: "desc" },

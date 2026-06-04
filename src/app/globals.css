@@ -64,3 +64,17 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Esconde as setinhas (spinner/stepper) dos inputs numéricos em todo o sistema —
+   elas atrapalham na hora de clicar no campo. Vale para Chrome/Edge/Safari
+   (pseudo-elementos webkit) e Firefox (appearance: textfield). */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

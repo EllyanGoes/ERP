@@ -459,6 +459,7 @@ export default function MinutasPage() {
       const cliente = m.pedidoVenda.cliente;
       return (
         m.numero.toLowerCase().includes(q) ||
+        (m.numeroFisico ?? "").toLowerCase().includes(q) ||
         m.pedidoVenda.numero.toLowerCase().includes(q) ||
         (cliente.nomeFantasia ?? "").toLowerCase().includes(q) ||
         cliente.razaoSocial.toLowerCase().includes(q) ||
@@ -615,7 +616,7 @@ export default function MinutasPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <Input
             className="pl-9 h-9 text-sm"
-            placeholder="Número, pedido, cliente..."
+            placeholder="Número, físico, pedido, cliente..."
             value={filters.search}
             onChange={(e) => updateFilters({ search: e.target.value })}
           />

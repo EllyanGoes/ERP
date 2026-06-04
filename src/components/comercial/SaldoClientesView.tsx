@@ -6,6 +6,8 @@ import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { formatBRL, formatDate } from "@/lib/utils";
+import MateriaisGrid from "@/components/comercial/MateriaisGrid";
+import type { MaterialComSaldo } from "@/lib/saldo-materiais";
 import {
   PackageSearch,
   ChevronDown,
@@ -16,6 +18,8 @@ import {
   Search,
   Calendar,
   CalendarClock,
+  Users,
+  Package,
 } from "lucide-react";
 
 // ── Types (compartilhados com a página server) ─────────────────────────────────
@@ -64,9 +68,16 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export default function SaldoClientesView({ clientes }: { clientes: ClienteComSaldo[] }) {
+export default function SaldoClientesView({
+  clientes,
+  materiais,
+}: {
+  clientes: ClienteComSaldo[];
+  materiais: MaterialComSaldo[];
+}) {
   useTabTitle("Saldo por Cliente");
 
+  const [mode, setMode] = useState<"cliente" | "material">("cliente");
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
@@ -127,32 +138,63 @@ export default function SaldoClientesView({ clientes }: { clientes: ClienteComSa
         breadcrumbs={[{ label: "Comercial" }, { label: "Saldo por Cliente" }]}
       />
 
-      {/* Toolbar: busca + contadores */}
+      {/* Toolbar: alternância de visão + busca + contadores */}
       <div className="px-8 pb-4 flex flex-wrap items-center gap-3">
+        {/* Alternar entre agrupar por Cliente ou por Material */}
+        <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden shrink-0">
+          <button
+            type="button"
+            onClick={() => setMode("cliente")}
+            className={`px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5 ${
+              mode === "cliente"
+                ? "bg-blue-600 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <Users className="w-4 h-4" /> Cliente
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("material")}
+            className={`px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5 border-l border-gray-300 ${
+              mode === "material"
+                ? "bg-blue-600 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <Package className="w-4 h-4" /> Material
+          </button>
+        </div>
         <div className="relative flex-1 min-w-[240px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar cliente, pedido ou orçamento…"
+            placeholder={
+              mode === "cliente"
+                ? "Buscar cliente, pedido ou orçamento…"
+                : "Buscar material, pedido ou cliente…"
+            }
             className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
-        <div className="flex items-center gap-2 text-xs">
-          <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-600 px-2.5 py-1 font-medium">
-            {totals.nClientes} {totals.nClientes === 1 ? "cliente" : "clientes"}
-          </span>
-          <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-600 px-2.5 py-1 font-medium">
-            {totals.nPedidos} {totals.nPedidos === 1 ? "pedido" : "pedidos"}
-          </span>
-          <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2.5 py-1 font-medium">
-            {totals.nItens} {totals.nItens === 1 ? "item pendente" : "itens pendentes"}
-          </span>
-          <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-1 font-semibold">
-            {formatBRL(totals.valorTotal)} a entregar
-          </span>
-        </div>
-        {filtered.length > 1 && (
+        {mode === "cliente" && (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-600 px-2.5 py-1 font-medium">
+              {totals.nClientes} {totals.nClientes === 1 ? "cliente" : "clientes"}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-600 px-2.5 py-1 font-medium">
+              {totals.nPedidos} {totals.nPedidos === 1 ? "pedido" : "pedidos"}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2.5 py-1 font-medium">
+              {totals.nItens} {totals.nItens === 1 ? "item pendente" : "itens pendentes"}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-1 font-semibold">
+              {formatBRL(totals.valorTotal)} a entregar
+            </span>
+          </div>
+        )}
+        {mode === "cliente" && filtered.length > 1 && (
           <Button variant="outline" size="sm" onClick={toggleAll} className="ml-auto">
             {allCollapsed ? (
               <ChevronsUpDown className="w-4 h-4" />
@@ -166,7 +208,9 @@ export default function SaldoClientesView({ clientes }: { clientes: ClienteComSa
 
       {/* Conteúdo */}
       <div className="flex-1 overflow-y-auto px-8 pb-8 space-y-4">
-        {filtered.length === 0 ? (
+        {mode === "material" ? (
+          <MateriaisGrid materiais={materiais} query={query} />
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-3">
               <PackageSearch className="w-7 h-7 text-gray-300" />
