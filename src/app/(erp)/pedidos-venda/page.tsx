@@ -71,16 +71,17 @@ type Filters = {
   view:      "list" | "kanban";
   dateFrom:  string;
   dateTo:    string;
-  groupByDate: boolean;
+  groupBy:   "none" | "date" | "status";
+  semOrcamento: boolean;
 };
 
 function loadFilters(): Filters {
-  if (typeof window === "undefined")
-    return { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "", groupByDate: false };
+  const base: Filters = { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "", groupBy: "none", semOrcamento: false };
+  if (typeof window === "undefined") return base;
   try {
     const raw = localStorage.getItem(FILTER_KEY);
     if (raw) {
-      const f = JSON.parse(raw) as Filters;
+      const f = JSON.parse(raw) as Partial<Filters> & { groupByDate?: boolean };
       return {
         search:   f.search   ?? "",
         statuses: Array.isArray(f.statuses) ? f.statuses : [],
@@ -89,11 +90,12 @@ function loadFilters(): Filters {
         view:     f.view === "kanban" ? "kanban" : "list",
         dateFrom: f.dateFrom ?? "",
         dateTo:   f.dateTo   ?? "",
-        groupByDate: f.groupByDate === true,
+        groupBy:  f.groupBy === "date" || f.groupBy === "status" ? f.groupBy : (f.groupByDate === true ? "date" : "none"),
+        semOrcamento: f.semOrcamento === true,
       };
     }
   } catch {}
-  return { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "", groupByDate: false };
+  return base;
 }
 
 function saveFilters(f: Filters) {
@@ -423,6 +425,7 @@ export default function PedidosVendaPage() {
         if (filters.statusOp === "is"     && !filters.statuses.includes(p.status)) return false;
         if (filters.statusOp === "is_not" &&  filters.statuses.includes(p.status)) return false;
       }
+      if (filters.semOrcamento && (p.numeroOrcamento ?? "").trim() !== "") return false;
       if (filters.dateFrom) {
         if (new Date(p.dataEmissao) < new Date(filters.dateFrom)) return false;
       }
@@ -467,34 +470,43 @@ export default function PedidosVendaPage() {
     [filtered, filters.statuses, filters.statusOp]
   );
 
-  // ── Agrupado por data de emissão (visão lista) ────────────────────────────
-  const dateGroups = useMemo(() => {
+  // ── Agrupado (visão lista) — por data de emissão ou por status ────────────
+  const listGroups = useMemo(() => {
+    if (filters.groupBy === "none") return [];
     const groups: { key: string; label: string; items: PedidoRow[]; total: number }[] = [];
     const index = new Map<string, number>();
-    for (const p of filtered) {
-      const key = p.dataEmissao ? p.dataEmissao.slice(0, 10) : "sem-data";
+    const push = (key: string, label: string, p: PedidoRow) => {
       let gi = index.get(key);
       if (gi === undefined) {
         gi = groups.length;
         index.set(key, gi);
-        groups.push({
-          key,
-          label: p.dataEmissao ? formatDate(p.dataEmissao) : "Sem data",
-          items: [],
-          total: 0,
-        });
+        groups.push({ key, label, items: [], total: 0 });
       }
       groups[gi].items.push(p);
       groups[gi].total += decimalToNumber(p.valorTotal);
-    }
-    // Grupos sempre do mais recente para o mais antigo; "sem data" por último.
-    groups.sort((a, b) =>
-      a.key === "sem-data" ? 1 : b.key === "sem-data" ? -1 : b.key.localeCompare(a.key)
-    );
-    return groups;
-  }, [filtered]);
+    };
 
-  const hasActive = filters.statuses.length > 0 || filters.search || filters.dateFrom || filters.dateTo;
+    if (filters.groupBy === "status") {
+      for (const p of filtered) {
+        const col = STATUS_COLS.find((c) => c.key === p.status);
+        push(p.status || "sem-status", col?.label ?? (p.status || "Sem status"), p);
+      }
+      const ordem = new Map(STATUS_COLS.map((c, i) => [c.key, i]));
+      groups.sort((a, b) => (ordem.get(a.key) ?? 99) - (ordem.get(b.key) ?? 99));
+    } else {
+      for (const p of filtered) {
+        const key = p.dataEmissao ? p.dataEmissao.slice(0, 10) : "sem-data";
+        push(key, p.dataEmissao ? formatDate(p.dataEmissao) : "Sem data", p);
+      }
+      // Mais recente para o mais antigo; "sem data" por último.
+      groups.sort((a, b) =>
+        a.key === "sem-data" ? 1 : b.key === "sem-data" ? -1 : b.key.localeCompare(a.key)
+      );
+    }
+    return groups;
+  }, [filtered, filters.groupBy]);
+
+  const hasActive = filters.statuses.length > 0 || filters.search || filters.dateFrom || filters.dateTo || filters.semOrcamento;
 
   // ── Drag-and-drop handlers ────────────────────────────────────────────────
   async function moveCard(pedidoId: string, newStatus: string) {
@@ -679,10 +691,24 @@ export default function PedidosVendaPage() {
           />
         </div>
 
+        {/* Sem orçamento */}
+        <button
+          onClick={() => updateFilters({ semOrcamento: !filters.semOrcamento })}
+          className={cn(
+            "flex items-center gap-1.5 h-8 px-2.5 text-xs border rounded-md transition-colors whitespace-nowrap",
+            filters.semOrcamento
+              ? "border-amber-300 bg-amber-50 text-amber-700"
+              : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+          )}
+          title="Mostrar só pedidos sem Nº de Orçamento"
+        >
+          Sem orçamento
+        </button>
+
         {/* Limpar tudo */}
         {hasActive && (
           <button
-            onClick={() => updateFilters({ search: "", statuses: [], statusOp: "is", dateFrom: "", dateTo: "" })}
+            onClick={() => updateFilters({ search: "", statuses: [], statusOp: "is", dateFrom: "", dateTo: "", semOrcamento: false })}
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap"
           >
             Limpar tudo
@@ -707,21 +733,23 @@ export default function PedidosVendaPage() {
           </div>
         )}
 
-        {/* Agrupar por data — list only */}
+        {/* Agrupar por — list only */}
         {filters.view === "list" && (
-          <button
-            onClick={() => updateFilters({ groupByDate: !filters.groupByDate })}
+          <select
+            value={filters.groupBy}
+            onChange={(e) => updateFilters({ groupBy: e.target.value as Filters["groupBy"] })}
             className={cn(
-              "flex items-center gap-1.5 h-8 px-2.5 text-xs border rounded-md transition-colors",
-              filters.groupByDate
+              "h-8 px-2.5 pr-7 text-xs border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400",
+              filters.groupBy !== "none"
                 ? "border-blue-300 bg-blue-50 text-blue-700"
-                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                : "border-gray-200 bg-white text-gray-600"
             )}
-            title="Agrupar pedidos por data de emissão"
+            title="Agrupar pedidos"
           >
-            <CalendarDays className="w-3.5 h-3.5" />
-            Agrupar por data
-          </button>
+            <option value="none">Sem agrupar</option>
+            <option value="date">Agrupar por data</option>
+            <option value="status">Agrupar por status</option>
+          </select>
         )}
 
         {/* Column configurator */}
@@ -793,14 +821,18 @@ export default function PedidosVendaPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filters.groupByDate
-                  ? dateGroups.map((g) => (
+                {filters.groupBy !== "none"
+                  ? listGroups.map((g) => (
                       <Fragment key={g.key}>
                         <tr className="bg-gray-50/80">
                           <td colSpan={orderedCols.length} className="px-4 py-2 border-y border-gray-200">
                             <div className="flex items-center justify-between">
                               <span className="flex items-center gap-1.5 font-semibold text-gray-700 text-sm">
-                                <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
+                                {filters.groupBy === "status" ? (
+                                  <span className={cn("w-2 h-2 rounded-full shrink-0", STATUS_COLS.find((c) => c.key === g.key)?.dot ?? "bg-gray-300")} />
+                                ) : (
+                                  <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
+                                )}
                                 {g.label}
                               </span>
                               <span className="text-xs text-gray-400">
