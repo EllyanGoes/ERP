@@ -15,9 +15,12 @@ export interface OsDetalhe {
   fim: string | null; // ISO (MAQFUN, fallback DATFEC)
   horas: number; // parada (MAQPAR→MAQFUN ou HOREXEREA)
   statord: string;
-  descricao: string;
+  descricao: string; // Solicitação (ORDSERV.OBS)
+  osNumero: string; // nº da O.S. (ORDSERV.TAG) — CODORD é só o "reduzido"
+  tipoSigla: string; // sigla do tipo (TIPMANUT.TAG, ex.: CRN)
   ocorrencia: string | null; // DEFEITO (REGSERV.CODDEF → DEFEITO.DESCRICAO)
   causa: string | null; // CAUSA (REGSERV.CODCAU → CAUSA.DESCRICAO)
+  servico: string | null; // serviço executado (REGSERV.DESCRICAO)
 }
 
 export interface Segmento {
@@ -50,9 +53,19 @@ export interface DetalheResponse {
 function stripRtf(input: string | null | undefined): string {
   if (!input) return "";
   if (!input.trim().startsWith("{\\rtf")) return input.trim();
-  let t = input.replace(/\{\\[^{}]*\}/g, "");
-  t = t.replace(/\\[a-zA-Z]+\d*\s?/g, " ");
-  t = t.replace(/[{}]/g, "");
+  let t = input;
+  // Remove grupos de destino SEM texto do usuário (fonttbl, colortbl, *\generator…),
+  // mas preserva o texto que fica dentro de grupos {\plain … texto}.
+  t = t.replace(/\{\\\*[^{}]*\}/g, " ");
+  t = t.replace(/\{\\fonttbl[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/gi, " ");
+  t = t.replace(/\{\\colortbl[^{}]*\}/gi, " ");
+  t = t.replace(/\{\\stylesheet[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/gi, " ");
+  // Decodifica escapes hex \'xx (acentos cp1252: \'c7 = Ç, \'c3 = Ã…).
+  t = t.replace(/\\'([0-9a-fA-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+  // Remove palavras de controle (\word + número opcional + espaço delimitador).
+  t = t.replace(/\\[a-zA-Z]+-?\d* ?/g, "");
+  // Remove chaves restantes e normaliza espaços.
+  t = t.replace(/[{}]/g, " ");
   return t.replace(/\s+/g, " ").trim();
 }
 
@@ -93,6 +106,8 @@ export async function GET(req: NextRequest) {
           STATORD: string | null;
           CODTIPMAN: number | null;
           TIPO: string | null;
+          OS_NUMERO: string | null;
+          TIPO_SIGLA: string | null;
           TEM_DEFEITO: number;
         }>(`
           SELECT
@@ -106,6 +121,8 @@ export async function GET(req: NextRequest) {
             ISNULL(o.STATORD, 'A') AS STATORD,
             o.CODTIPMAN,
             ISNULL(RTRIM(t.DESCRICAO), 'Tipo ' + CAST(ISNULL(o.CODTIPMAN, 0) AS VARCHAR)) AS TIPO,
+            RTRIM(ISNULL(o.TAG, CAST(o.CODORD AS VARCHAR(20)))) AS OS_NUMERO,
+            RTRIM(t.TAG) AS TIPO_SIGLA,
             CASE WHEN EXISTS (SELECT 1 FROM REGSERV r WHERE r.CODORD = o.CODORD AND r.CODDEF IS NOT NULL)
                  THEN 1 ELSE 0 END AS TEM_DEFEITO
           FROM ORDSERV o
@@ -123,11 +140,12 @@ export async function GET(req: NextRequest) {
         .input("codApl", sql.Int, codApl)
         .input("ano", sql.Int, ano)
         .input("mes", sql.Int, mes)
-        .query<{ CODORD: number; OCORRENCIA: string | null; CAUSA: string | null }>(`
+        .query<{ CODORD: number; OCORRENCIA: string | null; CAUSA: string | null; SERVICO: string | null }>(`
           SELECT
             r.CODORD,
             RTRIM(ISNULL(d.DESCRICAO, '')) AS OCORRENCIA,
-            RTRIM(ISNULL(c.DESCRICAO, '')) AS CAUSA
+            RTRIM(ISNULL(c.DESCRICAO, '')) AS CAUSA,
+            RTRIM(ISNULL(r.DESCRICAO, '')) AS SERVICO
           FROM REGSERV r
           LEFT JOIN DEFEITO d ON d.CODDEF = r.CODDEF
           LEFT JOIN CAUSA   c ON c.CODCAU = r.CODCAU
@@ -138,15 +156,16 @@ export async function GET(req: NextRequest) {
                 AND YEAR(o.DATPRO) = @ano AND MONTH(o.DATPRO) = @mes
             )
         `);
-      const regMap = new Map<number, { oc: Set<string>; ca: Set<string> }>();
+      const regMap = new Map<number, { oc: Set<string>; ca: Set<string>; se: Set<string> }>();
       for (const rr of regservRes.recordset) {
         let e = regMap.get(rr.CODORD);
         if (!e) {
-          e = { oc: new Set<string>(), ca: new Set<string>() };
+          e = { oc: new Set<string>(), ca: new Set<string>(), se: new Set<string>() };
           regMap.set(rr.CODORD, e);
         }
         if (rr.OCORRENCIA) e.oc.add(rr.OCORRENCIA);
         if (rr.CAUSA) e.ca.add(rr.CAUSA);
+        if (rr.SERVICO) e.se.add(rr.SERVICO);
       }
 
       // Janela do mês (para a timeline em %).
@@ -183,9 +202,12 @@ export async function GET(req: NextRequest) {
           fim: iso(r.MAQFUN ?? r.DATFEC),
           horas: round2(horas),
           statord: r.STATORD ?? "A",
-          descricao: stripRtf(r.OBS) || "Sem descrição",
+          descricao: stripRtf(r.OBS) || "",
+          osNumero: r.OS_NUMERO ?? String(r.CODORD),
+          tipoSigla: r.TIPO_SIGLA ?? r.TIPO ?? "—",
           ocorrencia: regMap.get(r.CODORD)?.oc.size ? Array.from(regMap.get(r.CODORD)!.oc).join(" / ") : null,
           causa: regMap.get(r.CODORD)?.ca.size ? Array.from(regMap.get(r.CODORD)!.ca).join(" / ") : null,
+          servico: regMap.get(r.CODORD)?.se.size ? Array.from(regMap.get(r.CODORD)!.se).join(" / ") : null,
         });
 
         if (comJanela) {
