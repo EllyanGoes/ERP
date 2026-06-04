@@ -1,5 +1,5 @@
 import sql from "mssql";
-import { getEngemanConfig } from "@/lib/engeman";
+import { getEngemanConfig, getCorretivoCodes, inList } from "@/lib/engeman";
 
 // Agregado mensal de um ativo, vindo do Engeman.
 export interface AgregadoMensalAtivo {
@@ -55,6 +55,9 @@ export async function getAgregadoMensalEngeman(
   const pool = await sql.connect(await getEngemanConfig());
   try {
     const codAplList = codApls && codApls.length > 0 ? codApls.join(",") : null;
+    // "Falha" = OS de TIPO corretivo (configurável via pcm_tipos_corretivos), em vez
+    // de "tem defeito registrado". Inspeção/preventiva deixam de descontar.
+    const corretivosIn = inList(await getCorretivoCodes(pool));
     const result = await pool
       .request()
       .input("ano", sql.Int, ano)
@@ -86,7 +89,7 @@ export async function getAgregadoMensalEngeman(
           AND o.CODFIL NOT IN (0)
           AND YEAR(o.DATPRO) = @ano
           AND MONTH(o.DATPRO) = @mes
-          AND EXISTS (SELECT 1 FROM REGSERV r WHERE r.CODORD = o.CODORD AND r.CODDEF IS NOT NULL)
+          AND o.CODTIPMAN IN ${corretivosIn}
           AND (@codAplList IS NULL OR o.CODAPL IN (SELECT CAST(value AS INT) FROM STRING_SPLIT(@codAplList, ',')))
         GROUP BY o.CODAPL, a.TAG, a.DESCRICAO
       `);

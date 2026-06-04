@@ -134,7 +134,9 @@ export async function GET(req: NextRequest) {
           : (r.HOREXEREA ?? 0);
         const temDefeito = r.TEM_DEFEITO === 1;
         const planejada = r.CODTIPMAN != null ? !corretivos.has(r.CODTIPMAN) : !temDefeito;
-        const contabilizada = temDefeito; // regra atual de "parada não planejada"
+        // Desconta = OS de TIPO corretivo (inspeção/preventiva não contam, mesmo com
+        // defeito). temDefeito segue exposto só como informação na tabela.
+        const contabilizada = !planejada;
 
         os.push({
           codord: r.CODORD,

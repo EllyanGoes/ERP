@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, AlertTriangle, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { DetalheResponse } from "@/app/api/pcm/ativo-saude/detalhe/route";
+import type { DetalheResponse, Segmento } from "@/app/api/pcm/ativo-saude/detalhe/route";
 
 const numFmt = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 const fmtH = (n: number) => `${numFmt.format(n)} h`;
@@ -33,6 +33,7 @@ export default function DetalheOs({
   const [data, setData] = useState<DetalheResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [hover, setHover] = useState<Segmento | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -67,6 +68,7 @@ export default function DetalheOs({
   }
   if (!data) return null;
 
+  const hoverOs = hover ? data.os.find((o) => o.codord === hover.codord) ?? null : null;
   const r = data.resumo;
   const ddMM = (isoStr: string) => {
     const d = new Date(isoStr);
@@ -95,18 +97,35 @@ export default function DetalheOs({
 
       {/* Linha do tempo (estilo MaintainX) */}
       <div>
-        <div className="relative h-7 w-full rounded bg-emerald-500/80 overflow-hidden" title="Verde = Online (operando)">
-          {data.segmentos.map((s, i) => (
+        <div className="relative">
+          <div className="relative h-7 w-full rounded bg-emerald-500/80 overflow-hidden" title="Verde = Online (operando)">
+            {data.segmentos.map((s, i) => (
+              <div
+                key={`${s.codord}-${i}`}
+                onMouseEnter={() => setHover(s)}
+                onMouseLeave={() => setHover((h) => (h === s ? null : h))}
+                className={cn(
+                  "absolute top-0 h-full cursor-pointer",
+                  s.tipo === "naoPlanejada" ? "bg-red-500 hover:bg-red-600" : "bg-amber-400 hover:bg-amber-500",
+                )}
+                style={{ left: `${s.inicioPct}%`, width: `${Math.max(s.fimPct - s.inicioPct, 0.4)}%` }}
+              />
+            ))}
+          </div>
+          {hover && (
             <div
-              key={`${s.codord}-${i}`}
-              className={cn(
-                "absolute top-0 h-full",
-                s.tipo === "naoPlanejada" ? "bg-red-500" : "bg-amber-400",
+              className="absolute z-20 bottom-full mb-1.5 -translate-x-1/2 rounded-md bg-gray-900 text-white text-[11px] px-2 py-1 shadow-lg pointer-events-none"
+              style={{ left: `${Math.min(Math.max((hover.inicioPct + hover.fimPct) / 2, 7), 93)}%` }}
+            >
+              <div className="font-semibold whitespace-nowrap">
+                OS {hover.codord}
+                {hoverOs ? ` · ${hoverOs.tipo}` : ""} · {fmtH(hover.horas)}
+              </div>
+              {hoverOs?.descricao && hoverOs.descricao !== "Sem descrição" && (
+                <div className="text-gray-300 max-w-[260px] truncate">{hoverOs.descricao}</div>
               )}
-              style={{ left: `${s.inicioPct}%`, width: `${Math.max(s.fimPct - s.inicioPct, 0.4)}%` }}
-              title={`OS ${s.codord} — ${s.tipo === "naoPlanejada" ? "Parada não planejada" : "Planejada"}: ${fmtH(s.horas)}`}
-            />
-          ))}
+            </div>
+          )}
         </div>
         <div className="flex justify-between text-[10px] text-gray-400 mt-1">
           <span>{ddMM(data.inicioMes)}</span>
@@ -116,7 +135,7 @@ export default function DetalheOs({
           <Legenda cor="bg-emerald-500/80" texto="Online (operando)" />
           <Legenda cor="bg-red-500" texto="Parada não planejada (desconta)" />
           <Legenda cor="bg-amber-400" texto="Planejada (não desconta)" />
-          <span className="text-gray-400">A timeline usa só OS com carimbo MAQPAR→MAQFUN.</span>
+          <span className="text-gray-400">Passe o mouse nas paradas para ver a OS. A timeline usa só OS com carimbo MAQPAR→MAQFUN.</span>
         </div>
       </div>
 
@@ -142,7 +161,12 @@ export default function DetalheOs({
                 <tr key={o.codord} className={cn(o.contabilizada && "bg-red-50/40")}>
                   <td className="px-2 py-1.5 font-mono text-gray-700">{o.codord}</td>
                   <td className="px-2 py-1.5 text-gray-700">
-                    <span className="truncate inline-block max-w-[220px] align-middle" title={o.descricao}>{o.tipo}</span>
+                    <div className="truncate max-w-[280px]">{o.tipo}</div>
+                    {o.descricao && o.descricao !== "Sem descrição" && (
+                      <div className="text-[10px] text-gray-400 truncate max-w-[280px]" title={o.descricao}>
+                        {o.descricao}
+                      </div>
+                    )}
                   </td>
                   <td className="px-2 py-1.5 text-center">
                     {o.contabilizada ? (

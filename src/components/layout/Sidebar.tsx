@@ -256,6 +256,7 @@ const mainModules: Module[] = [
         items: [
           { href: "/pcm/ativo-saude",            label: "MTBF / MTTR",       icon: Activity },
           { href: "/pcm/ativo-saude/fechamento", label: "Fechamento mensal", icon: ClipboardCheck },
+          { href: "/pcm/ativo-saude/configuracao", label: "Tipos de OS",     icon: Settings2 },
         ],
       },
     ],
