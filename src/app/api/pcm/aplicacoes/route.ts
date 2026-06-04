@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { fetchAtivosTree, countLeaves, type TreeNode } from "@/lib/pcm-ativos";
+import { engemanErrorResponse } from "@/lib/engeman";
 
 // Re-exporta para compatibilidade com quem já importa daqui
 // (pcm/dashboard e pcm/relatorio-mtbf).
@@ -23,10 +24,6 @@ export async function GET() {
       source: "db",
     } satisfies AplicacoesResponse);
   } catch (err) {
-    console.error(
-      "[PCM /api/pcm/aplicacoes] Engeman inacessível:",
-      err instanceof Error ? err.message : err
-    );
-    return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
+    return engemanErrorResponse("PCM /api/pcm/aplicacoes", err);
   }
 }

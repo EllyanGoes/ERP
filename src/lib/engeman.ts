@@ -1,4 +1,5 @@
 import sql from "mssql";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 const ENGEMAN_KEYS = ["db_engeman_host", "db_engeman_name", "db_engeman_user", "db_engeman_password"] as const;
@@ -71,4 +72,31 @@ export async function getCorretivoCodes(pool: sql.ConnectionPool): Promise<numbe
  */
 export function inList(codes: number[]): string {
   return codes.length > 0 ? `(${codes.join(",")})` : "(0)";
+}
+
+/** True se o erro é de CONEXÃO com o Engeman (réplica fora do ar/rede), e não de
+ *  consulta/SQL. Serve para não mascarar bugs de query como "Engeman indisponível". */
+export function isEngemanConnError(err: unknown): boolean {
+  const e = err as { code?: unknown; name?: unknown; message?: unknown } | null;
+  const code = String(e?.code ?? "");
+  const name = String(e?.name ?? "");
+  const msg = String(e?.message ?? "").toLowerCase();
+  return (
+    /ConnectionError|TimeoutError/i.test(name) ||
+    /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|ESOCKET|ECONNRESET|ELOGIN|EHOSTUNREACH|ENETUNREACH|EPIPE/i.test(code) ||
+    /failed to connect|connection (is closed|timeout|refused|lost|reset)|timeout: failed to connect|login failed|getaddrinfo|socket hang up/i.test(msg)
+  );
+}
+
+/** Resposta padronizada das rotas que consultam o Engeman:
+ *  - erro de conexão  → 503 "Engeman indisponível"
+ *  - erro de consulta → 500 "Erro ao consultar o Engeman: <msg>" (não mascara o bug). */
+export function engemanErrorResponse(rota: string, err: unknown): NextResponse {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (isEngemanConnError(err)) {
+    console.error(`[${rota}] Engeman inacessível:`, msg);
+    return NextResponse.json({ error: "Engeman indisponível" }, { status: 503 });
+  }
+  console.error(`[${rota}] erro ao consultar o Engeman:`, msg);
+  return NextResponse.json({ error: `Erro ao consultar o Engeman: ${msg}` }, { status: 500 });
 }

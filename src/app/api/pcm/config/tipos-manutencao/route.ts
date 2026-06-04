@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import sql from "mssql";
 import { prisma } from "@/lib/prisma";
-import { getEngemanConfig, getCorretivoCodes } from "@/lib/engeman";
+import { getEngemanConfig, getCorretivoCodes, engemanErrorResponse } from "@/lib/engeman";
 
 const CHAVE = "pcm_tipos_corretivos";
 
@@ -49,11 +49,7 @@ export async function GET() {
       await pool.close();
     }
   } catch (err) {
-    console.error(
-      "[PCM /api/pcm/config/tipos-manutencao] Engeman inacessível:",
-      err instanceof Error ? err.message : err,
-    );
-    return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
+    return engemanErrorResponse("PCM /api/pcm/config/tipos-manutencao", err);
   }
 }
 

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import sql from "mssql";
-import { getEngemanConfig, getCorretivoCodes } from "@/lib/engeman";
+import { getEngemanConfig, getCorretivoCodes, engemanErrorResponse } from "@/lib/engeman";
 
 export interface OsDetalhe {
   codord: number;
@@ -291,10 +291,6 @@ export async function GET(req: NextRequest) {
       await pool.close();
     }
   } catch (err) {
-    console.error(
-      "[PCM /api/pcm/ativo-saude/detalhe] Engeman inacessível:",
-      err instanceof Error ? err.message : err,
-    );
-    return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
+    return engemanErrorResponse("PCM /api/pcm/ativo-saude/detalhe", err);
   }
 }

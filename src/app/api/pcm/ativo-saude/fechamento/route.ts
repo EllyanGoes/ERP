@@ -10,6 +10,7 @@ import {
   calcMttr,
   type AgregadoMensalAtivo,
 } from "@/lib/pcm-mtbf";
+import { engemanErrorResponse } from "@/lib/engeman";
 
 export interface FechamentoRow {
   codApl: number;
@@ -53,11 +54,7 @@ export async function GET(req: NextRequest) {
   try {
     agregados = await getAgregadoMensalEngeman(ano, mes);
   } catch (err) {
-    console.error(
-      "[PCM /api/pcm/ativo-saude/fechamento] Engeman inacessível:",
-      err instanceof Error ? err.message : err,
-    );
-    return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
+    return engemanErrorResponse("PCM /api/pcm/ativo-saude/fechamento", err);
   }
 
   // 2) Dados locais

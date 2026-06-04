@@ -58,7 +58,8 @@ export default function FechamentoPage() {
         return;
       }
       if (!res.ok) {
-        setErroCarga("Não foi possível carregar os ativos do mês.");
+        const j = await res.json().catch(() => null);
+        setErroCarga(j?.error || "Não foi possível carregar os ativos do mês.");
         setRows([]);
         return;
       }

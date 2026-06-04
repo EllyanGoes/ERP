@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import type { Criticidade } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fetchAtivosTree, type TreeNode } from "@/lib/pcm-ativos";
+import { engemanErrorResponse } from "@/lib/engeman";
 
 // Nó da árvore já com a config local (criticidade + regime). null = não definido.
 export interface AtivoNode {
@@ -72,11 +73,7 @@ export async function GET() {
   try {
     tree = await fetchAtivosTree();
   } catch (err) {
-    console.error(
-      "[PCM /api/pcm/ativos] Engeman inacessível:",
-      err instanceof Error ? err.message : err,
-    );
-    return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
+    return engemanErrorResponse("PCM /api/pcm/ativos", err);
   }
 
   // 2) Config local (criticidade + regime) vem do nosso Postgres (mapas por codApl).
