@@ -28,8 +28,8 @@ export async function getEngemanConfig(overrides?: Partial<sql.config>): Promise
     options: {
       encrypt: false,
       trustServerCertificate: true,
-      connectTimeout: 8000,
-      requestTimeout: 20000,
+      connectTimeout: 20000,
+      requestTimeout: 30000,
     },
     pool: { max: 5, min: 0, idleTimeoutMillis: 30000 },
     ...overrides,

@@ -81,16 +81,21 @@ export async function getAgregadoMensalEngeman(
               THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
               ELSE ISNULL(o.HOREXEREA, 0)
             END)
-            -- + paradas adicionais (ORDXPAR): janela MAQPAR→MAQFUN, fallback HORINTPARAD
-            + ISNULL((
-                SELECT SUM(CASE WHEN xp.MAQPAR IS NOT NULL AND xp.MAQFUN IS NOT NULL
-                    THEN ABS(DATEDIFF(MINUTE, xp.MAQPAR, xp.MAQFUN)) / 60.0
-                    ELSE ISNULL(xp.HORINTPARAD, 0) END)
-                FROM ORDXPAR xp WHERE xp.CODORD = o.CODORD), 0)
+            -- + paradas adicionais (ORDXPAR), pré-agregadas no LEFT JOIN abaixo
+            -- (não dá pra usar subconsulta com SUM dentro de outro SUM no SQL Server)
+            + ISNULL(xpa.H_ADD, 0)
           ) AS HORAS_PARADA,
           SUM(CASE WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL THEN 1 ELSE 0 END) AS COM_CARIMBO
         FROM ORDSERV o
         LEFT JOIN APLIC a ON a.CODAPL = o.CODAPL
+        LEFT JOIN (
+          SELECT xp.CODORD,
+            SUM(CASE WHEN xp.MAQPAR IS NOT NULL AND xp.MAQFUN IS NOT NULL
+              THEN ABS(DATEDIFF(MINUTE, xp.MAQPAR, xp.MAQFUN)) / 60.0
+              ELSE ISNULL(xp.HORINTPARAD, 0) END) AS H_ADD
+          FROM ORDXPAR xp
+          GROUP BY xp.CODORD
+        ) xpa ON xpa.CODORD = o.CODORD
         WHERE o.CODAPL IS NOT NULL
           AND o.CODFIL NOT IN (0)
           AND YEAR(o.DATPRO) = @ano
