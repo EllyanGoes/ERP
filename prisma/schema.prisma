@@ -1179,6 +1179,60 @@ model Usuario {
   ticketsRespondidos SupportTicket[]  @relation("TicketsRespondidos")
 }
 
+// Criticidade (A/B/C) de um ativo do Engeman. Os ativos vivem no Engeman
+// (somente leitura, tabela APLIC); aqui guardamos só a classificação, mapeada
+// pelo CODAPL (chave estável usada em FMEA/indicadores). Sem registro = "não
+// classificado". Alimenta os relatórios futuros focados em criticidade A.
+model AtivoCriticidade {
+  id              String      @id @default(cuid())
+  codApl          Int         @unique
+  criticidade     Criticidade
+  tag             String?
+  descricao       String?
+  classificadoPor String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+// Regime de operação por ativo (horas/dia). Pré-preenche o tempo de funcionamento
+// no fechamento mensal de MTBF (mês = dias do mês × horasPorDia).
+model AtivoRegime {
+  id          String   @id @default(cuid())
+  codApl      Int      @unique
+  horasPorDia Float    @default(24)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Fechamento mensal validado de MTBF/MTTR por ativo. Pré-preenchido do Engeman
+// (falhas, parada não planejada) + regime (funcionamento); o usuário ajusta e
+// "fecha". Só meses fechados entram no relatório oficial "Ativo Saúde".
+model FechamentoMtbf {
+  id                      String    @id @default(cuid())
+  codApl                  Int
+  ano                     Int
+  mes                     Int
+  horasFuncionamento      Float
+  horasParadaNaoPlanejada Float
+  numeroFalhas            Int
+  fechado                 Boolean   @default(false)
+  fechadoPor              String?
+  fechadoEm               DateTime?
+  observacao              String?
+  tag                     String?
+  descricao               String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@unique([codApl, ano, mes])
+}
+
+enum Criticidade {
+  A
+  B
+  C
+}
+
 enum PerfilUsuario {
   ADMIN
   USUARIO

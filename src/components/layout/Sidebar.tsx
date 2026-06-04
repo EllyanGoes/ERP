@@ -245,9 +245,17 @@ const mainModules: Module[] = [
       {
         kind: "Manutenção" as SubSection["kind"],
         items: [
+          { href: "/pcm/ativos",          label: "Ativos",           icon: Factory },
           { href: "/pcm/dashboard",       label: "Resultados",       icon: BarChart3 },
           { href: "/pcm/ordens",          label: "Relatório de O.S.", icon: ClipboardList },
           { href: "/pcm/relatorio-mtbf",  label: "Relatório MTBF",   icon: Activity },
+        ],
+      },
+      {
+        kind: "Ativo Saúde" as SubSection["kind"],
+        items: [
+          { href: "/pcm/ativo-saude",            label: "MTBF / MTTR",       icon: Activity },
+          { href: "/pcm/ativo-saude/fechamento", label: "Fechamento mensal", icon: ClipboardCheck },
         ],
       },
     ],
