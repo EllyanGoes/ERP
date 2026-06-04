@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import CriticidadeBadge from "@/components/pcm/CriticidadeBadge";
+import DetalheOs from "@/components/pcm/DetalheOs";
 import { cn } from "@/lib/utils";
 import {
   RefreshCw,
@@ -13,6 +14,8 @@ import {
   Unlock,
   Save,
   TriangleAlert,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import type { FechamentoRow } from "@/app/api/pcm/ativo-saude/fechamento/route";
 
@@ -40,6 +43,8 @@ export default function FechamentoPage() {
   const [filtro, setFiltro] = useState<Filtro>("all");
   const [savingCodApl, setSavingCodApl] = useState<number | null>(null);
   const [bulk, setBulk] = useState(false);
+  const [soRevisar, setSoRevisar] = useState(false);
+  const [detalhe, setDetalhe] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,13 +76,15 @@ export default function FechamentoPage() {
     load();
   }, [load]);
 
-  const visible = useMemo(
-    () => (filtro === "all" ? rows : rows.filter((r) => r.criticidade === filtro)),
-    [rows, filtro],
-  );
+  const visible = useMemo(() => {
+    let r = filtro === "all" ? rows : rows.filter((x) => x.criticidade === filtro);
+    if (soRevisar) r = r.filter((x) => x.temEstimativa);
+    return r;
+  }, [rows, filtro, soRevisar]);
   const resumo = useMemo(() => {
     const fechados = rows.filter((r) => r.fechado).length;
-    return { total: rows.length, fechados, abertos: rows.length - fechados };
+    const aRevisar = rows.filter((r) => r.temEstimativa).length;
+    return { total: rows.length, fechados, abertos: rows.length - fechados, aRevisar };
   }, [rows]);
 
   function setCampo(
@@ -200,6 +207,20 @@ export default function FechamentoPage() {
               {f === "all" ? "Todos" : <>Criticidade {f}</>}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setSoRevisar((v) => !v)}
+            title="Mostrar só os ativos cuja parada veio (em parte) de estimativa (HOREXEREA), sem o carimbo MAQPAR→MAQFUN"
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium border transition-colors",
+              soRevisar
+                ? "bg-amber-500 text-white border-amber-500"
+                : "bg-white text-amber-700 border-amber-200 hover:bg-amber-50",
+            )}
+          >
+            <TriangleAlert className="w-3.5 h-3.5" /> Só a revisar
+            {resumo.aRevisar > 0 ? ` (${resumo.aRevisar})` : ""}
+          </button>
         </div>
 
         <div className="ml-auto flex items-center gap-2 text-xs text-gray-500">
@@ -219,6 +240,19 @@ export default function FechamentoPage() {
       {erroSalvar && (
         <div className="mx-8 mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {erroSalvar}
+        </div>
+      )}
+
+      {/* Observação sobre o sinal de estimativa */}
+      {!loading && !erroCarga && resumo.aRevisar > 0 && (
+        <div className="mx-8 mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <TriangleAlert className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+          <span>
+            A tag <strong>Revisar</strong> indica que a <strong>parada não planejada</strong> foi
+            (parcialmente) <strong>estimada</strong> pelo Engeman via <code>HOREXEREA</code>, sem o
+            carimbo <code>MAQPAR→MAQFUN</code> de parada real — vale conferir o valor antes de fechar
+            o mês. Use o filtro <strong>“Só a revisar”</strong> para ver apenas esses ativos.
+          </span>
         </div>
       )}
 
@@ -273,10 +307,25 @@ export default function FechamentoPage() {
                   const mttr = calcMttr(row.horasParadaNaoPlanejada, row.numeroFalhas);
                   const saving = savingCodApl === row.codApl || bulk;
                   return (
-                    <tr key={row.codApl} className={cn(row.fechado && "bg-emerald-50/40")}>
+                    <Fragment key={row.codApl}>
+                    <tr
+                      className={cn(row.fechado ? "bg-emerald-50/40" : row.temEstimativa && "bg-amber-50/40")}
+                    >
                       <td className="px-3 py-2">
-                        <div className="text-gray-800 truncate max-w-[280px]" title={row.descricao}>{row.descricao}</div>
-                        <div className="text-[11px] text-gray-400 font-mono">{row.tag}</div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setDetalhe((d) => (d === row.codApl ? null : row.codApl))}
+                            className="text-gray-400 hover:text-gray-600 shrink-0"
+                            title="Ver as OS do Engeman deste ativo no mês"
+                          >
+                            {detalhe === row.codApl ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                          </button>
+                          <div className="min-w-0">
+                            <div className="text-gray-800 truncate max-w-[260px]" title={row.descricao}>{row.descricao}</div>
+                            <div className="text-[11px] text-gray-400 font-mono">{row.tag}</div>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-2 py-2 text-center">
                         {row.criticidade ? <CriticidadeBadge value={row.criticidade} /> : <span className="text-gray-300">—</span>}
@@ -291,22 +340,24 @@ export default function FechamentoPage() {
                         />
                       </td>
                       <td className="px-2 py-2 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {row.temEstimativa && (
-                            <TriangleAlert
-                              className="w-3.5 h-3.5 text-amber-400"
-                              aria-label="estimado"
-                            />
-                          )}
-                          <input
-                            type="number" min={0} step={0.5}
-                            value={row.horasParadaNaoPlanejada}
-                            disabled={row.fechado || saving}
-                            title={row.temEstimativa ? "Parte da parada veio de estimativa (HOREXEREA), não de carimbo MAQPAR→MAQFUN" : `Engeman: ${numFmt.format(row.engemanParada)} h`}
-                            onChange={(e) => setCampo(row.codApl, "horasParadaNaoPlanejada", e.target.value === "" ? 0 : Number(e.target.value))}
-                            className="w-24 rounded border border-gray-200 px-2 py-1 text-right tabular-nums disabled:bg-gray-50 disabled:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                        </div>
+                        {row.temEstimativa && (
+                          <div className="flex justify-end mb-1">
+                            <span
+                              className="inline-flex items-center gap-1 rounded bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] font-semibold"
+                              title="Parte da parada veio de estimativa (HOREXEREA), não do carimbo MAQPAR→MAQFUN. Confira antes de fechar."
+                            >
+                              <TriangleAlert className="w-3 h-3" /> Revisar
+                            </span>
+                          </div>
+                        )}
+                        <input
+                          type="number" min={0} step={0.5}
+                          value={row.horasParadaNaoPlanejada}
+                          disabled={row.fechado || saving}
+                          title={row.temEstimativa ? "Parte da parada veio de estimativa (HOREXEREA), não de carimbo MAQPAR→MAQFUN" : `Engeman: ${numFmt.format(row.engemanParada)} h`}
+                          onChange={(e) => setCampo(row.codApl, "horasParadaNaoPlanejada", e.target.value === "" ? 0 : Number(e.target.value))}
+                          className="w-24 rounded border border-gray-200 px-2 py-1 text-right tabular-nums disabled:bg-gray-50 disabled:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
                       </td>
                       <td className="px-2 py-2 text-right">
                         <input
@@ -356,6 +407,14 @@ export default function FechamentoPage() {
                         </div>
                       </td>
                     </tr>
+                    {detalhe === row.codApl && (
+                      <tr>
+                        <td colSpan={8} className="bg-gray-50/70 px-4 py-3 border-b border-gray-100">
+                          <DetalheOs codApl={row.codApl} ano={ano} mes={mes} />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
               </tbody>
