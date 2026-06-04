@@ -1,0 +1,368 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTabTitle } from "@/lib/tabs-context";
+import PageHeader from "@/components/shared/PageHeader";
+import CriticidadeBadge from "@/components/pcm/CriticidadeBadge";
+import { cn } from "@/lib/utils";
+import {
+  RefreshCw,
+  AlertTriangle,
+  PackageSearch,
+  Lock,
+  Unlock,
+  Save,
+  TriangleAlert,
+} from "lucide-react";
+import type { FechamentoRow } from "@/app/api/pcm/ativo-saude/fechamento/route";
+
+const MESES = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
+const numFmt = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+const fmtH = (n: number | null) => (n === null ? "—" : `${numFmt.format(n)} h`);
+const calcMtbf = (f: number, p: number, n: number) => (n > 0 ? Math.max(f - p, 0) / n : null);
+const calcMttr = (p: number, n: number) => (n > 0 ? p / n : null);
+
+type Filtro = "all" | "A" | "B" | "C";
+
+export default function FechamentoPage() {
+  useTabTitle("Fechamento mensal");
+
+  const now = new Date();
+  const [ano, setAno] = useState(now.getFullYear());
+  const [mes, setMes] = useState(now.getMonth() + 1);
+  const [rows, setRows] = useState<FechamentoRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [erroCarga, setErroCarga] = useState<string | null>(null);
+  const [erroSalvar, setErroSalvar] = useState("");
+  const [filtro, setFiltro] = useState<Filtro>("all");
+  const [savingCodApl, setSavingCodApl] = useState<number | null>(null);
+  const [bulk, setBulk] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErroCarga(null);
+    setErroSalvar("");
+    try {
+      const res = await fetch(`/api/pcm/ativo-saude/fechamento?ano=${ano}&mes=${mes}`);
+      if (res.status === 503) {
+        setErroCarga("Engeman indisponível no momento. Tente novamente.");
+        setRows([]);
+        return;
+      }
+      if (!res.ok) {
+        setErroCarga("Não foi possível carregar os ativos do mês.");
+        setRows([]);
+        return;
+      }
+      const j = await res.json();
+      setRows(j.rows ?? []);
+    } catch {
+      setErroCarga("Erro de conexão ao carregar.");
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [ano, mes]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const visible = useMemo(
+    () => (filtro === "all" ? rows : rows.filter((r) => r.criticidade === filtro)),
+    [rows, filtro],
+  );
+  const resumo = useMemo(() => {
+    const fechados = rows.filter((r) => r.fechado).length;
+    return { total: rows.length, fechados, abertos: rows.length - fechados };
+  }, [rows]);
+
+  function setCampo(
+    codApl: number,
+    campo: "horasFuncionamento" | "horasParadaNaoPlanejada" | "numeroFalhas",
+    valor: number,
+  ) {
+    setRows((rs) => rs.map((r) => (r.codApl === codApl ? { ...r, [campo]: valor } : r)));
+  }
+
+  const salvar = useCallback(
+    async (row: FechamentoRow, fechadoAlvo: boolean) => {
+      setSavingCodApl(row.codApl);
+      setErroSalvar("");
+      try {
+        const res = await fetch("/api/pcm/ativo-saude/fechamento", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            codApl: row.codApl,
+            ano,
+            mes,
+            horasFuncionamento: row.horasFuncionamento,
+            horasParadaNaoPlanejada: row.horasParadaNaoPlanejada,
+            numeroFalhas: row.numeroFalhas,
+            fechado: fechadoAlvo,
+            tag: row.tag,
+            descricao: row.descricao,
+          }),
+        });
+        if (!res.ok) throw new Error();
+        setRows((rs) =>
+          rs.map((r) => (r.codApl === row.codApl ? { ...r, salvo: true, fechado: fechadoAlvo } : r)),
+        );
+      } catch {
+        setErroSalvar(`Não foi possível salvar "${row.tag}". Tente novamente.`);
+      } finally {
+        setSavingCodApl(null);
+      }
+    },
+    [ano, mes],
+  );
+
+  async function fecharTodos() {
+    const abertos = visible.filter((r) => !r.fechado);
+    if (abertos.length === 0) return;
+    setBulk(true);
+    setErroSalvar("");
+    try {
+      await Promise.all(
+        abertos.map((row) =>
+          fetch("/api/pcm/ativo-saude/fechamento", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              codApl: row.codApl,
+              ano,
+              mes,
+              horasFuncionamento: row.horasFuncionamento,
+              horasParadaNaoPlanejada: row.horasParadaNaoPlanejada,
+              numeroFalhas: row.numeroFalhas,
+              fechado: true,
+              tag: row.tag,
+              descricao: row.descricao,
+            }),
+          }),
+        ),
+      );
+      const fechadosIds = new Set(abertos.map((r) => r.codApl));
+      setRows((rs) => rs.map((r) => (fechadosIds.has(r.codApl) ? { ...r, salvo: true, fechado: true } : r)));
+    } catch {
+      setErroSalvar("Alguns fechamentos podem ter falhado. Recarregue para conferir.");
+    } finally {
+      setBulk(false);
+    }
+  }
+
+  const anos = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2];
+
+  return (
+    <div className="flex flex-col h-full">
+      <PageHeader
+        title="Fechamento mensal"
+        subtitle="Confira e ajuste funcionamento, parada não planejada e nº de falhas (pré-preenchidos do Engeman) e feche o mês. Só meses fechados entram no relatório de MTBF/MTTR."
+        breadcrumbs={[{ label: "PCM" }, { label: "Ativo Saúde" }, { label: "Fechamento mensal" }]}
+      />
+
+      {/* Toolbar: competência + filtro + ações */}
+      <div className="px-8 pb-3 flex flex-wrap items-center gap-3">
+        <select
+          value={mes}
+          onChange={(e) => setMes(Number(e.target.value))}
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {MESES.map((m, i) => (
+            <option key={m} value={i + 1}>{m}</option>
+          ))}
+        </select>
+        <select
+          value={ano}
+          onChange={(e) => setAno(Number(e.target.value))}
+          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {anos.map((a) => (
+            <option key={a} value={a}>{a}</option>
+          ))}
+        </select>
+
+        <div className="flex items-center gap-1.5">
+          {(["all", "A", "B", "C"] as Filtro[]).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFiltro(f)}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium border transition-colors",
+                filtro === f ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50",
+              )}
+            >
+              {f === "all" ? "Todos" : <>Criticidade {f}</>}
+            </button>
+          ))}
+        </div>
+
+        <div className="ml-auto flex items-center gap-2 text-xs text-gray-500">
+          <span>{resumo.fechados}/{resumo.total} fechados</span>
+          <button
+            type="button"
+            onClick={fecharTodos}
+            disabled={bulk || loading || visible.every((r) => r.fechado)}
+            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
+          >
+            {bulk ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+            Fechar todos (visíveis)
+          </button>
+        </div>
+      </div>
+
+      {erroSalvar && (
+        <div className="mx-8 mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {erroSalvar}
+        </div>
+      )}
+
+      {/* Conteúdo */}
+      <div className="flex-1 overflow-y-auto px-8 pb-8">
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-gray-400 gap-2 text-sm">
+            <RefreshCw className="w-4 h-4 animate-spin" /> Carregando…
+          </div>
+        ) : erroCarga ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mb-3">
+              <AlertTriangle className="w-7 h-7 text-amber-400" />
+            </div>
+            <p className="text-sm font-medium text-gray-700">{erroCarga}</p>
+            <button
+              type="button"
+              onClick={load}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              <RefreshCw className="w-4 h-4" /> Tentar novamente
+            </button>
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+              <PackageSearch className="w-7 h-7 text-gray-300" />
+            </div>
+            <p className="text-sm font-medium text-gray-700">Nenhum ativo neste mês</p>
+            <p className="text-xs text-gray-400 mt-1">
+              Sem falhas registradas no Engeman em {MESES[mes - 1]}/{ano} para o filtro atual.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-x-auto">
+            <table className="w-full min-w-[920px] text-sm">
+              <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+                <tr>
+                  <th className="text-left font-medium px-3 py-2">Ativo</th>
+                  <th className="text-center font-medium px-2 py-2 w-12">Crit.</th>
+                  <th className="text-right font-medium px-2 py-2 w-32">Funcionamento (h)</th>
+                  <th className="text-right font-medium px-2 py-2 w-32">Parada não planej. (h)</th>
+                  <th className="text-right font-medium px-2 py-2 w-24">Nº falhas</th>
+                  <th className="text-right font-medium px-2 py-2 w-24">MTBF</th>
+                  <th className="text-right font-medium px-2 py-2 w-24">MTTR</th>
+                  <th className="text-right font-medium px-3 py-2 w-44">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {visible.map((row) => {
+                  const mtbf = calcMtbf(row.horasFuncionamento, row.horasParadaNaoPlanejada, row.numeroFalhas);
+                  const mttr = calcMttr(row.horasParadaNaoPlanejada, row.numeroFalhas);
+                  const saving = savingCodApl === row.codApl || bulk;
+                  return (
+                    <tr key={row.codApl} className={cn(row.fechado && "bg-emerald-50/40")}>
+                      <td className="px-3 py-2">
+                        <div className="text-gray-800 truncate max-w-[280px]" title={row.descricao}>{row.descricao}</div>
+                        <div className="text-[11px] text-gray-400 font-mono">{row.tag}</div>
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        {row.criticidade ? <CriticidadeBadge value={row.criticidade} /> : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-2 py-2 text-right">
+                        <input
+                          type="number" min={0} step={1}
+                          value={row.horasFuncionamento}
+                          disabled={row.fechado || saving}
+                          onChange={(e) => setCampo(row.codApl, "horasFuncionamento", e.target.value === "" ? 0 : Number(e.target.value))}
+                          className="w-24 rounded border border-gray-200 px-2 py-1 text-right tabular-nums disabled:bg-gray-50 disabled:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="px-2 py-2 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {row.temEstimativa && (
+                            <TriangleAlert
+                              className="w-3.5 h-3.5 text-amber-400"
+                              aria-label="estimado"
+                            />
+                          )}
+                          <input
+                            type="number" min={0} step={0.5}
+                            value={row.horasParadaNaoPlanejada}
+                            disabled={row.fechado || saving}
+                            title={row.temEstimativa ? "Parte da parada veio de estimativa (HOREXEREA), não de carimbo MAQPAR→MAQFUN" : `Engeman: ${numFmt.format(row.engemanParada)} h`}
+                            onChange={(e) => setCampo(row.codApl, "horasParadaNaoPlanejada", e.target.value === "" ? 0 : Number(e.target.value))}
+                            className="w-24 rounded border border-gray-200 px-2 py-1 text-right tabular-nums disabled:bg-gray-50 disabled:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 text-right">
+                        <input
+                          type="number" min={0} step={1}
+                          value={row.numeroFalhas}
+                          disabled={row.fechado || saving}
+                          title={`Engeman: ${row.engemanFalhas}`}
+                          onChange={(e) => setCampo(row.codApl, "numeroFalhas", e.target.value === "" ? 0 : Number(e.target.value))}
+                          className="w-16 rounded border border-gray-200 px-2 py-1 text-right tabular-nums disabled:bg-gray-50 disabled:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="px-2 py-2 text-right tabular-nums font-semibold text-blue-700">{fmtH(mtbf)}</td>
+                      <td className="px-2 py-2 text-right tabular-nums font-semibold text-gray-700">{fmtH(mttr)}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {row.fechado ? (
+                            <>
+                              <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-medium">
+                                <Lock className="w-3.5 h-3.5" /> Fechado
+                              </span>
+                              <button
+                                type="button" disabled={saving}
+                                onClick={() => salvar(row, false)}
+                                className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                              >
+                                <Unlock className="w-3.5 h-3.5" /> Reabrir
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button" disabled={saving}
+                                onClick={() => salvar(row, false)}
+                                className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                              >
+                                {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Salvar
+                              </button>
+                              <button
+                                type="button" disabled={saving}
+                                onClick={() => salvar(row, true)}
+                                className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
+                              >
+                                <Lock className="w-3.5 h-3.5" /> Fechar
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
