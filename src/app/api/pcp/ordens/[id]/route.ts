@@ -15,6 +15,13 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       fluxoVersao: { select: { versao: true, fluxo: { select: { id: true, nome: true } } } },
       etapas: { orderBy: { sequencia: "asc" } },
       consumos: { orderBy: { data: "desc" } },
+      movimentacoes: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true, tipo: true, quantidade: true, saldoDepois: true, observacoes: true, createdAt: true,
+          item: { select: { codigo: true, descricao: true } },
+        },
+      },
     },
   });
   if (!ordem) return NextResponse.json({ error: "Ordem não encontrada" }, { status: 404 });

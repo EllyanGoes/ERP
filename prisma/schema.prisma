@@ -780,6 +780,7 @@ model MovimentacaoEstoque {
   observacoes       String?
   criadoPor         String?
   pedidoVendaItemId String?
+  ordemProducaoId   String?
   createdAt         DateTime                @default(now())
   conferenciaItemId String?
   localEstoqueId    String?
@@ -791,12 +792,14 @@ model MovimentacaoEstoque {
   localEstoque      LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
   lote              LoteMovimentacao?       @relation(fields: [loteId], references: [id])
   pedidoVendaItem   PedidoVendaItem?        @relation(fields: [pedidoVendaItemId], references: [id])
+  ordemProducao     OrdemProducao?          @relation(fields: [ordemProducaoId], references: [id])
   unidade           Unidade?                @relation(fields: [unidadeId], references: [id])
 
   @@index([createdAt])
   @@index([itemId])
   @@index([loteId])
   @@index([tipo])
+  @@index([ordemProducaoId])
 }
 
 model MovimentacaoComodato {
@@ -1349,6 +1352,7 @@ model OrdemProducao {
   fluxoVersao         FluxoProducaoVersao @relation(fields: [fluxoVersaoId], references: [id])
   etapas              ItemOrdemProducao[]
   consumos            ConsumoBiomassa[]
+  movimentacoes       MovimentacaoEstoque[]
 
   @@index([status])
   @@index([itemId])

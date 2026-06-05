@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, RefreshCw, Flame, Play, CheckCircle2, Ban, Send, AlertTriangle } from "lucide-react";
+import { ArrowLeft, RefreshCw, Flame, Play, CheckCircle2, Ban, Send, AlertTriangle, ArrowLeftRight } from "lucide-react";
 
 interface Etapa {
   id: string;
@@ -23,6 +23,7 @@ interface Etapa {
   apontadoPor: string | null;
 }
 interface Consumo { id: string; descricao: string | null; quantidadeKg: string | number; milheirosProduzidos: string | number | null; data: string; }
+interface Movimento { id: string; tipo: string; quantidade: string | number; saldoDepois: string | number; observacoes: string | null; createdAt: string; item: { codigo: string; descricao: string } | null; }
 interface Ordem {
   id: string; numero: string; status: string; estadoAtual: string;
   quantidadePlanejada: string | number; unidade: string | null;
@@ -30,6 +31,7 @@ interface Ordem {
   fluxoVersao: { versao: number; fluxo: { nome: string } } | null;
   etapas: Etapa[];
   consumos: Consumo[];
+  movimentacoes: Movimento[];
 }
 
 const STATUS_OP: Record<string, { label: string; cls: string }> = {
@@ -232,6 +234,28 @@ export default function OrdemDetalhePage() {
                 <div key={c.id} className="flex items-center justify-between text-sm text-gray-600">
                   <span>{c.descricao ?? "Caroço de açaí"}</span>
                   <span className="tabular-nums">{Number(c.quantidadeKg)} kg{c.milheirosProduzidos ? ` · ${(Number(c.quantidadeKg) / Number(c.milheirosProduzidos)).toFixed(1)} kg/milheiro` : ""}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Movimentações de WIP no estoque */}
+        {ordem.movimentacoes.length > 0 && (
+          <div className="rounded-xl border border-gray-200 bg-white p-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
+              <ArrowLeftRight className="w-3.5 h-3.5 text-cyan-500" /> Movimentações de estoque (WIP)
+            </p>
+            <div className="space-y-1">
+              {ordem.movimentacoes.map((m) => (
+                <div key={m.id} className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className={cn("inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold", m.tipo === "ENTRADA" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-600")}>
+                      {m.tipo === "ENTRADA" ? "entra" : "sai"}
+                    </span>
+                    <span className="text-gray-600 truncate">{m.item?.descricao ?? "—"}</span>
+                  </span>
+                  <span className="tabular-nums text-gray-500 shrink-0">{Number(m.quantidade)} → saldo {Number(m.saldoDepois)}</span>
                 </div>
               ))}
             </div>

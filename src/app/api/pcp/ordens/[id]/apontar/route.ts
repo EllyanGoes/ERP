@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma, StatusEtapaOP, StatusOrdemProducao } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getOrCreateLocalProducao, getOrCreateWipItem, getOrCreateLoteProducao, postMovimento } from "@/lib/pcp/wip-estoque";
 
 function numOrNull(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -54,6 +55,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const biomassaKg = numOrNull(body.biomassaKg);
   const milheiros = numOrNull(body.milheirosProduzidos);
 
+  // Concluindo uma transição de estado agora? → dispara movimentação de WIP no estoque.
+  const jaConcluida = etapa.status === "CONCLUIDA";
+  const concluindoAgora = novoStatus === "CONCLUIDA" && !jaConcluida;
+  const qtdSaidaNum = numOrNull(body.qtdSaida);
+  const qtdEntradaNum = numOrNull(body.qtdEntrada);
+
   await prisma.$transaction(async (tx) => {
     await tx.itemOrdemProducao.update({ where: { id: etapaId }, data: upd });
 
@@ -70,8 +77,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
     }
 
-    // Recalcula status/estado da ordem (sem mexer em ordens canceladas)
-    const ordem = await tx.ordemProducao.findUnique({ where: { id: params.id }, select: { status: true } });
+    const ordem = await tx.ordemProducao.findUnique({
+      where: { id: params.id },
+      select: {
+        status: true,
+        numero: true,
+        itemId: true,
+        item: { select: { codigo: true, descricao: true } },
+        fluxoVersao: { select: { fluxo: { select: { nome: true } } } },
+      },
+    });
     if (!ordem || ordem.status === "CANCELADA") return;
 
     const etapas = await tx.itemOrdemProducao.findMany({
@@ -79,17 +94,56 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       select: { status: true, estadoSaida: true, sequencia: true },
       orderBy: { sequencia: "asc" },
     });
+
+    // ── Movimentação de WIP no estoque (baixa do estágio anterior + entrada no próximo) ──
+    if (concluindoAgora && etapa.estadoSaida && qtdSaidaNum != null && qtdSaidaNum > 0) {
+      const base = ordem.item
+        ? { codigo: ordem.item.codigo, descricao: ordem.item.descricao }
+        : { codigo: ordem.numero, descricao: ordem.fluxoVersao?.fluxo?.nome ?? ordem.numero };
+      const localId = await getOrCreateLocalProducao(tx);
+      const toEstado = etapa.estadoSaida;
+      const anteriores = etapas.filter((e) => e.sequencia < etapa.sequencia && e.estadoSaida);
+      const fromEstado = anteriores.length ? anteriores[anteriores.length - 1].estadoSaida : null;
+      const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Produção ${ordem.numero} — ${etapa.nome}`);
+
+      // Destino: item acabado real (se houver) quando ACABADO; senão item de WIP do estado.
+      const destItemId =
+        toEstado === "ACABADO" && ordem.itemId ? ordem.itemId : await getOrCreateWipItem(tx, base, toEstado);
+
+      if (fromEstado) {
+        const srcItemId = await getOrCreateWipItem(tx, base, fromEstado);
+        await postMovimento(tx, {
+          itemId: srcItemId,
+          localEstoqueId: localId,
+          tipo: "SAIDA",
+          quantidade: qtdEntradaNum ?? qtdSaidaNum,
+          ordemProducaoId: params.id,
+          documento: ordem.numero,
+          observacoes: `Consumo WIP ${fromEstado} — ${etapa.nome}`,
+          loteId,
+        });
+      }
+      await postMovimento(tx, {
+        itemId: destItemId,
+        localEstoqueId: localId,
+        tipo: "ENTRADA",
+        quantidade: qtdSaidaNum,
+        ordemProducaoId: params.id,
+        documento: ordem.numero,
+        observacoes: `Produção ${toEstado} — ${etapa.nome}`,
+        loteId,
+      });
+    }
+
+    // ── Recalcula status/estado da ordem ──
     const todasConcluidas = etapas.length > 0 && etapas.every((e) => e.status === "CONCLUIDA");
     const algumaIniciada = etapas.some((e) => e.status !== "PENDENTE");
-
     const opData: { status?: StatusOrdemProducao; estadoAtual?: NonNullable<typeof etapa.estadoSaida> } = {};
     if (todasConcluidas) opData.status = "CONCLUIDA";
     else if (algumaIniciada) opData.status = "EM_PRODUCAO";
-
     const concluidas = etapas.filter((e) => e.status === "CONCLUIDA");
     const ultima = concluidas[concluidas.length - 1];
     if (ultima?.estadoSaida) opData.estadoAtual = ultima.estadoSaida;
-
     if (Object.keys(opData).length) {
       await tx.ordemProducao.update({ where: { id: params.id }, data: opData });
     }
