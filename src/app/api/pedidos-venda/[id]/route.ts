@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth";
 import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
-import { generateDocNumber } from "@/lib/utils";
 import { recalcPedidoValorTotal, getItensPendentesEntrega } from "@/lib/pedido-totais";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -64,7 +64,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   // Comodato (saída) editado como rascunho: linhas com `id` já existem (update),
   // sem `id` são novas (create), e as que sumiram são removidas. Lido do corpo
   // bruto porque o schema do pedido descarta chaves desconhecidas.
-  const comodatoRaw: any[] = Array.isArray(body.comodato) ? body.comodato : [];
+  const comodatoRaw: Array<Record<string, unknown>> = Array.isArray(body.comodato) ? body.comodato : [];
   const comodato = comodatoRaw
     .filter((c) => c && typeof c.itemId === "string" && c.itemId && Number(c.quantidade) > 0)
     .map((c) => ({
@@ -269,7 +269,46 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ data: pedido });
 }
 
+// Exclusão DEFINITIVA do pedido — restrita ao perfil ADMIN. Diferente de
+// cancelar (que só muda o status para CANCELADO), aqui o lançamento é removido
+// do banco. Bloqueia quando há minutas (entregas) ou contas a receber
+// vinculadas, para não corromper logística/financeiro. Os itens do pedido
+// saem em cascata (onDelete: Cascade); movimentações ficam com o vínculo nulo.
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
-  await prisma.pedidoVenda.update({ where: { id: params.id }, data: { status: "CANCELADO" } });
+  const auth = await requireSession();
+  if (!auth.ok) return auth.response;
+  if (auth.session.perfil !== "ADMIN") {
+    return NextResponse.json({ error: "Apenas administradores podem excluir pedidos de venda." }, { status: 403 });
+  }
+
+  const pedido = await prisma.pedidoVenda.findUnique({
+    where: { id: params.id },
+    select: { numero: true, _count: { select: { minutas: true, contasReceber: true } } },
+  });
+  if (!pedido) return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
+
+  const bloqueios: string[] = [];
+  if (pedido._count.minutas > 0) bloqueios.push(`${pedido._count.minutas} minuta(s) de entrega`);
+  if (pedido._count.contasReceber > 0) bloqueios.push(`${pedido._count.contasReceber} conta(s) a receber`);
+  if (bloqueios.length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          `Não é possível excluir o pedido ${pedido.numero}: há ` +
+          bloqueios.join(" e ") +
+          " vinculada(s). Remova esses registros (ou apenas cancele o pedido) antes de excluir.",
+      },
+      { status: 409 },
+    );
+  }
+
+  try {
+    await prisma.pedidoVenda.delete({ where: { id: params.id } });
+  } catch {
+    return NextResponse.json(
+      { error: "Não foi possível excluir o pedido — há registros vinculados (minutas, financeiro ou comodato)." },
+      { status: 409 },
+    );
+  }
   return NextResponse.json({ data: { ok: true } });
 }
