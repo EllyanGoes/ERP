@@ -1,0 +1,95 @@
+// Tipos compartilhados do editor de fluxo de produção (PCP).
+// O grafo é a fonte de verdade (salvo em FluxoProducaoVersao.grafo como JSONB);
+// estes tipos descrevem o shape de {nodes, edges} do React Flow + a config por nó.
+
+import type { EstadoWIP } from "@prisma/client";
+
+export type NodeKind =
+  | "ESTOQUE_INSUMO" // estoque de MP / insumo (caroço de açaí, caco, água, pallets, fita PET)
+  | "OPERACAO"       // etapa produtiva em um centro de trabalho
+  | "TRANSPORTE"     // movimentação por vagoneta/vagão
+  | "BUFFER_WIP"     // pulmão de WIP (úmido/seco/queimado)
+  | "INSPECAO"       // ponto de qualidade
+  | "ESTOCAGEM_PA";  // estoque de produto acabado
+
+export const NODE_KINDS: NodeKind[] = [
+  "ESTOQUE_INSUMO",
+  "OPERACAO",
+  "TRANSPORTE",
+  "BUFFER_WIP",
+  "INSPECAO",
+  "ESTOCAGEM_PA",
+];
+
+export interface InsumoVinculo {
+  itemId: string;
+  descricao?: string;
+  consumoPorMilheiro?: number | null;
+}
+
+// Config por nó — todos os campos opcionais; o painel renderiza por `kind`.
+// A index signature mantém compatibilidade com o `data: Record<string, unknown>`
+// exigido pelo React Flow (xyflow) v12 nos nós custom.
+export interface FlowNodeData {
+  [key: string]: unknown;
+  kind: NodeKind;
+  label: string;
+  // estoque/insumo & produto acabado
+  itemId?: string | null;
+  itemDescricao?: string | null;
+  localEstoqueId?: string | null;
+  // operação / transporte / inspeção
+  centroTrabalhoId?: string | null;
+  centroTrabalhoNome?: string | null;
+  setupMin?: number | null;
+  tempoCicloSeg?: number | null;
+  capacidade?: number | null;
+  unidadeCapacidade?: string | null;
+  perdaPct?: number | null;
+  // buffer de WIP
+  estadoWip?: EstadoWIP | null;
+  // janela / curva (secagem e queima)
+  janelaMinH?: number | null;
+  janelaMaxH?: number | null;
+  loteVagao?: number | null;
+  loteVagoneta?: number | null;
+  // insumos vinculados à etapa (água, caco, biomassa, argila)
+  insumos?: InsumoVinculo[];
+  // marcação calculada pelo validador (não persiste como verdade)
+  isBottleneck?: boolean;
+}
+
+export interface FlowNode {
+  id: string;
+  type: string; // = kind (registrado em nodeTypes do React Flow)
+  position: { x: number; y: number };
+  data: FlowNodeData;
+}
+
+export interface FlowEdge {
+  id: string;
+  source: string;
+  target: string;
+}
+
+export interface FlowGraph {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+}
+
+export const KIND_LABEL: Record<NodeKind, string> = {
+  ESTOQUE_INSUMO: "Estoque / Insumo",
+  OPERACAO: "Operação",
+  TRANSPORTE: "Transporte",
+  BUFFER_WIP: "Buffer de WIP",
+  INSPECAO: "Inspeção",
+  ESTOCAGEM_PA: "Produto Acabado",
+};
+
+// Nós que podem ser fonte (sem entrada) ou sink (sem saída) sem virar "órfão".
+export const SOURCE_KINDS: NodeKind[] = ["ESTOQUE_INSUMO"];
+export const SINK_KINDS: NodeKind[] = ["ESTOCAGEM_PA"];
+
+export function emptyGraph(): FlowGraph {
+  return { nodes: [], edges: [] };
+}

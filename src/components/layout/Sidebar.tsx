@@ -49,6 +49,8 @@ import {
   Plug,
   ThumbsUp,
   Factory,
+  Workflow,
+  Boxes,
   Wrench,
   Users2,
   Layers,
@@ -79,7 +81,7 @@ interface NavItem {
 }
 
 interface SubSection {
-  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações" | "Aprovações" | "Manutenção" | "Geral";
+  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações" | "Aprovações" | "Manutenção" | "Geral" | "Produção";
   items: NavItem[];
 }
 
@@ -261,6 +263,20 @@ const mainModules: Module[] = [
       },
     ],
   },
+  {
+    id: "pcp",
+    label: "PCP",
+    icon: Factory,
+    sections: [
+      {
+        kind: "Produção" as SubSection["kind"],
+        items: [
+          { href: "/pcp/fluxos",           label: "Fluxos de Produção",  icon: Workflow },
+          { href: "/pcp/centros-trabalho", label: "Centros de Trabalho", icon: Boxes },
+        ],
+      },
+    ],
+  },
 ];
 
 const adminModule: Module = {
@@ -297,7 +313,6 @@ const allModules = [...mainModules, adminModule, configModule];
 
 // ── Future modules (strip-only, no panel, disabled) ───────────────────────────
 const futureModules: { id: string; label: string; icon: LucideIcon }[] = [
-  { id: "pcp",             label: "PCP — Planejamento e Controle de Produção",  icon: Factory },
   { id: "gestao-pessoas",  label: "Gestão de Pessoas",                           icon: Users2  },
 ];
 
@@ -333,6 +348,7 @@ const kindStyle: Record<SubSection["kind"], string> = {
   Configurações:      "text-purple-500",
   "Aprovações":       "text-emerald-600",
   "Manutenção":       "text-orange-500",
+  "Produção":         "text-cyan-500",
 };
 
 // ── Tooltip wrapper (portal-based) ────────────────────────────────────────────

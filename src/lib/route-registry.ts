@@ -21,7 +21,7 @@ import {
   UserCog, ShieldCheck,
   Settings2, Plug,
   Building2, Clock,
-  Wrench, Database, MessageCircle,
+  Wrench, Database, MessageCircle, Workflow, Boxes,
   Landmark, Wallet, FolderTree, Repeat, CalendarClock, FileCheck2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -50,6 +50,7 @@ export const SECTION_COLORS: Record<string, IconColor> = {
   "Compras":            { bg: "bg-amber-50",   text: "text-amber-600",   selBg: "bg-amber-100",   selText: "text-amber-700"   },
   "Cadastros":          { bg: "bg-violet-50",  text: "text-violet-600",  selBg: "bg-violet-100",  selText: "text-violet-700"  },
   "Relatórios Compras": { bg: "bg-rose-50",    text: "text-rose-600",    selBg: "bg-rose-100",    selText: "text-rose-700"    },
+  "Produção":           { bg: "bg-cyan-50",    text: "text-cyan-600",    selBg: "bg-cyan-100",    selText: "text-cyan-700"     },
 };
 
 export const DEFAULT_COLOR: IconColor = {
@@ -132,6 +133,9 @@ export const ROUTES: RouteEntry[] = [
   { href: "/pcm/dashboard",                        label: "PCM — Resultados",        group: "PCM",            section: "Manutenção",       icon: BarChart3,      keywords: "pcm manutenção resultados dashboard" },
   { href: "/pcm/ordens",                           label: "Relatório de O.S.",       group: "PCM",            section: "Manutenção",       icon: ClipboardList,  keywords: "pcm ordens serviço OS manutenção" },
   { href: "/pcm/relatorio-mtbf",                   label: "Relatório MTBF",          group: "PCM",            section: "Manutenção",       icon: Activity,       keywords: "pcm mtbf tempo médio falhas" },
+
+  { href: "/pcp/fluxos",                           label: "Fluxos de Produção",      group: "PCP",            section: "Produção",         icon: Workflow,       keywords: "pcp produção fluxo roteiro editor n8n" },
+  { href: "/pcp/centros-trabalho",                 label: "Centros de Trabalho",     group: "PCP",            section: "Produção",         icon: Boxes,          keywords: "pcp centro trabalho recurso forno secagem" },
 
   { href: "/configuracoes/aprovacoes",             label: "Aprovações",              group: "Configurações",  section: "Configurações",    icon: Settings2 },
   { href: "/configuracoes/integracoes",            label: "Integrações",             group: "Configurações",  section: "Configurações",    icon: Plug },

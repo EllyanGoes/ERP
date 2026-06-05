@@ -97,6 +97,15 @@ export const MODULOS: ModuloDef[] = [
     ],
   },
   {
+    key: "pcp",
+    label: "PCP",
+    group: "Produção",
+    recursos: [
+      { key: "fluxos",           label: "Fluxos de Produção",  acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "centros-trabalho", label: "Centros de Trabalho", acoes: ["ver", "inserir", "editar", "excluir"] },
+    ],
+  },
+  {
     key: "admin",
     label: "Administração",
     group: "Sistema",

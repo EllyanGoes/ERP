@@ -655,6 +655,7 @@ model Item {
   itensRequisicao        RequisicaoMaterialItem[]
   itensInventario        InventarioMaterialItem[]
   tabelaPrecoItens       TabelaPrecoItem[]
+  fluxosProducao         FluxoProducao[]
 
   @@index([codigo])
   @@index([tipo])
@@ -1231,6 +1232,99 @@ enum Criticidade {
   A
   B
   C
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PCP — Planejamento e Controle da Produção
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Centro de trabalho (preparação, conformação, secagem, forno, embalagem...).
+// Pode apontar opcionalmente para um ativo do Engeman (forno/secador) via codApl
+// (sem FK — mesma convenção de AtivoCriticidade/AtivoRegime).
+model CentroTrabalho {
+  id                String              @id @default(cuid())
+  codigo            String              @unique
+  nome              String
+  tipo              TipoCentroTrabalho?
+  codApl            Int?
+  capacidadePadrao  Decimal?            @db.Decimal(15, 3)
+  unidadeCapacidade String?
+  ativo             Boolean             @default(true)
+  observacao        String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([codApl])
+}
+
+// Fluxo de produção (roteiro) — opcionalmente vinculado a um produto acabado (Item).
+// Versionado; a versão publicada vigente fica em versaoAtivaId.
+model FluxoProducao {
+  id            String                @id @default(cuid())
+  nome          String
+  descricao     String?
+  itemId        String?
+  ativo         Boolean               @default(true)
+  versaoAtivaId String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  item          Item?                 @relation(fields: [itemId], references: [id])
+  versoes       FluxoProducaoVersao[]
+
+  @@index([itemId])
+}
+
+// Versão imutável do grafo desenhado. grafo = { nodes, edges } do React Flow
+// (fonte de verdade). A projeção normalizada (operações/insumos) entra na Fase 2.
+model FluxoProducaoVersao {
+  id              String            @id @default(cuid())
+  fluxoProducaoId String
+  versao          Int
+  status          StatusFluxoVersao @default(RASCUNHO)
+  grafo           Json
+  publicadoPor    String?
+  publicadoEm     DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  fluxo           FluxoProducao     @relation(fields: [fluxoProducaoId], references: [id], onDelete: Cascade)
+
+  @@unique([fluxoProducaoId, versao])
+  @@index([fluxoProducaoId])
+}
+
+enum TipoCentroTrabalho {
+  PREPARACAO
+  CONFORMACAO
+  SECAGEM
+  FORNO
+  EMBALAGEM
+  TRANSPORTE
+  OUTRO
+}
+
+enum StatusFluxoVersao {
+  RASCUNHO
+  PUBLICADA
+  ARQUIVADA
+}
+
+// Tipos de nó do editor — usados dentro do grafo JSON e no código do editor
+// (gerados no client Prisma como enums TS; ainda sem coluna dedicada).
+enum KindNo {
+  ESTOQUE_INSUMO
+  OPERACAO
+  TRANSPORTE
+  BUFFER_WIP
+  INSPECAO
+  ESTOCAGEM_PA
+}
+
+// Estados de WIP do processo (úmido → seco → queimado → acabado).
+enum EstadoWIP {
+  UMIDO
+  SECO
+  QUEIMADO
+  ACABADO
 }
 
 enum PerfilUsuario {
