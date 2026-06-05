@@ -259,7 +259,7 @@ export default function FechamentoPage() {
       )}
 
       {/* Conteúdo */}
-      <div className="flex-1 overflow-y-auto px-8 pb-8">
+      <div className="flex-1 min-h-0 flex flex-col px-8 pb-8">
         {loading ? (
           <div className="flex items-center justify-center py-20 text-gray-400 gap-2 text-sm">
             <RefreshCw className="w-4 h-4 animate-spin" /> Carregando…
@@ -289,9 +289,9 @@ export default function FechamentoPage() {
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-x-auto">
+          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-auto min-h-0">
             <table className="w-full min-w-[920px] text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+              <thead className="sticky top-0 z-10 bg-gray-50 text-xs text-gray-500 uppercase tracking-wider shadow-sm">
                 <tr>
                   <th className="text-left font-medium px-3 py-2">Ativo</th>
                   <th className="text-center font-medium px-2 py-2 w-12">Crit.</th>

@@ -115,26 +115,40 @@ export default function DetalheOs({
               />
             ))}
           </div>
-          {hover && (
-            <div
-              className="absolute z-20 bottom-full mb-1.5 -translate-x-1/2 rounded-md bg-gray-900 text-white text-[11px] px-2 py-1 shadow-lg pointer-events-none"
-              style={{ left: `${Math.min(Math.max((hover.inicioPct + hover.fimPct) / 2, 7), 93)}%` }}
-            >
-              <div className="font-semibold whitespace-nowrap">
-                O.S. {hoverOs?.osNumero ?? hover.codord}
-                {hoverOs ? ` · ${hoverOs.tipo}` : ""} · {fmtH(hover.horas)}
+          {hover && (() => {
+            // Centro do segmento (%). Perto das bordas, ancora o balão na borda do
+            // container (esquerda/direita) em vez de centralizar — senão a metade
+            // fixa em px do balão estoura e fica cortada.
+            const mid = (hover.inicioPct + hover.fimPct) / 2;
+            const align = mid < 15 ? "left" : mid > 85 ? "right" : "center";
+            const pos =
+              align === "left" ? { left: 0 } :
+              align === "right" ? { right: 0 } :
+              { left: `${mid}%` };
+            return (
+              <div
+                className={cn(
+                  "absolute z-20 bottom-full mb-1.5 max-w-[300px] rounded-md bg-gray-900 text-white text-[11px] px-2 py-1 shadow-lg pointer-events-none",
+                  align === "center" && "-translate-x-1/2",
+                )}
+                style={pos}
+              >
+                <div className="font-semibold">
+                  O.S. {hoverOs?.osNumero ?? hover.codord}
+                  {hoverOs ? ` · ${hoverOs.tipo}` : ""} · {fmtH(hover.horas)}
+                </div>
+                {hoverOs?.ocorrencia && (
+                  <div className="text-gray-300 truncate">Ocorrência: {hoverOs.ocorrencia}</div>
+                )}
+                {hoverOs?.causa && (
+                  <div className="text-gray-300 truncate">Causa: {hoverOs.causa}</div>
+                )}
+                {hoverOs?.servico && (
+                  <div className="text-gray-300 truncate">Serviço: {hoverOs.servico}</div>
+                )}
               </div>
-              {hoverOs?.ocorrencia && (
-                <div className="text-gray-300 max-w-[260px] truncate">Ocorrência: {hoverOs.ocorrencia}</div>
-              )}
-              {hoverOs?.causa && (
-                <div className="text-gray-300 max-w-[260px] truncate">Causa: {hoverOs.causa}</div>
-              )}
-              {hoverOs?.servico && (
-                <div className="text-gray-300 max-w-[260px] truncate">Serviço: {hoverOs.servico}</div>
-              )}
-            </div>
-          )}
+            );
+          })()}
         </div>
         <div className="flex justify-between text-[10px] text-gray-400 mt-1">
           <span>{ddMM(data.inicioMes)}</span>
