@@ -271,6 +271,7 @@ const mainModules: Module[] = [
       {
         kind: "Produção" as SubSection["kind"],
         items: [
+          { href: "/pcp/ordens",           label: "Ordens de Produção",  icon: ClipboardList },
           { href: "/pcp/fluxos",           label: "Fluxos de Produção",  icon: Workflow },
           { href: "/pcp/centros-trabalho", label: "Centros de Trabalho", icon: Boxes },
         ],

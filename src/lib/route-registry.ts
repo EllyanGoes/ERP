@@ -134,6 +134,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/pcm/ordens",                           label: "Relatório de O.S.",       group: "PCM",            section: "Manutenção",       icon: ClipboardList,  keywords: "pcm ordens serviço OS manutenção" },
   { href: "/pcm/relatorio-mtbf",                   label: "Relatório MTBF",          group: "PCM",            section: "Manutenção",       icon: Activity,       keywords: "pcm mtbf tempo médio falhas" },
 
+  { href: "/pcp/ordens",                           label: "Ordens de Produção",      group: "PCP",            section: "Produção",         icon: ClipboardList,  keywords: "pcp ordem produção op apontamento etapa" },
   { href: "/pcp/fluxos",                           label: "Fluxos de Produção",      group: "PCP",            section: "Produção",         icon: Workflow,       keywords: "pcp produção fluxo roteiro editor n8n" },
   { href: "/pcp/centros-trabalho",                 label: "Centros de Trabalho",     group: "PCP",            section: "Produção",         icon: Boxes,          keywords: "pcp centro trabalho recurso forno secagem" },
 

@@ -656,6 +656,7 @@ model Item {
   itensInventario        InventarioMaterialItem[]
   tabelaPrecoItens       TabelaPrecoItem[]
   fluxosProducao         FluxoProducao[]
+  ordensProducao         OrdemProducao[]
 
   @@index([codigo])
   @@index([tipo])
@@ -1287,6 +1288,7 @@ model FluxoProducaoVersao {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   fluxo           FluxoProducao     @relation(fields: [fluxoProducaoId], references: [id], onDelete: Cascade)
+  ordens          OrdemProducao[]
 
   @@unique([fluxoProducaoId, versao])
   @@index([fluxoProducaoId])
@@ -1325,6 +1327,90 @@ enum EstadoWIP {
   SECO
   QUEIMADO
   ACABADO
+}
+
+// Ordem de produção — executa uma versão publicada de um fluxo. As etapas são
+// um snapshot (em ordem topológica) das operações do grafo no momento da criação.
+model OrdemProducao {
+  id                  String              @id @default(cuid())
+  numero              String              @unique
+  itemId              String?
+  fluxoVersaoId       String
+  quantidadePlanejada Decimal             @db.Decimal(15, 3)
+  unidade             String?
+  status              StatusOrdemProducao @default(RASCUNHO)
+  estadoAtual         EstadoWIP           @default(UMIDO)
+  dataPrevista        DateTime?
+  observacao          String?
+  criadoPor           String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  item                Item?               @relation(fields: [itemId], references: [id])
+  fluxoVersao         FluxoProducaoVersao @relation(fields: [fluxoVersaoId], references: [id])
+  etapas              ItemOrdemProducao[]
+  consumos            ConsumoBiomassa[]
+
+  @@index([status])
+  @@index([itemId])
+  @@index([fluxoVersaoId])
+}
+
+// Uma etapa apontável da ordem (snapshot de um nó de operação/transporte/inspeção).
+model ItemOrdemProducao {
+  id              String        @id @default(cuid())
+  ordemProducaoId String
+  nodeId          String
+  sequencia       Int
+  nome            String
+  kind            KindNo
+  centroTrabalho  String?
+  estadoSaida     EstadoWIP?
+  status          StatusEtapaOP @default(PENDENTE)
+  qtdEntrada      Decimal?      @db.Decimal(15, 3)
+  qtdSaida        Decimal?      @db.Decimal(15, 3)
+  qtdPerda        Decimal?      @db.Decimal(15, 3)
+  vagoes          Int?
+  vagonetas       Int?
+  inicioReal      DateTime?
+  fimReal         DateTime?
+  apontadoPor     String?
+  observacao      String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  ordemProducao   OrdemProducao @relation(fields: [ordemProducaoId], references: [id], onDelete: Cascade)
+
+  @@index([ordemProducaoId])
+  @@index([status])
+}
+
+// Consumo de biomassa (caroço de açaí) apontado na queima — alimenta KPI por milheiro.
+model ConsumoBiomassa {
+  id                  String        @id @default(cuid())
+  ordemProducaoId     String
+  itemOrdemProducaoId String?
+  descricao           String?
+  quantidadeKg        Decimal       @db.Decimal(15, 3)
+  milheirosProduzidos Decimal?      @db.Decimal(15, 3)
+  data                DateTime      @default(now())
+  registradoPor       String?
+  createdAt           DateTime      @default(now())
+  ordemProducao       OrdemProducao @relation(fields: [ordemProducaoId], references: [id], onDelete: Cascade)
+
+  @@index([ordemProducaoId])
+}
+
+enum StatusOrdemProducao {
+  RASCUNHO
+  LIBERADA
+  EM_PRODUCAO
+  CONCLUIDA
+  CANCELADA
+}
+
+enum StatusEtapaOP {
+  PENDENTE
+  EM_EXECUCAO
+  CONCLUIDA
 }
 
 enum PerfilUsuario {
