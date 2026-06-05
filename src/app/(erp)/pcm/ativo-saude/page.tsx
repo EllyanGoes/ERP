@@ -37,6 +37,8 @@ export default function AtivoSaudePage() {
   const [data, setData] = useState<MtbfMttrResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [codApl, setCodApl] = useState<number | null>(null);
+  const [ativoOpts, setAtivoOpts] = useState<{ codApl: number; descricao: string; tag: string }[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -44,20 +46,32 @@ export default function AtivoSaudePage() {
     try {
       const params = new URLSearchParams({ de, ate });
       if (filtro !== "all") params.set("criticidade", filtro);
+      if (codApl !== null) params.set("codApl", String(codApl));
       const res = await fetch(`/api/pcm/ativo-saude/mtbf-mttr?${params.toString()}`);
       if (!res.ok) {
         setErro("Não foi possível carregar o relatório.");
         setData(null);
         return;
       }
-      setData(await res.json());
+      const json: MtbfMttrResponse = await res.json();
+      setData(json);
+      // Atualiza as opções do seletor só na visão sem filtro (todos os ativos +
+      // todas as criticidades), pra manter a lista completa do período mesmo
+      // depois de escolher um ativo específico.
+      if (codApl === null && filtro === "all") {
+        setAtivoOpts(
+          json.porAtivo
+            .map((a) => ({ codApl: a.codApl, descricao: a.descricao || a.tag, tag: a.tag }))
+            .sort((x, y) => x.descricao.localeCompare(y.descricao, "pt-BR")),
+        );
+      }
     } catch {
       setErro("Erro de conexão ao carregar o relatório.");
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, [de, ate, filtro]);
+  }, [de, ate, filtro, codApl]);
 
   useEffect(() => {
     load();
@@ -98,15 +112,36 @@ export default function AtivoSaudePage() {
             className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </label>
+        <label className="flex items-center gap-1.5 text-sm text-gray-600">
+          Ativo
+          <select
+            value={codApl === null ? "" : String(codApl)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setCodApl(v ? Number(v) : null);
+              if (v) setFiltro("all"); // ao focar um ativo, a criticidade não se aplica
+            }}
+            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[240px]"
+          >
+            <option value="">Todos os ativos</option>
+            {ativoOpts.map((a) => (
+              <option key={a.codApl} value={a.codApl}>
+                {a.descricao}{a.tag ? ` (${a.tag})` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="flex items-center gap-1.5">
           {(["all", "A", "B", "C"] as Filtro[]).map((f) => (
             <button
               key={f}
               type="button"
+              disabled={codApl !== null}
               onClick={() => setFiltro(f)}
               className={cn(
                 "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium border transition-colors",
                 filtro === f ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50",
+                codApl !== null && "opacity-40 cursor-not-allowed hover:bg-white",
               )}
             >
               {f === "all" ? "Todos" : <>Criticidade {f}</>}
