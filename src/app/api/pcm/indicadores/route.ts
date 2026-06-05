@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import sql from "mssql";
-import { getEngemanConfig } from "@/lib/engeman";
+import { getEngemanConfig, engemanErrorResponse } from "@/lib/engeman";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface IndicadorEquipamento {
@@ -387,7 +387,6 @@ export async function GET(req: NextRequest) {
     };
     return NextResponse.json(response);
   } catch (err) {
-    console.error("[PCM /api/pcm/indicadores] Engeman inacessível:", err instanceof Error ? err.message : err);
-    return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
+    return engemanErrorResponse("PCM /api/pcm/indicadores", err);
   }
 }

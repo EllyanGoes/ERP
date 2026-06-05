@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import sql from "mssql";
-import { getEngemanConfig } from "@/lib/engeman";
+import { getEngemanConfig, engemanErrorResponse } from "@/lib/engeman";
 
 export interface FalhaRegistro {
   codord: number;
@@ -218,7 +218,6 @@ export async function GET(
     const data = await queryFMEA(codapl, dias);
     return NextResponse.json(data);
   } catch (err) {
-    console.error("[PCM /api/pcm/fmea]", err instanceof Error ? err.message : err);
-    return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
+    return engemanErrorResponse("PCM /api/pcm/fmea/[codapl]", err);
   }
 }
