@@ -132,8 +132,8 @@ export const ROUTES: RouteEntry[] = [
 
   { href: "/pcm/dashboard",                        label: "PCM — Resultados",        group: "PCM",            section: "Manutenção",       icon: BarChart3,      keywords: "pcm manutenção resultados dashboard" },
   { href: "/pcm/ordens",                           label: "Relatório de O.S.",       group: "PCM",            section: "Manutenção",       icon: ClipboardList,  keywords: "pcm ordens serviço OS manutenção" },
-  { href: "/pcm/relatorio-mtbf",                   label: "Relatório MTBF",          group: "PCM",            section: "Manutenção",       icon: Activity,       keywords: "pcm mtbf tempo médio falhas" },
 
+  { href: "/pcp/dashboard",                        label: "Dashboard do PCP",        group: "PCP",            section: "Produção",         icon: BarChart3,      keywords: "pcp dashboard indicadores forno wip biomassa perdas simulação" },
   { href: "/pcp/ordens",                           label: "Ordens de Produção",      group: "PCP",            section: "Produção",         icon: ClipboardList,  keywords: "pcp ordem produção op apontamento etapa" },
   { href: "/pcp/operacoes",                        label: "Operações (fila)",        group: "PCP",            section: "Produção",         icon: ListChecks,     keywords: "pcp operação fila chão etapa centro trabalho apontar" },
   { href: "/pcp/planejamento",                     label: "Planejamento (MPS/MRP)",  group: "PCP",            section: "Produção",         icon: Calculator,     keywords: "pcp mps mrp planejamento demanda necessidade insumo plano mestre" },

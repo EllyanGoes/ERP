@@ -253,7 +253,6 @@ const mainModules: Module[] = [
           { href: "/pcm/ativos",          label: "Ativos",           icon: Factory },
           { href: "/pcm/dashboard",       label: "Resultados",       icon: BarChart3 },
           { href: "/pcm/ordens",          label: "Relatório de O.S.", icon: ClipboardList },
-          { href: "/pcm/relatorio-mtbf",  label: "Relatório MTBF",   icon: Activity },
         ],
       },
       {
@@ -274,6 +273,7 @@ const mainModules: Module[] = [
       {
         kind: "Produção" as SubSection["kind"],
         items: [
+          { href: "/pcp/dashboard",        label: "Dashboard",            icon: BarChart3 },
           { href: "/pcp/ordens",           label: "Ordens de Produção",   icon: ClipboardList },
           { href: "/pcp/operacoes",        label: "Operações (fila)",      icon: ListChecks },
           { href: "/pcp/planejamento",     label: "Planejamento (MPS/MRP)", icon: Calculator },

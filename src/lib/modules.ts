@@ -101,6 +101,7 @@ export const MODULOS: ModuloDef[] = [
     label: "PCP",
     group: "Produção",
     recursos: [
+      { key: "dashboard",        label: "Dashboard do PCP",      acoes: ["ver"] },
       { key: "ordens",           label: "Ordens de Produção",   acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "operacoes",        label: "Operações (fila)",      acoes: ["ver", "editar"] },
       { key: "planejamento",     label: "Planejamento (MPS/MRP)", acoes: ["ver", "inserir", "editar", "excluir"] },
