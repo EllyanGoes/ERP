@@ -13,10 +13,11 @@ import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 import { useTabTitle } from "@/lib/tabs-context";
+import { useSession } from "@/lib/session-context";
 import {
   Plus, Search, X, LayoutList, Kanban, Loader2,
   ChevronDown as ChevronDownIcon, CalendarDays, Download, Check,
-  ShoppingCart, AlertTriangle,
+  ShoppingCart, AlertTriangle, Trash2,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -51,7 +52,6 @@ const STATUS_COLS: { key: string; label: string; color: string; bg: string; bord
 ];
 
 const STATUS_OPTIONS = STATUS_COLS.map((s) => ({ value: s.key, label: s.label }));
-const ALL_STATUSES   = STATUS_COLS.map((s) => s.key);
 
 const SORT_OPTIONS = [
   { value: "dataEmissao_desc", label: "Emissão — mais recente" },
@@ -379,8 +379,13 @@ function KanbanCard({
 export default function PedidosVendaPage() {
   useTabTitle("Pedidos de Venda");
   const router = useRouter();
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
 
   const [pedidos, setPedidos] = useState<PedidoRow[]>([]);
+  const [delTarget, setDelTarget] = useState<PedidoRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [delError, setDelError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<Filters>(loadFilters);
 
@@ -416,6 +421,27 @@ export default function PedidosVendaPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // ── Exclusão definitiva (somente ADMIN) ───────────────────────────────────
+  async function confirmDelete() {
+    if (!delTarget) return;
+    setDeleting(true);
+    setDelError(null);
+    try {
+      const res = await fetch(`/api/pedidos-venda/${delTarget.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setDelError(json.error ?? "Não foi possível excluir o pedido.");
+        return;
+      }
+      setPedidos((prev) => prev.filter((p) => p.id !== delTarget.id));
+      setDelTarget(null);
+    } catch {
+      setDelError("Erro de conexão ao excluir o pedido.");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   // ── Filtering + sorting ───────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -818,6 +844,7 @@ export default function PedidosVendaPage() {
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
                   ))}
+                  {isAdmin && <th className="px-4 py-3 w-12" aria-label="Ações" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -825,7 +852,7 @@ export default function PedidosVendaPage() {
                   ? listGroups.map((g) => (
                       <Fragment key={g.key}>
                         <tr className="bg-gray-50/80">
-                          <td colSpan={orderedCols.length} className="px-4 py-2 border-y border-gray-200">
+                          <td colSpan={orderedCols.length + (isAdmin ? 1 : 0)} className="px-4 py-2 border-y border-gray-200">
                             <div className="flex items-center justify-between">
                               <span className="flex items-center gap-1.5 font-semibold text-gray-700 text-sm">
                                 {filters.groupBy === "status" ? (
@@ -850,6 +877,18 @@ export default function PedidosVendaPage() {
                             {orderedCols.map((col) => (
                               <td key={col.id} className={col.tdClass}>{col.render(p)}</td>
                             ))}
+                            {isAdmin && (
+                              <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setDelError(null); setDelTarget(p); }}
+                                  className="text-gray-300 hover:text-red-600 transition-colors p-1 rounded hover:bg-red-50"
+                                  title="Excluir pedido"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </Fragment>
@@ -863,6 +902,18 @@ export default function PedidosVendaPage() {
                         {orderedCols.map((col) => (
                           <td key={col.id} className={col.tdClass}>{col.render(p)}</td>
                         ))}
+                        {isAdmin && (
+                          <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setDelError(null); setDelTarget(p); }}
+                              className="text-gray-300 hover:text-red-600 transition-colors p-1 rounded hover:bg-red-50"
+                              title="Excluir pedido"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
               </tbody>
@@ -988,6 +1039,48 @@ export default function PedidosVendaPage() {
             )}
             <div className="flex justify-end pt-1">
               <Button onClick={() => setBlockModal(null)} className="font-semibold">Entendi</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirmação de exclusão (ADMIN) ─────────────────────────────────── */}
+      {delTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => { if (!deleting) setDelTarget(null); }}
+        >
+          <div
+            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">Excluir o pedido {delTarget.numero}?</h3>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  {delTarget.cliente.nomeFantasia || delTarget.cliente.razaoSocial} · {formatBRL(decimalToNumber(delTarget.valorTotal))}
+                </p>
+                <p className="text-sm text-gray-500 mt-2">
+                  Esta ação é <span className="font-semibold text-gray-700">permanente</span> e remove o lançamento e seus itens.
+                  Para apenas arquivar, mude o status para <span className="font-medium">Cancelado</span>.
+                </p>
+              </div>
+            </div>
+            {delError && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+                {delError}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setDelTarget(null)} disabled={deleting}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={confirmDelete} disabled={deleting} className="font-semibold">
+                {deleting ? <><Loader2 className="w-4 h-4 animate-spin" /> Excluindo…</> : "Excluir"}
+              </Button>
             </div>
           </div>
         </div>
