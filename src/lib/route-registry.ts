@@ -21,7 +21,7 @@ import {
   UserCog, ShieldCheck,
   Settings2, Plug,
   Building2, Clock,
-  Wrench, Database, MessageCircle, Workflow, Boxes, FlaskConical, ListChecks,
+  Wrench, Database, MessageCircle, Workflow, Boxes, FlaskConical, ListChecks, Calculator,
   Landmark, Wallet, FolderTree, Repeat, CalendarClock, FileCheck2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -136,6 +136,7 @@ export const ROUTES: RouteEntry[] = [
 
   { href: "/pcp/ordens",                           label: "Ordens de Produção",      group: "PCP",            section: "Produção",         icon: ClipboardList,  keywords: "pcp ordem produção op apontamento etapa" },
   { href: "/pcp/operacoes",                        label: "Operações (fila)",        group: "PCP",            section: "Produção",         icon: ListChecks,     keywords: "pcp operação fila chão etapa centro trabalho apontar" },
+  { href: "/pcp/planejamento",                     label: "Planejamento (MPS/MRP)",  group: "PCP",            section: "Produção",         icon: Calculator,     keywords: "pcp mps mrp planejamento demanda necessidade insumo plano mestre" },
   { href: "/pcp/engenharia",                       label: "Engenharia do Produto",   group: "PCP",            section: "Produção",         icon: FlaskConical,   keywords: "pcp engenharia estrutura bom insumo embalagem produto" },
   { href: "/pcp/fluxos",                           label: "Fluxos de Produção",      group: "PCP",            section: "Produção",         icon: Workflow,       keywords: "pcp produção fluxo roteiro editor n8n" },
   { href: "/pcp/centros-trabalho",                 label: "Centros de Trabalho",     group: "PCP",            section: "Produção",         icon: Boxes,          keywords: "pcp centro trabalho recurso forno secagem" },

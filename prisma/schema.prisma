@@ -659,6 +659,7 @@ model Item {
   ordensProducao         OrdemProducao[]
   engenhariaProduto      EngenhariaProduto?       @relation("EngenhariaProdutoItem")
   insumosEngenharia      EngenhariaInsumo[]       @relation("EngenhariaInsumoItem")
+  planosMestre           PlanoMestre[]
 
   @@index([codigo])
   @@index([tipo])
@@ -1472,6 +1473,29 @@ enum CategoriaInsumo {
   EMBALAGEM
   ENERGIA
   OUTRO
+}
+
+// Plano Mestre (MPS): demanda/produção planejada de um produto acabado por período.
+// origem = de onde veio a demanda (manual é o padrão; pedidos/mín-máx são opcionais).
+model PlanoMestre {
+  id         String        @id @default(cuid())
+  itemId     String
+  periodo    String        // AAAA-MM (mês de planejamento)
+  quantidade Decimal       @db.Decimal(15, 3)
+  origem     OrigemDemanda @default(MANUAL)
+  observacao String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  item       Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([periodo])
+}
+
+enum OrigemDemanda {
+  MANUAL
+  PEDIDO_VENDA
+  MIN_MAX
 }
 
 enum PerfilUsuario {
