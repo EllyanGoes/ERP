@@ -91,35 +91,6 @@ export async function GET(req: NextRequest) {
     try {
       const corretivos = new Set(await getCorretivoCodes(pool));
 
-      // ── DIAG TEMPORÁRIO (?_diag=1) — remover depois ───────────────────────
-      const diag = sp.get("_diag");
-      if (diag) {
-        const [cmp, regCols, reg2022] = await Promise.all([
-          pool.request().input("codApl", sql.Int, codApl).input("ano", sql.Int, ano).input("mes", sql.Int, mes).query(`
-            SELECT o.CODORD, RTRIM(o.TAG) AS TAG, o.CODTIPMAN, o.STATORD,
-              o.MAQPAR, o.MAQFUN,
-              CASE WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
-                THEN ABS(DATEDIFF(MINUTE,o.MAQPAR,o.MAQFUN))/60.0 ELSE NULL END AS WIN_H,
-              o.HOREXEREA, o.TEMPO_EFETIVO, o.TEMPO_DECORRIDO,
-              (SELECT COUNT(*) FROM ORDXPAR xp WHERE xp.CODORD=o.CODORD) AS N_XPAR
-            FROM ORDSERV o
-            WHERE o.CODAPL=@codApl AND o.CODFIL NOT IN (0)
-              AND YEAR(o.DATPRO)=@ano AND MONTH(o.DATPRO)=@mes
-            ORDER BY o.MAQPAR, o.DATPRO`),
-          pool.request().query(`
-            SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_NAME='REGSERV' ORDER BY ORDINAL_POSITION`),
-          pool.request().query(`SELECT * FROM REGSERV WHERE CODORD=2022`),
-        ]);
-        return NextResponse.json({
-          cmp: cmp.recordset,
-          regservColunas: regCols.recordset,
-          regserv2022: reg2022.recordset.map((r: Record<string, unknown>) =>
-            Object.fromEntries(Object.entries(r).filter(([, v]) => v != null))),
-        });
-      }
-      // ── FIM DIAG ──────────────────────────────────────────────────────────
-
       const result = await pool
         .request()
         .input("codApl", sql.Int, codApl)
