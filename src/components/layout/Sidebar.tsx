@@ -51,6 +51,7 @@ import {
   Factory,
   Workflow,
   Boxes,
+  FlaskConical,
   Wrench,
   Users2,
   Layers,
@@ -271,9 +272,10 @@ const mainModules: Module[] = [
       {
         kind: "Produção" as SubSection["kind"],
         items: [
-          { href: "/pcp/ordens",           label: "Ordens de Produção",  icon: ClipboardList },
-          { href: "/pcp/fluxos",           label: "Fluxos de Produção",  icon: Workflow },
-          { href: "/pcp/centros-trabalho", label: "Centros de Trabalho", icon: Boxes },
+          { href: "/pcp/ordens",           label: "Ordens de Produção",   icon: ClipboardList },
+          { href: "/pcp/engenharia",       label: "Engenharia do Produto", icon: FlaskConical },
+          { href: "/pcp/fluxos",           label: "Fluxos de Produção",   icon: Workflow },
+          { href: "/pcp/centros-trabalho", label: "Centros de Trabalho",  icon: Boxes },
         ],
       },
     ],

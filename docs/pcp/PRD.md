@@ -1,8 +1,49 @@
 # PRD — Módulo de PCP (Planejamento e Controle da Produção)
 
 **Produto:** ERP EllyanGoes · **Módulo:** PCP · **Segmento:** Cerâmica Vermelha (tijolos/blocos), operação tipo Tramontin
-**Versão do documento:** 1.0 · **Data:** 2026-06-05 · **Autor:** PM (sênior, sistemas industriais)
-**Status:** Em definição — MVP do editor de fluxo em construção
+**Versão do documento:** 1.1 · **Data:** 2026-06-05 · **Autor:** PM (sênior, sistemas industriais)
+**Status:** MVP + Execução + WIP no estoque **em produção**; engenharia do produto + integração de itens em andamento (ver Revisão 1.1)
+
+---
+
+## Revisão 1.1 — Ajustes do chão de fábrica (2026-06-05)
+
+> Após colocar o MVP + Execução no ar, o usuário validou contra a operação real e apontou
+> 7 ajustes. Esta seção registra a **correção do modelo**; o roadmap (seção 16) foi atualizado.
+
+**Já entregue e em produção:** editor visual de fluxo (React Flow), Centros de Trabalho,
+Ordens de Produção + apontamento por etapa (perdas, biomassa) e **WIP no estoque**
+(movimentação automática por estágio, itens de WIP auto-criados).
+
+**Ajustes a incorporar (correção de modelo):**
+
+1. **Fluxo é compartilhado entre produtos.** Um fluxo de produção (o "caminho" pela fábrica)
+   vale para **vários produtos** — não é 1 fluxo por produto. → Desacoplar `FluxoProducao` do
+   produto; o **produto referencia** um fluxo. *(altera seções 5 e 6)*
+2. **Engenharia / Estrutura do Produto (BOM).** O que muda entre produtos é a **estrutura de
+   engenharia** (lista de insumos e quantidades): um tijolo leva mais argila, outro menos; além
+   de **embalagem** (pallet, fita PET, grampo). Cadastro novo, **por produto**, ligado a `Item`s
+   reais. *(nova seção 5A; alimenta o MRP — seção 6)*
+3. **Insumos que são misturas.** Há insumos **intermediários** compostos (ex.: massa preparada =
+   argila + caco + água) que **continuam sendo estoque de insumo** das etapas seguintes. →
+   Modelar **insumo-mistura** (semi-acabado que entra como insumo). *(seção 5: novo papel de nó)*
+4. **Insumos vindos de resíduos da operação.** Há insumos que **nascem como subproduto/resíduo**
+   de operações (ex.: caco de tijolo da quebra) e **retornam** como insumo. → Modelar **saída de
+   subproduto** numa operação, que dá entrada num estoque de insumo (laço de reaproveitamento).
+   *(seções 5 e 8)*
+5. **OP direcionada às operações.** As ordens devem ser **distribuídas às operações** (centro de
+   trabalho/operador), que produzem e **apontam o que produziram**. → **Fila de produção por
+   operação** (cada área vê suas etapas a executar e aponta). *(expande seção 8)*
+6. **Materiais e locais ainda não integrados.** No editor, os nós de estoque/insumo/PA usam
+   **texto livre** — precisam apontar para **`Item` real** e **`LocalEstoque` real**. → Seletor de
+   Item/Local no editor e na engenharia. *(seção 5.2; pré-requisito do MRP)*
+7. **Ciclos de operação em horas → lead time acumulado.** Cada operação tem **duração em horas**;
+   o lead time total é a **soma** ao longo das etapas (ex.: ~144 h ≈ 6 dias). → `tempoCicloHoras`
+   por etapa + cálculo de **previsão de conclusão** (início + Σ ciclos). *(refina 5.3/5.4 e 5.9)*
+
+**Decisão de demanda (MPS):** valem as **3 fontes** — **pedidos de venda**, **estoque mín/máx** e
+**previsão manual** — todas **configuráveis**, com **previsão manual como padrão** (caso mais
+comum). *(resolve a suposição 6)*
 
 ---
 
@@ -15,7 +56,7 @@
 3. **UOM de planejamento = milheiro (1.000 peças)**; movimentação física por **vagão/vagoneta**; estoque por **unidade**. As conversões usam o cadastro existente `Unidade`/`ItemUnidade`/`UnidadeConversao`. **(confirmar a UOM base por estágio)**.
 4. **Estados de WIP** controlados: **úmido → seco → queimado → acabado**.
 5. **WIP reaproveita o módulo de Estoque atual** (itens + `MovimentacaoEstoque`), não um livro paralelo (decisão do usuário).
-6. **Demanda do MTS** vem de uma combinação de **pedidos de venda confirmados** + **reposição por estoque mín/máx** do produto acabado + **previsão manual**. **(confirmar a fonte primária)**.
+6. **Demanda do MTS** vem de **3 fontes configuráveis** — pedidos de venda confirmados, reposição por estoque mín/máx do produto acabado e **previsão manual (padrão)**. *(decidido — ver Revisão 1.1)*
 7. **Perdas (trincas/refugo)** são percentuais por etapa, com concentração esperada em **secagem** e **queima**; perdas são baixadas como movimento de estoque do WIP do estágio. **(confirmar se perda é por etapa ou só na queima)**.
 8. **Insumo de queima = biomassa (caroço de açaí)**, com consumo medido por ciclo de forno e KPI de **consumo por milheiro**.
 9. **Ativos do forno/secador** existem no **Engeman** (CMMS, somente leitura) e são referenciados por `codApl`; a disponibilidade do forno usa `AtivoRegime.horasPorDia`.
@@ -271,13 +312,16 @@ Painéis (recharts, padrão do PCM dashboard): **ocupação do forno** por perí
 
 ## 16. Roadmap em fases
 
-| Fase | Entrega | Itens |
+| Fase | Entrega | Itens / ajustes |
 |---|---|---|
-| **0–1 — MVP (agora)** | Editor de fluxo + fundação | Dependência React Flow; registro do módulo; migração #1 (CentroTrabalho, FluxoProducao, FluxoProducaoVersao, enums); CRUD Centros de Trabalho; **editor** (nós, config, validação, salvar/carregar/versionar); fluxo semente |
-| **2 — Execução** | Produzir e mover WIP | Ordem de Produção + apontamento por etapa; **WIP no estoque** (itens WIP + `MovimentacaoEstoque` com `origem` aditivo); projeção normalizada do grafo; `ConsumoBiomassa` |
-| **3 — Planejamento** | Planejar e medir | MPS + MRP (perdas, biomassa); dashboards (ocupação, WIP, biomassa/milheiro) |
-| **4 — Otimização** | Programar o gargalo | Sequenciamento finito (forno/secagem); simulação (lead time, ocupação, WIP) |
+| **0–1 — MVP** ✅ produção | Editor de fluxo + fundação | React Flow; registro do módulo; migração #1; CRUD Centros de Trabalho; editor (nós, config, validação, versionar); fluxo semente |
+| **2 — Execução** ✅ produção | Produzir e mover WIP | Ordem de Produção + apontamento por etapa; **WIP no estoque** (itens WIP auto-criados + `MovimentacaoEstoque` com `ordemProducaoId`); `ConsumoBiomassa` (KPI biomassa/milheiro) |
+| **3 — Engenharia & integração real** (próxima) | Estrutura do produto + itens reais | **Fluxo compartilhado** entre produtos; **Engenharia/BOM por produto** (insumos + quantidades + embalagem pallet/fita/grampo) com `Item`s reais; **Item/`LocalEstoque` reais no editor** (substitui texto livre). *Ajustes 1, 2, 6* |
+| **4 — Operação dirigida** | OP no chão | **Fila de produção por operação/centro** (cada área vê e aponta suas etapas); **apontamento de subproduto/resíduo** (caco) que vira insumo; **insumo-mistura** (massa) como semi-acabado. *Ajustes 3, 4, 5* |
+| **5 — Planejamento** | Planejar | MPS (**3 fontes configuráveis, padrão manual**) + MRP (perdas, biomassa, embalagem); **lead time por ciclos em horas** (Σ etapas → previsão de conclusão). *Ajuste 7* |
+| **6 — Dashboards** | Medir | Ocupação do forno, WIP por estágio, biomassa/milheiro, perdas por etapa, aderência, OTIF |
+| **7 — Otimização** | Programar o gargalo | Sequenciamento finito (forno/secagem) + simulação (lead time, ocupação, WIP) |
 
 ---
 
-*Documento vivo — a seção 5 (editor de fluxo) é a âncora e está sendo implementada no MVP. As suposições marcadas **(confirmar)** devem ser validadas antes das Fases 2–4.*
+*Documento vivo (v1.1). A **Revisão 1.1** (topo) registra os 7 ajustes do chão de fábrica e a decisão de demanda; o roadmap acima reflete a nova ordem das fases.*

@@ -657,6 +657,8 @@ model Item {
   tabelaPrecoItens       TabelaPrecoItem[]
   fluxosProducao         FluxoProducao[]
   ordensProducao         OrdemProducao[]
+  engenhariaProduto      EngenhariaProduto?       @relation("EngenhariaProdutoItem")
+  insumosEngenharia      EngenhariaInsumo[]       @relation("EngenhariaInsumoItem")
 
   @@index([codigo])
   @@index([tipo])
@@ -1274,6 +1276,7 @@ model FluxoProducao {
   updatedAt     DateTime              @updatedAt
   item          Item?                 @relation(fields: [itemId], references: [id])
   versoes       FluxoProducaoVersao[]
+  engenharias   EngenhariaProduto[]
 
   @@index([itemId])
 }
@@ -1415,6 +1418,57 @@ enum StatusEtapaOP {
   PENDENTE
   EM_EXECUCAO
   CONCLUIDA
+}
+
+// Engenharia/estrutura do produto: liga um produto acabado a um fluxo (compartilhado)
+// e à sua lista de insumos (BOM). O fluxo é o "caminho"; a engenharia é "o que entra".
+model EngenhariaProduto {
+  id         String             @id @default(cuid())
+  itemId     String             @unique
+  fluxoId    String
+  ativo      Boolean            @default(true)
+  observacao String?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  item       Item               @relation("EngenhariaProdutoItem", fields: [itemId], references: [id])
+  fluxo      FluxoProducao      @relation(fields: [fluxoId], references: [id])
+  insumos    EngenhariaInsumo[]
+
+  @@index([fluxoId])
+}
+
+// Linha de BOM: um insumo (Item real) com quantidade por base. Categoria distingue
+// matéria-prima, mistura (semi-acabado), embalagem (pallet/fita/grampo) e energia.
+model EngenhariaInsumo {
+  id           String            @id @default(cuid())
+  engenhariaId String
+  insumoItemId String
+  quantidade   Decimal           @db.Decimal(15, 3)
+  base         BaseConsumo       @default(POR_MILHEIRO)
+  categoria    CategoriaInsumo   @default(MATERIA_PRIMA)
+  observacao   String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  engenharia   EngenhariaProduto @relation(fields: [engenhariaId], references: [id], onDelete: Cascade)
+  insumoItem   Item              @relation("EngenhariaInsumoItem", fields: [insumoItemId], references: [id])
+
+  @@index([engenhariaId])
+  @@index([insumoItemId])
+}
+
+enum BaseConsumo {
+  POR_MILHEIRO
+  POR_UNIDADE
+  POR_CICLO
+  POR_VAGAO
+}
+
+enum CategoriaInsumo {
+  MATERIA_PRIMA
+  MISTURA
+  EMBALAGEM
+  ENERGIA
+  OUTRO
 }
 
 enum PerfilUsuario {

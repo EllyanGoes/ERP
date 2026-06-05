@@ -101,9 +101,10 @@ export const MODULOS: ModuloDef[] = [
     label: "PCP",
     group: "Produção",
     recursos: [
-      { key: "ordens",           label: "Ordens de Produção",  acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "fluxos",           label: "Fluxos de Produção",  acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "centros-trabalho", label: "Centros de Trabalho", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "ordens",           label: "Ordens de Produção",   acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "engenharia",       label: "Engenharia do Produto", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "fluxos",           label: "Fluxos de Produção",   acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "centros-trabalho", label: "Centros de Trabalho",  acoes: ["ver", "inserir", "editar", "excluir"] },
     ],
   },
   {
