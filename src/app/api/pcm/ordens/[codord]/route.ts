@@ -100,11 +100,26 @@ async function queryOS(codord: number): Promise<OSDetalhe | null> {
     if (result.recordset.length === 0) return null;
     const r = result.recordset[0];
 
-    // Calculate actual machine downtime
-    const horasParada =
+    // Paradas adicionais (ORDXPAR) desta OS — somam ao tempo de parada de máquina.
+    const xparRes = await pool.request()
+      .input("codord", sql.Int, codord)
+      .query<{ H_ADD: number }>(`
+        SELECT ISNULL(SUM(CASE WHEN xp.MAQPAR IS NOT NULL AND xp.MAQFUN IS NOT NULL
+          THEN ABS(DATEDIFF(MINUTE, xp.MAQPAR, xp.MAQFUN)) / 60.0
+          ELSE ISNULL(xp.HORINTPARAD, 0) END), 0) AS H_ADD
+        FROM ORDXPAR xp
+        WHERE xp.CODORD = @codord
+      `);
+    const paradaAdicional = xparRes.recordset[0]?.H_ADD ?? 0;
+
+    // Tempo de parada de máquina = janela principal MAQPAR→MAQFUN (0h sem carimbo) +
+    // paradas adicionais (ORDXPAR). NÃO usa HOREXEREA (homem-hora de mão de obra, pode
+    // se sobrepor entre trabalhadores; não é tempo de máquina parada).
+    const mainHoras =
       r.MAQPAR && r.MAQFUN
         ? Math.abs((r.MAQFUN.getTime() - r.MAQPAR.getTime()) / 3600000)
-        : r.HOREXEREA ?? 0;
+        : 0;
+    const horasParada = mainHoras + paradaAdicional;
 
     const statord = r.STATORD ?? "A";
 

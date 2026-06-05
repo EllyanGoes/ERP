@@ -645,7 +645,7 @@ export default function PCMDashboardPage() {
             info={<span><strong>MTBF</strong> — Tempo Médio Entre Falhas<br />Período ÷ nº de falhas (CODDEF IS NOT NULL).</span>} />
           <KpiCard title="Média MTTR" value={`${fmt1(kpis.mttr)}h`} subtitle={`Meta: ≤ ${targets.mttr}h para reparar`}
             icon={AlertTriangle} color={kpis.mttr <= targets.mttr ? "text-green-600" : "text-red-600"} bg={kpis.mttr <= targets.mttr ? "bg-green-50" : "bg-red-50"} trend={kpis.mttr <= targets.mttr ? "up" : "down"}
-            info={<span><strong>MTTR</strong> — Tempo Médio Para Reparar<br />Horas reparo ÷ nº falhas (MAQPAR→MAQFUN ou HOREXEREA).</span>} />
+            info={<span><strong>MTTR</strong> — Tempo Médio Para Reparar<br />Horas de parada ÷ nº falhas (MAQPAR→MAQFUN + ORDXPAR).</span>} />
           <KpiCard title="Disponibilidade Média" value={fmtPct(kpis.disp)} subtitle="MTBF / (MTBF + MTTR) × 100"
             icon={TrendingUp} color={kpis.disp >= 95 ? "text-green-600" : kpis.disp >= 85 ? "text-amber-600" : "text-red-600"} bg={kpis.disp >= 95 ? "bg-green-50" : kpis.disp >= 85 ? "bg-amber-50" : "bg-red-50"} trend={kpis.disp >= 90 ? "up" : "down"}
             info={<span><strong>Disponibilidade</strong><br />MTBF ÷ (MTBF + MTTR) × 100.</span>} />

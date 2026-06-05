@@ -74,7 +74,6 @@ async function queryFMEA(codapl: number, dias: number): Promise<FMEAResponse> {
         DATAFIM: Date | null;
         MAQPAR: Date | null;
         MAQFUN: Date | null;
-        HOREXEREA: number | null;
         STATORD: string | null;
         TIPO: string | null;
         PRISUB: number | null;
@@ -90,7 +89,6 @@ async function queryFMEA(codapl: number, dias: number): Promise<FMEAResponse> {
           o.DATFEC                                                  AS DATAFIM,
           o.MAQPAR,
           o.MAQFUN,
-          ISNULL(o.HOREXEREA, 0)                                    AS HOREXEREA,
           ISNULL(o.STATORD, 'A')                                    AS STATORD,
           ISNULL(RTRIM(t.DESCRICAO), 'Tipo ' + CAST(ISNULL(o.CODTIPMAN,0) AS VARCHAR)) AS TIPO,
           o.PRISUB,
@@ -136,10 +134,34 @@ async function queryFMEA(codapl: number, dias: number): Promise<FMEAResponse> {
     const tag         = first.TAG ?? "";
     const local       = first.LOCAL ?? "Não informado";
 
+    // Paradas adicionais (ORDXPAR) por OS no período — somam ao tempo de parada.
+    // Pré-agregadas por CODORD (não dá pra somar SUM dentro de SUM no SQL Server).
+    const parAddRes = await pool.request()
+      .input("codapl", sql.Int, codapl)
+      .input("diasPeriodo", sql.Int, dias)
+      .query<{ CODORD: number; H_ADD: number }>(`
+        SELECT xp.CODORD,
+          SUM(CASE WHEN xp.MAQPAR IS NOT NULL AND xp.MAQFUN IS NOT NULL
+            THEN ABS(DATEDIFF(MINUTE, xp.MAQPAR, xp.MAQFUN)) / 60.0
+            ELSE ISNULL(xp.HORINTPARAD, 0) END) AS H_ADD
+        FROM ORDXPAR xp
+        WHERE EXISTS (
+          SELECT 1 FROM ORDSERV o
+          WHERE o.CODORD = xp.CODORD AND o.CODAPL = @codapl
+            AND o.DATENT >= DATEADD(DAY, -@diasPeriodo, GETDATE())
+        )
+        GROUP BY xp.CODORD
+      `);
+    const parAddMap = new Map<number, number>();
+    for (const p of parAddRes.recordset) parAddMap.set(p.CODORD, p.H_ADD ?? 0);
+
     const falhas: FalhaRegistro[] = result.recordset.map((r) => {
-      const horasParada = r.MAQPAR && r.MAQFUN
+      // Tempo de parada = janela principal MAQPAR→MAQFUN (0h sem carimbo) + paradas
+      // adicionais (ORDXPAR). NÃO usa HOREXEREA (homem-hora, pode se sobrepor).
+      const mainHoras = r.MAQPAR && r.MAQFUN
         ? Math.abs((r.MAQFUN.getTime() - r.MAQPAR.getTime()) / 3600000)
-        : r.HOREXEREA ?? 0;
+        : 0;
+      const horasParada = mainHoras + (parAddMap.get(r.CODORD) ?? 0);
       return {
         codord:     r.CODORD,
         descricao:  stripRtf(r.OBS) || "Sem descrição",

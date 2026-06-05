@@ -13,7 +13,7 @@ export interface IndicadorEquipamento {
   totalFalhas: number;
   totalHorasReparo: number;
   mtbf: number;           // horas entre falhas
-  mttr: number;           // MTTR padrão (MAQPAR→MAQFUN ou HOREXEREA)
+  mttr: number;           // MTTR padrão (janela MAQPAR→MAQFUN + ORDXPAR)
   mttrEfetivo: number;    // MTTR efetivo (TEMPO_EFETIVO, EXECUTADO='S', SIMULA='R')
   disponibilidade: number; // 0–100 %
   confiabilidade: number;  // R(90d) = e^(−n/8760 × 2160) × 100  (Engeman-nativa)
@@ -47,7 +47,7 @@ export interface IndicadoresResponse {
 // Confiabilidade  → REGSERV.DEFCAU = 'S' + STATORD='F' + DATPRO2 (sempre 365d)
 //   R(90d) = EXP(−n / (365×24) × (90×24)) × 100  (fórmula Engeman-nativa)
 // Filial válida: CODFIL NOT IN (0)
-// Tempo de reparo: MAQPAR→MAQFUN (parada real); fallback: HOREXEREA
+// Tempo de parada: janela MAQPAR→MAQFUN + paradas adicionais (ORDXPAR). NÃO usa HOREXEREA (homem-hora).
 
 // ── Queries ───────────────────────────────────────────────────────────────────
 async function queryEngeman(diasPeriodo: number, codApls?: number[]): Promise<{
@@ -64,7 +64,7 @@ async function queryEngeman(diasPeriodo: number, codApls?: number[]): Promise<{
   //   Falha confirmada = OS com REGSERV.CODDEF IS NOT NULL (defeito registrado)
   //   MTBF  = periodoHoras / COUNT(DISTINCT CODORD)
   //           (tempo total do período ÷ nº de falhas — padrão confiabilidade)
-  //   MTTR  = horas totais de reparo / nº de OS  (MAQPAR→MAQFUN ou HOREXEREA)
+  //   MTTR  = horas de parada / nº de OS  (MAQPAR→MAQFUN + ORDXPAR)
   //   Disponibilidade % = MTBF / (MTBF + MTTR) × 100
   //   Confiabilidade R(24h) = e^(-24/MTBF) × 100
   //
@@ -92,13 +92,27 @@ async function queryEngeman(diasPeriodo: number, codApls?: number[]): Promise<{
         SELECT
           o.CODAPL,
           o.CODORD,
-          CASE
+          /* Parada = janela de máquina parada (MAQPAR→MAQFUN) + adicionais (ORDXPAR).
+             Sem carimbo → 0h. NÃO usa HOREXEREA (homem-hora de mão de obra: soma dos
+             REGSERV, pode se sobrepor entre trabalhadores; não é tempo de máquina parada). */
+          ((CASE
             WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
               THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
-            ELSE ISNULL(o.HOREXEREA, 0)
-          END AS HH_REPARO
+            ELSE 0
+          END)
+          + ISNULL(xpa.H_ADD, 0)) AS HH_REPARO
         FROM ORDSERV o
         INNER JOIN REGSERV r ON r.CODORD = o.CODORD
+        /* Paradas adicionais (ORDXPAR) pré-agregadas por OS num LEFT JOIN derivado —
+           não dá pra usar subconsulta com SUM dentro de outro SUM no SQL Server. */
+        LEFT JOIN (
+          SELECT xp.CODORD,
+            SUM(CASE WHEN xp.MAQPAR IS NOT NULL AND xp.MAQFUN IS NOT NULL
+              THEN ABS(DATEDIFF(MINUTE, xp.MAQPAR, xp.MAQFUN)) / 60.0
+              ELSE ISNULL(xp.HORINTPARAD, 0) END) AS H_ADD
+          FROM ORDXPAR xp
+          GROUP BY xp.CODORD
+        ) xpa ON xpa.CODORD = o.CODORD
         WHERE r.CODDEF IS NOT NULL
           AND o.CODAPL IS NOT NULL
           AND o.CODFIL NOT IN (0)
@@ -150,7 +164,7 @@ async function queryEngeman(diasPeriodo: number, codApls?: number[]): Promise<{
         /* Horas totais de reparo */
         SUM(f.HH_REPARO) AS TOTAL_HH_REPARO,
 
-        /* MTTR padrão = horas totais / nº falhas (MAQPAR→MAQFUN ou HOREXEREA) */
+        /* MTTR padrão = horas de parada / nº falhas (MAQPAR→MAQFUN + ORDXPAR) */
         SUM(f.HH_REPARO) / NULLIF(COUNT(DISTINCT f.CODORD), 0) AS MTTR,
 
         /* MTTR Efetivo = SUM(TEMPO_EFETIVO) / COUNT(OS executadas) */
@@ -183,7 +197,10 @@ async function queryEngeman(diasPeriodo: number, codApls?: number[]): Promise<{
       LEFT  JOIN CONF     c  ON c.CODAPL    = f.CODAPL
       LEFT  JOIN MTTR_EF  ef ON ef.CODAPL   = f.CODAPL
 
-      GROUP BY a.CODAPL, a.DESCRICAO, l.DESCRICAO, c.N, ef.N_EF, ef.TEMPO_TOTAL_EF
+      /* a.TAG precisa entrar no GROUP BY porque é SELECIONADO fora de agregação (linha
+         "AS TAG"); o SQL Server exige isso e não relaxa por dependência funcional. Como
+         CODAPL é PK de APLIC, agrupar também por TAG não muda a cardinalidade. */
+      GROUP BY a.CODAPL, a.TAG, a.DESCRICAO, l.DESCRICAO, c.N, ef.N_EF, ef.TEMPO_TOTAL_EF
       HAVING COUNT(DISTINCT f.CODORD) >= 1
       ORDER BY TOTAL_FALHAS DESC
     `);
@@ -210,13 +227,24 @@ async function queryEngeman(diasPeriodo: number, codApls?: number[]): Promise<{
           YEAR(o.DATPRO)  AS ANO,
           MONTH(o.DATPRO) AS MES,
           o.CODORD,
-          CASE
+          /* Parada = janela MAQPAR→MAQFUN + adicionais (ORDXPAR). Sem carimbo → 0h.
+             NÃO usa HOREXEREA (homem-hora, pode se sobrepor; não é tempo de máquina). */
+          ((CASE
             WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
               THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
-            ELSE ISNULL(o.HOREXEREA, 0)
-          END AS HH_REPARO
+            ELSE 0
+          END)
+          + ISNULL(xpa.H_ADD, 0)) AS HH_REPARO
         FROM ORDSERV o
         INNER JOIN REGSERV r ON r.CODORD = o.CODORD
+        LEFT JOIN (
+          SELECT xp.CODORD,
+            SUM(CASE WHEN xp.MAQPAR IS NOT NULL AND xp.MAQFUN IS NOT NULL
+              THEN ABS(DATEDIFF(MINUTE, xp.MAQPAR, xp.MAQFUN)) / 60.0
+              ELSE ISNULL(xp.HORINTPARAD, 0) END) AS H_ADD
+          FROM ORDXPAR xp
+          GROUP BY xp.CODORD
+        ) xpa ON xpa.CODORD = o.CODORD
         WHERE r.CODDEF IS NOT NULL
           AND o.CODAPL IS NOT NULL
           AND o.CODFIL NOT IN (0)
