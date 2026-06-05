@@ -12,6 +12,9 @@ export interface EtapaSnapshot {
   kind: NodeKind;
   centroTrabalho: string | null;
   estadoSaida: string | null; // EstadoWIP serializado
+  tempoCicloHoras: number | null;
+  subprodutoItemId: string | null;
+  subprodutoDescricao: string | null;
 }
 
 const ETAPA_KINDS = new Set<NodeKind>(["OPERACAO", "TRANSPORTE", "INSPECAO"]);
@@ -38,6 +41,9 @@ export function snapshotEtapas(grafo: FlowGraph): EtapaSnapshot[] {
       kind: d.kind,
       centroTrabalho: (d.centroTrabalhoNome as string) ?? null,
       estadoSaida: (d.estadoWip as string) ?? null,
+      tempoCicloHoras: (d.tempoCicloHoras as number) ?? null,
+      subprodutoItemId: (d.subprodutoItemId as string) ?? null,
+      subprodutoDescricao: (d.subprodutoDescricao as string) ?? null,
     });
   }
   return etapas;

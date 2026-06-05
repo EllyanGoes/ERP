@@ -4,6 +4,7 @@ import { X, Trash2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FlowNodeData, NodeKind, InsumoVinculo } from "@/lib/pcp/types";
 import { NODE_STYLE } from "./nodes";
+import ItemSearch from "@/components/pcp/ItemSearch";
 
 interface CentroOpt { id: string; nome: string; }
 
@@ -11,6 +12,7 @@ interface Props {
   kind: NodeKind;
   data: FlowNodeData;
   centros: CentroOpt[];
+  locais: CentroOpt[];
   onChange: (patch: Partial<FlowNodeData>) => void;
   onClose: () => void;
   onDelete: () => void;
@@ -35,7 +37,7 @@ function strv(v: number | null | undefined): string {
   return v == null ? "" : String(v);
 }
 
-export default function NodeConfigSheet({ kind, data, centros, onChange, onClose, onDelete }: Props) {
+export default function NodeConfigSheet({ kind, data, centros, locais, onChange, onClose, onDelete }: Props) {
   const s = NODE_STYLE[kind];
   const isOperacao = kind === "OPERACAO";
   const isTransporte = kind === "TRANSPORTE";
@@ -74,12 +76,27 @@ export default function NodeConfigSheet({ kind, data, centros, onChange, onClose
         {isEstoque && (
           <>
             <div>
-              <label className={labelCls}>Item / material</label>
-              <input className={inputCls} value={data.itemDescricao ?? ""} onChange={(e) => onChange({ itemDescricao: e.target.value })} placeholder="ex.: Argila, Caroço de açaí, Tijolo 6 furos" />
+              <label className={labelCls}>Item / material (real)</label>
+              {data.itemId ? (
+                <div className="flex items-center justify-between rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm bg-white">
+                  <span className="truncate text-gray-700">{data.itemDescricao ?? "item"}</span>
+                  <button type="button" onClick={() => onChange({ itemId: null, itemDescricao: null })} title="Trocar">
+                    <X className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 shrink-0" />
+                  </button>
+                </div>
+              ) : (
+                <ItemSearch
+                  onSelect={(it) => onChange({ itemId: it.id, itemDescricao: it.descricao, label: data.label || it.descricao })}
+                  placeholder="Buscar item real…"
+                />
+              )}
             </div>
             <div>
               <label className={labelCls}>Local de estoque</label>
-              <input className={inputCls} value={data.localEstoqueId ?? ""} onChange={(e) => onChange({ localEstoqueId: e.target.value })} placeholder="ex.: Pátio / Almoxarifado" />
+              <select className={inputCls} value={data.localEstoqueId ?? ""} onChange={(e) => onChange({ localEstoqueId: e.target.value || null })}>
+                <option value="">—</option>
+                {locais.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+              </select>
             </div>
           </>
         )}
@@ -120,8 +137,8 @@ export default function NodeConfigSheet({ kind, data, centros, onChange, onClose
                 <input className={inputCls} inputMode="decimal" value={strv(data.setupMin)} onChange={(e) => onChange({ setupMin: num(e.target.value) })} />
               </div>
               <div>
-                <label className={labelCls}>Ciclo (seg)</label>
-                <input className={inputCls} inputMode="decimal" value={strv(data.tempoCicloSeg)} onChange={(e) => onChange({ tempoCicloSeg: num(e.target.value) })} />
+                <label className={labelCls}>Ciclo (h)</label>
+                <input className={inputCls} inputMode="decimal" value={strv(data.tempoCicloHoras)} onChange={(e) => onChange({ tempoCicloHoras: num(e.target.value) })} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -180,6 +197,21 @@ export default function NodeConfigSheet({ kind, data, centros, onChange, onClose
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Subproduto/resíduo gerado (ex.: caco) que retorna ao estoque como insumo */}
+            <div className="pt-1">
+              <label className={labelCls}>Subproduto / resíduo gerado</label>
+              {data.subprodutoItemId ? (
+                <div className="flex items-center justify-between rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm bg-white">
+                  <span className="truncate text-gray-700">{data.subprodutoDescricao ?? "item"}</span>
+                  <button type="button" onClick={() => onChange({ subprodutoItemId: null, subprodutoDescricao: null })}>
+                    <X className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 shrink-0" />
+                  </button>
+                </div>
+              ) : (
+                <ItemSearch onSelect={(it) => onChange({ subprodutoItemId: it.id, subprodutoDescricao: it.descricao })} placeholder="Resíduo que volta ao estoque…" />
+              )}
             </div>
           </>
         )}

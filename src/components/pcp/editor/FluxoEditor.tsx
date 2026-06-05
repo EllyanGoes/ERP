@@ -59,15 +59,14 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [centros, setCentros] = useState<CentroOpt[]>([]);
+  const [locais, setLocais] = useState<CentroOpt[]>([]);
   const [status, setStatus] = useState<string>(fluxo.versaoAtual?.status ?? "RASCUNHO");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   useEffect(() => {
-    fetch("/api/pcp/centros-trabalho")
-      .then((r) => r.json())
-      .then((j) => setCentros(j.data ?? []))
-      .catch(() => {});
+    fetch("/api/pcp/centros-trabalho").then((r) => r.json()).then((j) => setCentros(j.data ?? [])).catch(() => {});
+    fetch("/api/suprimentos/locais-estoque").then((r) => r.json()).then((j) => setLocais(j.data ?? [])).catch(() => {});
   }, []);
 
   const onConnect = useCallback(
@@ -263,6 +262,7 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
               kind={(selected.data as FlowNodeData).kind}
               data={selected.data as FlowNodeData}
               centros={centros}
+              locais={locais}
               onChange={patchSelected}
               onClose={() => setSelectedId(null)}
               onDelete={deleteSelected}

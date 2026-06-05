@@ -52,6 +52,7 @@ import {
   Workflow,
   Boxes,
   FlaskConical,
+  ListChecks,
   Wrench,
   Users2,
   Layers,
@@ -273,6 +274,7 @@ const mainModules: Module[] = [
         kind: "Produção" as SubSection["kind"],
         items: [
           { href: "/pcp/ordens",           label: "Ordens de Produção",   icon: ClipboardList },
+          { href: "/pcp/operacoes",        label: "Operações (fila)",      icon: ListChecks },
           { href: "/pcp/engenharia",       label: "Engenharia do Produto", icon: FlaskConical },
           { href: "/pcp/fluxos",           label: "Fluxos de Produção",   icon: Workflow },
           { href: "/pcp/centros-trabalho", label: "Centros de Trabalho",  icon: Boxes },

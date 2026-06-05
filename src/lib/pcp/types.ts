@@ -43,6 +43,7 @@ export interface FlowNodeData {
   centroTrabalhoNome?: string | null;
   setupMin?: number | null;
   tempoCicloSeg?: number | null;
+  tempoCicloHoras?: number | null; // duração do ciclo da etapa em horas (lead time)
   capacidade?: number | null;
   unidadeCapacidade?: string | null;
   perdaPct?: number | null;
@@ -55,6 +56,9 @@ export interface FlowNodeData {
   loteVagoneta?: number | null;
   // insumos vinculados à etapa (água, caco, biomassa, argila)
   insumos?: InsumoVinculo[];
+  // subproduto/resíduo gerado pela operação (ex.: caco) que volta ao estoque como insumo
+  subprodutoItemId?: string | null;
+  subprodutoDescricao?: string | null;
   // marcação calculada pelo validador (não persiste como verdade)
   isBottleneck?: boolean;
 }

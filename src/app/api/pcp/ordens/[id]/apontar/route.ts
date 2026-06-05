@@ -135,6 +135,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
     }
 
+    // ── Subproduto/resíduo gerado pela etapa → entrada no estoque (volta como insumo) ──
+    const subQtd = numOrNull(body.subprodutoQtd);
+    if (concluindoAgora && etapa.subprodutoItemId && subQtd != null && subQtd > 0) {
+      const localId = await getOrCreateLocalProducao(tx);
+      const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Subproduto ${etapa.nome} — ${ordem.numero}`);
+      await postMovimento(tx, {
+        itemId: etapa.subprodutoItemId,
+        localEstoqueId: localId,
+        tipo: "ENTRADA",
+        quantidade: subQtd,
+        ordemProducaoId: params.id,
+        documento: ordem.numero,
+        observacoes: `Subproduto/resíduo de ${etapa.nome}`,
+        loteId,
+      });
+    }
+
     // ── Recalcula status/estado da ordem ──
     const todasConcluidas = etapas.length > 0 && etapas.every((e) => e.status === "CONCLUIDA");
     const algumaIniciada = etapas.some((e) => e.status !== "PENDENTE");

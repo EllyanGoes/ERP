@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, RefreshCw, Flame, Play, CheckCircle2, Ban, Send, AlertTriangle, ArrowLeftRight } from "lucide-react";
+import { ArrowLeft, RefreshCw, Flame, Play, CheckCircle2, Ban, Send, AlertTriangle, ArrowLeftRight, Clock } from "lucide-react";
 
 interface Etapa {
   id: string;
@@ -21,6 +21,9 @@ interface Etapa {
   vagoes: number | null;
   vagonetas: number | null;
   apontadoPor: string | null;
+  tempoCicloHoras: string | number | null;
+  subprodutoItemId: string | null;
+  subprodutoDescricao: string | null;
 }
 interface Consumo { id: string; descricao: string | null; quantidadeKg: string | number; milheirosProduzidos: string | number | null; data: string; }
 interface Movimento { id: string; tipo: string; quantidade: string | number; saldoDepois: string | number; observacoes: string | null; createdAt: string; item: { codigo: string; descricao: string } | null; }
@@ -44,7 +47,7 @@ const STATUS_OP: Record<string, { label: string; cls: string }> = {
 const ETAPA_STATUS: Record<string, string> = { PENDENTE: "bg-gray-100 text-gray-500", EM_EXECUCAO: "bg-amber-100 text-amber-700", CONCLUIDA: "bg-emerald-100 text-emerald-700" };
 const ESTADO_LABEL: Record<string, string> = { UMIDO: "úmido", SECO: "seco", QUEIMADO: "queimado", ACABADO: "acabado" };
 
-type Aponta = { qtdEntrada: string; qtdSaida: string; qtdPerda: string; vagoes: string; vagonetas: string; biomassaKg: string; milheiros: string };
+type Aponta = { qtdEntrada: string; qtdSaida: string; qtdPerda: string; vagoes: string; vagonetas: string; biomassaKg: string; milheiros: string; subprodutoQtd: string };
 const inCls = "w-full rounded border border-gray-200 px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-cyan-500";
 
 function s(v: string | number | null | undefined): string { return v == null ? "" : String(v); }
@@ -70,7 +73,7 @@ export default function OrdemDetalhePage() {
       for (const e of j.data.etapas as Etapa[]) {
         init[e.id] = {
           qtdEntrada: s(e.qtdEntrada), qtdSaida: s(e.qtdSaida), qtdPerda: s(e.qtdPerda),
-          vagoes: s(e.vagoes), vagonetas: s(e.vagonetas), biomassaKg: "", milheiros: "",
+          vagoes: s(e.vagoes), vagonetas: s(e.vagonetas), biomassaKg: "", milheiros: "", subprodutoQtd: "",
         };
       }
       setAponta(init);
@@ -103,6 +106,7 @@ export default function OrdemDetalhePage() {
           qtdEntrada: a.qtdEntrada, qtdSaida: a.qtdSaida, qtdPerda: a.qtdPerda,
           vagoes: a.vagoes, vagonetas: a.vagonetas,
           biomassaKg: a.biomassaKg, milheirosProduzidos: a.milheiros,
+          subprodutoQtd: a.subprodutoQtd,
           status: status ?? undefined,
         }),
       });
@@ -129,6 +133,7 @@ export default function OrdemDetalhePage() {
   const st = STATUS_OP[ordem.status] ?? { label: ordem.status, cls: "bg-gray-100" };
   const totalPerda = ordem.etapas.reduce((acc, e) => acc + (Number(e.qtdPerda) || 0), 0);
   const totalBiomassa = ordem.consumos.reduce((acc, c) => acc + (Number(c.quantidadeKg) || 0), 0);
+  const leadHoras = ordem.etapas.reduce((acc, e) => acc + (Number(e.tempoCicloHoras) || 0), 0);
   const finalizada = ordem.status === "CONCLUIDA" || ordem.status === "CANCELADA";
 
   return (
@@ -168,6 +173,11 @@ export default function OrdemDetalhePage() {
           <span className="inline-flex items-center rounded-full bg-cyan-50 text-cyan-700 px-3 py-1 font-medium">
             {ordem.etapas.filter((e) => e.status === "CONCLUIDA").length}/{ordem.etapas.length} etapas concluídas
           </span>
+          {leadHoras > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-700 px-3 py-1 font-medium">
+              <Clock className="w-3 h-3" /> Lead time previsto: {leadHoras}h (~{(leadHoras / 24).toFixed(1)} dias)
+            </span>
+          )}
           {totalPerda > 0 && <span className="inline-flex items-center rounded-full bg-rose-50 text-rose-700 px-3 py-1 font-medium">Perda total: {totalPerda}</span>}
           {totalBiomassa > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 px-3 py-1 font-medium"><Flame className="w-3 h-3" /> Biomassa: {totalBiomassa} kg</span>}
         </div>
@@ -184,7 +194,7 @@ export default function OrdemDetalhePage() {
                   <span className="flex w-6 h-6 items-center justify-center rounded-md bg-gray-100 text-gray-500 text-xs font-semibold">{e.sequencia}</span>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-800 truncate">{e.nome}</p>
-                    <p className="text-[11px] text-gray-400">{e.centroTrabalho ?? "—"}{e.estadoSaida ? ` · → ${ESTADO_LABEL[e.estadoSaida] ?? e.estadoSaida}` : ""}</p>
+                    <p className="text-[11px] text-gray-400">{e.centroTrabalho ?? "—"}{e.estadoSaida ? ` · → ${ESTADO_LABEL[e.estadoSaida] ?? e.estadoSaida}` : ""}{e.tempoCicloHoras ? ` · ${Number(e.tempoCicloHoras)}h` : ""}{e.subprodutoDescricao ? ` · resíduo: ${e.subprodutoDescricao}` : ""}</p>
                   </div>
                   <span className={cn("ml-auto inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", ETAPA_STATUS[e.status])}>
                     {e.status === "EM_EXECUCAO" ? "em execução" : e.status === "CONCLUIDA" ? "concluída" : "pendente"}
@@ -204,6 +214,9 @@ export default function OrdemDetalhePage() {
                       </>
                     ) : (
                       <Field label="Vagonetas"><input className={inCls} inputMode="numeric" value={a.vagonetas} onChange={(ev) => setA(e.id, { vagonetas: ev.target.value })} /></Field>
+                    )}
+                    {e.subprodutoDescricao && (
+                      <Field label="Subproduto"><input className={inCls} inputMode="decimal" value={a.subprodutoQtd} onChange={(ev) => setA(e.id, { subprodutoQtd: ev.target.value })} placeholder={e.subprodutoDescricao} /></Field>
                     )}
                   </div>
                 )}
