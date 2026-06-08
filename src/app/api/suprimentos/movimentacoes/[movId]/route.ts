@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { recalcularSaldos } from "@/lib/estoque-saldos";
 import { z } from "zod";
 
 type Ctx = { params: { movId: string } };
@@ -47,12 +48,11 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
           });
         }
 
-        // Update movement record
+        // Update movement record (saldoAntes/saldoDepois são recalculados abaixo)
         await tx.movimentacaoEstoque.update({
           where: { id: params.movId },
           data: {
             quantidade: newQty,
-            saldoDepois: { increment: mov.tipo === "ENTRADA" ? delta : -delta },
             ...(documento   !== undefined && { documento:   documento   ?? null }),
             ...(observacoes !== undefined && { observacoes: observacoes ?? null }),
             ...(unidadeId   !== undefined && { unidadeId:   unidadeId   || null }),
@@ -66,6 +66,12 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
             where: { id: mov.loteId },
             data:  { dataMovimentacao: dataMovimentacao ? new Date(dataMovimentacao) : null },
           });
+        }
+
+        // Recalcula a cadeia de saldos do (item + local) para as linhas seguintes
+        // não ficarem com o "Saldo Depois" defasado após a edição.
+        if (mov.localEstoqueId) {
+          await recalcularSaldos(tx, mov.itemId, mov.localEstoqueId);
         }
       });
     } else {
