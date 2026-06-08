@@ -37,9 +37,27 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
   if (!item) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
 
+  // Resolve o número FÍSICO da minuta para as saídas geradas por minuta.
+  // A movimentação grava em `documento` o número de sistema da minuta
+  // (ex.: "MIN-0103"); aqui cruzamos com Minuta.numero para anexar numeroFisico.
+  const numerosMinuta = Array.from(
+    new Set(item.movimentacoes.map((m) => m.documento).filter((d): d is string => !!d && d.startsWith("MIN-"))),
+  );
+  const minutas = numerosMinuta.length
+    ? await prisma.minuta.findMany({
+        where: { numero: { in: numerosMinuta } },
+        select: { numero: true, numeroFisico: true },
+      })
+    : [];
+  const fisicaPorNumero = new Map(minutas.map((mn) => [mn.numero, mn.numeroFisico]));
+  const movimentacoes = item.movimentacoes.map((m) => ({
+    ...m,
+    minutaFisica: m.documento ? (fisicaPorNumero.get(m.documento) ?? null) : null,
+  }));
+
   // Alias produtosFornecedor → fornecedores for frontend compatibility
   const { produtosFornecedor, ...rest } = item;
-  return NextResponse.json({ data: { ...rest, fornecedores: produtosFornecedor } });
+  return NextResponse.json({ data: { ...rest, movimentacoes, fornecedores: produtosFornecedor } });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

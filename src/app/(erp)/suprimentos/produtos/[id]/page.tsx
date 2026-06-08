@@ -12,7 +12,7 @@ import {
   ChevronRight, Pencil, Save, X, Plus, Trash2, Printer,
   Loader2, Package, TrendingUp, TrendingDown, ArrowUpDown,
   BarChart2, ShieldCheck, RefreshCw, Clock, AlertOctagon, AlertTriangle,
-  ShoppingBag, ClipboardList, FileText, PackageCheck, ExternalLink, Info as InfoIcon, Star, Activity, Ruler,
+  ClipboardList, FileText, PackageCheck, ExternalLink, Info as InfoIcon, Star, Activity, Ruler,
 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { TipoProdutoQuickCreate, UnidadeQuickCreate, LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
@@ -30,6 +30,7 @@ type Movimentacao = {
   saldoDepois: unknown;
   documento: string | null;
   observacoes: string | null;
+  minutaFisica?: string | null;
   createdAt: string;
   pedidoVendaItemId: string | null;
   conferenciaItemId: string | null;
@@ -161,12 +162,6 @@ export default function ProdutoDetailPage() {
   };
   const [itemUnidades, setItemUnidades] = useState<ItemUnidadeRow[]>([]);
   const [unidadesLoaded, setUnidadesLoaded] = useState(false);
-  const [showAddUnidade, setShowAddUnidade] = useState(false);
-  const [addUnidadeId, setAddUnidadeId] = useState("");
-  const [addBaseUnidadeId, setAddBaseUnidadeId] = useState("");
-  const [addFatorConv, setAddFatorConv] = useState("");
-  const [addUnidadeSaving, setAddUnidadeSaving] = useState(false);
-  const [addUnidadeError, setAddUnidadeError] = useState("");
   const [confirmPrincipal, setConfirmPrincipal] = useState<{ itemUnidadeId: string; unidadeId: string; sigla: string; nome: string } | null>(null);
   // Edit/add unit modal
   const [unidadeModal, setUnidadeModal] = useState<{
@@ -545,28 +540,6 @@ export default function ProdutoDetailPage() {
     });
   }
 
-  async function addItemUnidade() {
-    if (!addUnidadeId) { setAddUnidadeError("Selecione uma unidade"); return; }
-    setAddUnidadeSaving(true); setAddUnidadeError("");
-    try {
-      const res = await fetch(`/api/suprimentos/produtos/${id}/unidades`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          unidadeId:     addUnidadeId,
-          baseUnidadeId: addBaseUnidadeId || null,
-          fatorConversao: addFatorConv ? parseFloat(addFatorConv) : null,
-          isPrincipal: false,
-        }),
-      });
-      if (!res.ok) { setAddUnidadeError((await res.json()).error || "Erro"); return; }
-      setShowAddUnidade(false);
-      setAddUnidadeId(""); setAddBaseUnidadeId(""); setAddFatorConv("");
-      loadItemUnidades();
-    } catch { setAddUnidadeError("Erro de conexão"); }
-    finally { setAddUnidadeSaving(false); }
-  }
-
   async function removeItemUnidade(itemUnidadeId: string) {
     await fetch(`/api/suprimentos/produtos/${id}/unidades/${itemUnidadeId}`, { method: "DELETE" });
     loadItemUnidades();
@@ -819,17 +792,18 @@ export default function ProdutoDetailPage() {
         nf(decimalToNumber(m.saldoDepois)),
         origem,
         m.documento || "—",
+        m.minutaFisica || "—",
         m.observacoes || "—",
       ];
     });
 
     autoTable(doc, {
       startY: 42,
-      head: [["Data", "Tipo", "Quantidade", "Un.", "Saldo Antes", "Saldo Depois", "Origem", "Documento", "Obs."]],
+      head: [["Data", "Tipo", "Quantidade", "Un.", "Saldo Antes", "Saldo Depois", "Origem", "Documento", "Minuta Física", "Obs."]],
       body,
       foot: [[
         { content: "Totais do período", colSpan: 4, styles: { halign: "left", fontStyle: "bold" } },
-        { content: `Entradas: +${nf(totalEntrada)}   ·   Saídas: -${nf(totalSaida)}`, colSpan: 3, styles: { halign: "left" } },
+        { content: `Entradas: +${nf(totalEntrada)}   ·   Saídas: -${nf(totalSaida)}`, colSpan: 4, styles: { halign: "left" } },
         { content: `Saldo final: ${nf(saldoFinal)} ${un}`, colSpan: 2, styles: { halign: "right", fontStyle: "bold" } },
       ]],
       styles: { fontSize: 7.5, cellPadding: 2, valign: "middle", lineColor: [220, 220, 220], lineWidth: 0.1 },
@@ -844,7 +818,8 @@ export default function ProdutoDetailPage() {
         4: { cellWidth: 26, halign: "right" },
         5: { cellWidth: 26, halign: "right", fontStyle: "bold" },
         6: { cellWidth: 22 },
-        7: { cellWidth: 30 },
+        7: { cellWidth: 28 },
+        8: { cellWidth: 24 },
       },
       margin: { left: 14, right: 14 },
       // Pinta tipo/quantidade conforme entrada (verde) / saída (vermelho)
@@ -1445,7 +1420,7 @@ export default function ProdutoDetailPage() {
                   <div className="text-center py-20 text-gray-400 border border-dashed border-gray-200 rounded-xl">
                     <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
                     <p className="text-sm font-medium">Nenhum saldo registrado em local definido</p>
-                    <p className="text-xs mt-1">Use "Inserir Saldo" para itens já em estoque</p>
+                    <p className="text-xs mt-1">Use &quot;Inserir Saldo&quot; para itens já em estoque</p>
                     <Button size="sm" variant="outline" className="mt-4" onClick={openSaldoDialog}>
                       <Plus className="w-3.5 h-3.5 mr-1" />Inserir Saldo
                     </Button>
@@ -1814,6 +1789,7 @@ export default function ProdutoDetailPage() {
                       <th className="text-right px-4 py-3 font-semibold">Saldo Depois</th>
                       <th className="text-left px-4 py-3 font-semibold">Origem</th>
                       <th className="text-left px-4 py-3 font-semibold">Documento</th>
+                      <th className="text-left px-4 py-3 font-semibold">Minuta Física</th>
                       <th className="text-left px-4 py-3 font-semibold">Obs.</th>
                       <th className="px-4 py-3" />
                     </tr>
@@ -1864,6 +1840,9 @@ export default function ProdutoDetailPage() {
                         </td>
                         <td className="px-4 py-3 text-gray-600 font-mono text-xs">
                           {m.documento || "—"}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 font-mono text-xs">
+                          {m.minutaFisica || "—"}
                         </td>
                         <td className="px-4 py-3 text-gray-500 text-xs max-w-[140px] truncate">
                           {m.observacoes || "—"}
