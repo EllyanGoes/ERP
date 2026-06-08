@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { recalcularSaldos } from "@/lib/estoque-saldos";
 
 const MINUTA_INCLUDE = {
   pedidoVenda: {
@@ -257,35 +258,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       const effectiveStatus = newStatus ?? minuta.status;
 
       // O estoque fica "baixado" quando a minuta está em SAIU_PARA_ENTREGA ou ENTREGUE.
-      // Comparamos o antes (oldOut) com o depois (newOut):
-      //   • estava baixado  → devolve as quantidades antigas ao estoque (+);
-      //   • fica baixado    → baixa as quantidades novas (−).
-      // Assim, mudar de status já acerta o estoque: Saiu→Cancelada/Pendente devolve,
-      // Pendente/Cancelada→Saiu/Entregue baixa — tudo no mesmo saldo líquido.
-      const oldOut = minuta.status === "SAIU_PARA_ENTREGA" || minuta.status === "ENTREGUE";
+      // A reconciliação abaixo reverte as movimentações atuais da minuta e reaplica
+      // a saída conforme o status efetivo (newOut), atualizando as linhas no lugar
+      // (sem lançar "Ajuste"). Saiu/Entregue → baixa; Pendente/Cancelada → devolve.
       const newOut = effectiveStatus === "SAIU_PARA_ENTREGA" || effectiveStatus === "ENTREGUE";
       if (newOut && !newLocal) {
         return NextResponse.json({ error: "Informe o Local de Estoque para registrar a saída" }, { status: 400 });
       }
 
-      // Saldo líquido por (item + local): devolve as quantidades antigas (+) e baixa as novas (−).
-      const net = new Map<string, { itemId: string; localEstoqueId: string; delta: number; pedidoVendaItemId: string | null }>();
-      if (oldOut && oldLocal) {
-        for (const it of minuta.itens) {
-          const key = `${it.itemId}|${oldLocal}`;
-          const cur = net.get(key) ?? { itemId: it.itemId, localEstoqueId: oldLocal, delta: 0, pedidoVendaItemId: null };
-          cur.delta += parseFloat(it.quantidade.toString());
-          if (!cur.pedidoVendaItemId) cur.pedidoVendaItemId = it.pedidoVendaItemId ?? null;
-          net.set(key, cur);
-        }
-      }
+      // Estado desejado de SAÍDA por item (no local efetivo), somando linhas do mesmo item.
+      const desejado = new Map<string, { itemId: string; qty: number; unidadeId: string | null; pedidoVendaItemId: string | null }>();
       if (newOut && newLocal) {
         for (const it of novosItens) {
-          const key = `${it.itemId}|${newLocal}`;
-          const cur = net.get(key) ?? { itemId: it.itemId, localEstoqueId: newLocal, delta: 0, pedidoVendaItemId: null };
-          cur.delta -= Number(it.quantidade) || 0;
+          const cur = desejado.get(it.itemId) ?? { itemId: it.itemId, qty: 0, unidadeId: it.unidadeId ?? null, pedidoVendaItemId: it.pedidoVendaItemId ?? null };
+          cur.qty += Number(it.quantidade) || 0;
+          if (!cur.unidadeId) cur.unidadeId = it.unidadeId ?? null;
           if (!cur.pedidoVendaItemId) cur.pedidoVendaItemId = it.pedidoVendaItemId ?? null;
-          net.set(key, cur);
+          desejado.set(it.itemId, cur);
         }
       }
 
@@ -303,55 +292,97 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           })),
         });
 
-        // Reconcilia o estoque (apenas onde o saldo líquido ≠ 0)
-        const ajustes = Array.from(net.values()).filter((n) => Math.abs(n.delta) > 0.0001);
-        if (ajustes.length > 0) {
-          const year = new Date().getFullYear();
-          const seq = await tx.sequencia.upsert({
-            where:  { prefixo: "MOV" },
-            create: { prefixo: "MOV", ultimo: 1 },
-            update: { ultimo: { increment: 1 } },
-          });
-          const movNumero = `MOV-${year}-${String(seq.ultimo).padStart(4, "0")}`;
-          const lote = await tx.loteMovimentacao.create({
-            data: {
-              numero:      movNumero,
-              tipo:        "AJUSTE",
-              documento:   minuta.numero,
-              observacoes: `Ajuste por edição da minuta ${minuta.numero}`,
-            },
-          });
+        // ── Reconcilia o estoque ATUALIZANDO as movimentações da própria minuta ──
+        // Em vez de lançar uma movimentação de "Ajuste", revertemos o efeito atual
+        // da minuta no estoque e reescrevemos a saída com as quantidades novas,
+        // reaproveitando a linha de saída de cada item (atualização no lugar). No
+        // fim, o saldo corrido de cada (item + local) afetado é recalculado.
+        const num = (d: unknown) => parseFloat(String(d));
+        const existentes = await tx.movimentacaoEstoque.findMany({
+          where: { documento: minuta.numero },
+          select: { id: true, itemId: true, localEstoqueId: true, tipo: true, quantidade: true, saldoAntes: true, saldoDepois: true, loteId: true },
+        });
 
-          for (const aj of ajustes) {
-            let estoque = await tx.estoqueItem.findFirst({
-              where: { itemId: aj.itemId, localEstoqueId: aj.localEstoqueId },
+        const afetados = new Set<string>(); // "itemId|localId" a recalcular
+        const marca = (itemId: string, localId: string | null) => { if (localId) afetados.add(`${itemId}|${localId}`); };
+
+        // 1) Reverte o efeito atual de cada movimentação da minuta no estoque e
+        //    reaproveita 1 linha de SAÍDA por item que continua na minuta.
+        const reusaveis = new Map<string, string>(); // itemId -> movimentacaoEstoque.id reaproveitada
+        let saidaLoteId: string | null = existentes.find((m) => m.tipo === "SAIDA")?.loteId ?? null;
+
+        for (const mv of existentes) {
+          if (mv.localEstoqueId) {
+            const efeito = mv.tipo === "ENTRADA" ? num(mv.quantidade) : mv.tipo === "SAIDA" ? -num(mv.quantidade) : num(mv.saldoDepois) - num(mv.saldoAntes);
+            await tx.estoqueItem.updateMany({
+              where: { itemId: mv.itemId, localEstoqueId: mv.localEstoqueId },
+              data:  { quantidadeAtual: { decrement: efeito } },
             });
+            marca(mv.itemId, mv.localEstoqueId);
+          }
+          const reaproveita = newOut && !!newLocal && desejado.has(mv.itemId) && mv.tipo === "SAIDA" && !reusaveis.has(mv.itemId);
+          if (reaproveita) {
+            reusaveis.set(mv.itemId, mv.id);
+          } else {
+            await tx.movimentacaoEstoque.delete({ where: { id: mv.id } });
+          }
+        }
+
+        // 2) Aplica a saída nova: baixa o estoque e grava/atualiza 1 movimentação por item.
+        if (newOut && newLocal) {
+          for (const d of Array.from(desejado.values())) {
+            if (!(d.qty > 0)) continue;
+            let estoque = await tx.estoqueItem.findFirst({ where: { itemId: d.itemId, localEstoqueId: newLocal } });
             if (!estoque) {
-              estoque = await tx.estoqueItem.create({
-                data: { itemId: aj.itemId, localEstoqueId: aj.localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0 },
+              estoque = await tx.estoqueItem.create({ data: { itemId: d.itemId, localEstoqueId: newLocal, quantidadeAtual: 0, quantidadeMin: 0 } });
+            }
+            await tx.estoqueItem.update({ where: { id: estoque.id }, data: { quantidadeAtual: { decrement: d.qty } } });
+            marca(d.itemId, newLocal);
+
+            const reusedId = reusaveis.get(d.itemId);
+            if (reusedId) {
+              await tx.movimentacaoEstoque.update({
+                where: { id: reusedId },
+                data: {
+                  localEstoqueId:    newLocal,
+                  unidadeId:         d.unidadeId,
+                  pedidoVendaItemId: d.pedidoVendaItemId,
+                  tipo:              "SAIDA",
+                  quantidade:        d.qty,
+                  documento:         minuta.numero,
+                  observacoes:       `Saída por minuta ${minuta.numero}`,
+                },
+              });
+            } else {
+              if (!saidaLoteId) {
+                const year = new Date().getFullYear();
+                const seq = await tx.sequencia.upsert({ where: { prefixo: "MOV" }, create: { prefixo: "MOV", ultimo: 1 }, update: { ultimo: { increment: 1 } } });
+                const lote = await tx.loteMovimentacao.create({ data: { numero: `MOV-${year}-${String(seq.ultimo).padStart(4, "0")}`, tipo: "SAIDA", documento: minuta.numero, observacoes: `Saída por minuta ${minuta.numero}` } });
+                saidaLoteId = lote.id;
+              }
+              await tx.movimentacaoEstoque.create({
+                data: {
+                  itemId:            d.itemId,
+                  localEstoqueId:    newLocal,
+                  unidadeId:         d.unidadeId,
+                  pedidoVendaItemId: d.pedidoVendaItemId,
+                  loteId:            saidaLoteId,
+                  tipo:              "SAIDA",
+                  quantidade:        d.qty,
+                  saldoAntes:        0,
+                  saldoDepois:       0,
+                  documento:         minuta.numero,
+                  observacoes:       `Saída por minuta ${minuta.numero}`,
+                },
               });
             }
-            const saldoAntes  = parseFloat(estoque.quantidadeAtual.toString());
-            const saldoDepois = saldoAntes + aj.delta;
-            await tx.estoqueItem.update({
-              where: { id: estoque.id },
-              data:  { quantidadeAtual: saldoDepois },
-            });
-            await tx.movimentacaoEstoque.create({
-              data: {
-                itemId:        aj.itemId,
-                localEstoqueId: aj.localEstoqueId,
-                pedidoVendaItemId: aj.pedidoVendaItemId,
-                loteId:        lote.id,
-                tipo:          aj.delta > 0 ? "ENTRADA" : "SAIDA",
-                quantidade:    Math.abs(aj.delta),
-                saldoAntes,
-                saldoDepois,
-                documento:     minuta.numero,
-                observacoes:   `Ajuste por edição da minuta ${minuta.numero}`,
-              },
-            });
           }
+        }
+
+        // 3) Recalcula a cadeia de saldos de cada (item + local) afetado.
+        for (const key of Array.from(afetados)) {
+          const [itemId, localId] = key.split("|");
+          await recalcularSaldos(tx, itemId, localId);
         }
 
         // Atualiza logística + local de estoque
