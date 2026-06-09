@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, XCircle, ArrowRight, AlertCircle, Pencil, Save } from "lucide-react";
+import { CheckCircle2, XCircle, ArrowRight, AlertCircle, Pencil, Save, Printer } from "lucide-react";
 import { useTabTitle } from "@/lib/tabs-context";
 import { statusMinutaLabel, confirmacaoMinutaLabel, TIPO_MINUTA_LABEL, type TipoMinuta } from "@/lib/minuta-labels";
 import { cn, formatDate } from "@/lib/utils";
+import { buildMinutaEscPos } from "@/lib/escpos-minuta";
+import { printEscPosUSB } from "@/lib/webusb-print";
 
 type StatusMinuta = "PENDENTE" | "SAIU_PARA_ENTREGA" | "ENTREGUE" | "CANCELADA";
 
@@ -161,6 +163,7 @@ export default function MinutaDetailPage() {
   // administradores podem editar em qualquer status (inclusive Entregue/Cancelada).
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [eNumeroFisico, setENumeroFisico]   = useState("");
   const [eTipo, setETipo]                    = useState<TipoMinuta>("ENTREGA");
   const [eDataEntrega, setEDataEntrega]      = useState("");
@@ -228,6 +231,19 @@ export default function MinutaDetailPage() {
     setRows(buildRows(minuta));
     setError("");
     setEditing(true);
+  }
+
+  async function handlePrint() {
+    if (!minuta) return;
+    setPrinting(true); setError("");
+    try {
+      const bytes = buildMinutaEscPos(minuta, { cols: 48 });
+      await printEscPosUSB(bytes);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível imprimir.");
+    } finally {
+      setPrinting(false);
+    }
   }
 
   async function saveEdits() {
@@ -361,6 +377,16 @@ export default function MinutaDetailPage() {
           >
             <Pencil className="w-4 h-4" />
             Editar
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handlePrint}
+            disabled={printing || transitioning}
+            className="gap-2 border-gray-300 text-gray-700"
+            title="Imprimir na impressora térmica (USB) — Chrome/Edge"
+          >
+            <Printer className="w-4 h-4" />
+            {printing ? "Imprimindo..." : "Imprimir"}
           </Button>
           {minuta.status === "PENDENTE" && (
             <>
