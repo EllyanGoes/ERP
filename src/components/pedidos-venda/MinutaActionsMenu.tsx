@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
 import { useTabsContext } from "@/lib/tabs-context";
+import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -16,6 +17,8 @@ type Props = {
 export default function MinutaActionsMenu({ id, numero, status }: Props) {
   const router = useRouter();
   const { replaceCurrentTab } = useTabsContext();
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -48,9 +51,9 @@ export default function MinutaActionsMenu({ id, numero, status }: Props) {
   // Editar: liberado para qualquer minuta e qualquer usuário. A edição abre a
   // tela completa, que reconcilia o estoque pelo delta — não exige mais admin.
   const canEdit = true;
-  // Excluir: somente minutas PENDENTE. A API bloqueia as demais (estoque já
-  // movimentado em minutas que saíram/foram entregues).
-  const canDelete = status === "PENDENTE";
+  // Excluir: minutas PENDENTE (qualquer usuário) ou qualquer status para ADMIN.
+  // Em minutas já movimentadas, a API exige ADMIN e ESTORNA o estoque.
+  const canDelete = status === "PENDENTE" || isAdmin;
 
   // Sem nenhuma ação disponível, não renderiza o menu (coluna fica vazia,
   // como acontecia antes com o lápis).
@@ -168,6 +171,11 @@ export default function MinutaActionsMenu({ id, numero, status }: Props) {
                 <p className="text-sm text-gray-500 mt-0.5">
                   A minuta <span className="font-mono font-semibold text-gray-700">{numero}</span> será excluída permanentemente. Esta ação não pode ser desfeita.
                 </p>
+                {status !== "PENDENTE" && (
+                  <p className="text-sm text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg mt-2">
+                    Esta minuta já movimentou estoque — a saída será <span className="font-semibold">estornada</span> (o estoque volta).
+                  </p>
+                )}
               </div>
             </div>
 

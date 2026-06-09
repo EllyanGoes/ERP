@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/auth";
 import { recalcularSaldos } from "@/lib/estoque-saldos";
 
 const MINUTA_INCLUDE = {
@@ -426,19 +427,68 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // ── DELETE /api/comercial/minutas/[id] ───────────────────────────────────────
+// Exclui a minuta. Minutas que já saíram/entregaram movimentaram estoque —
+// excluí-las exige ADMIN e ESTORNA a saída (devolve o estoque). PENDENTE (sem
+// movimentação) continua excluível por qualquer usuário.
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireSession();
+  if (!auth.ok) return auth.response;
+
   try {
-    const minuta = await prisma.minuta.findUnique({ where: { id: params.id } });
+    const minuta = await prisma.minuta.findUnique({
+      where: { id: params.id },
+      select: { id: true, numero: true, status: true },
+    });
     if (!minuta) return NextResponse.json({ error: "Minuta não encontrada" }, { status: 404 });
 
-    if (minuta.status !== "PENDENTE") {
+    if (minuta.status !== "PENDENTE" && auth.session.perfil !== "ADMIN") {
       return NextResponse.json(
-        { error: "Só é possível excluir minutas com status PENDENTE" },
-        { status: 409 }
+        { error: "Apenas administradores podem excluir minutas que já saíram ou foram entregues." },
+        { status: 403 },
       );
     }
 
-    await prisma.minuta.delete({ where: { id: params.id } });
+    await prisma.$transaction(async (tx) => {
+      const num = (d: unknown) => parseFloat(String(d));
+
+      // 1) Estorna no estoque o efeito das movimentações da minuta e as remove.
+      const movs = await tx.movimentacaoEstoque.findMany({
+        where: { documento: minuta.numero },
+        select: { id: true, itemId: true, localEstoqueId: true, tipo: true, quantidade: true, saldoAntes: true, saldoDepois: true, loteId: true },
+      });
+      const afetados = new Set<string>(); // "itemId|localId" a recalcular
+      const loteIds = new Set<string>();
+      for (const mv of movs) {
+        if (mv.localEstoqueId) {
+          const efeito = mv.tipo === "ENTRADA" ? num(mv.quantidade) : mv.tipo === "SAIDA" ? -num(mv.quantidade) : num(mv.saldoDepois) - num(mv.saldoAntes);
+          await tx.estoqueItem.updateMany({
+            where: { itemId: mv.itemId, localEstoqueId: mv.localEstoqueId },
+            data:  { quantidadeAtual: { decrement: efeito } },
+          });
+          afetados.add(`${mv.itemId}|${mv.localEstoqueId}`);
+        }
+        if (mv.loteId) loteIds.add(mv.loteId);
+      }
+      if (movs.length > 0) {
+        await tx.movimentacaoEstoque.deleteMany({ where: { id: { in: movs.map((m) => m.id) } } });
+      }
+
+      // 2) Remove a minuta (MinutaItem sai em cascata).
+      await tx.minuta.delete({ where: { id: params.id } });
+
+      // 3) Remove os lotes que ficaram sem nenhuma movimentação.
+      for (const loteId of Array.from(loteIds)) {
+        const restante = await tx.movimentacaoEstoque.count({ where: { loteId } });
+        if (restante === 0) await tx.loteMovimentacao.delete({ where: { id: loteId } });
+      }
+
+      // 4) Recalcula a cadeia de saldos de cada (item + local) afetado.
+      for (const key of Array.from(afetados)) {
+        const [itemId, localId] = key.split("|");
+        await recalcularSaldos(tx, itemId, localId);
+      }
+    });
+
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Erro interno";
