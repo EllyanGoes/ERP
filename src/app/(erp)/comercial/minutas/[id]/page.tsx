@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckCircle2, XCircle, ArrowRight, AlertCircle, Pencil, Save } from "lucide-react";
 import { useTabTitle } from "@/lib/tabs-context";
 import { statusMinutaLabel, confirmacaoMinutaLabel, TIPO_MINUTA_LABEL, type TipoMinuta } from "@/lib/minuta-labels";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 type StatusMinuta = "PENDENTE" | "SAIU_PARA_ENTREGA" | "ENTREGUE" | "CANCELADA";
 
@@ -20,9 +20,41 @@ type MinutaItem = {
   pedidoVendaItemId: string;
   quantidade: string;
   quantidadeConvertida: string | null;
+  unidadeId: string | null;
   item: { id: string; codigo: string; descricao: string };
   unidade: { id: string; sigla: string; nome: string } | null;
   pedidoVendaItem: { id: string; quantidade: string };
+};
+
+type ItemUnidade = {
+  id: string;
+  fatorConversao: string | null;
+  unidade: { id: string; sigla: string; nome: string };
+};
+
+type PedidoVendaItem = {
+  id: string;
+  itemId: string;
+  quantidade: string;
+  item: {
+    id: string; codigo: string; descricao: string;
+    unidade: { id: string; sigla: string; nome: string } | null;
+    itemUnidades: ItemUnidade[];
+  };
+  minutaItens: { quantidade: string }[];
+};
+
+type ItemRow = {
+  pvItemId: string;
+  itemId: string;
+  descricao: string;
+  codigo: string;
+  unidadeBase: string;
+  baseUnitId: string;
+  saldoDisponivel: number;
+  quantidade: string;
+  unidadeId: string;
+  unidades: ItemUnidade[];
 };
 
 type LocalEstoque = { id: string; nome: string };
@@ -43,6 +75,7 @@ type Minuta = {
     id: string;
     numero: string;
     cliente: { id: string; razaoSocial: string; nomeFantasia: string | null };
+    itens: PedidoVendaItem[];
   };
   localEstoque: LocalEstoque | null;
   itens: MinutaItem[];
@@ -57,12 +90,56 @@ const STATUS_COLOR: Record<StatusMinuta, string> = {
 
 function fmtDate(iso: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("pt-BR");
+  // Datas de negócio (emissão/entrega) são salvas como meia-noite UTC.
+  // formatDate (utils) formata em UTC, então o dia exibido bate com o que foi
+  // escolhido no input de edição (evita o off-by-one em fuso UTC-3).
+  return formatDate(iso);
 }
 
 function fmtQty(n: string | number) {
   return parseFloat(n.toString()).toLocaleString("pt-BR", {
     minimumFractionDigits: 0, maximumFractionDigits: 3,
+  });
+}
+
+// Linhas editáveis a partir dos itens da minuta. O "saldo" é o máximo que ESTA
+// minuta pode ter por item (qtd. do pedido − o que OUTRAS minutas não-canceladas
+// já consumiram). Espelha a tela /editar.
+function buildRows(minuta: Minuta): ItemRow[] {
+  const pvById: Record<string, PedidoVendaItem> = {};
+  for (const pv of minuta.pedidoVenda.itens) pvById[pv.id] = pv;
+
+  const estaPorPv: Record<string, number> = {};
+  for (const mi of minuta.itens) {
+    const pvId = mi.pedidoVendaItem.id;
+    estaPorPv[pvId] = (estaPorPv[pvId] ?? 0) + parseFloat(mi.quantidade.toString());
+  }
+
+  return minuta.itens.map((mi) => {
+    const pv = pvById[mi.pedidoVendaItem.id];
+    const baseUnitId = pv?.item.unidade?.id ?? "";
+    const unidadeBase = pv?.item.unidade?.sigla ?? "UN";
+    const pedidoQty = parseFloat(mi.pedidoVendaItem.quantidade.toString());
+    const totalMinutado = (pv?.minutaItens ?? []).reduce((s, x) => s + parseFloat(x.quantidade.toString()), 0);
+    const esta = minuta.status === "CANCELADA" ? 0 : (estaPorPv[mi.pedidoVendaItem.id] ?? 0);
+    const outras = totalMinutado - esta;
+    const saldo = Math.max(pedidoQty - outras, 0);
+
+    const usouConversao = mi.quantidadeConvertida != null;
+    return {
+      pvItemId: mi.pedidoVendaItem.id,
+      itemId: mi.itemId,
+      descricao: mi.item.descricao,
+      codigo: mi.item.codigo,
+      unidadeBase,
+      baseUnitId,
+      saldoDisponivel: saldo,
+      quantidade: usouConversao
+        ? String(parseFloat((mi.quantidadeConvertida as string).toString()))
+        : String(parseFloat(mi.quantidade.toString())),
+      unidadeId: mi.unidadeId ?? baseUnitId,
+      unidades: pv?.item.itemUnidades ?? [],
+    };
   });
 }
 
@@ -91,6 +168,7 @@ export default function MinutaDetailPage() {
   const [ePlaca, setEPlaca]                  = useState("");
   const [eLocalEstoqueId, setELocalEstoqueId] = useState("");
   const [eObservacoes, setEObservacoes]      = useState("");
+  const [rows, setRows] = useState<ItemRow[]>([]);
 
   useTabTitle(minuta?.numero ?? "Minuta");
 
@@ -130,6 +208,14 @@ export default function MinutaDetailPage() {
     }
   }
 
+  function updateRow(idx: number, field: keyof ItemRow, value: string) {
+    setRows(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: value };
+      return next;
+    });
+  }
+
   function startEditing() {
     if (!minuta) return;
     setENumeroFisico(minuta.numeroFisico ?? "");
@@ -139,11 +225,28 @@ export default function MinutaDetailPage() {
     setEPlaca(minuta.placa ?? "");
     setELocalEstoqueId(minuta.localEstoque?.id ?? "");
     setEObservacoes(minuta.observacoes ?? "");
+    setRows(buildRows(minuta));
     setError("");
     setEditing(true);
   }
 
   async function saveEdits() {
+    const validRows = rows.filter(r => parseFloat(r.quantidade || "0") > 0);
+    if (validRows.length === 0) { setError("Informe ao menos um item com quantidade"); return; }
+
+    // Converte as quantidades para a unidade base (igual à tela /editar). O backend
+    // reconcilia o estoque pelo delta — re-salvar com os mesmos itens é efeito zero.
+    const itens = validRows.map(r => {
+      const qtdTyped = parseFloat(r.quantidade) || 0;
+      const selUn = r.unidades.find(u => u.unidade.id === r.unidadeId);
+      const isConversion = selUn && r.unidadeId !== r.baseUnitId;
+      if (isConversion && selUn?.fatorConversao) {
+        const fator = parseFloat(selUn.fatorConversao.toString());
+        return { pedidoVendaItemId: r.pvItemId, itemId: r.itemId, quantidade: qtdTyped * fator, quantidadeConvertida: qtdTyped, unidadeId: r.unidadeId };
+      }
+      return { pedidoVendaItemId: r.pvItemId, itemId: r.itemId, quantidade: qtdTyped, quantidadeConvertida: null, unidadeId: r.unidadeId || null };
+    });
+
     setSaving(true); setError("");
     try {
       const res = await fetch(`/api/comercial/minutas/${params.id}`, {
@@ -157,6 +260,7 @@ export default function MinutaDetailPage() {
           placa:          ePlaca,
           localEstoqueId: eLocalEstoqueId || null,
           observacoes:    eObservacoes,
+          itens,
         }),
       });
       const json = await res.json();
@@ -460,41 +564,92 @@ export default function MinutaDetailPage() {
             <div className="px-5 py-3 border-b border-gray-200 bg-gray-50">
               <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Itens</h2>
             </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500">Produto</th>
-                  <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-36">Quantidade</th>
-                  <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500 w-24">Unidade</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {minuta.itens.map(item => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 align-middle">
-                      <div className="font-medium text-gray-800">{item.item.descricao}</div>
-                      <div className="text-xs text-gray-400">{item.item.codigo}</div>
-                    </td>
-                    <td className="px-4 py-3 text-right align-middle tabular-nums text-gray-800">
-                      {item.quantidadeConvertida && item.unidade ? (
-                        <div>
-                          <span className="font-semibold">{fmtQty(item.quantidadeConvertida)}</span>
-                          <span className="text-gray-400 ml-1 text-xs">{item.unidade.sigla}</span>
-                          <div className="text-xs text-gray-400">
-                            = {fmtQty(item.quantidade)} UN
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="font-semibold">{fmtQty(item.quantidade)}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 align-middle text-gray-500">
-                      {item.unidade?.sigla ?? "UN"}
-                    </td>
+            {editing ? (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500">Produto</th>
+                    <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-32">Saldo</th>
+                    <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-40">Qtd.</th>
+                    <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500 w-32">Unidade</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {rows.map((r, idx) => (
+                    <tr key={r.pvItemId} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 align-middle">
+                        <div className="font-medium text-gray-800">{r.descricao}</div>
+                        <div className="text-xs text-gray-400">{r.codigo}</div>
+                      </td>
+                      <td className="px-4 py-3 text-right align-middle text-gray-600 tabular-nums">
+                        {fmtQty(r.saldoDisponivel)} <span className="text-gray-400 text-xs">{r.unidadeBase}</span>
+                      </td>
+                      <td className="px-4 py-3 align-middle">
+                        <Input
+                          type="number" min="0" step="0.001"
+                          value={r.quantidade}
+                          onChange={e => updateRow(idx, "quantidade", e.target.value)}
+                          className="h-8 w-full text-right text-sm font-semibold border-blue-400 bg-blue-50 text-blue-900 focus-visible:border-blue-500 focus-visible:ring-blue-500"
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-middle">
+                        {r.unidades.length > 0 ? (
+                          <Select value={r.unidadeId} onValueChange={(v) => updateRow(idx, "unidadeId", v)}>
+                            <SelectTrigger className="h-8 border-gray-300 text-sm"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={r.baseUnitId}>{r.unidadeBase} (base)</SelectItem>
+                              {r.unidades.map(u => (
+                                <SelectItem key={u.unidade.id} value={u.unidade.id}>
+                                  {u.unidade.sigla}{u.fatorConversao ? ` (×${parseFloat(u.fatorConversao.toString())})` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="text-gray-500 text-sm px-1">{r.unidadeBase}</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500">Produto</th>
+                    <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-36">Quantidade</th>
+                    <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500 w-24">Unidade</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {minuta.itens.map(item => (
+                    <tr key={item.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 align-middle">
+                        <div className="font-medium text-gray-800">{item.item.descricao}</div>
+                        <div className="text-xs text-gray-400">{item.item.codigo}</div>
+                      </td>
+                      <td className="px-4 py-3 text-right align-middle tabular-nums text-gray-800">
+                        {item.quantidadeConvertida && item.unidade ? (
+                          <div>
+                            <span className="font-semibold">{fmtQty(item.quantidadeConvertida)}</span>
+                            <span className="text-gray-400 ml-1 text-xs">{item.unidade.sigla}</span>
+                            <div className="text-xs text-gray-400">
+                              = {fmtQty(item.quantidade)} UN
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="font-semibold">{fmtQty(item.quantidade)}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 align-middle text-gray-500">
+                        {item.unidade?.sigla ?? "UN"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 
