@@ -17,7 +17,7 @@ import {
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { TipoProdutoQuickCreate, UnidadeQuickCreate, LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
-import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
+import { cn, formatBRL, decimalToNumber, formatDate } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 
@@ -31,6 +31,8 @@ type Movimentacao = {
   documento: string | null;
   observacoes: string | null;
   minutaFisica?: string | null;
+  minutaDataEmissao?: string | null;
+  minutaDataEntrega?: string | null;
   createdAt: string;
   pedidoVendaItemId: string | null;
   conferenciaItemId: string | null;
@@ -793,17 +795,19 @@ export default function ProdutoDetailPage() {
         origem,
         m.documento || "—",
         m.minutaFisica || "—",
+        m.minutaDataEmissao ? formatDate(m.minutaDataEmissao) : "—",
+        m.minutaDataEntrega ? formatDate(m.minutaDataEntrega) : "—",
         m.observacoes || "—",
       ];
     });
 
     autoTable(doc, {
       startY: 42,
-      head: [["Data", "Tipo", "Quantidade", "Un.", "Saldo Antes", "Saldo Depois", "Origem", "Documento", "Minuta Física", "Obs."]],
+      head: [["Data", "Tipo", "Quantidade", "Un.", "Saldo Antes", "Saldo Depois", "Origem", "Documento", "Minuta Física", "Emissão", "Entrega", "Obs."]],
       body,
       foot: [[
         { content: "Totais do período", colSpan: 4, styles: { halign: "left", fontStyle: "bold" } },
-        { content: `Entradas: +${nf(totalEntrada)}   ·   Saídas: -${nf(totalSaida)}`, colSpan: 4, styles: { halign: "left" } },
+        { content: `Entradas: +${nf(totalEntrada)}   ·   Saídas: -${nf(totalSaida)}`, colSpan: 6, styles: { halign: "left" } },
         { content: `Saldo final: ${nf(saldoFinal)} ${un}`, colSpan: 2, styles: { halign: "right", fontStyle: "bold" } },
       ]],
       styles: { fontSize: 7.5, cellPadding: 2, valign: "middle", lineColor: [220, 220, 220], lineWidth: 0.1 },
@@ -818,8 +822,10 @@ export default function ProdutoDetailPage() {
         4: { cellWidth: 26, halign: "right" },
         5: { cellWidth: 26, halign: "right", fontStyle: "bold" },
         6: { cellWidth: 22 },
-        7: { cellWidth: 28 },
-        8: { cellWidth: 24 },
+        7: { cellWidth: 22 },
+        8: { cellWidth: 18 },
+        9: { cellWidth: 20, halign: "center" },
+        10: { cellWidth: 20, halign: "center" },
       },
       margin: { left: 14, right: 14 },
       // Pinta tipo/quantidade conforme entrada (verde) / saída (vermelho)

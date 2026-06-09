@@ -46,14 +46,19 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const minutas = numerosMinuta.length
     ? await prisma.minuta.findMany({
         where: { numero: { in: numerosMinuta } },
-        select: { numero: true, numeroFisico: true },
+        select: { numero: true, numeroFisico: true, dataEmissao: true, dataEntrega: true },
       })
     : [];
-  const fisicaPorNumero = new Map(minutas.map((mn) => [mn.numero, mn.numeroFisico]));
-  const movimentacoes = item.movimentacoes.map((m) => ({
-    ...m,
-    minutaFisica: m.documento ? (fisicaPorNumero.get(m.documento) ?? null) : null,
-  }));
+  const minutaPorNumero = new Map(minutas.map((mn) => [mn.numero, mn]));
+  const movimentacoes = item.movimentacoes.map((m) => {
+    const mn = m.documento ? minutaPorNumero.get(m.documento) : undefined;
+    return {
+      ...m,
+      minutaFisica: mn?.numeroFisico ?? null,
+      minutaDataEmissao: mn?.dataEmissao ?? null,
+      minutaDataEntrega: mn?.dataEntrega ?? null,
+    };
+  });
 
   // Alias produtosFornecedor → fornecedores for frontend compatibility
   const { produtosFornecedor, ...rest } = item;

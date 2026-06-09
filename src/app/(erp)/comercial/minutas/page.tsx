@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -16,7 +16,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { statusMinutaLabel, TIPO_MINUTA_LABEL, type TipoMinuta } from "@/lib/minuta-labels";
 import {
   Plus, Search, X, LayoutList, Kanban, Loader2,
-  ChevronDown as ChevronDownIcon, CalendarDays, Download, Check, Truck,
+  ChevronDown as ChevronDownIcon, CalendarDays, Download, Check, Truck, Layers,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -70,11 +70,12 @@ type Filters = {
   view:      "list" | "kanban";
   dateFrom:  string;
   dateTo:    string;
+  groupByDelivery: boolean;
 };
 
 function loadFilters(): Filters {
   if (typeof window === "undefined")
-    return { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "" };
+    return { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "", groupByDelivery: false };
   try {
     const raw = localStorage.getItem(FILTER_KEY);
     if (raw) {
@@ -87,10 +88,11 @@ function loadFilters(): Filters {
         view:     f.view === "kanban" ? "kanban" : "list",
         dateFrom: f.dateFrom ?? "",
         dateTo:   f.dateTo   ?? "",
+        groupByDelivery: f.groupByDelivery ?? false,
       };
     }
   } catch {}
-  return { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "" };
+  return { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "", groupByDelivery: false };
 }
 
 function saveFilters(f: Filters) {
@@ -159,7 +161,7 @@ const COLS: ColDef<Minuta>[] = [
   },
   {
     id: "dataEntrega",
-    label: "Prev. Entrega",
+    label: "Data de Entrega",
     thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell",
     tdClass: "px-4 py-3 text-gray-500 text-sm hidden lg:table-cell",
     render: (m) => m.dataEntrega ? formatDate(m.dataEntrega) : "—",
@@ -479,6 +481,39 @@ export default function MinutasPage() {
     return list;
   }, [minutas, filters]);
 
+  // ── Agrupamento por dia de entrega (somente list view) ────────────────────
+  const deliveryGroups = useMemo(() => {
+    if (!filters.groupByDelivery) return null;
+    const map = new Map<string, { key: string; label: string; sortVal: number; items: Minuta[] }>();
+    for (const m of filtered) {
+      const key = m.dataEntrega ? m.dataEntrega.slice(0, 10) : "__sem__";
+      let g = map.get(key);
+      if (!g) {
+        g = {
+          key,
+          label: m.dataEntrega ? formatDate(m.dataEntrega) : "Sem data de entrega",
+          sortVal: m.dataEntrega ? new Date(m.dataEntrega.slice(0, 10)).getTime() : Infinity,
+          items: [],
+        };
+        map.set(key, g);
+      }
+      g.items.push(m);
+    }
+    return Array.from(map.values()).sort((a, b) => a.sortVal - b.sortVal);
+  }, [filtered, filters.groupByDelivery]);
+
+  const renderRow = (m: Minuta) => (
+    <tr
+      key={m.id}
+      className="hover:bg-gray-50 cursor-pointer transition-colors"
+      onClick={() => router.push(`/comercial/minutas/${m.id}`)}
+    >
+      {orderedCols.map((col) => (
+        <td key={col.id} className={col.tdClass}>{col.render(m)}</td>
+      ))}
+    </tr>
+  );
+
   // ── Kanban grouped ────────────────────────────────────────────────────────
   const kanbanGroups = useMemo(
     () => STATUS_COLS
@@ -516,7 +551,7 @@ export default function MinutasPage() {
 
     autoTable(doc, {
       startY: 32,
-      head: [["Minuta", "Nº Físico", "Pedido", "Cliente", "Tipo", "Status", "Emissão", "Prev. Entrega", "Motorista / Placa", "Itens"]],
+      head: [["Minuta", "Nº Físico", "Pedido", "Cliente", "Tipo", "Status", "Emissão", "Data de Entrega", "Motorista / Placa", "Itens"]],
       body: filtered.map((m) => [
         m.numero,
         m.numeroFisico || "—",
@@ -687,6 +722,23 @@ export default function MinutasPage() {
           </div>
         )}
 
+        {/* Agrupar por dia de entrega — list only */}
+        {filters.view === "list" && (
+          <button
+            onClick={() => updateFilters({ groupByDelivery: !filters.groupByDelivery })}
+            className={cn(
+              "flex items-center gap-1.5 h-8 px-2.5 text-xs border rounded-md transition-colors",
+              filters.groupByDelivery
+                ? "border-blue-400 bg-blue-50 text-blue-700"
+                : "border-gray-200 bg-white text-gray-600 hover:border-gray-300",
+            )}
+            title="Agrupar minutas por dia de entrega"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            Agrupar por entrega
+          </button>
+        )}
+
         {/* Column configurator */}
         {filters.view === "list" && (
           <ColumnConfigurator
@@ -756,17 +808,27 @@ export default function MinutasPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((m) => (
-                  <tr
-                    key={m.id}
-                    className="hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => router.push(`/comercial/minutas/${m.id}`)}
-                  >
-                    {orderedCols.map((col) => (
-                      <td key={col.id} className={col.tdClass}>{col.render(m)}</td>
-                    ))}
-                  </tr>
-                ))}
+                {deliveryGroups
+                  ? deliveryGroups.map((g) => (
+                      <Fragment key={g.key}>
+                        <tr className="bg-gray-50">
+                          <td
+                            colSpan={orderedCols.length}
+                            className="px-4 py-2 border-t border-gray-200 text-xs font-semibold text-gray-700"
+                          >
+                            <span className="inline-flex items-center gap-1.5">
+                              <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
+                              {g.label}
+                              <span className="font-normal text-gray-400">
+                                · {g.items.length} minuta{g.items.length !== 1 ? "s" : ""}
+                              </span>
+                            </span>
+                          </td>
+                        </tr>
+                        {g.items.map((m) => renderRow(m))}
+                      </Fragment>
+                    ))
+                  : filtered.map((m) => renderRow(m))}
               </tbody>
             </table>
           </div>
