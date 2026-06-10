@@ -34,6 +34,7 @@ type Filial = {
   cidade: string | null;
   estado: string | null;
   ativo: boolean;
+  matriz?: boolean;
   _count: { locaisEstoque: number };
 };
 
@@ -58,7 +59,16 @@ const COLS: ColDef<Filial>[] = [
     label: "Razão Social",
     thClass: "text-left px-4 py-3 font-medium text-gray-600",
     tdClass: "px-4 py-3 font-medium text-gray-900",
-    render: (f) => f.razaoSocial,
+    render: (f) => (
+      <span className="inline-flex items-center gap-2">
+        {f.razaoSocial}
+        {f.matriz && (
+          <span className="px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-700 text-[10px] font-medium" title="Espelho automático do cadastro da empresa — edite em Configurações → Empresas do Grupo">
+            Matriz
+          </span>
+        )}
+      </span>
+    ),
   },
   {
     id: "nomeFantasia",
@@ -457,14 +467,18 @@ export default function FiliaisPage() {
                       <td key={col.id} className={col.tdClass}>{col.render(f)}</td>
                     ))}
                     <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button onClick={(e) => openEdit(f, e)} className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Editar">
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={(e) => openDelete(f, e)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Excluir">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      {f.matriz ? (
+                        <span className="text-[11px] text-gray-400" title="A matriz é editada em Configurações → Empresas do Grupo">via Empresa</span>
+                      ) : (
+                        <div className="flex items-center justify-center gap-1">
+                          <button onClick={(e) => openEdit(f, e)} className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Editar">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={(e) => openDelete(f, e)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Excluir">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

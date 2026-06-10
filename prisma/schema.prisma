@@ -570,6 +570,7 @@ model Empresa {
   requisicaoMaterials    RequisicaoMaterial[]
   inventarioMaterials    InventarioMaterial[]
   usuarioEmpresas        UsuarioEmpresa[]
+  filials                Filial[]
 }
 
 model EnderecoEstoque {
@@ -610,6 +611,8 @@ model EstoqueItem {
 
 model Filial {
   id                 String              @id @default(cuid())
+  empresaId          String              @default("emp_tramontin")
+  matriz             Boolean             @default(false) // espelho automático do cadastro da Empresa
   razaoSocial        String
   nomeFantasia       String?
   cnpj               String?             @unique
@@ -627,9 +630,12 @@ model Filial {
   ativo              Boolean             @default(true)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+  empresa            Empresa             @relation(fields: [empresaId], references: [id])
   locaisEstoque      LocalEstoque[]
   necessidadesCompra NecessidadeCompra[]
   colaboradores      Colaborador[]
+
+  @@index([empresaId])
 }
 
 model FormaPagamento {

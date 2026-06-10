@@ -406,8 +406,23 @@ export default function SolicitacaoCreateForm() {
     }
   }, []); // eslint-disable-line
 
+  // Filiais da EMPRESA DO DOCUMENTO (no modo grupo o usuário escolhe a empresa
+  // no formulário); auto-seleciona quando só existe a matriz/uma filial.
   useEffect(() => {
-    fetch("/api/empresa/filiais?ativo=true").then((r) => r.json()).then((j) => setFiliais(Array.isArray(j) ? j : []));
+    const empresaQuery = empresaId ? `&empresaId=${empresaId}` : "";
+    fetch(`/api/empresa/filiais?ativo=true${empresaQuery}`).then((r) => r.json()).then((j) => {
+      const lista = Array.isArray(j) ? j : [];
+      setFiliais(lista);
+      setFilialId((atual) => {
+        if (atual && lista.some((f: { id: string }) => f.id === atual)) return atual;
+        if (lista.length === 1) return lista[0].id;
+        const matriz = lista.find((f: { matriz?: boolean }) => f.matriz);
+        return matriz?.id ?? "";
+      });
+    });
+  }, [empresaId]);
+
+  useEffect(() => {
     fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json()).then((j) => setCentrosCusto(Array.isArray(j) ? j : []));
     fetch("/api/suprimentos/produtos").then((r) => r.json()).then((j) => setItemOptions(Array.isArray(j) ? j : j.data ?? []));
     fetch("/api/empresa/colaboradores?ativo=true").then((r) => r.json()).then((j) => setColaboradores(Array.isArray(j) ? j : []));

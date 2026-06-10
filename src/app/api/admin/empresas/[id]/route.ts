@@ -46,6 +46,31 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (emp.fornecedorId) {
         await tx.fornecedor.update({ where: { id: emp.fornecedorId }, data: espelho });
       }
+
+      // Sincroniza a filial MATRIZ (espelho automático do cadastro da empresa)
+      const matrizDados = {
+        razaoSocial: emp.razaoSocial,
+        nomeFantasia: emp.nomeFantasia,
+        cnpj: emp.cnpj,
+        ie: emp.ie,
+        email: emp.email,
+        telefone: emp.telefone,
+        cep: emp.cep,
+        logradouro: emp.logradouro,
+        numero: emp.numero,
+        complemento: emp.complemento,
+        bairro: emp.bairro,
+        cidade: emp.cidade,
+        estado: emp.estado,
+      };
+      const matriz = await tx.filial.findFirst({ where: { empresaId: emp.id, matriz: true } });
+      if (matriz) {
+        await tx.filial.update({ where: { id: matriz.id }, data: matrizDados });
+      } else {
+        await tx.filial.create({
+          data: { ...matrizDados, empresaId: emp.id, matriz: true, ativo: true },
+        });
+      }
       return emp;
     });
     return NextResponse.json({ data: atualizada });

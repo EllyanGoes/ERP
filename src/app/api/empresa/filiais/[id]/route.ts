@@ -42,6 +42,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!body.success) {
     return NextResponse.json({ error: body.error.issues[0]?.message ?? "Dados inválidos" }, { status: 400 });
   }
+  const alvo = await prisma.filial.findUnique({ where: { id: params.id }, select: { matriz: true } });
+  if (alvo?.matriz) {
+    return NextResponse.json(
+      { error: "A matriz é o espelho do cadastro da empresa — edite em Configurações → Empresas do Grupo." },
+      { status: 422 }
+    );
+  }
+
   try {
     const data = {
       ...body.data,
@@ -57,6 +65,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("empresa");
   if (!auth.ok) return auth.response;
+
+  const alvo = await prisma.filial.findUnique({ where: { id: params.id }, select: { matriz: true } });
+  if (alvo?.matriz) {
+    return NextResponse.json(
+      { error: "A matriz não pode ser excluída — ela é o espelho do cadastro da empresa." },
+      { status: 422 }
+    );
+  }
 
   const count = await prisma.localEstoque.count({ where: { filialId: params.id } });
   if (count > 0) {

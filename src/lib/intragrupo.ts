@@ -191,9 +191,14 @@ export async function espelharEntregaMinuta(minutaId: string): Promise<void> {
         orderBy: { createdAt: "asc" },
       });
       if (!local) {
+        const matriz = await tx.filial.findFirst({
+          where: { empresaId: compradora.id, matriz: true },
+          select: { id: true },
+        });
         local = await tx.localEstoque.create({
           data: {
             empresaId: compradora.id,
+            filialId: matriz?.id ?? null,
             nome: "Principal",
             descricao: "Criado automaticamente no primeiro recebimento intragrupo",
           },

@@ -52,7 +52,7 @@ const MODELOS_ESCOPADOS = new Set<string>([
   "NecessidadeCompra", "CotacaoCompra", "PedidoCompra", "ConferenciaCompra", "ConferenciaCompraItem",
   "OrdemProducao", "ItemOrdemProducao", "ConsumoBiomassa", "PlanoMestre",
   "ContaPagar", "ContaReceber", "ContaBancaria", "LancamentoFinanceiro", "Recorrencia", "ImportacaoOFX",
-  "Sequencia",
+  "Sequencia", "Filial",
 ])
 
 // Mapas montados uma vez a partir do dmmf:
@@ -151,7 +151,7 @@ const MODELOS_LEITURA_GRUPO = new Set<string>([
   // comercial
   "PedidoVenda", "PedidoVendaItem", "Minuta", "MinutaItem",
   // estoque (movimentado pela minuta/conferência da empresa dona)
-  "LocalEstoque", "EstoqueItem", "MovimentacaoEstoque", "LoteMovimentacao",
+  "LocalEstoque", "EstoqueItem", "MovimentacaoEstoque", "LoteMovimentacao", "Filial",
 ])
 
 /** Extensão que amarra todas as operações dos modelos escopados a uma empresa. */

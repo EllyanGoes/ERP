@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import { z } from "zod";
 
 const schema = z.object({
@@ -27,8 +28,24 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search")?.trim() ?? "";
   const ativo  = searchParams.get("ativo");
 
-  const filiais = await prisma.filial.findMany({
+  // Multiempresa: ?empresaId= devolve as filiais de OUTRA empresa do usuário
+  // (formulários do modo grupo escolhem a empresa do documento). Validado
+  // contra as empresas da sessão; sem o parâmetro, escopo normal (ativa).
+  const empresaIdParam = searchParams.get("empresaId");
+  let db = prisma;
+  let filtroEmpresa: { empresaId?: string } = {};
+  if (empresaIdParam) {
+    const session = await getSession();
+    if (!session?.empresaIds?.includes(empresaIdParam)) {
+      return NextResponse.json({ error: "Empresa não permitida" }, { status: 403 });
+    }
+    db = prismaSemEscopo;
+    filtroEmpresa = { empresaId: empresaIdParam };
+  }
+
+  const filiais = await db.filial.findMany({
     where: {
+      ...filtroEmpresa,
       AND: [
         search ? {
           OR: [
@@ -40,7 +57,7 @@ export async function GET(req: NextRequest) {
         ativo !== null && ativo !== "" ? { ativo: ativo === "true" } : {},
       ],
     },
-    orderBy: { razaoSocial: "asc" },
+    orderBy: [{ matriz: "desc" }, { razaoSocial: "asc" }],
     include: { _count: { select: { locaisEstoque: true } } },
   });
   return NextResponse.json(filiais);
