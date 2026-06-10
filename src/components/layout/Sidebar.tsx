@@ -289,23 +289,8 @@ const mainModules: Module[] = [
   },
 ];
 
-const adminModule: Module = {
-  id: "admin",
-  label: "Administração",
-  icon: ShieldCheck,
-  sections: [
-    {
-      kind: "Sistema",
-      items: [
-        { href: "/admin/usuarios",    label: "Usuários",             icon: UserCog },
-        { href: "/admin/perfis",      label: "Perfis de Acesso",     icon: ShieldCheck },
-        { href: "/admin/empresas",    label: "Empresas do Grupo",    icon: Building2 },
-        { href: "/admin/consolidado", label: "Consolidado do Grupo", icon: Building2 },
-      ],
-    },
-  ],
-};
-
+// Administração vive dentro de Configurações: a seção "Sistema" (admin) só é
+// renderizada para quem tem acesso ao módulo admin (filtro no render).
 const configModule: Module = {
   id: "configuracoes",
   label: "Configurações",
@@ -318,10 +303,19 @@ const configModule: Module = {
         { href: "/configuracoes/integracoes",  label: "Integrações",  icon: Plug },
       ],
     },
+    {
+      kind: "Sistema",
+      items: [
+        { href: "/admin/usuarios",    label: "Usuários",             icon: UserCog },
+        { href: "/admin/perfis",      label: "Perfis de Acesso",     icon: ShieldCheck },
+        { href: "/admin/empresas",    label: "Empresas do Grupo",    icon: Building2 },
+        { href: "/admin/consolidado", label: "Consolidado do Grupo", icon: Building2 },
+      ],
+    },
   ],
 };
 
-const allModules = [...mainModules, adminModule, configModule];
+const allModules = [...mainModules, configModule];
 
 // ── Future modules (strip-only, no panel, disabled) ───────────────────────────
 const futureModules: { id: string; label: string; icon: LucideIcon }[] = [
@@ -583,9 +577,6 @@ export default function Sidebar() {
   const visibleMain  = mainModules.filter((mod) => canAccess(mod.id));
   const showAdmin    = canAccess("admin");
 
-  // All visible for active detection
-  const visibleAll = showAdmin ? [...visibleMain, adminModule] : visibleMain;
-
   const [openId, setOpenId] = useState<string | null>(() => {
     const active = allModules.find((m) => moduleIsActive(m, pathname));
     return active?.id ?? null;
@@ -673,7 +664,11 @@ export default function Sidebar() {
     window.location.href = "/login";
   }
 
-  const openModule = allModules.find((m) => m.id === openId) ?? null;
+  const openModuleBruto = allModules.find((m) => m.id === openId) ?? null;
+  // Configurações carrega a seção "Sistema" (Administração) — só para admin
+  const openModule = openModuleBruto && openModuleBruto.id === "configuracoes" && !showAdmin
+    ? { ...openModuleBruto, sections: openModuleBruto.sections.filter((sec) => sec.kind !== "Sistema") }
+    : openModuleBruto;
   const sidebarW   = stripCollapsed ? 0 : STRIP_W + (openId ? panelWidth : 0);
 
   const userInitials = user?.nome
@@ -812,28 +807,6 @@ export default function Sidebar() {
                 )}
               </button>
             </StripTooltip>
-
-            {/* Administração — só para quem tem acesso */}
-            {showAdmin && (
-              <StripTooltip label="Administração">
-                <button
-                  onClick={() => setOpenId(openId === "admin" ? null : "admin")}
-                  className={cn(
-                    "relative flex flex-col items-center justify-center w-9 h-9 rounded-xl transition-colors",
-                    openId === "admin"
-                      ? "bg-gray-700 text-white"
-                      : moduleIsActive(adminModule, pathname)
-                      ? "text-blue-400 hover:bg-gray-800"
-                      : "text-gray-500 hover:bg-gray-800 hover:text-gray-200"
-                  )}
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  {moduleIsActive(adminModule, pathname) && openId !== "admin" && (
-                    <span className="absolute right-1.5 top-1.5 w-1.5 h-1.5 bg-blue-400 rounded-full" />
-                  )}
-                </button>
-              </StripTooltip>
-            )}
 
             {/* Atalhos / Ajuda */}
             <StripTooltip label="Atalhos do teclado (?)">
