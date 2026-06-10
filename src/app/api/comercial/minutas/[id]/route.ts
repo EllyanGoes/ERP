@@ -1,10 +1,15 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/auth";
+import { requireModulo } from "@/lib/permissions";
+import { minutaItensSchema } from "@/lib/validations/minuta";
 import { recalcularSaldos } from "@/lib/estoque-saldos";
-import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { espelharEntregaMinuta } from "@/lib/intragrupo";
+
+// Lançado dentro das transações quando outra requisição mexeu na minuta no meio
+// do caminho (duplo clique, duas abas). Aborta a transação e vira HTTP 409.
+class ConflictError extends Error {}
 
 const MINUTA_INCLUDE = {
   pedidoVenda: {
@@ -109,6 +114,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
 // ── PATCH /api/comercial/minutas/[id] ────────────────────────────────────────
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("comercial");
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
 
@@ -121,7 +129,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
     if (!minuta) return NextResponse.json({ error: "Minuta não encontrada" }, { status: 404 });
 
-    const newStatus = body.status as string | undefined;
+    const STATUS_VALIDOS = ["PENDENTE", "SAIU_PARA_ENTREGA", "ENTREGUE", "CANCELADA"] as const;
+    const newStatus = body.status as (typeof STATUS_VALIDOS)[number] | undefined;
+    if (newStatus !== undefined && !STATUS_VALIDOS.includes(newStatus)) {
+      return NextResponse.json({ error: `Status inválido: ${newStatus}` }, { status: 400 });
+    }
 
     // Validate status transitions
     // A tela de edição (que envia `itens`) define qualquer status livremente para
@@ -166,17 +178,26 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
 
       await prisma.$transaction(async (tx) => {
-        // Generate MOV number for the lote
-        const year = new Date().getFullYear();
-        const seq = await tx.sequencia.upsert({
-          where:  { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "MOV" } },
-          create: { prefixo: "MOV", ultimo: 1 },
-          update: { ultimo: { increment: 1 } },
+        // Trava a transição: só UMA requisição move PENDENTE→SAIU_PARA_ENTREGA.
+        // Sem isso, duplo clique no "Marcar saída" baixava o estoque duas vezes.
+        const claimed = await tx.minuta.updateMany({
+          where: { id: params.id, status: "PENDENTE" },
+          data:  { status: "SAIU_PARA_ENTREGA" },
         });
-        const movNumero = `MOV-${year}-${String(seq.ultimo).padStart(4, "0")}`;
+        if (claimed.count === 0) {
+          throw new ConflictError("A minuta já saiu para entrega (ação duplicada?) — recarregue a página.");
+        }
+
+        // Multiempresa: o estoque movimentado é o da empresa DONA da minuta
+        // (modo grupo permite operar minutas de outra empresa) — lote, número
+        // e movimentações carimbados nela.
+        const year = new Date().getFullYear();
+        const seqMov = await proximaSequenciaDaEmpresa(minuta.empresaId, "MOV");
+        const movNumero = `MOV-${year}-${String(seqMov).padStart(4, "0")}`;
 
         const lote = await tx.loteMovimentacao.create({
           data: {
+            empresaId:   minuta.empresaId,
             numero:      movNumero,
             tipo:        "SAIDA",
             documento:   minuta.numero,
@@ -188,24 +209,26 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           const quantidade = parseFloat(item.quantidade.toString());
 
           let estoque = await tx.estoqueItem.findFirst({
-            where: { itemId: item.itemId, localEstoqueId },
+            where: { empresaId: minuta.empresaId, itemId: item.itemId, localEstoqueId },
           });
           if (!estoque) {
             estoque = await tx.estoqueItem.create({
-              data: { itemId: item.itemId, localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0 },
+              data: { empresaId: minuta.empresaId, itemId: item.itemId, localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0 },
             });
           }
 
-          const saldoAntes  = parseFloat(estoque.quantidadeAtual.toString());
-          const saldoDepois = saldoAntes - quantidade;
-
-          await tx.estoqueItem.update({
+          // decrement atômico: movimentações concorrentes do mesmo item não
+          // perdem atualização; os saldos da linha derivam do valor pós-update.
+          const atualizado = await tx.estoqueItem.update({
             where: { id: estoque.id },
-            data:  { quantidadeAtual: saldoDepois },
+            data:  { quantidadeAtual: { decrement: quantidade } },
           });
+          const saldoDepois = parseFloat(atualizado.quantidadeAtual.toString());
+          const saldoAntes  = saldoDepois + quantidade;
 
           await tx.movimentacaoEstoque.create({
             data: {
+              empresaId:    minuta.empresaId,
               itemId:       item.itemId,
               localEstoqueId,
               unidadeId:    item.unidadeId ?? null,
@@ -240,16 +263,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // a reconciliação abaixo devolve o que estava baixado e baixa o novo conforme o
     // status efetivo — tudo por saldo líquido (item + local) p/ gerar o mínimo de movimentos.
     if (Array.isArray(body.itens)) {
-      const novosItens = body.itens as Array<{
-        pedidoVendaItemId: string;
-        itemId: string;
-        quantidade: number;
-        quantidadeConvertida?: number | null;
-        unidadeId?: string | null;
-      }>;
-      if (novosItens.length === 0) {
-        return NextResponse.json({ error: "Informe ao menos um item com quantidade" }, { status: 400 });
+      // Valida o que vira movimentação de estoque (ids e quantidades dos itens).
+      const parsedItens = minutaItensSchema.safeParse(body.itens);
+      if (!parsedItens.success) {
+        return NextResponse.json({ error: "Itens inválidos", details: parsedItens.error.flatten() }, { status: 400 });
       }
+      const novosItens = parsedItens.data;
 
       // Edição liberada para qualquer usuário, inclusive em minutas finalizadas
       // (entregue/cancelada): o estoque é reconciliado pelo delta logo abaixo.
@@ -282,6 +301,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
 
       await prisma.$transaction(async (tx) => {
+        // Lock otimista: a reconciliação abaixo reverte e reaplica o efeito da
+        // minuta no estoque a partir do snapshot lido FORA da transação. Se a
+        // minuta mudou nesse meio tempo (outra aba/usuário), aborta com 409 em
+        // vez de reconciliar sobre dados defasados.
+        const claimed = await tx.minuta.updateMany({
+          where: { id: params.id, updatedAt: minuta.updatedAt },
+          data:  { status: effectiveStatus },
+        });
+        if (claimed.count === 0) {
+          throw new ConflictError("A minuta foi alterada por outra pessoa enquanto você editava — recarregue e tente de novo.");
+        }
+
         // Substitui os itens da minuta
         await tx.minutaItem.deleteMany({ where: { minutaId: params.id } });
         await tx.minutaItem.createMany({
@@ -335,9 +366,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         if (newOut && newLocal) {
           for (const d of Array.from(desejado.values())) {
             if (!(d.qty > 0)) continue;
-            let estoque = await tx.estoqueItem.findFirst({ where: { itemId: d.itemId, localEstoqueId: newLocal } });
+            let estoque = await tx.estoqueItem.findFirst({ where: { empresaId: minuta.empresaId, itemId: d.itemId, localEstoqueId: newLocal } });
             if (!estoque) {
-              estoque = await tx.estoqueItem.create({ data: { itemId: d.itemId, localEstoqueId: newLocal, quantidadeAtual: 0, quantidadeMin: 0 } });
+              estoque = await tx.estoqueItem.create({ data: { empresaId: minuta.empresaId, itemId: d.itemId, localEstoqueId: newLocal, quantidadeAtual: 0, quantidadeMin: 0 } });
             }
             await tx.estoqueItem.update({ where: { id: estoque.id }, data: { quantidadeAtual: { decrement: d.qty } } });
             marca(d.itemId, newLocal);
@@ -359,12 +390,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             } else {
               if (!saidaLoteId) {
                 const year = new Date().getFullYear();
-                const seq = await tx.sequencia.upsert({ where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "MOV" } }, create: { prefixo: "MOV", ultimo: 1 }, update: { ultimo: { increment: 1 } } });
-                const lote = await tx.loteMovimentacao.create({ data: { numero: `MOV-${year}-${String(seq.ultimo).padStart(4, "0")}`, tipo: "SAIDA", documento: minuta.numero, observacoes: `Saída por minuta ${minuta.numero}` } });
+                const seqMov = await proximaSequenciaDaEmpresa(minuta.empresaId, "MOV");
+                const lote = await tx.loteMovimentacao.create({ data: { empresaId: minuta.empresaId, numero: `MOV-${year}-${String(seqMov).padStart(4, "0")}`, tipo: "SAIDA", documento: minuta.numero, observacoes: `Saída por minuta ${minuta.numero}` } });
                 saidaLoteId = lote.id;
               }
               await tx.movimentacaoEstoque.create({
                 data: {
+                  empresaId:         minuta.empresaId,
                   itemId:            d.itemId,
                   localEstoqueId:    newLocal,
                   unidadeId:         d.unidadeId,
@@ -424,6 +456,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     return NextResponse.json({ data: updated });
   } catch (err: unknown) {
+    if (err instanceof ConflictError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
     const msg = err instanceof Error ? err.message : "Erro interno";
     console.error("[PATCH /api/comercial/minutas/[id]]", err);
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -435,7 +470,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 // excluí-las exige ADMIN e ESTORNA a saída (devolve o estoque). PENDENTE (sem
 // movimentação) continua excluível por qualquer usuário.
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireSession();
+  const auth = await requireModulo("comercial");
   if (!auth.ok) return auth.response;
 
   try {

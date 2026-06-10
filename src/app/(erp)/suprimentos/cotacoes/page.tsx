@@ -24,6 +24,7 @@ import {
 import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
+import EmpresaTag from "@/components/shared/EmpresaTag";
 
 // ── Drag & Drop helpers ───────────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ function cotacaoDropRoute(id: string, from: string, to: string): string | null {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type CotacaoItem = {
+  empresaId?: string;
   id: string;
   numero: string;
   nome: string | null;
@@ -347,7 +349,7 @@ function KanbanCard({ c, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div>
-          <span className="font-mono text-xs font-bold text-gray-500">{c.numero}</span>
+          <span className="font-mono text-xs font-bold text-gray-500">{c.numero}</span> <EmpresaTag empresaId={c.empresaId} />
           {c.nome && (
             <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[180px]">{c.nome}</p>
           )}

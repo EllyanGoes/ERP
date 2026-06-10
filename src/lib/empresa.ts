@@ -9,6 +9,23 @@ export { EMPRESA_PADRAO_ID };
 export type EmpresaResumo = { id: string; nome: string; slug: string | null };
 
 /**
+ * Próximo número de uma sequência de UMA EMPRESA ESPECÍFICA (não a ativa).
+ * Usado na cadeia de compras em modo grupo: a cotação herda a empresa da
+ * solicitação, o pedido herda da cotação etc. — e o número deve sair da
+ * sequência da empresa dona do documento. Usa o client cru porque o escopado
+ * reescreveria o seletor para a empresa ativa. Roda FORA da transação do
+ * chamador (falha depois do incremento só deixa um "buraco" na numeração).
+ */
+export async function proximaSequenciaDaEmpresa(empresaId: string, prefixo: string): Promise<number> {
+  const seq = await prismaSemEscopo.sequencia.upsert({
+    where: { empresaId_prefixo: { empresaId, prefixo } },
+    update: { ultimo: { increment: 1 } },
+    create: { empresaId, prefixo, ultimo: 1 },
+  });
+  return seq.ultimo;
+}
+
+/**
  * Empresas que um usuário pode ativar no seletor (Fase 3):
  *   • ADMIN — todas as empresas ativas do grupo;
  *   • USUARIO — as vinculadas em UsuarioEmpresa (∩ ativas); sem nenhum

@@ -1,8 +1,10 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
-import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa } from "@/lib/empresa";
+import { getSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -58,6 +60,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   try {
   const body = await req.json();
 
@@ -74,18 +79,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Adicione pelo menos um item" }, { status: 400 });
   }
 
+  // Multiempresa: a solicitação pode nascer para outra empresa do grupo
+  // (modo compras em grupo). Valida contra as empresas da sessão; a numeração
+  // sai da sequência da empresa dona do documento.
+  const session = await getSession();
+  const empresasPermitidas = session?.empresaIds ?? [];
+  let empresaAlvo = session?.activeEmpresaId ?? EMPRESA_PADRAO_ID;
+  if (body.empresaId && body.empresaId !== empresaAlvo) {
+    if (!empresasPermitidas.includes(body.empresaId)) {
+      return NextResponse.json({ error: "Empresa não permitida para este usuário" }, { status: 403 });
+    }
+    empresaAlvo = body.empresaId;
+  }
+  const numero = generateSimpleDocNumber("SC", await proximaSequenciaDaEmpresa(empresaAlvo, "SC"));
+
   const necessidade = await prisma.$transaction(async (tx) => {
-    const seq = await tx.sequencia.upsert({
-      where:  { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "SC" } },
-      create: { prefixo: "SC", ultimo: 1 },
-      update: { ultimo: { increment: 1 } },
-    });
-
-    const numero = generateSimpleDocNumber("SC", seq.ultimo);
-
     const record = await tx.necessidadeCompra.create({
       data: {
         numero,
+        empresaId:            empresaAlvo,
         status:               "RASCUNHO",
         solicitante:          body.solicitante?.trim()           || null,
         colaboradorId:        body.colaboradorId                 || null,

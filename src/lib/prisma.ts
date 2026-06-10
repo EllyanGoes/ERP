@@ -94,6 +94,14 @@ function carimbarCreate(modelo: string, dados: unknown, empresaId: string): unkn
   const d: DadosCreate = { ...(dados as DadosCreate) }
   const relacoes = camposRelacao.get(modelo) ?? new Map<string, string>()
 
+  // Empresa efetiva deste nível: a explícita no payload (rotas da cadeia de
+  // compras criam documentos para a empresa de origem) ou a do escopo. Os
+  // filhos aninhados herdam a do pai — itens de uma conferência da Atlas
+  // pertencem à Atlas mesmo com a sessão ativa na Tramontin.
+  const empresaConnect = (d.empresa as { connect?: { id?: unknown } } | undefined)?.connect?.id
+  if (typeof d.empresaId === "string") empresaId = d.empresaId
+  else if (typeof empresaConnect === "string") empresaId = empresaConnect
+
   // desce nas criações aninhadas de modelos escopados (create/createMany/connectOrCreate)
   for (const [campo, alvo] of Array.from(relacoes.entries())) {
     if (!MODELOS_ESCOPADOS.has(alvo) || alvo === "Empresa") continue
@@ -129,10 +137,33 @@ function carimbarCreate(modelo: string, dados: unknown, empresaId: string): unkn
 
 type ArgsQuery = Record<string, unknown>
 
+// Modelos dos processos de COMPRAS e COMERCIAL que aceitam leitura "em
+// grupo": quando o cookie erp_escopo=grupo está presente (e o usuário tem 2+
+// empresas), as LEITURAS destes modelos enxergam todas as empresas da sessão
+// de uma vez — é o que permite conduzir compras e vendas das empresas numa
+// tela só. Os modelos de estoque entram porque a minuta movimenta estoque da
+// empresa DONA do pedido. A empresa de cada documento novo vem da cadeia
+// (cotação herda da solicitação, minuta herda do pedido, ...) ou do seletor
+// do formulário; numeração sempre da empresa dona do documento.
+const MODELOS_LEITURA_GRUPO = new Set<string>([
+  // compras
+  "NecessidadeCompra", "CotacaoCompra", "PedidoCompra", "ConferenciaCompra", "ConferenciaCompraItem",
+  // comercial
+  "PedidoVenda", "PedidoVendaItem", "Minuta", "MinutaItem",
+  // estoque (movimentado pela minuta/conferência da empresa dona)
+  "LocalEstoque", "EstoqueItem", "MovimentacaoEstoque", "LoteMovimentacao",
+])
+
 /** Extensão que amarra todas as operações dos modelos escopados a uma empresa. */
-function escopoEmpresa(empresaId: string) {
+function escopoEmpresa(empresaId: string, grupoIds: string[] | null) {
+  // filtro de leitura: empresa ativa, ou o grupo todo nos modelos de compras
+  const filtroLeitura = (model: string): ArgsQuery =>
+    grupoIds && MODELOS_LEITURA_GRUPO.has(model)
+      ? { empresaId: { in: grupoIds } }
+      : { empresaId }
+
   return Prisma.defineExtension({
-    name: `escopo-empresa-${empresaId}`,
+    name: `escopo-empresa-${empresaId}${grupoIds ? "-grupo" : ""}`,
     query: {
       $allModels: {
         $allOperations({ model, operation, args, query }) {
@@ -148,7 +179,7 @@ function escopoEmpresa(empresaId: string) {
             case "groupBy":
             case "updateMany":
             case "deleteMany":
-              a.where = { AND: [{ empresaId }, (a.where as object) ?? {}] }
+              a.where = { AND: [filtroLeitura(model), (a.where as object) ?? {}] }
               break
 
             case "findUnique":
@@ -160,7 +191,7 @@ function escopoEmpresa(empresaId: string) {
               if (model === "Sequencia" && where.empresaId_prefixo) {
                 where.empresaId_prefixo = { ...(where.empresaId_prefixo as ArgsQuery), empresaId }
               } else {
-                where.empresaId = empresaId
+                where.empresaId = filtroLeitura(model).empresaId
               }
               a.where = where
               break
@@ -180,7 +211,7 @@ function escopoEmpresa(empresaId: string) {
               if (model === "Sequencia" && where.empresaId_prefixo) {
                 where.empresaId_prefixo = { ...(where.empresaId_prefixo as ArgsQuery), empresaId }
               } else {
-                where.empresaId = empresaId
+                where.empresaId = filtroLeitura(model).empresaId
               }
               a.where = where
               a.create = carimbarCreate(model, a.create, empresaId)
@@ -199,35 +230,46 @@ function escopoEmpresa(empresaId: string) {
   })
 }
 
-// Clients estendidos reutilizados por empresa. Não há risco de vazamento entre
-// requisições: a chave É a empresa — cada requisição resolve a SUA empresa na
-// sessão (abaixo) e recebe o client correspondente.
+// Clients estendidos reutilizados por escopo. Não há risco de vazamento entre
+// requisições: a chave É o escopo (empresa ativa + grupo de leitura) — cada
+// requisição resolve o SEU escopo na sessão (abaixo) e recebe o client
+// correspondente.
 type ClienteEscopado = ReturnType<typeof criarClienteEscopado>
 const clientesEscopados = new Map<string, ClienteEscopado>()
 
-function criarClienteEscopado(empresaId: string) {
-  return prismaSemEscopo.$extends(escopoEmpresa(empresaId))
+function criarClienteEscopado(empresaId: string, grupoIds: string[] | null) {
+  return prismaSemEscopo.$extends(escopoEmpresa(empresaId, grupoIds))
 }
 
-function clienteDaEmpresa(empresaId: string): ClienteEscopado {
-  let c = clientesEscopados.get(empresaId)
+function clienteDoEscopo(empresaId: string, grupoIds: string[] | null): ClienteEscopado {
+  const chave = `${empresaId}|${grupoIds ? grupoIds.join(",") : ""}`
+  let c = clientesEscopados.get(chave)
   if (!c) {
-    c = criarClienteEscopado(empresaId)
-    clientesEscopados.set(empresaId, c)
+    c = criarClienteEscopado(empresaId, grupoIds)
+    clientesEscopados.set(chave, c)
   }
   return c
 }
 
+export const COOKIE_ESCOPO = "erp_escopo"
+
 /** Resolve o client escopado da requisição atual (sessão → empresa ativa). */
 async function dbDaRequisicao(): Promise<ClienteEscopado> {
   let empresaId = EMPRESA_PADRAO_ID
+  let grupoIds: string[] | null = null
   try {
     const session = await getSession()
     if (session?.activeEmpresaId) empresaId = session.activeEmpresaId
+    // modo grupo (compras): cookie de preferência + 2+ empresas na sessão
+    if (session && (session.empresaIds?.length ?? 0) > 1) {
+      const { cookies } = await import("next/headers")
+      const escopo = (await cookies()).get(COOKIE_ESCOPO)?.value
+      if (escopo === "grupo") grupoIds = [...session.empresaIds!].sort()
+    }
   } catch {
     // fora do contexto de requisição (cron/script) — escopo padrão
   }
-  return clienteDaEmpresa(empresaId)
+  return clienteDoEscopo(empresaId, grupoIds)
 }
 
 // ── Proxy lazy ───────────────────────────────────────────────────────────────

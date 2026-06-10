@@ -1,11 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { recalcPedidoValorTotal } from "@/lib/pedido-totais";
 import { notifyPedidoVendaCriado } from "@/lib/notify-pedido-venda";
-import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa } from "@/lib/empresa";
+import { getSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -47,6 +49,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("comercial");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = pedidoVendaSchema.safeParse(body);
   if (!parsed.success) {
@@ -68,14 +73,20 @@ export async function POST(req: NextRequest) {
       documento:     typeof c.documento === "string" && c.documento.trim() ? c.documento.trim() : null,
     }));
 
+  // Multiempresa: a venda pode nascer para outra empresa do grupo (modo
+  // grupo). Valida contra as empresas da sessão; numeração da empresa dona.
+  const session = await getSession();
+  const empresasPermitidas = session?.empresaIds ?? [];
+  let empresaAlvo = session?.activeEmpresaId ?? EMPRESA_PADRAO_ID;
+  if (body.empresaId && body.empresaId !== empresaAlvo) {
+    if (!empresasPermitidas.includes(body.empresaId)) {
+      return NextResponse.json({ error: "Empresa não permitida para este usuário" }, { status: 403 });
+    }
+    empresaAlvo = body.empresaId;
+  }
+  const numero = generateSimpleDocNumber("PV", await proximaSequenciaDaEmpresa(empresaAlvo, "PV"));
+
   const pedido = await prisma.$transaction(async (tx) => {
-    // Generate sequence number
-    const seq = await tx.sequencia.upsert({
-      where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "PV" } },
-      update: { ultimo: { increment: 1 } },
-      create: { prefixo: "PV", ultimo: 1 },
-    });
-    const numero = generateSimpleDocNumber("PV", seq.ultimo);
 
     // Calculate totals
     const valorProdutos = itens.reduce((sum, i) => sum + i.valorTotal, 0);
@@ -85,6 +96,7 @@ export async function POST(req: NextRequest) {
       data: {
         ...pedidoData,
         numero,
+        empresaId: empresaAlvo,
         valorProdutos,
         valorTotal,
         dataEmissao: pedidoData.dataEmissao ? new Date(pedidoData.dataEmissao) : new Date(),

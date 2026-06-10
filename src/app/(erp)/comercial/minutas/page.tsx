@@ -18,9 +18,11 @@ import {
   Plus, Search, X, LayoutList, Kanban, Loader2,
   ChevronDown as ChevronDownIcon, CalendarDays, Download, Check, Truck, Layers,
 } from "lucide-react";
+import EmpresaTag from "@/components/shared/EmpresaTag";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Minuta = {
+  empresaId?: string;
   id: string;
   numero: string;
   numeroFisico: string | null;
@@ -358,7 +360,7 @@ function MinutaKanbanCard({
       )}
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
-        <span className="font-mono text-xs font-bold text-gray-800">{m.numero}</span>
+        <span className="font-mono text-xs font-bold text-gray-800">{m.numero}</span> <EmpresaTag empresaId={m.empresaId} />
         <span className="font-mono text-xs text-gray-400">{m.pedidoVenda.numero}</span>
       </div>
       <p className="text-xs text-gray-700 font-medium mb-2 leading-snug line-clamp-2">

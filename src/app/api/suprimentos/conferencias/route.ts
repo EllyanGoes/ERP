@@ -1,9 +1,10 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { findMatchingPedidos } from "@/lib/pc-match";
-import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa } from "@/lib/empresa";
 
 export async function GET() {
   const data = await prisma.conferenciaCompra.findMany({
@@ -29,6 +30,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const { pedidoId, observacoes } = body;
 
@@ -51,17 +55,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
     }
 
-    const conferencia = await prisma.$transaction(async (tx) => {
-      const seq = await tx.sequencia.upsert({
-        where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "DE" } },
-        create: { prefixo: "DE", ultimo: 1 },
-        update: { ultimo: { increment: 1 } },
-      });
-      const numero = generateSimpleDocNumber("DE", seq.ultimo);
+    // Multiempresa: a conferência herda a empresa do pedido; numeração dela.
+    const numeroDE = generateSimpleDocNumber("DE", await proximaSequenciaDaEmpresa(pedido.empresaId, "DE"));
 
+    const conferencia = await prisma.$transaction(async (tx) => {
       const record = await tx.conferenciaCompra.create({
         data: {
-          numero,
+          numero: numeroDE,
+          empresaId: pedido.empresaId,
           pedidoId,
           observacoes: observacoes?.trim() || null,
           itens: {

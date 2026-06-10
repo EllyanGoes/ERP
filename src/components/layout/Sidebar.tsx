@@ -299,6 +299,7 @@ const adminModule: Module = {
       items: [
         { href: "/admin/usuarios",    label: "Usuários",             icon: UserCog },
         { href: "/admin/perfis",      label: "Perfis de Acesso",     icon: ShieldCheck },
+        { href: "/admin/empresas",    label: "Empresas do Grupo",    icon: Building2 },
         { href: "/admin/consolidado", label: "Consolidado do Grupo", icon: Building2 },
       ],
     },

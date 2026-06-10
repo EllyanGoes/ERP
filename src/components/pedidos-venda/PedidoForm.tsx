@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Search, Loader2, Tag, Package } from "lucide-react";
 import { formatBRL, decimalToNumber, cn } from "@/lib/utils";
+import { useSession } from "@/lib/session-context";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 
@@ -192,6 +193,9 @@ export default function PedidoForm({
 
   // Header form
   const [clienteId,         setClienteId]         = useState(pedido?.clienteId ?? "");
+  const { user: usuarioSessao } = useSession();
+  const empresasGrupo = usuarioSessao?.empresas ?? [];
+  const [empresaId, setEmpresaId] = useState(""); // "" = empresa ativa (só na criação)
   const [numeroOrcamento,   setNumeroOrcamento]   = useState(pedido?.numeroOrcamento ?? "");
   const [tabelaPrecoId,     setTabelaPrecoId]     = useState(pedido?.tabelaPrecoId ?? "");
   const [dataEmissao,       setDataEmissao]       = useState(pedido ? isoToDateInput(pedido.dataEmissao) : new Date().toISOString().slice(0, 10));
@@ -552,6 +556,7 @@ export default function PedidoForm({
 
   function buildPayload() {
     return {
+      ...(pedido ? {} : { empresaId: empresaId || undefined }),
       clienteId,
       numeroOrcamento: numeroOrcamento.trim() || null,
       tabelaPrecoId: tabelaPrecoId || null,
@@ -675,6 +680,22 @@ export default function PedidoForm({
           <h2 className="font-bold text-sm text-gray-800 tracking-wide uppercase">Dados do Pedido</h2>
         </div>
         <div className="p-5 space-y-5">
+
+          {!pedido && empresasGrupo.length > 1 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Empresa</Label>
+              <select
+                value={empresaId || usuarioSessao?.activeEmpresaId || ""}
+                onChange={(e) => setEmpresaId(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+              >
+                {empresasGrupo.map((e) => (
+                  <option key={e.id} value={e.id}>{e.nome}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400">Para qual empresa do grupo é esta venda — minutas e numeração seguirão nela.</p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
           {/* Cliente */}

@@ -129,6 +129,7 @@ export const ROUTES: RouteEntry[] = [
 
   { href: "/admin/usuarios",                       label: "Usuários",                group: "Administração",  section: "Sistema",          icon: UserCog },
   { href: "/admin/perfis",                         label: "Perfis de Acesso",        group: "Administração",  section: "Sistema",          icon: ShieldCheck },
+  { href: "/admin/empresas",                       label: "Empresas do Grupo",       group: "Administração",  section: "Sistema",          icon: Building2,      keywords: "empresas grupo multiempresa cadastro cnpj" },
   { href: "/admin/consolidado",                    label: "Consolidado do Grupo",    group: "Administração",  section: "Sistema",          icon: Building2,      keywords: "consolidado grupo multiempresa empresas intragrupo" },
 
   { href: "/pcm/dashboard",                        label: "PCM — Resultados",        group: "PCM",            section: "Manutenção",       icon: BarChart3,      keywords: "pcm manutenção resultados dashboard" },

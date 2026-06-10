@@ -13,9 +13,11 @@ import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 import GroupByControl, { GroupByValue } from "@/components/shared/GroupByControl";
+import EmpresaTag from "@/components/shared/EmpresaTag";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ConferenciaRow = {
+  empresaId?: string;
   id: string;
   numero: string;
   numeroNF: string | null;
@@ -242,7 +244,7 @@ function KanbanCard({ doc }: { doc: ConferenciaRow }) {
       className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm cursor-pointer hover:shadow-md hover:border-blue-300 transition-all"
       onClick={() => router.push(`/suprimentos/conferencias/${doc.id}`)}
     >
-      <span className="font-mono text-xs font-semibold text-gray-800">{doc.numero}</span>
+      <span className="font-mono text-xs font-semibold text-gray-800">{doc.numero}</span> <EmpresaTag empresaId={doc.empresaId} />
       {doc.pedido && (
         <p className="text-xs text-blue-600 mt-0.5">{doc.pedido.numero}</p>
       )}

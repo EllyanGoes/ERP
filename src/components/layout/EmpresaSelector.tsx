@@ -5,17 +5,32 @@ import { Building2, Check, ChevronDown, Loader2 } from "lucide-react";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
 
+const COOKIE_ESCOPO = "erp_escopo";
+
+function lerEscopoGrupo(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie.split("; ").some((c) => c === `${COOKIE_ESCOPO}=grupo`);
+}
+
 /**
- * Seletor de empresa ativa (multiempresa, Fase 3). Fica no topo, ao lado das
- * abas. Só aparece quando o usuário pode ativar mais de uma empresa. A troca
- * reassina o cookie de sessão e recarrega no dashboard — a página atual pode
- * não existir na outra empresa.
+ * Seletor de empresa ativa (multiempresa). Fica no topo, ao lado das abas.
+ * Só aparece quando o usuário pode ativar mais de uma empresa.
+ *
+ * Também controla o "modo grupo" das telas de COMPRAS e COMERCIAL: com o
+ * modo ligado, as listagens desses módulos mostram os processos de todas as
+ * empresas do usuário juntos (com a tag da empresa em cada um) e os
+ * documentos novos herdam a empresa da cadeia (cotação ← solicitação,
+ * minuta ← pedido, ...). O valor vai num cookie que o servidor valida contra
+ * as empresas da sessão. Trocas recarregam a MESMA página.
  */
 export default function EmpresaSelector() {
   const { user } = useSession();
   const [aberto, setAberto] = useState(false);
   const [trocando, setTrocando] = useState(false);
+  const [grupo, setGrupo] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setGrupo(lerEscopoGrupo()); }, []);
 
   useEffect(() => {
     if (!aberto) return;
@@ -43,8 +58,9 @@ export default function EmpresaSelector() {
         body: JSON.stringify({ empresaId }),
       });
       if (res.ok) {
-        // recarrega no dashboard: o registro aberto pode não existir na outra empresa
-        window.location.href = "/dashboard";
+        // recarrega a MESMA página na outra empresa (se o registro aberto não
+        // existir lá, a própria tela mostra vazio/não encontrado)
+        window.location.reload();
         return;
       }
       setTrocando(false);
@@ -53,6 +69,13 @@ export default function EmpresaSelector() {
       setTrocando(false);
       setAberto(false);
     }
+  }
+
+  function alternarGrupo() {
+    const novo = !grupo;
+    if (novo) document.cookie = `${COOKIE_ESCOPO}=grupo; path=/; max-age=${60 * 60 * 24 * 30}`;
+    else document.cookie = `${COOKIE_ESCOPO}=; path=/; max-age=0`;
+    window.location.reload();
   }
 
   return (
@@ -69,13 +92,13 @@ export default function EmpresaSelector() {
       >
         {trocando
           ? <Loader2 size={14} className="animate-spin text-gray-400" />
-          : <Building2 size={14} className="text-blue-600" />}
-        <span className="max-w-[140px] truncate">{ativa.nome}</span>
+          : <Building2 size={14} className={grupo ? "text-purple-600" : "text-blue-600"} />}
+        <span className="max-w-[140px] truncate">{grupo ? "Todas as empresas" : ativa.nome}</span>
         <ChevronDown size={13} className="text-gray-400" />
       </button>
 
       {aberto && (
-        <div className="absolute right-2 top-full mt-1 z-50 w-56 rounded-md border border-gray-200 bg-white shadow-lg py-1">
+        <div className="absolute right-2 top-full mt-1 z-50 w-64 rounded-md border border-gray-200 bg-white shadow-lg py-1">
           <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
             Empresa ativa
           </div>
@@ -92,6 +115,30 @@ export default function EmpresaSelector() {
               {e.id === ativa.id && <Check size={14} />}
             </button>
           ))}
+
+          <div className="my-1 border-t border-gray-100" />
+          <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            Compras e comercial
+          </div>
+          <button
+            onClick={alternarGrupo}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-[13px] text-left text-gray-700 hover:bg-gray-50"
+          >
+            <span className="flex-1">Ver todas as empresas juntas</span>
+            <span
+              className={cn(
+                "w-8 h-4.5 rounded-full p-0.5 transition-colors flex items-center",
+                grupo ? "bg-purple-600 justify-end" : "bg-gray-200 justify-start"
+              )}
+              style={{ height: 18, width: 32 }}
+            >
+              <span className="w-3.5 h-3.5 bg-white rounded-full shadow" />
+            </span>
+          </button>
+          <p className="px-3 pb-1.5 text-[11px] text-gray-400">
+            Os processos novos continuam nascendo na empresa do documento de origem
+            ou na escolhida no formulário.
+          </p>
         </div>
       )}
     </div>

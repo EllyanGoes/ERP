@@ -1,9 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json().catch(() => ({}));
   const responsavel = body.responsavel || null;
 
@@ -39,12 +43,34 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
         // Get current stock for this location
         const estoqueItem = await tx.estoqueItem.findFirst({
-          where: { itemId: item.itemId, localEstoqueId: targetLocalEstoqueId },
+          // empresaId fixa o saldo na empresa DONA da conferência (o modo grupo
+          // amplia a leitura e (item, local nulo) ficaria ambíguo entre empresas)
+          where: { empresaId: conferencia.empresaId, itemId: item.itemId, localEstoqueId: targetLocalEstoqueId },
           select: { id: true, quantidadeAtual: true },
         });
 
-        const saldoAntes = estoqueItem ? parseFloat(String(estoqueItem.quantidadeAtual)) : 0;
-        const saldoDepois = saldoAntes + qtdRecebida;
+        // increment atômico: entradas concorrentes do mesmo item não perdem
+        // atualização; os saldos da linha derivam do valor pós-update.
+        let saldoDepois: number;
+        if (estoqueItem) {
+          const atualizado = await tx.estoqueItem.update({
+            where: { id: estoqueItem.id },
+            data:  { quantidadeAtual: { increment: qtdRecebida } },
+          });
+          saldoDepois = parseFloat(String(atualizado.quantidadeAtual));
+        } else {
+          saldoDepois = qtdRecebida;
+          await tx.estoqueItem.create({
+            data: {
+              empresaId: conferencia.empresaId,
+              itemId: item.itemId,
+              quantidadeAtual: qtdRecebida,
+              quantidadeMin: 0,
+              localEstoqueId: targetLocalEstoqueId,
+            },
+          });
+        }
+        const saldoAntes = saldoDepois - qtdRecebida;
 
         // Determine document reference
         const docRef = conferencia.pedido?.numero
@@ -56,6 +82,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         // Create stock movement
         const mov = await tx.movimentacaoEstoque.create({
           data: {
+            empresaId: conferencia.empresaId,
             itemId: item.itemId,
             tipo: "ENTRADA",
             quantidade: qtdRecebida,
@@ -70,23 +97,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         });
 
         movimentacoesCriadas.push(mov.id);
-
-        // Update or create stock record
-        if (estoqueItem) {
-          await tx.estoqueItem.update({
-            where: { id: estoqueItem.id },
-            data: { quantidadeAtual: saldoDepois },
-          });
-        } else {
-          await tx.estoqueItem.create({
-            data: {
-              itemId: item.itemId,
-              quantidadeAtual: saldoDepois,
-              quantidadeMin: 0,
-              localEstoqueId: targetLocalEstoqueId,
-            },
-          });
-        }
+        // (o estoque já foi atualizado/criado atomicamente acima)
 
         // ── Custo Médio Ponderado Móvel (CMPM) ───────────────────────────────
         // Atualiza precoCusto no Item quando o item da conferência tem vlrUnitario
@@ -309,7 +320,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const targetLocalEstoqueId = item.localEstoqueId ?? result.conferencia.localEstoqueId ?? undefined;
     prisma.estoqueItem.findFirst({
-      where: { itemId: item.itemId, ...(targetLocalEstoqueId ? { localEstoqueId: targetLocalEstoqueId } : {}) },
+      where: { empresaId: result.conferencia.empresaId, itemId: item.itemId, ...(targetLocalEstoqueId ? { localEstoqueId: targetLocalEstoqueId } : {}) },
       include: { localEstoque: { select: { nome: true } } },
     }).then((estoqueAtual) => {
       const saldoDepois = (estoqueAtual ? parseFloat(String(estoqueAtual.quantidadeAtual)) : 0);

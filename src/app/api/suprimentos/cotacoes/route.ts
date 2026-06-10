@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
-import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa } from "@/lib/empresa";
+import { getSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -35,6 +37,7 @@ export async function GET(req: NextRequest) {
       where,
       select: {
         id: true,
+        empresaId: true,
         numero: true,
         nome: true,
         status: true,
@@ -71,6 +74,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   try {
   const body = await req.json();
   const { necessidadeId, nome, observacoes, infoEntrega, dataLimiteResposta, fornecedorIds = [], itens = [] } = body;
@@ -111,17 +117,24 @@ export async function POST(req: NextRequest) {
 
   const produtoIds = Object.keys(qtdMap);
 
-  const cotacao = await prisma.$transaction(async (tx) => {
-    const seq = await tx.sequencia.upsert({
-      where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "CT" } },
-      create: { prefixo: "CT", ultimo: 1 },
-      update: { ultimo: { increment: 1 } },
+  // Multiempresa: cotação herda a empresa da solicitação de origem (modo
+  // compras em grupo); avulsa fica na empresa ativa. Numeração da empresa dona.
+  const session = await getSession();
+  let empresaAlvo = session?.activeEmpresaId ?? EMPRESA_PADRAO_ID;
+  if (necessidadeId) {
+    const origem = await prisma.necessidadeCompra.findUnique({
+      where: { id: necessidadeId },
+      select: { empresaId: true },
     });
-    const numero = generateSimpleDocNumber("CT", seq.ultimo);
+    if (origem) empresaAlvo = origem.empresaId;
+  }
+  const numeroCT = generateSimpleDocNumber("CT", await proximaSequenciaDaEmpresa(empresaAlvo, "CT"));
 
+  const cotacao = await prisma.$transaction(async (tx) => {
     const record = await tx.cotacaoCompra.create({
       data: {
-        numero,
+        numero: numeroCT,
+        empresaId: empresaAlvo,
         nome: nome?.trim() || null,
         necessidadeId: necessidadeId || null,
         observacoes: observacoes?.trim() || null,

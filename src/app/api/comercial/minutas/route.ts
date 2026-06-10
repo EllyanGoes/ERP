@@ -1,8 +1,10 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
-import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { minutaCreateSchema } from "@/lib/validations/minuta";
+import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 
 // ── GET /api/comercial/minutas ────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -76,33 +78,42 @@ export async function GET(req: NextRequest) {
 
 // ── POST /api/comercial/minutas ───────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("comercial");
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
 
-    const { pedidoVendaId, numeroFisico, localEstoqueId, motoristaId, tipo, dataEntrega, placa, observacoes, itens } = body;
+    const { numeroFisico, localEstoqueId, motoristaId, tipo, dataEntrega, placa, observacoes } = body;
 
-    if (!pedidoVendaId) {
-      return NextResponse.json({ error: "pedidoVendaId é obrigatório" }, { status: 400 });
+    // Valida o que vira movimentação de estoque (ids e quantidades dos itens).
+    const parsed = minutaCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
     }
-    if (!itens || itens.length === 0) {
-      return NextResponse.json({ error: "Informe ao menos um item" }, { status: 400 });
-    }
+    const { pedidoVendaId, itens } = parsed.data;
     // A minuta nasce PENDENTE e NÃO baixa estoque na criação. O Local de Estoque é
     // opcional aqui: a baixa só ocorre ao "Marcar saída" (PENDENTE→SAIU_PARA_ENTREGA),
     // quando o local passa a ser exigido. Se informado agora, fica guardado p/ essa etapa.
 
-    const minuta = await prisma.$transaction(async (tx) => {
-      // Generate sequential number MIN-0001
-      const seq = await tx.sequencia.upsert({
-        where:  { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "MIN" } },
-        create: { prefixo: "MIN", ultimo: 1 },
-        update: { ultimo: { increment: 1 } },
-      });
-      const numero = generateSimpleDocNumber("MIN", seq.ultimo);
+    // Multiempresa: a minuta herda a empresa do pedido de venda; numeração dela.
+    const pedidoOrigem = await prisma.pedidoVenda.findUnique({
+      where: { id: pedidoVendaId },
+      select: { empresaId: true },
+    });
+    if (!pedidoOrigem) {
+      return NextResponse.json({ error: "Pedido de venda não encontrado" }, { status: 404 });
+    }
+    const numeroMin = generateSimpleDocNumber(
+      "MIN",
+      await proximaSequenciaDaEmpresa(pedidoOrigem.empresaId, "MIN")
+    );
 
+    const minuta = await prisma.$transaction(async (tx) => {
       const created = await tx.minuta.create({
         data: {
-          numero,
+          numero: numeroMin,
+          empresaId: pedidoOrigem.empresaId,
           numeroFisico: numeroFisico || null,
           pedidoVendaId,
           localEstoqueId: localEstoqueId || null,
@@ -113,13 +124,7 @@ export async function POST(req: NextRequest) {
           placa: placa || null,
           observacoes: observacoes || null,
           itens: {
-            create: itens.map((it: {
-              pedidoVendaItemId: string;
-              itemId: string;
-              quantidade: number;
-              quantidadeConvertida?: number;
-              unidadeId?: string;
-            }) => ({
+            create: itens.map((it) => ({
               pedidoVendaItemId: it.pedidoVendaItemId,
               itemId: it.itemId,
               quantidade: it.quantidade,

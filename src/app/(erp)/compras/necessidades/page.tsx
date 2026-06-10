@@ -25,10 +25,12 @@ import { useSession } from "@/lib/session-context";
 import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
+import EmpresaTag from "@/components/shared/EmpresaTag";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Necessidade = {
+  empresaId?: string;
   id: string; numero: string; status: string; prioridade: number;
   solicitante: string | null; justificativa: string | null;
   dataNecessidade: string | null; createdAt: string;
@@ -497,7 +499,7 @@ function KanbanCard({ n, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="font-mono text-xs font-bold text-gray-500">{n.numero}</span>
+        <span className="font-mono text-xs font-bold text-gray-500">{n.numero}</span> <EmpresaTag empresaId={n.empresaId} />
         {canDelete && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

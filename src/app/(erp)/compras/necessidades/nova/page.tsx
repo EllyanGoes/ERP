@@ -353,6 +353,7 @@ export default function NovasolicitacaoPage() {
   const formRestoredRef = useRef(false);
 
   const [filialId,              setFilialId]              = useState("");
+  const [empresaId,             setEmpresaId]             = useState(""); // "" = empresa ativa
   const [descricao,             setDescricao]             = useState("");
   const [prioridade,            setPrioridade]            = useState(3);
   const [entregaDesejada,       setEntregaDesejada]       = useState("");
@@ -479,6 +480,7 @@ export default function NovasolicitacaoPage() {
       const res = await fetch("/api/suprimentos/necessidades", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          empresaId: empresaId || undefined,
           filialId, justificativa: descricao.trim(), prioridade,
           dataNecessidade: entregaDesejada || null,
           colaboradorId: colaboradorId || null,
@@ -550,6 +552,22 @@ export default function NovasolicitacaoPage() {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-base">Informações</CardTitle></CardHeader>
           <CardContent className="space-y-4">
+
+            {(user?.empresas?.length ?? 0) > 1 && (
+              <div className="space-y-1.5">
+                <Label>Empresa</Label>
+                <select
+                  value={empresaId || user?.activeEmpresaId || ""}
+                  onChange={(e) => setEmpresaId(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  {user!.empresas!.map((e) => (
+                    <option key={e.id} value={e.id}>{e.nome}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400">Para qual empresa do grupo é esta solicitação — todo o processo (cotação, pedido, conferência) seguirá nela.</p>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label>Filial <span className="text-red-500">*</span></Label>

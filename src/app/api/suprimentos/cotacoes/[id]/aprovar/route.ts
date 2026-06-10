@@ -1,12 +1,16 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
-import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 
 // POST /api/suprimentos/cotacoes/[id]/aprovar
 // Marks the cotação as CONCLUIDA and generates a PedidoCompra from the melhorOpcao supplier
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json().catch(() => ({}));
     const cfIdParam = body.cfId as string | undefined;
@@ -69,13 +73,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         data: { melhorOpcao: true },
       });
 
-      // Generate PedidoCompra number
-      const seq = await tx.sequencia.upsert({
-        where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "PC" } },
-        create: { prefixo: "PC", ultimo: 1 },
-        update: { ultimo: { increment: 1 } },
-      });
-      const numero = generateSimpleDocNumber("PC", seq.ultimo);
+      // Multiempresa: o pedido herda a empresa da cotação; numeração dela.
+      const numero = generateSimpleDocNumber(
+        "PC",
+        await proximaSequenciaDaEmpresa(cotacao.empresaId, "PC")
+      );
 
       const itensComPreco = melhor.itens.filter((i) => i.precoUnitario != null);
       const parsedItens = itensComPreco.map((i) => {
@@ -91,6 +93,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       const pedidoCompra = await tx.pedidoCompra.create({
         data: {
           numero,
+          empresaId: cotacao.empresaId,
           cotacaoId: cotacao.id,
           fornecedorId: melhor.fornecedorId,
           valorTotal,

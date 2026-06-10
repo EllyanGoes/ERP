@@ -19,9 +19,11 @@ import {
   ChevronDown as ChevronDownIcon, CalendarDays, Download, Check,
   ShoppingCart, AlertTriangle, Trash2,
 } from "lucide-react";
+import EmpresaTag from "@/components/shared/EmpresaTag";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type PedidoRow = {
+  empresaId?: string;
   id: string;
   numero: string;
   numeroOrcamento: string | null;
@@ -353,7 +355,7 @@ function KanbanCard({
       )}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="font-mono text-xs font-semibold text-gray-800">{p.numero}</span>
+        <span className="font-mono text-xs font-semibold text-gray-800">{p.numero}</span> <EmpresaTag empresaId={p.empresaId} />
         <StatusBadge status={p.status} />
       </div>
       <p className="text-xs text-gray-700 font-medium mb-1 leading-snug line-clamp-2">

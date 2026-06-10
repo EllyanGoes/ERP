@@ -20,9 +20,11 @@ import {
   ChevronDown as ChevronDownIcon, ChevronRight, Calendar, CalendarDays, Building2, ClipboardList, FileText,
   CheckCircle2, AlertCircle, ExternalLink, Download, Check,
 } from "lucide-react";
+import EmpresaTag from "@/components/shared/EmpresaTag";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Pedido = {
+  empresaId?: string;
   id: string;
   numero: string;
   status: string;
@@ -399,7 +401,7 @@ function KanbanCard({
       onClick={() => !isDragging && router.push(`/suprimentos/pedidos-compra/${p.id}`)}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="font-mono text-xs font-semibold text-gray-800">{p.numero}</span>
+        <span className="font-mono text-xs font-semibold text-gray-800">{p.numero}</span> <EmpresaTag empresaId={p.empresaId} />
         <div onClick={(e) => e.stopPropagation()}>
           <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} isAdmin={isAdmin} />
         </div>
