@@ -186,9 +186,11 @@ export default function WhatsAppIntegracaoPage() {
     }
   }
 
+  // O segredo (env WA_WEBHOOK_SECRET) precisa ir na URL registrada no provedor —
+  // o webhook recusa chamadas sem ele. Substitua o placeholder pelo valor real.
   const webhookUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/api/webhooks/whatsapp`
-    : "https://seu-dominio.com/api/webhooks/whatsapp";
+    ? `${window.location.origin}/api/webhooks/whatsapp?secret=SEU_WA_WEBHOOK_SECRET`
+    : "https://seu-dominio.com/api/webhooks/whatsapp?secret=SEU_WA_WEBHOOK_SECRET";
 
   const providerLabel = PROVIDERS.find((p) => p.id === provider)?.label ?? provider;
 
@@ -281,6 +283,9 @@ export default function WhatsAppIntegracaoPage() {
                   <p className="text-xs text-emerald-700 font-mono break-all bg-white/60 px-3 py-1.5 rounded-lg border border-emerald-200 select-all">
                     {webhookUrl}
                   </p>
+                  <p className="text-[11px] text-emerald-600">
+                    Troque <strong>SEU_WA_WEBHOOK_SECRET</strong> pelo valor da variável <strong>WA_WEBHOOK_SECRET</strong> (Vercel).
+                  </p>
                   <p className="text-[11px] text-emerald-600">Evento: <strong>MESSAGES_UPSERT</strong></p>
                 </div>
               )}
@@ -302,6 +307,9 @@ export default function WhatsAppIntegracaoPage() {
                 <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 space-y-1.5">
                   <p className="text-xs font-semibold text-blue-700">URL do Webhook</p>
                   <p className="text-xs text-blue-600 font-mono break-all select-all">{webhookUrl}</p>
+                  <p className="text-[11px] text-blue-500">
+                    Troque <strong>SEU_WA_WEBHOOK_SECRET</strong> pelo valor da variável <strong>WA_WEBHOOK_SECRET</strong> (Vercel).
+                  </p>
                   <p className="text-[11px] text-blue-500">Configure no Meta Business → WhatsApp → Configurações</p>
                 </div>
               )}

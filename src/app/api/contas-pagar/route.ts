@@ -1,11 +1,15 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireModulo } from "@/lib/permissions";
 import { contaPagarSchema } from "@/lib/validations/financeiro";
 import { generateDocNumber } from "@/lib/utils";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status") || undefined;
   const q = searchParams.get("q") || "";
@@ -27,6 +31,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = contaPagarSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });

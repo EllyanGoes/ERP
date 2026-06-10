@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireModulo } from "@/lib/permissions";
 
 const JANELA_DIAS = 3;
 
@@ -11,6 +12,9 @@ function valorEfetivo(tipo: string, valor: number): number {
 }
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const importacao = await prisma.importacaoOFX.findUnique({
     where: { id: params.id },
     include: {
@@ -56,6 +60,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 // Exclui uma importação (e suas linhas, via cascade). Lançamentos conciliados
 // não são apagados — apenas o vínculo some.
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   await prisma.importacaoOFX.delete({ where: { id: params.id } });
   return NextResponse.json({ data: { ok: true } });
 }

@@ -1,8 +1,12 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireModulo } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const data = req.nextUrl.searchParams.get("data"); // "YYYY-MM-DD"
   if (!data) return NextResponse.json({ error: "data obrigatória" }, { status: 400 });
 

@@ -4,9 +4,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendWAMessage } from "@/lib/whatsapp";
 
+// ── Autenticação do webhook ───────────────────────────────────────────────────
+// Fail-closed: este endpoint é público no middleware e o payload aprova/reprova
+// solicitações de compra — só aceita chamadas que conheçam o segredo compartilhado.
+// O segredo vai na URL registrada no provedor (?secret=...) ou no header
+// x-webhook-secret. Sem WA_WEBHOOK_SECRET configurado, recusa tudo.
+function isAuthorized(req: NextRequest): boolean {
+  const expected = process.env.WA_WEBHOOK_SECRET;
+  if (!expected) return false;
+  const got =
+    req.nextUrl.searchParams.get("secret") ?? req.headers.get("x-webhook-secret");
+  return got === expected;
+}
+
 // ── Meta webhook verification ─────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const mode      = searchParams.get("hub.mode");
   const token     = searchParams.get("hub.verify_token");
@@ -25,6 +42,10 @@ export async function GET(req: NextRequest) {
 // ── Incoming webhook ──────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
 

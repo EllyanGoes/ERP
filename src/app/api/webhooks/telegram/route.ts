@@ -12,10 +12,12 @@ import { buildRelatorioConsumo } from "@/lib/relatorio-consumo";
 // Telegram sends POST with callback_query when user clicks inline keyboard button
 export async function POST(req: NextRequest) {
   try {
-    // Optional: verify secret token
+    // Fail-closed: sem TG_WEBHOOK_SECRET configurado, recusa tudo. O segredo é
+    // registrado junto ao webhook em Configurações → Integrações → Telegram
+    // ("Registrar webhook"), que envia secret_token ao Telegram.
     const secretToken = req.headers.get("x-telegram-bot-api-secret-token");
     const expectedSecret = process.env.TG_WEBHOOK_SECRET;
-    if (expectedSecret && secretToken !== expectedSecret) {
+    if (!expectedSecret || secretToken !== expectedSecret) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

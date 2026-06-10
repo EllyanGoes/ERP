@@ -1,10 +1,14 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireModulo } from "@/lib/permissions";
 import { ofxImportarSchema } from "@/lib/validations/financeiro";
 import { parseOFX } from "@/lib/ofx";
 
 export async function GET() {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const data = await prisma.importacaoOFX.findMany({
     include: {
       contaBancaria: { select: { id: true, nome: true } },
@@ -18,6 +22,9 @@ export async function GET() {
 // Importa um extrato OFX: faz o parse e grava as linhas. Ignora linhas com FITID
 // já importado anteriormente para a mesma conta (evita duplicar transações).
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = ofxImportarSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });

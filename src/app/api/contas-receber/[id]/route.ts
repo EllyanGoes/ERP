@@ -1,9 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireModulo } from "@/lib/permissions";
 import { pagamentoSchema } from "@/lib/validations/financeiro";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const conta = await prisma.contaReceber.findUnique({
     where: { id: params.id },
     include: { cliente: true, pedidoVenda: true, lancamentos: true },
@@ -13,6 +17,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = pagamentoSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });

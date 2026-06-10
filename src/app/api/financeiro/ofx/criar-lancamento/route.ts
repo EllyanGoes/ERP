@@ -1,10 +1,14 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireModulo } from "@/lib/permissions";
 import { ofxCriarLancamentoSchema } from "@/lib/validations/financeiro";
 
 // Cria um lançamento a partir de uma linha OFX órfã (sem correspondência) e já a concilia.
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = ofxCriarLancamentoSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });

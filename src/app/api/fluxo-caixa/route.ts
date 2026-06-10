@@ -1,8 +1,12 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireModulo } from "@/lib/permissions";
 
 export async function GET() {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const [cr, cp] = await Promise.all([
     prisma.contaReceber.findMany({
       where: { status: { notIn: ["CANCELADA"] } },

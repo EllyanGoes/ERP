@@ -1,9 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireModulo } from "@/lib/permissions";
 import { categoriaFinanceiraSchema } from "@/lib/validations/financeiro";
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = categoriaFinanceiraSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
@@ -27,6 +31,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 // Inativação se houver vínculos (filhos ou lançamentos); senão exclui.
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const [filhos, lancamentos, cr, cp] = await Promise.all([
     prisma.categoriaFinanceira.count({ where: { paiId: params.id } }),
     prisma.lancamentoFinanceiro.count({ where: { categoriaFinanceiraId: params.id } }),

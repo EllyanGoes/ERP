@@ -1,10 +1,14 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireModulo } from "@/lib/permissions";
 import { ofxConciliarSchema } from "@/lib/validations/financeiro";
 
 // Concilia uma linha OFX a um lançamento existente.
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = ofxConciliarSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
@@ -19,6 +23,9 @@ export async function POST(req: NextRequest) {
 
 // Desfaz a conciliação de uma linha OFX (?linhaId=...).
 export async function DELETE(req: NextRequest) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const linhaId = searchParams.get("linhaId");
   if (!linhaId) return NextResponse.json({ error: "linhaId é obrigatório" }, { status: 400 });

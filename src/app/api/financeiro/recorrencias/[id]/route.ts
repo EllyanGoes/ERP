@@ -1,9 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireModulo } from "@/lib/permissions";
 import { recorrenciaSchema } from "@/lib/validations/financeiro";
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = recorrenciaSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
@@ -30,6 +34,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const vinculos = await prisma.contaReceber.count({ where: { recorrenciaId: params.id } })
     + await prisma.contaPagar.count({ where: { recorrenciaId: params.id } });
   if (vinculos > 0) {

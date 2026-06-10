@@ -10,6 +10,7 @@ const OAUTH_ERRORS: Record<string, string> = {
   google_userinfo:  "Falha ao obter dados do Google.",
   google_error:     "Erro inesperado no login com Google.",
   conta_inativa:    "Conta inativa. Contate o administrador.",
+  sem_cadastro:     "Seu e-mail não está cadastrado no sistema. Peça acesso ao administrador.",
 };
 
 function LoginForm() {

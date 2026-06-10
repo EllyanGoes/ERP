@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth";
 
 const MANAGED_KEYS = [
   "wa_provider",
@@ -32,7 +33,25 @@ const MANAGED_KEYS = [
   "tg_chat_pedidos_label",
 ] as const;
 
+// Chaves cujo valor nunca sai do servidor. O GET devolve a máscara quando há
+// valor salvo; o POST ignora a máscara (mantém o que está no banco) — só
+// sobrescreve quando o usuário digita um valor novo ou limpa o campo.
+const SECRET_KEYS: readonly string[] = [
+  "wa_evolution_apikey",
+  "wa_meta_access_token",
+  "wa_meta_webhook_token",
+  "wa_zapi_token",
+  "wa_zapi_security_token",
+  "db_engeman_password",
+  "tg_bot_token",
+];
+
+const SECRET_MASK = "••••••••";
+
 export async function GET() {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
   try {
     const records = await prisma.configuracao.findMany({
       where: { chave: { in: [...MANAGED_KEYS] } },
@@ -40,7 +59,8 @@ export async function GET() {
 
     const result: Record<string, string | null> = {};
     for (const key of MANAGED_KEYS) {
-      result[key] = records.find((r) => r.chave === key)?.valor ?? null;
+      const valor = records.find((r) => r.chave === key)?.valor ?? null;
+      result[key] = SECRET_KEYS.includes(key) && valor ? SECRET_MASK : valor;
     }
 
     return NextResponse.json(result);
@@ -51,12 +71,16 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json() as Record<string, string | null>;
 
     await prisma.$transaction(
       Object.entries(body)
         .filter(([key]) => (MANAGED_KEYS as readonly string[]).includes(key))
+        .filter(([key, valor]) => !(SECRET_KEYS.includes(key) && valor === SECRET_MASK))
         .map(([key, valor]) =>
           prisma.configuracao.upsert({
             where: { chave: key },

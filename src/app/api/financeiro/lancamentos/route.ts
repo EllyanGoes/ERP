@@ -1,9 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireModulo } from "@/lib/permissions";
 import { lancamentoFinanceiroSchema } from "@/lib/validations/financeiro";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const contaBancariaId = searchParams.get("contaBancariaId") || undefined;
   const tipo = searchParams.get("tipo") || undefined;
@@ -27,6 +31,9 @@ export async function GET(req: NextRequest) {
 
 // Lançamento avulso (não vinculado a título). Movimenta o caixa diretamente.
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = lancamentoFinanceiroSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });

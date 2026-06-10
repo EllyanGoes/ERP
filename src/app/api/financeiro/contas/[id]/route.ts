@@ -1,10 +1,14 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireModulo } from "@/lib/permissions";
 import { contaBancariaSchema } from "@/lib/validations/financeiro";
 
 // GET → conta + extrato (lançamentos com saldo corrente acumulado)
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const de = searchParams.get("de");
   const ate = searchParams.get("ate");
@@ -44,6 +48,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = contaBancariaSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
@@ -65,6 +72,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 // Inativação (não exclui se houver lançamentos — FK RESTRICT).
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const count = await prisma.lancamentoFinanceiro.count({ where: { contaBancariaId: params.id } });
   if (count > 0) {
     await prisma.contaBancaria.update({ where: { id: params.id }, data: { ativo: false } });

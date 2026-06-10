@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET ?? "erp-super-secret-change-in-prod-2024");
+// Fail-closed: sem JWT_SECRET configurado, nenhum token pode ser confiável.
+if (!process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET não configurado — defina a variável de ambiente.");
+}
+const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 const COOKIE_NAME = "erp_session";
 
 // Caminhos liberados sem sessão de usuário. As rotas de API listadas validam

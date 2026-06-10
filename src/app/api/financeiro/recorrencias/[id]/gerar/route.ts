@@ -1,12 +1,16 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireModulo } from "@/lib/permissions";
 import { generateDocNumber } from "@/lib/utils";
 import { avancarData, type Periodicidade } from "@/lib/financeiro";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 // Gera o título (CR ou CP) correspondente à recorrência e avança proximaGeracao.
 export async function POST(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("financeiro");
+  if (!auth.ok) return auth.response;
+
   const rec = await prisma.recorrencia.findUnique({ where: { id: params.id } });
   if (!rec) return NextResponse.json({ error: "Recorrência não encontrada" }, { status: 404 });
   if (!rec.ativo) return NextResponse.json({ error: "Recorrência inativa" }, { status: 400 });
