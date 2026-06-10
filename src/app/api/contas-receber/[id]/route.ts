@@ -24,18 +24,26 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const parsed = pagamentoSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
 
-  const { valorPago, dataPagamento, formaPagamento, valorMulta, valorJuros } = parsed.data;
+  const { valorPago, dataPagamento, formaPagamento, valorMulta, valorJuros, contaBancariaId } = parsed.data;
 
-  const conta = await prisma.contaReceber.findUnique({ where: { id: params.id } });
-  if (!conta) return NextResponse.json({ error: "Conta não encontrada" }, { status: 404 });
+  // Leitura e escrita na MESMA transação, com guard otimista no update: um
+  // duplo clique no "Baixar" não pode somar o mesmo recebimento duas vezes nem
+  // criar dois lançamentos.
+  const result = await prisma.$transaction(async (tx) => {
+    const conta = await tx.contaReceber.findUnique({ where: { id: params.id } });
+    if (!conta) return { erro: { msg: "Conta não encontrada", status: 404 }, data: null };
+    if (conta.status === "PAGA" || conta.status === "CANCELADA") {
+      return { erro: { msg: `Conta já está ${conta.status === "PAGA" ? "paga" : "cancelada"}.`, status: 409 }, data: null };
+    }
 
-  const totalPago = parseFloat(conta.valorPago.toString()) + valorPago;
-  const totalOriginal = parseFloat(conta.valorOriginal.toString());
-  const newStatus = totalPago >= totalOriginal ? "PAGA" : "PARCIAL";
+    const totalPago = parseFloat(conta.valorPago.toString()) + valorPago;
+    const totalOriginal = parseFloat(conta.valorOriginal.toString());
+    const newStatus = totalPago >= totalOriginal ? "PAGA" : "PARCIAL";
 
-  const updated = await prisma.$transaction(async (tx) => {
-    const result = await tx.contaReceber.update({
-      where: { id: params.id },
+    // Só aplica se status/valorPago não mudaram desde a leitura acima — a
+    // requisição concorrente que perder a corrida cai no count === 0.
+    const aplicado = await tx.contaReceber.updateMany({
+      where: { id: params.id, status: conta.status, valorPago: conta.valorPago },
       data: {
         valorPago: totalPago,
         valorMulta: (parseFloat(conta.valorMulta.toString())) + valorMulta,
@@ -45,6 +53,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         status: newStatus,
       },
     });
+    if (aplicado.count === 0) {
+      return { erro: { msg: "A conta foi baixada por outra operação simultânea — recarregue e confira.", status: 409 }, data: null };
+    }
+
     await tx.lancamentoFinanceiro.create({
       data: {
         tipo: "RECEITA",
@@ -52,13 +64,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         valor: valorPago + valorMulta + valorJuros,
         dataLancamento: new Date(dataPagamento),
         contaReceberId: params.id,
-        contaBancariaId: body.contaBancariaId ?? conta.contaBancariaId ?? "caixa-geral",
+        contaBancariaId: contaBancariaId ?? conta.contaBancariaId ?? "caixa-geral",
         categoriaFinanceiraId: conta.categoriaFinanceiraId ?? undefined,
         centroCustoId: conta.centroCustoId ?? undefined,
       },
     });
-    return result;
+    const updated = await tx.contaReceber.findUnique({ where: { id: params.id } });
+    return { erro: null, data: updated };
   });
 
-  return NextResponse.json({ data: updated });
+  if (result.erro) return NextResponse.json({ error: result.erro.msg }, { status: result.erro.status });
+  return NextResponse.json({ data: result.data });
 }
