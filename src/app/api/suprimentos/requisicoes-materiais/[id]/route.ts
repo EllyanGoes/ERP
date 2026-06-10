@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 
@@ -25,6 +26,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
 
   const record = await prisma.$transaction(async (tx) => {
@@ -96,10 +100,32 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           select: { id: true, quantidadeAtual: true },
         });
 
-        const saldoAntes = estoqueItem ? parseFloat(String(estoqueItem.quantidadeAtual)) : 0;
-        const saldoDepois = isSaida
-          ? Math.max(0, saldoAntes - qtd)
-          : saldoAntes + qtd;
+        // increment/decrement atômico: requisições concorrentes do mesmo item
+        // não perdem atualização; os saldos da linha derivam do valor pós-update.
+        // NOTA: o clamp Math.max(0, ...) foi removido — ele deixava o saldo da
+        // tabela inconsistente com o extrato (recalcularSaldos subtrai a
+        // quantidade cheia); o resto do sistema permite saldo negativo.
+        let saldoAntes = 0;
+        let saldoDepois = 0;
+        if (estoqueItem) {
+          const atualizado = await tx.estoqueItem.update({
+            where: { id: estoqueItem.id },
+            data:  { quantidadeAtual: { increment: isSaida ? -qtd : qtd } },
+          });
+          saldoDepois = parseFloat(String(atualizado.quantidadeAtual));
+          saldoAntes  = isSaida ? saldoDepois + qtd : saldoDepois - qtd;
+        } else if (!isSaida) {
+          // Para devoluções, cria o registro de estoque se não existir
+          saldoDepois = qtd;
+          await tx.estoqueItem.create({
+            data: {
+              itemId: item.itemId,
+              quantidadeAtual: qtd,
+              quantidadeMin: 0,
+              localEstoqueId,
+            },
+          });
+        }
 
         await tx.movimentacaoEstoque.create({
           data: {
@@ -113,23 +139,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             localEstoqueId,
           },
         });
-
-        if (estoqueItem) {
-          await tx.estoqueItem.update({
-            where: { id: estoqueItem.id },
-            data: { quantidadeAtual: saldoDepois },
-          });
-        } else if (!isSaida) {
-          // For devoluções, create estoque record if it doesn't exist
-          await tx.estoqueItem.create({
-            data: {
-              itemId: item.itemId,
-              quantidadeAtual: saldoDepois,
-              quantidadeMin: 0,
-              localEstoqueId,
-            },
-          });
-        }
       }
     }
 
@@ -170,6 +179,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   await prisma.requisicaoMaterial.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }

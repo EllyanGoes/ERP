@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
@@ -26,6 +27,9 @@ const postSchema = z.object({
 
 // ── POST — criar lote de movimentação ────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("almoxarifado");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = postSchema.safeParse(body);
   if (!parsed.success) {
@@ -77,14 +81,15 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        const saldoAntes  = parseFloat(estoque.quantidadeAtual.toString());
-        const delta       = tipo === "SAIDA" ? -quantidade : quantidade;
-        const saldoDepois = saldoAntes + delta;
-
-        await tx.estoqueItem.update({
+        // increment/decrement atômico: movimentações concorrentes do mesmo item
+        // não perdem atualização; os saldos da linha derivam do valor pós-update.
+        const delta      = tipo === "SAIDA" ? -quantidade : quantidade;
+        const atualizado = await tx.estoqueItem.update({
           where: { id: estoque.id },
-          data:  { quantidadeAtual: saldoDepois },
+          data:  { quantidadeAtual: { increment: delta } },
         });
+        const saldoDepois = parseFloat(atualizado.quantidadeAtual.toString());
+        const saldoAntes  = saldoDepois - delta;
 
         // ── Custo Médio Ponderado Móvel (CMPM) ───────────────────────────────
         // On ENTRADA with a unit price, recalculate and persist precoCusto on Item.
