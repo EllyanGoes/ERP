@@ -6,13 +6,24 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 export const COOKIE_NAME = "erp_session";
-const getSecret = () => process.env.JWT_SECRET ?? "erp-super-secret-change-in-prod-2024";
+const getSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  // Fail-closed: sem segredo, é melhor derrubar a autenticação do que aceitar
+  // tokens assinados com um valor conhecido publicamente no repositório.
+  if (!secret) throw new Error("JWT_SECRET não configurado — defina a variável de ambiente.");
+  return secret;
+};
 
 export type SessionPayload = {
   sub: string;       // user id
   email: string;
   nome: string;
   perfil: "ADMIN" | "USUARIO";
+  // Multiempresa (Fase 2). Opcionais porque tokens antigos (sem os campos)
+  // continuam válidos por até 8h — nesse caso o escopo cai na Tramontin
+  // (EMPRESA_PADRAO_ID em @/lib/prisma).
+  activeEmpresaId?: string;   // empresa ativa no seletor
+  empresaIds?: string[];      // empresas que o usuário pode ativar
   // NOTE: os módulos NÃO entram aqui de propósito — embutir a lista de permissões
   // estourava o limite de ~4KB do cookie. Use getUserModulos()/hasModulo() de
   // "@/lib/permissions" para carregar e checar acesso a partir do banco.
@@ -68,4 +79,20 @@ export async function requireSession(): Promise<RequireSessionResult> {
     return { ok: false, response: NextResponse.json({ error: "Não autenticado" }, { status: 401 }) };
   }
   return { ok: true, session };
+}
+
+/**
+ * Como requireSession(), mas exige perfil ADMIN.
+ *
+ * Uso:
+ *   const auth = await requireAdmin();
+ *   if (!auth.ok) return auth.response;   // 401 ou 403 padronizado
+ */
+export async function requireAdmin(): Promise<RequireSessionResult> {
+  const auth = await requireSession();
+  if (!auth.ok) return auth;
+  if (auth.session.perfil !== "ADMIN") {
+    return { ok: false, response: NextResponse.json({ error: "Apenas administradores" }, { status: 403 }) };
+  }
+  return auth;
 }

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword, signToken, COOKIE_NAME, SessionPayload } from "@/lib/auth";
+import { empresasParaSessao } from "@/lib/empresa";
 
 export async function POST(req: NextRequest) {
   const { email, senha } = await req.json();
@@ -28,11 +29,14 @@ export async function POST(req: NextRequest) {
     : user.permissoes.map((p) => p.modulo);
 
   // O token carrega só identidade — módulos vêm do banco (evita cookie > 4KB).
+  const { activeEmpresaId, empresaIds } = await empresasParaSessao();
   const payload: SessionPayload = {
     sub: user.id,
     email: user.email,
     nome: user.nome,
     perfil: user.perfil,
+    activeEmpresaId,
+    empresaIds,
   };
 
   const token = signToken(payload);

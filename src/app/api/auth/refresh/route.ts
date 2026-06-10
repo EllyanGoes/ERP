@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession, signToken, COOKIE_NAME, SessionPayload } from "@/lib/auth";
+import { empresasParaSessao } from "@/lib/empresa";
 
 // POST /api/auth/refresh
 // Reads the current JWT, fetches fresh user + permissions from DB,
@@ -33,11 +34,15 @@ export async function POST() {
     : user.permissoes.map((p) => p.modulo);
 
   // O token carrega só identidade — módulos vêm do banco (evita cookie > 4KB).
+  // Preserva a empresa ativa do token atual, se ela continuar válida.
+  const { activeEmpresaId, empresaIds } = await empresasParaSessao(session.activeEmpresaId);
   const payload: SessionPayload = {
     sub:    user.id,
     email:  user.email,
     nome:   user.nome,
     perfil: user.perfil as "ADMIN" | "USUARIO",
+    activeEmpresaId,
+    empresaIds,
   };
 
   const token = signToken(payload);

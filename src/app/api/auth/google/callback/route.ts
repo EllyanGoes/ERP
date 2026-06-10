@@ -2,12 +2,17 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { signToken, COOKIE_NAME, SessionPayload } from "@/lib/auth";
+import { empresasParaSessao } from "@/lib/empresa";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const code  = searchParams.get("code");
-  const state = searchParams.get("state") ?? "/dashboard";
   const error = searchParams.get("error");
+
+  // O state carrega o caminho de retorno. Só aceita caminho interno ("/...",
+  // mas não "//host"), senão um link malicioso redirecionaria para outro site.
+  const rawState = searchParams.get("state") ?? "/dashboard";
+  const state = rawState.startsWith("/") && !rawState.startsWith("//") ? rawState : "/dashboard";
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
 
@@ -46,24 +51,15 @@ export async function GET(req: NextRequest) {
 
     const googleUser: { id: string; email: string; name: string } = await userRes.json();
 
-    // 3. Find or create user
-    let user = await prisma.usuario.findUnique({
+    // 3. Find user — só entra quem já foi cadastrado por um administrador.
+    // (Auto-criar usuário aqui deixava qualquer conta Google entrar no ERP.)
+    const user = await prisma.usuario.findUnique({
       where:   { email: googleUser.email.toLowerCase() },
       include: { permissoes: true },
     });
 
     if (!user) {
-      // Auto-create user with USUARIO profile — admin can set permissions later
-      user = await prisma.usuario.create({
-        data: {
-          email:  googleUser.email.toLowerCase(),
-          nome:   googleUser.name,
-          senha:  "", // no password for Google users
-          perfil: "USUARIO",
-          ativo:  true,
-        },
-        include: { permissoes: true },
-      });
+      return NextResponse.redirect(`${baseUrl}/login?error=sem_cadastro`);
     }
 
     if (!user.ativo) {
@@ -72,11 +68,14 @@ export async function GET(req: NextRequest) {
 
     // 4. Issue JWT cookie (same flow as email/password login)
     // O token carrega só identidade — módulos vêm do banco (evita cookie > 4KB).
+    const { activeEmpresaId, empresaIds } = await empresasParaSessao();
     const payload: SessionPayload = {
       sub:    user.id,
       email:  user.email,
       nome:   user.nome,
       perfil: user.perfil,
+      activeEmpresaId,
+      empresaIds,
     };
 
     const token = signToken(payload);
