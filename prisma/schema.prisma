@@ -264,6 +264,8 @@ model ContaPagar {
   status                StatusConta            @default(ABERTA)
   formaPagamento        String?
   notaFiscal            String?
+  intragrupo            Boolean                @default(false)
+  contaReceberEspelhoId String?                @unique
   observacoes           String?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
@@ -272,6 +274,7 @@ model ContaPagar {
   centroCusto           CentroCusto?           @relation(fields: [centroCustoId], references: [id])
   contaBancaria         ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
   recorrencia           Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
+  contaReceberEspelho   ContaReceber?          @relation("EspelhoIntragrupoCR", fields: [contaReceberEspelhoId], references: [id])
   lancamentos           LancamentoFinanceiro[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
@@ -308,6 +311,7 @@ model ContaReceber {
   status                StatusConta            @default(ABERTA)
   formaPagamento        String?
   nossoNumero           String?
+  intragrupo            Boolean                @default(false)
   observacoes           String?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
@@ -317,6 +321,7 @@ model ContaReceber {
   centroCusto           CentroCusto?           @relation(fields: [centroCustoId], references: [id])
   contaBancaria         ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
   recorrencia           Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
+  espelhoPagar          ContaPagar?            @relation("EspelhoIntragrupoCR")
   lancamentos           LancamentoFinanceiro[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
@@ -984,33 +989,36 @@ model NecessidadeCompraItem {
 }
 
 model PedidoCompra {
-  id                  String             @id @default(cuid())
-  empresaId           String             @default("emp_tramontin")
-  numero              String
-  cotacaoId           String?
-  necessidadeId       String?
-  fornecedorId        String
-  status              StatusPedidoCompra @default(RASCUNHO)
-  valorTotal          Decimal            @default(0) @db.Decimal(15, 2)
-  dataEntregaPrevista DateTime?
-  observacoes         String?
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  condicoesPagamento  String?
-  contato             String?
-  desconto            Decimal?           @db.Decimal(5, 2)
-  despesas            Decimal?           @db.Decimal(15, 2)
-  email               String?
-  frete               Decimal?           @db.Decimal(15, 2)
-  seguro              Decimal?           @db.Decimal(15, 2)
-  tipoFrete           String?
-  vrDesconto          Decimal?           @db.Decimal(15, 2)
-  descricao           String?
-  conferencia         ConferenciaCompra?
-  cotacao             CotacaoCompra?     @relation(fields: [cotacaoId], references: [id])
-  necessidade         NecessidadeCompra? @relation(fields: [necessidadeId], references: [id])
-  fornecedor          Fornecedor         @relation(fields: [fornecedorId], references: [id])
-  itens               PedidoCompraItem[]
+  id                   String             @id @default(cuid())
+  empresaId            String             @default("emp_tramontin")
+  numero               String
+  cotacaoId            String?
+  necessidadeId        String?
+  fornecedorId         String
+  status               StatusPedidoCompra @default(RASCUNHO)
+  valorTotal           Decimal            @default(0) @db.Decimal(15, 2)
+  dataEntregaPrevista  DateTime?
+  observacoes          String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  condicoesPagamento   String?
+  contato              String?
+  desconto             Decimal?           @db.Decimal(5, 2)
+  despesas             Decimal?           @db.Decimal(15, 2)
+  email                String?
+  frete                Decimal?           @db.Decimal(15, 2)
+  seguro               Decimal?           @db.Decimal(15, 2)
+  tipoFrete            String?
+  vrDesconto           Decimal?           @db.Decimal(15, 2)
+  descricao            String?
+  intragrupo           Boolean            @default(false)
+  pedidoVendaEspelhoId String?            @unique
+  conferencia          ConferenciaCompra?
+  cotacao              CotacaoCompra?     @relation(fields: [cotacaoId], references: [id])
+  necessidade          NecessidadeCompra? @relation(fields: [necessidadeId], references: [id])
+  fornecedor           Fornecedor         @relation(fields: [fornecedorId], references: [id])
+  pedidoVendaEspelho   PedidoVenda?       @relation("EspelhoIntragrupo", fields: [pedidoVendaEspelhoId], references: [id])
+  itens                PedidoCompraItem[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -1039,6 +1047,7 @@ model PedidoVenda {
   empresaId         String            @default("emp_tramontin")
   numero            String
   numeroOrcamento   String?
+  intragrupo        Boolean           @default(false)
   clienteId         String
   tabelaPrecoId     String?
   status            StatusPedidoVenda @default(ORCAMENTO)
@@ -1053,6 +1062,7 @@ model PedidoVenda {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   contasReceber     ContaReceber[]
+  espelhoCompra     PedidoCompra?     @relation("EspelhoIntragrupo")
   cliente           Cliente           @relation(fields: [clienteId], references: [id])
   tabelaPreco       TabelaPreco?      @relation(fields: [tabelaPrecoId], references: [id])
   itens             PedidoVendaItem[]

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
 import { recalcPedidoValorTotal, getItensPendentesEntrega } from "@/lib/pedido-totais";
+import { espelharConfirmacaoVenda, cancelarEspelhoVenda } from "@/lib/intragrupo";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const pedido = await prisma.pedidoVenda.findUnique({
@@ -266,6 +267,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     data: { status: status as never },
     select: { id: true, status: true },
   });
+
+  // Intragrupo: venda para empresa do grupo gera/cancela a compra espelhada
+  if (status === "CONFIRMADO") await espelharConfirmacaoVenda(params.id);
+  if (status === "CANCELADO") await cancelarEspelhoVenda(params.id);
+
   return NextResponse.json({ data: pedido });
 }
 

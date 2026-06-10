@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getItensPendentesEntrega } from "@/lib/pedido-totais";
+import { espelharConfirmacaoVenda, cancelarEspelhoVenda } from "@/lib/intragrupo";
 import { z } from "zod";
 
 const schema = z.object({ status: z.enum(["CONFIRMADO","EM_AGENDAMENTO","CONCLUIDO","CANCELADO"]) });
@@ -58,6 +59,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     where: { id: params.id },
     data: updateData,
   });
+
+  // Intragrupo: venda para empresa do grupo gera/cancela a compra espelhada
+  if (parsed.data.status === "CONFIRMADO") await espelharConfirmacaoVenda(params.id);
+  if (parsed.data.status === "CANCELADO") await cancelarEspelhoVenda(params.id);
 
   return NextResponse.json({ data: updated });
 }

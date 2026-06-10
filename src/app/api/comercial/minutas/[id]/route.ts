@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 import { recalcularSaldos } from "@/lib/estoque-saldos";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { espelharEntregaMinuta } from "@/lib/intragrupo";
 
 const MINUTA_INCLUDE = {
   pedidoVenda: {
@@ -402,6 +403,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       // Se a minuta ficou (ou continuou) ENTREGUE, reavalia a conclusão do pedido.
       if (minuta.status === "ENTREGUE" || effectiveStatus === "ENTREGUE") {
         await checkAndConcludePedido(minuta.pedidoVendaId);
+        await espelharEntregaMinuta(params.id); // intragrupo: entrada na compradora
       }
 
       return NextResponse.json({ data: updated });
@@ -417,6 +419,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // ── Auto-conclusão do PedidoVenda quando Minuta vai para ENTREGUE ─────────
     if (newStatus === "ENTREGUE") {
       await checkAndConcludePedido(minuta.pedidoVendaId);
+      await espelharEntregaMinuta(params.id); // intragrupo: entrada na compradora
     }
 
     return NextResponse.json({ data: updated });

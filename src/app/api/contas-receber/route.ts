@@ -5,6 +5,7 @@ import { requireModulo } from "@/lib/permissions";
 import { contaReceberSchema } from "@/lib/validations/financeiro";
 import { generateDocNumber } from "@/lib/utils";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { espelharContaReceber } from "@/lib/intragrupo";
 
 export async function GET(req: NextRequest) {
   const auth = await requireModulo("financeiro");
@@ -57,6 +58,8 @@ export async function POST(req: NextRequest) {
         pedidoVendaId,
       },
     });
+    // Intragrupo: cliente do grupo → espelha como conta a pagar na compradora
+    await espelharContaReceber(conta.id);
     return NextResponse.json({ data: conta }, { status: 201 });
   }
 
@@ -97,6 +100,9 @@ export async function POST(req: NextRequest) {
     }
     return criadas;
   });
+
+  // Intragrupo: cliente do grupo → espelha cada parcela como conta a pagar
+  for (const conta of contas) await espelharContaReceber(conta.id);
 
   return NextResponse.json({ data: contas, grupoParcelamentoId }, { status: 201 });
 }
