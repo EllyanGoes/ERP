@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import sql from "mssql";
 import { getEngemanConfig, getCorretivoCodes, engemanErrorResponse } from "@/lib/engeman";
 
@@ -74,6 +75,9 @@ const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 const round2 = (n: number) => parseFloat(n.toFixed(2));
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+
   const sp = req.nextUrl.searchParams;
   const codApl = Number(sp.get("codApl"));
   const ano = Number(sp.get("ano"));

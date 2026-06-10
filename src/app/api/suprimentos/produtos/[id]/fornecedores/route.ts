@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -14,6 +15,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("empresa");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
 
   if (!body.fornecedorId) {
@@ -44,6 +48,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("empresa");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const produtoFornecedorId = searchParams.get("produtoFornecedorId");
 

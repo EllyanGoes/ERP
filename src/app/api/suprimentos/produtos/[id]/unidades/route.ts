@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -45,6 +46,9 @@ const postSchema = z.object({
 });
 
 export async function POST(req: NextRequest, { params }: Ctx) {
+  const auth = await requireModulo("empresa");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = postSchema.safeParse(body);
   if (!parsed.success) {

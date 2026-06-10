@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import sql from "mssql";
 import { getEngemanConfig } from "@/lib/engeman";
 
@@ -261,6 +262,9 @@ async function queryEngeman(dias: number, agrupamento: "semana" | "mes"): Promis
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+
   const params      = req.nextUrl.searchParams;
   const dias        = Math.max(1, parseInt(params.get("dias") ?? "365", 10) || 365);
   const agrupamento = (params.get("agrupamento") === "mes" ? "mes" : "semana") as "semana" | "mes";

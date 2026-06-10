@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import type { OrigemDemanda } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -8,6 +9,9 @@ const ORIGENS: OrigemDemanda[] = ["MANUAL", "PEDIDO_VENDA", "MIN_MAX"];
 
 // GET — linhas do plano mestre (com produto)
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const periodo = req.nextUrl.searchParams.get("periodo") || undefined;
   const planos = await prisma.planoMestre.findMany({
     where: periodo ? { periodo } : undefined,
@@ -19,6 +23,9 @@ export async function GET(req: NextRequest) {
 
 // POST — adiciona uma linha de demanda planejada (manual por padrão)
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
 

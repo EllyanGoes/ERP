@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { fetchAtivosTree, countLeaves, type TreeNode } from "@/lib/pcm-ativos";
 import { engemanErrorResponse } from "@/lib/engeman";
 
@@ -16,6 +17,9 @@ export interface AplicacoesResponse {
 
 // ── Handler ────────────────────────────────────────────────────────────────────
 export async function GET() {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+
   try {
     const tree = await fetchAtivosTree();
     return NextResponse.json({

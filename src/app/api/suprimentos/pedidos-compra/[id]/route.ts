@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 
@@ -83,6 +84,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const pedidoId = params.id;
 
@@ -196,6 +200,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   const pedidoId = params.id;
   const session  = await getSession();
   const isAdmin  = session?.perfil === "ADMIN";

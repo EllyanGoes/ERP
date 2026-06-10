@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import type { KindNo, EstadoWIP } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateDocNumber } from "@/lib/utils";
@@ -10,6 +11,9 @@ import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 // GET — lista de ordens de produção com progresso
 export async function GET() {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const ordens = await prisma.ordemProducao.findMany({
     orderBy: { createdAt: "desc" },
     include: {
@@ -37,6 +41,9 @@ export async function GET() {
 
 // POST — cria OP a partir da versão PUBLICADA de um fluxo (snapshot das etapas)
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
 

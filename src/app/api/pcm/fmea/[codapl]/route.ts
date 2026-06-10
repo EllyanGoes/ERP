@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import sql from "mssql";
 import { getEngemanConfig, engemanErrorResponse } from "@/lib/engeman";
 
@@ -208,6 +209,9 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { codapl: string } }
 ) {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+
   const codapl = parseInt(params.codapl, 10);
   if (isNaN(codapl) || codapl <= 0) {
     return NextResponse.json({ error: "CODAPL inválido" }, { status: 400 });

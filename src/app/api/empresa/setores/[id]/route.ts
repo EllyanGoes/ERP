@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -20,6 +21,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireModulo("empresa");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const { nome, descricao, ativo } = body;
 
@@ -44,6 +48,9 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireModulo("empresa");
+  if (!auth.ok) return auth.response;
+
   const count = await prisma.colaborador.count({ where: { setorId: params.id } });
   if (count > 0) {
     return NextResponse.json(

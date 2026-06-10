@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import sql from "mssql";
 import { getEngemanConfig } from "@/lib/engeman";
 
@@ -146,6 +147,9 @@ async function queryQualidade(dias: number): Promise<Omit<QualidadeResponse, "so
 }
 
 export async function GET() {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+
   try {
     const data = await queryQualidade(365);
     return NextResponse.json({ ...data, source: "db", generatedAt: new Date().toISOString() });

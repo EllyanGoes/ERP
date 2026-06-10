@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import sql from "mssql";
 import { prisma } from "@/lib/prisma";
 import { getEngemanConfig, getCorretivoCodes, engemanErrorResponse } from "@/lib/engeman";
@@ -21,6 +22,9 @@ export interface TiposResponse {
 
 // ── GET: lista os tipos do Engeman + marca quais contam hoje ─────────────────────
 export async function GET() {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+
   try {
     const pool = await sql.connect(await getEngemanConfig());
     try {
@@ -55,6 +59,9 @@ export async function GET() {
 
 // ── PUT: salva quais CODTIPMAN contam (em pcm_tipos_corretivos) ──────────────────
 export async function PUT(req: NextRequest) {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+
   const body = (await req.json().catch(() => null)) as { codTipMans?: unknown } | null;
   if (!body || !Array.isArray(body.codTipMans)) {
     return NextResponse.json({ error: "Envie codTipMans: number[]" }, { status: 400 });

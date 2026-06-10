@@ -1,12 +1,16 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
   try {
     const fluxo = await prisma.aprovacaoFluxo.findUnique({
       where: { id: params.id },
@@ -36,6 +40,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
     const { nome, ativo, processo, etapas } = body as {
@@ -102,6 +109,9 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
   try {
     await prisma.aprovacaoFluxo.delete({ where: { id: params.id } });
     return NextResponse.json({ ok: true });

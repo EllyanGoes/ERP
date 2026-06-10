@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { sendWAMessage, validateWAConfig } from "@/lib/whatsapp";
 import { sendTelegramDM, escMD } from "@/lib/telegram";
@@ -126,6 +127,9 @@ async function notifyAprovacoesResolvidas(
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const { status, aprovadoPor, motivoReprovacao, motivoCancelamento } = body;
 

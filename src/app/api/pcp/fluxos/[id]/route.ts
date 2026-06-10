@@ -1,11 +1,15 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 // GET — fluxo + metadados das versões + grafo da última versão (para o editor)
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const fluxo = await prisma.fluxoProducao.findUnique({
     where: { id: params.id },
     include: {
@@ -40,6 +44,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
 // PATCH — atualiza dados do fluxo (nome/descrição/produto/ativo)
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
 
@@ -62,6 +69,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 // DELETE — remove o fluxo (cascade nas versões)
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   try {
     await prisma.fluxoProducao.delete({ where: { id: params.id } });
     return NextResponse.json({ ok: true });

@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
@@ -17,6 +18,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("comercial");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const { descricao, dataInicial, dataFinal, condicaoPagamento, tipoHorario, ativa, ecommerce, observacoes } = body;
 

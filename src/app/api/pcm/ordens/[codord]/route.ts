@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import sql from "mssql";
 import { getEngemanConfig, engemanErrorResponse } from "@/lib/engeman";
 
@@ -157,6 +158,9 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: { codord: string } }
 ) {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+
   const codord = parseInt(params.codord, 10);
   if (isNaN(codord) || codord <= 0) {
     return NextResponse.json({ error: "CODORD inválido" }, { status: 400 });

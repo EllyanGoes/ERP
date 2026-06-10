@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { clienteSchema } from "@/lib/validations/cliente";
@@ -17,6 +18,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("empresa");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = clienteSchema.safeParse(body);
   if (!parsed.success) {
@@ -42,6 +46,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("empresa");
+  if (!auth.ok) return auth.response;
+
   await prisma.cliente.update({ where: { id: params.id }, data: { status: "INATIVO" } });
   return NextResponse.json({ data: { ok: true } });
 }

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import type { Criticidade } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { calcMtbf, calcMttr } from "@/lib/pcm-mtbf";
@@ -52,6 +53,9 @@ function parseComp(s: string | null): number | null {
 const round2 = (n: number | null): number | null => (n === null ? null : parseFloat(n.toFixed(2)));
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+
   const sp = req.nextUrl.searchParams;
   const de = parseComp(sp.get("de"));
   const ate = parseComp(sp.get("ate"));

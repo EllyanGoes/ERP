@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { put } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 
@@ -16,6 +17,9 @@ export async function GET(_: NextRequest, { params }: Params) {
 
 /** POST — upload a new file (multipart/form-data, field: "file") */
 export async function POST(req: NextRequest, { params }: Params) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   // Verify CF exists
   const cf = await prisma.cotacaoFornecedor.findUnique({ where: { id: params.fornId } });
   if (!cf) return NextResponse.json({ error: "Proposta não encontrada" }, { status: 404 });

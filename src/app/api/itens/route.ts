@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { itemSchema } from "@/lib/validations/item";
 import { generateDocNumber } from "@/lib/utils";
@@ -38,6 +39,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("empresa");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = itemSchema.safeParse(body);
   if (!parsed.success) {

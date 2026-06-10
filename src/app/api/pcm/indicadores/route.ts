@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import sql from "mssql";
 import { getEngemanConfig, engemanErrorResponse } from "@/lib/engeman";
 
@@ -370,6 +371,9 @@ async function queryEngeman(diasPeriodo: number, codApls?: number[]): Promise<{
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+
   const dias = parseInt(req.nextUrl.searchParams.get("dias") ?? "365", 10) || 365;
   const codAplsParam = req.nextUrl.searchParams.get("codApls");
   const codApls = codAplsParam

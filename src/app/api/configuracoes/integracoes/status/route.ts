@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 async function getCfg(key: string) {
@@ -9,6 +10,9 @@ async function getCfg(key: string) {
 }
 
 export async function GET(_req: NextRequest) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
   try {
     const provider = (await getCfg("wa_provider")) ?? "evolution";
 

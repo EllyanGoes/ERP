@@ -1,8 +1,12 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   // Body: { fornecedorId, condicoesPagamento?, frete?, tipoFrete?, desconto?, vrDesconto?, despesas?, seguro?, itens: [{itemId, quantidade, precoUnitario}] }
   const body = await req.json();
   const { fornecedorId, condicoesPagamento, frete, tipoFrete, desconto, vrDesconto, despesas, seguro, itens = [] } = body;

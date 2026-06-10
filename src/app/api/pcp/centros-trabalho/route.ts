@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import type { TipoCentroTrabalho } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -19,12 +20,18 @@ function numOrNull(v: unknown): number | null {
 
 // GET — lista de centros de trabalho
 export async function GET() {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const data = await prisma.centroTrabalho.findMany({ orderBy: [{ ativo: "desc" }, { nome: "asc" }] });
   return NextResponse.json({ data, source: "db" });
 }
 
 // POST — cria um centro de trabalho
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
   const codigo = typeof body.codigo === "string" ? body.codigo.trim() : "";

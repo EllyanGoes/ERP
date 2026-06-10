@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 // PATCH /api/suprimentos/estoque-items/[itemId]
@@ -7,6 +8,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { itemId: string } }
 ) {
+  const auth = await requireModulo("almoxarifado");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const { quantidadeAtual, localizacao } = body;
 

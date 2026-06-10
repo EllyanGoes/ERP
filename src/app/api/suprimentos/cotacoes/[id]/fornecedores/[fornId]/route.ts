@@ -1,11 +1,15 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string; fornId: string } }
 ) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const {
     status, prazoEntregaDias, condicoesPagamento, observacao, itens,
@@ -139,6 +143,9 @@ export async function DELETE(
   _: NextRequest,
   { params }: { params: { id: string; fornId: string } }
 ) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   await prisma.cotacaoFornecedor.delete({ where: { id: params.fornId } });
   return NextResponse.json({ success: true });
 }

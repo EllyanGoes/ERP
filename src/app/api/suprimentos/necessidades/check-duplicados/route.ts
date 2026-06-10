@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const ACTIVE_SC_STATUSES = ["RASCUNHO", "AGUARDANDO_APROVACAO", "APROVADA"] as const;
@@ -20,6 +21,9 @@ type ConflictItem = {
 };
 
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
     const { itemIds } = body as { itemIds: string[] };

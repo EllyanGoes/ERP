@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const TRANSITIONS: Record<string, string[]> = {
@@ -9,6 +10,9 @@ const TRANSITIONS: Record<string, string[]> = {
 };
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const { status } = body;
 

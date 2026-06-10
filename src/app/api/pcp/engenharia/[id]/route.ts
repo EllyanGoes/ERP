@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import type { BaseConsumo, CategoriaInsumo } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -9,6 +10,9 @@ const CATEGORIAS: CategoriaInsumo[] = ["MATERIA_PRIMA", "MISTURA", "EMBALAGEM", 
 
 // GET — engenharia + insumos (com item de cada insumo)
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const eng = await prisma.engenhariaProduto.findUnique({
     where: { id: params.id },
     include: {
@@ -26,6 +30,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
 // PATCH — atualiza fluxo/ativo/observação e (se enviado) SUBSTITUI a lista de insumos
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
 
@@ -70,6 +77,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 // DELETE — remove a engenharia (cascade nos insumos)
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   try {
     await prisma.engenhariaProduto.delete({ where: { id: params.id } });
     return NextResponse.json({ ok: true });

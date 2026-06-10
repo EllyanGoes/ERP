@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import type { Criticidade } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -16,6 +17,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { codApl: string } },
 ) {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+
   const codApl = Number(params.codApl);
   if (!Number.isInteger(codApl) || codApl <= 0) {
     return NextResponse.json({ error: "codApl inválido" }, { status: 400 });

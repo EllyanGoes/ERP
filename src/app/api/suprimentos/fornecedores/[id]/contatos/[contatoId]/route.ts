@@ -1,11 +1,15 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string; contatoId: string } }
 ) {
+  const auth = await requireModulo("empresa");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
 
   // If setting as principal, unset others first
@@ -35,6 +39,9 @@ export async function DELETE(
   _: NextRequest,
   { params }: { params: { id: string; contatoId: string } }
 ) {
+  const auth = await requireModulo("empresa");
+  if (!auth.ok) return auth.response;
+
   await prisma.fornecedorContato.delete({
     where: { id: params.contatoId, fornecedorId: params.id },
   });

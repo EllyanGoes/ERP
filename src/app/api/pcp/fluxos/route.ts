@@ -1,12 +1,16 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { emptyGraph } from "@/lib/pcp/types";
 
 // GET — lista de fluxos com contagem de versões e status da última versão
 export async function GET() {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const fluxos = await prisma.fluxoProducao.findMany({
     orderBy: { updatedAt: "desc" },
     include: {
@@ -30,6 +34,9 @@ export async function GET() {
 
 // POST — cria fluxo + versão 1 (RASCUNHO). Aceita grafo inicial (semente) opcional.
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
   const nome = typeof body.nome === "string" ? body.nome.trim() : "";

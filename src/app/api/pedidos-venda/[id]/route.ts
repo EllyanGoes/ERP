@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/auth";
+import { requireModulo } from "@/lib/permissions";
 import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
 import { recalcPedidoValorTotal, getItensPendentesEntrega } from "@/lib/pedido-totais";
 import { espelharConfirmacaoVenda, cancelarEspelhoVenda } from "@/lib/intragrupo";
@@ -52,6 +52,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("comercial");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = pedidoVendaSchema.safeParse(body);
   if (!parsed.success) {
@@ -240,6 +243,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("comercial");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const { status } = body as { status?: string };
   if (!status) return NextResponse.json({ error: "status é obrigatório" }, { status: 400 });
@@ -281,7 +287,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 // vinculadas, para não corromper logística/financeiro. Os itens do pedido
 // saem em cascata (onDelete: Cascade); movimentações ficam com o vínculo nulo.
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireSession();
+  const auth = await requireModulo("comercial");
   if (!auth.ok) return auth.response;
   if (auth.session.perfil !== "ADMIN") {
     return NextResponse.json({ error: "Apenas administradores podem excluir pedidos de venda." }, { status: 403 });

@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -66,6 +67,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("empresa");
+  if (!auth.ok) return auth.response;
+
   try {
   const body = await req.json();
 
@@ -137,6 +141,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("empresa");
+  if (!auth.ok) return auth.response;
+
   try {
     const item = await prisma.item.findUnique({
       where: { id: params.id },

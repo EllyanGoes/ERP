@@ -1,9 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
   try {
     const records = await prisma.configuracao.findMany({
       where: { chave: { in: ["tg_bot_token", "tg_chat_id"] } },
@@ -58,6 +62,9 @@ export async function GET() {
 
 // POST — test sending to a specific chatId (used by per-chat test buttons)
 export async function POST(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json() as { chatId?: string };
 

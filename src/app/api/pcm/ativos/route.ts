@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import type { Criticidade } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fetchAtivosTree, type TreeNode } from "@/lib/pcm-ativos";
@@ -68,6 +69,9 @@ function contarResumo(nodes: AtivoNode[]): AtivosResumo {
 
 // ── Handler ────────────────────────────────────────────────────────────────────
 export async function GET() {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+
   // 1) Árvore vem do Engeman (somente leitura). Indisponível → 503.
   let tree: TreeNode[];
   try {

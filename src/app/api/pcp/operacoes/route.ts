@@ -1,11 +1,15 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 // GET — fila de produção: etapas a executar (pendentes/em execução) de ordens
 // liberadas/em produção, para serem direcionadas às operações (centros de trabalho).
 export async function GET() {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const etapas = await prisma.itemOrdemProducao.findMany({
     where: {
       status: { in: ["PENDENTE", "EM_EXECUCAO"] },

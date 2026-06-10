@@ -1,11 +1,15 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { calcularMrp } from "@/lib/pcp/mrp";
 
 // GET — agregações para o dashboard do PCP (só leitura).
 export async function GET() {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const [ordensGrp, perdasGrp, biomassaAgg, prodGrp, filaEtapas, demandaAgg, fornos, mrp] = await Promise.all([
     prisma.ordemProducao.groupBy({ by: ["status"], _count: { _all: true } }),
     prisma.itemOrdemProducao.groupBy({ by: ["nome"], where: { qtdPerda: { gt: 0 } }, _sum: { qtdPerda: true } }),

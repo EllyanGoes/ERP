@@ -1,11 +1,15 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { sequenciarForno } from "@/lib/pcp/scheduler";
 
 // GET — sequencia as OPs liberadas/em produção no forno (FIFO) com os params dados.
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const sp = req.nextUrl.searchParams;
   const capacidade = Number(sp.get("capacidade")) || 0;
   const cicloHoras = Number(sp.get("cicloHoras")) || 0;

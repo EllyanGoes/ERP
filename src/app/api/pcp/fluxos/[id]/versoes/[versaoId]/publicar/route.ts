@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { validarFluxo } from "@/lib/pcp/fluxo-validate";
 import type { FlowGraph } from "@/lib/pcp/types";
@@ -12,6 +13,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string; versaoId: string } },
 ) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const body = (await req.json().catch(() => null)) as { publicadoPor?: unknown } | null;
   const publicadoPor =
     body && typeof body.publicadoPor === "string" && body.publicadoPor.trim() ? body.publicadoPor.trim() : null;

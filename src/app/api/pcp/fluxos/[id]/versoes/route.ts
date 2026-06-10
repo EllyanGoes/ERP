@@ -1,12 +1,16 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 // POST — salva o grafo. Se a última versão for RASCUNHO, atualiza-a; caso contrário
 // (publicada/arquivada), bifurca uma nova versão RASCUNHO. Mantém um único rascunho vivo.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const body = (await req.json().catch(() => null)) as { grafo?: unknown } | null;
   const grafo = body?.grafo;
   if (!grafo || typeof grafo !== "object") {

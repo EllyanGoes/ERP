@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 type PedidoDetail = {
@@ -11,6 +12,9 @@ type PedidoDetail = {
 };
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const from    = searchParams.get("from");
   const to      = searchParams.get("to");

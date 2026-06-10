@@ -1,10 +1,14 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 // GET — lista de engenharias (produto → fluxo + nº de insumos)
 export async function GET() {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const engs = await prisma.engenhariaProduto.findMany({
     orderBy: { updatedAt: "desc" },
     include: {
@@ -26,6 +30,9 @@ export async function GET() {
 
 // POST — cria a engenharia de um produto (1 por produto), vinculada a um fluxo
 export async function POST(req: NextRequest) {
+  const auth = await requireModulo("pcp");
+  if (!auth.ok) return auth.response;
+
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
   const itemId = typeof body.itemId === "string" ? body.itemId : "";

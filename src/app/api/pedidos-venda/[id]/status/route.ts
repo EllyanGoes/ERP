@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getItensPendentesEntrega } from "@/lib/pedido-totais";
 import { espelharConfirmacaoVenda, cancelarEspelhoVenda } from "@/lib/intragrupo";
@@ -16,6 +17,9 @@ const TRANSITIONS: Record<string, string[]> = {
 };
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("comercial");
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Status inválido" }, { status: 400 });

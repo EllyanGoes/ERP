@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const include = {
@@ -35,6 +36,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireModulo("empresa");
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
     const { dataAdmissao, dataDemissao, filialIds, ...rest } = body;
@@ -69,6 +73,9 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireModulo("empresa");
+  if (!auth.ok) return auth.response;
+
   try {
     // Check for pending approvals
     const pendingCount = await prisma.aprovacaoSC.count({

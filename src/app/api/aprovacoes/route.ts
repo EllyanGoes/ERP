@@ -1,11 +1,15 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 
 // GET /api/aprovacoes?status=PENDENTE&page=1&limit=20
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 

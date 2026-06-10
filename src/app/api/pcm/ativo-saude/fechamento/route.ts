@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import type { Criticidade, FechamentoMtbf } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -43,6 +44,9 @@ export interface FechamentoResponse {
 
 // ── GET: lista do mês (prefill Engeman + regime + salvo) ─────────────────────────
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+
   const ano = parseInt(req.nextUrl.searchParams.get("ano") ?? "", 10);
   const mes = parseInt(req.nextUrl.searchParams.get("mes") ?? "", 10);
   if (!Number.isInteger(ano) || ano < 2000 || !Number.isInteger(mes) || mes < 1 || mes > 12) {
@@ -126,6 +130,9 @@ export async function GET(req: NextRequest) {
 
 // ── PUT: salvar/fechar um ativo no mês ───────────────────────────────────────────
 export async function PUT(req: NextRequest) {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+
   const body = (await req.json().catch(() => null)) as {
     codApl?: unknown;
     ano?: unknown;

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { sendWAMessage, validateWAConfig } from "@/lib/whatsapp";
 import { sendTelegramMessage, sendTelegramDM, escMD } from "@/lib/telegram";
@@ -56,6 +57,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json().catch(() => ({}));
     // modo: "fluxo" = usa AprovacaoFluxo ativo com alçadas | "direto" = aprovadorId ou colaboradorId obrigatório
