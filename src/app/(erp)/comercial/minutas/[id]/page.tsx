@@ -13,6 +13,7 @@ import { statusMinutaLabel, confirmacaoMinutaLabel, TIPO_MINUTA_LABEL, type Tipo
 import { cn, formatDate } from "@/lib/utils";
 import { buildMinutaEscPos } from "@/lib/escpos-minuta";
 import { printEscPosUSB } from "@/lib/webusb-print";
+import { printMinutaViaDialog } from "@/lib/print-minuta-dialog";
 
 type StatusMinuta = "PENDENTE" | "SAIU_PARA_ENTREGA" | "ENTREGUE" | "CANCELADA";
 
@@ -240,7 +241,23 @@ export default function MinutaDetailPage() {
       const bytes = buildMinutaEscPos(minuta, { cols: 48 });
       await printEscPosUSB(bytes);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível imprimir.");
+      // WebUSB indisponível, impressora não listada (driver do Windows segura o
+      // USB — ex.: "EPSON USB Controller") ou seletor cancelado → imprime pelo
+      // diálogo do navegador usando o driver instalado.
+      const name = e instanceof DOMException ? e.name : "";
+      const msg  = e instanceof Error ? e.message : "";
+      const semDispositivo =
+        name === "NotFoundError" || name === "SecurityError" ||
+        /não suporta WebUSB|claim/i.test(msg);
+      if (semDispositivo) {
+        try {
+          printMinutaViaDialog(minuta);
+        } catch (e2) {
+          setError(e2 instanceof Error ? e2.message : "Não foi possível imprimir.");
+        }
+      } else {
+        setError(msg || "Não foi possível imprimir.");
+      }
     } finally {
       setPrinting(false);
     }
@@ -383,7 +400,7 @@ export default function MinutaDetailPage() {
             onClick={handlePrint}
             disabled={printing || transitioning}
             className="gap-2 border-gray-300 text-gray-700"
-            title="Imprimir na impressora térmica (USB) — Chrome/Edge"
+            title="Imprime direto via USB (Chrome/Edge); sem impressora USB autorizada, abre o diálogo de impressão"
           >
             <Printer className="w-4 h-4" />
             {printing ? "Imprimindo..." : "Imprimir"}
