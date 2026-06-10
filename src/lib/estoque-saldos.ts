@@ -16,19 +16,23 @@ const r3 = (x: number) => Math.round(x * 1000) / 1000; // saldos têm 3 casas (D
  * O efeito de cada linha no saldo vem do seu tipo (ENTRADA soma, SAIDA subtrai);
  * tipos atípicos (AJUSTE/TRANSFERÊNCIA) usam o efeito já gravado (saldoDepois−saldoAntes),
  * que é intrínseco à linha e não se altera com o reordenamento da cadeia.
+ *
+ * `clienteDonoId` particiona a cadeia por proprietário: null = estoque próprio,
+ * preenchido = mercadoria de terceiro sob guarda (cada dono tem o seu extrato).
  */
 export async function recalcularSaldos(
   tx: Prisma.TransactionClient,
   itemId: string,
   localEstoqueId: string,
+  clienteDonoId: string | null,
 ): Promise<void> {
   const [estoque, movs] = await Promise.all([
     tx.estoqueItem.findFirst({
-      where: { itemId, localEstoqueId },
+      where: { itemId, localEstoqueId, clienteDonoId },
       select: { quantidadeAtual: true },
     }),
     tx.movimentacaoEstoque.findMany({
-      where: { itemId, localEstoqueId },
+      where: { itemId, localEstoqueId, clienteDonoId },
       select: {
         id: true, tipo: true, quantidade: true,
         saldoAntes: true, saldoDepois: true, createdAt: true,

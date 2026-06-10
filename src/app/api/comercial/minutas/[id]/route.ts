@@ -209,11 +209,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           const quantidade = parseFloat(item.quantidade.toString());
 
           let estoque = await tx.estoqueItem.findFirst({
-            where: { empresaId: minuta.empresaId, itemId: item.itemId, localEstoqueId },
+            where: { empresaId: minuta.empresaId, itemId: item.itemId, localEstoqueId, clienteDonoId: null },
           });
           if (!estoque) {
             estoque = await tx.estoqueItem.create({
-              data: { empresaId: minuta.empresaId, itemId: item.itemId, localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0 },
+              data: { empresaId: minuta.empresaId, itemId: item.itemId, localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null },
             });
           }
 
@@ -349,7 +349,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           if (mv.localEstoqueId) {
             const efeito = mv.tipo === "ENTRADA" ? num(mv.quantidade) : mv.tipo === "SAIDA" ? -num(mv.quantidade) : num(mv.saldoDepois) - num(mv.saldoAntes);
             await tx.estoqueItem.updateMany({
-              where: { itemId: mv.itemId, localEstoqueId: mv.localEstoqueId },
+              where: { itemId: mv.itemId, localEstoqueId: mv.localEstoqueId, clienteDonoId: null },
               data:  { quantidadeAtual: { decrement: efeito } },
             });
             marca(mv.itemId, mv.localEstoqueId);
@@ -366,9 +366,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         if (newOut && newLocal) {
           for (const d of Array.from(desejado.values())) {
             if (!(d.qty > 0)) continue;
-            let estoque = await tx.estoqueItem.findFirst({ where: { empresaId: minuta.empresaId, itemId: d.itemId, localEstoqueId: newLocal } });
+            let estoque = await tx.estoqueItem.findFirst({ where: { empresaId: minuta.empresaId, itemId: d.itemId, localEstoqueId: newLocal, clienteDonoId: null } });
             if (!estoque) {
-              estoque = await tx.estoqueItem.create({ data: { empresaId: minuta.empresaId, itemId: d.itemId, localEstoqueId: newLocal, quantidadeAtual: 0, quantidadeMin: 0 } });
+              estoque = await tx.estoqueItem.create({ data: { empresaId: minuta.empresaId, itemId: d.itemId, localEstoqueId: newLocal, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null } });
             }
             await tx.estoqueItem.update({ where: { id: estoque.id }, data: { quantidadeAtual: { decrement: d.qty } } });
             marca(d.itemId, newLocal);
@@ -417,7 +417,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         // 3) Recalcula a cadeia de saldos de cada (item + local) afetado.
         for (const key of Array.from(afetados)) {
           const [itemId, localId] = key.split("|");
-          await recalcularSaldos(tx, itemId, localId);
+          await recalcularSaldos(tx, itemId, localId, null);
         }
 
         // Atualiza logística + local de estoque
@@ -501,7 +501,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
         if (mv.localEstoqueId) {
           const efeito = mv.tipo === "ENTRADA" ? num(mv.quantidade) : mv.tipo === "SAIDA" ? -num(mv.quantidade) : num(mv.saldoDepois) - num(mv.saldoAntes);
           await tx.estoqueItem.updateMany({
-            where: { itemId: mv.itemId, localEstoqueId: mv.localEstoqueId },
+            where: { itemId: mv.itemId, localEstoqueId: mv.localEstoqueId, clienteDonoId: null },
             data:  { quantidadeAtual: { decrement: efeito } },
           });
           afetados.add(`${mv.itemId}|${mv.localEstoqueId}`);
@@ -524,7 +524,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       // 4) Recalcula a cadeia de saldos de cada (item + local) afetado.
       for (const key of Array.from(afetados)) {
         const [itemId, localId] = key.split("|");
-        await recalcularSaldos(tx, itemId, localId);
+        await recalcularSaldos(tx, itemId, localId, null);
       }
     });
 

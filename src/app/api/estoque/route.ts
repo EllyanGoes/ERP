@@ -10,6 +10,7 @@ export async function GET() {
         select: { id: true, codigo: true, descricao: true, tipo: true, unidadeMedida: true, ativo: true, unidade: { select: { sigla: true } } },
       },
       localEstoque: { select: { id: true, nome: true } },
+      clienteDono:  { select: { id: true, razaoSocial: true, nomeFantasia: true } },
     },
     orderBy: [{ localEstoque: { nome: "asc" } }, { item: { codigo: "asc" } }],
   });

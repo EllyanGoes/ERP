@@ -217,7 +217,7 @@ export async function espelharEntregaMinuta(minutaId: string): Promise<void> {
         if (qtd.lte(0)) continue;
 
         const estoque = await tx.estoqueItem.findFirst({
-          where: { empresaId: compradora.id, itemId: item.itemId, localEstoqueId: local.id },
+          where: { empresaId: compradora.id, itemId: item.itemId, localEstoqueId: local.id, clienteDonoId: null },
         });
         const saldoAntes = new Prisma.Decimal(estoque?.quantidadeAtual ?? 0);
         const saldoDepois = saldoAntes.add(qtd);
@@ -247,6 +247,7 @@ export async function espelharEntregaMinuta(minutaId: string): Promise<void> {
           await tx.estoqueItem.create({
             data: {
               empresaId: compradora.id,
+              clienteDonoId: null,
               itemId: item.itemId,
               localEstoqueId: local.id,
               quantidadeAtual: saldoDepois,

@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       await prisma.$transaction(async (tx) => {
         const mov = await tx.movimentacaoEstoque.findUniqueOrThrow({
           where: { id: params.movId },
-          select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, loteId: true },
+          select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, loteId: true, clienteDonoId: true },
         });
 
         const oldQty = parseFloat(mov.quantidade.toString());
@@ -47,7 +47,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
         if (mov.localEstoqueId && delta !== 0) {
           const sign = mov.tipo === "ENTRADA" ? 1 : -1;
           await tx.estoqueItem.updateMany({
-            where: { itemId: mov.itemId, localEstoqueId: mov.localEstoqueId },
+            where: { itemId: mov.itemId, localEstoqueId: mov.localEstoqueId, clienteDonoId: mov.clienteDonoId },
             data:  { quantidadeAtual: { increment: sign * delta } },
           });
         }
@@ -75,7 +75,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
         // Recalcula a cadeia de saldos do (item + local) para as linhas seguintes
         // não ficarem com o "Saldo Depois" defasado após a edição.
         if (mov.localEstoqueId) {
-          await recalcularSaldos(tx, mov.itemId, mov.localEstoqueId);
+          await recalcularSaldos(tx, mov.itemId, mov.localEstoqueId, mov.clienteDonoId);
         }
       });
     } else {
@@ -131,13 +131,13 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
       // Load the movement
       const mov = await tx.movimentacaoEstoque.findUniqueOrThrow({
         where: { id: params.movId },
-        select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, valorUnitario: true },
+        select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, valorUnitario: true, clienteDonoId: true },
       });
 
       // Reverse the stock delta
       if (mov.localEstoqueId) {
         const estoque = await tx.estoqueItem.findFirst({
-          where: { itemId: mov.itemId, localEstoqueId: mov.localEstoqueId },
+          where: { itemId: mov.itemId, localEstoqueId: mov.localEstoqueId, clienteDonoId: mov.clienteDonoId },
         });
 
         if (estoque) {
@@ -154,7 +154,7 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
       // If it was an ENTRADA with a cost, recalculate precoCusto (CMPM)
       // Simple approach: if remaining stock > 0 keep last precoCusto, else zero it
       if (mov.tipo === "ENTRADA" && mov.valorUnitario) {
-        const allEstoque = await tx.estoqueItem.findMany({ where: { itemId: mov.itemId } });
+        const allEstoque = await tx.estoqueItem.findMany({ where: { itemId: mov.itemId, clienteDonoId: null } });
         const totalQty = allEstoque.reduce((s, e) => s + parseFloat(e.quantidadeAtual.toString()), 0);
         if (totalQty <= 0) {
           await tx.item.update({ where: { id: mov.itemId }, data: { precoCusto: null } });

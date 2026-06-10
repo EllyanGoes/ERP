@@ -96,7 +96,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         if (qtd <= 0) continue;
 
         const estoqueItem = await tx.estoqueItem.findFirst({
-          where: { itemId: item.itemId, localEstoqueId },
+          where: { itemId: item.itemId, localEstoqueId, clienteDonoId: null },
           select: { id: true, quantidadeAtual: true },
         });
 
@@ -120,6 +120,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           await tx.estoqueItem.create({
             data: {
               itemId: item.itemId,
+              clienteDonoId: null,
               quantidadeAtual: qtd,
               quantidadeMin: 0,
               localEstoqueId,
@@ -156,7 +157,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (qtd <= 0) continue;
 
       prisma.estoqueItem.findFirst({
-        where: { itemId: item.itemId, ...(localEstoqueId ? { localEstoqueId } : {}) },
+        where: { itemId: item.itemId, clienteDonoId: null, ...(localEstoqueId ? { localEstoqueId } : {}) },
         include: { localEstoque: { select: { nome: true } } },
       }).then((estoqueAtual) => {
         notifyMovimentacao({

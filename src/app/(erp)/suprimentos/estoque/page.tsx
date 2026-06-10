@@ -25,6 +25,7 @@ type EstoqueItem = {
     unidade: { sigla: string } | null;
   };
   localEstoque: { id: string; nome: string } | null;
+  clienteDono?: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
 };
 
 // Consolidated row: one per product, totals summed across locations
@@ -35,6 +36,7 @@ type ProdutoRow = {
   ativo: boolean;
   unidade: string;
   qtdTotal: number;
+  qtdTerceiros: number; // parcela do total que pertence a clientes (sob guarda)
   minTotal: number;
   maxTotal: number | null;
   locaisCount: number; // how many locations this product is in
@@ -72,13 +74,19 @@ const COLS: ColDef<ProdutoRow>[] = [
     thClass: "text-right px-4 py-3 font-semibold",
     tdClass: "px-4 py-3.5 text-right",
     render: (p) => {
-      const abaixo = p.minTotal > 0 && p.qtdTotal < p.minTotal;
+      const propria = p.qtdTotal - p.qtdTerceiros;
+      const abaixo = p.minTotal > 0 && propria < p.minTotal;
       return (
         <>
           <span className={cn("font-bold text-base", abaixo ? "text-red-600" : "text-gray-900")}>
             {p.qtdTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
           </span>
           <span className="text-xs text-gray-600 ml-1 font-semibold">{p.unidade}</span>
+          {p.qtdTerceiros > 0 && (
+            <div className="text-[11px] text-amber-700 font-medium">
+              dos quais {p.qtdTerceiros.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} de terceiros
+            </div>
+          )}
         </>
       );
     },
@@ -103,8 +111,9 @@ const COLS: ColDef<ProdutoRow>[] = [
     thClass: "text-center px-4 py-3 font-semibold",
     tdClass: "px-4 py-3.5 text-center",
     render: (p) => {
-      const abaixo = p.minTotal > 0 && p.qtdTotal < p.minTotal;
-      const acima  = p.maxTotal !== null && p.qtdTotal > p.maxTotal;
+      const propria = p.qtdTotal - p.qtdTerceiros;
+      const abaixo = p.minTotal > 0 && propria < p.minTotal;
+      const acima  = p.maxTotal !== null && propria > p.maxTotal;
       if (abaixo) return (
         <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 border border-red-200 px-2.5 py-1 rounded-full">
           <AlertTriangle className="w-3 h-3" /> Baixo
@@ -168,9 +177,11 @@ export default function EstoquePage() {
   const productMap = new Map<string, ProdutoRow>();
   for (const e of preFiltered) {
     const existing = productMap.get(e.item.id);
+    const terceiro = !!e.clienteDono;
     const qty  = toNum(e.quantidadeAtual);
-    const min  = toNum(e.quantidadeMin);
-    const max  = e.quantidadeMax ? toNum(e.quantidadeMax) : null;
+    // min/max valem só para o estoque próprio — guarda de terceiro não repõe
+    const min  = terceiro ? 0 : toNum(e.quantidadeMin);
+    const max  = terceiro ? null : (e.quantidadeMax ? toNum(e.quantidadeMax) : null);
     if (!existing) {
       productMap.set(e.item.id, {
         itemId:      e.item.id,
@@ -179,15 +190,17 @@ export default function EstoquePage() {
         ativo:       e.item.ativo,
         unidade:     e.item.unidade?.sigla || e.item.unidadeMedida,
         qtdTotal:    qty,
+        qtdTerceiros: terceiro ? qty : 0,
         minTotal:    min,
         maxTotal:    max,
         locaisCount: 1,
       });
     } else {
-      existing.qtdTotal    += qty;
-      existing.minTotal    += min;
-      existing.maxTotal     = (existing.maxTotal !== null && max !== null) ? existing.maxTotal + max : null;
-      existing.locaisCount += 1;
+      existing.qtdTotal     += qty;
+      if (terceiro) existing.qtdTerceiros += qty;
+      existing.minTotal     += min;
+      existing.maxTotal      = (existing.maxTotal !== null && max !== null) ? existing.maxTotal + max : existing.maxTotal ?? max;
+      existing.locaisCount  += 1;
     }
   }
 
@@ -197,8 +210,9 @@ export default function EstoquePage() {
   const q = search.toLowerCase().trim();
   const filtered = aggregated.filter((p) => {
     if (q && !p.codigo.toLowerCase().includes(q) && !p.descricao.toLowerCase().includes(q)) return false;
-    const abaixo = p.minTotal > 0 && p.qtdTotal < p.minTotal;
-    const acima  = p.maxTotal !== null && p.qtdTotal > p.maxTotal;
+    const propria = p.qtdTotal - p.qtdTerceiros;
+    const abaixo = p.minTotal > 0 && propria < p.minTotal;
+    const acima  = p.maxTotal !== null && propria > p.maxTotal;
     if (situacao === "baixo"  && !abaixo) return false;
     if (situacao === "acima"  && !acima)  return false;
     if (situacao === "normal" && (abaixo || acima)) return false;
@@ -209,8 +223,9 @@ export default function EstoquePage() {
   const allProductMap = new Map<string, { qtd: number; min: number }>();
   for (const e of itemsComLocal) {
     const ex = allProductMap.get(e.item.id);
-    const qty = toNum(e.quantidadeAtual);
-    const min = toNum(e.quantidadeMin);
+    // contagem de "abaixo do mínimo" considera só o estoque próprio
+    const qty = e.clienteDono ? 0 : toNum(e.quantidadeAtual);
+    const min = e.clienteDono ? 0 : toNum(e.quantidadeMin);
     if (!ex) allProductMap.set(e.item.id, { qtd: qty, min });
     else { ex.qtd += qty; ex.min += min; }
   }

@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
       await tx.estoqueItem.create({
         data: {
           itemId: newItem.id,
+          clienteDonoId: null,
           quantidadeAtual: 0,
           quantidadeMin: quantidadeMin ?? 0,
           quantidadeMax: quantidadeMax ?? null,

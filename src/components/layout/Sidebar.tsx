@@ -174,6 +174,7 @@ const mainModules: Module[] = [
           { href: "/suprimentos/movimentacoes",            label: "Movimentações",       icon: ArrowLeftRight },
           { href: "/suprimentos/requisicoes-materiais",    label: "Req/Dev de Materiais", icon: ClipboardList },
           { href: "/suprimentos/inventarios-materiais",    label: "Inventário",          icon: ClipboardCheck },
+          { href: "/suprimentos/estoque-terceiros",        label: "Estoque de Terceiros", icon: PackageSearch },
         ],
       },
       {

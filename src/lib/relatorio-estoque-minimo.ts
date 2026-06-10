@@ -12,7 +12,7 @@ export interface RelatorioEstoqueMinimoResult {
 
 export async function buildRelatorioEstoqueMinimo(): Promise<RelatorioEstoqueMinimoResult> {
   const candidatos = await prisma.estoqueItem.findMany({
-    where: { quantidadeMin: { gt: 0 } },
+    where: { quantidadeMin: { gt: 0 }, clienteDonoId: null },
     include: {
       item: {
         select: {

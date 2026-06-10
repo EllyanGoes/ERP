@@ -95,11 +95,11 @@ export async function postMovimento(
   },
 ): Promise<void> {
   let estoque = await tx.estoqueItem.findFirst({
-    where: { itemId: args.itemId, localEstoqueId: args.localEstoqueId },
+    where: { itemId: args.itemId, localEstoqueId: args.localEstoqueId, clienteDonoId: null },
   });
   if (!estoque) {
     estoque = await tx.estoqueItem.create({
-      data: { itemId: args.itemId, localEstoqueId: args.localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0 },
+      data: { itemId: args.itemId, localEstoqueId: args.localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null },
     });
   }
   const saldoAntes = parseFloat(estoque.quantidadeAtual.toString());

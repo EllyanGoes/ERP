@@ -36,7 +36,7 @@ export async function reverterEExcluirConferencias(
       // ENTRADA somou ao estoque → subtrai para reverter. (Conferência só gera ENTRADA.)
       const delta = m.tipo === "ENTRADA" ? -Number(m.quantidade) : Number(m.quantidade);
       const ei = await tx.estoqueItem.findFirst({
-        where: { itemId: m.itemId, localEstoqueId: m.localEstoqueId },
+        where: { itemId: m.itemId, localEstoqueId: m.localEstoqueId, clienteDonoId: null },
         select: { id: true, quantidadeAtual: true },
       });
       if (ei) {

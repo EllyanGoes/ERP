@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
       unidade:      { select: { sigla: true } },
       unidadeMedida: true,
       tipoProduto:  { select: { nome: true } },
-      estoqueItems: { select: { quantidadeAtual: true } },
+      estoqueItems: { where: { clienteDonoId: null }, select: { quantidadeAtual: true } },
     },
     orderBy: { codigo: "asc" },
   });
@@ -70,6 +70,7 @@ export async function GET(req: NextRequest) {
   const saidas = await prisma.movimentacaoEstoque.findMany({
     where: {
       tipo:      "SAIDA",
+      clienteDonoId: null,
       createdAt: { gte: startDate, lte: endDate },
       ...(localId ? { localEstoqueId: localId } : {}),
     },

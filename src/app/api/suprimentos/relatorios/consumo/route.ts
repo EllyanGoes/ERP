@@ -22,7 +22,7 @@ export async function GET() {
       leadTimeDias: true,
       unidade:      { select: { sigla: true } },
       unidadeMedida: true,
-      estoqueItems: { select: { quantidadeAtual: true } },
+      estoqueItems: { where: { clienteDonoId: null }, select: { quantidadeAtual: true } },
     },
     orderBy: { descricao: "asc" },
   });
@@ -30,6 +30,7 @@ export async function GET() {
   const allMovs = await prisma.movimentacaoEstoque.findMany({
     where: {
       itemId:    { in: items.map((i) => i.id) },
+      clienteDonoId: null,
       createdAt: { gte: since90 },
       tipo:      "SAIDA",
     },

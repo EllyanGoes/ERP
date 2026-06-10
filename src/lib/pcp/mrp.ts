@@ -86,7 +86,7 @@ export async function calcularMrp(periodo?: string): Promise<ResultadoMrp> {
   const estoques = insumoIds.length
     ? await prisma.estoqueItem.groupBy({
         by: ["itemId"],
-        where: { itemId: { in: insumoIds } },
+        where: { itemId: { in: insumoIds }, clienteDonoId: null },
         _sum: { quantidadeAtual: true },
       })
     : [];

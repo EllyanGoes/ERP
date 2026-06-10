@@ -31,7 +31,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const item = await prisma.$transaction(async (tx) => {
     const updated = await tx.item.update({ where: { id: params.id }, data: itemData });
     // Update first stock record (no specific location) or create one
-    const existing = await tx.estoqueItem.findFirst({ where: { itemId: params.id, localEstoqueId: null } });
+    const existing = await tx.estoqueItem.findFirst({ where: { itemId: params.id, localEstoqueId: null, clienteDonoId: null } });
     if (existing) {
       await tx.estoqueItem.update({
         where: { id: existing.id },
@@ -39,7 +39,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       });
     } else {
       await tx.estoqueItem.create({
-        data: { itemId: params.id, quantidadeAtual: 0, quantidadeMin: quantidadeMin ?? 0, quantidadeMax: quantidadeMax ?? null, localizacao: localizacao ?? null },
+        data: { itemId: params.id, quantidadeAtual: 0, quantidadeMin: quantidadeMin ?? 0, quantidadeMax: quantidadeMax ?? null, localizacao: localizacao ?? null, clienteDonoId: null },
       });
     }
     return updated;

@@ -30,8 +30,8 @@ export async function POST(req: NextRequest) {
     const result = await prisma.$transaction(async (tx) => {
       // Find the correct EstoqueItem — prefer the requested local, fall back to any
       let estoque = localEstoqueId
-        ? await tx.estoqueItem.findFirst({ where: { itemId, localEstoqueId } })
-        : await tx.estoqueItem.findFirst({ where: { itemId } });
+        ? await tx.estoqueItem.findFirst({ where: { itemId, localEstoqueId, clienteDonoId: null } })
+        : await tx.estoqueItem.findFirst({ where: { itemId, clienteDonoId: null } });
 
       // If no stock record exists yet, create one for this location
       if (!estoque) {

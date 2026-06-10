@@ -32,6 +32,7 @@ export async function buildRelatorioEstoque(date: Date): Promise<RelatorioResult
     include: {
       item:         { select: { codigo: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } },
       localEstoque: { select: { nome: true } },
+      clienteDono:  { select: { razaoSocial: true } },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -77,6 +78,7 @@ type MovData = Awaited<ReturnType<typeof prisma.movimentacaoEstoque.findMany<{
   include: {
     item:         { select: { codigo: true; descricao: true; unidadeMedida: true; unidade: { select: { sigla: true } } } };
     localEstoque: { select: { nome: true } };
+    clienteDono:  { select: { razaoSocial: true } };
   };
 }>>>;
 
@@ -152,7 +154,7 @@ async function generatePDF(movs: MovData, dateLabel: string): Promise<Buffer> {
       meta.label,
       m.item.codigo,
       m.item.descricao,
-      m.localEstoque?.nome ?? "—",
+      m.clienteDono ? `${m.localEstoque?.nome ?? "—"} (Terceiro: ${m.clienteDono.razaoSocial})` : m.localEstoque?.nome ?? "—",
       `${qty} ${unidade}`,
       m.documento ?? "—",
     ];

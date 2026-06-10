@@ -21,6 +21,9 @@ const postSchema = z.object({
   documento:        z.string().optional(),
   observacoes:      z.string().optional(),
   fornecedorId:     z.string().optional().nullable(),
+  // Dono da mercadoria: null/ausente = estoque próprio; preenchido = cliente
+  // cuja mercadoria está sob guarda (estoque de terceiros)
+  clienteDonoId:    z.string().optional().nullable(),
   dataMovimentacao: z.string().optional().nullable(), // ISO date string
   itens:            z.array(itemSchema).min(1, "Adicione ao menos um item"),
 });
@@ -40,6 +43,20 @@ export async function POST(req: NextRequest) {
   }
 
   const { tipo, documento, observacoes, fornecedorId, dataMovimentacao, itens } = parsed.data;
+  const clienteDonoId = parsed.data.clienteDonoId || null;
+
+  if (clienteDonoId) {
+    const dono = await prisma.cliente.findUnique({ where: { id: clienteDonoId }, select: { id: true } });
+    if (!dono) return NextResponse.json({ error: "Cliente proprietário não encontrado" }, { status: 400 });
+    // Mercadoria de terceiro não tem custo para a empresa — valor unitário
+    // entraria no CMPM por engano em manutenções futuras; melhor recusar.
+    if (tipo === "ENTRADA" && itens.some((i) => i.valorUnitario && i.valorUnitario > 0)) {
+      return NextResponse.json(
+        { error: "Entrada de mercadoria de terceiro não aceita valor unitário (não compõe custo do estoque próprio)" },
+        { status: 400 }
+      );
+    }
+  }
 
   try {
     const lote = await prisma.$transaction(async (tx) => {
@@ -66,11 +83,11 @@ export async function POST(req: NextRequest) {
 
         // Find or create EstoqueItem for this location
         let estoque = await tx.estoqueItem.findFirst({
-          where: { itemId, localEstoqueId },
+          where: { itemId, localEstoqueId, clienteDonoId },
         });
         if (!estoque) {
           estoque = await tx.estoqueItem.create({
-            data: { itemId, localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0 },
+            data: { itemId, localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId },
           });
         }
         // Update localizacao if provided
@@ -94,7 +111,7 @@ export async function POST(req: NextRequest) {
         // ── Custo Médio Ponderado Móvel (CMPM) ───────────────────────────────
         // On ENTRADA with a unit price, recalculate and persist precoCusto on Item.
         // Formula: new_cmp = (stock_before × old_cmp + qty × unit_price) / (stock_before + qty)
-        if (tipo === "ENTRADA" && valorUnitario && valorUnitario > 0) {
+        if (tipo === "ENTRADA" && !clienteDonoId && valorUnitario && valorUnitario > 0) {
           const currentItem = await tx.item.findUnique({
             where: { id: itemId },
             select: { precoCusto: true },
@@ -103,7 +120,7 @@ export async function POST(req: NextRequest) {
             ? parseFloat(currentItem.precoCusto.toString())
             : 0;
           // Sum all stock across locations for weighted average
-          const allEstoque = await tx.estoqueItem.findMany({ where: { itemId } });
+          const allEstoque = await tx.estoqueItem.findMany({ where: { itemId, clienteDonoId: null } });
           const estoqueTotal = allEstoque.reduce(
             (s, e) => s + parseFloat(e.quantidadeAtual.toString()),
             0
@@ -124,6 +141,7 @@ export async function POST(req: NextRequest) {
           data: {
             itemId,
             localEstoqueId,
+            clienteDonoId,
             unidadeId:    unidadeId ?? null,
             loteId:       lote.id,
             tipo,
@@ -139,7 +157,7 @@ export async function POST(req: NextRequest) {
 
       // ── Auto-link supplier on ENTRADA ────────────────────────────────────────
       const autoVinculos: string[] = [];
-      if (tipo === "ENTRADA" && fornecedorId) {
+      if (tipo === "ENTRADA" && fornecedorId && !clienteDonoId) {
         for (const item of itens) {
           const already = await tx.produtoFornecedor.findFirst({
             where: { itemId: item.itemId, fornecedorId },
@@ -227,6 +245,7 @@ export async function GET(req: NextRequest) {
       include: {
         item:         { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } },
         localEstoque: { select: { id: true, nome: true } },
+        clienteDono:  { select: { id: true, razaoSocial: true } },
         unidade:      { select: { id: true, sigla: true, nome: true } },
         lote:         { select: { id: true, numero: true, tipo: true, documento: true, observacoes: true, createdAt: true } },
         // expose origin fields so the UI can tell manual vs automatic

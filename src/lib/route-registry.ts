@@ -98,6 +98,7 @@ export const ROUTES: RouteEntry[] = [
 
   { href: "/suprimentos/estoque",                  label: "Posição de Estoque",      group: "Almoxarifado",   section: "Estoque",          icon: PackageSearch },
   { href: "/suprimentos/movimentacoes",            label: "Movimentações",           group: "Almoxarifado",   section: "Estoque",          icon: ArrowLeftRight },
+  { href: "/suprimentos/estoque-terceiros",        label: "Estoque de Terceiros",    group: "Almoxarifado",   section: "Estoque",          icon: PackageSearch,  keywords: "terceiros guarda armazenagem cliente dono proprietario" },
   { href: "/suprimentos/requisicoes-materiais",    label: "Req/Dev de Materiais",    group: "Almoxarifado",   section: "Estoque",          icon: ClipboardList,  keywords: "requisição devolução materiais" },
   { href: "/suprimentos/inventarios-materiais",    label: "Inventário",              group: "Almoxarifado",   section: "Estoque",          icon: ClipboardCheck },
 

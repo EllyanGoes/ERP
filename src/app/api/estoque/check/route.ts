@@ -10,11 +10,12 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const itemId        = searchParams.get("itemId");
   const localEstoqueId = searchParams.get("localEstoqueId") || null;
+  const clienteDonoId  = searchParams.get("clienteDonoId") || null;
 
   if (!itemId) return NextResponse.json({ error: "itemId obrigatório" }, { status: 400 });
 
   const estoque = await prisma.estoqueItem.findFirst({
-    where: { itemId, localEstoqueId },
+    where: { itemId, localEstoqueId, clienteDonoId },
   });
 
   return NextResponse.json({

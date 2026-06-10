@@ -34,6 +34,7 @@ type MovItem = {
   conferenciaItemId: string | null;
   item: { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null };
   localEstoque: { id: string; nome: string } | null;
+  clienteDono?: { id: string; razaoSocial: string } | null;
 };
 
 type Lote = {
@@ -90,7 +91,16 @@ const MOV_COLS: ColDef<MovItem>[] = [
     label: "Local",
     thClass: "text-left px-4 py-2 font-medium",
     tdClass: "px-4 py-2.5 text-xs text-gray-500",
-    render: (it) => it.localEstoque?.nome ?? <span className="text-gray-300">—</span>,
+    render: (it) => (
+      <span className="inline-flex items-center gap-1.5">
+        {it.localEstoque?.nome ?? <span className="text-gray-300">—</span>}
+        {it.clienteDono && (
+          <span className="px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-medium whitespace-nowrap" title={`Mercadoria de terceiro: ${it.clienteDono.razaoSocial}`}>
+            Terceiro: {it.clienteDono.razaoSocial}
+          </span>
+        )}
+      </span>
+    ),
   },
   {
     id: "quantidade",
@@ -307,6 +317,8 @@ export default function MovimentacoesPage() {
   const [itemList, setItemList]   = useState<ItemOpt[]>([]);
   const [locais, setLocais]       = useState<LocalEstoque[]>([]);
   const [fornecedores, setFornecedores] = useState<FornecedorOpt[]>([]);
+  const [clientes, setClientes] = useState<{ id: string; razaoSocial: string; nomeFantasia: string | null }[]>([]);
+  const [clienteDonoId, setClienteDonoId] = useState(""); // "" = estoque próprio
   const [tipoMov, setTipoMov]     = useState<"ENTRADA" | "SAIDA">("ENTRADA");
   const [localEstoqueId, setLocalEstoqueId] = useState("");
   const [fornecedorId, setFornecedorId]     = useState("");
@@ -354,10 +366,12 @@ export default function MovimentacoesPage() {
       fetch("/api/suprimentos/produtos").then((r) => r.json()),
       fetch("/api/suprimentos/locais-estoque").then((r) => r.json()),
       fetch("/api/suprimentos/fornecedores").then((r) => r.json()),
-    ]).then(([prods, locs, forns]) => {
+      fetch("/api/clientes?limit=500").then((r) => r.json()),
+    ]).then(([prods, locs, forns, clis]) => {
       setItemList(prods.data ?? []);
       setLocais(Array.isArray(locs) ? locs : (locs.data ?? []));
       setFornecedores(Array.isArray(forns) ? forns : (forns.data ?? []));
+      setClientes(Array.isArray(clis) ? clis : (clis.data ?? []));
     });
   }, []);
 
@@ -366,6 +380,7 @@ export default function MovimentacoesPage() {
     if (!itemId || !localEstoqueId) return;
     setLinhas((prev) => prev.map((l) => l.key === key ? { ...l, stockLoading: true } : l));
     const params = new URLSearchParams({ itemId, localEstoqueId });
+    if (clienteDonoId) params.set("clienteDonoId", clienteDonoId);
     const j = await fetch(`/api/estoque/check?${params}`).then((r) => r.json());
     setLinhas((prev) => prev.map((l) => l.key === key ? { ...l, stockInfo: j, stockLoading: false } : l));
   }
@@ -427,7 +442,7 @@ export default function MovimentacoesPage() {
   function removeLinha(key: number) { setLinhas((p) => p.filter((l) => l.key !== key)); }
 
   function resetModal() {
-    setTipoMov("ENTRADA"); setLocalEstoqueId(""); setFornecedorId(""); setDocumento(""); setObsGeral("");
+    setTipoMov("ENTRADA"); setLocalEstoqueId(""); setFornecedorId(""); setClienteDonoId(""); setDocumento(""); setObsGeral("");
     setLinhas([newLinha()]); setFormError("");
   }
 
@@ -446,12 +461,13 @@ export default function MovimentacoesPage() {
           tipo:         tipoMov,
           documento:    documento   || undefined,
           observacoes:  obsGeral    || undefined,
-          fornecedorId: tipoMov === "ENTRADA" && fornecedorId ? fornecedorId : undefined,
+          fornecedorId: tipoMov === "ENTRADA" && fornecedorId && !clienteDonoId ? fornecedorId : undefined,
+          clienteDonoId: clienteDonoId || undefined,
           itens: valid.map((l) => ({
             itemId:         l.itemId,
             localEstoqueId: localEstoqueId,
             quantidade:     parseFloat(l.quantidade),
-            valorUnitario:  tipoMov === "ENTRADA" && l.valorUnitario ? parseFloat(l.valorUnitario) : undefined,
+            valorUnitario:  tipoMov === "ENTRADA" && !clienteDonoId && l.valorUnitario ? parseFloat(l.valorUnitario) : undefined,
             observacoes:    l.observacoes || undefined,
           })),
         }),
@@ -977,8 +993,28 @@ export default function MovimentacoesPage() {
                     />
                   </div>
 
-                  {/* Fornecedor — só para ENTRADA */}
-                  {tipoMov === "ENTRADA" && (
+                  {/* Proprietário — estoque próprio ou mercadoria de terceiro sob guarda */}
+                  <div className="space-y-1.5">
+                    <Label>Proprietário <span className="text-xs text-gray-400 font-normal">(de quem é a mercadoria)</span></Label>
+                    <select
+                      value={clienteDonoId}
+                      onChange={(e) => setClienteDonoId(e.target.value)}
+                      className="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    >
+                      <option value="">Estoque próprio</option>
+                      {clientes.map((c) => (
+                        <option key={c.id} value={c.id}>{c.nomeFantasia || c.razaoSocial}</option>
+                      ))}
+                    </select>
+                    {clienteDonoId && (
+                      <p className="text-xs text-amber-600">
+                        Mercadoria de terceiro sob guarda — não entra no custo médio, no estoque mínimo nem nos relatórios de consumo.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Fornecedor — só para ENTRADA própria */}
+                  {tipoMov === "ENTRADA" && !clienteDonoId && (
                     <div className="space-y-1.5">
                       <Label>Fornecedor <span className="text-xs text-gray-400 font-normal">(opcional — vincula automaticamente)</span></Label>
                       <ComboboxWithCreate

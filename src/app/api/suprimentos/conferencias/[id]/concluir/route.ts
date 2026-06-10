@@ -45,7 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         const estoqueItem = await tx.estoqueItem.findFirst({
           // empresaId fixa o saldo na empresa DONA da conferência (o modo grupo
           // amplia a leitura e (item, local nulo) ficaria ambíguo entre empresas)
-          where: { empresaId: conferencia.empresaId, itemId: item.itemId, localEstoqueId: targetLocalEstoqueId },
+          where: { empresaId: conferencia.empresaId, itemId: item.itemId, localEstoqueId: targetLocalEstoqueId, clienteDonoId: null },
           select: { id: true, quantidadeAtual: true },
         });
 
@@ -63,6 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           await tx.estoqueItem.create({
             data: {
               empresaId: conferencia.empresaId,
+              clienteDonoId: null,
               itemId: item.itemId,
               quantidadeAtual: qtdRecebida,
               quantidadeMin: 0,
@@ -109,7 +110,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           const oldCusto = currentItem?.precoCusto ? parseFloat(String(currentItem.precoCusto)) : 0;
 
           // Soma todo o estoque atual (já atualizado) e subtrai a qtd recebida para obter o saldo antes
-          const allEstoque = await tx.estoqueItem.findMany({ where: { itemId: item.itemId } });
+          const allEstoque = await tx.estoqueItem.findMany({ where: { itemId: item.itemId, clienteDonoId: null } });
           const estoqueTotal = allEstoque.reduce((s, e) => s + parseFloat(String(e.quantidadeAtual)), 0);
           const baseSaldo = Math.max(estoqueTotal - qtdRecebida, 0);
 
@@ -320,7 +321,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const targetLocalEstoqueId = item.localEstoqueId ?? result.conferencia.localEstoqueId ?? undefined;
     prisma.estoqueItem.findFirst({
-      where: { empresaId: result.conferencia.empresaId, itemId: item.itemId, ...(targetLocalEstoqueId ? { localEstoqueId: targetLocalEstoqueId } : {}) },
+      where: { empresaId: result.conferencia.empresaId, itemId: item.itemId, clienteDonoId: null, ...(targetLocalEstoqueId ? { localEstoqueId: targetLocalEstoqueId } : {}) },
       include: { localEstoque: { select: { nome: true } } },
     }).then((estoqueAtual) => {
       const saldoDepois = (estoqueAtual ? parseFloat(String(estoqueAtual.quantidadeAtual)) : 0);

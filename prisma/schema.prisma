@@ -84,31 +84,33 @@ model CentroCusto {
 }
 
 model Cliente {
-  id                    String                 @id @default(cuid())
-  tipoPessoa            TipoPessoa             @default(JURIDICA)
-  razaoSocial           String
-  nomeFantasia          String?
-  cpfCnpj               String?                @unique
-  ie                    String?
-  email                 String?
-  telefone              String?
-  celular               String?
-  status                StatusCliente          @default(ATIVO)
-  observacoes           String?
-  cep                   String?
-  logradouro            String?
-  numero                String?
-  complemento           String?
-  bairro                String?
-  cidade                String?
-  estado                String?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  contasReceber         ContaReceber[]
-  pedidosVenda          PedidoVenda[]
-  movimentacoesComodato MovimentacaoComodato[]
-  recorrencias          Recorrencia[]
-  empresa               Empresa?
+  id                     String                 @id @default(cuid())
+  tipoPessoa             TipoPessoa             @default(JURIDICA)
+  razaoSocial            String
+  nomeFantasia           String?
+  cpfCnpj                String?                @unique
+  ie                     String?
+  email                  String?
+  telefone               String?
+  celular                String?
+  status                 StatusCliente          @default(ATIVO)
+  observacoes            String?
+  cep                    String?
+  logradouro             String?
+  numero                 String?
+  complemento            String?
+  bairro                 String?
+  cidade                 String?
+  estado                 String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  contasReceber          ContaReceber[]
+  pedidosVenda           PedidoVenda[]
+  movimentacoesComodato  MovimentacaoComodato[]
+  estoqueTerceiros       EstoqueItem[]          @relation("EstoqueTerceiros")
+  movimentacoesTerceiros MovimentacaoEstoque[]  @relation("MovimentacoesTerceiros")
+  recorrencias           Recorrencia[]
+  empresa                Empresa?
 
   @@index([cpfCnpj])
   @@index([status])
@@ -593,12 +595,15 @@ model EstoqueItem {
   localizacao     String?
   updatedAt       DateTime      @updatedAt
   localEstoqueId  String?
+  clienteDonoId   String? // null = estoque próprio; preenchido = mercadoria de terceiro sob guarda
   item            Item          @relation(fields: [itemId], references: [id])
   localEstoque    LocalEstoque? @relation(fields: [localEstoqueId], references: [id])
+  clienteDono     Cliente?      @relation("EstoqueTerceiros", fields: [clienteDonoId], references: [id])
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
-  @@unique([empresaId, itemId, localEstoqueId])
+  @@unique([empresaId, itemId, localEstoqueId, clienteDonoId])
+  @@index([clienteDonoId])
   @@index([itemId])
   @@index([empresaId])
 }
@@ -887,6 +892,7 @@ model MovimentacaoEstoque {
   loteId            String?
   valorUnitario     Decimal?                @db.Decimal(15, 4)
   unidadeId         String?
+  clienteDonoId     String? // null = estoque próprio; preenchido = movimentação de mercadoria de terceiro
   conferenciaItem   ConferenciaCompraItem?  @relation(fields: [conferenciaItemId], references: [id])
   item              Item                    @relation(fields: [itemId], references: [id])
   localEstoque      LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
@@ -894,6 +900,7 @@ model MovimentacaoEstoque {
   pedidoVendaItem   PedidoVendaItem?        @relation(fields: [pedidoVendaItemId], references: [id])
   ordemProducao     OrdemProducao?          @relation(fields: [ordemProducaoId], references: [id])
   unidade           Unidade?                @relation(fields: [unidadeId], references: [id])
+  clienteDono       Cliente?                @relation("MovimentacoesTerceiros", fields: [clienteDonoId], references: [id])
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -901,6 +908,7 @@ model MovimentacaoEstoque {
   @@index([itemId])
   @@index([loteId])
   @@index([tipo])
+  @@index([clienteDonoId])
   @@index([ordemProducaoId])
   @@index([empresaId])
 }
