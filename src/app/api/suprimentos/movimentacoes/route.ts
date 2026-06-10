@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 const itemSchema = z.object({
   itemId:         z.string().min(1),
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
       // Generate sequential number  MOV-YYYY-NNNN
       const year = new Date().getFullYear();
       const seq = await tx.sequencia.upsert({
-        where:  { prefixo: "MOV" },
+        where:  { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "MOV" } },
         create: { prefixo: "MOV", ultimo: 1 },
         update: { ultimo: { increment: 1 } },
       });

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { generateDocNumber } from "@/lib/utils";
 import { snapshotEtapas } from "@/lib/pcp/snapshot-etapas";
 import type { FlowGraph } from "@/lib/pcp/types";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 // GET — lista de ordens de produção com progresso
 export async function GET() {
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
 
   const ordem = await prisma.$transaction(async (tx) => {
     const seq = await tx.sequencia.upsert({
-      where: { prefixo: "OP" },
+      where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "OP" } },
       update: { ultimo: { increment: 1 } },
       create: { prefixo: "OP", ultimo: 1 },
     });

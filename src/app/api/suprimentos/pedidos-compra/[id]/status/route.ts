@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 const TRANSITIONS: Record<string, string[]> = {
   AGUARDANDO_PAGAMENTO: ["EM_TRANSITO", "CANCELADO"],
@@ -66,7 +67,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const conferencia = await prisma.$transaction(async (tx) => {
       const seq = await tx.sequencia.upsert({
-        where: { prefixo: "DE" },
+        where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "DE" } },
         create: { prefixo: "DE", ultimo: 1 },
         update: { ultimo: { increment: 1 } },
       });

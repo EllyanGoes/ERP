@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 import { recalcularSaldos } from "@/lib/estoque-saldos";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 const MINUTA_INCLUDE = {
   pedidoVenda: {
@@ -167,7 +168,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         // Generate MOV number for the lote
         const year = new Date().getFullYear();
         const seq = await tx.sequencia.upsert({
-          where:  { prefixo: "MOV" },
+          where:  { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "MOV" } },
           create: { prefixo: "MOV", ultimo: 1 },
           update: { ultimo: { increment: 1 } },
         });
@@ -357,7 +358,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             } else {
               if (!saidaLoteId) {
                 const year = new Date().getFullYear();
-                const seq = await tx.sequencia.upsert({ where: { prefixo: "MOV" }, create: { prefixo: "MOV", ultimo: 1 }, update: { ultimo: { increment: 1 } } });
+                const seq = await tx.sequencia.upsert({ where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "MOV" } }, create: { prefixo: "MOV", ultimo: 1 }, update: { ultimo: { increment: 1 } } });
                 const lote = await tx.loteMovimentacao.create({ data: { numero: `MOV-${year}-${String(seq.ultimo).padStart(4, "0")}`, tipo: "SAIDA", documento: minuta.numero, observacoes: `Saída por minuta ${minuta.numero}` } });
                 saidaLoteId = lote.id;
               }

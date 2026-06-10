@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { contaPagarSchema } from "@/lib/validations/financeiro";
 import { generateDocNumber } from "@/lib/utils";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
 
   if (parcelas <= 1) {
     const seq = await prisma.sequencia.upsert({
-      where: { prefixo: "CP" },
+      where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "CP" } },
       update: { ultimo: { increment: 1 } },
       create: { prefixo: "CP", ultimo: 1 },
     });
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
 
   const contas = await prisma.$transaction(async (tx) => {
     const seq = await tx.sequencia.upsert({
-      where: { prefixo: "CP" },
+      where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "CP" } },
       update: { ultimo: { increment: parcelas } },
       create: { prefixo: "CP", ultimo: parcelas },
     });

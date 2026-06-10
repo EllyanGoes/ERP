@@ -152,16 +152,16 @@ async function main() {
   }
 
   // Sequencias
-  await prisma.sequencia.upsert({ where: { prefixo: "PV" }, update: {}, create: { prefixo: "PV", ultimo: 0 } });
-  await prisma.sequencia.upsert({ where: { prefixo: "CR" }, update: {}, create: { prefixo: "CR", ultimo: 0 } });
-  await prisma.sequencia.upsert({ where: { prefixo: "CP" }, update: {}, create: { prefixo: "CP", ultimo: 0 } });
+  await prisma.sequencia.upsert({ where: { empresaId_prefixo: { empresaId: "emp_tramontin", prefixo: "PV" } }, update: {}, create: { prefixo: "PV", ultimo: 0 } });
+  await prisma.sequencia.upsert({ where: { empresaId_prefixo: { empresaId: "emp_tramontin", prefixo: "CR" } }, update: {}, create: { prefixo: "CR", ultimo: 0 } });
+  await prisma.sequencia.upsert({ where: { empresaId_prefixo: { empresaId: "emp_tramontin", prefixo: "CP" } }, update: {}, create: { prefixo: "CP", ultimo: 0 } });
 
   // Pedidos de Venda com sequencia
   const now = new Date();
   const year = now.getFullYear();
 
   // Pedido 1 — Entregue
-  const seq1 = await prisma.sequencia.update({ where: { prefixo: "PV" }, data: { ultimo: { increment: 1 } } });
+  const seq1 = await prisma.sequencia.update({ where: { empresaId_prefixo: { empresaId: "emp_tramontin", prefixo: "PV" } }, data: { ultimo: { increment: 1 } } });
   const pv1 = await prisma.pedidoVenda.create({
     data: {
       numero: `PV-${year}-${String(seq1.ultimo).padStart(4, "0")}`,
@@ -180,7 +180,7 @@ async function main() {
   });
 
   // CR para pedido 1 — Pago
-  const seqCR1 = await prisma.sequencia.update({ where: { prefixo: "CR" }, data: { ultimo: { increment: 1 } } });
+  const seqCR1 = await prisma.sequencia.update({ where: { empresaId_prefixo: { empresaId: "emp_tramontin", prefixo: "CR" } }, data: { ultimo: { increment: 1 } } });
   await prisma.contaReceber.create({
     data: {
       numero: `CR-${year}-${String(seqCR1.ultimo).padStart(4, "0")}`,
@@ -196,7 +196,7 @@ async function main() {
   });
 
   // Pedido 2 — Confirmado
-  const seq2 = await prisma.sequencia.update({ where: { prefixo: "PV" }, data: { ultimo: { increment: 1 } } });
+  const seq2 = await prisma.sequencia.update({ where: { empresaId_prefixo: { empresaId: "emp_tramontin", prefixo: "PV" } }, data: { ultimo: { increment: 1 } } });
   await prisma.pedidoVenda.create({
     data: {
       numero: `PV-${year}-${String(seq2.ultimo).padStart(4, "0")}`,
@@ -215,7 +215,7 @@ async function main() {
   });
 
   // Pedido 3 — Orçamento
-  const seq3 = await prisma.sequencia.update({ where: { prefixo: "PV" }, data: { ultimo: { increment: 1 } } });
+  const seq3 = await prisma.sequencia.update({ where: { empresaId_prefixo: { empresaId: "emp_tramontin", prefixo: "PV" } }, data: { ultimo: { increment: 1 } } });
   await prisma.pedidoVenda.create({
     data: {
       numero: `PV-${year}-${String(seq3.ultimo).padStart(4, "0")}`,
@@ -232,7 +232,7 @@ async function main() {
   });
 
   // Pedido 4 — Faturado (mês atual)
-  const seq4 = await prisma.sequencia.update({ where: { prefixo: "PV" }, data: { ultimo: { increment: 1 } } });
+  const seq4 = await prisma.sequencia.update({ where: { empresaId_prefixo: { empresaId: "emp_tramontin", prefixo: "PV" } }, data: { ultimo: { increment: 1 } } });
   const pv4 = await prisma.pedidoVenda.create({
     data: {
       numero: `PV-${year}-${String(seq4.ultimo).padStart(4, "0")}`,
@@ -249,7 +249,7 @@ async function main() {
   });
 
   // CR para pedido 4 — Aberta (vence em 15 dias)
-  const seqCR2 = await prisma.sequencia.update({ where: { prefixo: "CR" }, data: { ultimo: { increment: 1 } } });
+  const seqCR2 = await prisma.sequencia.update({ where: { empresaId_prefixo: { empresaId: "emp_tramontin", prefixo: "CR" } }, data: { ultimo: { increment: 1 } } });
   await prisma.contaReceber.create({
     data: {
       numero: `CR-${year}-${String(seqCR2.ultimo).padStart(4, "0")}`,
@@ -263,7 +263,7 @@ async function main() {
   });
 
   // CR vencida (para mostrar alerta no dashboard)
-  const seqCR3 = await prisma.sequencia.update({ where: { prefixo: "CR" }, data: { ultimo: { increment: 1 } } });
+  const seqCR3 = await prisma.sequencia.update({ where: { empresaId_prefixo: { empresaId: "emp_tramontin", prefixo: "CR" } }, data: { ultimo: { increment: 1 } } });
   await prisma.contaReceber.create({
     data: {
       numero: `CR-${year}-${String(seqCR3.ultimo).padStart(4, "0")}`,
@@ -276,7 +276,7 @@ async function main() {
   });
 
   // Contas a Pagar
-  const seqCP1 = await prisma.sequencia.update({ where: { prefixo: "CP" }, data: { ultimo: { increment: 1 } } });
+  const seqCP1 = await prisma.sequencia.update({ where: { empresaId_prefixo: { empresaId: "emp_tramontin", prefixo: "CP" } }, data: { ultimo: { increment: 1 } } });
   await prisma.contaPagar.create({
     data: {
       numero: `CP-${year}-${String(seqCP1.ultimo).padStart(4, "0")}`,
@@ -288,7 +288,7 @@ async function main() {
     },
   });
 
-  const seqCP2 = await prisma.sequencia.update({ where: { prefixo: "CP" }, data: { ultimo: { increment: 1 } } });
+  const seqCP2 = await prisma.sequencia.update({ where: { empresaId_prefixo: { empresaId: "emp_tramontin", prefixo: "CP" } }, data: { ultimo: { increment: 1 } } });
   await prisma.contaPagar.create({
     data: {
       numero: `CP-${year}-${String(seqCP2.ultimo).padStart(4, "0")}`,
@@ -300,7 +300,7 @@ async function main() {
     },
   });
 
-  const seqCP3 = await prisma.sequencia.update({ where: { prefixo: "CP" }, data: { ultimo: { increment: 1 } } });
+  const seqCP3 = await prisma.sequencia.update({ where: { empresaId_prefixo: { empresaId: "emp_tramontin", prefixo: "CP" } }, data: { ultimo: { increment: 1 } } });
   await prisma.contaPagar.create({
     data: {
       numero: `CP-${year}-${String(seqCP3.ultimo).padStart(4, "0")}`,

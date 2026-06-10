@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 // ── GET /api/comercial/minutas ────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
     const minuta = await prisma.$transaction(async (tx) => {
       // Generate sequential number MIN-0001
       const seq = await tx.sequencia.upsert({
-        where:  { prefixo: "MIN" },
+        where:  { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "MIN" } },
         create: { prefixo: "MIN", ultimo: 1 },
         update: { ultimo: { increment: 1 } },
       });

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 export async function GET() {
   const tabelas = await prisma.tabelaPreco.findMany({
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   // Generate sequential code (001, 002, ...)
   const seq = await prisma.sequencia.upsert({
-    where: { prefixo: "TP" },
+    where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "TP" } },
     create: { prefixo: "TP", ultimo: 1 },
     update: { ultimo: { increment: 1 } },
   });

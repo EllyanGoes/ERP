@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
     const record = await prisma.$transaction(async (tx) => {
       const prefix = body.tipo === "DEVOLUCAO" ? "DV" : "RM";
       const seq = await tx.sequencia.upsert({
-        where:  { prefixo: prefix },
+        where:  { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: prefix } },
         create: { prefixo: prefix, ultimo: 1 },
         update: { ultimo: { increment: 1 } },
       });

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 // POST /api/suprimentos/cotacoes/[id]/aprovar
 // Marks the cotação as CONCLUIDA and generates a PedidoCompra from the melhorOpcao supplier
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
       // Generate PedidoCompra number
       const seq = await tx.sequencia.upsert({
-        where: { prefixo: "PC" },
+        where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "PC" } },
         create: { prefixo: "PC", ultimo: 1 },
         update: { ultimo: { increment: 1 } },
       });

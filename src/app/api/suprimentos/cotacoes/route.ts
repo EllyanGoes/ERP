@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
 
   const cotacao = await prisma.$transaction(async (tx) => {
     const seq = await tx.sequencia.upsert({
-      where: { prefixo: "CT" },
+      where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "CT" } },
       create: { prefixo: "CT", ultimo: 1 },
       update: { ultimo: { increment: 1 } },
     });

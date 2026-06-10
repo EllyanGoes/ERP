@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
     const item = await prisma.$transaction(async (tx) => {
       // ── Auto-generate sequential product code: PROD-0001, PROD-0002 … ─────────
       const seq = await tx.sequencia.upsert({
-        where:  { prefixo: "PROD" },
+        where:  { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "PROD" } },
         create: { prefixo: "PROD", ultimo: 1 },
         update: { ultimo: { increment: 1 } },
       });

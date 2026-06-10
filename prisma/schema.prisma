@@ -108,6 +108,7 @@ model Cliente {
   pedidosVenda          PedidoVenda[]
   movimentacoesComodato MovimentacaoComodato[]
   recorrencias          Recorrencia[]
+  empresa               Empresa?
 
   @@index([cpfCnpj])
   @@index([status])
@@ -167,7 +168,8 @@ model CondicaoPagamento {
 
 model ConferenciaCompra {
   id               String                  @id @default(cuid())
-  numero           String                  @unique
+  empresaId        String                  @default("emp_tramontin")
+  numero           String
   pedidoId         String?                 @unique
   status           StatusConferenciaCompra @default(PENDENTE)
   dataConferencia  DateTime?
@@ -197,12 +199,17 @@ model ConferenciaCompra {
   localEstoque     LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
   itens            ConferenciaCompraItem[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, numero])
   @@index([status])
   @@index([fornecedorId])
+  @@index([empresaId])
 }
 
 model ConferenciaCompraItem {
   id                 String                @id @default(cuid())
+  empresaId          String                @default("emp_tramontin")
   conferenciaId      String
   itemId             String
   quantidadePedida   Decimal               @db.Decimal(15, 3)
@@ -223,6 +230,9 @@ model ConferenciaCompraItem {
   item               Item                  @relation(fields: [itemId], references: [id])
   localEstoque       LocalEstoque?         @relation(fields: [localEstoqueId], references: [id])
   movimentacoes      MovimentacaoEstoque[]
+  empresa            Empresa               @relation(fields: [empresaId], references: [id])
+
+  @@index([empresaId])
 }
 
 model Configuracao {
@@ -233,7 +243,8 @@ model Configuracao {
 
 model ContaPagar {
   id                    String                 @id @default(cuid())
-  numero                String                 @unique
+  empresaId             String                 @default("emp_tramontin")
+  numero                String
   fornecedorId          String?
   descricao             String
   categoria             String?
@@ -263,16 +274,21 @@ model ContaPagar {
   recorrencia           Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
   lancamentos           LancamentoFinanceiro[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, numero])
   @@index([dataVencimento])
   @@index([fornecedorId])
   @@index([status])
   @@index([grupoParcelamentoId])
   @@index([recorrenciaId])
+  @@index([empresaId])
 }
 
 model ContaReceber {
   id                    String                 @id @default(cuid())
-  numero                String                 @unique
+  empresaId             String                 @default("emp_tramontin")
+  numero                String
   clienteId             String
   pedidoVendaId         String?
   descricao             String
@@ -303,11 +319,15 @@ model ContaReceber {
   recorrencia           Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
   lancamentos           LancamentoFinanceiro[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, numero])
   @@index([clienteId])
   @@index([dataVencimento])
   @@index([status])
   @@index([recorrenciaId])
   @@index([grupoParcelamentoId])
+  @@index([empresaId])
 }
 
 model Banco {
@@ -322,6 +342,7 @@ model Banco {
 
 model ContaBancaria {
   id             String                 @id @default(cuid())
+  empresaId      String                 @default("emp_tramontin")
   nome           String
   bancoId        String?
   agencia        String?
@@ -338,7 +359,10 @@ model ContaBancaria {
   recorrencias   Recorrencia[]
   importacoesOFX ImportacaoOFX[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
   @@index([bancoId])
+  @@index([empresaId])
 }
 
 model CategoriaFinanceira {
@@ -364,6 +388,7 @@ model CategoriaFinanceira {
 
 model Recorrencia {
   id                    String                   @id @default(cuid())
+  empresaId             String                   @default("emp_tramontin")
   tipo                  TipoRecorrencia
   descricao             String
   valor                 Decimal                  @db.Decimal(15, 2)
@@ -387,13 +412,17 @@ model Recorrencia {
   contasReceber         ContaReceber[]
   contasPagar           ContaPagar[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
   @@index([ativo])
   @@index([proximaGeracao])
+  @@index([empresaId])
 }
 
 model CotacaoCompra {
   id                   String              @id @default(cuid())
-  numero               String              @unique
+  empresaId            String              @default("emp_tramontin")
+  numero               String
   necessidadeId        String?
   status               StatusCotacaoCompra @default(PENDENTE)
   dataLimiteResposta   DateTime?
@@ -410,7 +439,11 @@ model CotacaoCompra {
   fornecedores         CotacaoFornecedor[]
   pedidos              PedidoCompra[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, numero])
   @@index([status])
+  @@index([empresaId])
 }
 
 model CotacaoFornecedor {
@@ -477,23 +510,58 @@ model CotacaoFornecedorItem {
 }
 
 model Empresa {
-  id           String   @id @default(cuid())
-  razaoSocial  String
-  nomeFantasia String?
-  cnpj         String   @unique
-  ie           String?
-  im           String?
-  email        String?
-  telefone     String?
-  cep          String?
-  logradouro   String?
-  numero       String?
-  complemento  String?
-  bairro       String?
-  cidade       String?
-  estado       String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                     String                  @id @default(cuid())
+  razaoSocial            String
+  nomeFantasia           String?
+  cnpj                   String                  @unique
+  ie                     String?
+  im                     String?
+  email                  String?
+  telefone               String?
+  cep                    String?
+  logradouro             String?
+  numero                 String?
+  complemento            String?
+  bairro                 String?
+  cidade                 String?
+  estado                 String?
+  // ── multiempresa: a Empresa é o tenant do grupo ────────────────────────────
+  slug                   String?                 @unique
+  ativo                  Boolean                 @default(true)
+  // vínculo intragrupo (Fase 4): a empresa como cliente/fornecedor das irmãs
+  clienteId              String?                 @unique
+  fornecedorId           String?                 @unique
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  cliente                Cliente?                @relation(fields: [clienteId], references: [id])
+  fornecedor             Fornecedor?             @relation(fields: [fornecedorId], references: [id])
+  conferenciaCompras     ConferenciaCompra[]
+  conferenciaCompraItems ConferenciaCompraItem[]
+  contaPagars            ContaPagar[]
+  contaRecebers          ContaReceber[]
+  contaBancarias         ContaBancaria[]
+  recorrencias           Recorrencia[]
+  cotacaoCompras         CotacaoCompra[]
+  estoqueItems           EstoqueItem[]
+  lancamentoFinanceiros  LancamentoFinanceiro[]
+  importacaoOFXs         ImportacaoOFX[]
+  localEstoques          LocalEstoque[]
+  loteMovimentacaos      LoteMovimentacao[]
+  movimentacaoEstoques   MovimentacaoEstoque[]
+  movimentacaoComodatoes MovimentacaoComodato[]
+  necessidadeCompras     NecessidadeCompra[]
+  pedidoCompras          PedidoCompra[]
+  pedidoVendas           PedidoVenda[]
+  pedidoVendaItems       PedidoVendaItem[]
+  minutas                Minuta[]
+  minutaItems            MinutaItem[]
+  sequencias             Sequencia[]
+  ordemProducaos         OrdemProducao[]
+  itemOrdemProducaos     ItemOrdemProducao[]
+  consumoBiomassas       ConsumoBiomassa[]
+  planoMestres           PlanoMestre[]
+  requisicaoMaterials    RequisicaoMaterial[]
+  inventarioMaterials    InventarioMaterial[]
 }
 
 model EnderecoEstoque {
@@ -511,6 +579,7 @@ model EnderecoEstoque {
 
 model EstoqueItem {
   id              String        @id @default(cuid())
+  empresaId       String        @default("emp_tramontin")
   itemId          String
   quantidadeAtual Decimal       @default(0) @db.Decimal(15, 3)
   quantidadeMin   Decimal       @default(0) @db.Decimal(15, 3)
@@ -521,8 +590,11 @@ model EstoqueItem {
   item            Item          @relation(fields: [itemId], references: [id])
   localEstoque    LocalEstoque? @relation(fields: [localEstoqueId], references: [id])
 
-  @@unique([itemId, localEstoqueId])
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, itemId, localEstoqueId])
   @@index([itemId])
+  @@index([empresaId])
 }
 
 model Filial {
@@ -589,6 +661,7 @@ model Fornecedor {
   docEntradas     ConferenciaCompra[]
   inventarioItens InventarioMaterialItem[]
   recorrencias    Recorrencia[]
+  empresa         Empresa?
 }
 
 model FornecedorContato {
@@ -683,6 +756,7 @@ model ItemUnidade {
 
 model LancamentoFinanceiro {
   id                    String                @id @default(cuid())
+  empresaId             String                @default("emp_tramontin")
   tipo                  TipoLancamentoCaixa
   descricao             String
   valor                 Decimal               @db.Decimal(15, 2)
@@ -706,15 +780,19 @@ model LancamentoFinanceiro {
   transferenciaParDe    LancamentoFinanceiro? @relation("Transferencia")
   linhaOFX              LinhaOFX?
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
   @@index([dataLancamento])
   @@index([tipo])
   @@index([contaBancariaId])
   @@index([categoriaFinanceiraId])
+  @@index([empresaId])
   @@map("LancamentoCaixa")
 }
 
 model ImportacaoOFX {
   id              String        @id @default(cuid())
+  empresaId       String        @default("emp_tramontin")
   contaBancariaId String
   nomeArquivo     String?
   dataImportacao  DateTime      @default(now())
@@ -723,7 +801,10 @@ model ImportacaoOFX {
   contaBancaria   ContaBancaria @relation(fields: [contaBancariaId], references: [id])
   linhas          LinhaOFX[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
   @@index([contaBancariaId])
+  @@index([empresaId])
 }
 
 model LinhaOFX {
@@ -743,6 +824,7 @@ model LinhaOFX {
 
 model LocalEstoque {
   id                   String                  @id @default(cuid())
+  empresaId            String                  @default("emp_tramontin")
   nome                 String
   descricao            String?
   ativo                Boolean                 @default(true)
@@ -759,21 +841,30 @@ model LocalEstoque {
   requisicoesMateriais RequisicaoMaterial[]
   inventariosMateriais InventarioMaterial[]
   minutas              Minuta[]
+  empresa              Empresa                 @relation(fields: [empresaId], references: [id])
+
+  @@index([empresaId])
 }
 
 model LoteMovimentacao {
   id               String                  @id @default(cuid())
-  numero           String                  @unique
+  empresaId        String                  @default("emp_tramontin")
+  numero           String
   tipo             TipoMovimentacaoEstoque
   documento        String?
   observacoes      String?
   dataMovimentacao DateTime?
   createdAt        DateTime                @default(now())
   itens            MovimentacaoEstoque[]
+  empresa          Empresa                 @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, numero])
+  @@index([empresaId])
 }
 
 model MovimentacaoEstoque {
   id                String                  @id @default(cuid())
+  empresaId         String                  @default("emp_tramontin")
   itemId            String
   tipo              TipoMovimentacaoEstoque
   quantidade        Decimal                 @db.Decimal(15, 3)
@@ -798,15 +889,19 @@ model MovimentacaoEstoque {
   ordemProducao     OrdemProducao?          @relation(fields: [ordemProducaoId], references: [id])
   unidade           Unidade?                @relation(fields: [unidadeId], references: [id])
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
   @@index([createdAt])
   @@index([itemId])
   @@index([loteId])
   @@index([tipo])
   @@index([ordemProducaoId])
+  @@index([empresaId])
 }
 
 model MovimentacaoComodato {
   id            String                     @id @default(cuid())
+  empresaId     String                     @default("emp_tramontin")
   clienteId     String
   itemId        String
   tipo          TipoMovimentacaoComodato
@@ -823,14 +918,18 @@ model MovimentacaoComodato {
   cliente       Cliente                    @relation(fields: [clienteId], references: [id])
   item          Item                       @relation(fields: [itemId], references: [id])
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
   @@index([clienteId])
   @@index([itemId])
   @@index([data])
+  @@index([empresaId])
 }
 
 model NecessidadeCompra {
   id                    String                  @id @default(cuid())
-  numero                String                  @unique
+  empresaId             String                  @default("emp_tramontin")
+  numero                String
   status                StatusNecessidade       @default(RASCUNHO)
   solicitante           String?
   colaboradorId         String?
@@ -864,7 +963,11 @@ model NecessidadeCompra {
   setor                 Setor?                  @relation(fields: [setorId], references: [id])
   itens                 NecessidadeCompraItem[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, numero])
   @@index([status])
+  @@index([empresaId])
 }
 
 model NecessidadeCompraItem {
@@ -881,7 +984,8 @@ model NecessidadeCompraItem {
 
 model PedidoCompra {
   id                  String             @id @default(cuid())
-  numero              String             @unique
+  empresaId           String             @default("emp_tramontin")
+  numero              String
   cotacaoId           String?
   necessidadeId       String?
   fornecedorId        String
@@ -907,9 +1011,13 @@ model PedidoCompra {
   fornecedor          Fornecedor         @relation(fields: [fornecedorId], references: [id])
   itens               PedidoCompraItem[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, numero])
   @@index([fornecedorId])
   @@index([status])
   @@index([necessidadeId])
+  @@index([empresaId])
 }
 
 model PedidoCompraItem {
@@ -927,7 +1035,8 @@ model PedidoCompraItem {
 
 model PedidoVenda {
   id                String            @id @default(cuid())
-  numero            String            @unique
+  empresaId         String            @default("emp_tramontin")
+  numero            String
   numeroOrcamento   String?
   clienteId         String
   tabelaPrecoId     String?
@@ -948,13 +1057,18 @@ model PedidoVenda {
   itens             PedidoVendaItem[]
   minutas           Minuta[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, numero])
   @@index([clienteId])
   @@index([dataEmissao])
   @@index([status])
+  @@index([empresaId])
 }
 
 model PedidoVendaItem {
   id            String                @id @default(cuid())
+  empresaId     String                @default("emp_tramontin")
   pedidoVendaId String
   itemId        String
   quantidade    Decimal               @db.Decimal(15, 3)
@@ -968,8 +1082,11 @@ model PedidoVendaItem {
   item          Item                  @relation(fields: [itemId], references: [id])
   pedidoVenda   PedidoVenda           @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
   @@index([itemId])
   @@index([pedidoVendaId])
+  @@index([empresaId])
 }
 
 model PerfilAcesso {
@@ -1035,7 +1152,8 @@ model Motorista {
 
 model Minuta {
   id             String       @id @default(cuid())
-  numero         String       @unique
+  empresaId      String       @default("emp_tramontin")
+  numero         String
   numeroFisico   String?
   pedidoVendaId  String
   localEstoqueId String?
@@ -1055,14 +1173,19 @@ model Minuta {
   motorista    Motorista?    @relation(fields: [motoristaId], references: [id])
   itens        MinutaItem[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, numero])
   @@index([pedidoVendaId])
   @@index([status])
   @@index([motoristaId])
   @@index([motoristaId, dataEntrega])
+  @@index([empresaId])
 }
 
 model MinutaItem {
   id                   String   @id @default(cuid())
+  empresaId            String   @default("emp_tramontin")
   minutaId             String
   pedidoVendaItemId    String
   itemId               String
@@ -1075,13 +1198,20 @@ model MinutaItem {
   item            Item            @relation(fields: [itemId], references: [id])
   unidade         Unidade?        @relation(fields: [unidadeId], references: [id])
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
   @@index([minutaId])
   @@index([pedidoVendaItemId])
+  @@index([empresaId])
 }
 
 model Sequencia {
-  prefixo String @id
-  ultimo  Int    @default(0)
+  empresaId String  @default("emp_tramontin")
+  prefixo   String
+  ultimo    Int     @default(0)
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+
+  @@id([empresaId, prefixo])
 }
 
 // ── Tabela de Preços ──────────────────────────────────────────────────────────
@@ -1339,36 +1469,42 @@ enum EstadoWIP {
 // Ordem de produção — executa uma versão publicada de um fluxo. As etapas são
 // um snapshot (em ordem topológica) das operações do grafo no momento da criação.
 model OrdemProducao {
-  id                  String              @id @default(cuid())
-  numero              String              @unique
+  id                  String                @id @default(cuid())
+  empresaId           String                @default("emp_tramontin")
+  numero              String
   itemId              String?
   fluxoVersaoId       String
-  quantidadePlanejada Decimal             @db.Decimal(15, 3)
+  quantidadePlanejada Decimal               @db.Decimal(15, 3)
   unidade             String?
-  status              StatusOrdemProducao @default(RASCUNHO)
-  estadoAtual         EstadoWIP           @default(UMIDO)
+  status              StatusOrdemProducao   @default(RASCUNHO)
+  estadoAtual         EstadoWIP             @default(UMIDO)
   dataPrevista        DateTime?
   observacao          String?
   criadoPor           String?
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-  item                Item?               @relation(fields: [itemId], references: [id])
-  fluxoVersao         FluxoProducaoVersao @relation(fields: [fluxoVersaoId], references: [id])
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  item                Item?                 @relation(fields: [itemId], references: [id])
+  fluxoVersao         FluxoProducaoVersao   @relation(fields: [fluxoVersaoId], references: [id])
   etapas              ItemOrdemProducao[]
   consumos            ConsumoBiomassa[]
   movimentacoes       MovimentacaoEstoque[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, numero])
   @@index([status])
   @@index([itemId])
   @@index([fluxoVersaoId])
+  @@index([empresaId])
 }
 
 // Uma etapa apontável da ordem (snapshot de um nó de operação/transporte/inspeção).
 model ItemOrdemProducao {
-  id              String        @id @default(cuid())
-  ordemProducaoId String
-  nodeId          String
-  sequencia       Int
+  id                  String        @id @default(cuid())
+  empresaId           String        @default("emp_tramontin")
+  ordemProducaoId     String
+  nodeId              String
+  sequencia           Int
   nome                String
   kind                KindNo
   centroTrabalho      String?
@@ -1376,27 +1512,31 @@ model ItemOrdemProducao {
   tempoCicloHoras     Decimal?      @db.Decimal(15, 3)
   subprodutoItemId    String?
   subprodutoDescricao String?
-  status          StatusEtapaOP @default(PENDENTE)
-  qtdEntrada      Decimal?      @db.Decimal(15, 3)
-  qtdSaida        Decimal?      @db.Decimal(15, 3)
-  qtdPerda        Decimal?      @db.Decimal(15, 3)
-  vagoes          Int?
-  vagonetas       Int?
-  inicioReal      DateTime?
-  fimReal         DateTime?
-  apontadoPor     String?
-  observacao      String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  ordemProducao   OrdemProducao @relation(fields: [ordemProducaoId], references: [id], onDelete: Cascade)
+  status              StatusEtapaOP @default(PENDENTE)
+  qtdEntrada          Decimal?      @db.Decimal(15, 3)
+  qtdSaida            Decimal?      @db.Decimal(15, 3)
+  qtdPerda            Decimal?      @db.Decimal(15, 3)
+  vagoes              Int?
+  vagonetas           Int?
+  inicioReal          DateTime?
+  fimReal             DateTime?
+  apontadoPor         String?
+  observacao          String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  ordemProducao       OrdemProducao @relation(fields: [ordemProducaoId], references: [id], onDelete: Cascade)
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
 
   @@index([ordemProducaoId])
   @@index([status])
+  @@index([empresaId])
 }
 
 // Consumo de biomassa (caroço de açaí) apontado na queima — alimenta KPI por milheiro.
 model ConsumoBiomassa {
   id                  String        @id @default(cuid())
+  empresaId           String        @default("emp_tramontin")
   ordemProducaoId     String
   itemOrdemProducaoId String?
   descricao           String?
@@ -1407,7 +1547,10 @@ model ConsumoBiomassa {
   createdAt           DateTime      @default(now())
   ordemProducao       OrdemProducao @relation(fields: [ordemProducaoId], references: [id], onDelete: Cascade)
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
   @@index([ordemProducaoId])
+  @@index([empresaId])
 }
 
 enum StatusOrdemProducao {
@@ -1479,8 +1622,9 @@ enum CategoriaInsumo {
 // origem = de onde veio a demanda (manual é o padrão; pedidos/mín-máx são opcionais).
 model PlanoMestre {
   id         String        @id @default(cuid())
+  empresaId  String        @default("emp_tramontin")
   itemId     String
-  periodo    String        // AAAA-MM (mês de planejamento)
+  periodo    String // AAAA-MM (mês de planejamento)
   quantidade Decimal       @db.Decimal(15, 3)
   origem     OrigemDemanda @default(MANUAL)
   observacao String?
@@ -1488,8 +1632,11 @@ model PlanoMestre {
   updatedAt  DateTime      @updatedAt
   item       Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
   @@index([itemId])
   @@index([periodo])
+  @@index([empresaId])
 }
 
 enum OrigemDemanda {
@@ -1667,7 +1814,8 @@ enum UnidadeMedida {
 
 model RequisicaoMaterial {
   id             String                   @id @default(cuid())
-  numero         String                   @unique
+  empresaId      String                   @default("emp_tramontin")
+  numero         String
   tipo           TipoRequisicaoMaterial   @default(REQUISICAO)
   status         StatusRequisicaoMaterial @default(RASCUNHO)
   localEstoqueId String
@@ -1688,8 +1836,12 @@ model RequisicaoMaterial {
   centroCusto    CentroCusto?             @relation(fields: [centroCustoId], references: [id])
   itens          RequisicaoMaterialItem[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, numero])
   @@index([status])
   @@index([localEstoqueId])
+  @@index([empresaId])
 }
 
 model RequisicaoMaterialItem {
@@ -1714,7 +1866,8 @@ model RequisicaoMaterialItem {
 
 model InventarioMaterial {
   id             String                   @id @default(cuid())
-  numero         String                   @unique
+  empresaId      String                   @default("emp_tramontin")
+  numero         String
   localEstoqueId String
   colaboradorId  String?
   data           DateTime
@@ -1727,8 +1880,12 @@ model InventarioMaterial {
   colaborador    Colaborador?             @relation(fields: [colaboradorId], references: [id])
   itens          InventarioMaterialItem[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, numero])
   @@index([status])
   @@index([localEstoqueId])
+  @@index([empresaId])
 }
 
 model InventarioMaterialItem {

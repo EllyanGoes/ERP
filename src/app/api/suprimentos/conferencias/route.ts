@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { findMatchingPedidos } from "@/lib/pc-match";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 export async function GET() {
   const data = await prisma.conferenciaCompra.findMany({
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     const conferencia = await prisma.$transaction(async (tx) => {
       const seq = await tx.sequencia.upsert({
-        where: { prefixo: "DE" },
+        where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "DE" } },
         create: { prefixo: "DE", ultimo: 1 },
         update: { ultimo: { increment: 1 } },
       });
@@ -180,7 +181,7 @@ export async function POST(req: NextRequest) {
 
   const conferencia = await prisma.$transaction(async (tx) => {
     const seq = await tx.sequencia.upsert({
-      where: { prefixo: "DE" },
+      where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "DE" } },
       create: { prefixo: "DE", ultimo: 1 },
       update: { ultimo: { increment: 1 } },
     });

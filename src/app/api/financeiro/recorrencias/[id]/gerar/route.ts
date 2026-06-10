@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateDocNumber } from "@/lib/utils";
 import { avancarData, type Periodicidade } from "@/lib/financeiro";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 // Gera o título (CR ou CP) correspondente à recorrência e avança proximaGeracao.
 export async function POST(_: NextRequest, { params }: { params: { id: string } }) {
@@ -17,7 +18,7 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
     if (rec.tipo === "RECEBER") {
       if (!rec.clienteId) throw new Error("SEM_CLIENTE");
       const seq = await tx.sequencia.upsert({
-        where: { prefixo: "CR" },
+        where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "CR" } },
         update: { ultimo: { increment: 1 } },
         create: { prefixo: "CR", ultimo: 1 },
       });
@@ -36,7 +37,7 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
       });
     } else {
       const seq = await tx.sequencia.upsert({
-        where: { prefixo: "CP" },
+        where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "CP" } },
         update: { ultimo: { increment: 1 } },
         create: { prefixo: "CP", ultimo: 1 },
       });

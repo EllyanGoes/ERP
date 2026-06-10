@@ -3,6 +3,7 @@
 // criando automaticamente os itens de WIP (por produto × estado) e um local "Produção".
 
 import type { Prisma, EstadoWIP, TipoMovimentacaoEstoque } from "@prisma/client";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 const LOCAL_WIP_NOME = "Produção (WIP)";
 
@@ -67,7 +68,7 @@ export async function getOrCreateLoteProducao(
 ): Promise<string> {
   const year = new Date().getFullYear();
   const seq = await tx.sequencia.upsert({
-    where: { prefixo: "MOV" },
+    where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "MOV" } },
     create: { prefixo: "MOV", ultimo: 1 },
     update: { ultimo: { increment: 1 } },
   });

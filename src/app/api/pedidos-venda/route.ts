@@ -5,6 +5,7 @@ import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { recalcPedidoValorTotal } from "@/lib/pedido-totais";
 import { notifyPedidoVendaCriado } from "@/lib/notify-pedido-venda";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
   const pedido = await prisma.$transaction(async (tx) => {
     // Generate sequence number
     const seq = await tx.sequencia.upsert({
-      where: { prefixo: "PV" },
+      where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "PV" } },
       update: { ultimo: { increment: 1 } },
       create: { prefixo: "PV", ultimo: 1 },
     });

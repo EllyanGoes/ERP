@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { findMatchingCotacoes } from "@/lib/cotacao-match";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -126,7 +127,7 @@ export async function POST(req: NextRequest) {
 
   const pedido = await prisma.$transaction(async (tx) => {
     const seq = await tx.sequencia.upsert({
-      where:  { prefixo: "PC" },
+      where:  { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "PC" } },
       create: { prefixo: "PC", ultimo: 1 },
       update: { ultimo: { increment: 1 } },
     });
