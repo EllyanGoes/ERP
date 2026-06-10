@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import NovoPedidoButton from "@/components/pedidos-venda/NovoPedidoButton";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurat
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import {
-  Plus, Search, X, LayoutList, Kanban, Loader2,
+  Search, X, LayoutList, Kanban, Loader2,
   ChevronDown as ChevronDownIcon, CalendarDays, Download, Check,
   ShoppingCart, AlertTriangle, Trash2,
 } from "lucide-react";
@@ -660,12 +660,7 @@ export default function PedidosVendaPage() {
         title="Pedidos de Venda"
         breadcrumbs={[{ label: "Comercial" }, { label: "Pedidos de Venda" }]}
         action={
-          <Button asChild>
-            <Link href="/pedidos-venda/novo">
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Pedido
-            </Link>
-          </Button>
+          <NovoPedidoButton onCreated={load} />
         }
       />
 

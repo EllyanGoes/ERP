@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session-context";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import CreateDrawer from "@/components/shared/CreateDrawer";
+import PedidoCompraCreateForm from "@/components/suprimentos/PedidoCompraCreateForm";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -499,6 +501,7 @@ export default function PedidosCompraPage() {
     });
   }
 
+  const [novoAberto, setNovoAberto] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -744,14 +747,22 @@ export default function PedidosCompraPage() {
         title="Pedidos de Compra"
         breadcrumbs={[{ label: "Suprimentos" }, { label: "Pedidos de Compra" }]}
         action={
-          <Button asChild>
-            <Link href="/suprimentos/pedidos-compra/novo">
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Pedido Manual
-            </Link>
+          <Button onClick={() => setNovoAberto(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Pedido Manual
           </Button>
         }
       />
+
+      <CreateDrawer
+        open={novoAberto}
+        onOpenChange={setNovoAberto}
+        title="Novo Pedido de Compra"
+        width="xl"
+        onCreated={load}
+      >
+        <PedidoCompraCreateForm />
+      </CreateDrawer>
 
       {/* ── Toolbar ───────────────────────────────────────────────────────── */}
       <div className="px-8 pb-4 flex items-center gap-3 flex-wrap">

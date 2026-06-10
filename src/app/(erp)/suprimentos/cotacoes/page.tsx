@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import CreateDrawer from "@/components/shared/CreateDrawer";
+import CotacaoCreateForm from "@/components/suprimentos/CotacaoCreateForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -439,6 +441,7 @@ export default function CotacoesPage() {
     return true;
   }
 
+  const [novaAberta, setNovaAberta] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -521,14 +524,22 @@ export default function CotacoesPage() {
         title="Cotações de Compra"
         breadcrumbs={[{ label: "Suprimentos" }, { label: "Cotações" }]}
         action={
-          <Button asChild>
-            <Link href="/suprimentos/cotacoes/nova">
-              <Plus className="w-4 h-4 mr-2" />
-              Nova Cotação
-            </Link>
+          <Button onClick={() => setNovaAberta(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Cotação
           </Button>
         }
       />
+
+      <CreateDrawer
+        open={novaAberta}
+        onOpenChange={setNovaAberta}
+        title="Nova Cotação de Compra"
+        width="xl"
+        onCreated={load}
+      >
+        <CotacaoCreateForm />
+      </CreateDrawer>
 
       <div className="px-8 pb-8 space-y-4">
 

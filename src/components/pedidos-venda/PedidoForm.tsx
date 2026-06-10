@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Search, Loader2, Tag, Package } from "lucide-react";
 import { formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useSession } from "@/lib/session-context";
+import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 
@@ -194,6 +195,7 @@ export default function PedidoForm({
   // Header form
   const [clienteId,         setClienteId]         = useState(pedido?.clienteId ?? "");
   const { user: usuarioSessao } = useSession();
+  const voltarLista = useVoltarCriacao("/pedidos-venda");
   const empresasGrupo = usuarioSessao?.empresas ?? [];
   const [empresaId, setEmpresaId] = useState(""); // "" = empresa ativa (só na criação)
   const [numeroOrcamento,   setNumeroOrcamento]   = useState(pedido?.numeroOrcamento ?? "");
@@ -1385,7 +1387,7 @@ export default function PedidoForm({
               </Button>
             </>
           )}
-          <Button type="button" variant="ghost" onClick={() => router.back()} disabled={!!submitting} className="text-gray-500 hover:text-gray-700">
+          <Button type="button" variant="ghost" onClick={pedido ? () => router.back() : voltarLista} disabled={!!submitting} className="text-gray-500 hover:text-gray-700">
             Cancelar
           </Button>
         </div>
