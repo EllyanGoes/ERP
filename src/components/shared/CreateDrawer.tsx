@@ -87,21 +87,41 @@ export default function CreateDrawer({
   );
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent side="right" className={cn("w-full flex flex-col p-0", LARGURAS[width])}>
-        <SheetHeader className="px-6 py-4">
-          <SheetTitle>{title}</SheetTitle>
-        </SheetHeader>
-        <div className="flex-1 overflow-y-auto px-6 py-5 bg-gray-50/60">
-          {/* monta o conteúdo só com o painel aberto: o form nasce zerado a cada abertura */}
-          {open && (
-            <Ctx.Provider value={{ fechar, aposCriar, recriar }}>
-              <div key={conteudoKey}>{children}</div>
-            </Ctx.Provider>
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
+    <>
+      {/* Overlay próprio: o Sheet roda NÃO-modal (modal teria pointer-events
+          bloqueado no body, matando os dropdowns dos formulários, que abrem
+          via portal no document.body). Clique no overlay fecha com guard. */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+          onClick={() => handleOpenChange(false)}
+          aria-hidden
+        />
+      )}
+      <Sheet open={open} onOpenChange={handleOpenChange} modal={false}>
+        <SheetContent
+          side="right"
+          className={cn("w-full flex flex-col p-0", LARGURAS[width])}
+          // não-modal: cliques nos menus portalados não podem fechar o painel
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          onFocusOutside={(e) => e.preventDefault()}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <SheetHeader className="px-6 py-4">
+            <SheetTitle>{title}</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-5 bg-gray-50/60">
+            {/* monta o conteúdo só com o painel aberto: o form nasce zerado a cada abertura */}
+            {open && (
+              <Ctx.Provider value={{ fechar, aposCriar, recriar }}>
+                <div key={conteudoKey}>{children}</div>
+              </Ctx.Provider>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
 
