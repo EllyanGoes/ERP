@@ -297,8 +297,9 @@ const adminModule: Module = {
     {
       kind: "Sistema",
       items: [
-        { href: "/admin/usuarios", label: "Usuários",          icon: UserCog },
-        { href: "/admin/perfis",   label: "Perfis de Acesso",  icon: ShieldCheck },
+        { href: "/admin/usuarios",    label: "Usuários",             icon: UserCog },
+        { href: "/admin/perfis",      label: "Perfis de Acesso",     icon: ShieldCheck },
+        { href: "/admin/consolidado", label: "Consolidado do Grupo", icon: Building2 },
       ],
     },
   ],
