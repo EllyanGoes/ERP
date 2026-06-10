@@ -8,6 +8,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const record = await prisma.pedidoCompra.findUnique({
     where: { id: params.id },
     include: {
+      empresa: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
       fornecedor: {
         select: {
           id: true, razaoSocial: true, nomeFantasia: true,
@@ -23,6 +24,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
               numero: true,
               solicitante: true,
               justificativa: true,
+              motivo: true,
               centroCusto: { select: { nome: true } },
               localEstoque: { select: { nome: true } },
               itens: {
@@ -43,6 +45,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         select: {
           id: true, numero: true, solicitante: true,
           justificativa: true,
+          motivo: true,
           centroCusto:  { select: { nome: true } },
           localEstoque: { select: { nome: true } },
           setor:        { select: { nome: true } },

@@ -41,6 +41,7 @@ type CotacaoFornecedor = {
 type NecessidadeMin = {
   id: string; numero: string; solicitante: string | null;
   justificativa: string | null;
+  motivo: string | null;
   centroCusto:  { nome: string } | null;
   localEstoque: { nome: string } | null;
   setor:        { nome: string } | null;
@@ -57,11 +58,13 @@ type PedidoCompra = {
   cotacaoId: string | null;
   necessidadeId: string | null;
   necessidade: NecessidadeMin | null;
+  empresa: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
   cotacao: {
     id: string; numero: string; nome: string | null;
     necessidade: {
       id: string; numero: string; solicitante: string | null;
       justificativa: string | null;
+      motivo: string | null;
       centroCusto:  { nome: string } | null;
       localEstoque: { nome: string } | null;
       setor:        { nome: string } | null;
@@ -324,13 +327,21 @@ async function openWAModal() {
 
     const lines: string[] = [];
 
+    // ── Empresa do pedido ──────────────────────────────────────────────────────
+    const empresaNome = pedido.empresa ? (pedido.empresa.nomeFantasia || pedido.empresa.razaoSocial) : null;
+    if (empresaNome) {
+      lines.push(`*Empresa:* ${empresaNome}`);
+      lines.push(``);
+    }
+
     // ── SC block (only if linked) ──────────────────────────────────────────────
     if (sc) {
       lines.push(`*SC:* ${sc.numero}`);
       const setor = sc.centroCusto?.nome ?? sc.localEstoque?.nome ?? null;
       if (setor)              lines.push(`*Setor:* ${setor}`);
       if (sc.solicitante)     lines.push(`*Solicitante:* ${sc.solicitante}`);
-      if (sc.justificativa)   lines.push(`*Descrição:* ${sc.justificativa}`);
+      lines.push(`*Motivo:* ${sc.motivo ?? "—"}`);
+      lines.push(`*Descrição:* ${sc.justificativa ?? "—"}`);
       lines.push(``);
     }
 

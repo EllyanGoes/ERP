@@ -112,6 +112,7 @@ export async function POST(req: NextRequest) {
       include: {
         necessidade: {
           include: {
+            empresa: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
             filial: true,
             itens: {
               include: {
@@ -203,9 +204,12 @@ export async function POST(req: NextRequest) {
         const msgBody = [
           `*Ordem de Compras Nº ${sc.numero}*`,
           ``,
+          `• *Empresa:* ${sc.empresa ? (sc.empresa.nomeFantasia ?? sc.empresa.razaoSocial) : "—"}`,
           `• *Filial:* ${filialNome}`,
           `• *Solicitante:* ${sc.solicitante ?? "—"}`,
           `• *Prioridade:* ${sc.prioridade}`,
+          `• *Motivo:* ${sc.motivo ?? "—"}`,
+          `• *Descrição:* ${sc.justificativa ?? "—"}`,
           ``,
           `*Itens (${sc.itens.length}):*`,
           ...linhasItens,

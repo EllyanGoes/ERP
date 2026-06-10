@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTabTitle } from "@/lib/tabs-context";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -243,7 +243,7 @@ export default function RequisicaoDetailPage() {
               {req.tipo === "REQUISICAO" ? "Requisição de Materiais" : "Devolução de Materiais"}
             </span>
           </div>
-          <p className="text-sm text-gray-500">{req.localEstoque?.nome} · {new Date(req.data).toLocaleDateString("pt-BR")}</p>
+          <p className="text-sm text-gray-500">{req.localEstoque?.nome} · {formatDate(req.data)}</p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -350,7 +350,7 @@ export default function RequisicaoDetailPage() {
               <div><dt className="text-xs text-gray-400 font-medium">Funcionário</dt><dd className="text-gray-800 mt-0.5">{req.colaborador?.nome ?? "—"}</dd></div>
               <div><dt className="text-xs text-gray-400 font-medium">Setor</dt><dd className="text-gray-800 mt-0.5">{req.setor?.nome ?? "—"}</dd></div>
               <div><dt className="text-xs text-gray-400 font-medium">Almoxarife</dt><dd className="text-gray-800 mt-0.5">{req.almoxarife?.nome ?? "—"}</dd></div>
-              <div><dt className="text-xs text-gray-400 font-medium">Data</dt><dd className="text-gray-800 mt-0.5">{new Date(req.data).toLocaleDateString("pt-BR")}</dd></div>
+              <div><dt className="text-xs text-gray-400 font-medium">Data</dt><dd className="text-gray-800 mt-0.5">{formatDate(req.data)}</dd></div>
               {req.tipo === "REQUISICAO" && <>
                 <div><dt className="text-xs text-gray-400 font-medium">O.S.</dt><dd className="text-gray-800 mt-0.5">{req.os ?? "—"}</dd></div>
                 <div><dt className="text-xs text-gray-400 font-medium">Centro de Custo</dt><dd className="text-gray-800 mt-0.5">{req.centroCusto ? `${req.centroCusto.codigo} — ${req.centroCusto.nome}` : "—"}</dd></div>

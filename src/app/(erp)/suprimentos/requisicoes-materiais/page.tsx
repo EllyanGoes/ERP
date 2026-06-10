@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ClipboardList, Plus, Search, RefreshCw, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 
 type Req = {
@@ -163,7 +163,7 @@ export default function RequisicoesMaterialPage() {
                   <td className="px-4 py-3 text-gray-800 font-medium">{r.localEstoque?.nome ?? <span className="text-gray-400">—</span>}</td>
                   <td className="px-4 py-3 text-gray-700">{r.colaborador?.nome ?? <span className="text-gray-400">—</span>}</td>
                   <td className="px-4 py-3 text-gray-600 text-xs font-medium">
-                    {new Date(r.data).toLocaleDateString("pt-BR")}
+                    {formatDate(r.data)}
                   </td>
                   <td className="px-4 py-3 text-center text-gray-700 font-medium">{r._count.itens}</td>
                   <td className="px-4 py-3 text-center">

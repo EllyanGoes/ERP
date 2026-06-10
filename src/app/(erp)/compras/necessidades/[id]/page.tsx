@@ -45,6 +45,7 @@ type Necessidade = {
   projeto: string | null; classificacaoAuxiliar: string | null;
   filialId: string | null; localEstoqueId: string | null; centroCustoId: string | null;
   colaboradorId: string | null; setorId: string | null;
+  empresa:       { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
   filial:        { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
   localEstoque:  { id: string; nome: string } | null;
   centroCusto:   { id: string; codigo: string; nome: string } | null;
@@ -391,11 +392,13 @@ export default function NecessidadeDetailPage() {
     return [
       `🛒 Solicitação de Compras Nº ${necessidade.numero}`,
       ``,
+      `• Empresa: ${necessidade.empresa?.nomeFantasia ?? necessidade.empresa?.razaoSocial ?? "—"}`,
       `• Filial: ${necessidade.filial?.nomeFantasia ?? necessidade.filial?.razaoSocial ?? "—"}`,
       `• Solicitado por: ${necessidade.solicitante ?? "—"}`,
       `• Data: ${new Date(necessidade.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`,
       `• Prioridade: ${prioLabel[necessidade.prioridade] ?? necessidade.prioridade}`,
-      ...(necessidade.justificativa ? [`• Descrição: ${necessidade.justificativa}`] : []),
+      `• Motivo: ${necessidade.motivo ?? "—"}`,
+      `• Descrição: ${necessidade.justificativa ?? "—"}`,
       ``,
       `Itens (${necessidade.itens.length}):`,
       ...itensLines,

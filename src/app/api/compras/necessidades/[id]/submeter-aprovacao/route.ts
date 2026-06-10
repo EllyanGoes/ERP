@@ -16,12 +16,14 @@ type ItemLinha = { descricao: string; quantidade: number; unidade: string };
 
 function buildMsgBody(sc: {
   numero: string;
+  empresaNome: string | null;
   filialNome: string;
   solicitante: string | null;
   createdAt: Date;
   itens: ItemLinha[];
   valorTotal: string | null;
   prioridade: number;
+  motivo: string | null;
   justificativa: string | null;
   etapaNome?: string;
 }): string {
@@ -37,12 +39,14 @@ function buildMsgBody(sc: {
   return [
     `*Ordem de Compras Nº ${sc.numero}*`,
     ``,
+    `• *Empresa:* ${sc.empresaNome ?? "—"}`,
     `• *Filial:* ${sc.filialNome}`,
     `• *Solicitado por:* ${sc.solicitante ?? "—"}`,
     `• *Data:* ${data}`,
     `• *Prioridade:* ${PRIORIDADE_LABEL[sc.prioridade] ?? sc.prioridade}`,
     ...(sc.valorTotal ? [`• *Valor total:* ${sc.valorTotal}`] : []),
-    ...(sc.justificativa ? [`• *Descrição:* ${sc.justificativa}`] : []),
+    `• *Motivo:* ${sc.motivo ?? "—"}`,
+    `• *Descrição:* ${sc.justificativa ?? "—"}`,
     ``,
     `*Itens (${sc.itens.length}):*`,
     ...linhasItens,
@@ -73,6 +77,7 @@ export async function POST(
     const sc = await prisma.necessidadeCompra.findUnique({
       where: { id: params.id },
       include: {
+        empresa:     { select: { id: true, razaoSocial: true, nomeFantasia: true } },
         filial:      true,
         setor:       { select: { id: true, nome: true } },
         colaborador: { select: { id: true, nome: true } },
@@ -253,6 +258,7 @@ export async function POST(
 
           const msgBody = buildMsgBody({
             numero: sc.numero,
+            empresaNome: sc.empresa ? (sc.empresa.nomeFantasia || sc.empresa.razaoSocial) : null,
             filialNome,
             solicitante: sc.solicitante,
             createdAt: sc.createdAt,
@@ -263,6 +269,7 @@ export async function POST(
             })),
             valorTotal: valorTotalStr,
             prioridade: sc.prioridade,
+            motivo: sc.motivo,
             justificativa: sc.justificativa,
             etapaNome,
           });

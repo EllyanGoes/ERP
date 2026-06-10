@@ -427,7 +427,9 @@ export default function NovaRequisicaoPage() {
   const [colaboradorId,  setColaboradorId]  = useState("");
   const [setorId,        setSetorId]        = useState("");
   const [almoxarifeId,   setAlmoxarifeId]   = useState("");
-  const [data,           setData]           = useState(() => new Date().toISOString().split("T")[0]);
+  // Data de hoje no fuso do USUÁRIO (toISOString seria UTC: depois das ~21h
+  // no Brasil já viraria o dia seguinte e o formulário nasceria com data errada)
+  const [data,           setData]           = useState(() => new Date().toLocaleDateString("sv-SE"));
   const [os,             setOs]             = useState("");
   const [centroCustoId,  setCentroCustoId]  = useState("");
   const [contaContabil,  setContaContabil]  = useState("");
