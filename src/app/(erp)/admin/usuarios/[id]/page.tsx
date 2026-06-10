@@ -14,10 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Eye, EyeOff, Save, X, ShieldCheck, Loader2, Zap } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Eye, EyeOff, Save, X, ShieldCheck, Loader2, Zap, Building2 } from "lucide-react";
 import { MODULOS, getAllPermissoes } from "@/lib/modules";
 import ModuloRow from "@/components/admin/ModuloRow";
+import { useSession } from "@/lib/session-context";
 
 type Usuario = {
   id: string;
@@ -51,16 +51,23 @@ export default function EditarUsuarioPage() {
   const [permissoes,     setPermissoes]     = useState<string[]>([]);
   const [perfilAcessoId, setPerfilAcessoId] = useState<string>("none");
   const [perfisList,     setPerfisList]     = useState<PerfilAcesso[]>([]);
+  const [empresasVinculadas, setEmpresasVinculadas] = useState<string[]>([]);
+
+  // Empresas do grupo: o admin logado enxerga todas as ativas na própria sessão
+  const { user: adminLogado } = useSession();
+  const empresasGrupo = adminLogado?.empresas ?? [];
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [resU, resP] = await Promise.all([
+      const [resU, resP, resE] = await Promise.all([
         fetch(`/api/admin/usuarios/${id}`),
         fetch("/api/admin/perfis"),
+        fetch(`/api/admin/usuarios/${id}/empresas`),
       ]);
       const data: Usuario      = await resU.json();
       const perfisData: PerfilAcesso[] = await resP.json();
+      const empresasData: string[] = await resE.json();
       setNome(data.nome);
       setEmail(data.email);
       setPerfil(data.perfil);
@@ -68,6 +75,7 @@ export default function EditarUsuarioPage() {
       setPermissoes(data.permissoes.map((p) => p.modulo));
       setPerfilAcessoId(data.perfilAcesso?.id ?? "none");
       setPerfisList(Array.isArray(perfisData) ? perfisData : []);
+      setEmpresasVinculadas(Array.isArray(empresasData) ? empresasData : []);
     } catch {
       setError("Erro ao carregar usuário");
     } finally {
@@ -109,12 +117,17 @@ export default function EditarUsuarioPage() {
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Erro ao salvar"); return; }
 
-      // Salvar permissões se USUARIO
+      // Salvar permissões e empresas se USUARIO
       if (perfil === "USUARIO") {
         await fetch(`/api/admin/usuarios/${id}/permissoes`, {
           method:  "PUT",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({ modulos: permissoes }),
+        });
+        await fetch(`/api/admin/usuarios/${id}/empresas`, {
+          method:  "PUT",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ empresaIds: empresasVinculadas }),
         });
       }
 
@@ -300,6 +313,37 @@ export default function EditarUsuarioPage() {
                   permissoes={permissoes}
                   onChange={setPermissoes}
                 />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── Empresas (multiempresa) ────────────────────────────── */}
+        {perfil === "USUARIO" && empresasGrupo.length > 1 && (
+          <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-blue-600" />
+              <h2 className="text-sm font-semibold text-gray-800">Empresas</h2>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-xs text-gray-500">
+                Empresas que este usuário pode acessar pelo seletor. Sem nenhuma marcada,
+                o acesso fica restrito à Tramontin.
+              </p>
+              {empresasGrupo.map((emp) => (
+                <label key={emp.id} className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={empresasVinculadas.includes(emp.id)}
+                    onChange={(e) =>
+                      setEmpresasVinculadas((atual) =>
+                        e.target.checked ? [...atual, emp.id] : atual.filter((x) => x !== emp.id)
+                      )
+                    }
+                  />
+                  {emp.nome}
+                </label>
               ))}
             </div>
           </section>

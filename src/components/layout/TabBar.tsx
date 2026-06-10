@@ -7,6 +7,7 @@ import { useTabsContext, type Tab } from "@/lib/tabs-context";
 import { useDirtyFormContext } from "@/lib/dirty-form-context";
 import { routeColor } from "@/lib/route-registry";
 import { cn } from "@/lib/utils";
+import EmpresaSelector from "@/components/layout/EmpresaSelector";
 
 type DropTarget = { id: string; side: "before" | "after" } | null;
 
@@ -146,6 +147,7 @@ export default function TabBar() {
           );
         })}
       </div>
+      <EmpresaSelector />
     </div>
   );
 }

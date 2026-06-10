@@ -562,6 +562,7 @@ model Empresa {
   planoMestres           PlanoMestre[]
   requisicaoMaterials    RequisicaoMaterial[]
   inventarioMaterials    InventarioMaterial[]
+  usuarioEmpresas        UsuarioEmpresa[]
 }
 
 model EnderecoEstoque {
@@ -1315,6 +1316,20 @@ model Usuario {
   perfilAcesso       PerfilAcesso?    @relation(fields: [perfilAcessoId], references: [id])
   ticketsAbertos     SupportTicket[]  @relation("TicketsAbertos")
   ticketsRespondidos SupportTicket[]  @relation("TicketsRespondidos")
+  empresas           UsuarioEmpresa[]
+}
+
+// Vínculo usuário ↔ empresa (multiempresa, Fase 3). ADMIN enxerga todas as
+// empresas ativas; USUARIO só as vinculadas aqui (sem vínculo = só Tramontin).
+model UsuarioEmpresa {
+  id        String  @id @default(cuid())
+  usuarioId String
+  empresaId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, empresaId])
+  @@index([empresaId])
 }
 
 // Criticidade (A/B/C) de um ativo do Engeman. Os ativos vivem no Engeman

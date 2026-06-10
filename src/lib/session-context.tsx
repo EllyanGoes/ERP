@@ -8,6 +8,9 @@ export type SessionUser = {
   email: string;
   perfil: "ADMIN" | "USUARIO";
   modulos: string[];
+  // Multiempresa (Fase 3) — opcionais até o refresh povoar
+  empresas?: { id: string; nome: string; slug: string | null }[];
+  activeEmpresaId?: string;
 };
 
 type SessionContextType = {

@@ -34,8 +34,12 @@ export async function POST() {
     : user.permissoes.map((p) => p.modulo);
 
   // O token carrega só identidade — módulos vêm do banco (evita cookie > 4KB).
-  // Preserva a empresa ativa do token atual, se ela continuar válida.
-  const { activeEmpresaId, empresaIds } = await empresasParaSessao(session.activeEmpresaId);
+  // Preserva a empresa ativa do token atual, se ela continuar permitida.
+  const { activeEmpresaId, empresaIds, empresas } = await empresasParaSessao(
+    user.id,
+    user.perfil as "ADMIN" | "USUARIO",
+    session.activeEmpresaId
+  );
   const payload: SessionPayload = {
     sub:    user.id,
     email:  user.email,
@@ -54,6 +58,8 @@ export async function POST() {
       email:   user.email,
       perfil:  user.perfil,
       modulos,
+      empresas,
+      activeEmpresaId,
     },
   });
 

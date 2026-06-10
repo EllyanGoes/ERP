@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     : user.permissoes.map((p) => p.modulo);
 
   // O token carrega só identidade — módulos vêm do banco (evita cookie > 4KB).
-  const { activeEmpresaId, empresaIds } = await empresasParaSessao();
+  const { activeEmpresaId, empresaIds, empresas } = await empresasParaSessao(user.id, user.perfil);
   const payload: SessionPayload = {
     sub: user.id,
     email: user.email,
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   const token = signToken(payload);
 
   const res = NextResponse.json({
-    user: { id: user.id, nome: user.nome, email: user.email, perfil: user.perfil, modulos },
+    user: { id: user.id, nome: user.nome, email: user.email, perfil: user.perfil, modulos, empresas, activeEmpresaId },
   });
 
   res.cookies.set(COOKIE_NAME, token, {

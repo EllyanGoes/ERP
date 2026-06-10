@@ -6,26 +6,57 @@ import { prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
  */
 export { EMPRESA_PADRAO_ID };
 
+export type EmpresaResumo = { id: string; nome: string; slug: string | null };
+
 /**
- * Resolve os campos de empresa do token de sessão (login/refresh).
- *
- * Fase 2: todo usuário ativo enxerga todas as empresas ativas do grupo (hoje,
- * só a Tramontin). O vínculo usuário↔empresa com permissões por empresa vem na
- * Fase 3. `atualAtiva` preserva a empresa ativa atual num refresh, se ela
- * continuar válida.
+ * Empresas que um usuário pode ativar no seletor (Fase 3):
+ *   • ADMIN — todas as empresas ativas do grupo;
+ *   • USUARIO — as vinculadas em UsuarioEmpresa (∩ ativas); sem nenhum
+ *     vínculo, cai na Tramontin (preserva o comportamento de antes do
+ *     multiempresa para os usuários existentes).
  */
-export async function empresasParaSessao(atualAtiva?: string): Promise<{
-  activeEmpresaId: string;
-  empresaIds: string[];
-}> {
-  const empresas = await prismaSemEscopo.empresa.findMany({
+export async function empresasVisiveis(
+  usuarioId: string,
+  perfil: "ADMIN" | "USUARIO"
+): Promise<EmpresaResumo[]> {
+  const ativas = await prismaSemEscopo.empresa.findMany({
     where: { ativo: true },
-    select: { id: true },
+    select: { id: true, razaoSocial: true, nomeFantasia: true, slug: true },
     orderBy: { createdAt: "asc" },
   });
+  const resumo = (e: (typeof ativas)[number]): EmpresaResumo => ({
+    id: e.id,
+    nome: e.nomeFantasia ?? e.razaoSocial,
+    slug: e.slug,
+  });
+
+  if (perfil === "ADMIN") return ativas.map(resumo);
+
+  const vinculos = await prismaSemEscopo.usuarioEmpresa.findMany({
+    where: { usuarioId },
+    select: { empresaId: true },
+  });
+  const vinculadas = new Set(vinculos.map((v) => v.empresaId));
+  const visiveis = ativas.filter((e) => vinculadas.has(e.id));
+  if (visiveis.length > 0) return visiveis.map(resumo);
+
+  const padrao = ativas.find((e) => e.id === EMPRESA_PADRAO_ID);
+  return padrao ? [resumo(padrao)] : [];
+}
+
+/**
+ * Resolve os campos de empresa do token de sessão (login/refresh/switch).
+ * `atualAtiva` preserva a empresa ativa atual, se ela continuar permitida.
+ */
+export async function empresasParaSessao(
+  usuarioId: string,
+  perfil: "ADMIN" | "USUARIO",
+  atualAtiva?: string
+): Promise<{ activeEmpresaId: string; empresaIds: string[]; empresas: EmpresaResumo[] }> {
+  const empresas = await empresasVisiveis(usuarioId, perfil);
   const empresaIds = empresas.map((e) => e.id);
   const padrao =
     empresaIds.includes(EMPRESA_PADRAO_ID) ? EMPRESA_PADRAO_ID : empresaIds[0] ?? EMPRESA_PADRAO_ID;
   const activeEmpresaId = atualAtiva && empresaIds.includes(atualAtiva) ? atualAtiva : padrao;
-  return { activeEmpresaId, empresaIds };
+  return { activeEmpresaId, empresaIds, empresas };
 }

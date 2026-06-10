@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
 
     // 4. Issue JWT cookie (same flow as email/password login)
     // O token carrega só identidade — módulos vêm do banco (evita cookie > 4KB).
-    const { activeEmpresaId, empresaIds } = await empresasParaSessao();
+    const { activeEmpresaId, empresaIds } = await empresasParaSessao(user.id, user.perfil);
     const payload: SessionPayload = {
       sub:    user.id,
       email:  user.email,
