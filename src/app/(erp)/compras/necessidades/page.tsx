@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { usePersistedFilters } from "@/lib/use-persisted-filters";
 import PageHeader from "@/components/shared/PageHeader";
+import CreateDrawer from "@/components/shared/CreateDrawer";
+import SolicitacaoCreateForm from "@/components/compras/SolicitacaoCreateForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -702,6 +704,7 @@ export default function NecessidadesPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError,   setDeleteError]   = useState("");
 
+  const [novaAberta, setNovaAberta] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
     const res  = await fetch("/api/suprimentos/necessidades");
@@ -822,14 +825,22 @@ export default function NecessidadesPage() {
         title="Solicitações de Compras"
         breadcrumbs={[{ label: "Compras" }, { label: "Solicitações" }]}
         action={
-          <Button asChild>
-            <Link href="/compras/necessidades/nova">
-              <Plus className="w-4 h-4 mr-2" />
-              Nova Solicitação
-            </Link>
+          <Button onClick={() => setNovaAberta(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Solicitação
           </Button>
         }
       />
+
+      <CreateDrawer
+        open={novaAberta}
+        onOpenChange={setNovaAberta}
+        title="Nova Solicitação de Compras"
+        width="xl"
+        onCreated={load}
+      >
+        <SolicitacaoCreateForm />
+      </CreateDrawer>
 
       <div className="px-8 pb-8 space-y-4">
 

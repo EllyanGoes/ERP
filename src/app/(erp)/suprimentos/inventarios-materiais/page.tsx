@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ClipboardCheck, Plus, Search, RefreshCw, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import CreateDrawer from "@/components/shared/CreateDrawer";
+import InventarioCreateForm from "@/components/suprimentos/InventarioCreateForm";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -38,6 +40,7 @@ export default function InventariosMaterialPage() {
   const [search, setSearch]   = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
+  const [novoAberto, setNovoAberto] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
@@ -68,10 +71,20 @@ export default function InventariosMaterialPage() {
             <p className="text-xs text-gray-400">Contagens e conferências de estoque do almoxarifado</p>
           </div>
         </div>
-        <Button size="sm" onClick={() => router.push("/suprimentos/inventarios-materiais/nova")}>
+        <Button size="sm" onClick={() => setNovoAberto(true)}>
           <Plus className="w-4 h-4 mr-1" />Novo Inventário
         </Button>
       </div>
+
+      <CreateDrawer
+        open={novoAberto}
+        onOpenChange={setNovoAberto}
+        title="Novo Inventário de Materiais"
+        width="xl"
+        onCreated={load}
+      >
+        <InventarioCreateForm />
+      </CreateDrawer>
 
       <div className="flex items-center gap-3 mb-4">
         <div className="relative flex-1 max-w-xs">

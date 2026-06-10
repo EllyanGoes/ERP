@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import CreateDrawer from "@/components/shared/CreateDrawer";
+import MinutaCreateForm from "@/components/comercial/MinutaCreateForm";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -398,6 +399,7 @@ export default function MinutasPage() {
 
   const [minutas, setMinutas] = useState<Minuta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [novaAberta, setNovaAberta] = useState(false);
   const [filters, setFilters] = useState<Filters>(loadFilters);
 
   // ── Kanban drag state ─────────────────────────────────────────────────────
@@ -637,14 +639,22 @@ export default function MinutasPage() {
         title="Minutas"
         breadcrumbs={[{ label: "Comercial" }, { label: "Minutas" }]}
         action={
-          <Button asChild>
-            <Link href="/comercial/minutas/nova">
-              <Plus className="w-4 h-4 mr-2" />
-              Nova Minuta
-            </Link>
+          <Button onClick={() => setNovaAberta(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Minuta
           </Button>
         }
       />
+
+      <CreateDrawer
+        open={novaAberta}
+        onOpenChange={setNovaAberta}
+        title="Nova Minuta"
+        width="lg"
+        onCreated={load}
+      >
+        <MinutaCreateForm />
+      </CreateDrawer>
 
       {/* ── Toolbar ───────────────────────────────────────────────────────── */}
       <div className="px-8 pb-4 flex items-center gap-3 flex-wrap">

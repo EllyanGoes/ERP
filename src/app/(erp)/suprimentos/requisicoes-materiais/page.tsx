@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { ClipboardList, Plus, Search, RefreshCw, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import CreateDrawer from "@/components/shared/CreateDrawer";
+import RequisicaoCreateForm from "@/components/suprimentos/RequisicaoCreateForm";
 import { Input } from "@/components/ui/input";
 import { cn, formatDate } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -44,6 +45,7 @@ export default function RequisicoesMaterialPage() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterTipo, setFilterTipo]     = useState("");
 
+  const [novaAberta, setNovaAberta] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
@@ -80,10 +82,20 @@ export default function RequisicoesMaterialPage() {
             <p className="text-xs text-gray-400">Requisições e devoluções de materiais do almoxarifado</p>
           </div>
         </div>
-        <Button size="sm" onClick={() => router.push("/suprimentos/requisicoes-materiais/nova")}>
+        <Button size="sm" onClick={() => setNovaAberta(true)}>
           <Plus className="w-4 h-4 mr-1" />Nova Requisição
         </Button>
       </div>
+
+      <CreateDrawer
+        open={novaAberta}
+        onOpenChange={setNovaAberta}
+        title="Nova Req/Dev de Materiais"
+        width="xl"
+        onCreated={load}
+      >
+        <RequisicaoCreateForm />
+      </CreateDrawer>
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-4">

@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
 import { contaPagarSchema, type ContaPagarFormData } from "@/lib/validations/financeiro";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -12,12 +11,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
+import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 
 type FornecedorOption = { id: string; razaoSocial: string };
 const CATEGORIAS = ["Aluguel","Energia","Água","Internet","Folha de Pagamento","Impostos","Fornecedores","Marketing","Outros"];
 
 export default function ContaPagarForm({ fornecedores }: { fornecedores: FornecedorOption[] }) {
-  const router = useRouter();
+  const voltar = useVoltarCriacao("/contas-pagar");
   const form = useForm<ContaPagarFormData>({
     resolver: zodResolver(contaPagarSchema) as Resolver<ContaPagarFormData>,
     defaultValues: { dataVencimento: new Date().toISOString().split("T")[0] },
@@ -127,7 +127,7 @@ export default function ContaPagarForm({ fornecedores }: { fornecedores: Fornece
         )}
         <div className="flex gap-3">
           <Button type="submit" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? "Salvando..." : "Criar Conta"}</Button>
-          <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
+          <Button type="button" variant="outline" onClick={voltar}>Cancelar</Button>
         </div>
       </form>
       {dialog}

@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
 import { contaReceberSchema, type ContaReceberFormData } from "@/lib/validations/financeiro";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -12,11 +11,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
+import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 
 type ClienteOption = { id: string; razaoSocial: string };
 
 export default function ContaReceberForm({ clientes }: { clientes: ClienteOption[] }) {
-  const router = useRouter();
+  const voltar = useVoltarCriacao("/contas-receber");
   const form = useForm<ContaReceberFormData>({
     resolver: zodResolver(contaReceberSchema) as Resolver<ContaReceberFormData>,
     defaultValues: { dataVencimento: new Date().toISOString().split("T")[0] },
@@ -123,7 +123,7 @@ export default function ContaReceberForm({ clientes }: { clientes: ClienteOption
         )}
         <div className="flex gap-3">
           <Button type="submit" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? "Salvando..." : "Criar Conta"}</Button>
-          <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
+          <Button type="button" variant="outline" onClick={voltar}>Cancelar</Button>
         </div>
       </form>
       {dialog}

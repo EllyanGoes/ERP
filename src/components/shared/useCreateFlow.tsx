@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTabsContext } from "@/lib/tabs-context";
+import { useCreateDrawer } from "@/components/shared/CreateDrawer";
 import {
   Dialog,
   DialogContent,
@@ -36,9 +38,15 @@ type UseCreateFlowOptions = {
  *  - "Fechar"          → closes the current "Novo …" tab.
  *
  * Render the returned `dialog` somewhere inside the form.
+ *
+ * Dentro de um CreateDrawer (criação em painel lateral), as ações mudam de
+ * alvo: "Fechar" fecha o painel e atualiza a lista; "Ver cadastro" fecha o
+ * painel e abre a aba do registro. Fora do drawer, comportamento de abas.
  */
 export function useCreateFlow({ entity, gender = "m", onNew, viewHref }: UseCreateFlowOptions) {
   const { closeCurrentTab, replaceCurrentTab } = useTabsContext();
+  const drawer = useCreateDrawer();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
 
@@ -49,18 +57,27 @@ export function useCreateFlow({ entity, gender = "m", onNew, viewHref }: UseCrea
 
   const handleNew = useCallback(() => {
     setOpen(false);
-    onNew();
-  }, [onNew]);
+    if (drawer) drawer.recriar(); // remonta o form zerado dentro do painel
+    else onNew();
+  }, [onNew, drawer]);
 
   const handleView = useCallback(() => {
     setOpen(false);
-    if (createdId && viewHref) replaceCurrentTab(viewHref(createdId));
-  }, [createdId, viewHref, replaceCurrentTab]);
+    if (createdId && viewHref) {
+      if (drawer) {
+        drawer.aposCriar();
+        router.push(viewHref(createdId));
+      } else {
+        replaceCurrentTab(viewHref(createdId));
+      }
+    }
+  }, [createdId, viewHref, replaceCurrentTab, drawer, router]);
 
   const handleClose = useCallback(() => {
     setOpen(false);
-    closeCurrentTab();
-  }, [closeCurrentTab]);
+    if (drawer) drawer.aposCriar();
+    else closeCurrentTab();
+  }, [closeCurrentTab, drawer]);
 
   const cadastrado = gender === "f" ? "Cadastrada" : "Cadastrado";
   const novo = gender === "f" ? "nova" : "novo";

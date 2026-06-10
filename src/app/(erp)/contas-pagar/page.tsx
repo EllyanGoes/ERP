@@ -1,9 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/shared/PageHeader";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { Plus } from "lucide-react";
 import ContasPagarTable from "@/components/financeiro/ContasPagarTable";
+import NovaContaButton from "@/components/financeiro/NovaContaButton";
 import { formatBRL, decimalToNumber, isVencida } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -34,12 +32,7 @@ export default async function ContasPagarPage() {
         title="Contas a Pagar"
         breadcrumbs={[{ label: "Financeiro" }, { label: "Contas a Pagar" }]}
         action={
-          <Button asChild>
-            <Link href="/contas-pagar/nova">
-              <Plus className="w-4 h-4 mr-2" />
-              Nova Conta
-            </Link>
-          </Button>
+          <NovaContaButton tipo="pagar" />
         }
       />
       <div className="px-8 pb-8 space-y-6">
