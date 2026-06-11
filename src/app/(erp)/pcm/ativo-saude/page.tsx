@@ -20,6 +20,20 @@ import {
 import type { MtbfMttrResponse } from "@/app/api/pcm/ativo-saude/mtbf-mttr/route";
 
 const numFmt = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+
+// Marcador "✓ sem falhas": meses com zero falhas não têm MTBF/MTTR (não existe
+// intervalo entre falhas para medir) — em vez de ponto vazio, um check verde
+// na linha de base deixa claro que o vazio é boa notícia, não falta de dado.
+function DotSemFalhas(props: { cx?: number; cy?: number; payload?: { falhas?: number } }) {
+  const { cx, cy, payload } = props;
+  if (payload?.falhas !== 0 || cx == null || cy == null) return null;
+  return (
+    <g transform={`translate(${cx},${cy - 10})`}>
+      <circle r={8} fill="#dcfce7" stroke="#16a34a" strokeWidth={1.5} />
+      <text textAnchor="middle" dy={3.5} fontSize={10} fill="#16a34a" fontWeight={700}>✓</text>
+    </g>
+  );
+}
 const fmtH = (n: number | null) => (n === null || n === undefined ? "—" : `${numFmt.format(n)} h`);
 type Filtro = "all" | "A" | "B" | "C";
 
@@ -215,10 +229,28 @@ export default function AtivoSaudePage() {
                         uma linha achatada impossível de acompanhar */}
                     <YAxis yAxisId="mtbf" tick={{ fontSize: 12, fill: "#2563eb" }} stroke="#2563eb" />
                     <YAxis yAxisId="mttr" orientation="right" tick={{ fontSize: 12, fill: "#d97706" }} stroke="#d97706" />
-                    <Tooltip formatter={(v) => `${numFmt.format(Number(v))} h`} />
+                    <Tooltip
+                      formatter={(v, name) =>
+                        name === "Sem falhas"
+                          ? ["nenhuma falha no mês ✓", "Status"]
+                          : [`${numFmt.format(Number(v))} h`, name]
+                      }
+                    />
                     <Legend />
                     <Line yAxisId="mtbf" type="monotone" dataKey="mtbf" name="MTBF" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} connectNulls />
                     <Line yAxisId="mttr" type="monotone" dataKey="mttr" name="MTTR" stroke="#d97706" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                    {/* meses sem falha: só o check verde na base (linha invisível) */}
+                    <Line
+                      yAxisId="mttr"
+                      dataKey={(d: { falhas?: number }) => (d.falhas === 0 ? 0 : null)}
+                      name="Sem falhas"
+                      stroke="#16a34a"
+                      strokeWidth={0}
+                      legendType="circle"
+                      dot={<DotSemFalhas />}
+                      activeDot={false}
+                      isAnimationActive={false}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
