@@ -194,6 +194,7 @@ export default function PedidoForm({
   const [submitError, setSubmitError] = useState("");
 
   // Header form
+  const CONSUMIDOR_FINAL_ID = "cli_consumidor_final"; // seed da migração 20260613110000
   const [clienteId,         setClienteId]         = useState(pedido?.clienteId ?? "");
   const { user: usuarioSessao } = useSession();
   const voltarLista = useVoltarCriacao("/pedidos-venda");
@@ -717,7 +718,18 @@ export default function PedidoForm({
           <div className="grid grid-cols-2 gap-4">
           {/* Cliente */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Cliente *</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Cliente *</Label>
+              {clientes.some((c) => c.id === CONSUMIDOR_FINAL_ID) && clienteId !== CONSUMIDOR_FINAL_ID && (
+                <button
+                  type="button"
+                  onClick={() => { setClienteId(CONSUMIDOR_FINAL_ID); setClienteOpen(false); }}
+                  className="text-[11px] text-blue-600 hover:underline"
+                >
+                  Consumidor final (sem cadastro)
+                </button>
+              )}
+            </div>
             <div className="relative" ref={clienteRef}>
               <button
                 type="button"
