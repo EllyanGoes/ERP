@@ -49,6 +49,15 @@ export function formatDateTime(date: Date | string | null | undefined): string {
   return format(new Date(date), "dd/MM/yyyy HH:mm", { locale: ptBR })
 }
 
+/**
+ * parseFloat aceitando vírgula OU ponto como separador decimal ("2,5" → 2.5).
+ * Para campos digitados pelo usuário — input type="number" rejeita a vírgula
+ * conforme o idioma do navegador, então os formulários usam texto decimal.
+ */
+export function parseDecimal(v: string | number | null | undefined): number {
+  return parseFloat(String(v ?? "").replace(",", "."))
+}
+
 export function generateDocNumber(prefix: string, seq: number): string {
   const year = new Date().getFullYear()
   return `${prefix}-${year}-${String(seq).padStart(4, "0")}`

@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertCircle } from "lucide-react";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { TIPO_MINUTA_LABEL, statusMinutaLabel, type StatusMinuta } from "@/lib/minuta-labels";
-import { cn } from "@/lib/utils";
+import { cn, parseDecimal } from "@/lib/utils";
 
 type ItemUnidade = {
   id: string;
@@ -192,7 +192,7 @@ export default function EditarMinutaPage() {
   }
 
   async function handleSave() {
-    const validRows = rows.filter(r => parseFloat(r.quantidade || "0") > 0);
+    const validRows = rows.filter(r => parseDecimal(r.quantidade || "0") > 0);
     if (validRows.length === 0) { setError("Informe ao menos um item com quantidade"); return; }
     if ((status === "SAIU_PARA_ENTREGA" || status === "ENTREGUE") && !localEstoqueId) {
       setError("Selecione o Local de Estoque para registrar a saída");
@@ -203,7 +203,7 @@ export default function EditarMinutaPage() {
     try {
       // Converte as quantidades para a unidade base, igual à Nova Minuta
       const itens = validRows.map(r => {
-        const qtdTyped = parseFloat(r.quantidade) || 0;
+        const qtdTyped = parseDecimal(r.quantidade) || 0;
         const selUn = r.unidades.find(u => u.unidade.id === r.unidadeId);
         const isConversion = selUn && r.unidadeId !== r.baseUnitId;
 
@@ -322,9 +322,7 @@ export default function EditarMinutaPage() {
                       </td>
                       <td className="px-4 py-3 align-middle">
                         <Input
-                          type="number"
-                          min="0"
-                          step="0.001"
+                          inputMode="decimal"
                           value={r.quantidade}
                           onChange={e => updateRow(idx, "quantidade", e.target.value)}
                           className="h-8 w-full text-right text-sm font-semibold border-blue-400 bg-blue-50 text-blue-900 focus-visible:border-blue-500 focus-visible:ring-blue-500"

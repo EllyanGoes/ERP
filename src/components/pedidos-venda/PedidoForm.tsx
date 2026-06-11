@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Search, Loader2, Tag, Package } from "lucide-react";
-import { formatBRL, decimalToNumber, cn } from "@/lib/utils";
+import { formatBRL, decimalToNumber, cn, parseDecimal } from "@/lib/utils";
 import { useSession } from "@/lib/session-context";
 import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
@@ -402,25 +402,25 @@ export default function PedidoForm({
 
       // Quando quantidade muda → recalcula quantidadeUnitaria
       if (field === "quantidade") {
-        const qty = parseFloat(value) || 0;
+        const qty = parseDecimal(value) || 0;
         updated.quantidadeUnitaria = (qty * l.fatorConversao).toFixed(3).replace(/\.?0+$/, "");
       }
       // Quando quantidadeUnitaria é editada diretamente → mantém como está
 
       // A base de cálculo é sempre quantidadeUnitaria
-      const qtdUnit = parseFloat(
+      const qtdUnit = parseDecimal(
         field === "quantidadeUnitaria" ? value : updated.quantidadeUnitaria
       ) || 0;
-      const price = parseFloat(field === "precoUnitario" ? value : l.precoUnitario) || 0;
+      const price = parseDecimal(field === "precoUnitario" ? value : l.precoUnitario) || 0;
       const bruto = qtdUnit * price;
 
       if (["quantidade", "quantidadeUnitaria", "precoUnitario", "descontoPct"].includes(field)) {
-        const pct = parseFloat(field === "descontoPct" ? value : l.descontoPct) || 0;
+        const pct = parseDecimal(field === "descontoPct" ? value : l.descontoPct) || 0;
         const { valorDesconto, valorTotal } = calcLine(qtdUnit, price, pct);
         updated.valorDesconto = valorDesconto.toFixed(2);
         updated.valorTotal    = valorTotal.toFixed(2);
       } else if (field === "valorDesconto") {
-        const vlrDesc = parseFloat(value) || 0;
+        const vlrDesc = parseDecimal(value) || 0;
         updated.descontoPct = bruto > 0 ? ((vlrDesc / bruto) * 100).toFixed(4) : "0";
         updated.valorTotal  = (bruto - vlrDesc).toFixed(2);
       }
@@ -442,7 +442,7 @@ export default function PedidoForm({
 
     setLinhas((prev) => prev.map((l) => {
       if (l._key !== key) return l;
-      const qty = parseFloat(l.quantidade) || 1;
+      const qty = parseDecimal(l.quantidade) || 1;
       // fator = 1 (unidade base selecionada), então qtdUnit = qty
       const { valorDesconto, valorTotal } = calcLine(qty, finalPrice, pct);
       return {
@@ -468,10 +468,10 @@ export default function PedidoForm({
 
       // Base unit (fator = 1)
       if (newUnidadeId === l.unidadeBaseId || !newUnidadeId) {
-        const qty     = parseFloat(l.quantidade) || 0;
+        const qty     = parseDecimal(l.quantidade) || 0;
         const qtdUnit = qty; // fator = 1
-        const price   = parseFloat(l.precoUnitario) || 0;
-        const pct     = parseFloat(l.descontoPct) || 0;
+        const price   = parseDecimal(l.precoUnitario) || 0;
+        const pct     = parseDecimal(l.descontoPct) || 0;
         const { valorDesconto, valorTotal } = calcLine(qtdUnit, price, pct);
         return {
           ...l,
@@ -489,10 +489,10 @@ export default function PedidoForm({
       const iu = l.itemUnidades.find((u) => u.unidadeId === newUnidadeId);
       if (!iu) return l;
       const fator   = decimalToNumber(iu.fatorConversao) || 1;
-      const qty     = parseFloat(l.quantidade) || 0;
+      const qty     = parseDecimal(l.quantidade) || 0;
       const qtdUnit = qty * fator;
-      const price   = parseFloat(l.precoUnitario) || 0;
-      const pct     = parseFloat(l.descontoPct) || 0;
+      const price   = parseDecimal(l.precoUnitario) || 0;
+      const pct     = parseDecimal(l.descontoPct) || 0;
       const { valorDesconto, valorTotal } = calcLine(qtdUnit, price, pct);
 
       return {
@@ -532,11 +532,11 @@ export default function PedidoForm({
 
   // ── Totals ───────────────────────────────────────────────────────────────────
 
-  const subtotal     = linhas.reduce((s, l) => s + (parseFloat(l.valorTotal) || 0), 0);
-  const freteVal     = parseFloat(valorFrete) || 0;
+  const subtotal     = linhas.reduce((s, l) => s + (parseDecimal(l.valorTotal) || 0), 0);
+  const freteVal     = parseDecimal(valorFrete) || 0;
 
-  const comodatoTotalQtd   = comodatoLinhas.reduce((s, l) => s + (parseFloat(l.quantidade) || 0), 0);
-  const comodatoTotalValor = comodatoLinhas.reduce((s, l) => s + (parseFloat(l.quantidade) || 0) * (parseFloat(l.valorUnitario) || 0), 0);
+  const comodatoTotalQtd   = comodatoLinhas.reduce((s, l) => s + (parseDecimal(l.quantidade) || 0), 0);
+  const comodatoTotalValor = comodatoLinhas.reduce((s, l) => s + (parseDecimal(l.quantidade) || 0) * (parseDecimal(l.valorUnitario) || 0), 0);
 
   // O comodato (saída) entra no total do pedido.
   const totalGeral   = subtotal + freteVal + comodatoTotalValor;
@@ -549,7 +549,7 @@ export default function PedidoForm({
     if (!dataEmissao)   { setSubmitError("Informe a data de emissão"); return false; }
     if (linhas.length === 0) { setSubmitError("Adicione pelo menos um item"); return false; }
     if (linhas.find((l) => !l.itemId)) { setSubmitError("Selecione o produto em todas as linhas"); return false; }
-    if (comodatoLinhas.some((l) => l.itemId && !(parseFloat(l.quantidade) > 0))) {
+    if (comodatoLinhas.some((l) => l.itemId && !(parseDecimal(l.quantidade) > 0))) {
       setSubmitError("Informe a quantidade dos itens em comodato");
       return false;
     }
@@ -570,9 +570,9 @@ export default function PedidoForm({
       observacoes: observacoes || null,
       itens: linhas.map((l) => {
         // quantidadeUnitaria já está em unidade base (qty × fator)
-        const qtdBase = parseFloat(l.quantidadeUnitaria) || 0;
-        const price   = parseFloat(l.precoUnitario)      || 0;
-        const pct     = parseFloat(l.descontoPct)        || 0;
+        const qtdBase = parseDecimal(l.quantidadeUnitaria) || 0;
+        const price   = parseDecimal(l.precoUnitario)      || 0;
+        const pct     = parseDecimal(l.descontoPct)        || 0;
         const { valorDesconto, valorTotal } = calcLine(qtdBase, price, pct);
         return {
           itemId:        l.itemId,
@@ -587,12 +587,12 @@ export default function PedidoForm({
       // Comodato (saída) lançado junto com o pedido. A rota POST lê esta chave
       // separadamente; o schema do PUT ignora chaves desconhecidas (edição não usa).
       comodato: comodatoLinhas
-        .filter((l) => l.itemId && (parseFloat(l.quantidade) || 0) > 0)
+        .filter((l) => l.itemId && (parseDecimal(l.quantidade) || 0) > 0)
         .map((l) => ({
           id:            l.id || undefined,
           itemId:        l.itemId,
-          quantidade:    parseFloat(l.quantidade) || 0,
-          valorUnitario: parseFloat(l.valorUnitario) || 0,
+          quantidade:    parseDecimal(l.quantidade) || 0,
+          valorUnitario: parseDecimal(l.valorUnitario) || 0,
           documento:     l.documento.trim() || null,
         })),
     };
@@ -970,7 +970,7 @@ export default function PedidoForm({
                     {/* Quantidade */}
                     <td className="px-3 py-2.5">
                       <Input
-                        type="number" min="0.001" step="0.001"
+                        inputMode="decimal"
                         value={linha.quantidade}
                         onChange={(e) => updateLinha(linha._key, "quantidade", e.target.value)}
                         className="h-9 text-xs text-right border-gray-300 font-medium"
@@ -982,7 +982,7 @@ export default function PedidoForm({
                       {linha.fatorConversao > 1 ? (
                         <div className="relative">
                           <Input
-                            type="number" min="0.001" step="0.001"
+                            inputMode="decimal"
                             value={linha.quantidadeUnitaria}
                             onChange={(e) => updateLinha(linha._key, "quantidadeUnitaria", e.target.value)}
                             className="h-9 text-xs text-right border-blue-300 bg-blue-50 font-semibold text-blue-700 focus:ring-blue-400"
@@ -991,7 +991,7 @@ export default function PedidoForm({
                         </div>
                       ) : (
                         <span className="block text-xs text-right text-gray-400 pr-1 font-medium">
-                          {parseFloat(linha.quantidadeUnitaria) || "—"}
+                          {parseDecimal(linha.quantidadeUnitaria) || "—"}
                         </span>
                       )}
                     </td>
@@ -999,7 +999,7 @@ export default function PedidoForm({
                     {/* Preço Unit. */}
                     <td className="px-3 py-2.5">
                       <Input
-                        type="number" min="0" step="0.01"
+                        inputMode="decimal"
                         value={linha.precoUnitario}
                         onChange={(e) => updateLinha(linha._key, "precoUnitario", e.target.value)}
                         className="h-9 text-xs text-right border-gray-300 font-medium"
@@ -1010,7 +1010,7 @@ export default function PedidoForm({
                     <td className="px-3 py-2.5">
                       <div className="relative">
                         <Input
-                          type="number" min="0" max="100" step="0.01"
+                          inputMode="decimal"
                           value={linha.descontoPct}
                           onChange={(e) => updateLinha(linha._key, "descontoPct", e.target.value)}
                           className="h-9 text-xs text-right pr-7 border-gray-300 font-medium"
@@ -1022,7 +1022,7 @@ export default function PedidoForm({
                     {/* Vlr. Desconto — editable, syncs with % */}
                     <td className="px-3 py-2.5">
                       <Input
-                        type="number" min="0" step="0.01"
+                        inputMode="decimal"
                         value={linha.valorDesconto}
                         onChange={(e) => updateLinha(linha._key, "valorDesconto", e.target.value)}
                         className="h-9 text-xs text-right border-gray-300 font-medium"
@@ -1032,7 +1032,7 @@ export default function PedidoForm({
                     {/* Valor Total */}
                     <td className="px-3 py-2.5 text-right">
                       <span className="text-sm font-bold text-gray-900">
-                        {formatBRL(parseFloat(linha.valorTotal) || 0)}
+                        {formatBRL(parseDecimal(linha.valorTotal) || 0)}
                       </span>
                     </td>
 
@@ -1063,7 +1063,7 @@ export default function PedidoForm({
             <div className="flex justify-between items-center text-gray-700 font-medium">
               <span>Frete (R$)</span>
               <Input
-                type="number" step="0.01" min="0"
+                inputMode="decimal"
                 value={valorFrete}
                 onChange={(e) => setValorFrete(e.target.value)}
                 className="h-8 w-28 text-xs text-right border-gray-300"
@@ -1129,7 +1129,7 @@ export default function PedidoForm({
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {comodatoLinhas.map((linha, idx) => {
-                  const total = (parseFloat(linha.quantidade) || 0) * (parseFloat(linha.valorUnitario) || 0);
+                  const total = (parseDecimal(linha.quantidade) || 0) * (parseDecimal(linha.valorUnitario) || 0);
                   return (
                     <tr key={linha._key} className="hover:bg-blue-50/30 transition-colors">
                       {/* # */}
@@ -1152,7 +1152,7 @@ export default function PedidoForm({
                       {/* Quantidade */}
                       <td className="px-3 py-2.5">
                         <Input
-                          type="number" min="0.001" step="0.001"
+                          inputMode="decimal"
                           value={linha.quantidade}
                           onChange={(e) => updateComodatoLinha(linha._key, "quantidade", e.target.value)}
                           className="h-9 text-xs text-right border-gray-300 font-medium"
@@ -1161,7 +1161,7 @@ export default function PedidoForm({
                       {/* Valor Un. */}
                       <td className="px-3 py-2.5">
                         <Input
-                          type="number" min="0" step="0.01"
+                          inputMode="decimal"
                           value={linha.valorUnitario}
                           onChange={(e) => updateComodatoLinha(linha._key, "valorUnitario", e.target.value)}
                           className="h-9 text-xs text-right border-gray-300 font-medium"

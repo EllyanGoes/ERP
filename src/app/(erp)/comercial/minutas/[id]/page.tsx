@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckCircle2, XCircle, ArrowRight, AlertCircle, Pencil, Save, Printer } from "lucide-react";
 import { useTabTitle } from "@/lib/tabs-context";
 import { statusMinutaLabel, confirmacaoMinutaLabel, TIPO_MINUTA_LABEL, type TipoMinuta } from "@/lib/minuta-labels";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDate, parseDecimal } from "@/lib/utils";
 import { buildMinutaEscPos } from "@/lib/escpos-minuta";
 import { printEscPosUSB } from "@/lib/webusb-print";
 import { printMinutaViaDialog } from "@/lib/print-minuta-dialog";
@@ -264,13 +264,13 @@ export default function MinutaDetailPage() {
   }
 
   async function saveEdits() {
-    const validRows = rows.filter(r => parseFloat(r.quantidade || "0") > 0);
+    const validRows = rows.filter(r => parseDecimal(r.quantidade || "0") > 0);
     if (validRows.length === 0) { setError("Informe ao menos um item com quantidade"); return; }
 
     // Converte as quantidades para a unidade base (igual à tela /editar). O backend
     // reconcilia o estoque pelo delta — re-salvar com os mesmos itens é efeito zero.
     const itens = validRows.map(r => {
-      const qtdTyped = parseFloat(r.quantidade) || 0;
+      const qtdTyped = parseDecimal(r.quantidade) || 0;
       const selUn = r.unidades.find(u => u.unidade.id === r.unidadeId);
       const isConversion = selUn && r.unidadeId !== r.baseUnitId;
       if (isConversion && selUn?.fatorConversao) {
@@ -629,7 +629,7 @@ export default function MinutaDetailPage() {
                       </td>
                       <td className="px-4 py-3 align-middle">
                         <Input
-                          type="number" min="0" step="0.001"
+                          inputMode="decimal"
                           value={r.quantidade}
                           onChange={e => updateRow(idx, "quantidade", e.target.value)}
                           className="h-8 w-full text-right text-sm font-semibold border-blue-400 bg-blue-50 text-blue-900 focus-visible:border-blue-500 focus-visible:ring-blue-500"

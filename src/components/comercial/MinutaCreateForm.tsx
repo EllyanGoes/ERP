@@ -11,7 +11,7 @@ import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useCreateDrawer, useVoltarCriacao } from "@/components/shared/CreateDrawer";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { TIPO_MINUTA_LABEL } from "@/lib/minuta-labels";
-import { cn } from "@/lib/utils";
+import { cn, parseDecimal } from "@/lib/utils";
 
 type PedidoVendaResumido = {
   id: string;
@@ -226,7 +226,7 @@ export default function MinutaCreateForm() {
 
   async function handleSave() {
     if (!pedidoVendaId) { setError("Selecione um pedido de venda"); return; }
-    const validRows = rows.filter(r => parseFloat(r.quantidade || "0") > 0);
+    const validRows = rows.filter(r => parseDecimal(r.quantidade || "0") > 0);
     if (validRows.length === 0) { setError("Informe ao menos um item com quantidade"); return; }
     if (!localEstoqueId) { setError("Selecione o Local de Estoque (de onde a saída será baixada quando a minuta sair para entrega)"); return; }
 
@@ -234,7 +234,7 @@ export default function MinutaCreateForm() {
     try {
       // Build itens for API - convert quantities to base unit
       const itens = validRows.map(r => {
-        const qtdTyped = parseFloat(r.quantidade) || 0;
+        const qtdTyped = parseDecimal(r.quantidade) || 0;
 
         // Find selected unit
         const selUn = r.unidades.find(u => u.unidade.id === r.unidadeId);
@@ -375,9 +375,7 @@ export default function MinutaCreateForm() {
                         </td>
                         <td className="px-4 py-3 align-middle">
                           <Input
-                            type="number"
-                            min="0"
-                            step="0.001"
+                            inputMode="decimal"
                             value={r.quantidade}
                             onChange={e => updateRow(idx, "quantidade", e.target.value)}
                             className="h-8 w-full text-right text-sm font-semibold border-blue-400 bg-blue-50 text-blue-900 focus-visible:border-blue-500 focus-visible:ring-blue-500"

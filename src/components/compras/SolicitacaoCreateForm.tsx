@@ -505,7 +505,7 @@ export default function SolicitacaoCreateForm() {
           centroCustoId: centroCustoId || null,
           observacoes: observacoes.trim() || null,
           itens: validItens.map((r) => ({
-            itemId: r.itemId, quantidade: parseFloat(r.quantidade),
+            itemId: r.itemId, quantidade: parseFloat(r.quantidade.replace(",", ".")),
             unidade: r.unidade || null, observacao: r.observacao || null,
           })),
         }),
@@ -526,7 +526,7 @@ export default function SolicitacaoCreateForm() {
     if (!colaboradorId) { setServerError("Solicitante é obrigatório"); return; }
     if (!setorId) { setServerError("Setor é obrigatório"); return; }
     if (!motivo.trim()) { setServerError("Motivo de compra é obrigatório"); return; }
-    const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade) > 0);
+    const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade.replace(",", ".")) > 0);
     if (validItens.length === 0) { setServerError("Adicione pelo menos um item com quantidade válida"); return; }
     if (!descricao.trim()) { setServerError("Descrição é obrigatória"); return; }
 
@@ -715,7 +715,7 @@ export default function SolicitacaoCreateForm() {
                   </div>
                   <div className="col-span-2 space-y-1.5">
                     {i === 0 && <Label>Quantidade</Label>}
-                    <Input type="number" step="0.001" min="0.001" value={row.quantidade} onChange={(e) => updateRow(i, "quantidade", e.target.value)} />
+                    <Input inputMode="decimal" value={row.quantidade} onChange={(e) => updateRow(i, "quantidade", e.target.value.replace(/[^0-9.,]/g, ""))} />
                   </div>
                   <div className="col-span-2 space-y-1.5">
                     {i === 0 && <Label>Unidade</Label>}
@@ -812,7 +812,7 @@ export default function SolicitacaoCreateForm() {
                 onClick={async () => {
                   setUserConfirmedDuplicate(true);
                   setShowDuplicateWarning(false);
-                  const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade) > 0);
+                  const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade.replace(",", ".")) > 0);
                   await doSubmit(validItens);
                 }}
               >

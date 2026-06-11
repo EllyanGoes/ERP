@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn, formatBRL } from "@/lib/utils";
+import { cn, formatBRL, parseDecimal } from "@/lib/utils";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useCreateDrawer, useVoltarCriacao } from "@/components/shared/CreateDrawer";
 import { useTabsContext } from "@/lib/tabs-context";
@@ -316,16 +316,16 @@ export default function PedidoCompraCreateForm() {
   }
 
   // ── Computed values ────────────────────────────────────────────────────────
-  const totalItensQtd = itens.reduce((s, i) => s + (parseFloat(i.quantidade) || 0), 0);
+  const totalItensQtd = itens.reduce((s, i) => s + (parseDecimal(i.quantidade) || 0), 0);
 
   const subtotalItens = itens
     .filter((i) => i.situacao === "CONSIDERA")
-    .reduce((s, i) => s + (parseFloat(i.quantidade) || 0) * (parseFloat(i.precoUnitario) || 0), 0);
+    .reduce((s, i) => s + (parseDecimal(i.quantidade) || 0) * (parseDecimal(i.precoUnitario) || 0), 0);
 
-  const descontoVal    = parseFloat(desconto)  || 0;
-  const freteVal       = parseFloat(frete)     || 0;
-  const despesasVal    = parseFloat(despesas)  || 0;
-  const seguroVal      = parseFloat(seguro)    || 0;
+  const descontoVal    = parseDecimal(desconto)  || 0;
+  const freteVal       = parseDecimal(frete)     || 0;
+  const despesasVal    = parseDecimal(despesas)  || 0;
+  const seguroVal      = parseDecimal(seguro)    || 0;
   const vrDescontoCalc = (subtotalItens * descontoVal) / 100;
   const totalCotacao   = subtotalItens - vrDescontoCalc + freteVal + despesasVal + seguroVal;
 
@@ -338,7 +338,7 @@ export default function PedidoCompraCreateForm() {
     if (!fornecedorId) { setError("Selecione um fornecedor"); return; }
     if (!descricao.trim()) { setError("Descrição é obrigatória"); return; }
     const validItens = itens.filter(
-      (row) => row.itemId && parseFloat(row.quantidade) > 0
+      (row) => row.itemId && parseDecimal(row.quantidade) > 0
     );
     if (validItens.length === 0) { setError("Adicione pelo menos um item"); return; }
 
@@ -370,7 +370,7 @@ export default function PedidoCompraCreateForm() {
   async function doSubmit(validItens?: { itemId: string; quantidade: string; precoUnitario: string; situacao: string }[]) {
     setVinculoPopup(null);
     if (!validItens) {
-      validItens = itens.filter((row) => row.itemId && parseFloat(row.quantidade) > 0);
+      validItens = itens.filter((row) => row.itemId && parseDecimal(row.quantidade) > 0);
     }
     setSaving(true);
     setError("");
@@ -395,8 +395,8 @@ export default function PedidoCompraCreateForm() {
           confirmAvulso:       avulsoConfirmed,
           itens: validItens.map((row) => ({
             itemId:       row.itemId,
-            quantidade:   parseFloat(row.quantidade),
-            precoUnitario: parseFloat(row.precoUnitario) || 0,
+            quantidade:   parseDecimal(row.quantidade),
+            precoUnitario: parseDecimal(row.precoUnitario) || 0,
           })),
         }),
       });
@@ -637,7 +637,7 @@ export default function PedidoCompraCreateForm() {
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">% Desconto</Label>
               <Input
-                type="number" step="0.01" min="0" max="100"
+                inputMode="decimal"
                 value={desconto}
                 onChange={(e) => setDesconto(e.target.value)}
                 placeholder="0,00" className="text-right"
@@ -650,7 +650,7 @@ export default function PedidoCompraCreateForm() {
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Frete</Label>
               <Input
-                type="number" step="0.01" min="0"
+                inputMode="decimal"
                 value={frete} onChange={(e) => setFrete(e.target.value)}
                 placeholder="0,00" className="text-right"
               />
@@ -687,7 +687,7 @@ export default function PedidoCompraCreateForm() {
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Despesas</Label>
               <Input
-                type="number" step="0.01" min="0"
+                inputMode="decimal"
                 value={despesas} onChange={(e) => setDespesas(e.target.value)}
                 placeholder="0,00" className="text-right"
               />
@@ -695,7 +695,7 @@ export default function PedidoCompraCreateForm() {
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Seguro</Label>
               <Input
-                type="number" step="0.01" min="0"
+                inputMode="decimal"
                 value={seguro} onChange={(e) => setSeguro(e.target.value)}
                 placeholder="0,00" className="text-right"
               />
@@ -731,8 +731,8 @@ export default function PedidoCompraCreateForm() {
               <tbody className="divide-y divide-gray-100">
                 {itens.map((row, i) => {
                   const opt = itemOptions.find((o) => o.id === row.itemId);
-                  const preco = parseFloat(row.precoUnitario) || 0;
-                  const qtd   = parseFloat(row.quantidade)   || 0;
+                  const preco = parseDecimal(row.precoUnitario) || 0;
+                  const qtd   = parseDecimal(row.quantidade)   || 0;
                   const total = row.situacao === "CONSIDERA" ? preco * qtd : 0;
                   const isNao = row.situacao === "NAO_CONSIDERA";
 
@@ -767,7 +767,7 @@ export default function PedidoCompraCreateForm() {
                       </td>
                       <td className="px-4 py-2">
                         <Input
-                          type="number" step="0.001" min="0"
+                          inputMode="decimal"
                           value={row.quantidade}
                           onChange={(e) => updateRow(i, "quantidade", e.target.value)}
                           className="text-right h-8 w-24 ml-auto"
@@ -775,7 +775,7 @@ export default function PedidoCompraCreateForm() {
                       </td>
                       <td className="px-4 py-2">
                         <Input
-                          type="number" step="0.01" min="0"
+                          inputMode="decimal"
                           disabled={isNao}
                           value={row.precoUnitario}
                           onChange={(e) => updateRow(i, "precoUnitario", e.target.value)}

@@ -25,6 +25,8 @@ const postSchema = z.object({
   // cuja mercadoria está sob guarda (estoque de terceiros)
   clienteDonoId:    z.string().optional().nullable(),
   dataMovimentacao: z.string().optional().nullable(), // ISO date string
+  // true = usuário já viu o aviso de saldo negativo e confirmou o lançamento
+  permitirNegativo: z.boolean().optional(),
   itens:            z.array(itemSchema).min(1, "Adicione ao menos um item"),
 });
 
@@ -54,6 +56,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Entrada de mercadoria de terceiro não aceita valor unitário (não compõe custo do estoque próprio)" },
         { status: 400 }
+      );
+    }
+  }
+
+  // ── Aviso de saldo negativo ────────────────────────────────────────────────
+  // Em SAÍDA, se algum item ficar negativo o usuário precisa confirmar
+  // (permitirNegativo) — a tela mostra o aviso e pede revisão dos lançamentos.
+  // Checagem fora da transação: é um aviso de revisão, não trava de consistência.
+  if (tipo === "SAIDA" && !parsed.data.permitirNegativo) {
+    // soma as quantidades por (item + local) — o mesmo item pode repetir em linhas
+    const porChave = new Map<string, { itemId: string; localEstoqueId: string; qtd: number }>();
+    for (const it of itens) {
+      const k = `${it.itemId}|${it.localEstoqueId}`;
+      const cur = porChave.get(k) ?? { itemId: it.itemId, localEstoqueId: it.localEstoqueId, qtd: 0 };
+      cur.qtd += it.quantidade;
+      porChave.set(k, cur);
+    }
+    const negativos: Array<{ itemId: string; descricao: string; saldoAtual: number; saldoDepois: number }> = [];
+    for (const { itemId, localEstoqueId, qtd } of Array.from(porChave.values())) {
+      const estoque = await prisma.estoqueItem.findFirst({
+        where: { itemId, localEstoqueId, clienteDonoId },
+        select: { quantidadeAtual: true, item: { select: { descricao: true } } },
+      });
+      const atual = estoque ? parseFloat(String(estoque.quantidadeAtual)) : 0;
+      const depois = atual - qtd;
+      if (depois < 0) {
+        const it = estoque?.item ?? await prisma.item.findUnique({ where: { id: itemId }, select: { descricao: true } });
+        negativos.push({ itemId, descricao: it?.descricao ?? itemId, saldoAtual: atual, saldoDepois: depois });
+      }
+    }
+    if (negativos.length > 0) {
+      return NextResponse.json(
+        { error: "SALDO_NEGATIVO", negativos },
+        { status: 422 }
       );
     }
   }

@@ -324,6 +324,8 @@ export default function MovimentacoesPage() {
   const [fornecedorId, setFornecedorId]     = useState("");
   const [documento, setDocumento] = useState("");
   const [obsGeral, setObsGeral]   = useState("");
+  // data da movimentação (default: hoje no fuso do usuário)
+  const [dataMov, setDataMov]     = useState(() => new Date().toLocaleDateString("sv-SE"));
   const [linhas, setLinhas]       = useState<LinhaItem[]>([newLinha()]);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -443,14 +445,22 @@ export default function MovimentacoesPage() {
 
   function resetModal() {
     setTipoMov("ENTRADA"); setLocalEstoqueId(""); setFornecedorId(""); setClienteDonoId(""); setDocumento(""); setObsGeral("");
+    setDataMov(new Date().toLocaleDateString("sv-SE"));
     setLinhas([newLinha()]); setFormError("");
   }
 
   // ── Submit ───────────────────────────────────────────────────────────────────
+  // aceita vírgula ou ponto como separador decimal
+  const qtdNum = (s: string) => parseFloat(s.replace(",", "."));
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    await submitMovimentacao(false);
+  }
+
+  async function submitMovimentacao(permitirNegativo: boolean) {
     if (!localEstoqueId) { setFormError("Selecione o local de estoque."); return; }
-    const valid = linhas.filter((l) => l.itemId && parseFloat(l.quantidade) > 0);
+    const valid = linhas.filter((l) => l.itemId && qtdNum(l.quantidade) > 0);
     if (valid.length === 0) { setFormError("Adicione ao menos um item com produto e quantidade."); return; }
     setSubmitting(true); setFormError("");
     try {
@@ -461,18 +471,40 @@ export default function MovimentacoesPage() {
           tipo:         tipoMov,
           documento:    documento   || undefined,
           observacoes:  obsGeral    || undefined,
+          dataMovimentacao: dataMov || undefined,
           fornecedorId: tipoMov === "ENTRADA" && fornecedorId && !clienteDonoId ? fornecedorId : undefined,
           clienteDonoId: clienteDonoId || undefined,
+          permitirNegativo,
           itens: valid.map((l) => ({
             itemId:         l.itemId,
             localEstoqueId: localEstoqueId,
-            quantidade:     parseFloat(l.quantidade),
-            valorUnitario:  tipoMov === "ENTRADA" && !clienteDonoId && l.valorUnitario ? parseFloat(l.valorUnitario) : undefined,
+            quantidade:     qtdNum(l.quantidade),
+            valorUnitario:  tipoMov === "ENTRADA" && !clienteDonoId && l.valorUnitario ? qtdNum(l.valorUnitario) : undefined,
             observacoes:    l.observacoes || undefined,
           })),
         }),
       });
-      if (!res.ok) { setFormError((await res.json()).error || "Erro ao registrar"); return; }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        // Aviso de saldo negativo: lista os itens e pede revisão; o usuário
+        // pode confirmar e registrar mesmo assim.
+        if (res.status === 422 && err.error === "SALDO_NEGATIVO" && Array.isArray(err.negativos)) {
+          const fmt = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+          const linhasAviso = err.negativos
+            .map((n: { descricao: string; saldoAtual: number; saldoDepois: number }) =>
+              `• ${n.descricao}: ${fmt(n.saldoAtual)} → ${fmt(n.saldoDepois)}`)
+            .join("\n");
+          const confirma = window.confirm(
+            `ATENÇÃO: esta movimentação vai deixar saldo NEGATIVO em:\n\n${linhasAviso}\n\n` +
+            `Revise os lançamentos (quantidades, local de estoque e entradas pendentes).\n\n` +
+            `Deseja registrar mesmo assim?`
+          );
+          if (confirma) { setSubmitting(false); await submitMovimentacao(true); }
+          return;
+        }
+        setFormError(err.error || "Erro ao registrar");
+        return;
+      }
       const result = await res.json();
       setShowModal(false); resetModal(); await load();
       if (result.autoVinculos?.length > 0) {
@@ -1033,8 +1065,13 @@ export default function MovimentacoesPage() {
                   )}
                 </div>
 
-                {/* Documento + Obs geral */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Data + Documento + Obs geral */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>Data da Movimentação <span className="text-red-500">*</span></Label>
+                    <Input type="date" value={dataMov} onChange={(e) => setDataMov(e.target.value)} />
+                  </div>
+
                   <div className="space-y-1.5">
                     <Label>Documento</Label>
                     <Input value={documento} onChange={(e) => setDocumento(e.target.value)} placeholder="NF, OS, etc." />
@@ -1104,22 +1141,22 @@ export default function MovimentacoesPage() {
                               disabled={!linha.itemId}
                             />
 
-                            {/* Custo Unitário (ENTRADA only) */}
+                            {/* Custo Unitário (ENTRADA only) — aceita vírgula ou ponto */}
                             {tipoMov === "ENTRADA" && (
                               <Input
-                                type="number" step="0.01" min="0"
+                                inputMode="decimal"
                                 value={linha.valorUnitario}
-                                onChange={(e) => updateLinha(linha.key, { valorUnitario: e.target.value })}
+                                onChange={(e) => updateLinha(linha.key, { valorUnitario: e.target.value.replace(/[^0-9.,]/g, "") })}
                                 placeholder="R$ 0,00"
                                 className="h-8 text-sm text-right"
                               />
                             )}
 
-                            {/* Quantidade */}
+                            {/* Quantidade — aceita vírgula ou ponto */}
                             <Input
-                              type="number" step="0.001" min="0.001"
+                              inputMode="decimal"
                               value={linha.quantidade}
-                              onChange={(e) => updateLinha(linha.key, { quantidade: e.target.value })}
+                              onChange={(e) => updateLinha(linha.key, { quantidade: e.target.value.replace(/[^0-9.,]/g, "") })}
                               placeholder="0"
                               className="h-8 text-sm text-right"
                             />

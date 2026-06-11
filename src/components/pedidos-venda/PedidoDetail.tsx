@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
+import { formatBRL, formatDate, decimalToNumber, cn, parseDecimal } from "@/lib/utils";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { Plus, Truck, Pencil, Package, Trash2, AlertTriangle } from "lucide-react";
 import MinutaActionsMenu from "./MinutaActionsMenu";
@@ -213,8 +213,8 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
         pedidoVendaId: pedido.id,
         itemId: comodatoItemId,
         tipo: "SAIDA",
-        quantidade: comodatoQtd,
-        valorUnitario: comodatoValor || undefined,
+        quantidade: parseDecimal(comodatoQtd),
+        valorUnitario: comodatoValor ? parseDecimal(comodatoValor) : undefined,
         data: comodatoData,
         documento: comodatoDoc || undefined,
         observacoes: comodatoObs || undefined,
@@ -528,7 +528,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">Qtd</label>
                       <input
-                        type="number" step="0.001" min="0"
+                        inputMode="decimal"
                         value={comodatoQtd}
                         onChange={(e) => setComodatoQtd(e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
@@ -537,7 +537,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">Valor un. (R$)</label>
                       <input
-                        type="number" step="0.01" min="0"
+                        inputMode="decimal"
                         value={comodatoValor}
                         onChange={(e) => setComodatoValor(e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
