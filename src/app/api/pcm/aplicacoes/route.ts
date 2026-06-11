@@ -6,7 +6,7 @@ import { fetchAtivosTree, countLeaves, type TreeNode } from "@/lib/pcm-ativos";
 import { engemanErrorResponse } from "@/lib/engeman";
 
 // Re-exporta para compatibilidade com quem já importa daqui
-// (pcm/dashboard e pcm/relatorio-mtbf).
+// (pcm/relatorio-mtbf).
 export type { TreeNode };
 
 export interface AplicacoesResponse {

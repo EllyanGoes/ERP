@@ -133,7 +133,6 @@ export const ROUTES: RouteEntry[] = [
   { href: "/admin/empresas",                       label: "Empresas do Grupo",       group: "Administração",  section: "Sistema",          icon: Building2,      keywords: "empresas grupo multiempresa cadastro cnpj" },
   { href: "/admin/consolidado",                    label: "Consolidado do Grupo",    group: "Administração",  section: "Sistema",          icon: Building2,      keywords: "consolidado grupo multiempresa empresas intragrupo" },
 
-  { href: "/pcm/dashboard",                        label: "PCM — Resultados",        group: "PCM",            section: "Manutenção",       icon: BarChart3,      keywords: "pcm manutenção resultados dashboard" },
   { href: "/pcm/ordens",                           label: "Relatório de O.S.",       group: "PCM",            section: "Manutenção",       icon: ClipboardList,  keywords: "pcm ordens serviço OS manutenção" },
 
   { href: "/pcp/dashboard",                        label: "Dashboard do PCP",        group: "PCP",            section: "Produção",         icon: BarChart3,      keywords: "pcp dashboard indicadores forno wip biomassa perdas simulação" },

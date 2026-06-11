@@ -199,7 +199,7 @@ export default function FMEAPage() {
         subtitle={data ? `${data.tag} · ${data.local} · Últimos ${data.periodoMeses} meses` : "Análise de Modos de Falha e Efeitos"}
         breadcrumbs={[
           { label: "PCM" },
-          { label: "Resultados", href: "/pcm/dashboard" },
+          { label: "Ativo Saúde", href: "/pcm/ativo-saude" },
           { label: data ? data.equipamento : "FMEA" },
         ]}
         actions={
@@ -235,7 +235,7 @@ export default function FMEAPage() {
               Atualizar
             </Button>
 
-            <Link href="/pcm/dashboard">
+            <Link href="/pcm/ativo-saude">
               <Button variant="ghost" size="sm" className="gap-1.5">
                 <ArrowLeft className="w-4 h-4" />
                 Voltar

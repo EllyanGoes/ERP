@@ -253,7 +253,6 @@ const mainModules: Module[] = [
         kind: "Manutenção" as SubSection["kind"],
         items: [
           { href: "/pcm/ativos",          label: "Ativos",           icon: Factory },
-          { href: "/pcm/dashboard",       label: "Resultados",       icon: BarChart3 },
           { href: "/pcm/ordens",          label: "Relatório de O.S.", icon: ClipboardList },
         ],
       },

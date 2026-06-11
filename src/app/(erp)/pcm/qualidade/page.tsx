@@ -170,7 +170,7 @@ export default function QualidadeDadosPage() {
         title="Qualidade dos Dados — PCM"
         breadcrumbs={[
           { label: "PCM" },
-          { label: "Dashboard", href: "/pcm/dashboard" },
+          { label: "Ativo Saúde", href: "/pcm/ativo-saude" },
           { label: "Qualidade dos Dados" },
         ]}
         action={
@@ -179,7 +179,7 @@ export default function QualidadeDadosPage() {
               <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
               Atualizar
             </Button>
-            <Button variant="outline" size="sm" onClick={() => router.push("/pcm/dashboard")}>
+            <Button variant="outline" size="sm" onClick={() => router.push("/pcm/ativo-saude")}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar
             </Button>
