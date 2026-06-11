@@ -254,6 +254,8 @@ const mainModules: Module[] = [
         items: [
           { href: "/pcm/ativos",          label: "Ativos",           icon: Factory },
           { href: "/pcm/ordens",          label: "Relatório de O.S.", icon: ClipboardList },
+          { href: "/pcm/quadro-os",       label: "Quadro de O.S.",   icon: ClipboardList },
+          { href: "/pcm/planos",          label: "Planos de Manut.", icon: CalendarClock },
         ],
       },
       {

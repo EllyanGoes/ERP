@@ -134,6 +134,8 @@ export const ROUTES: RouteEntry[] = [
   { href: "/admin/consolidado",                    label: "Consolidado do Grupo",    group: "Administração",  section: "Sistema",          icon: Building2,      keywords: "consolidado grupo multiempresa empresas intragrupo" },
 
   { href: "/pcm/ordens",                           label: "Relatório de O.S.",       group: "PCM",            section: "Manutenção",       icon: ClipboardList,  keywords: "pcm ordens serviço OS manutenção" },
+  { href: "/pcm/quadro-os",                        label: "Quadro de O.S.",          group: "PCM",            section: "Manutenção",       icon: ClipboardList,  keywords: "quadro os setor executante pendente kanban responsavel" },
+  { href: "/pcm/planos",                           label: "Planos de Manutenção",    group: "PCM",            section: "Manutenção",       icon: CalendarClock,  keywords: "planos manutencao preventiva execucao aderencia pmp" },
 
   { href: "/pcp/dashboard",                        label: "Dashboard do PCP",        group: "PCP",            section: "Produção",         icon: BarChart3,      keywords: "pcp dashboard indicadores forno wip biomassa perdas simulação" },
   { href: "/pcp/ordens",                           label: "Ordens de Produção",      group: "PCP",            section: "Produção",         icon: ClipboardList,  keywords: "pcp ordem produção op apontamento etapa" },
