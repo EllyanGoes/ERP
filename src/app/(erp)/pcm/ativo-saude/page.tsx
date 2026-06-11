@@ -207,14 +207,18 @@ export default function AtivoSaudePage() {
               <p className="text-sm font-medium text-gray-700 mb-3">MTBF e MTTR por mês (horas)</p>
               <div style={{ width: "100%", height: 300 }}>
                 <ResponsiveContainer>
-                  <LineChart data={serie} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+                  <LineChart data={serie} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
                     <XAxis dataKey="label" tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                    <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                    {/* MTBF (centenas de horas) à esquerda; MTTR (poucas horas) à
+                        direita com escala própria — na mesma escala ele virava
+                        uma linha achatada impossível de acompanhar */}
+                    <YAxis yAxisId="mtbf" tick={{ fontSize: 12, fill: "#2563eb" }} stroke="#2563eb" />
+                    <YAxis yAxisId="mttr" orientation="right" tick={{ fontSize: 12, fill: "#d97706" }} stroke="#d97706" />
                     <Tooltip formatter={(v) => `${numFmt.format(Number(v))} h`} />
                     <Legend />
-                    <Line type="monotone" dataKey="mtbf" name="MTBF" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                    <Line type="monotone" dataKey="mttr" name="MTTR" stroke="#6b7280" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                    <Line yAxisId="mtbf" type="monotone" dataKey="mtbf" name="MTBF" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                    <Line yAxisId="mttr" type="monotone" dataKey="mttr" name="MTTR" stroke="#d97706" strokeWidth={2} dot={{ r: 3 }} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
