@@ -1,16 +1,21 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { prisma } from "@/lib/prisma";
+import { prisma, empresasDoEscopo } from "@/lib/prisma";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  // O produto é cadastro compartilhado, então os includes aninhados não passam
+  // pela extensão de escopo — filtra à mão pelas empresas visíveis da sessão
+  // (a ativa do seletor, ou todas no modo "ver empresas juntas").
+  const visiveis = await empresasDoEscopo();
   const item = await prisma.item.findUnique({
     where: { id: params.id },
     include: {
       tipoProduto: true,
       unidade: true,
-      custosEmpresa: { select: { empresaId: true, precoCusto: true } },
+      custosEmpresa: { where: { empresaId: { in: visiveis } }, select: { empresaId: true, precoCusto: true } },
       estoqueItems: {
+        where: { empresaId: { in: visiveis } },
         include: {
           empresa: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
           localEstoque: {
@@ -22,6 +27,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         include: { fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
       },
       movimentacoes: {
+        where: { empresaId: { in: visiveis } },
         orderBy: { createdAt: "desc" },
         take: 200,
         select: {
@@ -72,6 +78,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const auth = await requireModulo("empresa");
   if (!auth.ok) return auth.response;
 
+  const visiveis = await empresasDoEscopo();
+
   try {
   const body = await req.json();
 
@@ -118,8 +126,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       include: {
         tipoProduto: true,
         unidade: true,
-        custosEmpresa: { select: { empresaId: true, precoCusto: true } },
+        custosEmpresa: { where: { empresaId: { in: visiveis } }, select: { empresaId: true, precoCusto: true } },
         estoqueItems: {
+          where: { empresaId: { in: visiveis } },
           include: {
             empresa: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
             localEstoque: {

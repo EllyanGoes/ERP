@@ -253,8 +253,8 @@ function clienteDoEscopo(empresaId: string, grupoIds: string[] | null): ClienteE
 
 export const COOKIE_ESCOPO = "erp_escopo"
 
-/** Resolve o client escopado da requisição atual (sessão → empresa ativa). */
-async function dbDaRequisicao(): Promise<ClienteEscopado> {
+/** Resolve empresa ativa + grupo de leitura da requisição atual. */
+async function resolverEscopoRequisicao(): Promise<{ empresaId: string; grupoIds: string[] | null }> {
   let empresaId = EMPRESA_PADRAO_ID
   let grupoIds: string[] | null = null
   try {
@@ -269,6 +269,22 @@ async function dbDaRequisicao(): Promise<ClienteEscopado> {
   } catch {
     // fora do contexto de requisição (cron/script) — escopo padrão
   }
+  return { empresaId, grupoIds }
+}
+
+/**
+ * Empresas visíveis na requisição atual: a ativa, ou todas as da sessão no
+ * modo grupo. Para rotas que precisam filtrar à mão relações aninhadas de
+ * modelos escopados (o include aninhado NÃO passa pela extensão de escopo).
+ */
+export async function empresasDoEscopo(): Promise<string[]> {
+  const { empresaId, grupoIds } = await resolverEscopoRequisicao()
+  return grupoIds ?? [empresaId]
+}
+
+/** Resolve o client escopado da requisição atual (sessão → empresa ativa). */
+async function dbDaRequisicao(): Promise<ClienteEscopado> {
+  const { empresaId, grupoIds } = await resolverEscopoRequisicao()
   return clienteDoEscopo(empresaId, grupoIds)
 }
 

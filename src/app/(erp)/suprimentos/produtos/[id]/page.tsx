@@ -889,7 +889,14 @@ export default function ProdutoDetailPage() {
       .map((c) => [c.empresaId, decimalToNumber(c.precoCusto)]),
   );
   const custoDaEmpresa = (empId: string) => custoPorEmpresa.get(empId) ?? custoGlobal;
-  const custoUnit = empresaEstoqueId ? custoDaEmpresa(empresaEstoqueId) : custoGlobal;
+  // Custo médio exibido: o da empresa filtrada; com uma única empresa visível
+  // (seletor do topo em empresa específica), o dela; só no consolidado de
+  // várias empresas cai no CMPM global.
+  const custoUnit = empresaEstoqueId
+    ? custoDaEmpresa(empresaEstoqueId)
+    : empresasEstoque.length === 1
+      ? custoDaEmpresa(empresasEstoque[0].id)
+      : custoGlobal;
   // Custo total ponderado pelo custo da empresa de cada linha de saldo.
   const custoTotal = estoqueComLocal.reduce(
     (s, e) => s + decimalToNumber(e.quantidadeAtual) * custoDaEmpresa(e.empresaId),
