@@ -342,16 +342,30 @@ export default function AtivoSaudePage() {
         )}
       </div>
 
-      {/* ── Popup: timeline do ativo (mesma visão do fechamento) ─────────────── */}
+      {/* ── Popup: timeline do ativo (mesma visão do fechamento) ───────────────
+          Todos os meses do período são montados de uma vez (pré-carregados em
+          paralelo); as pílulas só alternam a visibilidade — trocar de mês é
+          instantâneo. "Período completo" mostra todos empilhados. */}
       {timelineAtivo && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setTimelineAtivo(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-3" onClick={() => setTimelineAtivo(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-[96vw] max-w-[1600px] h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-gray-800 truncate">{timelineAtivo.descricao}</h2>
                 <p className="text-[11px] text-gray-400 font-mono">{timelineAtivo.tag}</p>
               </div>
               <div className="flex items-center gap-1 overflow-x-auto">
+                <button
+                  onClick={() => setTimelineComp("todos")}
+                  className={cn(
+                    "px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap transition-colors",
+                    timelineComp === "todos"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                  )}
+                >
+                  Período completo
+                </button>
                 {mesesPeriodo.map((m) => (
                   <button
                     key={m.competencia}
@@ -372,15 +386,28 @@ export default function AtivoSaudePage() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50/60">
-              {timelineComp ? (
-                <DetalheOs
-                  key={`${timelineAtivo.codApl}-${timelineComp}`}
-                  codApl={timelineAtivo.codApl}
-                  ano={Number(timelineComp.split("-")[0])}
-                  mes={Number(timelineComp.split("-")[1])}
-                />
-              ) : (
+              {mesesPeriodo.length === 0 ? (
                 <p className="text-sm text-gray-400 py-8 text-center">Sem meses fechados no período.</p>
+              ) : (
+                <div className="space-y-8">
+                  {mesesPeriodo.map((m) => (
+                    <div
+                      key={m.competencia}
+                      className={cn(
+                        timelineComp !== "todos" && timelineComp !== m.competencia && "hidden"
+                      )}
+                    >
+                      {timelineComp === "todos" && (
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{m.label}</p>
+                      )}
+                      <DetalheOs
+                        codApl={timelineAtivo.codApl}
+                        ano={Number(m.competencia.split("-")[0])}
+                        mes={Number(m.competencia.split("-")[1])}
+                      />
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
