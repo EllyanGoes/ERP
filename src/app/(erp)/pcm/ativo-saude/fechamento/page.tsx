@@ -44,6 +44,7 @@ export default function FechamentoPage() {
   const [savingCodApl, setSavingCodApl] = useState<number | null>(null);
   const [bulk, setBulk] = useState(false);
   const [soRevisar, setSoRevisar] = useState(false);
+  const [codAplFiltro, setCodAplFiltro] = useState<number | null>(null);
   const [detalhe, setDetalhe] = useState<number | null>(null);
 
   const load = useCallback(async () => {
@@ -80,8 +81,17 @@ export default function FechamentoPage() {
   const visible = useMemo(() => {
     let r = filtro === "all" ? rows : rows.filter((x) => x.criticidade === filtro);
     if (soRevisar) r = r.filter((x) => x.temEstimativa);
+    if (codAplFiltro !== null) r = r.filter((x) => x.codApl === codAplFiltro);
     return r;
-  }, [rows, filtro, soRevisar]);
+  }, [rows, filtro, soRevisar, codAplFiltro]);
+
+  const ativoOpts = useMemo(
+    () =>
+      rows
+        .map((r) => ({ codApl: r.codApl, descricao: r.descricao || r.tag, tag: r.tag }))
+        .sort((a, b) => a.descricao.localeCompare(b.descricao, "pt-BR")),
+    [rows]
+  );
   const resumo = useMemo(() => {
     const fechados = rows.filter((r) => r.fechado).length;
     const aRevisar = rows.filter((r) => r.temEstimativa).length;
@@ -193,6 +203,21 @@ export default function FechamentoPage() {
             <option key={a} value={a}>{a}</option>
           ))}
         </select>
+        <label className="flex items-center gap-1.5 text-sm text-gray-600">
+          Ativo
+          <select
+            value={codAplFiltro === null ? "" : String(codAplFiltro)}
+            onChange={(e) => setCodAplFiltro(e.target.value ? Number(e.target.value) : null)}
+            className="rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[240px]"
+          >
+            <option value="">Todos os ativos</option>
+            {ativoOpts.map((a) => (
+              <option key={a.codApl} value={a.codApl}>
+                {a.descricao}{a.tag ? ` (${a.tag})` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <div className="flex items-center gap-1.5">
           {(["all", "A", "B", "C"] as Filtro[]).map((f) => (

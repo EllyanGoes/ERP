@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import CriticidadeBadge from "@/components/pcm/CriticidadeBadge";
+import DetalheOs from "@/components/pcm/DetalheOs";
 import { cn } from "@/lib/utils";
-import { RefreshCw, AlertTriangle, ClipboardCheck } from "lucide-react";
+import { RefreshCw, AlertTriangle, ClipboardCheck, X } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -53,6 +54,9 @@ export default function AtivoSaudePage() {
   const [erro, setErro] = useState<string | null>(null);
   const [codApl, setCodApl] = useState<number | null>(null);
   const [ativoOpts, setAtivoOpts] = useState<{ codApl: number; descricao: string; tag: string }[]>([]);
+  // popup de timeline: ativo clicado na tabela + mês selecionado dentro do período
+  const [timelineAtivo, setTimelineAtivo] = useState<{ codApl: number; descricao: string; tag: string } | null>(null);
+  const [timelineComp, setTimelineComp] = useState<string>(""); // "YYYY-MM" 
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -92,6 +96,7 @@ export default function AtivoSaudePage() {
   }, [load]);
 
   const serie = data?.serie ?? [];
+  const mesesPeriodo = serie.map((m) => ({ competencia: m.competencia, label: m.label }));
   const porAtivo = data?.porAtivo ?? [];
   const totais = data?.totais;
   const vazio = !loading && !erro && serie.length === 0;
@@ -233,6 +238,8 @@ export default function AtivoSaudePage() {
                       formatter={(v, name) =>
                         name === "Sem falhas"
                           ? ["nenhuma falha no mês ✓", "Status"]
+                          : name === "MTTR"
+                          ? [`${numFmt.format(Number(v))} h (${Math.round(Number(v) * 60)} min)`, name]
                           : [`${numFmt.format(Number(v))} h`, name]
                       }
                     />
@@ -273,7 +280,15 @@ export default function AtivoSaudePage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {porAtivo.map((a) => (
-                    <tr key={a.codApl}>
+                    <tr
+                      key={a.codApl}
+                      className="cursor-pointer hover:bg-blue-50/40 transition-colors"
+                      title="Clique para ver a timeline e as ocorrências do ativo"
+                      onClick={() => {
+                        setTimelineAtivo({ codApl: a.codApl, descricao: a.descricao, tag: a.tag });
+                        setTimelineComp(mesesPeriodo[mesesPeriodo.length - 1]?.competencia ?? "");
+                      }}
+                    >
                       <td className="px-3 py-2">
                         <div className="text-gray-800 truncate max-w-[280px]" title={a.descricao}>{a.descricao}</div>
                         <div className="text-[11px] text-gray-400 font-mono">{a.tag}</div>
@@ -283,9 +298,22 @@ export default function AtivoSaudePage() {
                       </td>
                       <td className="px-2 py-2 text-right tabular-nums text-gray-700">{a.falhas}</td>
                       <td className="px-2 py-2 text-right tabular-nums text-gray-600">{fmtH(a.horasParada)}</td>
-                      <td className="px-2 py-2 text-right tabular-nums text-gray-600">{fmtH(a.horasFuncionamento)}</td>
+                      <td className="px-2 py-2 text-right tabular-nums text-gray-600">
+                        {fmtH(a.horasFuncionamento)}
+                        {a.meses > 1 && (
+                          <div className="text-[11px] text-gray-400">média {fmtH(a.horasFuncionamento / a.meses)}/mês</div>
+                        )}
+                      </td>
                       <td className="px-2 py-2 text-right tabular-nums font-semibold text-blue-700">{fmtH(a.mtbf)}</td>
-                      <td className="px-2 py-2 text-right tabular-nums font-semibold text-gray-700">{fmtH(a.mttr)}</td>
+                      <td
+                        className="px-2 py-2 text-right tabular-nums font-semibold text-gray-700"
+                        title={a.mttr != null ? `${Math.round(a.mttr * 60)} min por OS` : undefined}
+                      >
+                        {fmtH(a.mttr)}
+                        {a.mttr != null && (
+                          <div className="text-[11px] text-gray-400 font-normal">{Math.round(a.mttr * 60)} min</div>
+                        )}
+                      </td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-400">{a.meses}</td>
                     </tr>
                   ))}
@@ -295,6 +323,51 @@ export default function AtivoSaudePage() {
           </>
         )}
       </div>
+
+      {/* ── Popup: timeline do ativo (mesma visão do fechamento) ─────────────── */}
+      {timelineAtivo && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setTimelineAtivo(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-gray-800 truncate">{timelineAtivo.descricao}</h2>
+                <p className="text-[11px] text-gray-400 font-mono">{timelineAtivo.tag}</p>
+              </div>
+              <div className="flex items-center gap-1 overflow-x-auto">
+                {mesesPeriodo.map((m) => (
+                  <button
+                    key={m.competencia}
+                    onClick={() => setTimelineComp(m.competencia)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap transition-colors",
+                      timelineComp === m.competencia
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                    )}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setTimelineAtivo(null)} className="text-gray-400 hover:text-gray-600 shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50/60">
+              {timelineComp ? (
+                <DetalheOs
+                  key={`${timelineAtivo.codApl}-${timelineComp}`}
+                  codApl={timelineAtivo.codApl}
+                  ano={Number(timelineComp.split("-")[0])}
+                  mes={Number(timelineComp.split("-")[1])}
+                />
+              ) : (
+                <p className="text-sm text-gray-400 py-8 text-center">Sem meses fechados no período.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
