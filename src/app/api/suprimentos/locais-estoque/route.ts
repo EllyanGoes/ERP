@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
 import { z } from "zod";
 
 const schema = z.object({
@@ -36,7 +37,21 @@ export async function GET(req: NextRequest) {
       },
     },
   });
-  return NextResponse.json(data);
+
+  // Custo por empresa: a valoração de cada local usa o CMPM da empresa dona
+  // do local (fallback no CMPM global do Item, que já vem embutido).
+  const custos = await custosPorEmpresaItem(
+    prisma,
+    data.flatMap((l) => l.estoqueItens.map((e) => ({ empresaId: l.empresaId, itemId: e.itemId }))),
+  );
+  const comCusto = data.map((l) => ({
+    ...l,
+    estoqueItens: l.estoqueItens.map((e) => {
+      const proprio = custos.get(chaveCustoEmpresa(l.empresaId, e.itemId));
+      return proprio != null ? { ...e, item: { ...e.item, precoCusto: proprio } } : e;
+    }),
+  }));
+  return NextResponse.json(comCusto);
 }
 
 export async function POST(req: NextRequest) {

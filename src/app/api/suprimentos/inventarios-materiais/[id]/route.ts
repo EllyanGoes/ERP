@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { definirCustoEmpresa } from "@/lib/custo-empresa";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.inventarioMaterial.findUnique({
@@ -79,6 +80,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             where: { id: it.itemId },
             data:  { precoCusto: parseFloat(String(it.custoUnitario)) },
           });
+          // Custo próprio da empresa dona do inventário (custo por empresa).
+          await definirCustoEmpresa(tx, updated.empresaId, it.itemId, parseFloat(String(it.custoUnitario)));
         }
       }
     }

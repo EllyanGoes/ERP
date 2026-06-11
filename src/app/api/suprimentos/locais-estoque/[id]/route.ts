@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
 import { z } from "zod";
 
 const schema = z.object({
@@ -52,7 +53,21 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     },
   });
   if (!record) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
-  return NextResponse.json(record);
+
+  // Custo por empresa: valoração do local com o CMPM da empresa dona dele
+  // (fallback no CMPM global do Item, que já vem embutido).
+  const custos = await custosPorEmpresaItem(
+    prisma,
+    record.estoqueItens.map((e) => ({ empresaId: record.empresaId, itemId: e.itemId })),
+  );
+  const comCusto = {
+    ...record,
+    estoqueItens: record.estoqueItens.map((e) => {
+      const proprio = custos.get(chaveCustoEmpresa(record.empresaId, e.itemId));
+      return proprio != null ? { ...e, item: { ...e.item, precoCusto: proprio } } : e;
+    }),
+  };
+  return NextResponse.json(comCusto);
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

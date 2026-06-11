@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 
 const itemSchema = z.object({
   itemId:         z.string().min(1),
@@ -171,6 +172,11 @@ export async function POST(req: NextRequest) {
             where: { id: itemId },
             data:  { precoCusto: novoCusto },
           });
+
+          // CMPM próprio da empresa dona do estoque — o cadastro do produto é
+          // compartilhado no grupo, mas o custo não (fabricação numa empresa,
+          // compra noutra).
+          await aplicarCmpmEmpresa(tx, atualizado.empresaId, itemId, quantidade, valorUnitario);
         }
 
         await tx.movimentacaoEstoque.create({

@@ -64,6 +64,7 @@ type Item = {
   pontoReposicao: unknown;
   leadTimeDias: number | null;
   observacoes: string | null;
+  custosEmpresa?: Array<{ empresaId: string; precoCusto: unknown }>;
   estoqueItems: Array<{
     id: string;
     empresaId: string;
@@ -879,8 +880,21 @@ export default function ProdutoDetailPage() {
     : estoqueComLocalTodas;
   const estoqueTotal = estoqueComLocal.reduce((s, e) => s + decimalToNumber(e.quantidadeAtual), 0);
   const estoqueTotalTodas = estoqueComLocalTodas.reduce((s, e) => s + decimalToNumber(e.quantidadeAtual), 0);
-  const custoUnit = item.precoCusto ? decimalToNumber(item.precoCusto) : 0;
-  const custoTotal = custoUnit * estoqueTotal;
+  // Custo por empresa: cada empresa do grupo tem o próprio CMPM
+  // (ItemCustoEmpresa); o CMPM global do Item é o fallback.
+  const custoGlobal = item.precoCusto ? decimalToNumber(item.precoCusto) : 0;
+  const custoPorEmpresa = new Map<string, number>(
+    (item.custosEmpresa ?? [])
+      .filter((c) => c.precoCusto != null)
+      .map((c) => [c.empresaId, decimalToNumber(c.precoCusto)]),
+  );
+  const custoDaEmpresa = (empId: string) => custoPorEmpresa.get(empId) ?? custoGlobal;
+  const custoUnit = empresaEstoqueId ? custoDaEmpresa(empresaEstoqueId) : custoGlobal;
+  // Custo total ponderado pelo custo da empresa de cada linha de saldo.
+  const custoTotal = estoqueComLocal.reduce(
+    (s, e) => s + decimalToNumber(e.quantidadeAtual) * custoDaEmpresa(e.empresaId),
+    0,
+  );
 
   const filtroEmpresaEstoque = empresasEstoque.length > 1 ? (
     <label className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -1276,9 +1290,9 @@ export default function ProdutoDetailPage() {
                   <div className="rounded-xl bg-blue-50 px-4 py-3">
                     <p className="text-xs text-blue-600 font-medium mb-1">Custo Total em Estoque</p>
                     <p className="text-xl font-bold text-blue-800">
-                      {custoUnit > 0 ? formatBRL(custoTotal) : "—"}
+                      {custoTotal > 0 ? formatBRL(custoTotal) : "—"}
                     </p>
-                    {custoUnit > 0 && (
+                    {custoTotal > 0 && (
                       <p className="text-xs text-blue-500 mt-0.5">
                         {estoqueTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {item.unidade?.sigla || item.unidadeMedida}
                       </p>
@@ -1444,7 +1458,7 @@ export default function ProdutoDetailPage() {
                     total
                     {custoUnit > 0 && (
                       <> · custo total{" "}
-                        <span className="font-semibold text-blue-700">{formatBRL(custoUnit * estoqueTotal)}</span>
+                        <span className="font-semibold text-blue-700">{formatBRL(custoTotal)}</span>
                       </>
                     )}
                   </p>
@@ -1487,7 +1501,7 @@ export default function ProdutoDetailPage() {
                             const atual = decimalToNumber(e.quantidadeAtual);
                             const min = decimalToNumber(e.quantidadeMin);
                             const abaixo = min > 0 && atual < min;
-                            const custoLinha = custoUnit;
+                            const custoLinha = custoDaEmpresa(e.empresaId);
                             const custoTotalLinha = custoLinha * atual;
                             const filialNome = e.localEstoque?.filial
                               ? (e.localEstoque.filial.nomeFantasia || e.localEstoque.filial.razaoSocial)
@@ -1633,7 +1647,7 @@ export default function ProdutoDetailPage() {
                               </td>
                               <td colSpan={2} />
                               <td className="px-4 py-2.5 text-right font-bold text-blue-800">
-                                {custoUnit > 0 ? formatBRL(custoUnit * estoqueTotal) : <span className="text-gray-400">—</span>}
+                                {custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-gray-400">—</span>}
                               </td>
                               <td colSpan={isAdmin ? 2 : 1} />
                             </tr>

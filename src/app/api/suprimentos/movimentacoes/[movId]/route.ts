@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { recalcularSaldos } from "@/lib/estoque-saldos";
+import { zerarCustoEmpresaSeSemEstoque } from "@/lib/custo-empresa";
 import { z } from "zod";
 
 type Ctx = { params: { movId: string } };
@@ -131,7 +132,7 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
       // Load the movement
       const mov = await tx.movimentacaoEstoque.findUniqueOrThrow({
         where: { id: params.movId },
-        select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, valorUnitario: true, clienteDonoId: true },
+        select: { itemId: true, empresaId: true, localEstoqueId: true, tipo: true, quantidade: true, valorUnitario: true, clienteDonoId: true },
       });
 
       // Reverse the stock delta
@@ -159,6 +160,8 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
         if (totalQty <= 0) {
           await tx.item.update({ where: { id: mov.itemId }, data: { precoCusto: null } });
         }
+        // Custo por empresa: zera o da empresa da movimentação se o estoque dela acabou.
+        await zerarCustoEmpresaSeSemEstoque(tx, mov.empresaId, mov.itemId);
       }
 
       // Delete the movement record

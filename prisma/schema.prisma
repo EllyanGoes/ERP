@@ -550,6 +550,7 @@ model Empresa {
   recorrencias           Recorrencia[]
   cotacaoCompras         CotacaoCompra[]
   estoqueItems           EstoqueItem[]
+  itemCustos             ItemCustoEmpresa[]
   lancamentoFinanceiros  LancamentoFinanceiro[]
   importacaoOFXs         ImportacaoOFX[]
   localEstoques          LocalEstoque[]
@@ -750,9 +751,26 @@ model Item {
   engenhariaProduto      EngenhariaProduto?       @relation("EngenhariaProdutoItem")
   insumosEngenharia      EngenhariaInsumo[]       @relation("EngenhariaInsumoItem")
   planosMestre           PlanoMestre[]
+  custosEmpresa          ItemCustoEmpresa[]
 
   @@index([codigo])
   @@index([tipo])
+}
+
+// Custo médio (CMPM) por empresa do grupo: o cadastro do produto é
+// compartilhado, mas cada empresa tem o próprio custo (fabricação numa,
+// compra noutra). Item.precoCusto segue como CMPM global/legado (fallback).
+model ItemCustoEmpresa {
+  id         String   @id @default(cuid())
+  empresaId  String
+  itemId     String
+  precoCusto Decimal? @db.Decimal(15, 2)
+  updatedAt  DateTime @updatedAt
+  item       Item     @relation(fields: [itemId], references: [id])
+  empresa    Empresa  @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, itemId])
+  @@index([itemId])
 }
 
 model ItemUnidade {

@@ -1,6 +1,9 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
 
 /**
  * GET /api/suprimentos/relatorios/caracterizacao
@@ -110,9 +113,19 @@ export async function GET(req: NextRequest) {
     categoriaIMD: "ESTOCAVEL" | "MTO" | "OBSOLETO";
   };
 
+  // Custo por empresa: o relatório roda no escopo da empresa ativa, então o
+  // valor de consumo usa o CMPM dela (fallback no CMPM global do Item).
+  const session = await getSession();
+  const empresaAtiva = session?.activeEmpresaId ?? EMPRESA_PADRAO_ID;
+  const custosEmp = await custosPorEmpresaItem(
+    prisma,
+    items.map((i) => ({ empresaId: empresaAtiva, itemId: i.id })),
+  );
+
   const rows: Row[] = items.map((item) => {
     const movs  = saidasByItem.get(item.id) ?? [];
-    const custo = item.precoCusto ? parseFloat(item.precoCusto.toString()) : 0;
+    const custo = custosEmp.get(chaveCustoEmpresa(empresaAtiva, item.id))
+      ?? (item.precoCusto ? parseFloat(item.precoCusto.toString()) : 0);
 
     // Meses distintos com ao menos uma saída
     const monthsWithConsumption = new Set<string>();

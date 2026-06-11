@@ -2,7 +2,9 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -41,7 +43,20 @@ export async function GET(req: NextRequest) {
     orderBy: { codigo: "asc" },
   });
 
-  return NextResponse.json({ data });
+  // Custo por empresa: a lista mostra o CMPM da empresa ativa da sessão
+  // (fallback no CMPM global do Item, que já vem no registro).
+  const session = await getSession();
+  const empresaAtiva = session?.activeEmpresaId ?? EMPRESA_PADRAO_ID;
+  const custosEmp = await custosPorEmpresaItem(
+    prisma,
+    data.map((i) => ({ empresaId: empresaAtiva, itemId: i.id })),
+  );
+  const comCusto = data.map((i) => {
+    const proprio = custosEmp.get(chaveCustoEmpresa(empresaAtiva, i.id));
+    return proprio != null ? { ...i, precoCusto: proprio } : i;
+  });
+
+  return NextResponse.json({ data: comCusto });
 }
 
 export async function POST(req: NextRequest) {

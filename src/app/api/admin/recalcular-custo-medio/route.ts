@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic";
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { definirCustoEmpresa } from "@/lib/custo-empresa";
 
 /**
  * POST /api/admin/recalcular-custo-medio
@@ -13,7 +14,7 @@ import { getSession } from "@/lib/auth";
  * Só atualiza itens que têm ao menos uma conferência com vlrUnitario > 0.
  * Restrito a ADMIN.
  */
-export async function POST(req: NextRequest) {
+export async function POST() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   if (session.perfil !== "ADMIN") return NextResponse.json({ error: "Apenas administradores" }, { status: 403 });
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
     },
     select: {
       itemId:             true,
+      empresaId:          true,
       quantidadeRecebida: true,
       vlrUnitario:        true,
       conferencia:        { select: { createdAt: true } },
@@ -38,28 +40,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, atualizados: 0, detalhes: [] });
   }
 
-  // Agrupar por itemId e calcular CMPM em ordem cronológica (replay)
-  const cmpmPorItem = new Map<string, number>();
-
-  for (const ci of itensConferencia) {
-    const vlr = parseFloat(String(ci.vlrUnitario));
-    const qty  = parseFloat(String(ci.quantidadeRecebida));
-    if (!vlr || !qty || vlr <= 0 || qty <= 0) continue;
-
-    const custoAtual = cmpmPorItem.get(ci.itemId) ?? 0;
-
-    // Precisamos do estoque antes desta entrada para calcular o CMPM correto.
-    // Como não temos snapshot histórico, usamos a fórmula simplificada:
-    // acumulamos peso × preço e dividimos pelo total de quantidade acumulada.
-    // Isso é equivalente ao CMPM para itens que partem de saldo zero.
-    //
-    // Para itens que já tinham precoCusto definido (entradas manuais anteriores),
-    // usamos o valor existente no banco como base.
-    cmpmPorItem.set(ci.itemId, vlr); // será substituído abaixo pelo cálculo correto
-  }
-
-  // Recalcular corretamente: replay sequencial por item
+  // Recalcular: replay sequencial por item (e por empresa+item,
+  // para o custo próprio de cada empresa do grupo)
   const acumulado = new Map<string, { saldo: number; custo: number }>();
+  const acumuladoEmpresa = new Map<string, { empresaId: string; itemId: string; saldo: number; custo: number }>();
 
   for (const ci of itensConferencia) {
     const vlr = parseFloat(String(ci.vlrUnitario));
@@ -72,6 +56,13 @@ export async function POST(req: NextRequest) {
       : vlr;
 
     acumulado.set(ci.itemId, { saldo: prev.saldo + qty, custo: novoCusto });
+
+    const chaveEmp = `${ci.empresaId}|${ci.itemId}`;
+    const prevEmp = acumuladoEmpresa.get(chaveEmp) ?? { empresaId: ci.empresaId, itemId: ci.itemId, saldo: 0, custo: 0 };
+    const novoCustoEmp = prevEmp.saldo > 0
+      ? (prevEmp.saldo * prevEmp.custo + qty * vlr) / (prevEmp.saldo + qty)
+      : vlr;
+    acumuladoEmpresa.set(chaveEmp, { ...prevEmp, saldo: prevEmp.saldo + qty, custo: novoCustoEmp });
   }
 
   // Atualizar no banco
@@ -98,6 +89,11 @@ export async function POST(req: NextRequest) {
       custoNovo,
     });
     atualizados++;
+  }
+
+  // Custo próprio por empresa (cadastro compartilhado, custo separado)
+  for (const { empresaId, itemId, custo } of Array.from(acumuladoEmpresa.values())) {
+    await definirCustoEmpresa(prisma, empresaId, itemId, custo);
   }
 
   return NextResponse.json({ ok: true, atualizados, detalhes });

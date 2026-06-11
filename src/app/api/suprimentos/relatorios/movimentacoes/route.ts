@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
 import { Prisma } from "@prisma/client";
 
 /**
@@ -58,9 +59,17 @@ export async function GET(req: NextRequest) {
 
   const map = new Map<string, Row>();
 
+  // Custo por empresa: movimentações sem valor unitário usam o CMPM da
+  // empresa da movimentação (fallback no CMPM global do Item).
+  const custosEmp = await custosPorEmpresaItem(
+    prisma,
+    movs.filter((m) => m.valorUnitario == null).map((m) => ({ empresaId: m.empresaId, itemId: m.itemId })),
+  );
+
   for (const m of movs) {
     const qty   = parseFloat(String(m.quantidade ?? 0));
-    const custo = parseFloat(String(m.valorUnitario ?? m.item.precoCusto ?? 0));
+    const custoEmp = custosEmp.get(chaveCustoEmpresa(m.empresaId, m.itemId));
+    const custo = parseFloat(String(m.valorUnitario ?? custoEmp ?? m.item.precoCusto ?? 0));
     const valor = qty * custo;
 
     if (!map.has(m.itemId)) {

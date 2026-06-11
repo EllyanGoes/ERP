@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
+import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("compras");
@@ -122,6 +123,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             where: { id: item.itemId },
             data: { precoCusto: novoCusto },
           });
+
+          // CMPM próprio da empresa dona da conferência (custo por empresa).
+          await aplicarCmpmEmpresa(tx, conferencia.empresaId, item.itemId, qtdRecebida, vlrUnitario);
         }
 
         // Mark divergencia on item

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
+import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Consolidado do grupo (multiempresa — Fase 5). Restrito a ADMIN.
@@ -69,8 +70,10 @@ export async function GET(req: NextRequest) {
       _count: { _all: true },
     }),
     prismaSemEscopo.estoqueItem.findMany({
+      where: { clienteDonoId: null }, // estoque de terceiros não entra na valoração
       select: {
         empresaId: true,
+        itemId: true,
         quantidadeAtual: true,
         item: { select: { precoCusto: true } },
       },
@@ -138,10 +141,16 @@ export async function GET(req: NextRequest) {
     linha.pagarAberto.quantidade += g._count._all;
     if (g.intragrupo) linha.pagarAberto.intragrupo += valor;
   }
+  // Custo por empresa: valoração com o CMPM de cada empresa (fallback global).
+  const custosEmp = await custosPorEmpresaItem(
+    prismaSemEscopo,
+    estoque.map((e) => ({ empresaId: e.empresaId, itemId: e.itemId })),
+  );
   for (const e of estoque) {
     const linha = porEmpresa.get(e.empresaId);
     if (!linha) continue;
-    linha.estoqueValor += num(e.quantidadeAtual) * num(e.item.precoCusto);
+    const custo = custosEmp.get(chaveCustoEmpresa(e.empresaId, e.itemId)) ?? num(e.item.precoCusto);
+    linha.estoqueValor += num(e.quantidadeAtual) * custo;
   }
 
   const linhas = Array.from(porEmpresa.values());

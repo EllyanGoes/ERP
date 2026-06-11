@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
 import { sendWAMessage, validateWAConfig } from "@/lib/whatsapp";
 import { sendTelegramMessage, sendTelegramDM, escMD } from "@/lib/telegram";
 
@@ -99,9 +100,15 @@ export async function POST(
     }
 
     // ── Calculate valor total from item precoCusto ────────────────────────────
+    // Custo por empresa: estimativa com o CMPM da empresa dona da SC
+    // (fallback no CMPM global do Item).
+    const custosEmp = await custosPorEmpresaItem(
+      prisma,
+      sc.itens.map((it) => ({ empresaId: sc.empresaId, itemId: it.itemId })),
+    );
     let valorTotalNum: number | null = null;
     for (const it of sc.itens) {
-      const custo = it.item?.precoCusto;
+      const custo = custosEmp.get(chaveCustoEmpresa(sc.empresaId, it.itemId)) ?? it.item?.precoCusto;
       if (custo != null) {
         const qtd = parseFloat(String(it.quantidade ?? 0));
         const val = parseFloat(String(custo));
