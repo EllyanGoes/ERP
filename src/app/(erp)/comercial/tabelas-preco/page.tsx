@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Plus, Search, Tag, CheckCircle2, XCircle, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
+import EmpresaTag from "@/components/shared/EmpresaTag";
 
 type TabelaPreco = {
   id: string;
+  empresaId?: string;
   codigo: string;
   descricao: string;
   dataInicial: string;
@@ -170,7 +172,7 @@ export default function TabelasPrecoPage() {
                     onClick={() => router.push(`/comercial/tabelas-preco/${t.id}`)}
                     className="hover:bg-blue-50/40 cursor-pointer transition-colors group"
                   >
-                    <td className="px-4 py-3 font-mono font-semibold text-gray-800">{t.codigo}</td>
+                    <td className="px-4 py-3 font-mono font-semibold text-gray-800">{t.codigo} <EmpresaTag empresaId={t.empresaId} /></td>
                     <td className="px-4 py-3 font-medium text-gray-900 group-hover:text-blue-700">{t.descricao}</td>
                     <td className="px-4 py-3 text-gray-600">{fmtDate(t.dataInicial)}</td>
                     <td className="px-4 py-3 text-gray-500">{fmtDate(t.dataFinal)}</td>

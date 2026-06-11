@@ -46,7 +46,7 @@ if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prismaSemEsc
 
 // Modelos que possuem coluna empresaId (mesma lista da migration da Fase 1).
 const MODELOS_ESCOPADOS = new Set<string>([
-  "PedidoVenda", "PedidoVendaItem", "Minuta", "MinutaItem", "MovimentacaoComodato",
+  "PedidoVenda", "PedidoVendaItem", "Minuta", "MinutaItem", "MovimentacaoComodato", "TabelaPreco",
   "LocalEstoque", "EstoqueItem", "MovimentacaoEstoque", "LoteMovimentacao",
   "RequisicaoMaterial", "InventarioMaterial",
   "NecessidadeCompra", "CotacaoCompra", "PedidoCompra", "ConferenciaCompra", "ConferenciaCompraItem",
@@ -149,7 +149,7 @@ const MODELOS_LEITURA_GRUPO = new Set<string>([
   // compras
   "NecessidadeCompra", "CotacaoCompra", "PedidoCompra", "ConferenciaCompra", "ConferenciaCompraItem",
   // comercial
-  "PedidoVenda", "PedidoVendaItem", "Minuta", "MinutaItem",
+  "PedidoVenda", "PedidoVendaItem", "Minuta", "MinutaItem", "TabelaPreco",
   // estoque (movimentado pela minuta/conferência da empresa dona)
   "LocalEstoque", "EstoqueItem", "MovimentacaoEstoque", "LoteMovimentacao", "Filial",
 ])

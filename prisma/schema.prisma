@@ -551,6 +551,7 @@ model Empresa {
   cotacaoCompras         CotacaoCompra[]
   estoqueItems           EstoqueItem[]
   itemCustos             ItemCustoEmpresa[]
+  tabelasPreco           TabelaPreco[]
   lancamentoFinanceiros  LancamentoFinanceiro[]
   importacaoOFXs         ImportacaoOFX[]
   localEstoques          LocalEstoque[]
@@ -1262,7 +1263,8 @@ model Sequencia {
 
 model TabelaPreco {
   id                String            @id @default(cuid())
-  codigo            String            @unique
+  empresaId         String            @default("emp_tramontin")
+  codigo            String
   descricao         String
   dataInicial       DateTime
   dataFinal         DateTime?
@@ -1276,7 +1278,11 @@ model TabelaPreco {
   itens             TabelaPrecoItem[]
   pedidosVenda      PedidoVenda[]
 
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, codigo])
   @@index([ativa])
+  @@index([empresaId])
 }
 
 model TabelaPrecoItem {

@@ -25,7 +25,7 @@ type ItemOption       = {
   itemUnidades?: ItemUnidadeOption[];
 };
 type TabelaOption     = {
-  id: string; codigo: string; descricao: string;
+  id: string; codigo: string; descricao: string; empresaId?: string;
   condicaoPagamento: string | null; ativa: boolean;
   itens: Array<{ itemId: string | null; precoVenda: unknown; vlrDesconto: unknown }>;
 };
@@ -287,6 +287,14 @@ export default function PedidoForm({
     if (!tabelaSelecionada) return;
     if (tabelaSelecionada.condicaoPagamento) setCondicaoPagamento(tabelaSelecionada.condicaoPagamento);
   }, [tabelaPrecoId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Tabela é por empresa: trocar a empresa do pedido limpa tabela de outra empresa
+  useEffect(() => {
+    if (pedido) return;
+    const alvo = empresaId || usuarioSessao?.activeEmpresaId;
+    const t = tabelas.find((x) => x.id === tabelaPrecoId);
+    if (t?.empresaId && alvo && t.empresaId !== alvo) setTabelaPrecoId("");
+  }, [empresaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Outside click: close cliente dropdown
   useEffect(() => {
@@ -819,7 +827,16 @@ export default function PedidoForm({
               className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors"
             >
               <option value="">— Sem tabela de preço —</option>
-              {tabelas.filter((t) => t.ativa !== false).map((t) => (
+              {tabelas
+                .filter((t) => t.ativa !== false)
+                // tabelas de preço são por empresa: na criação, só as da
+                // empresa do pedido (modo grupo lista as de todas)
+                .filter((t) => {
+                  if (pedido || !t.empresaId) return true;
+                  const alvo = empresaId || usuarioSessao?.activeEmpresaId;
+                  return !alvo || t.empresaId === alvo;
+                })
+                .map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.codigo} — {t.descricao}
                   {t.condicaoPagamento ? ` · ${t.condicaoPagamento}` : ""}
