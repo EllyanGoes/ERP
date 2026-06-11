@@ -240,23 +240,15 @@ export default function MinutaDetailPage() {
     try {
       const bytes = buildMinutaEscPos(minuta, { cols: 48 });
       await printEscPosUSB(bytes);
-    } catch (e) {
-      // WebUSB indisponível, impressora não listada (driver do Windows segura o
-      // USB — ex.: "EPSON USB Controller") ou seletor cancelado → imprime pelo
-      // diálogo do navegador usando o driver instalado.
-      const name = e instanceof DOMException ? e.name : "";
-      const msg  = e instanceof Error ? e.message : "";
-      const semDispositivo =
-        name === "NotFoundError" || name === "SecurityError" ||
-        /não suporta WebUSB|claim/i.test(msg);
-      if (semDispositivo) {
-        try {
-          printMinutaViaDialog(minuta);
-        } catch (e2) {
-          setError(e2 instanceof Error ? e2.message : "Não foi possível imprimir.");
-        }
-      } else {
-        setError(msg || "Não foi possível imprimir.");
+    } catch {
+      // QUALQUER falha do WebUSB (sem suporte, aparelho não listado, endpoint
+      // incompatível, claim segurado pelo driver, seletor cancelado…) cai no
+      // diálogo do navegador formatado para bobina 80mm — o driver instalado
+      // sempre encontra a impressora por esse caminho.
+      try {
+        printMinutaViaDialog(minuta);
+      } catch (e2) {
+        setError(e2 instanceof Error ? e2.message : "Não foi possível imprimir.");
       }
     } finally {
       setPrinting(false);

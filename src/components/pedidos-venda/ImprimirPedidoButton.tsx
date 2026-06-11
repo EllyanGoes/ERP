@@ -38,17 +38,10 @@ export default function ImprimirPedidoButton({ pedido }: { pedido: PedidoPrintDa
     setErro("");
     try {
       await printEscPosUSB(buildPedidoEscPos(pedido, 48));
-    } catch (e) {
-      const name = e instanceof DOMException ? e.name : "";
-      const msg = e instanceof Error ? e.message : "";
-      const semDispositivo =
-        name === "NotFoundError" || name === "SecurityError" || /não suporta WebUSB|claim/i.test(msg);
-      if (semDispositivo) {
-        try { printPedidoTermicaDialog(pedido); }
-        catch (e2) { setErro(e2 instanceof Error ? e2.message : "Não foi possível imprimir."); }
-      } else {
-        setErro(msg || "Não foi possível imprimir.");
-      }
+    } catch {
+      // qualquer falha do WebUSB → diálogo do navegador formatado em 80mm
+      try { printPedidoTermicaDialog(pedido); }
+      catch (e2) { setErro(e2 instanceof Error ? e2.message : "Não foi possível imprimir."); }
     } finally {
       setImprimindo(false);
     }
