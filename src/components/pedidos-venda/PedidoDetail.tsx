@@ -64,7 +64,7 @@ type PedidoDetailProps = {
   pedido: {
     id: string; numero: string; numeroOrcamento: string | null; status: string;
     dataEmissao: Date | string; dataEntrega: Date | string | null;
-    condicaoPagamento: string | null; observacoes: string | null;
+    condicaoPagamento: string | null; formaPagamento: string | null; observacoes: string | null;
     valorProdutos: unknown; valorDesconto: unknown; valorFrete: unknown; valorTotal: unknown;
     cliente: { id: string; razaoSocial: string };
     itens: ItemRow[];
@@ -287,6 +287,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             <div className="flex justify-between"><span className="text-gray-500">Nº Orçamento</span><span>{pedido.numeroOrcamento || "—"}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Emissão</span><span>{formatDate(pedido.dataEmissao)}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Conclusão</span><span>{pedido.dataEntrega ? formatDate(pedido.dataEntrega) : "—"}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Forma Pagamento</span><span>{pedido.formaPagamento || "—"}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Cond. Pagamento</span><span>{pedido.condicaoPagamento || "—"}</span></div>
             {pedido.observacoes && <div className="pt-2 border-t"><p className="text-gray-400 text-xs mb-1">Observações</p><p>{pedido.observacoes}</p></div>}
           </CardContent>

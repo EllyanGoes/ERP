@@ -1072,6 +1072,7 @@ model PedidoVenda {
   valorFrete        Decimal           @default(0) @db.Decimal(15, 2)
   valorTotal        Decimal           @default(0) @db.Decimal(15, 2)
   condicaoPagamento String?
+  formaPagamento    String?
   observacoes       String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt

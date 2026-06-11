@@ -87,6 +87,7 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
     status: pedido.status,
     dataEmissao: pedido.dataEmissao?.toISOString() ?? null,
     condicaoPagamento: pedido.condicaoPagamento,
+    formaPagamento: pedido.formaPagamento,
     observacoes: pedido.observacoes,
     valorProdutos: decimalToNumber(pedido.valorProdutos),
     valorDesconto: decimalToNumber(pedido.valorDesconto),

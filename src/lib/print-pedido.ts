@@ -9,6 +9,7 @@ export type PedidoPrintData = {
   status: string;
   dataEmissao: string | null;
   condicaoPagamento: string | null;
+  formaPagamento: string | null;
   observacoes: string | null;
   valorProdutos: number;
   valorDesconto: number;
@@ -116,7 +117,8 @@ export function buildPedidoEscPos(p: PedidoPrintData, cols = 48): Uint8Array {
   raw([ESC, 0x61, 0x00]); // left
 
   lr("Emissao:", fmtData(p.dataEmissao));
-  if (p.condicaoPagamento) lr("Pagamento:", p.condicaoPagamento);
+  if (p.formaPagamento) lr("Pagamento:", p.formaPagamento);
+  if (p.condicaoPagamento) lr("Condicao:", p.condicaoPagamento);
   sep();
   raw([ESC, 0x45, 0x01]); line("CLIENTE"); raw([ESC, 0x45, 0x00]);
   line(p.cliente.nomeFantasia || p.cliente.razaoSocial);
@@ -188,7 +190,8 @@ export function printPedidoTermicaDialog(p: PedidoPrintData): void {
   <div class="sep"></div>
   <div class="center bold" style="font-size:13pt">PEDIDO ${esc(p.numero)}</div>
   ${lr("Emissão:", fmtData(p.dataEmissao))}
-  ${p.condicaoPagamento ? lr("Pagamento:", p.condicaoPagamento) : ""}
+  ${p.formaPagamento ? lr("Pagamento:", p.formaPagamento) : ""}
+  ${p.condicaoPagamento ? lr("Condição:", p.condicaoPagamento) : ""}
   <div class="sep"></div>
   <div class="bold">CLIENTE</div>
   <div>${esc(p.cliente.nomeFantasia || p.cliente.razaoSocial)}</div>
@@ -259,7 +262,7 @@ export function printPedidoA4(p: PedidoPrintData): void {
       ${p.empresa.telefone ? `<div>FONE: ${esc(p.empresa.telefone)}</div>` : ""}
     </div>` : ""}
     <div class="meta">
-      <div>Data: ${fmtData(p.dataEmissao)}${p.condicaoPagamento ? ` &nbsp;&nbsp;Pagamento: ${esc(p.condicaoPagamento)}` : ""}</div>
+      <div>Data: ${fmtData(p.dataEmissao)}${p.formaPagamento ? ` &nbsp;&nbsp;Pagamento: ${esc(p.formaPagamento)}` : ""}${p.condicaoPagamento ? ` &nbsp;&nbsp;Condição: ${esc(p.condicaoPagamento)}` : ""}</div>
       <div class="cliente">Cliente: ${esc(p.cliente.razaoSocial)}${p.cliente.nomeFantasia ? ` (${esc(p.cliente.nomeFantasia)})` : ""}${p.cliente.cpfCnpj ? ` — ${esc(p.cliente.cpfCnpj)}` : ""}</div>
       <div>Endereço: ${esc(enderecoLinha(p.cliente)) || "—"}</div>
     </div>

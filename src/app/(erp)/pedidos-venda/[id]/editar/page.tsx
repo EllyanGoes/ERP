@@ -82,6 +82,7 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
     dataEmissao: pedido.dataEmissao.toISOString(),
     dataEntrega: pedido.dataEntrega ? pedido.dataEntrega.toISOString() : null,
     condicaoPagamento: pedido.condicaoPagamento,
+    formaPagamento: pedido.formaPagamento,
     valorFrete: pedido.valorFrete,
     observacoes: pedido.observacoes,
     itens: pedido.itens.map((pi) => ({
