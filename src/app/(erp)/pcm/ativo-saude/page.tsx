@@ -57,6 +57,8 @@ export default function AtivoSaudePage() {
   // popup de timeline: ativo clicado na tabela + mês selecionado dentro do período
   const [timelineAtivo, setTimelineAtivo] = useState<{ codApl: number; descricao: string; tag: string } | null>(null);
   const [timelineComp, setTimelineComp] = useState<string>(""); // "YYYY-MM" 
+  // séries ocultadas pelo clique na legenda do gráfico (menos poluição visual)
+  const [seriesOcultas, setSeriesOcultas] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -243,9 +245,24 @@ export default function AtivoSaudePage() {
                           : [`${numFmt.format(Number(v))} h`, name]
                       }
                     />
-                    <Legend />
-                    <Line yAxisId="mtbf" type="monotone" dataKey="mtbf" name="MTBF" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                    <Line yAxisId="mttr" type="monotone" dataKey="mttr" name="MTTR" stroke="#d97706" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                    <Legend
+                      onClick={(e) => {
+                        const nome = String(e.value);
+                        setSeriesOcultas((prev) => {
+                          const novo = new Set(prev);
+                          if (novo.has(nome)) novo.delete(nome);
+                          else novo.add(nome);
+                          return novo;
+                        });
+                      }}
+                      formatter={(value) => (
+                        <span style={{ cursor: "pointer", opacity: seriesOcultas.has(String(value)) ? 0.35 : 1 }}>
+                          {value}
+                        </span>
+                      )}
+                    />
+                    <Line yAxisId="mtbf" type="monotone" dataKey="mtbf" name="MTBF" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} connectNulls hide={seriesOcultas.has("MTBF")} />
+                    <Line yAxisId="mttr" type="monotone" dataKey="mttr" name="MTTR" stroke="#d97706" strokeWidth={2} dot={{ r: 3 }} connectNulls hide={seriesOcultas.has("MTTR")} />
                     {/* meses sem falha: só o check verde na base (linha invisível) */}
                     <Line
                       yAxisId="mttr"
@@ -257,6 +274,7 @@ export default function AtivoSaudePage() {
                       dot={<DotSemFalhas />}
                       activeDot={false}
                       isAnimationActive={false}
+                      hide={seriesOcultas.has("Sem falhas")}
                     />
                   </LineChart>
                 </ResponsiveContainer>
