@@ -18,7 +18,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 
 type ItemOpt = {
   id: string; codigo: string; descricao: string;
-  unidadeMedida: string; precoVenda: unknown;
+  unidadeMedida: string; precoVenda: unknown; precoCusto?: unknown;
 };
 
 type ItemRow = {
@@ -31,6 +31,8 @@ type ItemRow = {
   precoBase: string;
   precoVenda: string;
   vlrDesconto: string;
+  markupPct: string;      // "" = preço manual
+  custo: number | null;   // CMPM da empresa da tabela (read-only, vem do GET)
   ativo: boolean;
   fator: string;
   tipoOperacao: string;
@@ -48,10 +50,12 @@ type TabelaPreco = {
   tipoHorario: string;
   ativa: boolean;
   ecommerce: boolean;
+  markupPadrao: unknown;
   observacoes: string | null;
+  custos?: Record<string, number | null>; // custo ATUAL por itemId (empresa da tabela)
   itens: Array<{
     id: string; sequencia: number; itemId: string | null; grupo: string | null;
-    precoBase: unknown; precoVenda: unknown; vlrDesconto: unknown;
+    precoBase: unknown; precoVenda: unknown; vlrDesconto: unknown; markupPct: unknown;
     ativo: boolean; fator: unknown; tipoOperacao: string | null;
     faixa: unknown; moeda: string;
     item: ItemOpt | null;
@@ -82,17 +86,30 @@ function toDateInput(iso: string | null | undefined): string {
   return iso.slice(0, 10);
 }
 
+/** Formata percentual com até 2 casas: 30 → "30", 12.5 → "12,5" */
+function formatPct(v: string | number): string {
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  if (isNaN(n)) return "";
+  return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(n);
+}
+
+/** Preço de venda a partir do custo e do markup %: custo × (1 + m/100) */
+function precoPorMarkup(custo: number, markupPct: number): string {
+  return (custo * (1 + markupPct / 100)).toFixed(4);
+}
+
 function emptyRow(): ItemRow {
   return {
     _key: crypto.randomUUID(),
     itemId: "", codigo: "", descricao: "", unidadeMedida: "",
     grupo: "", precoBase: "0", precoVenda: "0", vlrDesconto: "0",
+    markupPct: "", custo: null,
     ativo: true, fator: "0", tipoOperacao: "Todos",
     faixa: "999999.99", moeda: "BRL",
   };
 }
 
-function rowFromDB(it: TabelaPreco["itens"][number]): ItemRow {
+function rowFromDB(it: TabelaPreco["itens"][number], custos: Record<string, number | null>): ItemRow {
   return {
     _key:         crypto.randomUUID(),
     itemId:       it.itemId ?? "",
@@ -103,6 +120,8 @@ function rowFromDB(it: TabelaPreco["itens"][number]): ItemRow {
     precoBase:    decimalToNumber(it.precoBase).toFixed(4),
     precoVenda:   decimalToNumber(it.precoVenda).toFixed(4),
     vlrDesconto:  decimalToNumber(it.vlrDesconto).toFixed(4),
+    markupPct:    it.markupPct != null ? String(decimalToNumber(it.markupPct)) : "",
+    custo:        it.itemId ? (custos[it.itemId] ?? null) : null,
     ativo:        it.ativo,
     fator:        decimalToNumber(it.fator).toFixed(4),
     tipoOperacao: it.tipoOperacao ?? "Todos",
@@ -130,7 +149,7 @@ export default function TabelaPrecoDetailPage() {
   const [form, setForm] = useState({
     descricao: "", dataInicial: "", dataFinal: "",
     condicaoPagamento: "", tipoHorario: "UNICO",
-    ativa: true, ecommerce: false, observacoes: "",
+    ativa: true, ecommerce: false, markupPadrao: "", observacoes: "",
   });
 
   // Items
@@ -164,9 +183,10 @@ export default function TabelaPrecoDetailPage() {
         tipoHorario:       t.tipoHorario,
         ativa:             t.ativa,
         ecommerce:         t.ecommerce,
+        markupPadrao:      t.markupPadrao != null ? String(decimalToNumber(t.markupPadrao)) : "",
         observacoes:       t.observacoes ?? "",
       });
-      setItens(t.itens.map(rowFromDB));
+      setItens(t.itens.map((it) => rowFromDB(it, t.custos ?? {})));
       setDirty(false);
     } catch { setError("Erro ao carregar"); }
     finally { setLoading(false); }
@@ -244,17 +264,59 @@ export default function TabelaPrecoDetailPage() {
   }
 
   function selectProduct(key: string, prod: ItemOpt) {
+    // Custo da busca = CMPM da empresa ativa (o GET da tabela traz o custo
+    // exato da empresa dona ao recarregar). Com markup padrão definido, o
+    // preço já nasce calculado a partir do custo.
+    const custo = prod.precoCusto != null ? decimalToNumber(prod.precoCusto) : null;
+    const mp = parseFloat(form.markupPadrao);
+    const usaMarkup = custo != null && custo > 0 && !isNaN(mp);
     setItens((prev) => prev.map((r) => r._key !== key ? r : {
       ...r,
       itemId:       prod.id,
       codigo:       prod.codigo,
       descricao:    prod.descricao,
       unidadeMedida: prod.unidadeMedida,
+      custo,
+      markupPct:    usaMarkup ? String(mp) : r.markupPct,
       precoBase:    decimalToNumber(prod.precoVenda).toFixed(4),
-      precoVenda:   decimalToNumber(prod.precoVenda).toFixed(4),
+      precoVenda:   usaMarkup ? precoPorMarkup(custo, mp) : decimalToNumber(prod.precoVenda).toFixed(4),
     }));
     closeSearch();
     setSearchQuery("");
+    setDirty(true);
+  }
+
+  /** Define o markup de uma linha e recalcula o preço pelo custo. */
+  function aplicarMarkupLinha(key: string, markupRaw: string) {
+    setItens((prev) => prev.map((r) => {
+      if (r._key !== key) return r;
+      const mp = parseFloat(markupRaw);
+      if (markupRaw === "" || isNaN(mp)) return { ...r, markupPct: "" }; // manual
+      if (r.custo == null || r.custo <= 0) return { ...r, markupPct: String(mp) };
+      return { ...r, markupPct: String(mp), precoVenda: precoPorMarkup(r.custo, mp) };
+    }));
+    setDirty(true);
+  }
+
+  /** Aplica o markup padrão da tabela a todas as linhas com custo. */
+  function aplicarMarkupTodos() {
+    const mp = parseFloat(form.markupPadrao);
+    if (isNaN(mp)) return;
+    setItens((prev) => prev.map((r) =>
+      r.custo != null && r.custo > 0
+        ? { ...r, markupPct: String(mp), precoVenda: precoPorMarkup(r.custo, mp) }
+        : r,
+    ));
+    setDirty(true);
+  }
+
+  /** Reaplica o markup das linhas que têm markup, usando o custo atual. */
+  function recalcularPelosCustos() {
+    setItens((prev) => prev.map((r) => {
+      const mp = parseFloat(r.markupPct);
+      if (isNaN(mp) || r.custo == null || r.custo <= 0) return r;
+      return { ...r, precoVenda: precoPorMarkup(r.custo, mp) };
+    }));
     setDirty(true);
   }
 
@@ -267,6 +329,7 @@ export default function TabelaPrecoDetailPage() {
         ...form,
         dataInicial: form.dataInicial || null,
         dataFinal:   form.dataFinal   || null,
+        markupPadrao: form.markupPadrao !== "" && !isNaN(parseFloat(form.markupPadrao)) ? parseFloat(form.markupPadrao) : null,
         itens: itens.map((r, idx) => ({
           sequencia:    idx + 1,
           itemId:       r.itemId || null,
@@ -274,6 +337,7 @@ export default function TabelaPrecoDetailPage() {
           precoBase:    parseFloat(r.precoBase)   || 0,
           precoVenda:   parseFloat(r.precoVenda)  || 0,
           vlrDesconto:  parseFloat(r.vlrDesconto) || 0,
+          markupPct:    r.markupPct !== "" && !isNaN(parseFloat(r.markupPct)) ? parseFloat(r.markupPct) : null,
           ativo:        r.ativo,
           fator:        parseFloat(r.fator) || 0,
           tipoOperacao: r.tipoOperacao || null,
@@ -290,7 +354,7 @@ export default function TabelaPrecoDetailPage() {
       if (!res.ok) { setSaveError(json.error || "Erro ao salvar"); return; }
       const t: TabelaPreco = json.data;
       setTabela(t);
-      setItens(t.itens.map(rowFromDB));
+      setItens(t.itens.map((it) => rowFromDB(it, t.custos ?? {})));
       setDirty(false);
       setEditing(false);
       setSaveSuccess(true);
@@ -449,12 +513,41 @@ export default function TabelaPrecoDetailPage() {
 
         {/* ── Items grid ─────────────────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-semibold text-sm text-gray-800">Itens da Tabela</h2>
-            {editing && (
-              <Button size="sm" variant="outline" onClick={addRow}>
-                <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Item
-              </Button>
+            {editing ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                  Markup padrão (%)
+                  <input
+                    type="text"
+                    value={form.markupPadrao}
+                    onChange={(e) => { setForm((f) => ({ ...f, markupPadrao: e.target.value.replace(",", ".") })); setDirty(true); }}
+                    placeholder="ex: 30"
+                    className="h-7 w-20 rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </label>
+                <Button
+                  size="sm" variant="outline" onClick={aplicarMarkupTodos}
+                  disabled={form.markupPadrao === "" || isNaN(parseFloat(form.markupPadrao))}
+                  title="Define o markup padrão em todas as linhas com custo e recalcula os preços"
+                >
+                  Aplicar a todos
+                </Button>
+                <Button
+                  size="sm" variant="outline" onClick={recalcularPelosCustos}
+                  title="Reaplica o markup das linhas que têm markup, usando o custo atual de cada item"
+                >
+                  Recalcular pelos custos
+                </Button>
+                <Button size="sm" variant="outline" onClick={addRow}>
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Item
+                </Button>
+              </div>
+            ) : (
+              form.markupPadrao !== "" && (
+                <span className="text-xs text-gray-500">Markup padrão: <span className="font-semibold text-gray-700">{formatPct(form.markupPadrao)}%</span></span>
+              )
             )}
           </div>
 
@@ -470,13 +563,15 @@ export default function TabelaPrecoDetailPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[900px]">
+              <table className="w-full text-sm min-w-[1080px]">
                 <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide">
                   <tr>
                     <th className="text-center px-3 py-2.5 font-semibold w-12">#</th>
                     <th className="text-left px-3 py-2.5 font-semibold w-28">Cód. Produto</th>
                     <th className="text-left px-3 py-2.5 font-semibold">Descrição</th>
                     <th className="text-center px-3 py-2.5 font-semibold w-14">U.M.</th>
+                    <th className="text-right px-3 py-2.5 font-semibold w-28">Custo (R$)</th>
+                    <th className="text-right px-3 py-2.5 font-semibold w-24">Markup %</th>
                     <th className="text-right px-3 py-2.5 font-semibold w-32">Preço Venda</th>
                     <th className="text-right px-3 py-2.5 font-semibold w-32">Vlr. Desconto</th>
                     {editing && <th className="w-10 px-2 py-2.5" />}
@@ -524,7 +619,39 @@ export default function TabelaPrecoDetailPage() {
                         </span>
                       </td>
 
-                      {/* Preço Venda */}
+                      {/* Custo (CMPM da empresa da tabela) — sempre read-only */}
+                      <td className="px-3 py-2 text-right">
+                        <span className="text-xs font-mono text-gray-500 tabular-nums" title="Custo médio (CMPM) atual da empresa da tabela">
+                          {row.custo != null && row.custo > 0 ? formatPrice4(row.custo) : "—"}
+                        </span>
+                      </td>
+
+                      {/* Markup % — calcula o preço a partir do custo */}
+                      <td className="px-3 py-2 text-right">
+                        {editing ? (
+                          <input
+                            type="text"
+                            defaultValue={row.markupPct === "" ? "" : formatPct(row.markupPct)}
+                            key={row._key + "-mk-" + row.markupPct}
+                            disabled={row.custo == null || row.custo <= 0}
+                            title={row.custo == null || row.custo <= 0 ? "Item sem custo registrado na empresa — preço manual" : "% sobre o custo; vazio = preço manual"}
+                            placeholder="manual"
+                            onFocus={(e) => { e.target.value = row.markupPct; }}
+                            onBlur={(e) => {
+                              const raw = e.target.value.trim().replace(",", ".");
+                              aplicarMarkupLinha(row._key, raw);
+                              e.target.value = raw === "" || isNaN(parseFloat(raw)) ? "" : formatPct(raw);
+                            }}
+                            className="h-7 w-full rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 disabled:bg-gray-50 disabled:text-gray-300"
+                          />
+                        ) : (
+                          <span className="text-xs font-mono text-gray-600 tabular-nums">
+                            {row.markupPct !== "" ? `${formatPct(row.markupPct)}%` : "manual"}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Preço Venda — digitar direto limpa o markup (vira manual) */}
                       <td className="px-3 py-2 text-right">
                         {editing ? (
                           <input
@@ -534,7 +661,10 @@ export default function TabelaPrecoDetailPage() {
                             onFocus={(e) => { e.target.value = row.precoVenda === "0" ? "" : row.precoVenda; }}
                             onBlur={(e) => {
                               const raw = parsePrice(e.target.value || "0");
-                              updateItem(row._key, "precoVenda", raw);
+                              if (raw !== row.precoVenda) {
+                                setItens((prev) => prev.map((r) => r._key === row._key ? { ...r, precoVenda: raw, markupPct: "" } : r));
+                                setDirty(true);
+                              }
                               e.target.value = formatPrice4(raw);
                             }}
                             className="h-7 w-full rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
@@ -581,7 +711,7 @@ export default function TabelaPrecoDetailPage() {
                 </tbody>
                 <tfoot className="border-t-2 border-gray-200 bg-gray-50">
                   <tr>
-                    <td colSpan={editing ? 7 : 6} className="px-4 py-2 text-xs text-gray-400">
+                    <td colSpan={editing ? 9 : 8} className="px-4 py-2 text-xs text-gray-400">
                       {itens.length} {itens.length === 1 ? "item" : "itens"}
                     </td>
                   </tr>

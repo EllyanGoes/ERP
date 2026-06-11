@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const body = await req.json();
-  const { descricao, dataInicial, dataFinal, condicaoPagamento, tipoHorario, ativa, ecommerce, observacoes } = body;
+  const { descricao, dataInicial, dataFinal, condicaoPagamento, tipoHorario, ativa, ecommerce, markupPadrao, observacoes } = body;
 
   if (!descricao?.trim()) return NextResponse.json({ error: "Descrição obrigatória" }, { status: 400 });
   if (!dataInicial)       return NextResponse.json({ error: "Data Inicial obrigatória" }, { status: 400 });
@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
       tipoHorario:       tipoHorario ?? "UNICO",
       ativa:             ativa ?? true,
       ecommerce:         ecommerce ?? false,
+      markupPadrao:      markupPadrao != null && markupPadrao !== "" ? parseFloat(String(markupPadrao)) : null,
       observacoes:       observacoes?.trim() || null,
     },
   });

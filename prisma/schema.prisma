@@ -1272,6 +1272,7 @@ model TabelaPreco {
   tipoHorario       String            @default("UNICO")
   ativa             Boolean           @default(true)
   ecommerce         Boolean           @default(false)
+  markupPadrao      Decimal?          @db.Decimal(8, 4)
   observacoes       String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -1294,6 +1295,7 @@ model TabelaPrecoItem {
   precoBase     Decimal     @default(0) @db.Decimal(15, 4)
   precoVenda    Decimal     @default(0) @db.Decimal(15, 4)
   vlrDesconto   Decimal     @default(0) @db.Decimal(15, 4)
+  markupPct     Decimal?    @db.Decimal(8, 4) // % sobre o custo da empresa; null = preço manual
   ativo         Boolean     @default(true)
   fator         Decimal     @default(0) @db.Decimal(15, 4)
   tipoOperacao  String?
