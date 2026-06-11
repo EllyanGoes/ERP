@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import sql from "mssql";
-import { getEngemanConfig, getCorretivoCodes, engemanErrorResponse } from "@/lib/engeman";
+import { getEngemanConfig, getCorretivoCodes, engemanErrorResponse, stripRtf } from "@/lib/engeman";
 
 export interface OsDetalhe {
   codord: number;
@@ -51,25 +51,6 @@ export interface DetalheResponse {
   source: "db";
 }
 
-/** Engeman guarda OBS como RTF — extrai o texto. */
-function stripRtf(input: string | null | undefined): string {
-  if (!input) return "";
-  if (!input.trim().startsWith("{\\rtf")) return input.trim();
-  let t = input;
-  // Remove grupos de destino SEM texto do usuário (fonttbl, colortbl, *\generator…),
-  // mas preserva o texto que fica dentro de grupos {\plain … texto}.
-  t = t.replace(/\{\\\*[^{}]*\}/g, " ");
-  t = t.replace(/\{\\fonttbl[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/gi, " ");
-  t = t.replace(/\{\\colortbl[^{}]*\}/gi, " ");
-  t = t.replace(/\{\\stylesheet[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/gi, " ");
-  // Decodifica escapes hex \'xx (acentos cp1252: \'c7 = Ç, \'c3 = Ã…).
-  t = t.replace(/\\'([0-9a-fA-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
-  // Remove palavras de controle (\word + número opcional + espaço delimitador).
-  t = t.replace(/\\[a-zA-Z]+-?\d* ?/g, "");
-  // Remove chaves restantes e normaliza espaços.
-  t = t.replace(/[{}]/g, " ");
-  return t.replace(/\s+/g, " ").trim();
-}
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 const round2 = (n: number) => parseFloat(n.toFixed(2));

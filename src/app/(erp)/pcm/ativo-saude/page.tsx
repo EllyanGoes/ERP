@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import CriticidadeBadge from "@/components/pcm/CriticidadeBadge";
 import DetalheOs from "@/components/pcm/DetalheOs";
 import { cn } from "@/lib/utils";
+import { useRelatorioCache } from "@/lib/use-relatorio-cache";
 import { RefreshCw, AlertTriangle, ClipboardCheck, X } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -49,53 +50,31 @@ export default function AtivoSaudePage() {
   const [de, setDe] = useState(compStr(new Date(now.getFullYear(), now.getMonth() - 11, 1)));
   const [ate, setAte] = useState(compStr(now));
   const [filtro, setFiltro] = useState<Filtro>("all");
-  const [data, setData] = useState<MtbfMttrResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
   const [codApl, setCodApl] = useState<number | null>(null);
   const [ativoOpts, setAtivoOpts] = useState<{ codApl: number; descricao: string; tag: string }[]>([]);
+
+  const params = new URLSearchParams({ de, ate });
+  if (filtro !== "all") params.set("criticidade", filtro);
+  if (codApl !== null) params.set("codApl", String(codApl));
+  const { data, loading, erro, recarregar } = useRelatorioCache<MtbfMttrResponse>(
+    `/api/pcm/ativo-saude/mtbf-mttr?${params.toString()}`
+  );
   // popup de timeline: ativo clicado na tabela + mês selecionado dentro do período
   const [timelineAtivo, setTimelineAtivo] = useState<{ codApl: number; descricao: string; tag: string } | null>(null);
   const [timelineComp, setTimelineComp] = useState<string>(""); // "YYYY-MM" 
   // séries ocultadas pelo clique na legenda do gráfico (menos poluição visual)
   const [seriesOcultas, setSeriesOcultas] = useState<Set<string>>(new Set());
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setErro(null);
-    try {
-      const params = new URLSearchParams({ de, ate });
-      if (filtro !== "all") params.set("criticidade", filtro);
-      if (codApl !== null) params.set("codApl", String(codApl));
-      const res = await fetch(`/api/pcm/ativo-saude/mtbf-mttr?${params.toString()}`);
-      if (!res.ok) {
-        setErro("Não foi possível carregar o relatório.");
-        setData(null);
-        return;
-      }
-      const json: MtbfMttrResponse = await res.json();
-      setData(json);
-      // Atualiza as opções do seletor só na visão sem filtro (todos os ativos +
-      // todas as criticidades), pra manter a lista completa do período mesmo
-      // depois de escolher um ativo específico.
-      if (codApl === null && filtro === "all") {
-        setAtivoOpts(
-          json.porAtivo
-            .map((a) => ({ codApl: a.codApl, descricao: a.descricao || a.tag, tag: a.tag }))
-            .sort((x, y) => x.descricao.localeCompare(y.descricao, "pt-BR")),
-        );
-      }
-    } catch {
-      setErro("Erro de conexão ao carregar o relatório.");
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [de, ate, filtro, codApl]);
-
+  // Mantém a lista do seletor de ativos completa (visão sem filtros)
   useEffect(() => {
-    load();
-  }, [load]);
+    if (data && codApl === null && filtro === "all") {
+      setAtivoOpts(
+        data.porAtivo
+          .map((a) => ({ codApl: a.codApl, descricao: a.descricao || a.tag, tag: a.tag }))
+          .sort((x, y) => x.descricao.localeCompare(y.descricao, "pt-BR")),
+      );
+    }
+  }, [data, codApl, filtro]);
 
   const serie = data?.serie ?? [];
   const mesesPeriodo = serie.map((m) => ({ competencia: m.competencia, label: m.label }));
@@ -191,7 +170,7 @@ export default function AtivoSaudePage() {
             <p className="text-sm font-medium text-gray-700">{erro}</p>
             <button
               type="button"
-              onClick={load}
+              onClick={recarregar}
               className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
               <RefreshCw className="w-4 h-4" /> Tentar novamente

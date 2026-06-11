@@ -100,3 +100,26 @@ export function engemanErrorResponse(rota: string, err: unknown): NextResponse {
   console.error(`[${rota}] erro ao consultar o Engeman:`, msg);
   return NextResponse.json({ error: `Erro ao consultar o Engeman: ${msg}` }, { status: 500 });
 }
+
+/** Engeman guarda alguns textos (OBS) como RTF — extrai o texto puro. */
+export function stripRtf(input: string | null | undefined): string {
+  if (!input) return "";
+  if (!input.trim().startsWith("{\\rtf")) return input.trim();
+  let t = input;
+  // Remove grupos de destino SEM texto do usuário (fonttbl, colortbl, *\generator…),
+  // mas preserva o texto que fica dentro de grupos {\plain … texto}.
+  t = t.replace(/\{\\\*[^{}]*\}/g, " ");
+  t = t.replace(/\{\\fonttbl[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/gi, " ");
+  t = t.replace(/\{\\colortbl[^{}]*\}/gi, " ");
+  t = t.replace(/\{\\stylesheet[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/gi, " ");
+  // Decodifica escapes hex \'xx (acentos cp1252: \'c7 = Ç, \'c3 = Ã…).
+  t = t.replace(/\\'([0-9a-fA-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+  // Remove palavras de controle (\word + número opcional + espaço delimitador).
+  t = t.replace(/\\[a-zA-Z]+-?\d* ?/g, "");
+  // Remove chaves restantes e normaliza espaços.
+  t = t.replace(/[{}]/g, " ");
+  t = t.replace(/\s+/g, " ").trim();
+  // Sobras de tabelas de cores viram sequências de ';' — não são texto do usuário.
+  t = t.replace(/;{2,}/g, " ").replace(/^[\s;]+|[\s;]+$/g, "").trim();
+  return t;
+}

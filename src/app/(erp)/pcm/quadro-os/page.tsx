@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { cn, formatDate } from "@/lib/utils";
-import { RefreshCw, AlertTriangle, Users, CalendarClock } from "lucide-react";
+import { useRelatorioCache } from "@/lib/use-relatorio-cache";
+import { RefreshCw, AlertTriangle, Users, CalendarClock, Search, X, Wrench } from "lucide-react";
 import type { QuadroOsResponse, CardOS } from "@/app/api/pcm/quadro-os/route";
 
 const STATUS_META: Record<string, { label: string; chip: string }> = {
@@ -16,37 +17,36 @@ const STATUS_META: Record<string, { label: string; chip: string }> = {
 export default function QuadroOsPage() {
   useTabTitle("Quadro de O.S.");
 
-  const [data, setData] = useState<QuadroOsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
+  const { data, loading, refreshing, erro, recarregar } = useRelatorioCache<QuadroOsResponse>("/api/pcm/quadro-os");
+
+  const [busca, setBusca] = useState("");
+  const [setorFiltro, setSetorFiltro] = useState("");
+  const [tipoFiltro, setTipoFiltro] = useState("");
   const [soAtrasadas, setSoAtrasadas] = useState(false);
+  const [detalhe, setDetalhe] = useState<CardOS | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setErro(null);
-    try {
-      const res = await fetch("/api/pcm/quadro-os");
-      if (!res.ok) { setErro("Não foi possível carregar (Engeman indisponível?)"); setData(null); return; }
-      setData(await res.json());
-    } catch {
-      setErro("Erro de conexão.");
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+  const tipos = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of data?.setores ?? []) for (const o of s.os) if (o.tipo) set.add(o.tipo);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [data]);
 
   const colunas = useMemo(() => {
     let lista = data?.setores ?? [];
-    if (soAtrasadas) {
-      lista = lista
-        .map((s) => ({ ...s, os: s.os.filter((o) => o.atrasada) }))
-        .filter((s) => s.os.length > 0);
-    }
-    return lista;
-  }, [data, soAtrasadas]);
+    if (setorFiltro) lista = lista.filter((s) => s.setor === setorFiltro);
+    const q = busca.toLowerCase().trim();
+    return lista
+      .map((s) => ({
+        ...s,
+        os: s.os.filter((o) => {
+          if (soAtrasadas && !o.atrasada) return false;
+          if (tipoFiltro && o.tipo !== tipoFiltro) return false;
+          if (q && !`${o.numero} ${o.descricao} ${o.ativo ?? ""} ${o.responsaveis.join(" ")}`.toLowerCase().includes(q)) return false;
+          return true;
+        }),
+      }))
+      .filter((s) => s.os.length > 0);
+  }, [data, setorFiltro, tipoFiltro, busca, soAtrasadas]);
 
   const t = data?.totais;
 
@@ -54,19 +54,39 @@ export default function QuadroOsPage() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Quadro de O.S. por Setor"
-        subtitle="O.S. não finalizadas — cada coluna é um setor executante."
+        subtitle="O.S. não finalizadas — cada coluna é um setor executante. Clique num card para ver os detalhes."
         breadcrumbs={[{ label: "PCM" }, { label: "Quadro de O.S." }]}
       />
 
+      {/* Filtros */}
       <div className="px-8 pb-3 flex flex-wrap items-center gap-2">
-        {t && (
-          <>
-            <span className="px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 font-medium text-xs">{t.os} O.S. ativas</span>
-            <span className={cn("px-2.5 py-1 rounded-full font-medium text-xs", t.atrasadas > 0 ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700")}>
-              {t.atrasadas} atrasada(s)
-            </span>
-          </>
-        )}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar O.S., ativo, responsável…"
+            className="pl-8 pr-3 py-1.5 w-64 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <select
+          value={setorFiltro}
+          onChange={(e) => setSetorFiltro(e.target.value)}
+          className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[200px]"
+        >
+          <option value="">Todos os setores</option>
+          {(data?.setores ?? []).map((s) => (
+            <option key={s.setor} value={s.setor}>{s.setor} ({s.total})</option>
+          ))}
+        </select>
+        <select
+          value={tipoFiltro}
+          onChange={(e) => setTipoFiltro(e.target.value)}
+          className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[200px]"
+        >
+          <option value="">Todos os tipos</option>
+          {tipos.map((tp) => <option key={tp} value={tp}>{tp}</option>)}
+        </select>
         <button
           onClick={() => setSoAtrasadas((v) => !v)}
           className={cn(
@@ -76,15 +96,21 @@ export default function QuadroOsPage() {
         >
           <AlertTriangle className="w-3 h-3" /> Só atrasadas
         </button>
+        {t && (
+          <span className={cn("px-2.5 py-1 rounded-full font-medium text-xs", t.atrasadas > 0 ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700")}>
+            {t.atrasadas} atrasada(s) de {t.os}
+          </span>
+        )}
         <button
-          onClick={load}
+          onClick={recarregar}
           className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
         >
-          <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} /> Atualizar
+          <RefreshCw className={cn("w-3.5 h-3.5", (loading || refreshing) && "animate-spin")} />
+          {refreshing ? "Atualizando…" : "Atualizar"}
         </button>
       </div>
 
-      {/* ── Board ───────────────────────────────────────────────────────────── */}
+      {/* Board */}
       <div className="flex-1 min-h-0 px-8 pb-6">
         {loading ? (
           <div className="flex items-center justify-center py-20 text-gray-400 gap-2 text-sm">
@@ -96,12 +122,11 @@ export default function QuadroOsPage() {
             <p className="text-sm text-gray-600">{erro}</p>
           </div>
         ) : colunas.length === 0 ? (
-          <p className="text-sm text-gray-400 py-12 text-center">Nenhuma O.S. ativa com esses filtros. 🎉</p>
+          <p className="text-sm text-gray-400 py-12 text-center">Nenhuma O.S. com esses filtros. 🎉</p>
         ) : (
           <div className="flex gap-3 h-full overflow-x-auto items-start pb-2">
             {colunas.map((s) => (
               <div key={s.setor} className="w-[272px] shrink-0 bg-gray-100/80 rounded-xl flex flex-col max-h-full">
-                {/* cabeçalho da coluna */}
                 <div className="px-3 py-2.5 flex items-center justify-between shrink-0">
                   <h2 className="text-[13px] font-semibold text-gray-700 truncate" title={s.setor}>{s.setor}</h2>
                   <div className="flex items-center gap-1 shrink-0">
@@ -113,38 +138,91 @@ export default function QuadroOsPage() {
                     <span className="px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600 text-[10px] font-semibold">{s.os.length}</span>
                   </div>
                 </div>
-                {/* cards */}
                 <div className="px-2 pb-2 space-y-1.5 overflow-y-auto">
-                  {s.os.map((o) => <Card key={o.codOrd} os={o} />)}
+                  {s.os.map((o) => <Card key={o.codOrd} os={o} onClick={() => setDetalhe(o)} />)}
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* ── Popup de detalhe da O.S. ─────────────────────────────────────────── */}
+      {detalhe && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setDetalhe(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-mono text-sm font-bold text-gray-800">O.S. {detalhe.numero}</span>
+                {detalhe.atrasada && (
+                  <span className="px-1.5 py-0.5 rounded bg-red-50 text-red-700 text-[10px] font-semibold uppercase">Atrasada</span>
+                )}
+                <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase", (STATUS_META[detalhe.status] ?? STATUS_META.A).chip)}>
+                  {(STATUS_META[detalhe.status] ?? STATUS_META.A).label}
+                </span>
+              </div>
+              <button onClick={() => setDetalhe(null)} className="text-gray-400 hover:text-gray-600 shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 text-sm">
+              <p className="text-gray-800 leading-relaxed">{detalhe.descricao}</p>
+
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+                <Info rotulo="Setor executante" valor={detalhe.setor} icone={<Wrench className="w-3 h-3" />} />
+                <Info rotulo="Ativo" valor={detalhe.ativo ?? "—"} />
+                <Info rotulo="Tipo de manutenção" valor={detalhe.tipo ?? "—"} />
+                <Info rotulo="Aberta em" valor={detalhe.dataEntrada ? formatDate(detalhe.dataEntrada) : "—"} />
+                <Info
+                  rotulo="Programada para"
+                  valor={detalhe.dataProgramada ? formatDate(detalhe.dataProgramada) : "—"}
+                  destaque={detalhe.atrasada}
+                  icone={<CalendarClock className="w-3 h-3" />}
+                />
+                <Info
+                  rotulo="Responsáveis"
+                  valor={detalhe.responsaveis.length ? detalhe.responsaveis.join(", ") : "sem responsável apontado"}
+                  icone={<Users className="w-3 h-3" />}
+                />
+              </div>
+
+              {(detalhe.ocorrencias.length > 0 || detalhe.causas.length > 0 || detalhe.servicos.length > 0) && (
+                <div className="border-t border-gray-100 pt-3 space-y-2 text-xs">
+                  {detalhe.ocorrencias.length > 0 && <Info rotulo="Ocorrência" valor={detalhe.ocorrencias.join("; ")} />}
+                  {detalhe.causas.length > 0 && <Info rotulo="Causa" valor={detalhe.causas.join("; ")} />}
+                  {detalhe.servicos.length > 0 && <Info rotulo="Serviço executado" valor={detalhe.servicos.join("; ")} />}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function Card({ os }: { os: CardOS }) {
-  const meta = STATUS_META[os.status] ?? STATUS_META.A;
-  const tooltip = [
-    `O.S. ${os.numero} — ${meta.label}`,
-    os.descricao,
-    os.ativo ? `Ativo: ${os.ativo}` : null,
-    os.tipo ? `Tipo: ${os.tipo}` : null,
-    os.dataProgramada ? `Programada: ${formatDate(os.dataProgramada)}` : null,
-    os.dataEntrada ? `Aberta em: ${formatDate(os.dataEntrada)}` : null,
-    os.responsaveis.length ? `Responsáveis: ${os.responsaveis.join(", ")}` : "Sem responsável apontado",
-  ].filter(Boolean).join("\n");
-
+function Info({ rotulo, valor, destaque, icone }: { rotulo: string; valor: string; destaque?: boolean; icone?: React.ReactNode }) {
   return (
-    <div
+    <div>
+      <p className="text-[10px] uppercase tracking-wide text-gray-400">{rotulo}</p>
+      <p className={cn("flex items-center gap-1", destaque ? "text-red-600 font-medium" : "text-gray-700")}>
+        {icone}
+        {valor}
+      </p>
+    </div>
+  );
+}
+
+function Card({ os, onClick }: { os: CardOS; onClick: () => void }) {
+  const meta = STATUS_META[os.status] ?? STATUS_META.A;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
       className={cn(
-        "rounded-lg bg-white shadow-sm border px-2.5 py-2 space-y-1 cursor-default hover:shadow transition-shadow",
+        "w-full text-left rounded-lg bg-white shadow-sm border px-2.5 py-2 space-y-1 hover:shadow hover:border-blue-300 transition-all",
         os.atrasada ? "border-red-300" : "border-gray-200"
       )}
-      title={tooltip}
     >
       <p className="text-xs text-gray-800 leading-snug line-clamp-2">{os.descricao}</p>
 
@@ -172,6 +250,6 @@ function Card({ os }: { os: CardOS }) {
           {os.responsaveis.join(", ")}
         </p>
       )}
-    </div>
+    </button>
   );
 }

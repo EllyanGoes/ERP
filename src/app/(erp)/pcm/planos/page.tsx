@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { cn, formatDate } from "@/lib/utils";
+import { useRelatorioCache } from "@/lib/use-relatorio-cache";
 import { RefreshCw, AlertTriangle, CalendarClock } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -14,26 +15,7 @@ export default function PlanosPage() {
   useTabTitle("Planos de Manutenção");
 
   const [meses, setMeses] = useState(12);
-  const [data, setData] = useState<PlanosResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setErro(null);
-    try {
-      const res = await fetch(`/api/pcm/planos?meses=${meses}`);
-      if (!res.ok) { setErro("Não foi possível carregar (Engeman indisponível?)"); setData(null); return; }
-      setData(await res.json());
-    } catch {
-      setErro("Erro de conexão.");
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [meses]);
-
-  useEffect(() => { load(); }, [load]);
+  const { data, loading, refreshing, erro, recarregar } = useRelatorioCache<PlanosResponse>(`/api/pcm/planos?meses=${meses}`);
 
   const t = data?.totais;
   const planos = data?.planos ?? [];
@@ -61,10 +43,11 @@ export default function PlanosPage() {
           </select>
         </label>
         <button
-          onClick={load}
+          onClick={recarregar}
           className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50"
         >
-          <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} /> Atualizar
+          <RefreshCw className={cn("w-4 h-4", (loading || refreshing) && "animate-spin")} />
+          {refreshing ? "Atualizando…" : "Atualizar"}
         </button>
       </div>
 
