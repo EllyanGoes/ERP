@@ -62,7 +62,7 @@ type ItemPendente = {
 
 type PedidoDetailProps = {
   pedido: {
-    id: string; numero: string; numeroOrcamento: string | null; status: string;
+    id: string; numero: string; numeroOrcamento: string | null; status: string; intragrupo?: boolean;
     dataEmissao: Date | string; dataEntrega: Date | string | null;
     condicaoPagamento: string | null; formaPagamento: string | null; observacoes: string | null;
     valorProdutos: unknown; valorDesconto: unknown; valorFrete: unknown; valorTotal: unknown;
@@ -124,6 +124,61 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"itens" | "minutas" | "comodato">("itens");
   const [blockModal, setBlockModal] = useState<{ msg: string; pendentes: ItemPendente[] } | null>(null);
+
+  // Venda balcão (retirada na loja): recebe o pagamento e conclui em uma ação.
+  const [balcaoOpen, setBalcaoOpen] = useState(false);
+  const [balcaoLocalId, setBalcaoLocalId] = useState("");
+  const [balcaoForma, setBalcaoForma] = useState(pedido.formaPagamento ?? "");
+  const [balcaoContaId, setBalcaoContaId] = useState("caixa-geral");
+  const [balcaoErro, setBalcaoErro] = useState("");
+  const [balcaoLocais, setBalcaoLocais] = useState<{ id: string; nome: string }[]>([]);
+  const [balcaoFormas, setBalcaoFormas] = useState<{ id: string; nome: string; ativo?: boolean }[]>([]);
+  const [balcaoContas, setBalcaoContas] = useState<{ id: string; nome: string; ativo?: boolean }[]>([]);
+
+  function abrirBalcao() {
+    setBalcaoErro("");
+    setBalcaoForma(pedido.formaPagamento ?? "");
+    setBalcaoOpen(true);
+    fetch("/api/suprimentos/locais-estoque")
+      .then((r) => r.json())
+      .then((j) => {
+        const locais = Array.isArray(j) ? j : (j.data ?? []);
+        setBalcaoLocais(locais);
+        if (locais.length === 1) setBalcaoLocalId(locais[0].id);
+      })
+      .catch(() => {});
+    fetch("/api/suprimentos/formas-pagamento")
+      .then((r) => r.json())
+      .then((j) => setBalcaoFormas(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+    fetch("/api/financeiro/contas")
+      .then((r) => r.json())
+      .then((j) => setBalcaoContas(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+  }
+
+  async function concluirBalcao() {
+    if (!balcaoLocalId) { setBalcaoErro("Informe o local de estoque da retirada."); return; }
+    setLoading(true);
+    setBalcaoErro("");
+    try {
+      const res = await fetch(`/api/pedidos-venda/${pedido.id}/balcao`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          localEstoqueId: balcaoLocalId,
+          formaPagamento: balcaoForma || null,
+          contaBancariaId: balcaoContaId || null,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setBalcaoErro(json.error ?? "Não foi possível concluir a venda."); return; }
+      setBalcaoOpen(false);
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // Comodato (saída) form state
   const [comodatoItemId, setComodatoItemId] = useState("");
@@ -263,6 +318,14 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             <Button variant="outline" size="sm" onClick={() => replaceCurrentTab(`/pedidos-venda/${pedido.id}/editar`)} disabled={loading} className="gap-1.5">
               <Pencil className="w-3.5 h-3.5" />
               Editar
+            </Button>
+          )}
+          {(pedido.status === "ORCAMENTO" || pedido.status === "CONFIRMADO") &&
+            !pedido.intragrupo &&
+            minutas.filter((m) => m.status !== "CANCELADA").length === 0 && (
+            <Button size="sm" onClick={abrirBalcao} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700">
+              <Package className="w-4 h-4 mr-1.5" />
+              Venda Balcão
             </Button>
           )}
           {actions.map((a) => (
@@ -635,6 +698,71 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           </Card>
         )}
       </div>
+
+      {balcaoOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !loading && setBalcaoOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <h3 className="font-bold text-gray-800">Venda Balcão — receber e concluir</h3>
+              <p className="text-sm text-gray-600 mt-0.5">
+                Baixa o estoque agora (retirada na loja), registra o recebimento de{" "}
+                <span className="font-semibold">{formatBRL(decimalToNumber(pedido.valorTotal))}</span> e conclui o pedido.
+              </p>
+            </div>
+            {balcaoErro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{balcaoErro}</p>}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Local de Estoque <span className="text-red-500">*</span></label>
+                <select
+                  value={balcaoLocalId}
+                  onChange={(e) => setBalcaoLocalId(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— Selecionar local —</option>
+                  {balcaoLocais.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Forma de Pagamento</label>
+                <select
+                  value={balcaoForma}
+                  onChange={(e) => setBalcaoForma(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— Selecionar forma —</option>
+                  {balcaoFormas.filter((f) => f.ativo !== false).map((f) => <option key={f.id} value={f.nome}>{f.nome}</option>)}
+                  {balcaoForma && !balcaoFormas.some((f) => f.nome === balcaoForma) && (
+                    <option value={balcaoForma}>{balcaoForma}</option>
+                  )}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Conta de Destino</label>
+                <select
+                  value={balcaoContaId}
+                  onChange={(e) => setBalcaoContaId(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {!balcaoContas.some((c) => c.id === "caixa-geral") && <option value="caixa-geral">Caixa Geral</option>}
+                  {balcaoContas.filter((c) => c.ativo !== false).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setBalcaoOpen(false)} disabled={loading}>Cancelar</Button>
+              <Button onClick={concluirBalcao} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 font-semibold">
+                {loading ? "Concluindo..." : "Receber e Concluir"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {blockModal && (
         <div
