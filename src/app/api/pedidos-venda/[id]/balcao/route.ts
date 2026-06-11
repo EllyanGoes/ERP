@@ -15,6 +15,8 @@ const schema = z.object({
   localEstoqueId: z.string().min(1, "Informe o local de estoque da retirada"),
   formaPagamento: z.string().optional().nullable(),
   contaBancariaId: z.string().optional().nullable(),
+  // Data do recebimento/conclusão (YYYY-MM-DD) — o caixa confirma; vazio = hoje.
+  dataRecebimento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
 });
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -25,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos" }, { status: 400 });
   }
-  const { localEstoqueId, formaPagamento, contaBancariaId } = parsed.data;
+  const { localEstoqueId, formaPagamento, contaBancariaId, dataRecebimento } = parsed.data;
 
   const pedido = await prisma.pedidoVenda.findUnique({
     where: { id: params.id },
@@ -49,9 +51,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: "Pedido sem itens." }, { status: 422 });
   }
 
-  // Dia em horário de Brasília gravado como meia-noite UTC (padrão dos campos de data).
+  // Dia confirmado pelo caixa (ou hoje em horário de Brasília), gravado como
+  // meia-noite UTC (padrão dos campos de data).
   const hojeSP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-  const hoje = new Date(`${hojeSP}T00:00:00.000Z`);
+  const hoje = new Date(`${dataRecebimento || hojeSP}T00:00:00.000Z`);
   const valorTotal = parseFloat(pedido.valorTotal.toString());
 
   // Numeração da empresa DONA do pedido (modo grupo pode operar outra empresa).
@@ -68,7 +71,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       // Duplo clique no caixa não pode baixar estoque nem receber duas vezes.
       const claimed = await tx.pedidoVenda.updateMany({
         where: { id: params.id, status: { in: ["ORCAMENTO", "CONFIRMADO"] } },
-        data: { status: "CONCLUIDO", dataEntrega: pedido.dataEntrega ?? hoje },
+        // data confirmada pelo caixa prevalece sobre a previsão do pedido
+        data: { status: "CONCLUIDO", dataEntrega: dataRecebimento ? hoje : (pedido.dataEntrega ?? hoje) },
       });
       if (claimed.count === 0) {
         throw new Error("CONFLITO: o pedido já foi concluído por outra operação — recarregue a página.");

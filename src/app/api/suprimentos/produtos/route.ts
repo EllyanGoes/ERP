@@ -1,9 +1,9 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo, empresasDoEscopo } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
 
 export async function GET(req: NextRequest) {
@@ -31,12 +31,17 @@ export async function GET(req: NextRequest) {
 
   const where = andClauses.length === 0 ? {} : andClauses.length === 1 ? andClauses[0] : { AND: andClauses };
 
+  // O produto é cadastro compartilhado: o include aninhado de estoque não
+  // passa pela extensão de escopo — filtra à mão pelas empresas visíveis
+  // (empresa ativa do seletor, ou todas no modo grupo).
+  const visiveis = await empresasDoEscopo();
   const data = await prisma.item.findMany({
     where,
     include: {
       tipoProduto: { select: { nome: true } },
       unidade: { select: { sigla: true, nome: true } },
       estoqueItems: {
+        where: { empresaId: { in: visiveis } },
         include: { localEstoque: { select: { nome: true } } },
       },
     },
@@ -70,15 +75,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Descrição é obrigatória" }, { status: 400 });
     }
 
-    const item = await prisma.$transaction(async (tx) => {
-      // ── Auto-generate sequential product code: PROD-0001, PROD-0002 … ─────────
-      const seq = await tx.sequencia.upsert({
-        where:  { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "PROD" } },
-        create: { prefixo: "PROD", ultimo: 1 },
-        update: { ultimo: { increment: 1 } },
-      });
-      const codigo = `PROD-${String(seq.ultimo).padStart(4, "0")}`;
+    // ── Auto-generate sequential product code: PROD-0001, PROD-0002 … ─────────
+    // O produto é cadastro COMPARTILHADO (codigo único global), então a
+    // sequência é a global (client cru) — pela `prisma` escopada, a extensão
+    // reescreveria para a empresa ativa e cada empresa recomeçaria do PROD-0001,
+    // colidindo no unique. Pula códigos já usados (sequências antigas podem
+    // estar atrás do maior código existente).
+    let codigo = "";
+    for (let i = 0; i < 50; i++) {
+      const n = await proximaSequenciaDaEmpresa(EMPRESA_PADRAO_ID, "PROD");
+      const candidato = `PROD-${String(n).padStart(4, "0")}`;
+      const existe = await prismaSemEscopo.item.findUnique({ where: { codigo: candidato }, select: { id: true } });
+      if (!existe) { codigo = candidato; break; }
+    }
+    if (!codigo) {
+      return NextResponse.json({ error: "Não foi possível gerar o código do produto — verifique a sequência PROD." }, { status: 500 });
+    }
 
+    const item = await prisma.$transaction(async (tx) => {
       const newItem = await tx.item.create({
         data: {
           codigo,

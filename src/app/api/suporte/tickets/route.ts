@@ -1,10 +1,10 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa } from "@/lib/empresa";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
@@ -32,14 +32,19 @@ export async function POST(req: NextRequest) {
   if (!titulo?.trim()) return NextResponse.json({ error: "Título é obrigatório" }, { status: 400 });
   if (!descricao?.trim()) return NextResponse.json({ error: "Descrição é obrigatória" }, { status: 400 });
 
-  const ticket = await prisma.$transaction(async (tx) => {
-    const seq = await tx.sequencia.upsert({
-      where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "TKT" } },
-      create: { prefixo: "TKT", ultimo: 1 },
-      update: { ultimo: { increment: 1 } },
-    });
-    const numero = `TKT-${String(seq.ultimo).padStart(4, "0")}`;
+  // Ticket é global (numero único entre empresas): sequência global pelo
+  // client cru — pela escopada, a extensão reescreveria para a empresa ativa
+  // e cada empresa recomeçaria do TKT-0001, colidindo no unique.
+  let numero = "";
+  for (let i = 0; i < 50; i++) {
+    const n = await proximaSequenciaDaEmpresa(EMPRESA_PADRAO_ID, "TKT");
+    const candidato = `TKT-${String(n).padStart(4, "0")}`;
+    const existe = await prismaSemEscopo.supportTicket.findUnique({ where: { numero: candidato }, select: { id: true } });
+    if (!existe) { numero = candidato; break; }
+  }
+  if (!numero) return NextResponse.json({ error: "Não foi possível gerar o número do chamado." }, { status: 500 });
 
+  const ticket = await prisma.$transaction(async (tx) => {
     return tx.supportTicket.create({
       data: {
         numero,

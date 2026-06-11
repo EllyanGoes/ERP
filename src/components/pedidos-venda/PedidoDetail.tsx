@@ -130,6 +130,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   const [balcaoLocalId, setBalcaoLocalId] = useState("");
   const [balcaoForma, setBalcaoForma] = useState(pedido.formaPagamento ?? "");
   const [balcaoContaId, setBalcaoContaId] = useState("caixa-geral");
+  const [balcaoData, setBalcaoData] = useState(todayInput());
   const [balcaoErro, setBalcaoErro] = useState("");
   const [balcaoLocais, setBalcaoLocais] = useState<{ id: string; nome: string }[]>([]);
   const [balcaoFormas, setBalcaoFormas] = useState<{ id: string; nome: string; ativo?: boolean }[]>([]);
@@ -138,6 +139,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   function abrirBalcao() {
     setBalcaoErro("");
     setBalcaoForma(pedido.formaPagamento ?? "");
+    setBalcaoData(todayInput());
     setBalcaoOpen(true);
     fetch("/api/suprimentos/locais-estoque")
       .then((r) => r.json())
@@ -159,6 +161,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
 
   async function concluirBalcao() {
     if (!balcaoLocalId) { setBalcaoErro("Informe o local de estoque da retirada."); return; }
+    if (!balcaoData) { setBalcaoErro("Confirme a data do recebimento."); return; }
     setLoading(true);
     setBalcaoErro("");
     try {
@@ -169,6 +172,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           localEstoqueId: balcaoLocalId,
           formaPagamento: balcaoForma || null,
           contaBancariaId: balcaoContaId || null,
+          dataRecebimento: balcaoData,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -727,6 +731,16 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                   <option value="">— Selecionar local —</option>
                   {balcaoLocais.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
                 </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data do Recebimento <span className="text-red-500">*</span></label>
+                <input
+                  type="date"
+                  value={balcaoData}
+                  onChange={(e) => setBalcaoData(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-[11px] text-gray-400">Vale para a baixa de estoque, o recebimento no caixa e a conclusão do pedido.</p>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Forma de Pagamento</label>
