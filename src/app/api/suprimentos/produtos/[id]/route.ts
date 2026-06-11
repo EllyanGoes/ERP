@@ -11,6 +11,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       unidade: true,
       estoqueItems: {
         include: {
+          empresa: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
           localEstoque: {
             include: { filial: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
           },
@@ -118,6 +119,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         unidade: true,
         estoqueItems: {
           include: {
+            empresa: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
             localEstoque: {
               include: { filial: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
             },

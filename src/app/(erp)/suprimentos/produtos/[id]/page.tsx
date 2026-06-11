@@ -66,6 +66,8 @@ type Item = {
   observacoes: string | null;
   estoqueItems: Array<{
     id: string;
+    empresaId: string;
+    empresa: { id: string; razaoSocial: string; nomeFantasia: string | null };
     quantidadeAtual: unknown;
     quantidadeMin: unknown;
     quantidadeMax: unknown;
@@ -137,6 +139,7 @@ export default function ProdutoDetailPage() {
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
   const [tab, setTab] = useState<"dados" | "fornecedores" | "estoques" | "movimentacoes" | "compras" | "relatorio" | "unidades">("dados");
+  const [empresaEstoqueId, setEmpresaEstoqueId] = useState(""); // "" = todas as empresas
   const [periodoDias, setPeriodoDias] = useState<30 | 90 | 180 | 365>(90);
   const [item, setItem] = useState<Item | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -865,10 +868,35 @@ export default function ProdutoDetailPage() {
   if (!item) return <div className="px-8 pt-8 text-red-500">{error || "Produto não encontrado"}</div>;
 
   // ── Calculated stock values ───────────────────────────────────────────────
-  const estoqueComLocal = item.estoqueItems.filter((e) => e.localEstoque !== null);
+  // O produto é cadastro compartilhado entre as empresas do grupo, então os
+  // saldos chegam de todas elas; o filtro de empresa recorta estoque e custos.
+  const estoqueComLocalTodas = item.estoqueItems.filter((e) => e.localEstoque !== null);
+  const empresasEstoque = Array.from(
+    new Map(estoqueComLocalTodas.map((e) => [e.empresaId, e.empresa])).values(),
+  );
+  const estoqueComLocal = empresaEstoqueId
+    ? estoqueComLocalTodas.filter((e) => e.empresaId === empresaEstoqueId)
+    : estoqueComLocalTodas;
   const estoqueTotal = estoqueComLocal.reduce((s, e) => s + decimalToNumber(e.quantidadeAtual), 0);
+  const estoqueTotalTodas = estoqueComLocalTodas.reduce((s, e) => s + decimalToNumber(e.quantidadeAtual), 0);
   const custoUnit = item.precoCusto ? decimalToNumber(item.precoCusto) : 0;
   const custoTotal = custoUnit * estoqueTotal;
+
+  const filtroEmpresaEstoque = empresasEstoque.length > 1 ? (
+    <label className="flex items-center gap-1.5 text-xs text-gray-500">
+      Empresa
+      <select
+        value={empresaEstoqueId}
+        onChange={(e) => setEmpresaEstoqueId(e.target.value)}
+        className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        <option value="">Todas as empresas</option>
+        {empresasEstoque.map((emp) => (
+          <option key={emp.id} value={emp.id}>{emp.nomeFantasia || emp.razaoSocial}</option>
+        ))}
+      </select>
+    </label>
+  ) : null;
   // Custo médio: média ponderada das últimas entradas
   const entradas = item.movimentacoes.filter((m) => m.tipo === "ENTRADA");
   const custoMedio = entradas.length > 0 && item.fornecedores.length > 0
@@ -1233,6 +1261,9 @@ export default function ProdutoDetailPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {filtroEmpresaEstoque && (
+                    <div className="col-span-2 sm:col-span-4 flex justify-end -mb-2">{filtroEmpresaEstoque}</div>
+                  )}
                   {/* Custo Médio */}
                   <div className="rounded-xl bg-gray-50 px-4 py-3">
                     <p className="text-xs text-gray-500 font-medium mb-1">Custo Médio</p>
@@ -1417,9 +1448,12 @@ export default function ProdutoDetailPage() {
                       </>
                     )}
                   </p>
-                  <Button size="sm" onClick={openSaldoDialog}>
-                    <Plus className="w-4 h-4 mr-1" />Inserir Saldo
-                  </Button>
+                  <div className="flex items-center gap-3">
+                    {filtroEmpresaEstoque}
+                    <Button size="sm" onClick={openSaldoDialog}>
+                      <Plus className="w-4 h-4 mr-1" />Inserir Saldo
+                    </Button>
+                  </div>
                 </div>
 
                 {estoqueComLocal.length === 0 ? (
@@ -1461,7 +1495,14 @@ export default function ProdutoDetailPage() {
                             const isEditingRow = editingEstoqueId === e.id;
                             return (
                               <tr key={e.id} className={cn("hover:bg-indigo-50/40 transition-colors", abaixo && "bg-red-50/30", isEditingRow && "bg-amber-50/60 hover:bg-amber-50/80")}>
-                                <td className="px-4 py-3.5 text-gray-700 text-xs font-semibold">{filialNome}</td>
+                                <td className="px-4 py-3.5 text-gray-700 text-xs font-semibold">
+                                  {empresasEstoque.length > 1 && (
+                                    <span className="block text-[10px] font-semibold text-indigo-600 uppercase tracking-wide">
+                                      {e.empresa.nomeFantasia || e.empresa.razaoSocial}
+                                    </span>
+                                  )}
+                                  {filialNome}
+                                </td>
                                 <td className="px-4 py-3.5 font-medium text-gray-900">
                                   <Link href={`/suprimentos/locais-estoque/${e.localEstoque!.id}`} className="hover:text-blue-600 hover:underline">
                                     {e.localEstoque!.nome}
@@ -2145,11 +2186,12 @@ export default function ProdutoDetailPage() {
           const consumoMedioMensal = mesesPeriodo > 0 ? totalSaidaPer / mesesPeriodo : 0;
           const consumoDiario      = periodoDias > 0   ? totalSaidaPer / periodoDias   : 0;
 
-          // Giro de Estoque (anualizado)
-          const giro = estoqueTotal > 0 ? (totalSaidaPer * (365 / periodoDias)) / estoqueTotal : 0;
+          // Giro de Estoque (anualizado) — as movimentações vêm de todas as
+          // empresas, então o relatório usa o estoque total sem filtro.
+          const giro = estoqueTotalTodas > 0 ? (totalSaidaPer * (365 / periodoDias)) / estoqueTotalTodas : 0;
 
           // Cobertura de Estoque em dias
-          const coberturaDias = consumoDiario > 0 ? estoqueTotal / consumoDiario : Infinity;
+          const coberturaDias = consumoDiario > 0 ? estoqueTotalTodas / consumoDiario : Infinity;
 
           // Lead time médio dos fornecedores
           const fornComLead = item.fornecedores.filter((f) => f.prazoEntregaDias && f.prazoEntregaDias > 0);
@@ -2298,7 +2340,7 @@ export default function ProdutoDetailPage() {
                       </div>
                       <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
                         <span className="text-gray-500">Estoque Atual</span>
-                        <span className="font-bold text-gray-900">{estoqueTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {sigla}</span>
+                        <span className="font-bold text-gray-900">{estoqueTotalTodas.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {sigla}</span>
                       </div>
                     </div>
                   </div>
@@ -2364,11 +2406,11 @@ export default function ProdutoDetailPage() {
                     let previsaoText  = "—";
                     let previsaoCls   = "bg-gray-100 text-gray-600";
                     if (consumoDiario > 0) {
-                      if (estoqueTotal <= eds) {
+                      if (estoqueTotalTodas <= eds) {
                         previsaoText = "CRÍTICO";
                         previsaoCls  = "bg-red-100 text-red-700";
                       } else {
-                        const dias  = Math.floor(estoqueTotal / consumoDiario);
+                        const dias  = Math.floor(estoqueTotalTodas / consumoDiario);
                         const lead  = item.leadTimeDias ?? 7;
                         const dtStr = new Date(Date.now() + dias * 86400000)
                           .toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "America/Sao_Paulo" });
