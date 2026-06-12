@@ -1105,6 +1105,7 @@ model PedidoVenda {
   clienteId         String
   tabelaPrecoId     String?
   vendedorId        String?
+  modalidade        String            @default("AGENDADA") // BALCAO (retirada/PDV) | AGENDADA (entrega via minutas)
   status            StatusPedidoVenda @default(ORCAMENTO)
   dataEmissao       DateTime          @default(now())
   dataEntrega       DateTime?

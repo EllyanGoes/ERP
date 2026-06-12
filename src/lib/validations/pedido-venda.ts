@@ -17,6 +17,7 @@ export const pedidoVendaPagamentoSchema = z.object({
 
 export const pedidoVendaSchema = z.object({
   clienteId:         z.string().min(1, "Cliente é obrigatório"),
+  modalidade:        z.enum(["BALCAO", "AGENDADA"]).optional(),
   pagamentos:        z.array(pedidoVendaPagamentoSchema).optional(),
   numeroOrcamento:   z.string().optional().nullable(),
   tabelaPrecoId:     z.string().optional().nullable(),
