@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Search, Loader2, Tag, Package } from "lucide-react";
@@ -179,12 +180,14 @@ export default function PedidoForm({
   itensComodato = [],
   comodatoInicial = [],
   pedido,
+  modalidade,
 }: {
   clientes:      ClienteOption[];
   itens:         ItemOption[];
   itensComodato?: ItemComodatoOption[];
   comodatoInicial?: ComodatoInicial[];
   pedido?:       PedidoInicial;
+  modalidade?:   "BALCAO" | "AGENDADA"; // só na criação; define o tipo do pedido
 }) {
   const router = useRouter();
   const isEdit = !!pedido;
@@ -601,6 +604,7 @@ export default function PedidoForm({
     return {
       ...(pedido ? {} : { empresaId: empresaId || undefined }),
       clienteId,
+      ...(pedido ? {} : { modalidade: modalidade ?? "AGENDADA" }),
       numeroOrcamento: numeroOrcamento.trim() || null,
       tabelaPrecoId: tabelaPrecoId || null,
       vendedorId: vendedorId || null,
@@ -861,14 +865,14 @@ export default function PedidoForm({
             <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-1">
               <Tag className="w-3 h-3" /> Tabela de Preço
             </Label>
-            <select
+            <ComboboxWithCreate
               value={tabelaPrecoId}
-              onChange={(e) => setTabelaPrecoId(e.target.value)}
+              onChange={setTabelaPrecoId}
               disabled={tabelaLoading}
-              className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors"
-            >
-              <option value="">— Sem tabela de preço —</option>
-              {tabelas
+              placeholder="— Sem tabela de preço —"
+              noneLabel="Sem tabela de preço"
+              triggerClassName="h-10 rounded-lg"
+              options={tabelas
                 .filter((t) => t.ativa !== false)
                 // tabelas de preço são por empresa: na criação, só as da
                 // empresa do pedido (modo grupo lista as de todas)
@@ -877,13 +881,11 @@ export default function PedidoForm({
                   const alvo = empresaId || usuarioSessao?.activeEmpresaId;
                   return !alvo || t.empresaId === alvo;
                 })
-                .map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.codigo} — {t.descricao}
-                  {t.condicaoPagamento ? ` · ${t.condicaoPagamento}` : ""}
-                </option>
-              ))}
-            </select>
+                .map((t) => ({
+                  value: t.id,
+                  label: `${t.codigo} — ${t.descricao}${t.condicaoPagamento ? ` · ${t.condicaoPagamento}` : ""}`,
+                }))}
+            />
             {tabelaSelecionada && (
               <p className="text-xs text-blue-600 mt-0.5">
                 Preços e descontos serão preenchidos automaticamente ao selecionar produtos
