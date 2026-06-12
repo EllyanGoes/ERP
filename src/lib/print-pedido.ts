@@ -52,6 +52,46 @@ export type PedidoPrintData = {
 const brl = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const qtde = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
 
+// ── Envio do orçamento por WhatsApp ──────────────────────────────────────────
+// Telefone só com dígitos + DDI Brasil (55) quando ausente.
+function telWhatsApp(tel: string | null): string {
+  const d = (tel ?? "").replace(/\D/g, "");
+  if (!d) return "";
+  return d.length <= 11 ? `55${d}` : d;
+}
+
+/** Texto do orçamento/pedido para WhatsApp (negrito *…* do app). */
+export function buildPedidoWhatsAppText(p: PedidoPrintData): string {
+  const empresa = p.empresa ? (p.empresa.nomeFantasia || p.empresa.razaoSocial) : "";
+  const titulo = p.status === "ORCAMENTO" ? "ORÇAMENTO" : "PEDIDO";
+  const linhas = p.itens.map((it) =>
+    `• ${it.descricao} — ${qtde(it.quantidade)} ${it.un} x R$ ${brl(it.precoUnitario)} = R$ ${brl(it.valorTotal)}`,
+  ).join("\n");
+  return [
+    `*${titulo} ${p.numero}*`,
+    empresa,
+    "",
+    `Olá! Segue o ${titulo.toLowerCase()}:`,
+    linhas,
+    "",
+    p.valorDesconto > 0 ? `Desconto: R$ ${brl(p.valorDesconto)}` : "",
+    p.valorFrete > 0 ? `Frete: R$ ${brl(p.valorFrete)}` : "",
+    `*Total: R$ ${brl(p.valorTotal)}*`,
+    p.formaPagamento ? `Pagamento: ${p.formaPagamento}` : "",
+    p.condicaoPagamento ? `Condição: ${p.condicaoPagamento}` : "",
+    "",
+    "Qualquer dúvida, estou à disposição!",
+  ].filter((l) => l !== "").join("\n");
+}
+
+/** Abre o WhatsApp (app/web) com o orçamento pronto para o telefone do cliente. */
+export function enviarPedidoWhatsApp(p: PedidoPrintData): void {
+  const tel = telWhatsApp(p.cliente.telefone);
+  const texto = encodeURIComponent(buildPedidoWhatsAppText(p));
+  const url = tel ? `https://wa.me/${tel}?text=${texto}` : `https://wa.me/?text=${texto}`;
+  window.open(url, "_blank");
+}
+
 function fmtData(iso: string | null): string {
   if (!iso) return "-";
   const d = new Date(iso);

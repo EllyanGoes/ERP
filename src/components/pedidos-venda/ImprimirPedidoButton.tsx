@@ -1,21 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Printer, ChevronDown, FileText, Receipt, Loader2 } from "lucide-react";
+import { Printer, ChevronDown, FileText, Receipt, Loader2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { printEscPosUSB } from "@/lib/webusb-print";
 import {
   buildPedidoEscPos,
   printPedidoA4,
   printPedidoTermicaDialog,
+  enviarPedidoWhatsApp,
   type PedidoPrintData,
 } from "@/lib/print-pedido";
 
 /**
- * Botão "Imprimir" do pedido de venda — dois modelos:
+ * Botão "Imprimir / Enviar" do pedido de venda:
  *  • Bobina térmica: ESC/POS via WebUSB; sem aparelho/WebUSB, cai para o
  *    diálogo do navegador formatado em 80mm (mesmo caminho da minuta).
  *  • Folha A4: Documento Auxiliar de Venda no diálogo de impressão.
+ *  • WhatsApp: abre o app/web com o orçamento pronto para o cliente.
  */
 export default function ImprimirPedidoButton({ pedido }: { pedido: PedidoPrintData }) {
   const [aberto, setAberto] = useState(false);
@@ -54,11 +56,18 @@ export default function ImprimirPedidoButton({ pedido }: { pedido: PedidoPrintDa
     catch (e) { setErro(e instanceof Error ? e.message : "Não foi possível imprimir."); }
   }
 
+  function whatsapp() {
+    setAberto(false);
+    setErro("");
+    try { enviarPedidoWhatsApp(pedido); }
+    catch (e) { setErro(e instanceof Error ? e.message : "Não foi possível abrir o WhatsApp."); }
+  }
+
   return (
     <div ref={ref} className="relative">
       <Button variant="outline" size="sm" onClick={() => setAberto((v) => !v)} disabled={imprimindo}>
         {imprimindo ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Printer className="w-4 h-4 mr-1.5" />}
-        {imprimindo ? "Imprimindo..." : "Imprimir"}
+        {imprimindo ? "Imprimindo..." : "Imprimir / Enviar"}
         <ChevronDown className="w-3.5 h-3.5 ml-1 text-gray-400" />
       </Button>
       {aberto && (
@@ -81,6 +90,17 @@ export default function ImprimirPedidoButton({ pedido }: { pedido: PedidoPrintDa
             <span>
               Folha A4
               <span className="block text-[11px] text-gray-400">Documento Auxiliar de Venda</span>
+            </span>
+          </button>
+          <div className="my-1 border-t border-gray-100" />
+          <button
+            onClick={whatsapp}
+            className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-left text-gray-700 hover:bg-gray-50"
+          >
+            <MessageCircle className="w-4 h-4 text-emerald-500" />
+            <span>
+              Enviar por WhatsApp
+              <span className="block text-[11px] text-gray-400">orçamento pronto para o cliente</span>
             </span>
           </button>
         </div>
