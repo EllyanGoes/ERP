@@ -243,6 +243,26 @@ model Configuracao {
   updatedAt DateTime @updatedAt
 }
 
+// Integração de pagamento (maquininha) POR EMPRESA. Cada CNPJ do grupo tem a
+// própria conta na adquirente. Hoje só a Stone tem API de nuvem para cobrança
+// automática; Sicredi/Caixa seguem manuais no Caixa. accessToken é secret
+// (nunca volta no GET — mascarado). ativo liga a cobrança automática no Caixa.
+model IntegracaoPagamento {
+  id           String   @id @default(cuid())
+  empresaId    String
+  provedor     String   @default("STONE") // STONE (futuro: outras adquirentes)
+  ambiente     String   @default("PRODUCAO") // PRODUCAO | SANDBOX
+  accessToken  String? // secret — credencial da adquirente
+  pontoVendaId String? // ID do ponto de venda / serial do terminal
+  ativo        Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  empresa      Empresa  @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, provedor])
+  @@index([empresaId])
+}
+
 model ContaPagar {
   id                    String                 @id @default(cuid())
   empresaId             String                 @default("emp_tramontin")
@@ -552,6 +572,7 @@ model Empresa {
   estoqueItems           EstoqueItem[]
   itemCustos             ItemCustoEmpresa[]
   tabelasPreco           TabelaPreco[]
+  integracoesPagamento   IntegracaoPagamento[]
   lancamentoFinanceiros  LancamentoFinanceiro[]
   importacaoOFXs         ImportacaoOFX[]
   localEstoques          LocalEstoque[]

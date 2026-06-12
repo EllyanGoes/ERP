@@ -6,7 +6,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
 import {
   Loader2, MessageCircle, Send, Database, ChevronRight,
-  Wifi, WifiOff, HelpCircle,
+  Wifi, WifiOff, HelpCircle, CreditCard,
 } from "lucide-react";
 
 type ConnStatus = "idle" | "ok" | "error" | "unconfigured";
@@ -36,6 +36,7 @@ export default function IntegracoesPage() {
   const [tgStatus,   setTgStatus]   = useState<ConnStatus>("idle");
   const [dbStatus,   setDbStatus]   = useState<ConnStatus>("idle");
   const [waProvider, setWaProvider] = useState("Evolution API");
+  const [payStatus,  setPayStatus]  = useState<ConnStatus>("idle");
 
   const loadStatuses = useCallback(async () => {
     setLoading(true);
@@ -61,10 +62,18 @@ export default function IntegracoesPage() {
 
       // DB Engeman
       setDbStatus(!!(cfg.db_engeman_host && cfg.db_engeman_name && cfg.db_engeman_user) ? "ok" : "unconfigured");
+
+      // Pagamento (maquininha): "ok" se alguma empresa tem a cobrança ativa
+      try {
+        const pay = await fetch("/api/configuracoes/integracoes/pagamento").then((r) => r.json());
+        const algumaAtiva = Array.isArray(pay.data) && pay.data.some((c: { ativo: boolean }) => c.ativo);
+        setPayStatus(algumaAtiva ? "ok" : "unconfigured");
+      } catch { setPayStatus("unconfigured"); }
     } catch {
       setWaStatus("unconfigured");
       setTgStatus("unconfigured");
       setDbStatus("unconfigured");
+      setPayStatus("unconfigured");
     } finally {
       setLoading(false);
     }
@@ -108,6 +117,16 @@ export default function IntegracoesPage() {
       badge:   "SQL Server",
       badgeCn: "bg-blue-50 text-blue-600 border-blue-100",
       status:  dbStatus,
+    },
+    {
+      href:    "/configuracoes/integracoes/pagamento",
+      icon:    <CreditCard className="w-5 h-5 text-emerald-600" />,
+      bg:      "bg-emerald-50 border-emerald-100",
+      title:   "Maquininha / Pagamento",
+      desc:    "Credenciais da adquirente por empresa para cobrança no Caixa",
+      badge:   "Por empresa",
+      badgeCn: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      status:  payStatus,
     },
   ];
 
