@@ -11,6 +11,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     where: { id: params.id },
     include: {
       cliente: true,
+      pagamentos: { orderBy: { ordem: "asc" } },
       itens: {
         include: {
           item: {
@@ -61,7 +62,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { itens, ...pedidoData } = parsed.data;
+  const { itens, pagamentos, ...pedidoData } = parsed.data;
   const valorProdutos = itens.reduce((sum, i) => sum + i.valorTotal, 0);
   const valorTotal = valorProdutos - (pedidoData.valorDesconto ?? 0) + (pedidoData.valorFrete ?? 0);
 
@@ -147,6 +148,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           dataEntrega: pedidoData.dataEntrega ? new Date(pedidoData.dataEntrega) : null,
         },
       });
+
+      // Pagamentos previstos: substitui (delete + create), como os itens.
+      if (Array.isArray(pagamentos)) {
+        await tx.pedidoVendaPagamento.deleteMany({ where: { pedidoVendaId: params.id } });
+        if (pagamentos.length > 0) {
+          await tx.pedidoVendaPagamento.createMany({
+            data: pagamentos.map((p, i) => ({ pedidoVendaId: params.id, forma: p.forma, valor: p.valor, ordem: i })),
+          });
+        }
+      }
 
       // Reconcile items: update existing rows in place (FK-safe), create new
       // lines, and delete only rows that have no minutas attached.

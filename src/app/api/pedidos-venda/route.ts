@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { itens, ...pedidoData } = parsed.data;
+  const { itens, pagamentos, ...pedidoData } = parsed.data;
 
   // Comodato (saída) lançado junto com o pedido. Lido do corpo bruto porque o
   // schema do pedido descarta chaves desconhecidas. Entra no mesmo livro-razão
@@ -121,6 +121,9 @@ export async function POST(req: NextRequest) {
             valorTotal:    item.valorTotal,
           })),
         },
+        ...(pagamentos && pagamentos.length > 0
+          ? { pagamentos: { create: pagamentos.map((p, i) => ({ forma: p.forma, valor: p.valor, ordem: i })) } }
+          : {}),
       },
       include: {
         cliente: true,

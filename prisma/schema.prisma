@@ -1108,6 +1108,7 @@ model PedidoVenda {
   status            StatusPedidoVenda @default(ORCAMENTO)
   dataEmissao       DateTime          @default(now())
   dataEntrega       DateTime?
+  dataConclusao     DateTime?
   valorProdutos     Decimal           @default(0) @db.Decimal(15, 2)
   valorDesconto     Decimal           @default(0) @db.Decimal(15, 2)
   valorFrete        Decimal           @default(0) @db.Decimal(15, 2)
@@ -1123,6 +1124,7 @@ model PedidoVenda {
   tabelaPreco       TabelaPreco?      @relation(fields: [tabelaPrecoId], references: [id])
   vendedor          Vendedor?         @relation(fields: [vendedorId], references: [id])
   itens             PedidoVendaItem[]
+  pagamentos        PedidoVendaPagamento[]
   minutas           Minuta[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
@@ -1133,6 +1135,20 @@ model PedidoVenda {
   @@index([status])
   @@index([vendedorId])
   @@index([empresaId])
+}
+
+// Formas de pagamento previstas do pedido (pagamento misto: PIX + dinheiro
+// etc.). O Caixa pré-carrega esses valores; PedidoVenda.formaPagamento guarda
+// o resumo em texto ("PIX + Dinheiro") para as exibições/impressões.
+model PedidoVendaPagamento {
+  id            String      @id @default(cuid())
+  pedidoVendaId String
+  forma         String
+  valor         Decimal     @db.Decimal(15, 2)
+  ordem         Int         @default(0)
+  pedidoVenda   PedidoVenda @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
+
+  @@index([pedidoVendaId])
 }
 
 model PedidoVendaItem {

@@ -33,6 +33,7 @@ type PedidoCompleto = {
   numero: string;
   valorTotal: unknown;
   formaPagamento: string | null;
+  pagamentos?: { forma: string; valor: unknown }[];
   cliente: { razaoSocial: string; nomeFantasia: string | null };
   itens: Array<{
     id: string;
@@ -121,14 +122,22 @@ export default function PdvPage() {
       const j = await res.json();
       if (res.ok) {
         setPedido(j.data);
-        // 1 linha já preenchida com o total e a forma do pedido (fluxo de 1
-        // forma continua 1 clique; o caixa divide se precisar).
         const tot = decimalToNumber(j.data?.valorTotal ?? 0);
-        setPagamentos([novaLinhaPagamento(
-          j.data?.formaPagamento ?? "",
-          "caixa-geral",
-          tot > 0 ? tot.toFixed(2).replace(".", ",") : "",
-        )]);
+        const pags: { forma: string; valor: unknown }[] = j.data?.pagamentos ?? [];
+        if (pags.length > 0) {
+          // Pré-carrega as formas previstas no pedido (vendedor já definiu);
+          // o caixa só confirma. Conta default Caixa Geral.
+          setPagamentos(pags.map((p) =>
+            novaLinhaPagamento(p.forma, "caixa-geral", decimalToNumber(p.valor).toFixed(2).replace(".", ",")),
+          ));
+        } else {
+          // Sem pagamentos previstos: 1 linha com o total e a forma do pedido.
+          setPagamentos([novaLinhaPagamento(
+            j.data?.formaPagamento ?? "",
+            "caixa-geral",
+            tot > 0 ? tot.toFixed(2).replace(".", ",") : "",
+          )]);
+        }
       }
     } finally { setPedidoLoading(false); }
   }

@@ -85,9 +85,11 @@ async function checkAndConcludePedido(pedidoVendaId: string) {
     });
 
     if (todosEntregues && pedido.itens.length > 0) {
+      // Conclusão automática carimba a data de hoje (Brasília) como conclusão.
+      const hojeSP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
       await prisma.pedidoVenda.update({
         where: { id: pedidoVendaId },
-        data:  { status: "CONCLUIDO" },
+        data:  { status: "CONCLUIDO", dataConclusao: new Date(`${hojeSP}T00:00:00.000Z`) },
       });
       console.log(`[Minutas] PedidoVenda ${pedidoVendaId} concluído automaticamente.`);
     }

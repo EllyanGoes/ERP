@@ -10,8 +10,14 @@ export const pedidoVendaItemSchema = z.object({
   valorTotal:    z.coerce.number().min(0),
 })
 
+export const pedidoVendaPagamentoSchema = z.object({
+  forma: z.string().min(1),
+  valor: z.coerce.number().min(0),
+})
+
 export const pedidoVendaSchema = z.object({
   clienteId:         z.string().min(1, "Cliente é obrigatório"),
+  pagamentos:        z.array(pedidoVendaPagamentoSchema).optional(),
   numeroOrcamento:   z.string().optional().nullable(),
   tabelaPrecoId:     z.string().optional().nullable(),
   vendedorId:        z.string().optional().nullable().transform((v) => v || null),

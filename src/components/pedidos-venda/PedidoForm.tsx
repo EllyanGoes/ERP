@@ -14,6 +14,10 @@ import { useSession } from "@/lib/session-context";
 import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
+import PagamentosInput, {
+  novaLinhaPagamento, parseValorBR,
+  type LinhaPagamento, type FormaOpt,
+} from "@/components/pedidos-venda/PagamentosInput";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -124,6 +128,7 @@ type PedidoInicial = {
   dataEntrega: string | null;
   condicaoPagamento: string | null;
   formaPagamento: string | null;
+  pagamentos?: { forma: string; valor: unknown }[];
   valorFrete: unknown;
   observacoes: string | null;
   itens: PedidoInicialItem[];
@@ -208,7 +213,12 @@ export default function PedidoForm({
   const [dataEmissao,       setDataEmissao]       = useState(pedido ? isoToDateInput(pedido.dataEmissao) : new Date().toISOString().slice(0, 10));
   const [dataEntrega,       setDataEntrega]       = useState(pedido ? isoToDateInput(pedido.dataEntrega) : "");
   const [condicaoPagamento, setCondicaoPagamento] = useState(pedido?.condicaoPagamento ?? "");
-  const [formaPagamento,    setFormaPagamento]    = useState(pedido?.formaPagamento ?? "");
+  // Pagamento misto: formas previstas com valores (PIX + dinheiro etc.).
+  const [pagamentos, setPagamentos] = useState<LinhaPagamento[]>(
+    pedido?.pagamentos && pedido.pagamentos.length > 0
+      ? pedido.pagamentos.map((p) => novaLinhaPagamento(p.forma, "", decimalToNumber(p.valor).toFixed(2).replace(".", ",")))
+      : [novaLinhaPagamento(pedido?.formaPagamento ?? "")],
+  );
   const [valorFrete,        setValorFrete]        = useState(pedido ? decimalToNumber(pedido.valorFrete).toString() : "0");
   const [observacoes,       setObservacoes]       = useState(pedido?.observacoes ?? "");
 
@@ -282,15 +292,12 @@ export default function PedidoForm({
   }, []);
 
   // Load formas de pagamento on mount
-  const [formas, setFormas] = useState<{ id: string; nome: string; ativo?: boolean }[]>([]);
-  const [formasLoading, setFormasLoading] = useState(false);
+  const [formas, setFormas] = useState<FormaOpt[]>([]);
   useEffect(() => {
-    setFormasLoading(true);
     fetch("/api/suprimentos/formas-pagamento")
       .then((r) => r.json())
       .then((j) => setFormas(Array.isArray(j) ? j : (j.data ?? [])))
-      .catch(() => {})
-      .finally(() => setFormasLoading(false));
+      .catch(() => {});
   }, []);
 
   // When tabela changes → update condicaoPagamento auto
@@ -600,7 +607,14 @@ export default function PedidoForm({
       dataEmissao,
       dataEntrega: dataEntrega || null,
       condicaoPagamento: condicaoPagamento || null,
-      formaPagamento: formaPagamento || null,
+      // Pagamento misto: formas com valores + resumo em texto (formaPagamento)
+      // para as exibições/impressões. Linhas vazias são descartadas.
+      pagamentos: pagamentos
+        .filter((l) => l.forma && parseValorBR(l.valor) > 0)
+        .map((l) => ({ forma: l.forma, valor: parseValorBR(l.valor) })),
+      formaPagamento: Array.from(new Set(
+        pagamentos.filter((l) => l.forma && parseValorBR(l.valor) > 0).map((l) => l.forma),
+      )).join(" + ") || null,
       valorDesconto: 0,
       valorFrete: freteVal,
       observacoes: observacoes || null,
@@ -877,24 +891,18 @@ export default function PedidoForm({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-          {/* Forma de Pagamento */}
+          <div className="space-y-4">
+          {/* Formas de Pagamento (misto: PIX + dinheiro etc.) */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Forma de Pagamento</Label>
-            <select
-              value={formaPagamento}
-              onChange={(e) => setFormaPagamento(e.target.value)}
-              disabled={formasLoading}
-              className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors"
-            >
-              <option value="">— Selecionar forma —</option>
-              {formas.filter((f) => f.ativo !== false).map((f) => (
-                <option key={f.id} value={f.nome}>{f.nome}</option>
-              ))}
-              {formaPagamento && !formas.some((f) => f.nome === formaPagamento) && (
-                <option value={formaPagamento}>{formaPagamento}</option>
-              )}
-            </select>
+            <PagamentosInput
+              linhas={pagamentos}
+              setLinhas={setPagamentos}
+              formas={formas}
+              contas={[]}
+              total={totalGeral}
+              mostrarConta={false}
+            />
           </div>
 
           {/* Condição de Pagamento */}

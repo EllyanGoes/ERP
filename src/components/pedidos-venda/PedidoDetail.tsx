@@ -67,11 +67,12 @@ type ItemPendente = {
 type PedidoDetailProps = {
   pedido: {
     id: string; numero: string; numeroOrcamento: string | null; status: string; intragrupo?: boolean;
-    dataEmissao: Date | string; dataEntrega: Date | string | null;
+    dataEmissao: Date | string; dataEntrega: Date | string | null; dataConclusao: Date | string | null;
     condicaoPagamento: string | null; formaPagamento: string | null; observacoes: string | null;
     valorProdutos: unknown; valorDesconto: unknown; valorFrete: unknown; valorTotal: unknown;
     cliente: { id: string; razaoSocial: string };
     vendedor?: { id: string; nome: string } | null;
+    pagamentos?: { id: string; forma: string; valor: unknown }[];
     itens: ItemRow[];
     contasReceber: { id: string }[];
     minutas?: MinutaDoPedido[];
@@ -129,6 +130,9 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"itens" | "minutas" | "comodato">("itens");
   const [blockModal, setBlockModal] = useState<{ msg: string; pendentes: ItemPendente[] } | null>(null);
+  // Modal de conclusão: informa a data (default hoje; editável p/ lançamento passado).
+  const [concluirOpen, setConcluirOpen] = useState(false);
+  const [concluirData, setConcluirData] = useState(todayInput());
 
   // Venda balcão (retirada na loja): recebe o pagamento e conclui em uma ação.
   const balcaoTotal = decimalToNumber(pedido.valorTotal);
@@ -226,13 +230,13 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
     pedido.status === "CONFIRMADO" ||
     pedido.status === "EM_AGENDAMENTO";
 
-  async function changeStatus(next: string) {
+  async function changeStatus(next: string, dataConclusao?: string) {
     setLoading(true);
     try {
       const res = await fetch(`/api/pedidos-venda/${pedido.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: next }),
+        body: JSON.stringify({ status: next, ...(dataConclusao ? { dataConclusao } : {}) }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -242,6 +246,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
         });
         return;
       }
+      setConcluirOpen(false);
       router.refresh();
     } finally {
       setLoading(false);
@@ -345,7 +350,16 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             </Button>
           )}
           {actions.map((a) => (
-            <Button key={a.next} variant={a.variant ?? "default"} size="sm" onClick={() => changeStatus(a.next)} disabled={loading}>
+            <Button
+              key={a.next}
+              variant={a.variant ?? "default"}
+              size="sm"
+              onClick={() => {
+                if (a.next === "CONCLUIDO") { setConcluirData(todayInput()); setConcluirOpen(true); }
+                else changeStatus(a.next);
+              }}
+              disabled={loading}
+            >
               {a.label}
             </Button>
           ))}
@@ -366,8 +380,22 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             <div className="flex justify-between"><span className="text-gray-500">Vendedor</span><span>{pedido.vendedor?.nome || "—"}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Nº Orçamento</span><span>{pedido.numeroOrcamento || "—"}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Emissão</span><span>{formatDate(pedido.dataEmissao)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Conclusão</span><span>{pedido.dataEntrega ? formatDate(pedido.dataEntrega) : "—"}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Forma Pagamento</span><span>{pedido.formaPagamento || "—"}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Conclusão</span><span>{pedido.dataConclusao ? formatDate(pedido.dataConclusao) : "—"}</span></div>
+            {pedido.pagamentos && pedido.pagamentos.length > 0 ? (
+              <div>
+                <span className="text-gray-500">Forma Pagamento</span>
+                <div className="mt-1 space-y-0.5">
+                  {pedido.pagamentos.map((pg) => (
+                    <div key={pg.id} className="flex justify-between pl-2">
+                      <span className="text-gray-600">{pg.forma}</span>
+                      <span className="font-medium tabular-nums">{formatBRL(decimalToNumber(pg.valor))}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-between"><span className="text-gray-500">Forma Pagamento</span><span>{pedido.formaPagamento || "—"}</span></div>
+            )}
             <div className="flex justify-between"><span className="text-gray-500">Cond. Pagamento</span><span>{pedido.condicaoPagamento || "—"}</span></div>
             {pedido.observacoes && <div className="pt-2 border-t"><p className="text-gray-400 text-xs mb-1">Observações</p><p>{pedido.observacoes}</p></div>}
           </CardContent>
@@ -762,6 +790,40 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               <Button variant="outline" onClick={() => setBalcaoOpen(false)} disabled={loading}>Cancelar</Button>
               <Button onClick={concluirBalcao} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 font-semibold">
                 {loading ? "Concluindo..." : "Receber e Concluir"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {concluirOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !loading && setConcluirOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <h3 className="font-bold text-gray-800">Concluir pedido</h3>
+              <p className="text-sm text-gray-600 mt-0.5">
+                Informe a data de conclusão. Por padrão é hoje; ajuste para registrar um lançamento passado.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data de Conclusão <span className="text-red-500">*</span></label>
+              <input
+                type="date"
+                value={concluirData}
+                onChange={(e) => setConcluirData(e.target.value)}
+                className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setConcluirOpen(false)} disabled={loading}>Cancelar</Button>
+              <Button onClick={() => changeStatus("CONCLUIDO", concluirData)} disabled={loading || !concluirData} className="font-semibold">
+                {loading ? "Concluindo..." : "Concluir"}
               </Button>
             </div>
           </div>

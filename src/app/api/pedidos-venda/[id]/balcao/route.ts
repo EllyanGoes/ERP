@@ -132,6 +132,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         data: {
           status: "CONCLUIDO",
           dataEntrega: dataRecebimento ? hoje : (pedido.dataEntrega ?? hoje),
+          dataConclusao: hoje, // venda de balcão conclui na data do recebimento
           ...(formasResumo ? { formaPagamento: formasResumo } : {}),
         },
       });

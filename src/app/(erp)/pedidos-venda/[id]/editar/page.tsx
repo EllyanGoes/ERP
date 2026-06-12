@@ -11,6 +11,7 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
     prisma.pedidoVenda.findUnique({
       where: { id: params.id },
       include: {
+        pagamentos: { orderBy: { ordem: "asc" } },
         itens: {
           include: {
             item: {
@@ -84,6 +85,7 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
     dataEntrega: pedido.dataEntrega ? pedido.dataEntrega.toISOString() : null,
     condicaoPagamento: pedido.condicaoPagamento,
     formaPagamento: pedido.formaPagamento,
+    pagamentos: pedido.pagamentos.map((p) => ({ forma: p.forma, valor: p.valor })),
     valorFrete: pedido.valorFrete,
     observacoes: pedido.observacoes,
     itens: pedido.itens.map((pi) => ({
@@ -115,6 +117,7 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
         ]}
       />
       <div className="px-8 pb-8">
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <PedidoForm clientes={clientes as any} itens={itens as any} pedido={pedidoInicial as any} itensComodato={itensComodato} comodatoInicial={comodatoInicial} />
       </div>
     </div>

@@ -6,7 +6,11 @@ import { getItensPendentesEntrega } from "@/lib/pedido-totais";
 import { espelharConfirmacaoVenda, cancelarEspelhoVenda } from "@/lib/intragrupo";
 import { z } from "zod";
 
-const schema = z.object({ status: z.enum(["CONFIRMADO","EM_AGENDAMENTO","CONCLUIDO","CANCELADO"]) });
+const schema = z.object({
+  status: z.enum(["CONFIRMADO","EM_AGENDAMENTO","CONCLUIDO","CANCELADO"]),
+  // Data de conclusão (só usada ao concluir). Ausente → carimba o dia de hoje.
+  dataConclusao: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+});
 
 const TRANSITIONS: Record<string, string[]> = {
   ORCAMENTO:      ["CONFIRMADO", "CANCELADO"],
@@ -51,12 +55,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   // Nota: movimentações de estoque são geradas pelas Minutas (SAIU_PARA_ENTREGA),
   // não mais pelo status do pedido. Aqui apenas atualizamos o status.
-  // Ao CONCLUIR, carimba a data de conclusão (se ainda não informada). Usa o dia
-  // em horário de Brasília, gravado como meia-noite UTC (padrão dos campos de data).
-  const updateData: { status: typeof parsed.data.status; dataEntrega?: Date } = { status: parsed.data.status };
-  if (parsed.data.status === "CONCLUIDO" && !pedido.dataEntrega) {
+  // Ao CONCLUIR, carimba a data de conclusão: usa a informada (lançamento passado)
+  // ou o dia de hoje em Brasília. Gravada como meia-noite UTC (padrão dos campos
+  // de data pura). dataEntrega (data de entrega) NÃO é mais usada para isso.
+  const updateData: { status: typeof parsed.data.status; dataConclusao?: Date } = { status: parsed.data.status };
+  if (parsed.data.status === "CONCLUIDO") {
     const hojeSP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-    updateData.dataEntrega = new Date(`${hojeSP}T00:00:00.000Z`);
+    const dia = parsed.data.dataConclusao || hojeSP;
+    updateData.dataConclusao = new Date(`${dia}T00:00:00.000Z`);
   }
 
   const updated = await prisma.pedidoVenda.update({

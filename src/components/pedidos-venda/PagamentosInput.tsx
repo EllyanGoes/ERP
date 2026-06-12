@@ -4,7 +4,7 @@
 // de destino e valor. Usado no Caixa e na Venda Balcão. A forma "dinheiro"
 // (tipo DINHEIRO do cadastro) libera troco quando a soma excede o total.
 import { Plus, Trash2 } from "lucide-react";
-import { formatBRL } from "@/lib/utils";
+import { cn, formatBRL } from "@/lib/utils";
 
 export type FormaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean };
 export type ContaOpt = { id: string; nome: string; ativo?: boolean };
@@ -33,13 +33,14 @@ export function formaEhDinheiro(nome: string, formas: FormaOpt[]): boolean {
 }
 
 export default function PagamentosInput({
-  linhas, setLinhas, formas, contas, total,
+  linhas, setLinhas, formas, contas, total, mostrarConta = true,
 }: {
   linhas: LinhaPagamento[];
   setLinhas: (fn: (prev: LinhaPagamento[]) => LinhaPagamento[]) => void;
   formas: FormaOpt[];
   contas: ContaOpt[];
   total: number;
+  mostrarConta?: boolean; // no pedido de venda não há conta (intenção) → esconde
 }) {
   const pago = linhas.reduce((s, l) => s + parseValorBR(l.valor), 0);
   const temDinheiro = linhas.some((l) => parseValorBR(l.valor) > 0 && formaEhDinheiro(l.forma, formas));
@@ -71,7 +72,7 @@ export default function PagamentosInput({
       </div>
 
       {linhas.map((l) => (
-        <div key={l._key} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
+        <div key={l._key} className={cn("grid gap-2 items-center", mostrarConta ? "grid-cols-[1fr_1fr_auto_auto]" : "grid-cols-[1fr_auto_auto]")}>
           <select
             value={l.forma}
             onChange={(e) => up(l._key, "forma", e.target.value)}
@@ -81,14 +82,16 @@ export default function PagamentosInput({
             {formas.filter((f) => f.ativo !== false).map((f) => <option key={f.id} value={f.nome}>{f.nome}</option>)}
             {l.forma && !formas.some((f) => f.nome === l.forma) && <option value={l.forma}>{l.forma}</option>}
           </select>
-          <select
-            value={l.contaBancariaId}
-            onChange={(e) => up(l._key, "contaBancariaId", e.target.value)}
-            className="h-9 rounded-lg border border-gray-300 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {!temCaixaGeral && <option value="caixa-geral">Caixa Geral</option>}
-            {contasOpts.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-          </select>
+          {mostrarConta && (
+            <select
+              value={l.contaBancariaId}
+              onChange={(e) => up(l._key, "contaBancariaId", e.target.value)}
+              className="h-9 rounded-lg border border-gray-300 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {!temCaixaGeral && <option value="caixa-geral">Caixa Geral</option>}
+              {contasOpts.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          )}
           <input
             value={l.valor}
             onChange={(e) => up(l._key, "valor", e.target.value)}
