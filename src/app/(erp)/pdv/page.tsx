@@ -1,6 +1,6 @@
 "use client";
 
-// PDV — Caixa (Cimento e Mix): fila de pedidos abertos à esquerda; cobrança à
+// Caixa (Cimento e Mix): fila de pedidos abertos à esquerda; cobrança à
 // direita. O caixa cobra na maquininha (Sicredi/Caixa/Stone — sem integração
 // de API nesta fase), confirma o pagamento aprovado e o sistema executa a
 // venda balcão (baixa estoque, conta recebida, lançamento no caixa) e imprime
@@ -50,7 +50,7 @@ function parseValor(s: string): number {
 }
 
 export default function PdvPage() {
-  useTabTitle("PDV — Caixa");
+  useTabTitle("Caixa");
 
   // ── Fila ──────────────────────────────────────────────────────────────────
   const [fila, setFila] = useState<FilaPedido[]>([]);
@@ -181,9 +181,9 @@ export default function PdvPage() {
   return (
     <div className="flex flex-col h-full">
       <PageHeader
-        title="PDV — Caixa"
+        title="Caixa"
         subtitle="Cobre na maquininha, confirme o pagamento e o cupom sai na impressora térmica."
-        breadcrumbs={[{ label: "Comercial" }, { label: "PDV" }]}
+        breadcrumbs={[{ label: "Comercial" }, { label: "Caixa" }]}
       />
 
       <div className="flex-1 min-h-0 px-8 pb-8 grid grid-cols-[340px_1fr] gap-4">
