@@ -8,9 +8,9 @@ import {
   buildPedidoEscPos,
   printPedidoA4,
   printPedidoTermicaDialog,
-  enviarPedidoWhatsApp,
   type PedidoPrintData,
 } from "@/lib/print-pedido";
+import { enviarPedidoWhatsAppPDF } from "@/lib/pdf-pedido";
 
 /**
  * Botão "Imprimir / Enviar" do pedido de venda:
@@ -56,11 +56,13 @@ export default function ImprimirPedidoButton({ pedido }: { pedido: PedidoPrintDa
     catch (e) { setErro(e instanceof Error ? e.message : "Não foi possível imprimir."); }
   }
 
-  function whatsapp() {
+  async function whatsapp() {
     setAberto(false);
+    setImprimindo(true);
     setErro("");
-    try { enviarPedidoWhatsApp(pedido); }
-    catch (e) { setErro(e instanceof Error ? e.message : "Não foi possível abrir o WhatsApp."); }
+    try { await enviarPedidoWhatsAppPDF(pedido); }
+    catch (e) { setErro(e instanceof Error ? e.message : "Não foi possível gerar o PDF do orçamento."); }
+    finally { setImprimindo(false); }
   }
 
   return (
@@ -100,7 +102,7 @@ export default function ImprimirPedidoButton({ pedido }: { pedido: PedidoPrintDa
             <MessageCircle className="w-4 h-4 text-emerald-500" />
             <span>
               Enviar por WhatsApp
-              <span className="block text-[11px] text-gray-400">orçamento pronto para o cliente</span>
+              <span className="block text-[11px] text-gray-400">orçamento em PDF para o cliente</span>
             </span>
           </button>
         </div>

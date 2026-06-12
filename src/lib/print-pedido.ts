@@ -54,7 +54,7 @@ const qtde = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3
 
 // ── Envio do orçamento por WhatsApp ──────────────────────────────────────────
 // Telefone só com dígitos + DDI Brasil (55) quando ausente.
-function telWhatsApp(tel: string | null): string {
+export function telWhatsApp(tel: string | null): string {
   const d = (tel ?? "").replace(/\D/g, "");
   if (!d) return "";
   return d.length <= 11 ? `55${d}` : d;
