@@ -220,10 +220,10 @@ export default function CadastroSimples({
           </Button>
         </div>
 
-        <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm bg-white">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide font-semibold">
+              <tr className="bg-gray-100 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide font-semibold">
                 {campos.map((c) => (
                   <th key={c.key} className="text-left px-4 py-3 font-semibold" style={{ width: c.width }}>
                     {c.label}

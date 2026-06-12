@@ -323,9 +323,9 @@ export default function EstoquePage() {
             {hasFilters && <button onClick={clearFilters} className="mt-2 text-sm text-blue-500 hover:underline">Limpar filtros</button>}
           </div>
         ) : (
-          <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+          <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm bg-white">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-gray-100 border-b border-gray-200">
                 <tr className="text-xs text-gray-600 uppercase tracking-wide font-semibold">
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>

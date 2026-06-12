@@ -143,9 +143,9 @@ export default function RequisicoesMaterialPage() {
           <p className="text-sm text-gray-400 mt-1">Crie uma nova requisição ou devolução de materiais.</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+        <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm bg-white">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-gray-100 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Número</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Tipo</th>

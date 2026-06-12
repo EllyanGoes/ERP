@@ -88,10 +88,10 @@ export default function MotoristasPage() {
         )}
 
         {/* List */}
-        <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
+              <tr className="bg-gray-100 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
                 <th className="text-left px-4 py-3">Nome</th>
                 <th className="text-left px-4 py-3">CPF</th>
                 <th className="text-left px-4 py-3">CNH</th>

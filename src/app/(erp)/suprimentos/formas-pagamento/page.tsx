@@ -5,8 +5,8 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Plus, Pencil, Check, X, ToggleLeft, ToggleRight, Loader2, Info,
-  Banknote, CreditCard, Smartphone, Building2, FileText, Wallet, BookCheck, HelpCircle,
+  Plus, Pencil, Check, ToggleLeft, ToggleRight, Loader2, Info,
+  Banknote, CreditCard, Smartphone, Building2, FileText, BookCheck, HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -127,10 +127,10 @@ export default function FormasPagamentoPage() {
         )}
 
         {/* Table */}
-        <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
+              <tr className="bg-gray-100 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
                 <th className="text-left px-4 py-3">Nome</th>
                 <th className="text-left px-4 py-3">Tipo</th>
                 <th className="text-left px-4 py-3">Descrição</th>
