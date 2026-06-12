@@ -271,27 +271,32 @@ export function printPedidoA4(p: PedidoPrintData): void {
 <style>
   @page { size: A4; margin: 12mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #000; }
-  .moldura { border: 1.5px solid #000; }
-  .titulo { text-align: center; font-weight: bold; font-size: 11pt; padding: 2mm; border-bottom: 1px solid #000; }
-  .aviso { text-align: center; font-weight: bold; font-size: 9pt; padding: 1.5mm 2mm; border-bottom: 1px solid #000; }
-  .empresa { text-align: center; padding: 2mm; border-bottom: 1px solid #000; line-height: 1.5; }
-  .empresa .nome { font-weight: bold; }
-  .meta { padding: 1.5mm 2mm; border-bottom: 1px solid #000; }
-  .meta .cliente { font-weight: bold; }
-  .docnum { display: flex; border-bottom: 1px solid #000; }
+  /* força a impressão das cores de fundo (senão o navegador as remove) */
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .moldura { border: 1.5px solid #2563eb; border-radius: 2px; overflow: hidden; }
+  .titulo { text-align: center; font-weight: bold; font-size: 12pt; padding: 2.5mm; background: #2563eb; color: #fff; letter-spacing: .5px; }
+  .aviso { text-align: center; font-weight: bold; font-size: 8.5pt; padding: 1.5mm 2mm; border-bottom: 1px solid #bfdbfe; background: #fef2f2; color: #b91c1c; }
+  .empresa { text-align: center; padding: 2mm; border-bottom: 1px solid #bfdbfe; line-height: 1.5; background: #eff6ff; }
+  .empresa .nome { font-weight: bold; color: #1e3a8a; font-size: 10.5pt; }
+  .meta { padding: 1.5mm 2mm; border-bottom: 1px solid #bfdbfe; }
+  .meta .cliente { font-weight: bold; color: #1e3a8a; }
+  .docnum { display: flex; border-bottom: 1.5px solid #2563eb; background: #f8fafc; }
   .docnum div { flex: 1; padding: 1.5mm 2mm; }
-  .docnum div + div { border-left: 1px solid #000; }
+  .docnum div + div { border-left: 1px solid #bfdbfe; }
   table { width: 100%; border-collapse: collapse; }
-  th { border-bottom: 1.5px solid #000; border-right: 1px solid #ccc; padding: 1.5mm 1mm; font-size: 8.5pt; background: #f2f2f2; }
-  td { border-bottom: 1px solid #ddd; border-right: 1px solid #eee; padding: 1.5mm 1mm; vertical-align: top; }
+  th { padding: 1.8mm 1mm; font-size: 8.5pt; background: #2563eb; color: #fff; border-right: 1px solid #1d4ed8; }
+  td { border-bottom: 1px solid #e2e8f0; border-right: 1px solid #eef2f7; padding: 1.5mm 1mm; vertical-align: top; }
+  tbody tr:nth-child(even) td { background: #f8fafc; }
   .c { text-align: center; } .r { text-align: right; white-space: nowrap; } .bold { font-weight: bold; }
-  .rodape { display: flex; justify-content: space-between; margin-top: 4mm; }
-  .totais { text-align: right; line-height: 1.7; }
-  .totais .total { font-weight: bold; font-size: 11pt; }
+  td.bold { color: #1e3a8a; }
+  .rodape { display: flex; justify-content: space-between; margin-top: 4mm; gap: 8mm; }
+  .obs { flex: 1; font-size: 8.5pt; color: #475569; }
+  .totais { text-align: right; line-height: 1.7; min-width: 60mm; }
+  .totais .total { font-weight: bold; font-size: 13pt; color: #fff; background: #2563eb; padding: 1.5mm 3mm; border-radius: 2px; margin-top: 1mm; display: inline-block; }
   .assinaturas { display: flex; gap: 18mm; margin-top: 22mm; }
-  .assinaturas div { flex: 1; border-top: 1px solid #000; text-align: center; font-size: 8pt; padding-top: 1mm; }
-  .vedada { text-align: center; margin-top: 10mm; font-size: 9pt; }
+  .assinaturas div { flex: 1; border-top: 1px solid #94a3b8; text-align: center; font-size: 8pt; padding-top: 1mm; color: #475569; }
+  .vedada { text-align: center; margin-top: 10mm; font-size: 8.5pt; color: #94a3b8; }
 </style></head><body>
   <div class="moldura">
     <div class="titulo">${esc(tituloDocumento(p))}</div>
@@ -328,7 +333,7 @@ export function printPedidoA4(p: PedidoPrintData): void {
   </div>
 
   <div class="rodape">
-    <div>${p.observacoes ? `Obs: ${esc(p.observacoes)}` : ""}</div>
+    <div class="obs">${p.observacoes ? `Obs: ${esc(p.observacoes)}` : ""}</div>
     <div class="totais">
       <div>Itens R$: ${brl(p.valorProdutos)}</div>
       ${p.valorDesconto > 0 ? `<div>Desconto global R$: ${brl(p.valorDesconto)}</div>` : ""}
