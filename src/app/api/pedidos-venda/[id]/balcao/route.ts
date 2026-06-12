@@ -9,6 +9,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { generateDocNumber, generateSimpleDocNumber } from "@/lib/utils";
+import { pedidoPrintData } from "@/lib/print-pedido-server";
 import { z } from "zod";
 
 const schema = z.object({
@@ -71,8 +72,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       // Duplo clique no caixa não pode baixar estoque nem receber duas vezes.
       const claimed = await tx.pedidoVenda.updateMany({
         where: { id: params.id, status: { in: ["ORCAMENTO", "CONFIRMADO"] } },
-        // data confirmada pelo caixa prevalece sobre a previsão do pedido
-        data: { status: "CONCLUIDO", dataEntrega: dataRecebimento ? hoje : (pedido.dataEntrega ?? hoje) },
+        // data confirmada pelo caixa prevalece sobre a previsão do pedido; a
+        // forma de pagamento confirmada fica carimbada no pedido (e no cupom)
+        data: {
+          status: "CONCLUIDO",
+          dataEntrega: dataRecebimento ? hoje : (pedido.dataEntrega ?? hoje),
+          ...(formaPagamento ? { formaPagamento } : {}),
+        },
       });
       if (claimed.count === 0) {
         throw new Error("CONFLITO: o pedido já foi concluído por outra operação — recarregue a página.");
@@ -180,7 +186,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return { minuta, conta };
     });
 
-    return NextResponse.json({ data: { minutaId: resultado.minuta.id, minutaNumero: resultado.minuta.numero, contaNumero: resultado.conta?.numero ?? null } }, { status: 201 });
+    // Dados de impressão do cupom (o PDV imprime direto da resposta).
+    const pedidoImpresso = await prisma.pedidoVenda.findUnique({
+      where: { id: params.id },
+      include: {
+        cliente: true,
+        empresa: true,
+        itens: { include: { item: { include: { unidade: { select: { sigla: true } } } } } },
+      },
+    });
+
+    return NextResponse.json({
+      data: {
+        minutaId: resultado.minuta.id,
+        minutaNumero: resultado.minuta.numero,
+        contaNumero: resultado.conta?.numero ?? null,
+        print: pedidoImpresso ? pedidoPrintData(pedidoImpresso) : null,
+      },
+    }, { status: 201 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro ao concluir venda balcão";
     if (msg.startsWith("CONFLITO:")) return NextResponse.json({ error: msg.replace("CONFLITO: ", "") }, { status: 409 });

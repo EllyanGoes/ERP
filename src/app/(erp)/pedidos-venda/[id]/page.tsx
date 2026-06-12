@@ -6,6 +6,7 @@ import PedidoDetail from "@/components/pedidos-venda/PedidoDetail";
 import { decimalToNumber } from "@/lib/utils";
 import ImprimirPedidoButton from "@/components/pedidos-venda/ImprimirPedidoButton";
 import type { PedidoPrintData } from "@/lib/print-pedido";
+import { pedidoPrintData } from "@/lib/print-pedido-server";
 
 export const dynamic = "force-dynamic";
 
@@ -82,51 +83,7 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
     item: m.item,
   }));
 
-  const pedidoPrint: PedidoPrintData = {
-    numero: pedido.numero,
-    status: pedido.status,
-    dataEmissao: pedido.dataEmissao?.toISOString() ?? null,
-    condicaoPagamento: pedido.condicaoPagamento,
-    formaPagamento: pedido.formaPagamento,
-    observacoes: pedido.observacoes,
-    valorProdutos: decimalToNumber(pedido.valorProdutos),
-    valorDesconto: decimalToNumber(pedido.valorDesconto),
-    valorFrete: decimalToNumber(pedido.valorFrete),
-    valorTotal: decimalToNumber(pedido.valorTotal),
-    cliente: {
-      razaoSocial: pedido.cliente.razaoSocial,
-      nomeFantasia: pedido.cliente.nomeFantasia,
-      cpfCnpj: pedido.cliente.cpfCnpj,
-      logradouro: pedido.cliente.logradouro,
-      numero: pedido.cliente.numero,
-      bairro: pedido.cliente.bairro,
-      cidade: pedido.cliente.cidade,
-      estado: pedido.cliente.estado,
-      telefone: pedido.cliente.telefone,
-    },
-    empresa: pedido.empresa
-      ? {
-          razaoSocial: pedido.empresa.razaoSocial,
-          nomeFantasia: pedido.empresa.nomeFantasia,
-          cnpj: pedido.empresa.cnpj,
-          logradouro: pedido.empresa.logradouro,
-          numero: pedido.empresa.numero,
-          bairro: pedido.empresa.bairro,
-          cidade: pedido.empresa.cidade,
-          estado: pedido.empresa.estado,
-          telefone: pedido.empresa.telefone,
-        }
-      : null,
-    itens: pedido.itens.map((i) => ({
-      codigo: i.item.codigo,
-      descricao: i.item.descricao,
-      un: i.item.unidade?.sigla ?? i.item.unidadeMedida ?? "UN",
-      quantidade: decimalToNumber(i.quantidade),
-      precoUnitario: decimalToNumber(i.precoUnitario),
-      valorDesconto: decimalToNumber(i.valorDesconto),
-      valorTotal: decimalToNumber(i.valorTotal),
-    })),
-  };
+  const pedidoPrint: PedidoPrintData = pedidoPrintData(pedido);
 
   return (
     <div>
@@ -141,6 +98,8 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
         }
       />
       <div className="px-8 pb-8">
+        {/* objeto Prisma completo; o componente tipa só o que consome */}
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <PedidoDetail pedido={pedido as any} itensComodato={itensComodato} movimentacoesComodato={movimentacoesComodato} />
       </div>
     </div>

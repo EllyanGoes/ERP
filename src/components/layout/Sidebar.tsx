@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useDirtyFormContext } from "@/lib/dirty-form-context";
 import { cn } from "@/lib/utils";
@@ -69,6 +68,7 @@ import {
   Repeat,
   CalendarClock,
   FileCheck2,
+  Monitor,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -150,6 +150,7 @@ const mainModules: Module[] = [
       ]},
       { kind: "Processos", items: [
         { href: "/pedidos-venda",          label: "Pedidos de Venda", icon: ShoppingCart },
+        { href: "/pdv",                    label: "PDV (Caixa)",      icon: Monitor },
         { href: "/comercial/saldo-clientes", label: "Saldo por Cliente", icon: PackageSearch },
         { href: "/comercial/saldo-materiais", label: "Saldo por Material", icon: PackageCheck },
         { href: "/comercial/minutas",      label: "Minutas",          icon: Truck },

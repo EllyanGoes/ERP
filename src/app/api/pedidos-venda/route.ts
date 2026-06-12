@@ -13,10 +13,11 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
   const status = searchParams.get("status") || undefined;
+  const pdv = searchParams.get("pdv") === "1";
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
 
-  const where: any = {
+  const where: Record<string, unknown> = {
     AND: [
       q ? {
         OR: [
@@ -27,6 +28,13 @@ export async function GET(req: NextRequest) {
         ],
       } : {},
       status ? { status } : {},
+      // Fila do PDV (caixa): pedidos abertos, sem minutas ativas (quem já tem
+      // minuta segue o fluxo de entrega) e fora do intragrupo.
+      pdv ? {
+        status: { in: ["ORCAMENTO", "CONFIRMADO"] },
+        intragrupo: false,
+        minutas: { none: { status: { not: "CANCELADA" } } },
+      } : {},
     ],
   };
 
@@ -63,7 +71,7 @@ export async function POST(req: NextRequest) {
   // Comodato (saída) lançado junto com o pedido. Lido do corpo bruto porque o
   // schema do pedido descarta chaves desconhecidas. Entra no mesmo livro-razão
   // (MovimentacaoComodato) da tela /comodato, atualizando o saldo do cliente.
-  const comodatoRaw: any[] = Array.isArray(body.comodato) ? body.comodato : [];
+  const comodatoRaw: Array<Record<string, unknown>> = Array.isArray(body.comodato) ? body.comodato : [];
   const comodato = comodatoRaw
     .filter((c) => c && typeof c.itemId === "string" && c.itemId && Number(c.quantidade) > 0)
     .map((c) => ({
