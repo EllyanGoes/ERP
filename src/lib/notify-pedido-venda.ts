@@ -51,7 +51,7 @@ export async function notifyPedidoVendaCriado(pedido: {
     const text = [
       "🛒 *Novo Pedido de Venda*",
       "",
-      `🏢 Empresa: *${escMD(empresaNome)}*`,
+      `💼 Empresa: *${escMD(empresaNome)}*`,
       `📄 Pedido: *${escMD(pedido.numero)}*`,
       `👤 Cliente: ${escMD(clienteNome)}`,
       `📦 Itens: ${escMD(String(qtdItens))}`,
@@ -126,7 +126,7 @@ export async function enviarRelatorioDiarioPedidosVenda(
     let listados = 0;
     for (const g of ordenados) {
       linhas.push("");
-      linhas.push(`🏢 *${escMD(g.nome)}* — ${escMD(String(g.pedidos.length))} ${g.pedidos.length === 1 ? "pedido" : "pedidos"} — *${escMD(fmtBRL(g.subtotal))}*`);
+      linhas.push(`💼 *${escMD(g.nome)}* — ${escMD(String(g.pedidos.length))} ${g.pedidos.length === 1 ? "pedido" : "pedidos"} — *${escMD(fmtBRL(g.subtotal))}*`);
       for (const p of g.pedidos) {
         if (listados >= MAX) break;
         const nome = p.cliente?.nomeFantasia || p.cliente?.razaoSocial || "—";
