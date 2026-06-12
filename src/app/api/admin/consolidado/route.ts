@@ -149,7 +149,8 @@ export async function GET(req: NextRequest) {
   for (const e of estoque) {
     const linha = porEmpresa.get(e.empresaId);
     if (!linha) continue;
-    const custo = custosEmp.get(chaveCustoEmpresa(e.empresaId, e.itemId)) ?? num(e.item.precoCusto);
+    // Custo estrito de cada empresa (sem herdar o CMPM global de outra).
+    const custo = custosEmp.get(chaveCustoEmpresa(e.empresaId, e.itemId)) ?? 0;
     linha.estoqueValor += num(e.quantidadeAtual) * custo;
   }
 

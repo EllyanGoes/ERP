@@ -33,22 +33,19 @@ const num = (v: unknown): number | null => {
 };
 
 /**
- * Custos dos itens na empresa, com fallback no CMPM global (Item.precoCusto)
- * para itens sem custo próprio na empresa. Retorna Map itemId → custo|null.
+ * Custos dos itens ESTRITAMENTE na empresa (ItemCustoEmpresa). SEM fallback no
+ * CMPM global: o custo é por empresa, então um item sem entrada/movimentação
+ * com custo na empresa fica sem custo (ausente no Map) — nunca herda o custo
+ * de outra empresa. Retorna Map itemId → custo (só os que têm custo próprio).
  */
 export async function custosDaEmpresa(db: DbCusto, empresaId: string, itemIds: string[]): Promise<Map<string, number | null>> {
   const resultado = new Map<string, number | null>();
   if (itemIds.length === 0) return resultado;
 
   const proprios = await db.itemCustoEmpresa.findMany({ where: { empresaId, itemId: { in: itemIds } } });
-  for (const r of proprios) resultado.set(r.itemId, num(r.precoCusto));
-
-  const faltantes = itemIds.filter((id) => resultado.get(id) == null);
-  if (faltantes.length > 0) {
-    const globais = await db.item.findMany({ where: { id: { in: faltantes } }, select: { id: true, precoCusto: true } });
-    for (const g of globais) {
-      if (resultado.get(g.id) == null) resultado.set(g.id, num(g.precoCusto));
-    }
+  for (const r of proprios) {
+    const v = num(r.precoCusto);
+    if (v != null) resultado.set(r.itemId, v);
   }
   return resultado;
 }
@@ -57,8 +54,9 @@ export async function custosDaEmpresa(db: DbCusto, empresaId: string, itemIds: s
 export const chaveCustoEmpresa = (empresaId: string, itemId: string) => `${empresaId}|${itemId}`;
 
 /**
- * Custos próprios em lote para pares (empresa, item) — sem fallback: ausência
- * no mapa significa "use o CMPM global (Item.precoCusto) que você já tem".
+ * Custos próprios em lote para pares (empresa, item) — ESTRITO: ausência no
+ * mapa significa "a empresa não tem custo registrado para esse item" (sem
+ * custo), nunca o CMPM global de outra empresa.
  */
 export async function custosPorEmpresaItem(
   db: DbCusto,

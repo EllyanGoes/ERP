@@ -108,7 +108,8 @@ export async function POST(
     );
     let valorTotalNum: number | null = null;
     for (const it of sc.itens) {
-      const custo = custosEmp.get(chaveCustoEmpresa(sc.empresaId, it.itemId)) ?? it.item?.precoCusto;
+      // Custo estrito da empresa da SC (sem herdar o CMPM global de outra).
+      const custo = custosEmp.get(chaveCustoEmpresa(sc.empresaId, it.itemId));
       if (custo != null) {
         const qtd = parseFloat(String(it.quantidade ?? 0));
         const val = parseFloat(String(custo));

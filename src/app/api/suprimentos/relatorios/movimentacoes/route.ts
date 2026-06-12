@@ -69,7 +69,9 @@ export async function GET(req: NextRequest) {
   for (const m of movs) {
     const qty   = parseFloat(String(m.quantidade ?? 0));
     const custoEmp = custosEmp.get(chaveCustoEmpresa(m.empresaId, m.itemId));
-    const custo = parseFloat(String(m.valorUnitario ?? custoEmp ?? m.item.precoCusto ?? 0));
+    // valorUnitario da própria movimentação > custo da empresa > 0 (sem
+    // herdar o CMPM global de outra empresa).
+    const custo = parseFloat(String(m.valorUnitario ?? custoEmp ?? 0));
     const valor = qty * custo;
 
     if (!map.has(m.itemId)) {

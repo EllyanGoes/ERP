@@ -58,7 +58,8 @@ export async function GET(req: NextRequest) {
   );
   const comCusto = data.map((i) => {
     const proprio = custosEmp.get(chaveCustoEmpresa(empresaAtiva, i.id));
-    return proprio != null ? { ...i, precoCusto: proprio } : i;
+    // Estrito por empresa: sem custo próprio → sem custo (não herda o global).
+    return { ...i, precoCusto: proprio != null ? proprio : null };
   });
 
   return NextResponse.json({ data: comCusto });

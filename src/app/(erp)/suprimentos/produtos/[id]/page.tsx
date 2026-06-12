@@ -881,22 +881,21 @@ export default function ProdutoDetailPage() {
   const estoqueTotal = estoqueComLocal.reduce((s, e) => s + decimalToNumber(e.quantidadeAtual), 0);
   const estoqueTotalTodas = estoqueComLocalTodas.reduce((s, e) => s + decimalToNumber(e.quantidadeAtual), 0);
   // Custo por empresa: cada empresa do grupo tem o próprio CMPM
-  // (ItemCustoEmpresa); o CMPM global do Item é o fallback.
-  const custoGlobal = item.precoCusto ? decimalToNumber(item.precoCusto) : 0;
+  // (ItemCustoEmpresa). ESTRITO por empresa: um item sem entrada com custo na
+  // empresa fica SEM custo (0) — nunca herda o custo de outra empresa.
   const custoPorEmpresa = new Map<string, number>(
     (item.custosEmpresa ?? [])
       .filter((c) => c.precoCusto != null)
       .map((c) => [c.empresaId, decimalToNumber(c.precoCusto)]),
   );
-  const custoDaEmpresa = (empId: string) => custoPorEmpresa.get(empId) ?? custoGlobal;
-  // Custo médio exibido: o da empresa filtrada; com uma única empresa visível
-  // (seletor do topo em empresa específica), o dela; só no consolidado de
-  // várias empresas cai no CMPM global.
+  const custoDaEmpresa = (empId: string) => custoPorEmpresa.get(empId) ?? 0;
+  // Custo médio exibido: o da empresa filtrada; com uma única empresa visível,
+  // o dela; com várias empresas e sem filtro, fica vazio (custos divergem).
   const custoUnit = empresaEstoqueId
     ? custoDaEmpresa(empresaEstoqueId)
     : empresasEstoque.length === 1
       ? custoDaEmpresa(empresasEstoque[0].id)
-      : custoGlobal;
+      : 0;
   // Custo total ponderado pelo custo da empresa de cada linha de saldo.
   const custoTotal = estoqueComLocal.reduce(
     (s, e) => s + decimalToNumber(e.quantidadeAtual) * custoDaEmpresa(e.empresaId),

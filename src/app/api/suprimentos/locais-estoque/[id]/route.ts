@@ -64,7 +64,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     ...record,
     estoqueItens: record.estoqueItens.map((e) => {
       const proprio = custos.get(chaveCustoEmpresa(record.empresaId, e.itemId));
-      return proprio != null ? { ...e, item: { ...e.item, precoCusto: proprio } } : e;
+      // Estrito por empresa: sem custo próprio → sem custo (não herda o global).
+      return { ...e, item: { ...e.item, precoCusto: proprio != null ? proprio : null } };
     }),
   };
   return NextResponse.json(comCusto);

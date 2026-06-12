@@ -124,8 +124,8 @@ export async function GET(req: NextRequest) {
 
   const rows: Row[] = items.map((item) => {
     const movs  = saidasByItem.get(item.id) ?? [];
-    const custo = custosEmp.get(chaveCustoEmpresa(empresaAtiva, item.id))
-      ?? (item.precoCusto ? parseFloat(item.precoCusto.toString()) : 0);
+    // Custo estrito da empresa ativa (sem herdar o CMPM global de outra).
+    const custo = custosEmp.get(chaveCustoEmpresa(empresaAtiva, item.id)) ?? 0;
 
     // Meses distintos com ao menos uma saída
     const monthsWithConsumption = new Set<string>();
