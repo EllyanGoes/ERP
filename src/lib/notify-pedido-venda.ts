@@ -49,7 +49,7 @@ export async function notifyPedidoVendaCriado(pedido: {
     const data = pedido.dataEmissao ? new Date(pedido.dataEmissao) : new Date();
 
     const text = [
-      "🛒 *Novo Pedido de Venda*",
+      "📝 *Novo Pedido de Venda*",
       "",
       `💼 Empresa: *${escMD(empresaNome)}*`,
       `📄 Pedido: *${escMD(pedido.numero)}*`,
