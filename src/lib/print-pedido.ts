@@ -10,6 +10,7 @@ export type PedidoPrintData = {
   dataEmissao: string | null;
   condicaoPagamento: string | null;
   formaPagamento: string | null;
+  vendedor: string | null;
   observacoes: string | null;
   valorProdutos: number;
   valorDesconto: number;
@@ -79,6 +80,7 @@ export function buildPedidoWhatsAppText(p: PedidoPrintData): string {
     `*Total: R$ ${brl(p.valorTotal)}*`,
     p.formaPagamento ? `Pagamento: ${p.formaPagamento}` : "",
     p.condicaoPagamento ? `Condição: ${p.condicaoPagamento}` : "",
+    p.vendedor ? `Vendedor: ${p.vendedor}` : "",
     "",
     "Qualquer dúvida, estou à disposição!",
   ].filter((l) => l !== "").join("\n");
@@ -159,6 +161,7 @@ export function buildPedidoEscPos(p: PedidoPrintData, cols = 48): Uint8Array {
   lr("Emissao:", fmtData(p.dataEmissao));
   if (p.formaPagamento) lr("Pagamento:", p.formaPagamento);
   if (p.condicaoPagamento) lr("Condicao:", p.condicaoPagamento);
+  if (p.vendedor) lr("Vendedor:", p.vendedor);
   sep();
   raw([ESC, 0x45, 0x01]); line("CLIENTE"); raw([ESC, 0x45, 0x00]);
   line(p.cliente.nomeFantasia || p.cliente.razaoSocial);
@@ -232,6 +235,7 @@ export function printPedidoTermicaDialog(p: PedidoPrintData): void {
   ${lr("Emissão:", fmtData(p.dataEmissao))}
   ${p.formaPagamento ? lr("Pagamento:", p.formaPagamento) : ""}
   ${p.condicaoPagamento ? lr("Condição:", p.condicaoPagamento) : ""}
+  ${p.vendedor ? lr("Vendedor:", p.vendedor) : ""}
   <div class="sep"></div>
   <div class="bold">CLIENTE</div>
   <div>${esc(p.cliente.nomeFantasia || p.cliente.razaoSocial)}</div>
@@ -307,7 +311,7 @@ export function printPedidoA4(p: PedidoPrintData): void {
       ${p.empresa.telefone ? `<div>FONE: ${esc(p.empresa.telefone)}</div>` : ""}
     </div>` : ""}
     <div class="meta">
-      <div>Data: ${fmtData(p.dataEmissao)}${p.formaPagamento ? ` &nbsp;&nbsp;Pagamento: ${esc(p.formaPagamento)}` : ""}${p.condicaoPagamento ? ` &nbsp;&nbsp;Condição: ${esc(p.condicaoPagamento)}` : ""}</div>
+      <div>Data: ${fmtData(p.dataEmissao)}${p.formaPagamento ? ` &nbsp;&nbsp;Pagamento: ${esc(p.formaPagamento)}` : ""}${p.condicaoPagamento ? ` &nbsp;&nbsp;Condição: ${esc(p.condicaoPagamento)}` : ""}${p.vendedor ? ` &nbsp;&nbsp;Vendedor: ${esc(p.vendedor)}` : ""}</div>
       <div class="cliente">Cliente: ${esc(p.cliente.razaoSocial)}${p.cliente.nomeFantasia ? ` (${esc(p.cliente.nomeFantasia)})` : ""}${p.cliente.cpfCnpj ? ` — ${esc(p.cliente.cpfCnpj)}` : ""}</div>
       <div>Endereço: ${esc(enderecoLinha(p.cliente)) || "—"}</div>
     </div>

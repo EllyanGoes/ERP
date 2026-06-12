@@ -90,6 +90,7 @@ export async function gerarPedidoPDFBlob(p: PedidoPrintData): Promise<{ blob: Bl
     `Data: ${fmtData(p.dataEmissao)}`,
     p.formaPagamento ? `Pagamento: ${p.formaPagamento}` : "",
     p.condicaoPagamento ? `Condição: ${p.condicaoPagamento}` : "",
+    p.vendedor ? `Vendedor: ${p.vendedor}` : "",
   ].filter(Boolean).join("    ");
   metaLinhas.push({ txt: pag });
   metaLinhas.push({ txt: `Cliente: ${p.cliente.razaoSocial}${p.cliente.nomeFantasia ? ` (${p.cliente.nomeFantasia})` : ""}${p.cliente.cpfCnpj ? ` — ${p.cliente.cpfCnpj}` : ""}`, bold: true });

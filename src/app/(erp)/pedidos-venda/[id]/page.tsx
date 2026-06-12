@@ -17,6 +17,7 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
       include: {
         cliente: true,
         empresa: true,
+        vendedor: { select: { id: true, nome: true } },
         itens: {
           include: {
             item: {

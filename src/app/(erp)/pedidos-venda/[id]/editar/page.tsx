@@ -79,6 +79,7 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
     numeroOrcamento: pedido.numeroOrcamento,
     clienteId: pedido.clienteId,
     tabelaPrecoId: pedido.tabelaPrecoId,
+    vendedorId: pedido.vendedorId,
     dataEmissao: pedido.dataEmissao.toISOString(),
     dataEntrega: pedido.dataEntrega ? pedido.dataEntrega.toISOString() : null,
     condicaoPagamento: pedido.condicaoPagamento,

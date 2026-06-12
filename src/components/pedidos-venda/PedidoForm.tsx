@@ -119,6 +119,7 @@ type PedidoInicial = {
   numeroOrcamento: string | null;
   clienteId: string;
   tabelaPrecoId: string | null;
+  vendedorId: string | null;
   dataEmissao: string;   // ISO
   dataEntrega: string | null;
   condicaoPagamento: string | null;
@@ -202,6 +203,8 @@ export default function PedidoForm({
   const [empresaId, setEmpresaId] = useState(""); // "" = empresa ativa (só na criação)
   const [numeroOrcamento,   setNumeroOrcamento]   = useState(pedido?.numeroOrcamento ?? "");
   const [tabelaPrecoId,     setTabelaPrecoId]     = useState(pedido?.tabelaPrecoId ?? "");
+  const [vendedorId,        setVendedorId]        = useState(pedido?.vendedorId ?? "");
+  const [vendedores,        setVendedores]        = useState<{ id: string; nome: string; ativo?: boolean }[]>([]);
   const [dataEmissao,       setDataEmissao]       = useState(pedido ? isoToDateInput(pedido.dataEmissao) : new Date().toISOString().slice(0, 10));
   const [dataEntrega,       setDataEntrega]       = useState(pedido ? isoToDateInput(pedido.dataEntrega) : "");
   const [condicaoPagamento, setCondicaoPagamento] = useState(pedido?.condicaoPagamento ?? "");
@@ -258,6 +261,14 @@ export default function PedidoForm({
       .then((j) => setTabelas(j.data ?? []))
       .catch(() => {})
       .finally(() => setTabelaLoading(false));
+  }, []);
+
+  // Load vendedores on mount
+  useEffect(() => {
+    fetch("/api/comercial/vendedores?ativo=true")
+      .then((r) => r.json())
+      .then((j) => setVendedores(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
   }, []);
 
   // Load condições de pagamento on mount
@@ -585,6 +596,7 @@ export default function PedidoForm({
       clienteId,
       numeroOrcamento: numeroOrcamento.trim() || null,
       tabelaPrecoId: tabelaPrecoId || null,
+      vendedorId: vendedorId || null,
       dataEmissao,
       dataEntrega: dataEntrega || null,
       condicaoPagamento: condicaoPagamento || null,
@@ -799,6 +811,21 @@ export default function PedidoForm({
               className="h-10 border-gray-300"
             />
           </div>
+          </div>
+
+          {/* Vendedor */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Vendedor</Label>
+            <select
+              value={vendedorId}
+              onChange={(e) => setVendedorId(e.target.value)}
+              className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors"
+            >
+              <option value="">— Sem vendedor —</option>
+              {vendedores.filter((v) => v.ativo !== false || v.id === vendedorId).map((v) => (
+                <option key={v.id} value={v.id}>{v.nome}</option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

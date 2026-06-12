@@ -16,6 +16,7 @@ type PedidoParaPrint = {
   dataEmissao: Date | null;
   condicaoPagamento: string | null;
   formaPagamento: string | null;
+  vendedor?: { nome: string } | null;
   observacoes: string | null;
   valorProdutos: unknown;
   valorDesconto: unknown;
@@ -36,6 +37,7 @@ export function pedidoPrintData(pedido: PedidoParaPrint): PedidoPrintData {
     dataEmissao: pedido.dataEmissao?.toISOString() ?? null,
     condicaoPagamento: pedido.condicaoPagamento,
     formaPagamento: pedido.formaPagamento,
+    vendedor: pedido.vendedor?.nome ?? null,
     observacoes: pedido.observacoes,
     valorProdutos: decimalToNumber(pedido.valorProdutos),
     valorDesconto: decimalToNumber(pedido.valorDesconto),

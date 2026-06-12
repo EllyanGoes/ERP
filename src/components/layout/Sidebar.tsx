@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Users,
+  UserRound,
   ShoppingCart,
   Package,
   Warehouse,
@@ -146,6 +147,7 @@ const mainModules: Module[] = [
         { href: "/comercial/tabelas-preco",    label: "Tabelas de Preço",    icon: Tag },
         { href: "/comercial/produtos-venda",   label: "Produtos para Venda", icon: Package },
         { href: "/clientes",                   label: "Clientes",            icon: Users },
+        { href: "/comercial/vendedores",       label: "Vendedores",          icon: UserRound },
         { href: "/comercial/motoristas",       label: "Motoristas",          icon: Truck },
       ]},
       { kind: "Processos", items: [

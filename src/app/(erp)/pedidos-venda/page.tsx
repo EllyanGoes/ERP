@@ -33,6 +33,7 @@ type PedidoRow = {
   valorTotal: unknown;
   condicaoPagamento: string | null;
   cliente: { id: string; razaoSocial: string; nomeFantasia: string | null };
+  vendedor?: { id: string; nome: string } | null;
   minutas?: { numeroFisico: string | null }[];
   _count?: { minutas: number };
 };
@@ -123,6 +124,9 @@ const COLS: ColDef<PedidoRow>[] = [
         <div className="font-medium text-gray-800 text-sm">{p.cliente.razaoSocial}</div>
         {p.cliente.nomeFantasia && (
           <div className="text-xs text-gray-400">{p.cliente.nomeFantasia}</div>
+        )}
+        {p.vendedor && (
+          <div className="text-[11px] text-gray-400">Vendedor: {p.vendedor.nome}</div>
         )}
       </div>
     ),

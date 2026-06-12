@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
       where,
       include: {
         cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+        vendedor: { select: { id: true, nome: true } },
         minutas: { select: { numeroFisico: true } },
         _count: { select: { minutas: true } },
       },

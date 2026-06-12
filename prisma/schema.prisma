@@ -1104,6 +1104,7 @@ model PedidoVenda {
   intragrupo        Boolean           @default(false)
   clienteId         String
   tabelaPrecoId     String?
+  vendedorId        String?
   status            StatusPedidoVenda @default(ORCAMENTO)
   dataEmissao       DateTime          @default(now())
   dataEntrega       DateTime?
@@ -1120,6 +1121,7 @@ model PedidoVenda {
   espelhoCompra     PedidoCompra?     @relation("EspelhoIntragrupo")
   cliente           Cliente           @relation(fields: [clienteId], references: [id])
   tabelaPreco       TabelaPreco?      @relation(fields: [tabelaPrecoId], references: [id])
+  vendedor          Vendedor?         @relation(fields: [vendedorId], references: [id])
   itens             PedidoVendaItem[]
   minutas           Minuta[]
 
@@ -1129,6 +1131,7 @@ model PedidoVenda {
   @@index([clienteId])
   @@index([dataEmissao])
   @@index([status])
+  @@index([vendedorId])
   @@index([empresaId])
 }
 
@@ -1212,6 +1215,20 @@ model Motorista {
   minutas   Minuta[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([ativo])
+}
+
+// Cadastro próprio de vendedores (independente de ter login no ERP).
+// Compartilhado entre as empresas do grupo, como Motorista.
+model Vendedor {
+  id        String        @id @default(cuid())
+  nome      String
+  telefone  String?
+  ativo     Boolean       @default(true)
+  pedidos   PedidoVenda[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
   @@index([ativo])
 }

@@ -251,6 +251,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       include: {
         cliente: true,
         empresa: true,
+        vendedor: { select: { nome: true } },
         itens: { include: { item: { include: { unidade: { select: { sigla: true } } } } } },
       },
     });
