@@ -12,8 +12,18 @@ import { generateDocNumber, generateSimpleDocNumber } from "@/lib/utils";
 import { pedidoPrintData } from "@/lib/print-pedido-server";
 import { z } from "zod";
 
+const pagamentoSchema = z.object({
+  forma: z.string().min(1),
+  contaBancariaId: z.string().optional().nullable(),
+  valor: z.coerce.number().min(0),
+  troco: z.boolean().optional(), // linha em dinheiro: pode exceder o total (devolve troco)
+});
+
 const schema = z.object({
   localEstoqueId: z.string().min(1, "Informe o local de estoque da retirada"),
+  // Pagamento misto: várias formas com valores. Mantém os campos únicos como
+  // fallback (fluxo de 1 forma).
+  pagamentos: z.array(pagamentoSchema).optional(),
   formaPagamento: z.string().optional().nullable(),
   contaBancariaId: z.string().optional().nullable(),
   // Data do recebimento/conclusão (YYYY-MM-DD) — o caixa confirma; vazio = hoje.
@@ -28,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos" }, { status: 400 });
   }
-  const { localEstoqueId, formaPagamento, contaBancariaId, dataRecebimento } = parsed.data;
+  const { localEstoqueId, pagamentos: pagamentosIn, formaPagamento, contaBancariaId, dataRecebimento } = parsed.data;
 
   const pedido = await prisma.pedidoVenda.findUnique({
     where: { id: params.id },
@@ -58,6 +68,51 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const hoje = new Date(`${dataRecebimento || hojeSP}T00:00:00.000Z`);
   const valorTotal = parseFloat(pedido.valorTotal.toString());
 
+  // ── Normaliza as formas de pagamento ──────────────────────────────────────
+  // Pagamento misto: usa a lista `pagamentos`; sem ela, cai no fluxo de 1 forma
+  // (formaPagamento + contaBancariaId únicos pelo valor total).
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const linhas = (pagamentosIn && pagamentosIn.length > 0)
+    ? pagamentosIn.map((p) => ({
+        forma: p.forma,
+        contaBancariaId: p.contaBancariaId || "caixa-geral",
+        valor: round2(p.valor),
+        troco: !!p.troco,
+      }))
+    : [{
+        forma: (formaPagamento ?? pedido.formaPagamento ?? "À vista"),
+        contaBancariaId: contaBancariaId || "caixa-geral",
+        valor: valorTotal,
+        troco: false,
+      }];
+
+  if (valorTotal > 0) {
+    const somaPag = round2(linhas.reduce((s, l) => s + l.valor, 0));
+    if (somaPag < valorTotal - 0.001) {
+      return NextResponse.json({ error: `Pagamento insuficiente: faltam R$ ${round2(valorTotal - somaPag).toFixed(2)}.` }, { status: 422 });
+    }
+    // O excesso (troco) só pode sair das linhas de dinheiro (troco=true).
+    const troco = round2(somaPag - valorTotal);
+    const totalTroco = round2(linhas.filter((l) => l.troco).reduce((s, l) => s + l.valor, 0));
+    if (troco > 0.001 && troco > totalTroco + 0.001) {
+      return NextResponse.json({ error: "O troco excede o valor recebido em dinheiro." }, { status: 422 });
+    }
+    // Abate o troco da(s) linha(s) de dinheiro para o total recebido fechar
+    // com o valor da venda (o troco devolvido não entra no caixa).
+    let restanteTroco = troco;
+    for (const l of linhas) {
+      if (restanteTroco <= 0.001) break;
+      if (!l.troco) continue;
+      const abate = Math.min(l.valor, restanteTroco);
+      l.valor = round2(l.valor - abate);
+      restanteTroco = round2(restanteTroco - abate);
+    }
+  }
+  // Linhas efetivas com valor > 0 (após abater troco), resumo das formas.
+  const linhasReais = linhas.filter((l) => l.valor > 0.001);
+  const formasResumo = Array.from(new Set(linhasReais.map((l) => l.forma))).join(" + ")
+    || (formaPagamento ?? pedido.formaPagamento ?? null);
+
   // Numeração da empresa DONA do pedido (modo grupo pode operar outra empresa).
   const numeroMin = generateSimpleDocNumber("MIN", await proximaSequenciaDaEmpresa(pedido.empresaId, "MIN"));
   const seqMov = await proximaSequenciaDaEmpresa(pedido.empresaId, "MOV");
@@ -77,7 +132,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         data: {
           status: "CONCLUIDO",
           dataEntrega: dataRecebimento ? hoje : (pedido.dataEntrega ?? hoje),
-          ...(formaPagamento ? { formaPagamento } : {}),
+          ...(formasResumo ? { formaPagamento: formasResumo } : {}),
         },
       });
       if (claimed.count === 0) {
@@ -166,21 +221,25 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             dataVencimento: hoje,
             dataPagamento: hoje,
             status: "PAGA",
-            formaPagamento: formaPagamento ?? pedido.formaPagamento,
+            formaPagamento: formasResumo,
           },
         });
 
-        await tx.lancamentoFinanceiro.create({
-          data: {
-            empresaId: pedido.empresaId,
-            tipo: "RECEITA",
-            descricao: `Recebimento ${numeroCR} — venda balcão ${pedido.numero}`,
-            valor: valorTotal,
-            dataLancamento: hoje,
-            contaReceberId: conta.id,
-            contaBancariaId: contaBancariaId || "caixa-geral",
-          },
-        });
+        // Um lançamento por forma de pagamento (cada um na sua conta). A soma
+        // dos lançamentos fecha com o valor da venda (troco já abatido).
+        for (const l of linhasReais) {
+          await tx.lancamentoFinanceiro.create({
+            data: {
+              empresaId: pedido.empresaId,
+              tipo: "RECEITA",
+              descricao: `Recebimento ${numeroCR} — venda balcão ${pedido.numero}${linhasReais.length > 1 ? ` (${l.forma})` : ""}`,
+              valor: l.valor,
+              dataLancamento: hoje,
+              contaReceberId: conta.id,
+              contaBancariaId: l.contaBancariaId,
+            },
+          });
+        }
       }
 
       return { minuta, conta };

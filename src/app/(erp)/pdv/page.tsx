@@ -13,6 +13,10 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
 import { printEscPosUSB } from "@/lib/webusb-print";
 import { buildPedidoEscPos, printPedidoTermicaDialog, type PedidoPrintData } from "@/lib/print-pedido";
+import PagamentosInput, {
+  novaLinhaPagamento, parseValorBR, pagamentosPayload, pagamentosValidos,
+  type LinhaPagamento, type FormaOpt,
+} from "@/components/pedidos-venda/PagamentosInput";
 import { Search, RefreshCw, Loader2, Receipt, CheckCircle2, Printer } from "lucide-react";
 
 type FilaPedido = {
@@ -44,10 +48,6 @@ function hojeInput() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function parseValor(s: string): number {
-  const n = parseFloat(s.replace(/\./g, "").replace(",", "."));
-  return isNaN(n) ? 0 : n;
-}
 
 export default function PdvPage() {
   useTabTitle("Caixa");
@@ -63,14 +63,12 @@ export default function PdvPage() {
   const [pedidoLoading, setPedidoLoading] = useState(false);
 
   const [locais, setLocais] = useState<{ id: string; nome: string }[]>([]);
-  const [formas, setFormas] = useState<{ id: string; nome: string; ativo?: boolean }[]>([]);
+  const [formas, setFormas] = useState<FormaOpt[]>([]);
   const [contas, setContas] = useState<{ id: string; nome: string; ativo?: boolean }[]>([]);
 
   const [localId, setLocalId] = useState("");
-  const [forma, setForma] = useState("");
-  const [contaId, setContaId] = useState("caixa-geral");
   const [data, setData] = useState(hojeInput());
-  const [valorRecebido, setValorRecebido] = useState("");
+  const [pagamentos, setPagamentos] = useState<LinhaPagamento[]>([novaLinhaPagamento()]);
 
   const [concluindo, setConcluindo] = useState(false);
   const [erro, setErro] = useState("");
@@ -116,7 +114,6 @@ export default function PdvPage() {
     setSelecionadoId(id);
     setSucesso(null);
     setErro("");
-    setValorRecebido("");
     setData(hojeInput());
     setPedidoLoading(true);
     try {
@@ -124,7 +121,14 @@ export default function PdvPage() {
       const j = await res.json();
       if (res.ok) {
         setPedido(j.data);
-        setForma(j.data?.formaPagamento ?? "");
+        // 1 linha já preenchida com o total e a forma do pedido (fluxo de 1
+        // forma continua 1 clique; o caixa divide se precisar).
+        const tot = decimalToNumber(j.data?.valorTotal ?? 0);
+        setPagamentos([novaLinhaPagamento(
+          j.data?.formaPagamento ?? "",
+          "caixa-geral",
+          tot > 0 ? tot.toFixed(2).replace(".", ",") : "",
+        )]);
       }
     } finally { setPedidoLoading(false); }
   }
@@ -141,6 +145,11 @@ export default function PdvPage() {
   async function confirmarPagamento() {
     if (!pedido) return;
     if (!localId) { setErro("Informe o local de estoque da retirada."); return; }
+    const total = decimalToNumber(pedido.valorTotal);
+    if (!pagamentosValidos(pagamentos, formas, total)) {
+      setErro("Confira as formas de pagamento — a soma precisa cobrir o total (troco só em dinheiro).");
+      return;
+    }
     setConcluindo(true);
     setErro("");
     try {
@@ -149,8 +158,7 @@ export default function PdvPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           localEstoqueId: localId,
-          formaPagamento: forma || null,
-          contaBancariaId: contaId || null,
+          pagamentos: pagamentosPayload(pagamentos, formas),
           dataRecebimento: data || null,
         }),
       });
@@ -158,9 +166,8 @@ export default function PdvPage() {
       if (!res.ok) { setErro(j.error ?? "Não foi possível concluir a venda."); return; }
 
       localStorage.setItem("pdv_local", localId);
-      const total = decimalToNumber(pedido.valorTotal);
-      const recebido = parseValor(valorRecebido);
-      const troco = recebido > 0 ? Math.max(recebido - total, 0) : null;
+      const pago = pagamentos.reduce((s, l) => s + parseValorBR(l.valor), 0);
+      const troco = pago > total ? pago - total : null;
       const print: PedidoPrintData | null = j.data?.print ?? null;
 
       setSucesso({ numero: pedido.numero, troco, print });
@@ -175,8 +182,8 @@ export default function PdvPage() {
   }
 
   const total = pedido ? decimalToNumber(pedido.valorTotal) : 0;
-  const recebidoNum = parseValor(valorRecebido);
-  const troco = recebidoNum > 0 ? recebidoNum - total : null;
+  const pagoNum = pagamentos.reduce((s, l) => s + parseValorBR(l.valor), 0);
+  const pagamentoOk = pagamentosValidos(pagamentos, formas, total);
 
   return (
     <div className="flex flex-col h-full">
@@ -286,15 +293,7 @@ export default function PdvPage() {
               {/* Cobrança */}
               <div className="border-t border-gray-200 px-5 py-4 space-y-3 bg-gray-50/60 rounded-b-xl">
                 {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                    Forma de pagamento
-                    <select value={forma} onChange={(e) => setForma(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-2 text-sm font-normal normal-case bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="">— Selecionar —</option>
-                      {formas.filter((f) => f.ativo !== false).map((f) => <option key={f.id} value={f.nome}>{f.nome}</option>)}
-                      {forma && !formas.some((f) => f.nome === forma) && <option value={forma}>{forma}</option>}
-                    </select>
-                  </label>
+                <div className="grid grid-cols-2 gap-3">
                   <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
                     Local de estoque *
                     <select value={localId} onChange={(e) => setLocalId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-2 text-sm font-normal normal-case bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -303,37 +302,20 @@ export default function PdvPage() {
                     </select>
                   </label>
                   <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                    Conta de destino
-                    <select value={contaId} onChange={(e) => setContaId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-2 text-sm font-normal normal-case bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                      {!contas.some((c) => c.id === "caixa-geral") && <option value="caixa-geral">Caixa Geral</option>}
-                      {contas.filter((c) => c.ativo !== false).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                    </select>
-                  </label>
-                  <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
                     Data do recebimento
                     <input type="date" value={data} onChange={(e) => setData(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-2 text-sm font-normal bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </label>
                 </div>
 
-                <div className="flex flex-wrap items-end gap-3">
-                  <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                    Valor recebido (dinheiro)
-                    <input
-                      value={valorRecebido}
-                      onChange={(e) => setValorRecebido(e.target.value)}
-                      placeholder="opcional"
-                      className="block w-36 h-10 rounded-lg border border-gray-300 px-2 text-sm font-normal text-right font-mono bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </label>
-                  {troco != null && (
-                    <p className={cn("text-sm font-bold pb-2 tabular-nums", troco < 0 ? "text-red-600" : "text-amber-600")}>
-                      {troco < 0 ? `Falta ${formatBRL(-troco)}` : `Troco: ${formatBRL(troco)}`}
-                    </p>
-                  )}
+                {/* Formas de pagamento (misto: PIX + dinheiro etc.) */}
+                <PagamentosInput linhas={pagamentos} setLinhas={setPagamentos} formas={formas} contas={contas} total={total} />
+
+                <div className="flex items-center gap-3 pt-1">
+                  <span className="text-sm text-gray-500">Total <span className="font-bold text-gray-900 tabular-nums">{formatBRL(total)}</span></span>
                   <div className="flex-1" />
                   <Button
                     onClick={confirmarPagamento}
-                    disabled={concluindo || (troco != null && troco < 0)}
+                    disabled={concluindo || !pagamentoOk || pagoNum <= 0}
                     className="h-12 px-6 bg-emerald-600 hover:bg-emerald-700 text-base font-bold"
                   >
                     {concluindo ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Printer className="w-5 h-5 mr-2" />}

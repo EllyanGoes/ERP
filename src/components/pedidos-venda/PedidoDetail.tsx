@@ -8,6 +8,10 @@ import { formatBRL, formatDate, decimalToNumber, cn, parseDecimal } from "@/lib/
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { Plus, Truck, Pencil, Package, Trash2, AlertTriangle } from "lucide-react";
 import MinutaActionsMenu from "./MinutaActionsMenu";
+import PagamentosInput, {
+  novaLinhaPagamento, pagamentosPayload, pagamentosValidos,
+  type LinhaPagamento, type FormaOpt,
+} from "./PagamentosInput";
 
 type MinutaItemSummary = { quantidade: string };
 
@@ -126,20 +130,24 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   const [blockModal, setBlockModal] = useState<{ msg: string; pendentes: ItemPendente[] } | null>(null);
 
   // Venda balcão (retirada na loja): recebe o pagamento e conclui em uma ação.
+  const balcaoTotal = decimalToNumber(pedido.valorTotal);
   const [balcaoOpen, setBalcaoOpen] = useState(false);
   const [balcaoLocalId, setBalcaoLocalId] = useState("");
-  const [balcaoForma, setBalcaoForma] = useState(pedido.formaPagamento ?? "");
-  const [balcaoContaId, setBalcaoContaId] = useState("caixa-geral");
   const [balcaoData, setBalcaoData] = useState(todayInput());
   const [balcaoErro, setBalcaoErro] = useState("");
   const [balcaoLocais, setBalcaoLocais] = useState<{ id: string; nome: string }[]>([]);
-  const [balcaoFormas, setBalcaoFormas] = useState<{ id: string; nome: string; ativo?: boolean }[]>([]);
+  const [balcaoFormas, setBalcaoFormas] = useState<FormaOpt[]>([]);
   const [balcaoContas, setBalcaoContas] = useState<{ id: string; nome: string; ativo?: boolean }[]>([]);
+  const [balcaoPagamentos, setBalcaoPagamentos] = useState<LinhaPagamento[]>([novaLinhaPagamento()]);
 
   function abrirBalcao() {
     setBalcaoErro("");
-    setBalcaoForma(pedido.formaPagamento ?? "");
     setBalcaoData(todayInput());
+    setBalcaoPagamentos([novaLinhaPagamento(
+      pedido.formaPagamento ?? "",
+      "caixa-geral",
+      balcaoTotal > 0 ? balcaoTotal.toFixed(2).replace(".", ",") : "",
+    )]);
     setBalcaoOpen(true);
     fetch("/api/suprimentos/locais-estoque")
       .then((r) => r.json())
@@ -162,6 +170,10 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   async function concluirBalcao() {
     if (!balcaoLocalId) { setBalcaoErro("Informe o local de estoque da retirada."); return; }
     if (!balcaoData) { setBalcaoErro("Confirme a data do recebimento."); return; }
+    if (!pagamentosValidos(balcaoPagamentos, balcaoFormas, balcaoTotal)) {
+      setBalcaoErro("Confira as formas de pagamento — a soma precisa cobrir o total (troco só em dinheiro).");
+      return;
+    }
     setLoading(true);
     setBalcaoErro("");
     try {
@@ -170,8 +182,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           localEstoqueId: balcaoLocalId,
-          formaPagamento: balcaoForma || null,
-          contaBancariaId: balcaoContaId || null,
+          pagamentos: pagamentosPayload(balcaoPagamentos, balcaoFormas),
           dataRecebimento: balcaoData,
         }),
       });
@@ -742,32 +753,9 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                 />
                 <p className="text-[11px] text-gray-400">Vale para a baixa de estoque, o recebimento no caixa e a conclusão do pedido.</p>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Forma de Pagamento</label>
-                <select
-                  value={balcaoForma}
-                  onChange={(e) => setBalcaoForma(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">— Selecionar forma —</option>
-                  {balcaoFormas.filter((f) => f.ativo !== false).map((f) => <option key={f.id} value={f.nome}>{f.nome}</option>)}
-                  {balcaoForma && !balcaoFormas.some((f) => f.nome === balcaoForma) && (
-                    <option value={balcaoForma}>{balcaoForma}</option>
-                  )}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Conta de Destino</label>
-                <select
-                  value={balcaoContaId}
-                  onChange={(e) => setBalcaoContaId(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {!balcaoContas.some((c) => c.id === "caixa-geral") && <option value="caixa-geral">Caixa Geral</option>}
-                  {balcaoContas.filter((c) => c.ativo !== false).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
-              </div>
             </div>
+            {/* Formas de pagamento (misto: PIX + dinheiro etc.) */}
+            <PagamentosInput linhas={balcaoPagamentos} setLinhas={setBalcaoPagamentos} formas={balcaoFormas} contas={balcaoContas} total={balcaoTotal} />
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setBalcaoOpen(false)} disabled={loading}>Cancelar</Button>
               <Button onClick={concluirBalcao} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 font-semibold">
