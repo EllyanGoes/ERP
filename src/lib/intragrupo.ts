@@ -266,3 +266,95 @@ export async function espelharEntregaMinuta(minutaId: string): Promise<void> {
     console.error(`[intragrupo] falha ao espelhar entrega da minuta ${minutaId}:`, e);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Venda à ordem (triangular): uma venda comercial em A (ex.: Cimento) cujo
+// estoque sai de B (ex.: Tramontin) gera automaticamente, ao ser CONFIRMADA, um
+// PEDIDO DE ENTREGA em B (ao mesmo cliente externo), valorado pelo preço de
+// transferência. É nesse pedido de B que a minuta baixa o estoque e entrega.
+// NÃO gera financeiro (v1): a conta a receber externa fica só na empresa A.
+// Vínculo por `pedidoVendaOrigemId`; idempotente.
+// ─────────────────────────────────────────────────────────────────────────────
+const r2 = (n: Prisma.Decimal) => n.toDecimalPlaces(2);
+
+export async function espelharEntregaTriangular(pedidoVendaId: string): Promise<void> {
+  try {
+    const venda = await prismaSemEscopo.pedidoVenda.findUnique({
+      where: { id: pedidoVendaId },
+      include: { itens: true, empresa: true },
+    });
+    if (!venda || venda.status !== "CONFIRMADO") return;
+    if (!venda.estoqueOrigemEmpresaId) return;      // não é triangular
+    if (venda.pedidoVendaOrigemId) return;          // o próprio é um pedido de entrega
+
+    const origem = await prismaSemEscopo.empresa.findFirst({
+      where: { id: venda.estoqueOrigemEmpresaId, ativo: true },
+    });
+    if (!origem) {
+      console.error(`[intragrupo] empresa de origem ${venda.estoqueOrigemEmpresaId} inválida — entrega triangular da venda ${venda.numero} não criada`);
+      return;
+    }
+
+    // idempotência: já existe o pedido de entrega desta venda?
+    const jaTem = await prismaSemEscopo.pedidoVenda.findFirst({
+      where: { pedidoVendaOrigemId: venda.id },
+      select: { id: true },
+    });
+    if (jaTem) return;
+
+    // Valor de cada item pelo preço de transferência (rateado proporcionalmente
+    // ao valor da venda). Sem transferência informada, copia os preços da venda.
+    const totalVenda = venda.itens.reduce((s, i) => s.add(new Prisma.Decimal(i.valorTotal ?? 0)), new Prisma.Decimal(0));
+    const transfer = venda.precoTransferencia != null ? new Prisma.Decimal(venda.precoTransferencia) : null;
+    const fator = transfer && totalVenda.gt(0) ? transfer.div(totalVenda) : new Prisma.Decimal(1);
+
+    await prismaSemEscopo.$transaction(async (tx) => {
+      const numero = generateSimpleDocNumber("PV", await proximaSequencia(tx, origem.id, "PV"));
+      const itensData = venda.itens.map((i) => {
+        const qtd = new Prisma.Decimal(i.quantidade);
+        const totalItem = r2(new Prisma.Decimal(i.valorTotal ?? 0).mul(fator));
+        const precoUnit = qtd.gt(0) ? r2(totalItem.div(qtd)) : new Prisma.Decimal(0);
+        return { itemId: i.itemId, quantidade: i.quantidade, precoUnitario: precoUnit, valorTotal: totalItem };
+      });
+      const valorProdutos = itensData.reduce((s, i) => s.add(i.valorTotal), new Prisma.Decimal(0));
+
+      await tx.pedidoVenda.create({
+        data: {
+          empresaId: origem.id,
+          numero,
+          clienteId: venda.clienteId,
+          status: "CONFIRMADO",
+          modalidade: "AGENDADA",
+          dataEmissao: new Date(),
+          dataEntrega: venda.dataEntrega,
+          valorProdutos,
+          valorTotal: valorProdutos,
+          observacoes: `Entrega por conta e ordem — venda ${venda.numero} da ${nomeEmpresa(venda.empresa)} (preço de transferência).`,
+          pedidoVendaOrigemId: venda.id,
+          itens: { create: itensData },
+        },
+      });
+    });
+  } catch (e) {
+    console.error(`[intragrupo] falha ao criar entrega triangular da venda ${pedidoVendaId}:`, e);
+  }
+}
+
+/** Venda triangular cancelada → cancela o pedido de entrega gerado (se houver). */
+export async function cancelarEntregaTriangular(pedidoVendaId: string): Promise<void> {
+  try {
+    const entrega = await prismaSemEscopo.pedidoVenda.findFirst({
+      where: { pedidoVendaOrigemId: pedidoVendaId },
+    });
+    if (!entrega || entrega.status === "CANCELADO" || entrega.status === "CONCLUIDO") return;
+    await prismaSemEscopo.pedidoVenda.update({
+      where: { id: entrega.id },
+      data: {
+        status: "CANCELADO",
+        observacoes: `${entrega.observacoes ?? ""}\nCancelado junto com a venda de origem.`.trim(),
+      },
+    });
+  } catch (e) {
+    console.error(`[intragrupo] falha ao cancelar entrega triangular da venda ${pedidoVendaId}:`, e);
+  }
+}

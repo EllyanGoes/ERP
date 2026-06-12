@@ -11,6 +11,11 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     where: { id: params.id },
     include: {
       cliente: true,
+      // Venda à ordem (triangular): empresa que entrega/baixa e o link entre a
+      // venda comercial e o pedido de entrega gerado.
+      estoqueOrigemEmpresa: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+      pedidoVendaOrigem: { select: { id: true, numero: true, empresa: { select: { razaoSocial: true, nomeFantasia: true } } } },
+      entregasTriangular: { select: { id: true, numero: true, status: true, empresa: { select: { razaoSocial: true, nomeFantasia: true } } } },
       pagamentos: { orderBy: { ordem: "asc" } },
       itens: {
         include: {

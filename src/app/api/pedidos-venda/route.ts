@@ -93,6 +93,24 @@ export async function POST(req: NextRequest) {
     }
     empresaAlvo = body.empresaId;
   }
+
+  // Venda à ordem (triangular): estoque sai de OUTRA empresa do grupo. Lido do
+  // corpo bruto (o schema descarta chaves desconhecidas). Valida contra a sessão.
+  let estoqueOrigemEmpresaId: string | null = null;
+  let precoTransferencia: number | null = null;
+  if (body.estoqueOrigemEmpresaId) {
+    if (body.estoqueOrigemEmpresaId === empresaAlvo) {
+      return NextResponse.json({ error: "A empresa de origem do estoque deve ser diferente da empresa da venda" }, { status: 400 });
+    }
+    if (!empresasPermitidas.includes(body.estoqueOrigemEmpresaId)) {
+      return NextResponse.json({ error: "Empresa de origem não permitida para este usuário" }, { status: 403 });
+    }
+    estoqueOrigemEmpresaId = body.estoqueOrigemEmpresaId as string;
+    precoTransferencia = body.precoTransferencia != null && Number(body.precoTransferencia) > 0
+      ? Number(body.precoTransferencia)
+      : null;
+  }
+
   const numero = generateSimpleDocNumber("PV", await proximaSequenciaDaEmpresa(empresaAlvo, "PV"));
 
   const pedido = await prisma.$transaction(async (tx) => {
@@ -106,6 +124,8 @@ export async function POST(req: NextRequest) {
         ...pedidoData,
         numero,
         empresaId: empresaAlvo,
+        estoqueOrigemEmpresaId,
+        precoTransferencia,
         valorProdutos,
         valorTotal,
         dataEmissao: pedidoData.dataEmissao ? new Date(pedidoData.dataEmissao) : new Date(),

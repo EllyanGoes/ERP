@@ -581,7 +581,8 @@ model Empresa {
   movimentacaoComodatoes MovimentacaoComodato[]
   necessidadeCompras     NecessidadeCompra[]
   pedidoCompras          PedidoCompra[]
-  pedidoVendas           PedidoVenda[]
+  pedidoVendas           PedidoVenda[]            @relation("PedidoVendaEmpresa")
+  pedidoVendasOrigemEstoque PedidoVenda[]         @relation("PedidoVendaEstoqueOrigem")
   pedidoVendaItems       PedidoVendaItem[]
   minutas                Minuta[]
   minutaItems            MinutaItem[]
@@ -1110,6 +1111,13 @@ model PedidoVenda {
   dataEmissao       DateTime          @default(now())
   dataEntrega       DateTime?
   dataConclusao     DateTime?
+  // Venda à ordem (triangular): estoque sai de OUTRA empresa do grupo. null =
+  // normal (estoque da própria empresa). precoTransferencia é informativo na v1.
+  estoqueOrigemEmpresaId String?
+  precoTransferencia     Decimal?     @db.Decimal(15, 2)
+  // Pedido de ENTREGA gerado na empresa de origem aponta de volta p/ a venda
+  // comercial (triangular). null = pedido comum ou a própria venda comercial.
+  pedidoVendaOrigemId    String?
   valorProdutos     Decimal           @default(0) @db.Decimal(15, 2)
   valorDesconto     Decimal           @default(0) @db.Decimal(15, 2)
   valorFrete        Decimal           @default(0) @db.Decimal(15, 2)
@@ -1128,7 +1136,10 @@ model PedidoVenda {
   pagamentos        PedidoVendaPagamento[]
   minutas           Minuta[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa Empresa @relation("PedidoVendaEmpresa", fields: [empresaId], references: [id])
+  estoqueOrigemEmpresa Empresa? @relation("PedidoVendaEstoqueOrigem", fields: [estoqueOrigemEmpresaId], references: [id])
+  pedidoVendaOrigem    PedidoVenda?  @relation("EntregaTriangular", fields: [pedidoVendaOrigemId], references: [id])
+  entregasTriangular   PedidoVenda[] @relation("EntregaTriangular")
 
   @@unique([empresaId, numero])
   @@index([clienteId])
@@ -1136,6 +1147,7 @@ model PedidoVenda {
   @@index([status])
   @@index([vendedorId])
   @@index([empresaId])
+  @@index([estoqueOrigemEmpresaId])
 }
 
 // Formas de pagamento previstas do pedido (pagamento misto: PIX + dinheiro

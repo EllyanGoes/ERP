@@ -99,10 +99,18 @@ export async function POST(req: NextRequest) {
     // Multiempresa: a minuta herda a empresa do pedido de venda; numeração dela.
     const pedidoOrigem = await prisma.pedidoVenda.findUnique({
       where: { id: pedidoVendaId },
-      select: { empresaId: true },
+      select: { empresaId: true, estoqueOrigemEmpresaId: true },
     });
     if (!pedidoOrigem) {
       return NextResponse.json({ error: "Pedido de venda não encontrado" }, { status: 404 });
+    }
+    // Venda à ordem: a entrega/baixa acontece no pedido de entrega da empresa de
+    // origem — esta venda comercial não gera minuta própria.
+    if (pedidoOrigem.estoqueOrigemEmpresaId) {
+      return NextResponse.json(
+        { error: "Esta é uma venda à ordem: a entrega e a baixa de estoque são feitas no pedido de entrega da empresa de origem." },
+        { status: 422 },
+      );
     }
     const numeroMin = generateSimpleDocNumber(
       "MIN",

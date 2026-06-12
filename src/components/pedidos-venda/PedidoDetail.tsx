@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatBRL, formatDate, decimalToNumber, cn, parseDecimal } from "@/lib/utils";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
+import { useSession } from "@/lib/session-context";
 import { Plus, Truck, Pencil, Package, Trash2, AlertTriangle } from "lucide-react";
 import MinutaActionsMenu from "./MinutaActionsMenu";
 import PagamentosInput, {
@@ -68,6 +69,10 @@ type PedidoDetailProps = {
   pedido: {
     id: string; numero: string; numeroOrcamento: string | null; status: string; intragrupo?: boolean; modalidade?: string;
     dataEmissao: Date | string; dataEntrega: Date | string | null; dataConclusao: Date | string | null;
+    estoqueOrigemEmpresa?: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
+    precoTransferencia?: unknown;
+    pedidoVendaOrigem?: { id: string; numero: string; empresa: { razaoSocial: string; nomeFantasia: string | null } | null } | null;
+    entregasTriangular?: { id: string; numero: string; status: string; empresa: { razaoSocial: string; nomeFantasia: string | null } | null }[];
     condicaoPagamento: string | null; formaPagamento: string | null; observacoes: string | null;
     valorProdutos: unknown; valorDesconto: unknown; valorFrete: unknown; valorTotal: unknown;
     cliente: { id: string; razaoSocial: string };
@@ -127,9 +132,25 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   const router = useRouter();
   const { replaceCurrentTab } = useTabsContext();
   useTabTitle(pedido.numero);
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"itens" | "minutas" | "comodato">("itens");
   const [blockModal, setBlockModal] = useState<{ msg: string; pendentes: ItemPendente[] } | null>(null);
+  // Exclusão de pedido (apenas ADMIN).
+  const [excluirOpen, setExcluirOpen] = useState(false);
+  const [excluirErro, setExcluirErro] = useState("");
+
+  async function excluirPedido() {
+    setLoading(true);
+    setExcluirErro("");
+    try {
+      const res = await fetch(`/api/pedidos-venda/${pedido.id}`, { method: "DELETE" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setExcluirErro(j.error ?? "Não foi possível excluir o pedido."); return; }
+      router.push("/pedidos-venda");
+    } finally { setLoading(false); }
+  }
   // Modal de conclusão: informa a data (default hoje; editável p/ lançamento passado).
   const [concluirOpen, setConcluirOpen] = useState(false);
   const [concluirData, setConcluirData] = useState(todayInput());
@@ -329,10 +350,40 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
       .reduce((s, mi) => s + parseFloat(mi.quantidade.toString()), 0);
   }
 
+  const origemEmpresaNome = pedido.estoqueOrigemEmpresa
+    ? (pedido.estoqueOrigemEmpresa.nomeFantasia || pedido.estoqueOrigemEmpresa.razaoSocial)
+    : null;
+  const entregaTriangular = pedido.entregasTriangular?.[0] ?? null;
+  const vendaOrigemNome = pedido.pedidoVendaOrigem?.empresa
+    ? (pedido.pedidoVendaOrigem.empresa.nomeFantasia || pedido.pedidoVendaOrigem.empresa.razaoSocial)
+    : null;
+
   return (
     <div className="space-y-6">
+      {/* Venda à ordem (triangular) — banners de origem/entrega */}
+      {origemEmpresaNome && (
+        <div className="flex items-start gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-800">
+          <Truck className="w-4 h-4 mt-0.5 shrink-0" />
+          <div>
+            <span className="font-semibold">Venda à ordem.</span>{" "}
+            Quem entrega e baixa o estoque é a <span className="font-semibold">{origemEmpresaNome}</span>
+            {entregaTriangular ? <> — pedido de entrega <span className="font-mono font-semibold">{entregaTriangular.numero}</span></> : <> (criado ao confirmar a venda)</>}.
+            {pedido.precoTransferencia != null && <> Preço de transferência: <span className="font-semibold">{formatBRL(decimalToNumber(pedido.precoTransferencia))}</span>.</>}
+          </div>
+        </div>
+      )}
+      {vendaOrigemNome && (
+        <div className="flex items-start gap-2 p-3 rounded-xl border border-blue-200 bg-blue-50 text-sm text-blue-800">
+          <Package className="w-4 h-4 mt-0.5 shrink-0" />
+          <div>
+            <span className="font-semibold">Pedido de entrega (venda à ordem).</span>{" "}
+            Origem: venda <span className="font-mono font-semibold">{pedido.pedidoVendaOrigem?.numero}</span> da <span className="font-semibold">{vendaOrigemNome}</span>. Entregue e baixe o estoque normalmente aqui.
+          </div>
+        </div>
+      )}
+
       {/* Actions bar */}
-      {(actions.length > 0 || canEdit || (pedido.status === "EM_AGENDAMENTO" && pedido.contasReceber.length === 0)) && (
+      {(actions.length > 0 || canEdit || isAdmin || (pedido.status === "EM_AGENDAMENTO" && pedido.contasReceber.length === 0)) && (
         <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-xl border border-gray-100">
           <span className="text-sm text-gray-500 mr-2">Ações:</span>
           {canEdit && (
@@ -343,6 +394,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           )}
           {(pedido.status === "ORCAMENTO" || pedido.status === "CONFIRMADO") &&
             !pedido.intragrupo &&
+            !pedido.estoqueOrigemEmpresa &&
             minutas.filter((m) => m.status !== "CANCELADA").length === 0 && (
             <Button size="sm" onClick={abrirBalcao} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700">
               <Package className="w-4 h-4 mr-1.5" />
@@ -363,9 +415,20 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               {a.label}
             </Button>
           ))}
-          {pedido.status === "EM_AGENDAMENTO" && pedido.contasReceber.length === 0 && (
+          {pedido.status === "EM_AGENDAMENTO" && pedido.contasReceber.length === 0 && !pedido.pedidoVendaOrigem && (
             <Button variant="outline" size="sm" onClick={gerarContaReceber} disabled={loading}>
               Gerar Conta a Receber
+            </Button>
+          )}
+          {isAdmin && (
+            <Button
+              variant="outline" size="sm"
+              onClick={() => { setExcluirErro(""); setExcluirOpen(true); }}
+              disabled={loading}
+              className="ml-auto gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Excluir
             </Button>
           )}
         </div>
@@ -833,6 +896,38 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               <Button variant="outline" onClick={() => setConcluirOpen(false)} disabled={loading}>Cancelar</Button>
               <Button onClick={() => changeStatus("CONCLUIDO", concluirData)} disabled={loading || !concluirData} className="font-semibold">
                 {loading ? "Concluindo..." : "Concluir"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {excluirOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !loading && setExcluirOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">Excluir pedido {pedido.numero}?</h3>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  Esta ação é permanente e remove o pedido e seus itens. Não é possível
+                  excluir pedidos com minutas ou contas a receber — nesse caso, cancele o pedido.
+                </p>
+              </div>
+            </div>
+            {excluirErro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{excluirErro}</p>}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setExcluirOpen(false)} disabled={loading}>Cancelar</Button>
+              <Button onClick={excluirPedido} disabled={loading} className="bg-red-600 hover:bg-red-700 font-semibold">
+                {loading ? "Excluindo..." : "Excluir definitivamente"}
               </Button>
             </div>
           </div>

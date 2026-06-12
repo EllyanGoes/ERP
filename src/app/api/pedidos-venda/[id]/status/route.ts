@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getItensPendentesEntrega } from "@/lib/pedido-totais";
-import { espelharConfirmacaoVenda, cancelarEspelhoVenda } from "@/lib/intragrupo";
+import { espelharConfirmacaoVenda, cancelarEspelhoVenda, espelharEntregaTriangular, cancelarEntregaTriangular } from "@/lib/intragrupo";
 import { z } from "zod";
 
 const schema = z.object({
@@ -40,7 +40,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   // Não permite concluir enquanto houver material pendente de entrega
   // (qtd pedida ainda não totalmente coberta por minutas ENTREGUE).
-  if (parsed.data.status === "CONCLUIDO") {
+  // Venda à ordem (estoqueOrigemEmpresaId) não tem minuta própria — a entrega
+  // é controlada no pedido de entrega da empresa de origem; não bloqueia aqui.
+  if (parsed.data.status === "CONCLUIDO" && !pedido.estoqueOrigemEmpresaId) {
     const pendentes = await getItensPendentesEntrega(params.id);
     if (pendentes.length > 0) {
       return NextResponse.json(
@@ -73,6 +75,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // Intragrupo: venda para empresa do grupo gera/cancela a compra espelhada
   if (parsed.data.status === "CONFIRMADO") await espelharConfirmacaoVenda(params.id);
   if (parsed.data.status === "CANCELADO") await cancelarEspelhoVenda(params.id);
+
+  // Venda à ordem (triangular): cria/cancela o pedido de entrega na empresa de origem
+  if (parsed.data.status === "CONFIRMADO") await espelharEntregaTriangular(params.id);
+  if (parsed.data.status === "CANCELADO") await cancelarEntregaTriangular(params.id);
 
   return NextResponse.json({ data: updated });
 }

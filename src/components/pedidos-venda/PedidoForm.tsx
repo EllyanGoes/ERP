@@ -209,6 +209,10 @@ export default function PedidoForm({
   const voltarLista = useVoltarCriacao("/pedidos-venda");
   const empresasGrupo = usuarioSessao?.empresas ?? [];
   const [empresaId, setEmpresaId] = useState(""); // "" = empresa ativa (só na criação)
+  // Venda à ordem (triangular): estoque sai de outra empresa do grupo, que cria
+  // automaticamente o pedido de entrega ao confirmar.
+  const [estoqueOrigemId, setEstoqueOrigemId] = useState("");
+  const [precoTransferencia, setPrecoTransferencia] = useState("");
   const [numeroOrcamento,   setNumeroOrcamento]   = useState(pedido?.numeroOrcamento ?? "");
   const [tabelaPrecoId,     setTabelaPrecoId]     = useState(pedido?.tabelaPrecoId ?? "");
   const [vendedorId,        setVendedorId]        = useState(pedido?.vendedorId ?? "");
@@ -603,6 +607,10 @@ export default function PedidoForm({
   function buildPayload() {
     return {
       ...(pedido ? {} : { empresaId: empresaId || undefined }),
+      ...(pedido ? {} : {
+        estoqueOrigemEmpresaId: estoqueOrigemId || undefined,
+        precoTransferencia: estoqueOrigemId && precoTransferencia ? parseDecimal(precoTransferencia) : undefined,
+      }),
       clienteId,
       ...(pedido ? {} : { modalidade: modalidade ?? "AGENDADA" }),
       numeroOrcamento: numeroOrcamento.trim() || null,
@@ -750,6 +758,44 @@ export default function PedidoForm({
                 ))}
               </select>
               <p className="text-xs text-gray-400">Para qual empresa do grupo é esta venda — minutas e numeração seguirão nela.</p>
+            </div>
+          )}
+
+          {/* Venda à ordem (triangular): estoque sai de outra empresa do grupo */}
+          {!pedido && empresasGrupo.length > 1 && modalidade !== "BALCAO" && (
+            <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Entrega / estoque por outra empresa</Label>
+                <select
+                  value={estoqueOrigemId}
+                  onChange={(e) => setEstoqueOrigemId(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                >
+                  <option value="">— Esta empresa entrega (normal) —</option>
+                  {empresasGrupo
+                    .filter((e) => e.id !== (empresaId || usuarioSessao?.activeEmpresaId))
+                    .map((e) => (
+                      <option key={e.id} value={e.id}>{e.nome} entrega e baixa do estoque</option>
+                    ))}
+                </select>
+                <p className="text-xs text-gray-500">
+                  Venda à ordem: a venda fica nesta empresa, mas outra empresa do grupo entrega e baixa o estoque.
+                  Ao confirmar, um pedido de entrega é criado automaticamente nela.
+                </p>
+              </div>
+              {estoqueOrigemId && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Preço de transferência (total)</Label>
+                  <Input
+                    inputMode="decimal"
+                    value={precoTransferencia}
+                    onChange={(e) => setPrecoTransferencia(e.target.value.replace(/[^0-9.,]/g, ""))}
+                    placeholder="Valor interno cobrado pela empresa que entrega"
+                    className="h-10 border-gray-300"
+                  />
+                  <p className="text-xs text-gray-400">Valor que a empresa de origem cobra internamente. Aparece no pedido de entrega; não gera financeiro por ora.</p>
+                </div>
+              )}
             </div>
           )}
 
