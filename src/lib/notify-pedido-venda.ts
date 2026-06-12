@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { sendTelegramMessage, sendTelegramDM, escMD, type TGMessage } from "@/lib/telegram";
 
 // Notificações de Pedido de Venda no Telegram.
@@ -38,9 +38,11 @@ export async function notifyPedidoVendaCriado(pedido: {
   valorTotal: unknown;
   dataEmissao?: Date | string | null;
   cliente?: { razaoSocial: string; nomeFantasia?: string | null } | null;
+  empresa?: { razaoSocial: string; nomeFantasia?: string | null } | null;
   itens?: unknown[] | null;
 }): Promise<void> {
   try {
+    const empresaNome = pedido.empresa?.nomeFantasia || pedido.empresa?.razaoSocial || "—";
     const clienteNome = pedido.cliente?.nomeFantasia || pedido.cliente?.razaoSocial || "—";
     const total = Number(pedido.valorTotal) || 0;
     const qtdItens = Array.isArray(pedido.itens) ? pedido.itens.length : 0;
@@ -49,11 +51,12 @@ export async function notifyPedidoVendaCriado(pedido: {
     const text = [
       "🛒 *Novo Pedido de Venda*",
       "",
+      `🏢 Empresa: *${escMD(empresaNome)}*`,
       `📄 Pedido: *${escMD(pedido.numero)}*`,
       `👤 Cliente: ${escMD(clienteNome)}`,
       `📦 Itens: ${escMD(String(qtdItens))}`,
       `💰 Total: *${escMD(fmtBRL(total))}*`,
-      `🗓 Emissão: ${escMD(dataBRT(data))}`,
+      `📅 Emissão: ${escMD(dataBRT(data))}`,
     ].join("\n");
 
     await sendToPedidosChat({ text });
@@ -74,11 +77,15 @@ export async function enviarRelatorioDiarioPedidosVenda(
   );
   const fim = new Date(inicio.getTime() + 24 * 60 * 60 * 1000);
 
-  const pedidos = await prisma.pedidoVenda.findMany({
+  // prismaSemEscopo: o cron roda SEM sessão, então o proxy escopado só enxergaria
+  // a Tramontin. Para o relatório do grupo precisamos das 3 empresas.
+  const pedidos = await prismaSemEscopo.pedidoVenda.findMany({
     where: { createdAt: { gte: inicio, lt: fim } },
     select: {
       numero: true,
       valorTotal: true,
+      empresaId: true,
+      empresa: { select: { razaoSocial: true, nomeFantasia: true } },
       cliente: { select: { razaoSocial: true, nomeFantasia: true } },
     },
     orderBy: { createdAt: "asc" },
@@ -89,20 +96,45 @@ export async function enviarRelatorioDiarioPedidosVenda(
 
   const linhas: string[] = [
     "📊 *Relatório de Pedidos de Venda*",
-    `🗓 ${escMD(dataBRT(now))}`,
+    `📅 ${escMD(dataBRT(now))}`,
     "",
     `🧾 Pedidos no dia: *${escMD(String(qtd))}*`,
-    `💰 Total: *${escMD(fmtBRL(total))}*`,
+    `💰 Total do grupo: *${escMD(fmtBRL(total))}*`,
   ];
 
   if (qtd > 0) {
-    linhas.push("");
-    const MAX = 20;
-    for (const p of pedidos.slice(0, MAX)) {
-      const nome = p.cliente?.nomeFantasia || p.cliente?.razaoSocial || "—";
-      linhas.push(`• ${escMD(p.numero)} — ${escMD(nome)} — ${escMD(fmtBRL(Number(p.valorTotal) || 0))}`);
+    // Agrupa por empresa.
+    type Grupo = { nome: string; subtotal: number; pedidos: typeof pedidos };
+    const grupos = new Map<string, Grupo>();
+    for (const p of pedidos) {
+      const g = grupos.get(p.empresaId) ?? {
+        nome: p.empresa?.nomeFantasia || p.empresa?.razaoSocial || "—",
+        subtotal: 0,
+        pedidos: [],
+      };
+      g.subtotal += Number(p.valorTotal) || 0;
+      g.pedidos.push(p);
+      grupos.set(p.empresaId, g);
     }
-    if (qtd > MAX) linhas.push(escMD(`… e mais ${qtd - MAX}`));
+    // Empresa com maior subtotal primeiro; empate por nome.
+    const ordenados = Array.from(grupos.values()).sort(
+      (a, b) => b.subtotal - a.subtotal || a.nome.localeCompare(b.nome),
+    );
+
+    // Teto global de linhas de pedido (limite de 4096 chars do Telegram).
+    const MAX = 30;
+    let listados = 0;
+    for (const g of ordenados) {
+      linhas.push("");
+      linhas.push(`🏢 *${escMD(g.nome)}* — ${escMD(String(g.pedidos.length))} ${g.pedidos.length === 1 ? "pedido" : "pedidos"} — *${escMD(fmtBRL(g.subtotal))}*`);
+      for (const p of g.pedidos) {
+        if (listados >= MAX) break;
+        const nome = p.cliente?.nomeFantasia || p.cliente?.razaoSocial || "—";
+        linhas.push(`• ${escMD(p.numero)} — ${escMD(nome)} — ${escMD(fmtBRL(Number(p.valorTotal) || 0))}`);
+        listados++;
+      }
+    }
+    if (qtd > MAX) linhas.push("", escMD(`… e mais ${qtd - MAX} pedido(s)`));
   } else {
     linhas.push("");
     linhas.push(escMD("Nenhum pedido de venda registrado hoje."));

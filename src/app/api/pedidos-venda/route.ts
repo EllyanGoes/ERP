@@ -121,7 +121,11 @@ export async function POST(req: NextRequest) {
           })),
         },
       },
-      include: { cliente: true, itens: { include: { item: true } } },
+      include: {
+        cliente: true,
+        empresa: { select: { razaoSocial: true, nomeFantasia: true } },
+        itens: { include: { item: true } },
+      },
     });
 
     // Movimentações de comodato (SAÍDA) amarradas ao pedido recém-criado.
