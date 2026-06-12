@@ -855,7 +855,7 @@ export default function PedidoForm({
 
             {/* Previsão de Entrega */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data de Conclusão do Pedido</Label>
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Previsão de Entrega</Label>
               <Input type="date" value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} className="h-10 border-gray-300" />
             </div>
           </div>
