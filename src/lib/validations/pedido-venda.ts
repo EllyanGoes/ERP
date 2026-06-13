@@ -13,6 +13,9 @@ export const pedidoVendaItemSchema = z.object({
 export const pedidoVendaPagamentoSchema = z.object({
   forma: z.string().min(1),
   valor: z.coerce.number().min(0),
+  // Conta de destino do recebimento. Só é editável (e enviada) ao editar um
+  // pedido JÁ pago — nos demais casos o pagamento é só intenção (sem conta).
+  contaBancariaId: z.string().optional().nullable().transform((v) => v || null),
 })
 
 export const pedidoVendaSchema = z.object({

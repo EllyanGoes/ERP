@@ -166,6 +166,37 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             data: pagamentos.map((p, i) => ({ pedidoVendaId: params.id, forma: p.forma, valor: p.valor, ordem: i })),
           });
         }
+      } else if (Array.isArray(pagamentos) && jaRecebido > 0) {
+        // Pedido já pago: permite editar APENAS a CONTA de destino de cada forma —
+        // atualiza o pagamento e MOVE o lançamento no caixa para a nova conta. Os
+        // valores/identidade das linhas são preservados (o financeiro já lançado).
+        const existentes = await tx.pedidoVendaPagamento.findMany({
+          where: { pedidoVendaId: params.id }, orderBy: { ordem: "asc" },
+        });
+        for (let i = 0; i < existentes.length && i < pagamentos.length; i++) {
+          const novaConta = pagamentos[i].contaBancariaId ?? null;
+          if (novaConta && novaConta !== existentes[i].contaBancariaId) {
+            await tx.pedidoVendaPagamento.update({ where: { id: existentes[i].id }, data: { contaBancariaId: novaConta } });
+          }
+        }
+        // Sincroniza os lançamentos do caixa com as contas atualizadas (por forma).
+        const atualizados = await tx.pedidoVendaPagamento.findMany({
+          where: { pedidoVendaId: params.id }, orderBy: { ordem: "asc" },
+        });
+        const contaPorForma = new Map<string, string>();
+        for (const p of atualizados) if (p.contaBancariaId) contaPorForma.set(p.forma.toLowerCase(), p.contaBancariaId);
+        const crs = await tx.contaReceber.findMany({ where: { pedidoVendaId: params.id }, select: { id: true } });
+        for (const cr of crs) {
+          const lancs = await tx.lancamentoFinanceiro.findMany({ where: { contaReceberId: cr.id } });
+          for (const l of lancs) {
+            const m = l.descricao?.match(/\(([^)]+)\)\s*$/);
+            const forma = m ? m[1] : (atualizados.length === 1 ? atualizados[0].forma : undefined);
+            const conta = forma ? contaPorForma.get(forma.toLowerCase()) : undefined;
+            if (conta && conta !== l.contaBancariaId) {
+              await tx.lancamentoFinanceiro.update({ where: { id: l.id }, data: { contaBancariaId: conta } });
+            }
+          }
+        }
       }
 
       // Reconcile items: update existing rows in place (FK-safe), create new

@@ -129,7 +129,8 @@ type PedidoInicial = {
   dataEntrega: string | null;
   condicaoPagamento: string | null;
   formaPagamento: string | null;
-  pagamentos?: { forma: string; valor: unknown }[];
+  pagamentos?: { forma: string; valor: unknown; contaBancariaId?: string | null }[];
+  pago?: boolean;   // pedido já recebido → conta de destino editável
   valorFrete: unknown;
   observacoes: string | null;
   itens: PedidoInicialItem[];
@@ -223,9 +224,12 @@ export default function PedidoForm({
   // Pagamento misto: formas previstas com valores (PIX + dinheiro etc.).
   const [pagamentos, setPagamentos] = useState<LinhaPagamento[]>(
     pedido?.pagamentos && pedido.pagamentos.length > 0
-      ? pedido.pagamentos.map((p) => novaLinhaPagamento(p.forma, "", decimalToNumber(p.valor).toFixed(2).replace(".", ",")))
+      ? pedido.pagamentos.map((p) => novaLinhaPagamento(p.forma, p.contaBancariaId ?? "", decimalToNumber(p.valor).toFixed(2).replace(".", ",")))
       : [novaLinhaPagamento(pedido?.formaPagamento ?? "")],
   );
+  // Pedido já pago → mostra e permite editar a conta de destino de cada forma.
+  const pago = pedido?.pago === true;
+  const [contas, setContas] = useState<{ id: string; nome: string; tipo?: string; ativo?: boolean }[]>([]);
   const [valorFrete,        setValorFrete]        = useState(pedido ? decimalToNumber(pedido.valorFrete).toString() : "0");
   const [observacoes,       setObservacoes]       = useState(pedido?.observacoes ?? "");
 
@@ -306,6 +310,15 @@ export default function PedidoForm({
       .then((j) => setFormas(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
+
+  // Contas bancárias (só quando o pedido já está pago — conta editável).
+  useEffect(() => {
+    if (!pago) return;
+    fetch("/api/financeiro/contas")
+      .then((r) => r.json())
+      .then((j) => setContas(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+  }, [pago]);
 
   // When tabela changes → update condicaoPagamento auto
   useEffect(() => {
@@ -623,7 +636,9 @@ export default function PedidoForm({
       // para as exibições/impressões. Linhas vazias são descartadas.
       pagamentos: pagamentos
         .filter((l) => l.forma && parseValorBR(l.valor) > 0)
-        .map((l) => ({ forma: l.forma, valor: parseValorBR(l.valor) })),
+        // Em pedido já pago, envia a conta de destino (editável) para o back
+        // mover o lançamento; nos demais, pagamento é só intenção (sem conta).
+        .map((l) => ({ forma: l.forma, valor: parseValorBR(l.valor), ...(pago ? { contaBancariaId: l.contaBancariaId || null } : {}) })),
       formaPagamento: Array.from(new Set(
         pagamentos.filter((l) => l.forma && parseValorBR(l.valor) > 0).map((l) => l.forma),
       )).join(" + ") || null,
@@ -1289,10 +1304,13 @@ export default function PedidoForm({
               linhas={pagamentos}
               setLinhas={setPagamentos}
               formas={formas}
-              contas={[]}
+              contas={contas}
               total={totalGeral}
-              mostrarConta={false}
+              mostrarConta={pago}
             />
+            {pago && (
+              <p className="text-[11px] text-gray-400">Pedido já pago — você pode corrigir a conta de destino de cada forma (o lançamento no caixa é movido junto).</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Condição de Pagamento</Label>

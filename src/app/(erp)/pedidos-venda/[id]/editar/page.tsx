@@ -12,6 +12,7 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
       where: { id: params.id },
       include: {
         pagamentos: { orderBy: { ordem: "asc" } },
+        contasReceber: { select: { id: true } },
         itens: {
           include: {
             item: {
@@ -85,7 +86,9 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
     dataEntrega: pedido.dataEntrega ? pedido.dataEntrega.toISOString() : null,
     condicaoPagamento: pedido.condicaoPagamento,
     formaPagamento: pedido.formaPagamento,
-    pagamentos: pedido.pagamentos.map((p) => ({ forma: p.forma, valor: p.valor })),
+    pagamentos: pedido.pagamentos.map((p) => ({ forma: p.forma, valor: p.valor, contaBancariaId: p.contaBancariaId })),
+    // Pedido já pago → a conta de destino de cada forma fica editável.
+    pago: pedido.contasReceber.length > 0,
     valorFrete: pedido.valorFrete,
     observacoes: pedido.observacoes,
     itens: pedido.itens.map((pi) => ({
