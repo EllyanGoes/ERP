@@ -273,6 +273,47 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
     }
   }
 
+  // Confirmar SAÍDA do material (venda balcão em duas etapas): o cliente já
+  // comprou/pagou e só agora retira a mercadoria — baixa estoque e conclui.
+  const [saidaOpen, setSaidaOpen] = useState(false);
+  const [saidaLocalId, setSaidaLocalId] = useState("");
+  const [saidaData, setSaidaData] = useState(todayInput());
+  const [saidaErro, setSaidaErro] = useState("");
+
+  function abrirSaida() {
+    setSaidaErro("");
+    setSaidaData(todayInput());
+    setSaidaOpen(true);
+    fetch("/api/suprimentos/locais-estoque")
+      .then((r) => r.json())
+      .then((j) => {
+        const locais = Array.isArray(j) ? j : (j.data ?? []);
+        setBalcaoLocais(locais);
+        if (locais.length === 1) setSaidaLocalId(locais[0].id);
+      })
+      .catch(() => {});
+  }
+
+  async function confirmarSaida() {
+    if (!saidaLocalId) { setSaidaErro("Informe o local de estoque da retirada."); return; }
+    if (!saidaData) { setSaidaErro("Confirme a data da saída."); return; }
+    setLoading(true);
+    setSaidaErro("");
+    try {
+      const res = await fetch(`/api/pedidos-venda/${pedido.id}/entregar-balcao`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ localEstoqueId: saidaLocalId, dataSaida: saidaData }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setSaidaErro(json.error ?? "Não foi possível registrar a saída do material."); return; }
+      setSaidaOpen(false);
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   // Comodato (saída) form state
   const [comodatoItemId, setComodatoItemId] = useState("");
   const [comodatoQtd, setComodatoQtd] = useState("");
@@ -462,6 +503,17 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             <Button variant="outline" size="sm" onClick={abrirReceber} disabled={loading} className="gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50">
               <Package className="w-3.5 h-3.5" />
               Registrar Recebimento
+            </Button>
+          )}
+          {/* Venda balcão em duas etapas: confirmar a saída do material (retirada)
+              quando o cliente vem buscar — baixa estoque e conclui. */}
+          {pedido.modalidade === "BALCAO" &&
+            pedido.status !== "CONCLUIDO" && pedido.status !== "CANCELADO" &&
+            !pedido.intragrupo && !pedido.estoqueOrigemEmpresa &&
+            minutas.filter((m) => m.status !== "CANCELADA").length === 0 && (
+            <Button size="sm" onClick={abrirSaida} disabled={loading} className="bg-amber-600 hover:bg-amber-700 gap-1.5">
+              <Truck className="w-4 h-4" />
+              Confirmar Saída do Material
             </Button>
           )}
           {actions.map((a) => (
@@ -965,6 +1017,56 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               <Button variant="outline" onClick={() => setRecebOpen(false)} disabled={loading}>Cancelar</Button>
               <Button onClick={registrarRecebimento} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 font-semibold">
                 {loading ? "Registrando..." : "Registrar recebimento"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {saidaOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !loading && setSaidaOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <h3 className="font-bold text-gray-800">Confirmar saída do material</h3>
+              <p className="text-sm text-gray-600 mt-0.5">
+                O cliente está retirando a mercadoria agora. Baixa o estoque (minuta de retirada)
+                e conclui o pedido — <span className="font-semibold">sem mexer no financeiro</span>
+                {pedido.contasReceber.length > 0 ? " (o recebimento já foi lançado)." : " (registre o recebimento à parte, se ainda não foi)."}
+              </p>
+            </div>
+            {saidaErro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{saidaErro}</p>}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Local de Estoque <span className="text-red-500">*</span></label>
+                <select
+                  value={saidaLocalId}
+                  onChange={(e) => setSaidaLocalId(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— Selecionar local —</option>
+                  {balcaoLocais.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data da Saída <span className="text-red-500">*</span></label>
+                <input
+                  type="date"
+                  value={saidaData}
+                  onChange={(e) => setSaidaData(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setSaidaOpen(false)} disabled={loading}>Cancelar</Button>
+              <Button onClick={confirmarSaida} disabled={loading} className="bg-amber-600 hover:bg-amber-700 font-semibold">
+                {loading ? "Registrando..." : "Confirmar saída"}
               </Button>
             </div>
           </div>
