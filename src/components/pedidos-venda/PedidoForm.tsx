@@ -940,20 +940,7 @@ export default function PedidoForm({
           </div>
 
           <div className="space-y-4">
-          {/* Formas de Pagamento (misto: PIX + dinheiro etc.) */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Forma de Pagamento</Label>
-            <PagamentosInput
-              linhas={pagamentos}
-              setLinhas={setPagamentos}
-              formas={formas}
-              contas={[]}
-              total={totalGeral}
-              mostrarConta={false}
-            />
-          </div>
-
-          {/* Condição de Pagamento */}
+          {/* Condição de Pagamento (a Forma de Pagamento foi para o rodapé, após os itens) */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Condição de Pagamento</Label>
             <div ref={condicaoRef}>
@@ -1201,35 +1188,6 @@ export default function PedidoForm({
           </div>
         )}
 
-        {/* Totals */}
-        <div className="px-5 py-5 border-t border-gray-200 bg-gray-50 flex justify-end">
-          <div className="w-80 space-y-2.5 text-sm">
-            <div className="flex justify-between text-gray-700 font-medium">
-              <span>Subtotal</span>
-              <span className="font-semibold">{formatBRL(subtotal)}</span>
-            </div>
-            <div className="flex justify-between items-center text-gray-700 font-medium">
-              <span>Frete (R$)</span>
-              <Input
-                inputMode="decimal"
-                value={valorFrete}
-                onChange={(e) => setValorFrete(e.target.value)}
-                className="h-8 w-28 text-xs text-right border-gray-300"
-              />
-            </div>
-            {comodatoTotalValor > 0 && (
-              <div className="flex justify-between text-gray-700 font-medium">
-                <span>Comodato</span>
-                <span className="font-semibold">{formatBRL(comodatoTotalValor)}</span>
-              </div>
-            )}
-            <Separator className="bg-gray-300" />
-            <div className="flex justify-between font-bold text-lg text-gray-900">
-              <span>Total</span>
-              <span className="text-blue-700">{formatBRL(totalGeral)}</span>
-            </div>
-          </div>
-        </div>
       </div>
       )}
 
@@ -1358,6 +1316,47 @@ export default function PedidoForm({
         )}
       </div>
       )}
+
+      {/* ── Rodapé sempre visível: pagamento (após os itens) + totais ──── */}
+      <div className="bg-white rounded-xl border border-gray-300 shadow-sm p-5 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Forma de Pagamento</Label>
+          <PagamentosInput
+            linhas={pagamentos}
+            setLinhas={setPagamentos}
+            formas={formas}
+            contas={[]}
+            total={totalGeral}
+            mostrarConta={false}
+          />
+        </div>
+        <div className="space-y-2.5 text-sm md:border-l md:border-gray-200 md:pl-6">
+          <div className="flex justify-between text-gray-700 font-medium">
+            <span>Subtotal</span>
+            <span className="font-semibold">{formatBRL(subtotal)}</span>
+          </div>
+          <div className="flex justify-between items-center text-gray-700 font-medium">
+            <span>Frete (R$)</span>
+            <Input
+              inputMode="decimal"
+              value={valorFrete}
+              onChange={(e) => setValorFrete(e.target.value)}
+              className="h-8 w-28 text-xs text-right border-gray-300"
+            />
+          </div>
+          {comodatoTotalValor > 0 && (
+            <div className="flex justify-between text-gray-700 font-medium">
+              <span>Comodato</span>
+              <span className="font-semibold">{formatBRL(comodatoTotalValor)}</span>
+            </div>
+          )}
+          <Separator className="bg-gray-300" />
+          <div className="flex justify-between font-bold text-lg text-gray-900">
+            <span>Total</span>
+            <span className="text-blue-700">{formatBRL(totalGeral)}</span>
+          </div>
+        </div>
+      </div>
 
       {/* ── Portal: item search dropdown ─────────────────────────────── */}
       {portalMounted && itemSearchRow && itemDropPos && createPortal(
