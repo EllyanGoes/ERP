@@ -131,6 +131,7 @@ type PedidoInicial = {
   formaPagamento: string | null;
   pagamentos?: { forma: string; valor: unknown; contaBancariaId?: string | null }[];
   pago?: boolean;   // pedido já recebido → conta de destino editável
+  pagamentoData?: string | null; // data do recebimento (YYYY-MM-DD), editável se pago
   valorFrete: unknown;
   observacoes: string | null;
   itens: PedidoInicialItem[];
@@ -230,6 +231,8 @@ export default function PedidoForm({
   // Pedido já pago → mostra e permite editar a conta de destino de cada forma.
   const pago = pedido?.pago === true;
   const [contas, setContas] = useState<{ id: string; nome: string; tipo?: string; ativo?: boolean }[]>([]);
+  // Data do recebimento (editável quando pago) — move o lançamento no caixa.
+  const [pagamentoData, setPagamentoData] = useState(pedido?.pagamentoData ?? "");
   const [valorFrete,        setValorFrete]        = useState(pedido ? decimalToNumber(pedido.valorFrete).toString() : "0");
   const [observacoes,       setObservacoes]       = useState(pedido?.observacoes ?? "");
 
@@ -639,6 +642,8 @@ export default function PedidoForm({
         // Em pedido já pago, envia a conta de destino (editável) para o back
         // mover o lançamento; nos demais, pagamento é só intenção (sem conta).
         .map((l) => ({ forma: l.forma, valor: parseValorBR(l.valor), ...(pago ? { contaBancariaId: l.contaBancariaId || null } : {}) })),
+      // Data do recebimento (só quando pago) — move o lançamento no caixa.
+      ...(pago && pagamentoData ? { pagamentoData } : {}),
       formaPagamento: Array.from(new Set(
         pagamentos.filter((l) => l.forma && parseValorBR(l.valor) > 0).map((l) => l.forma),
       )).join(" + ") || null,
@@ -1309,7 +1314,18 @@ export default function PedidoForm({
               mostrarConta={pago}
             />
             {pago && (
-              <p className="text-[11px] text-gray-400">Pedido já pago — você pode corrigir a conta de destino de cada forma (o lançamento no caixa é movido junto).</p>
+              <>
+                <p className="text-[11px] text-gray-400">Pedido já pago — você pode corrigir a conta de destino e a data do recebimento (o lançamento no caixa é movido junto).</p>
+                <div className="space-y-1 max-w-[12rem]">
+                  <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data do Recebimento</Label>
+                  <input
+                    type="date"
+                    value={pagamentoData}
+                    onChange={(e) => setPagamentoData(e.target.value)}
+                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </>
             )}
           </div>
           <div className="space-y-1.5">

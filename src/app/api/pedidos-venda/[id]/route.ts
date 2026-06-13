@@ -67,7 +67,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { itens, pagamentos, ...pedidoData } = parsed.data;
+  const { itens, pagamentos, pagamentoData, ...pedidoData } = parsed.data;
   const valorProdutos = itens.reduce((sum, i) => sum + i.valorTotal, 0);
   const valorTotal = valorProdutos - (pedidoData.valorDesconto ?? 0) + (pedidoData.valorFrete ?? 0);
 
@@ -185,16 +185,25 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         });
         const contaPorForma = new Map<string, string>();
         for (const p of atualizados) if (p.contaBancariaId) contaPorForma.set(p.forma.toLowerCase(), p.contaBancariaId);
-        const crs = await tx.contaReceber.findMany({ where: { pedidoVendaId: params.id }, select: { id: true } });
+        // Data do recebimento editada → move o lançamento e a baixa (meia-noite UTC).
+        const novaData = pagamentoData ? new Date(`${pagamentoData}T00:00:00.000Z`) : null;
+        const crs = await tx.contaReceber.findMany({ where: { pedidoVendaId: params.id }, select: { id: true, status: true } });
         for (const cr of crs) {
           const lancs = await tx.lancamentoFinanceiro.findMany({ where: { contaReceberId: cr.id } });
           for (const l of lancs) {
             const m = l.descricao?.match(/\(([^)]+)\)\s*$/);
             const forma = m ? m[1] : (atualizados.length === 1 ? atualizados[0].forma : undefined);
             const conta = forma ? contaPorForma.get(forma.toLowerCase()) : undefined;
-            if (conta && conta !== l.contaBancariaId) {
-              await tx.lancamentoFinanceiro.update({ where: { id: l.id }, data: { contaBancariaId: conta } });
+            const upd: Record<string, unknown> = {};
+            if (conta && conta !== l.contaBancariaId) upd.contaBancariaId = conta;
+            if (novaData) upd.dataLancamento = novaData;
+            if (Object.keys(upd).length > 0) {
+              await tx.lancamentoFinanceiro.update({ where: { id: l.id }, data: upd });
             }
+          }
+          // Carimba a data do recebimento na conta paga.
+          if (novaData && cr.status === "PAGA") {
+            await tx.contaReceber.update({ where: { id: cr.id }, data: { dataPagamento: novaData } });
           }
         }
       }
