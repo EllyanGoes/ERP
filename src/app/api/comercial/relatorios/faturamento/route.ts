@@ -3,9 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 
-// Status que representam venda efetivada (faturamento) — exclui orçamento e cancelado.
-const STATUS_FATURADO = ["CONFIRMADO", "EM_AGENDAMENTO", "CONCLUIDO"] as const;
-
 function parseDate(value: string | null, fallback: Date): Date {
   if (!value) return fallback;
   const d = new Date(value);
@@ -13,8 +10,12 @@ function parseDate(value: string | null, fallback: Date): Date {
 }
 
 // GET /api/comercial/relatorios/faturamento?from=YYYY-MM-DD&to=YYYY-MM-DD
-// Retorna os pedidos faturados no período (por data de emissão) para que o
-// front agregue por dia e faça drill-down por cliente / pedido.
+//
+// O faturamento é datado conforme a MODALIDADE do pedido:
+//  • BALCAO   → fatura na data de conclusão (paga e retira na hora);
+//  • AGENDADA → fatura na ENTREGA: cada minuta marcada ENTREGUE conta o valor
+//    efetivamente entregue na data da entrega (suporta entregas parciais).
+// O front agrega por dia e faz drill-down por cliente / produto.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
@@ -28,44 +29,94 @@ export async function GET(req: NextRequest) {
   from.setHours(0, 0, 0, 0);
   to.setHours(23, 59, 59, 999);
 
-  const pedidos = await prisma.pedidoVenda.findMany({
+  type Entry = {
+    id: string;
+    numero: string;
+    status: string;
+    data: string; // YYYY-MM-DD
+    valor: number;
+    clienteId: string;
+    clienteNome: string;
+    itens: { itemId: string; codigo: string; descricao: string; valor: number }[];
+  };
+
+  // ── Balcão: faturado na data de conclusão ─────────────────────────────────
+  const balcao = await prisma.pedidoVenda.findMany({
     where: {
-      status: { in: [...STATUS_FATURADO] },
-      dataEmissao: { gte: from, lte: to },
+      modalidade: "BALCAO",
+      status: "CONCLUIDO",
+      dataConclusao: { gte: from, lte: to },
     },
     select: {
-      id: true,
-      numero: true,
-      status: true,
-      dataEmissao: true,
-      valorTotal: true,
+      id: true, numero: true, status: true, dataConclusao: true, valorTotal: true,
       cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
-      // Itens da venda — usados no front para o "Faturamento por Produto".
+      itens: { select: { valorTotal: true, item: { select: { id: true, codigo: true, descricao: true } } } },
+    },
+  });
+
+  // ── Agendada: faturado a cada entrega (minuta ENTREGUE) ───────────────────
+  const entregas = await prisma.minuta.findMany({
+    where: {
+      status: "ENTREGUE",
+      dataEntrega: { gte: from, lte: to },
+      pedidoVenda: { modalidade: "AGENDADA", status: { not: "CANCELADO" } },
+    },
+    select: {
+      id: true, numero: true, dataEntrega: true,
+      pedidoVenda: {
+        select: {
+          id: true, numero: true, status: true,
+          cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+        },
+      },
       itens: {
         select: {
-          valorTotal: true,
+          quantidade: true,
           item: { select: { id: true, codigo: true, descricao: true } },
+          pedidoVendaItem: { select: { precoUnitario: true } },
         },
       },
     },
-    orderBy: { dataEmissao: "asc" },
   });
 
-  const data = pedidos.map((p) => ({
-    id: p.id,
-    numero: p.numero,
-    status: p.status,
-    data: p.dataEmissao.toISOString().slice(0, 10), // YYYY-MM-DD
-    valor: decimalToNumber(p.valorTotal),
-    clienteId: p.cliente.id,
-    clienteNome: p.cliente.nomeFantasia || p.cliente.razaoSocial,
-    itens: p.itens.map((it) => ({
-      itemId: it.item.id,
-      codigo: it.item.codigo,
-      descricao: it.item.descricao,
-      valor: decimalToNumber(it.valorTotal),
-    })),
-  }));
+  const data: Entry[] = [];
+
+  for (const p of balcao) {
+    data.push({
+      id: p.id,
+      numero: p.numero,
+      status: p.status,
+      data: (p.dataConclusao ?? from).toISOString().slice(0, 10),
+      valor: decimalToNumber(p.valorTotal),
+      clienteId: p.cliente.id,
+      clienteNome: p.cliente.nomeFantasia || p.cliente.razaoSocial,
+      itens: p.itens.map((it) => ({
+        itemId: it.item.id, codigo: it.item.codigo, descricao: it.item.descricao,
+        valor: decimalToNumber(it.valorTotal),
+      })),
+    });
+  }
+
+  for (const m of entregas) {
+    if (!m.dataEntrega) continue;
+    const itens = m.itens.map((mi) => ({
+      itemId: mi.item.id, codigo: mi.item.codigo, descricao: mi.item.descricao,
+      valor: decimalToNumber(mi.quantidade) * decimalToNumber(mi.pedidoVendaItem.precoUnitario),
+    }));
+    const valor = itens.reduce((s, it) => s + it.valor, 0);
+    data.push({
+      id: m.id,
+      numero: m.pedidoVenda.numero,
+      status: m.pedidoVenda.status,
+      data: m.dataEntrega.toISOString().slice(0, 10),
+      valor,
+      clienteId: m.pedidoVenda.cliente.id,
+      clienteNome: m.pedidoVenda.cliente.nomeFantasia || m.pedidoVenda.cliente.razaoSocial,
+      itens,
+    });
+  }
+
+  data.sort((a, b) => a.data.localeCompare(b.data));
 
   return NextResponse.json({
     data,
