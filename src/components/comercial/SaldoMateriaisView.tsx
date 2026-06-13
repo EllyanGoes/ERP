@@ -20,7 +20,7 @@ export default function SaldoMateriaisView({
       <PageHeader
         title="Saldo por Material"
         subtitle="O que ainda falta entregar de cada material, somando todos os pedidos confirmados. Considera só minutas já ENTREGUES."
-        breadcrumbs={[{ label: "Comercial" }, { label: "Saldo por Material" }]}
+        breadcrumbs={[{ label: "Faturamento" }, { label: "Saldo por Material" }]}
       />
 
       {/* Toolbar: busca */}

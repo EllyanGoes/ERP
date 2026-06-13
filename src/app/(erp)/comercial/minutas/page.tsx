@@ -637,7 +637,7 @@ export default function MinutasPage() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Minutas"
-        breadcrumbs={[{ label: "Comercial" }, { label: "Minutas" }]}
+        breadcrumbs={[{ label: "Faturamento" }, { label: "Minutas" }]}
         action={
           <Button onClick={() => setNovaAberta(true)}>
             <Plus className="w-4 h-4 mr-2" />

@@ -65,7 +65,7 @@ export default function VendedoresPage() {
     <div>
       <PageHeader
         title="Vendedores"
-        breadcrumbs={[{ label: "Comercial" }, { label: "Cadastros" }, { label: "Vendedores" }]}
+        breadcrumbs={[{ label: "Faturamento" }, { label: "Cadastros" }, { label: "Vendedores" }]}
       />
       <div className="px-8 pb-8 max-w-3xl space-y-6">
 

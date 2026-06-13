@@ -19,7 +19,7 @@ export default async function ClientesPage() {
     <div>
       <PageHeader
         title="Clientes"
-        breadcrumbs={[{ label: "Comercial" }, { label: "Clientes" }]}
+        breadcrumbs={[{ label: "Faturamento" }, { label: "Clientes" }]}
         action={
           <Button asChild>
             <Link href="/clientes/novo">

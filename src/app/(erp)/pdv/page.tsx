@@ -212,7 +212,7 @@ export default function PdvPage() {
       <PageHeader
         title="Caixa"
         subtitle="Cobre na maquininha, confirme o pagamento e o cupom sai na impressora térmica."
-        breadcrumbs={[{ label: "Comercial" }, { label: "Caixa" }]}
+        breadcrumbs={[{ label: "Faturamento" }, { label: "Caixa" }]}
       />
 
       <div className="flex-1 min-h-0 px-8 pb-8 grid grid-cols-[340px_1fr] gap-4">

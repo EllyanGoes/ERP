@@ -25,9 +25,9 @@ type SearchResult = {
 // Ícone, rótulo e cor (via section do route-registry) por tipo de registro.
 const RECORD_META: Record<SearchResult["tipo"], { label: string; icon: LucideIcon; section: string }> = {
   "produto":       { label: "Produto",          icon: Package,       section: "Almoxarifado"     },
-  "cliente":       { label: "Cliente",          icon: Users,         section: "Comercial"        },
+  "cliente":       { label: "Cliente",          icon: Users,         section: "Faturamento"        },
   "fornecedor":    { label: "Fornecedor",       icon: Truck,         section: "Compras"          },
-  "pedido-venda":  { label: "Pedido de Venda",  icon: ShoppingCart,  section: "Comercial"        },
+  "pedido-venda":  { label: "Pedido de Venda",  icon: ShoppingCart,  section: "Faturamento"        },
   "pedido-compra": { label: "Pedido de Compra", icon: ClipboardList, section: "Fluxo de Compras" },
 };
 

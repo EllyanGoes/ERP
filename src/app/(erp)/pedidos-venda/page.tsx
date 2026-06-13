@@ -662,7 +662,7 @@ export default function PedidosVendaPage() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Pedidos de Venda"
-        breadcrumbs={[{ label: "Comercial" }, { label: "Pedidos de Venda" }]}
+        breadcrumbs={[{ label: "Faturamento" }, { label: "Pedidos de Venda" }]}
         action={
           <NovoPedidoButton onCreated={load} />
         }

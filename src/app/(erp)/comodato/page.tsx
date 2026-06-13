@@ -52,7 +52,7 @@ export default async function ComodatoPage() {
     <div>
       <PageHeader
         title="Comodato"
-        breadcrumbs={[{ label: "Comercial" }, { label: "Comodato" }]}
+        breadcrumbs={[{ label: "Faturamento" }, { label: "Comodato" }]}
       />
       <div className="px-8 pb-8 space-y-6">
         <ComodatoClient clientes={clientes} itens={itensPlain} movimentos={movimentosPlain} />

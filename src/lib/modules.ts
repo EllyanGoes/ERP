@@ -46,8 +46,8 @@ export const MODULOS: ModuloDef[] = [
   },
   {
     key: "comercial",
-    label: "Comercial",
-    group: "Comercial",
+    label: "Faturamento",
+    group: "Faturamento",
     recursos: [
       { key: "pedidos-venda", label: "Pedidos de Venda", acoes: ["ver", "inserir", "editar", "excluir"] },
     ],

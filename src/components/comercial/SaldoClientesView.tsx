@@ -137,7 +137,7 @@ export default function SaldoClientesView({
       <PageHeader
         title="Saldos"
         subtitle="O que ainda falta entregar de cada pedido confirmado. Pedidos com selo Pago já foram recebidos e só aguardam entrega. Agende a entrega criando uma minuta."
-        breadcrumbs={[{ label: "Comercial" }, { label: "Saldos" }]}
+        breadcrumbs={[{ label: "Faturamento" }, { label: "Saldos" }]}
       />
 
       {/* Toolbar: alternância de visão + busca + contadores */}

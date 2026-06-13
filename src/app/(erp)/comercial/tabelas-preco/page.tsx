@@ -88,7 +88,7 @@ export default function TabelasPrecoPage() {
     <div>
       <PageHeader
         title="Tabelas de Preço"
-        breadcrumbs={[{ label: "Comercial" }, { label: "Tabelas de Preço" }]}
+        breadcrumbs={[{ label: "Faturamento" }, { label: "Tabelas de Preço" }]}
         action={
           <Button onClick={() => { setShowCreate(true); setForm({ descricao: "", dataInicial: new Date().toISOString().slice(0,10), tipoHorario: "UNICO", ativa: true, ecommerce: false }); setCreateError(""); }}>
             <Plus className="w-4 h-4 mr-1.5" /> Nova Tabela

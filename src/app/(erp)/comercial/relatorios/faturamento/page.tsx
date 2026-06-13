@@ -252,7 +252,7 @@ export default function FaturamentoReportPage() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Faturamento"
-        breadcrumbs={[{ label: "Comercial" }, { label: "Relatórios" }, { label: "Faturamento" }]}
+        breadcrumbs={[{ label: "Faturamento" }, { label: "Relatórios" }, { label: "Faturamento" }]}
       />
 
       <div className="px-8 pb-8 space-y-6">

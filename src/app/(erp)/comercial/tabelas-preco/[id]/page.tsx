@@ -388,7 +388,7 @@ export default function TabelaPrecoDetailPage() {
       <PageHeader
         title={`Tabela de Preço — ${tabela.codigo}`}
         breadcrumbs={[
-          { label: "Comercial" },
+          { label: "Faturamento" },
           { label: "Tabelas de Preço", href: "/comercial/tabelas-preco" },
           { label: tabela.codigo },
         ]}

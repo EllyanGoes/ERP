@@ -50,7 +50,7 @@ export default function ProdutosVendaPage() {
     <div>
       <PageHeader
         title="Produtos para Venda"
-        breadcrumbs={[{ label: "Comercial" }, { label: "Produtos para Venda" }]}
+        breadcrumbs={[{ label: "Faturamento" }, { label: "Produtos para Venda" }]}
         action={
           <Button asChild>
             <Link href="/comercial/produtos-venda/novo">

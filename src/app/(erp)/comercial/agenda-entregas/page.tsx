@@ -565,7 +565,7 @@ export default function AgendaEntregasPage() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Agenda de Entregas"
-        breadcrumbs={[{ label: "Comercial" }, { label: "Agenda de Entregas" }]}
+        breadcrumbs={[{ label: "Faturamento" }, { label: "Agenda de Entregas" }]}
       />
 
       {/* Toolbar */}

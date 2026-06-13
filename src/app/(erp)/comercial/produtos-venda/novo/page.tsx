@@ -123,7 +123,7 @@ export default function NovoProdutoVendaPage() {
       <PageHeader
         title="Novo Produto para Venda"
         breadcrumbs={[
-          { label: "Comercial" },
+          { label: "Faturamento" },
           { label: "Produtos para Venda", href: "/comercial/produtos-venda" },
           { label: "Novo" },
         ]}

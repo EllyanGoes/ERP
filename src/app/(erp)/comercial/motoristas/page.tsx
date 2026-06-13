@@ -67,7 +67,7 @@ export default function MotoristasPage() {
     <div>
       <PageHeader
         title="Motoristas"
-        breadcrumbs={[{ label: "Comercial" }, { label: "Cadastros" }, { label: "Motoristas" }]}
+        breadcrumbs={[{ label: "Faturamento" }, { label: "Cadastros" }, { label: "Motoristas" }]}
       />
       <div className="px-8 pb-8 max-w-4xl space-y-6">
 

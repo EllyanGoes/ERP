@@ -140,7 +140,7 @@ const mainModules: Module[] = [
   },
   {
     id: "comercial",
-    label: "Comercial",
+    label: "Faturamento",
     icon: ShoppingCart,
     sections: [
       { kind: "Cadastros", items: [
