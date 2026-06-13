@@ -128,6 +128,18 @@ function todayInput() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// Converte uma data (Date|string) para o formato YYYY-MM-DD do <input type=date>,
+// usando o fuso de São Paulo para não desviar o dia.
+function dateInput(value: Date | string | null | undefined) {
+  if (!value) return todayInput();
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return todayInput();
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d);
+  return parts; // en-CA já entrega "YYYY-MM-DD"
+}
+
 export default function PedidoDetail({ pedido, itensComodato, movimentacoesComodato }: PedidoDetailProps) {
   const router = useRouter();
   const { replaceCurrentTab } = useTabsContext();
@@ -159,7 +171,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   const balcaoTotal = decimalToNumber(pedido.valorTotal);
   const [balcaoOpen, setBalcaoOpen] = useState(false);
   const [balcaoLocalId, setBalcaoLocalId] = useState("");
-  const [balcaoData, setBalcaoData] = useState(todayInput());
+  const [balcaoData, setBalcaoData] = useState(dateInput(pedido.dataEmissao));
   const [balcaoErro, setBalcaoErro] = useState("");
   const [balcaoLocais, setBalcaoLocais] = useState<{ id: string; nome: string }[]>([]);
   const [balcaoFormas, setBalcaoFormas] = useState<FormaOpt[]>([]);
@@ -168,7 +180,9 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
 
   function abrirBalcao() {
     setBalcaoErro("");
-    setBalcaoData(todayInput());
+    // Recebimento balcão puxa a data de emissão (cliente pagou na hora);
+    // editável para cobrir pedidos antigos lançados depois.
+    setBalcaoData(dateInput(pedido.dataEmissao));
     setBalcaoPagamentos([novaLinhaPagamento(
       pedido.formaPagamento ?? "",
       "caixa-geral",
@@ -284,7 +298,10 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
     decimalToNumber(pedido.valorFrete);
   // Editing allowed up to and including scheduling. Note: saving fails at the DB
   // if items are already linked to minutas (FK Restrict), which protects deliveries.
+  // Admin pode editar mesmo concluído/cancelado (assume a responsabilidade —
+  // o estoque/financeiro já lançados não são recalculados pela edição).
   const canEdit =
+    isAdmin ||
     pedido.status === "ORCAMENTO" ||
     pedido.status === "CONFIRMADO" ||
     pedido.status === "EM_AGENDAMENTO";

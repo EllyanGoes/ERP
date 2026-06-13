@@ -49,6 +49,16 @@ function hojeInput() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// Data (Date|string) → "YYYY-MM-DD" no fuso de SP, para o <input type=date>.
+function dataInput(value: Date | string | null | undefined) {
+  if (!value) return hojeInput();
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return hojeInput();
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d);
+}
+
 
 export default function PdvPage() {
   useTabTitle("Caixa");
@@ -122,6 +132,8 @@ export default function PdvPage() {
       const j = await res.json();
       if (res.ok) {
         setPedido(j.data);
+        // Recebimento puxa a data de emissão (pagamento na hora); editável.
+        setData(dataInput(j.data?.dataEmissao));
         const tot = decimalToNumber(j.data?.valorTotal ?? 0);
         const pags: { forma: string; valor: unknown }[] = j.data?.pagamentos ?? [];
         if (pags.length > 0) {
