@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
+import { proximaSequenciaDaEmpresa, contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { generateDocNumber, generateSimpleDocNumber } from "@/lib/utils";
 import { pedidoPrintData } from "@/lib/print-pedido-server";
 import { z } from "zod";
@@ -72,16 +72,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Pagamento misto: usa a lista `pagamentos`; sem ela, cai no fluxo de 1 forma
   // (formaPagamento + contaBancariaId únicos pelo valor total).
   const round2 = (n: number) => Math.round(n * 100) / 100;
+  const caixaPadrao = contaCaixaIdDaEmpresa(pedido.empresaId);
   const linhas = (pagamentosIn && pagamentosIn.length > 0)
     ? pagamentosIn.map((p) => ({
         forma: p.forma,
-        contaBancariaId: p.contaBancariaId || "caixa-geral",
+        contaBancariaId: p.contaBancariaId || caixaPadrao,
         valor: round2(p.valor),
         troco: !!p.troco,
       }))
     : [{
         forma: (formaPagamento ?? pedido.formaPagamento ?? "À vista"),
-        contaBancariaId: contaBancariaId || "caixa-geral",
+        contaBancariaId: contaBancariaId || caixaPadrao,
         valor: valorTotal,
         troco: false,
       }];

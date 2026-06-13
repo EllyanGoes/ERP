@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
+import { proximaSequenciaDaEmpresa, contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { generateDocNumber } from "@/lib/utils";
 import { z } from "zod";
 
@@ -58,9 +58,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Normaliza as formas (mesma lógica do balcão): soma cobre o total; troco só
   // sai das linhas de dinheiro; troco abatido para a soma fechar com o total.
   const round2 = (n: number) => Math.round(n * 100) / 100;
+  const caixaPadrao = contaCaixaIdDaEmpresa(pedido.empresaId);
   const linhas = pagamentosIn.map((p) => ({
     forma: p.forma,
-    contaBancariaId: p.contaBancariaId || "caixa-geral",
+    contaBancariaId: p.contaBancariaId || caixaPadrao,
     valor: round2(p.valor),
     troco: !!p.troco,
   }));

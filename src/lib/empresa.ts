@@ -9,6 +9,17 @@ export { EMPRESA_PADRAO_ID };
 export type EmpresaResumo = { id: string; nome: string; slug: string | null };
 
 /**
+ * Id da conta "Caixa em Dinheiro" de cada empresa (uma por empresa, semeada na
+ * migration). A Tramontin mantém o id histórico `caixa-geral` (referenciado em
+ * lançamentos antigos); as demais usam `caixa-<empresaId>`. Usado como destino
+ * padrão dos recebimentos em dinheiro, no lugar do antigo `caixa-geral` fixo
+ * (que vazava o caixa entre empresas).
+ */
+export function contaCaixaIdDaEmpresa(empresaId: string): string {
+  return empresaId === EMPRESA_PADRAO_ID ? "caixa-geral" : `caixa-${empresaId}`;
+}
+
+/**
  * Próximo número de uma sequência de UMA EMPRESA ESPECÍFICA (não a ativa).
  * Usado na cadeia de compras em modo grupo: a cotação herda a empresa da
  * solicitação, o pedido herda da cotação etc. — e o número deve sair da

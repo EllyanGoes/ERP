@@ -54,8 +54,8 @@ export default function ContasBancariasPage() {
   return (
     <div>
       <PageHeader
-        title="Contas Bancárias"
-        breadcrumbs={[{ label: "Financeiro" }, { label: "Contas Bancárias" }]}
+        title="Contas"
+        breadcrumbs={[{ label: "Financeiro" }, { label: "Contas" }]}
         action={
           <div className="flex gap-2">
             <TransferenciaDialog contas={contas.filter((c) => c.ativo)} onDone={load} />

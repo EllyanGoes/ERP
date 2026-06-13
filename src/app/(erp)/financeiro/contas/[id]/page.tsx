@@ -109,7 +109,7 @@ export default function ExtratoContaPage() {
         title={conta?.nome ?? "Conta"}
         breadcrumbs={[
           { label: "Financeiro" },
-          { label: "Contas Bancárias", href: "/financeiro/contas" },
+          { label: "Contas", href: "/financeiro/contas" },
           { label: conta?.nome ?? "—" },
         ]}
       />

@@ -118,7 +118,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/compras/relatorios/sla",               label: "SLA",                     group: "Compras",        section: "Relatórios Compras", icon: Clock,       keywords: "sla prazo nível serviço" },
   { href: "/compras/relatorios/otd",               label: "OTD",                     group: "Compras",        section: "Relatórios Compras", icon: Truck,       keywords: "otd entrega prazo" },
 
-  { href: "/financeiro/contas",                    label: "Contas Bancárias",        group: "Financeiro",     section: "Financeiro",       icon: Wallet,         keywords: "conta banco saldo caixa extrato transferência" },
+  { href: "/financeiro/contas",                    label: "Contas",                  group: "Financeiro",     section: "Financeiro",       icon: Wallet,         keywords: "conta banco saldo caixa extrato transferência dinheiro" },
   { href: "/financeiro/bancos",                    label: "Bancos",                  group: "Financeiro",     section: "Financeiro",       icon: Landmark,       keywords: "banco febraban" },
   { href: "/financeiro/plano-contas",              label: "Plano de Contas",         group: "Financeiro",     section: "Financeiro",       icon: FolderTree,     keywords: "categoria plano contas grupo receita despesa" },
   { href: "/contas-receber",                       label: "Contas a Receber",        group: "Financeiro",     section: "Financeiro",       icon: TrendingUp },

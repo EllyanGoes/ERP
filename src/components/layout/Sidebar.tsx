@@ -229,7 +229,7 @@ const mainModules: Module[] = [
       {
         kind: "Cadastros",
         items: [
-          { href: "/financeiro/contas",       label: "Contas Bancárias", icon: Wallet },
+          { href: "/financeiro/contas",       label: "Contas",           icon: Wallet },
           { href: "/financeiro/bancos",       label: "Bancos",           icon: Landmark },
           { href: "/financeiro/plano-contas", label: "Plano de Contas",  icon: FolderTree },
         ],

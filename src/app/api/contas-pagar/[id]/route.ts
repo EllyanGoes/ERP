@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { pagamentoSchema } from "@/lib/validations/financeiro";
+import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("financeiro");
@@ -64,7 +65,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         valor: valorPago + valorMulta + valorJuros,
         dataLancamento: new Date(dataPagamento),
         contaPagarId: params.id,
-        contaBancariaId: contaBancariaId ?? conta.contaBancariaId ?? "caixa-geral",
+        contaBancariaId: contaBancariaId ?? conta.contaBancariaId ?? contaCaixaIdDaEmpresa(conta.empresaId),
         categoriaFinanceiraId: conta.categoriaFinanceiraId ?? undefined,
         centroCustoId: conta.centroCustoId ?? undefined,
       },
