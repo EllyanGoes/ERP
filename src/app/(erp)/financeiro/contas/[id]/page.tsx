@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import { useTabTitle } from "@/lib/tabs-context";
 import { Button } from "@/components/ui/button";
 import { formatBRL, formatDate } from "@/lib/utils";
 import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, FileDown, Loader2 } from "lucide-react";
@@ -36,6 +37,7 @@ export default function ExtratoContaPage() {
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
   const [gerandoPdf, setGerandoPdf] = useState(false);
+  useTabTitle(conta?.nome);
 
   const carregar = useCallback(() => {
     setLoading(true);
