@@ -154,3 +154,31 @@ export async function recomputarStatusPedido(
     data: { statusEntrega, statusFinanceiro },
   });
 }
+
+/**
+ * Recalcula e persiste o statusFinanceiro do PEDIDO DE COMPRA a partir das suas
+ * contas a pagar (ignora canceladas). Espelho de recomputarStatusPedido (lado
+ * financeiro). Chamar sempre que uma conta a pagar do pedido mudar.
+ */
+export async function recomputarStatusFinanceiroCompra(
+  client: Prisma.TransactionClient,
+  pedidoCompraId: string,
+): Promise<void> {
+  const contas = await client.contaPagar.findMany({
+    where: { pedidoCompraId, status: { not: "CANCELADA" } },
+    select: { valorOriginal: true, valorPago: true },
+  });
+  const titulos = contas.length;
+  const total = contas.reduce((s, c) => s + decimalToNumber(c.valorOriginal), 0);
+  const pago = contas.reduce((s, c) => s + decimalToNumber(c.valorPago), 0);
+  const statusFinanceiro =
+    titulos === 0 ? "NAO_FATURADO"
+    : pago >= total && total > 0 ? "PAGO"
+    : pago > 0 ? "PARCIAL"
+    : "A_PAGAR";
+
+  await client.pedidoCompra.update({
+    where: { id: pedidoCompraId },
+    data: { statusFinanceiro },
+  });
+}

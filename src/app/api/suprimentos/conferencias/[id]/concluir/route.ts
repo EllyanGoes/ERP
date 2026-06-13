@@ -4,6 +4,10 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
+import { gerarContasPagarDoDocumento } from "@/lib/contas-pagar";
+import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
+
+const num = (d: unknown) => parseFloat(String(d ?? 0));
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("compras");
@@ -16,7 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const conferencia = await tx.conferenciaCompra.findUnique({
       where: { id: params.id },
       include: {
-        pedido: { select: { id: true, numero: true, fornecedorId: true } },
+        pedido: { select: { id: true, numero: true, fornecedorId: true, valorTotal: true, condicaoPagamentoId: true, condicoesPagamento: true, intragrupo: true } },
         itens: {
           include: { item: true },
         },
@@ -293,6 +297,38 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       // Update each unique SC
       for (const necessidadeId of Array.from(necessidadeIds)) {
         await atualizarStatusSC(necessidadeId);
+      }
+
+      // ── Contas a pagar pela condição de pagamento ──────────────────────────
+      // O Documento de Entrada gera o(s) contas a pagar conforme a condição
+      // (do DE, senão do pedido, senão casando pelo nome). Valor = total da NF
+      // (vrTotal) → total do pedido → Σ recebidos. Intragrupo já espelha à parte.
+      const pc = conferencia.pedido;
+      if (pc && !pc.intragrupo) {
+        const jaTem = await tx.contaPagar.count({ where: { pedidoCompraId: pc.id } });
+        if (jaTem === 0) {
+          let valorTotal = conferencia.vrTotal != null ? num(conferencia.vrTotal) : 0;
+          if (valorTotal <= 0) valorTotal = num(pc.valorTotal);
+          if (valorTotal <= 0) {
+            valorTotal = conferencia.itens.reduce((s, it) => s + num(it.quantidadeRecebida) * num(it.vlrUnitario), 0);
+          }
+          if (valorTotal > 0) {
+            const condId = conferencia.condicaoPagamentoId ?? pc.condicaoPagamentoId ?? null;
+            let condicao = condId ? await tx.condicaoPagamento.findUnique({ where: { id: condId } }) : null;
+            if (!condicao && pc.condicoesPagamento) {
+              condicao = await tx.condicaoPagamento.findFirst({ where: { nome: pc.condicoesPagamento } });
+            }
+            await gerarContasPagarDoDocumento(tx, {
+              empresaId: conferencia.empresaId,
+              fornecedorId: pc.fornecedorId ?? conferencia.fornecedorId,
+              pedidoCompraId: pc.id,
+              numeroPedido: pc.numero,
+              valorTotal,
+              dataBase: conferencia.dtEmissao ?? new Date(),
+            }, condicao);
+            await recomputarStatusFinanceiroCompra(tx, pc.id);
+          }
+        }
       }
     }
 

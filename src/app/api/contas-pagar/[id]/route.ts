@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { pagamentoSchema } from "@/lib/validations/financeiro";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
+import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("financeiro");
@@ -71,6 +72,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       },
     });
     const updated = await tx.contaPagar.findUnique({ where: { id: params.id } });
+    // Mudou o financeiro do pedido de compra → recomputa o status.
+    if (conta.pedidoCompraId) await recomputarStatusFinanceiroCompra(tx, conta.pedidoCompraId);
     return { erro: null, data: updated };
   });
 
