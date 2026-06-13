@@ -635,6 +635,9 @@ export default function PedidoForm({
       dataEmissao,
       dataEntrega: dataEntrega || null,
       condicaoPagamento: condicaoPagamento || null,
+      // Vincula a condição estruturada (parcelas/prazo) p/ gerar o contas a
+      // receber na confirmação. Casa pelo nome selecionado.
+      condicaoPagamentoId: condicoes.find((c) => c.nome === condicaoPagamento)?.id ?? null,
       // Pagamento misto: formas com valores + resumo em texto (formaPagamento)
       // para as exibições/impressões. Linhas vazias são descartadas.
       pagamentos: pagamentos

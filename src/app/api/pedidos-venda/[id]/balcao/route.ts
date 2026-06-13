@@ -208,26 +208,44 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         });
       }
 
-      // Recebimento à vista: a conta nasce PAGA e o dinheiro entra na conta
-      // indicada (padrão Caixa Geral) — nada fica em aberto no contas a receber.
-      let conta = null;
-      if (valorTotal > 0 && numeroCR) {
-        conta = await tx.contaReceber.create({
-          data: {
-            empresaId: pedido.empresaId,
-            numero: numeroCR,
-            clienteId: pedido.clienteId,
-            pedidoVendaId: pedido.id,
-            descricao: `Venda balcão ${pedido.numero}`,
-            valorOriginal: valorTotal,
-            valorPago: valorTotal,
-            dataVencimento: hoje,
-            dataPagamento: hoje,
-            status: "PAGA",
-            formaPagamento: formasResumo,
-          },
+      // Recebimento à vista: o dinheiro entra na conta indicada. Se o pedido JÁ
+      // tem título(s) em aberto (gerado na confirmação), eles são RECEBIDOS
+      // (baixados) — não cria outro. Senão, cria uma conta já PAGA.
+      let conta: { id: string; numero: string } | null = null;
+      if (valorTotal > 0) {
+        const abertos = await tx.contaReceber.findMany({
+          where: { pedidoVendaId: pedido.id, status: { in: ["ABERTA", "PARCIAL", "VENCIDA"] } },
+          orderBy: [{ parcelaNumero: "asc" }, { dataVencimento: "asc" }],
+          select: { id: true, numero: true, valorOriginal: true },
         });
-
+        if (abertos.length > 0) {
+          for (const ab of abertos) {
+            await tx.contaReceber.update({
+              where: { id: ab.id },
+              data: { valorPago: ab.valorOriginal, dataPagamento: hoje, status: "PAGA", formaPagamento: formasResumo },
+            });
+          }
+          conta = { id: abertos[0].id, numero: abertos[0].numero };
+        } else if (numeroCR) {
+          conta = await tx.contaReceber.create({
+            data: {
+              empresaId: pedido.empresaId,
+              numero: numeroCR,
+              clienteId: pedido.clienteId,
+              pedidoVendaId: pedido.id,
+              descricao: `Venda balcão ${pedido.numero}`,
+              valorOriginal: valorTotal,
+              valorPago: valorTotal,
+              dataVencimento: hoje,
+              dataPagamento: hoje,
+              status: "PAGA",
+              formaPagamento: formasResumo,
+            },
+            select: { id: true, numero: true },
+          });
+        }
+      }
+      if (conta) {
         // Um lançamento por forma de pagamento (cada um na sua conta). A soma
         // dos lançamentos fecha com o valor da venda (troco já abatido).
         for (const l of linhasReais) {
@@ -235,7 +253,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             data: {
               empresaId: pedido.empresaId,
               tipo: "RECEITA",
-              descricao: `Recebimento ${numeroCR} — venda balcão ${pedido.numero}${linhasReais.length > 1 ? ` (${l.forma})` : ""}`,
+              descricao: `Recebimento ${conta.numero} — venda balcão ${pedido.numero}${linhasReais.length > 1 ? ` (${l.forma})` : ""}`,
               valor: l.valor,
               dataLancamento: hoje,
               contaReceberId: conta.id,

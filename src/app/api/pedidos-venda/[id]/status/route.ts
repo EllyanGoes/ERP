@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { getItensPendentesEntrega } from "@/lib/pedido-totais";
+import { getItensPendentesEntrega, recomputarStatusPedido } from "@/lib/pedido-totais";
+import { gerarContasReceberDoPedido } from "@/lib/contas-receber";
 import { espelharConfirmacaoVenda, cancelarEspelhoVenda, espelharEntregaTriangular, cancelarEntregaTriangular } from "@/lib/intragrupo";
 import { z } from "zod";
 
@@ -71,6 +72,24 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     where: { id: params.id },
     data: updateData,
   });
+
+  // Confirmação → gera o contas a receber conforme a CONDIÇÃO DE PAGAMENTO
+  // (à vista vence hoje; a prazo no futuro; parcelado em N). Nasce EM ABERTO e
+  // é recebido no Caixa/seção Contas a Receber. Não duplica (guarda) e ignora
+  // intragrupo. A entrega segue independente, via minutas.
+  if (parsed.data.status === "CONFIRMADO" && !pedido.intragrupo && !pedido.estoqueOrigemEmpresaId) {
+    const valorTotal = parseFloat(pedido.valorTotal.toString());
+    const jaTem = await prisma.contaReceber.count({ where: { pedidoVendaId: params.id } });
+    if (valorTotal > 0 && jaTem === 0) {
+      const condicao = pedido.condicaoPagamentoId
+        ? await prisma.condicaoPagamento.findUnique({ where: { id: pedido.condicaoPagamentoId } })
+        : (pedido.condicaoPagamento ? await prisma.condicaoPagamento.findFirst({ where: { nome: pedido.condicaoPagamento } }) : null);
+      await prisma.$transaction(async (tx) => {
+        await gerarContasReceberDoPedido(tx, pedido, condicao);
+        await recomputarStatusPedido(tx, params.id);
+      });
+    }
+  }
 
   // Intragrupo: venda para empresa do grupo gera/cancela a compra espelhada
   if (parsed.data.status === "CONFIRMADO") await espelharConfirmacaoVenda(params.id);
