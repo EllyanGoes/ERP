@@ -20,6 +20,7 @@ import {
   CalendarClock,
   Users,
   Package,
+  BadgeDollarSign,
 } from "lucide-react";
 
 // ── Types (compartilhados com a página server) ─────────────────────────────────
@@ -39,6 +40,7 @@ export type PedidoComSaldo = {
   numero: string;
   numeroOrcamento: string | null;
   status: string;
+  pago?: boolean;
   dataEmissao: string;
   dataEntrega: string | null;
   itens: ItemPendente[];
@@ -75,7 +77,7 @@ export default function SaldoClientesView({
   clientes: ClienteComSaldo[];
   materiais: MaterialComSaldo[];
 }) {
-  useTabTitle("Saldo por Cliente");
+  useTabTitle("Saldos");
 
   const [mode, setMode] = useState<"cliente" | "material">("cliente");
   const [query, setQuery] = useState("");
@@ -133,9 +135,9 @@ export default function SaldoClientesView({
   return (
     <div className="flex flex-col h-full">
       <PageHeader
-        title="Saldo por Cliente"
-        subtitle="O que ainda falta entregar de cada pedido confirmado. Agende a entrega criando uma minuta."
-        breadcrumbs={[{ label: "Comercial" }, { label: "Saldo por Cliente" }]}
+        title="Saldos"
+        subtitle="O que ainda falta entregar de cada pedido confirmado. Pedidos com selo Pago já foram recebidos e só aguardam entrega. Agende a entrega criando uma minuta."
+        breadcrumbs={[{ label: "Comercial" }, { label: "Saldos" }]}
       />
 
       {/* Toolbar: alternância de visão + busca + contadores */}
@@ -259,6 +261,11 @@ export default function SaldoClientesView({
                             <span className="text-xs text-gray-400">Orç. {p.numeroOrcamento}</span>
                           )}
                           <StatusBadge status={p.status} />
+                          {p.pago && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[11px] font-semibold">
+                              <BadgeDollarSign className="w-3.5 h-3.5" /> Pago
+                            </span>
+                          )}
                           <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                             <Calendar className="w-3.5 h-3.5" /> Emissão {formatDate(p.dataEmissao)}
                           </span>

@@ -22,6 +22,8 @@ export default async function SaldoClientesPage() {
       dataEmissao: true,
       dataEntrega: true,
       cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+      // Pago? (recebimento já lançado) — pedido pago mas com saldo a entregar.
+      contasReceber: { where: { status: "PAGA" }, select: { id: true } },
       itens: {
         select: {
           id: true,
@@ -92,6 +94,7 @@ export default async function SaldoClientesPage() {
       numero: p.numero,
       numeroOrcamento: p.numeroOrcamento,
       status: p.status,
+      pago: p.contasReceber.length > 0,
       dataEmissao: p.dataEmissao.toISOString(),
       dataEntrega: p.dataEntrega ? p.dataEntrega.toISOString() : null,
       itens: itensPendentes,

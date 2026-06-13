@@ -90,7 +90,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/comercial/produtos-venda",             label: "Produtos para Venda",     group: "Comercial",      section: "Cadastros",        icon: Package,        keywords: "produto vendável catálogo" },
   { href: "/comercial/motoristas",                 label: "Motoristas",              group: "Comercial",      section: "Cadastros",        icon: Truck,          keywords: "motorista cnh cpf entrega" },
   { href: "/pedidos-venda",                        label: "Pedidos de Venda",        group: "Comercial",      section: "Comercial",        icon: ShoppingCart },
-  { href: "/comercial/saldo-clientes",             label: "Saldo por Cliente",       group: "Comercial",      section: "Comercial",        icon: PackageSearch,  keywords: "saldo cliente pendente falta entregar entrega minuta agendar" },
+  { href: "/comercial/saldo-clientes",             label: "Saldos",                  group: "Comercial",      section: "Comercial",        icon: PackageSearch,  keywords: "saldo saldos cliente material pago pendente falta entregar entrega minuta agendar" },
   { href: "/comercial/minutas",                    label: "Minutas",                 group: "Comercial",      section: "Comercial",        icon: Truck,          keywords: "minuta entrega saída motorista placa" },
   { href: "/comercial/agenda-entregas",            label: "Agenda de Entregas",      group: "Comercial",      section: "Comercial",        icon: Route,          keywords: "agenda entregas roteiro roteirização minutas calendário" },
   { href: "/comodato",                             label: "Comodato",                group: "Comercial",      section: "Comercial",        icon: Package,        keywords: "comodato vasilhame retornável saldo cliente" },

@@ -1,9 +1,7 @@
-export const dynamic = "force-dynamic";
+import { redirect } from "next/navigation";
 
-import { getSaldoMateriaisAEntregar } from "@/lib/saldo-materiais";
-import SaldoMateriaisView from "@/components/comercial/SaldoMateriaisView";
-
-export default async function SaldoMateriaisPage() {
-  const materiais = await getSaldoMateriaisAEntregar();
-  return <SaldoMateriaisView materiais={materiais} />;
+// A visão por material foi unificada em Saldos (alternável Cliente/Material).
+// Mantém a rota antiga viva, redirecionando para a tela única.
+export default function SaldoMateriaisPage() {
+  redirect("/comercial/saldo-clientes");
 }
