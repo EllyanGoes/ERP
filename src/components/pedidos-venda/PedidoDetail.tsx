@@ -221,6 +221,44 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
     }
   }
 
+  // Registrar recebimento SEM entregar (cliente paga, entrega será agendada).
+  const [recebOpen, setRecebOpen] = useState(false);
+  const [recebData, setRecebData] = useState(todayInput());
+  const [recebErro, setRecebErro] = useState("");
+  const [recebPagamentos, setRecebPagamentos] = useState<LinhaPagamento[]>([novaLinhaPagamento()]);
+
+  function abrirReceber() {
+    setRecebErro("");
+    setRecebData(todayInput());
+    setRecebPagamentos([novaLinhaPagamento(pedido.formaPagamento ?? "", "caixa-geral", balcaoTotal > 0 ? balcaoTotal.toFixed(2).replace(".", ",") : "")]);
+    setRecebOpen(true);
+    fetch("/api/suprimentos/formas-pagamento").then((r) => r.json()).then((j) => setBalcaoFormas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+    fetch("/api/financeiro/contas").then((r) => r.json()).then((j) => setBalcaoContas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+  }
+
+  async function registrarRecebimento() {
+    if (!recebData) { setRecebErro("Confirme a data do recebimento."); return; }
+    if (!pagamentosValidos(recebPagamentos, balcaoFormas, balcaoTotal)) {
+      setRecebErro("Confira as formas de pagamento — a soma precisa cobrir o total (troco só em dinheiro).");
+      return;
+    }
+    setLoading(true);
+    setRecebErro("");
+    try {
+      const res = await fetch(`/api/pedidos-venda/${pedido.id}/receber`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pagamentos: pagamentosPayload(recebPagamentos, balcaoFormas), dataRecebimento: recebData }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setRecebErro(json.error ?? "Não foi possível registrar o recebimento."); return; }
+      setRecebOpen(false);
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   // Comodato (saída) form state
   const [comodatoItemId, setComodatoItemId] = useState("");
   const [comodatoQtd, setComodatoQtd] = useState("");
@@ -399,6 +437,14 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             <Button size="sm" onClick={abrirBalcao} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700">
               <Package className="w-4 h-4 mr-1.5" />
               Venda Balcão
+            </Button>
+          )}
+          {/* Receber agora, entregar depois: paga sem baixar estoque, segue p/ minutas */}
+          {pedido.status !== "CONCLUIDO" && pedido.status !== "CANCELADO" &&
+            !pedido.intragrupo && pedido.contasReceber.length === 0 && (
+            <Button variant="outline" size="sm" onClick={abrirReceber} disabled={loading} className="gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+              <Package className="w-3.5 h-3.5" />
+              Registrar Recebimento
             </Button>
           )}
           {actions.map((a) => (
@@ -865,6 +911,43 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               <Button variant="outline" onClick={() => setBalcaoOpen(false)} disabled={loading}>Cancelar</Button>
               <Button onClick={concluirBalcao} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 font-semibold">
                 {loading ? "Concluindo..." : "Receber e Concluir"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {recebOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !loading && setRecebOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <h3 className="font-bold text-gray-800">Registrar recebimento</h3>
+              <p className="text-sm text-gray-600 mt-0.5">
+                Registra o pagamento de <span className="font-semibold">{formatBRL(decimalToNumber(pedido.valorTotal))}</span> no
+                caixa <span className="font-semibold">sem baixar o estoque</span> — a entrega será agendada depois (minutas).
+              </p>
+            </div>
+            {recebErro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{recebErro}</p>}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data do Recebimento <span className="text-red-500">*</span></label>
+              <input
+                type="date"
+                value={recebData}
+                onChange={(e) => setRecebData(e.target.value)}
+                className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <PagamentosInput linhas={recebPagamentos} setLinhas={setRecebPagamentos} formas={balcaoFormas} contas={balcaoContas} total={balcaoTotal} />
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setRecebOpen(false)} disabled={loading}>Cancelar</Button>
+              <Button onClick={registrarRecebimento} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 font-semibold">
+                {loading ? "Registrando..." : "Registrar recebimento"}
               </Button>
             </div>
           </div>
