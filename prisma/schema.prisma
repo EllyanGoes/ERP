@@ -156,53 +156,57 @@ model Setor {
 }
 
 model CondicaoPagamento {
-  id                String   @id @default(cuid())
+  id                String              @id @default(cuid())
   nome              String
   descricao         String?
-  numeroParcelas    Int      @default(1)
-  prazoInicial      Int      @default(0)
-  intervaloParcelas Int      @default(30)
+  numeroParcelas    Int                 @default(1)
+  prazoInicial      Int                 @default(0)
+  intervaloParcelas Int                 @default(30)
   // "Faturado / a combinar": gera o título SEM data de vencimento prevista.
-  semVencimento     Boolean  @default(false)
-  descontoVista     Decimal? @db.Decimal(5, 2)
-  ativo             Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  semVencimento     Boolean             @default(false)
+  descontoVista     Decimal?            @db.Decimal(5, 2)
+  ativo             Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   pedidosVenda      PedidoVenda[]
+  pedidosCompra     PedidoCompra[]      @relation("CondPgtoPedidoCompra")
+  conferencias      ConferenciaCompra[] @relation("CondPgtoConferencia")
 }
 
 model ConferenciaCompra {
-  id               String                  @id @default(cuid())
-  empresaId        String                  @default("emp_tramontin")
-  numero           String
-  pedidoId         String?                 @unique
-  status           StatusConferenciaCompra @default(PENDENTE)
-  dataConferencia  DateTime?
-  responsavel      String?
-  observacoes      String?
+  id                   String                  @id @default(cuid())
+  empresaId            String                  @default("emp_tramontin")
+  numero               String
+  pedidoId             String?                 @unique
+  status               StatusConferenciaCompra @default(PENDENTE)
+  condicaoPagamentoId  String?
+  dataConferencia      DateTime?
+  responsavel          String?
+  observacoes          String?
   // Campos Documento de Entrada (Nota Fiscal)
-  tipoNota         String?                 @default("NORMAL")
-  numeroNF         String?
-  serie            String?
-  dtEmissao        DateTime?
-  ufOrigem         String?
-  espDocumento     String?                 @default("SPED")
-  fornecedorId     String?
-  localEstoqueId   String?
-  modoLocalEstoque String?                 @default("POR_ITEM")
+  tipoNota             String?                 @default("NORMAL")
+  numeroNF             String?
+  serie                String?
+  dtEmissao            DateTime?
+  ufOrigem             String?
+  espDocumento         String?                 @default("SPED")
+  fornecedorId         String?
+  localEstoqueId       String?
+  modoLocalEstoque     String?                 @default("POR_ITEM")
   // Financeiro
-  frete            Decimal?                @db.Decimal(15, 2)
-  tipoFrete        String?
-  seguro           Decimal?                @db.Decimal(15, 2)
-  despesas         Decimal?                @db.Decimal(15, 2)
-  desconto         Decimal?                @db.Decimal(15, 2)
-  vrTotal          Decimal?                @db.Decimal(15, 2)
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
-  pedido           PedidoCompra?           @relation(fields: [pedidoId], references: [id])
-  fornecedor       Fornecedor?             @relation(fields: [fornecedorId], references: [id])
-  localEstoque     LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
-  itens            ConferenciaCompraItem[]
+  frete                Decimal?                @db.Decimal(15, 2)
+  tipoFrete            String?
+  seguro               Decimal?                @db.Decimal(15, 2)
+  despesas             Decimal?                @db.Decimal(15, 2)
+  desconto             Decimal?                @db.Decimal(15, 2)
+  vrTotal              Decimal?                @db.Decimal(15, 2)
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  pedido               PedidoCompra?           @relation(fields: [pedidoId], references: [id])
+  condicaoPagamentoRef CondicaoPagamento?      @relation("CondPgtoConferencia", fields: [condicaoPagamentoId], references: [id])
+  fornecedor           Fornecedor?             @relation(fields: [fornecedorId], references: [id])
+  localEstoque         LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
+  itens                ConferenciaCompraItem[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -278,13 +282,14 @@ model ContaPagar {
   contaBancariaId       String?
   grupoParcelamentoId   String?
   recorrenciaId         String?
+  pedidoCompraId        String?
   parcelaNumero         Int?
   parcelaTotal          Int?
   valorOriginal         Decimal                @db.Decimal(15, 2)
   valorPago             Decimal                @default(0) @db.Decimal(15, 2)
   valorMulta            Decimal                @default(0) @db.Decimal(15, 2)
   valorJuros            Decimal                @default(0) @db.Decimal(15, 2)
-  dataVencimento        DateTime
+  dataVencimento        DateTime? // null = sem data prevista (ex.: "Faturado")
   dataPagamento         DateTime?
   status                StatusConta            @default(ABERTA)
   formaPagamento        String?
@@ -300,6 +305,7 @@ model ContaPagar {
   contaBancaria         ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
   recorrencia           Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
   contaReceberEspelho   ContaReceber?          @relation("EspelhoIntragrupoCR", fields: [contaReceberEspelhoId], references: [id])
+  pedidoCompra          PedidoCompra?          @relation(fields: [pedidoCompraId], references: [id])
   lancamentos           LancamentoFinanceiro[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
@@ -331,7 +337,7 @@ model ContaReceber {
   valorPago             Decimal                @default(0) @db.Decimal(15, 2)
   valorMulta            Decimal                @default(0) @db.Decimal(15, 2)
   valorJuros            Decimal                @default(0) @db.Decimal(15, 2)
-  dataVencimento        DateTime?              // null = sem data prevista (ex.: "Faturado")
+  dataVencimento        DateTime? // null = sem data prevista (ex.: "Faturado")
   dataPagamento         DateTime?
   status                StatusConta            @default(ABERTA)
   formaPagamento        String?
@@ -371,24 +377,24 @@ model Banco {
 }
 
 model ContaBancaria {
-  id             String                 @id @default(cuid())
-  empresaId      String                 @default("emp_tramontin")
-  nome           String
-  bancoId        String?
-  agencia        String?
-  numero         String?
-  tipo           TipoContaBancaria      @default(CORRENTE)
-  saldoInicial   Decimal                @default(0) @db.Decimal(15, 2)
-  ativo          Boolean                @default(true)
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  banco          Banco?                 @relation(fields: [bancoId], references: [id])
-  lancamentos    LancamentoFinanceiro[]
+  id               String                 @id @default(cuid())
+  empresaId        String                 @default("emp_tramontin")
+  nome             String
+  bancoId          String?
+  agencia          String?
+  numero           String?
+  tipo             TipoContaBancaria      @default(CORRENTE)
+  saldoInicial     Decimal                @default(0) @db.Decimal(15, 2)
+  ativo            Boolean                @default(true)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  banco            Banco?                 @relation(fields: [bancoId], references: [id])
+  lancamentos      LancamentoFinanceiro[]
   pedidoPagamentos PedidoVendaPagamento[]
-  contasReceber  ContaReceber[]
-  contasPagar    ContaPagar[]
-  recorrencias   Recorrencia[]
-  importacoesOFX ImportacaoOFX[]
+  contasReceber    ContaReceber[]
+  contasPagar      ContaPagar[]
+  recorrencias     Recorrencia[]
+  importacoesOFX   ImportacaoOFX[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -541,64 +547,64 @@ model CotacaoFornecedorItem {
 }
 
 model Empresa {
-  id                     String                  @id @default(cuid())
-  razaoSocial            String
-  nomeFantasia           String?
-  cnpj                   String                  @unique
-  ie                     String?
-  im                     String?
-  email                  String?
-  telefone               String?
-  cep                    String?
-  logradouro             String?
-  numero                 String?
-  complemento            String?
-  bairro                 String?
-  cidade                 String?
-  estado                 String?
+  id                        String                  @id @default(cuid())
+  razaoSocial               String
+  nomeFantasia              String?
+  cnpj                      String                  @unique
+  ie                        String?
+  im                        String?
+  email                     String?
+  telefone                  String?
+  cep                       String?
+  logradouro                String?
+  numero                    String?
+  complemento               String?
+  bairro                    String?
+  cidade                    String?
+  estado                    String?
   // ── multiempresa: a Empresa é o tenant do grupo ────────────────────────────
-  slug                   String?                 @unique
-  ativo                  Boolean                 @default(true)
+  slug                      String?                 @unique
+  ativo                     Boolean                 @default(true)
   // vínculo intragrupo (Fase 4): a empresa como cliente/fornecedor das irmãs
-  clienteId              String?                 @unique
-  fornecedorId           String?                 @unique
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  cliente                Cliente?                @relation(fields: [clienteId], references: [id])
-  fornecedor             Fornecedor?             @relation(fields: [fornecedorId], references: [id])
-  conferenciaCompras     ConferenciaCompra[]
-  conferenciaCompraItems ConferenciaCompraItem[]
-  contaPagars            ContaPagar[]
-  contaRecebers          ContaReceber[]
-  contaBancarias         ContaBancaria[]
-  recorrencias           Recorrencia[]
-  cotacaoCompras         CotacaoCompra[]
-  estoqueItems           EstoqueItem[]
-  itemCustos             ItemCustoEmpresa[]
-  tabelasPreco           TabelaPreco[]
-  integracoesPagamento   IntegracaoPagamento[]
-  lancamentoFinanceiros  LancamentoFinanceiro[]
-  importacaoOFXs         ImportacaoOFX[]
-  localEstoques          LocalEstoque[]
-  loteMovimentacaos      LoteMovimentacao[]
-  movimentacaoEstoques   MovimentacaoEstoque[]
-  movimentacaoComodatoes MovimentacaoComodato[]
-  necessidadeCompras     NecessidadeCompra[]
-  pedidoCompras          PedidoCompra[]
-  pedidoVendas           PedidoVenda[]            @relation("PedidoVendaEmpresa")
-  pedidoVendasOrigemEstoque PedidoVenda[]         @relation("PedidoVendaEstoqueOrigem")
-  pedidoVendaItems       PedidoVendaItem[]
-  minutas                Minuta[]
-  minutaItems            MinutaItem[]
-  sequencias             Sequencia[]
-  ordemProducaos         OrdemProducao[]
-  itemOrdemProducaos     ItemOrdemProducao[]
-  consumoBiomassas       ConsumoBiomassa[]
-  planoMestres           PlanoMestre[]
-  requisicaoMaterials    RequisicaoMaterial[]
-  inventarioMaterials    InventarioMaterial[]
-  usuarioEmpresas        UsuarioEmpresa[]
-  filials                Filial[]
+  clienteId                 String?                 @unique
+  fornecedorId              String?                 @unique
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
+  cliente                   Cliente?                @relation(fields: [clienteId], references: [id])
+  fornecedor                Fornecedor?             @relation(fields: [fornecedorId], references: [id])
+  conferenciaCompras        ConferenciaCompra[]
+  conferenciaCompraItems    ConferenciaCompraItem[]
+  contaPagars               ContaPagar[]
+  contaRecebers             ContaReceber[]
+  contaBancarias            ContaBancaria[]
+  recorrencias              Recorrencia[]
+  cotacaoCompras            CotacaoCompra[]
+  estoqueItems              EstoqueItem[]
+  itemCustos                ItemCustoEmpresa[]
+  tabelasPreco              TabelaPreco[]
+  integracoesPagamento      IntegracaoPagamento[]
+  lancamentoFinanceiros     LancamentoFinanceiro[]
+  importacaoOFXs            ImportacaoOFX[]
+  localEstoques             LocalEstoque[]
+  loteMovimentacaos         LoteMovimentacao[]
+  movimentacaoEstoques      MovimentacaoEstoque[]
+  movimentacaoComodatoes    MovimentacaoComodato[]
+  necessidadeCompras        NecessidadeCompra[]
+  pedidoCompras             PedidoCompra[]
+  pedidoVendas              PedidoVenda[]           @relation("PedidoVendaEmpresa")
+  pedidoVendasOrigemEstoque PedidoVenda[]           @relation("PedidoVendaEstoqueOrigem")
+  pedidoVendaItems          PedidoVendaItem[]
+  minutas                   Minuta[]
+  minutaItems               MinutaItem[]
+  sequencias                Sequencia[]
+  ordemProducaos            OrdemProducao[]
+  itemOrdemProducaos        ItemOrdemProducao[]
+  consumoBiomassas          ConsumoBiomassa[]
+  planoMestres              PlanoMestre[]
+  requisicaoMaterials       RequisicaoMaterial[]
+  inventarioMaterials       InventarioMaterial[]
+  usuarioEmpresas           UsuarioEmpresa[]
+  filials                   Filial[]
 }
 
 model EnderecoEstoque {
@@ -1048,35 +1054,39 @@ model NecessidadeCompraItem {
 }
 
 model PedidoCompra {
-  id                   String             @id @default(cuid())
-  empresaId            String             @default("emp_tramontin")
+  id                   String                 @id @default(cuid())
+  empresaId            String                 @default("emp_tramontin")
   numero               String
   cotacaoId            String?
   necessidadeId        String?
   fornecedorId         String
-  status               StatusPedidoCompra @default(RASCUNHO)
-  valorTotal           Decimal            @default(0) @db.Decimal(15, 2)
+  status               StatusPedidoCompra     @default(RASCUNHO)
+  statusFinanceiro     StatusFinanceiroCompra @default(NAO_FATURADO)
+  condicaoPagamentoId  String?
+  valorTotal           Decimal                @default(0) @db.Decimal(15, 2)
   dataEntregaPrevista  DateTime?
   observacoes          String?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
   condicoesPagamento   String?
   contato              String?
-  desconto             Decimal?           @db.Decimal(5, 2)
-  despesas             Decimal?           @db.Decimal(15, 2)
+  desconto             Decimal?               @db.Decimal(5, 2)
+  despesas             Decimal?               @db.Decimal(15, 2)
   email                String?
-  frete                Decimal?           @db.Decimal(15, 2)
-  seguro               Decimal?           @db.Decimal(15, 2)
+  frete                Decimal?               @db.Decimal(15, 2)
+  seguro               Decimal?               @db.Decimal(15, 2)
   tipoFrete            String?
-  vrDesconto           Decimal?           @db.Decimal(15, 2)
+  vrDesconto           Decimal?               @db.Decimal(15, 2)
   descricao            String?
-  intragrupo           Boolean            @default(false)
-  pedidoVendaEspelhoId String?            @unique
+  intragrupo           Boolean                @default(false)
+  pedidoVendaEspelhoId String?                @unique
   conferencia          ConferenciaCompra?
-  cotacao              CotacaoCompra?     @relation(fields: [cotacaoId], references: [id])
-  necessidade          NecessidadeCompra? @relation(fields: [necessidadeId], references: [id])
-  fornecedor           Fornecedor         @relation(fields: [fornecedorId], references: [id])
-  pedidoVendaEspelho   PedidoVenda?       @relation("EspelhoIntragrupo", fields: [pedidoVendaEspelhoId], references: [id])
+  contasPagar          ContaPagar[]
+  cotacao              CotacaoCompra?         @relation(fields: [cotacaoId], references: [id])
+  necessidade          NecessidadeCompra?     @relation(fields: [necessidadeId], references: [id])
+  condicaoPagamentoRef CondicaoPagamento?     @relation("CondPgtoPedidoCompra", fields: [condicaoPagamentoId], references: [id])
+  fornecedor           Fornecedor             @relation(fields: [fornecedorId], references: [id])
+  pedidoVendaEspelho   PedidoVenda?           @relation("EspelhoIntragrupo", fields: [pedidoVendaEspelhoId], references: [id])
   itens                PedidoCompraItem[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
@@ -1102,53 +1112,53 @@ model PedidoCompraItem {
 }
 
 model PedidoVenda {
-  id                String            @id @default(cuid())
-  empresaId         String            @default("emp_tramontin")
-  numero            String
-  numeroOrcamento   String?
-  intragrupo        Boolean           @default(false)
-  clienteId         String
-  tabelaPrecoId     String?
-  vendedorId        String?
-  modalidade        String            @default("AGENDADA") // BALCAO (retirada/PDV) | AGENDADA (entrega via minutas)
-  status            StatusPedidoVenda @default(ORCAMENTO)
+  id                     String                 @id @default(cuid())
+  empresaId              String                 @default("emp_tramontin")
+  numero                 String
+  numeroOrcamento        String?
+  intragrupo             Boolean                @default(false)
+  clienteId              String
+  tabelaPrecoId          String?
+  vendedorId             String?
+  modalidade             String                 @default("AGENDADA") // BALCAO (retirada/PDV) | AGENDADA (entrega via minutas)
+  status                 StatusPedidoVenda      @default(ORCAMENTO)
   // Duas dimensões independentes do pedido (derivadas, mas persistidas p/ filtro):
   //  • entrega   → minutas (Pendente/Parcial/Entregue)
   //  • financeiro→ contas a receber, guiado pela condição de pagamento
-  statusEntrega    StatusEntregaPedido    @default(PENDENTE)
-  statusFinanceiro StatusFinanceiroPedido @default(NAO_FATURADO)
-  dataEmissao       DateTime          @default(now())
-  dataEntrega       DateTime?
-  dataConclusao     DateTime?
+  statusEntrega          StatusEntregaPedido    @default(PENDENTE)
+  statusFinanceiro       StatusFinanceiroPedido @default(NAO_FATURADO)
+  dataEmissao            DateTime               @default(now())
+  dataEntrega            DateTime?
+  dataConclusao          DateTime?
   // Venda à ordem (triangular): estoque sai de OUTRA empresa do grupo. null =
   // normal (estoque da própria empresa). precoTransferencia é informativo na v1.
   estoqueOrigemEmpresaId String?
-  precoTransferencia     Decimal?     @db.Decimal(15, 2)
+  precoTransferencia     Decimal?               @db.Decimal(15, 2)
   // Pedido de ENTREGA gerado na empresa de origem aponta de volta p/ a venda
   // comercial (triangular). null = pedido comum ou a própria venda comercial.
   pedidoVendaOrigemId    String?
-  valorProdutos     Decimal           @default(0) @db.Decimal(15, 2)
-  valorDesconto     Decimal           @default(0) @db.Decimal(15, 2)
-  valorFrete        Decimal           @default(0) @db.Decimal(15, 2)
-  valorTotal        Decimal           @default(0) @db.Decimal(15, 2)
-  condicaoPagamento String?
-  condicaoPagamentoId String?
-  formaPagamento    String?
-  observacoes       String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  contasReceber     ContaReceber[]
-  espelhoCompra     PedidoCompra?     @relation("EspelhoIntragrupo")
-  cliente           Cliente           @relation(fields: [clienteId], references: [id])
-  condicaoPagamentoRef CondicaoPagamento? @relation(fields: [condicaoPagamentoId], references: [id])
-  tabelaPreco       TabelaPreco?      @relation(fields: [tabelaPrecoId], references: [id])
-  vendedor          Vendedor?         @relation(fields: [vendedorId], references: [id])
-  itens             PedidoVendaItem[]
-  pagamentos        PedidoVendaPagamento[]
-  minutas           Minuta[]
+  valorProdutos          Decimal                @default(0) @db.Decimal(15, 2)
+  valorDesconto          Decimal                @default(0) @db.Decimal(15, 2)
+  valorFrete             Decimal                @default(0) @db.Decimal(15, 2)
+  valorTotal             Decimal                @default(0) @db.Decimal(15, 2)
+  condicaoPagamento      String?
+  condicaoPagamentoId    String?
+  formaPagamento         String?
+  observacoes            String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  contasReceber          ContaReceber[]
+  espelhoCompra          PedidoCompra?          @relation("EspelhoIntragrupo")
+  cliente                Cliente                @relation(fields: [clienteId], references: [id])
+  condicaoPagamentoRef   CondicaoPagamento?     @relation(fields: [condicaoPagamentoId], references: [id])
+  tabelaPreco            TabelaPreco?           @relation(fields: [tabelaPrecoId], references: [id])
+  vendedor               Vendedor?              @relation(fields: [vendedorId], references: [id])
+  itens                  PedidoVendaItem[]
+  pagamentos             PedidoVendaPagamento[]
+  minutas                Minuta[]
 
-  empresa Empresa @relation("PedidoVendaEmpresa", fields: [empresaId], references: [id])
-  estoqueOrigemEmpresa Empresa? @relation("PedidoVendaEstoqueOrigem", fields: [estoqueOrigemEmpresaId], references: [id])
+  empresa              Empresa       @relation("PedidoVendaEmpresa", fields: [empresaId], references: [id])
+  estoqueOrigemEmpresa Empresa?      @relation("PedidoVendaEstoqueOrigem", fields: [estoqueOrigemEmpresaId], references: [id])
   pedidoVendaOrigem    PedidoVenda?  @relation("EntregaTriangular", fields: [pedidoVendaOrigemId], references: [id])
   entregasTriangular   PedidoVenda[] @relation("EntregaTriangular")
 
@@ -1893,6 +1903,14 @@ enum StatusFinanceiroPedido {
   A_RECEBER
   PARCIAL
   RECEBIDO
+}
+
+// Dimensão FINANCEIRA do pedido de COMPRA (derivada das contas a pagar).
+enum StatusFinanceiroCompra {
+  NAO_FATURADO
+  A_PAGAR
+  PARCIAL
+  PAGO
 }
 
 enum StatusRespostaFornecedor {

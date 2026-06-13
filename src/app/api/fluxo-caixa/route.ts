@@ -33,6 +33,7 @@ export async function GET() {
   }
 
   for (const c of cp) {
+    if (!c.dataVencimento) continue; // sem data prevista → fora da projeção de fluxo
     const key = c.dataVencimento.toISOString().split("T")[0];
     const entry = map.get(key) ?? { receitas: 0, despesas: 0, recebido: 0, pago: 0 };
     entry.despesas += parseFloat(c.valorOriginal.toString());
