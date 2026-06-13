@@ -121,6 +121,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/financeiro/contas",                    label: "Contas",                  group: "Financeiro",     section: "Financeiro",       icon: Wallet,         keywords: "conta banco saldo caixa extrato transferência dinheiro" },
   { href: "/financeiro/bancos",                    label: "Bancos",                  group: "Financeiro",     section: "Financeiro",       icon: Landmark,       keywords: "banco febraban" },
   { href: "/financeiro/plano-contas",              label: "Plano de Contas",         group: "Financeiro",     section: "Financeiro",       icon: FolderTree,     keywords: "categoria plano contas grupo receita despesa" },
+  { href: "/financeiro/naturezas",                 label: "Naturezas Financeiras",   group: "Financeiro",     section: "Financeiro",       icon: ArrowLeftRight, keywords: "natureza financeira entrada saida fluxo caixa grupo subgrupo classificação título" },
   { href: "/contas-receber",                       label: "Contas a Receber",        group: "Financeiro",     section: "Financeiro",       icon: TrendingUp },
   { href: "/contas-pagar",                         label: "Contas a Pagar",          group: "Financeiro",     section: "Financeiro",       icon: TrendingDown },
   { href: "/financeiro/agenda",                    label: "Agenda Financeira",       group: "Financeiro",     section: "Financeiro",       icon: CalendarClock, keywords: "agenda vencimento baixa lote a vencer" },

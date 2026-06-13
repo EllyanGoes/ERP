@@ -231,6 +231,7 @@ const mainModules: Module[] = [
           { href: "/financeiro/contas",       label: "Contas",           icon: Wallet },
           { href: "/financeiro/bancos",       label: "Bancos",           icon: Landmark },
           { href: "/financeiro/plano-contas", label: "Plano de Contas",  icon: FolderTree },
+          { href: "/financeiro/naturezas",    label: "Naturezas Financeiras", icon: ArrowLeftRight },
         ],
       },
       {
