@@ -85,6 +85,7 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
     dataEmissao: pedido.dataEmissao.toISOString(),
     dataEntrega: pedido.dataEntrega ? pedido.dataEntrega.toISOString() : null,
     condicaoPagamento: pedido.condicaoPagamento,
+    naturezaFinanceiraId: pedido.naturezaFinanceiraId,
     formaPagamento: pedido.formaPagamento,
     pagamentos: pedido.pagamentos.map((p) => ({ forma: p.forma, valor: p.valor, contaBancariaId: p.contaBancariaId })),
     // Pedido já pago → a conta de destino e a data do recebimento ficam editáveis.

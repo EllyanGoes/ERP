@@ -325,6 +325,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               numeroPedido: pc.numero,
               valorTotal,
               dataBase: conferencia.dtEmissao ?? new Date(),
+              naturezaFinanceiraId: conferencia.naturezaFinanceiraId,
             }, condicao);
             await recomputarStatusFinanceiroCompra(tx, pc.id);
           }

@@ -128,6 +128,7 @@ type PedidoInicial = {
   dataEmissao: string;   // ISO
   dataEntrega: string | null;
   condicaoPagamento: string | null;
+  naturezaFinanceiraId?: string | null;
   formaPagamento: string | null;
   pagamentos?: { forma: string; valor: unknown; contaBancariaId?: string | null }[];
   pago?: boolean;   // pedido já recebido → conta de destino editável
@@ -244,6 +245,9 @@ export default function PedidoForm({
   // Condições de Pagamento
   const [condicoes,         setCondicoes]         = useState<CondicaoOption[]>([]);
   const [condicoesLoading,  setCondicoesLoading]  = useState(false);
+  // Natureza financeira (entrada) dos títulos a gerar.
+  const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState(pedido?.naturezaFinanceiraId ?? "");
+  const [naturezas, setNaturezas] = useState<{ id: string; nome: string; grupo: string }[]>([]);
   const [condicaoOpen,      setCondicaoOpen]      = useState(false);
   const [condicaoSearch,    setCondicaoSearch]    = useState("");
   const [newCondicaoName,   setNewCondicaoName]   = useState("");
@@ -311,6 +315,14 @@ export default function PedidoForm({
     fetch("/api/suprimentos/formas-pagamento")
       .then((r) => r.json())
       .then((j) => setFormas(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+  }, []);
+
+  // Naturezas financeiras de ENTRADA (classificação dos títulos de venda).
+  useEffect(() => {
+    fetch("/api/financeiro/naturezas?tipo=ENTRADA&ativo=1")
+      .then((r) => r.json())
+      .then((j) => setNaturezas(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
 
@@ -638,6 +650,7 @@ export default function PedidoForm({
       // Vincula a condição estruturada (parcelas/prazo) p/ gerar o contas a
       // receber na confirmação. Casa pelo nome selecionado.
       condicaoPagamentoId: condicoes.find((c) => c.nome === condicaoPagamento)?.id ?? null,
+      naturezaFinanceiraId: naturezaFinanceiraId || null,
       // Pagamento misto: formas com valores + resumo em texto (formaPagamento)
       // para as exibições/impressões. Linhas vazias são descartadas.
       pagamentos: pagamentos
@@ -1330,6 +1343,17 @@ export default function PedidoForm({
                 </div>
               </>
             )}
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Natureza Financeira</Label>
+            <select
+              value={naturezaFinanceiraId}
+              onChange={(e) => setNaturezaFinanceiraId(e.target.value)}
+              className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">— Sem natureza —</option>
+              {naturezas.map((n) => <option key={n.id} value={n.id}>{n.nome}</option>)}
+            </select>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Condição de Pagamento</Label>

@@ -13,7 +13,7 @@ export async function gerarContasPagarDoDocumento(
   tx: Prisma.TransactionClient,
   doc: {
     empresaId: string; fornecedorId: string | null; pedidoCompraId: string;
-    numeroPedido: string; valorTotal: unknown; dataBase: Date | string;
+    numeroPedido: string; valorTotal: unknown; dataBase: Date | string; naturezaFinanceiraId?: string | null;
   },
   condicao: CondicaoParcelas,
 ): Promise<number> {
@@ -26,6 +26,7 @@ export async function gerarContasPagarDoDocumento(
         numero,
         fornecedorId: doc.fornecedorId,
         pedidoCompraId: doc.pedidoCompraId,
+        naturezaFinanceiraId: doc.naturezaFinanceiraId ?? null,
         descricao: p.parcelaTotal ? `Compra ${doc.numeroPedido} (${p.parcelaNumero}/${p.parcelaTotal})` : `Compra ${doc.numeroPedido}`,
         valorOriginal: p.valor,
         dataVencimento: p.dataVencimento,

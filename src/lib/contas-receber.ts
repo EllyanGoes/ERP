@@ -14,7 +14,7 @@ export async function gerarContasReceberDoPedido(
   tx: Prisma.TransactionClient,
   pedido: {
     id: string; empresaId: string; clienteId: string; numero: string;
-    valorTotal: unknown; dataEmissao: Date | string;
+    valorTotal: unknown; dataEmissao: Date | string; naturezaFinanceiraId?: string | null;
   },
   condicao: CondicaoParcelas,
 ): Promise<number> {
@@ -27,6 +27,7 @@ export async function gerarContasReceberDoPedido(
         numero,
         clienteId: pedido.clienteId,
         pedidoVendaId: pedido.id,
+        naturezaFinanceiraId: pedido.naturezaFinanceiraId ?? null,
         descricao: p.parcelaTotal ? `Faturamento pedido ${pedido.numero} (${p.parcelaNumero}/${p.parcelaTotal})` : `Faturamento pedido ${pedido.numero}`,
         valorOriginal: p.valor,
         dataVencimento: p.dataVencimento,

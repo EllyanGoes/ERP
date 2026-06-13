@@ -79,6 +79,7 @@ type Conferencia = {
   desconto: unknown;
   vrTotal: unknown;
   condicaoPagamentoId: string | null;
+  naturezaFinanceiraId: string | null;
   pedidoId: string | null;
   localEstoqueId: string | null;
   modoLocalEstoque: string | null;
@@ -171,6 +172,8 @@ export default function DocumentoEntradaDetailPage() {
   const [desconto, setDesconto] = useState("");
   const [condicaoPagamentoId, setCondicaoPagamentoId] = useState("");
   const [condicoes, setCondicoes] = useState<{ id: string; nome: string }[]>([]);
+  const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState("");
+  const [naturezas, setNaturezas] = useState<{ id: string; nome: string }[]>([]);
   const [validationError, setValidationError] = useState("");
   const [localAlertDismissed, setLocalAlertDismissed] = useState(false);
   const [showDivergenciaConfirm, setShowDivergenciaConfirm] = useState(false);
@@ -218,6 +221,7 @@ export default function DocumentoEntradaDetailPage() {
       setUfOrigem(conf.ufOrigem ?? "");
       // Condição do DE: usa a do próprio DE, senão herda a do pedido.
       setCondicaoPagamentoId(conf.condicaoPagamentoId ?? conf.pedido?.condicaoPagamentoId ?? "");
+      setNaturezaFinanceiraId(conf.naturezaFinanceiraId ?? "");
       setFrete(decimalToNumber(conf.frete) > 0 ? String(decimalToNumber(conf.frete)) : "");
       const forn = conf.fornecedor ?? conf.pedido?.fornecedor ?? null;
       setFornecedorId(forn?.id ?? "");
@@ -258,6 +262,9 @@ export default function DocumentoEntradaDetailPage() {
   useEffect(() => {
     fetch("/api/suprimentos/condicoes-pagamento").then((r) => r.json())
       .then((j) => setCondicoes(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+    fetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1").then((r) => r.json())
+      .then((j) => setNaturezas(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
 
@@ -417,6 +424,7 @@ export default function DocumentoEntradaDetailPage() {
           despesas: despesas ? parseFloat(despesas) : null,
           desconto: desconto ? parseFloat(desconto) : null,
           condicaoPagamentoId: condicaoPagamentoId || null,
+          naturezaFinanceiraId: naturezaFinanceiraId || null,
           // Admin can change status at any state
           ...(isAdmin ? { status: adminStatus } : {}),
           itens: [
@@ -1529,6 +1537,21 @@ export default function DocumentoEntradaDetailPage() {
                 </select>
               ) : (
                 <Input value={condicoes.find((c) => c.id === condicaoPagamentoId)?.nome ?? "—"} readOnly className="bg-gray-50" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Natureza Financeira</Label>
+              {nfEditable ? (
+                <select
+                  value={naturezaFinanceiraId}
+                  onChange={(e) => setNaturezaFinanceiraId(e.target.value)}
+                  className="w-full h-9 rounded-md border border-gray-300 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— Sem natureza —</option>
+                  {naturezas.map((n) => <option key={n.id} value={n.id}>{n.nome}</option>)}
+                </select>
+              ) : (
+                <Input value={naturezas.find((n) => n.id === naturezaFinanceiraId)?.nome ?? "—"} readOnly className="bg-gray-50" />
               )}
             </div>
             <div className="space-y-1">

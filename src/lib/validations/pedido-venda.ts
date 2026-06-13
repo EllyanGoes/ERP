@@ -31,6 +31,7 @@ export const pedidoVendaSchema = z.object({
   dataEntrega:       z.string().optional().nullable(),
   condicaoPagamento: z.string().optional().nullable(),
   condicaoPagamentoId: z.string().optional().nullable().transform((v) => v || null),
+  naturezaFinanceiraId: z.string().optional().nullable().transform((v) => v || null),
   formaPagamento:    z.string().optional().nullable(),
   valorDesconto:     z.coerce.number().min(0).default(0),
   valorFrete:        z.coerce.number().min(0).default(0),

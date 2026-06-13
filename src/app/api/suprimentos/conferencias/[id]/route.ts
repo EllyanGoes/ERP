@@ -87,6 +87,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     desconto,
     vrTotal,
     condicaoPagamentoId,
+    naturezaFinanceiraId,
     status: requestedStatus,
   } = body;
 
@@ -186,6 +187,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (desconto !== undefined) updateData.desconto = desconto != null ? parseFloat(String(desconto)) : null;
     if (vrTotal !== undefined) updateData.vrTotal = vrTotal != null ? parseFloat(String(vrTotal)) : null;
     if (condicaoPagamentoId !== undefined) updateData.condicaoPagamentoId = condicaoPagamentoId || null;
+    if (naturezaFinanceiraId !== undefined) updateData.naturezaFinanceiraId = naturezaFinanceiraId || null;
 
     await tx.conferenciaCompra.update({
       where: { id: params.id },
