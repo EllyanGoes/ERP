@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ModalPortal from "@/components/shared/ModalPortal";
+import StatusDimBadges from "@/components/pedidos-venda/StatusDimBadges";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -70,6 +71,7 @@ type ItemPendente = {
 type PedidoDetailProps = {
   pedido: {
     id: string; numero: string; numeroOrcamento: string | null; status: string; intragrupo?: boolean; modalidade?: string;
+    statusEntrega?: string | null; statusFinanceiro?: string | null;
     dataEmissao: Date | string; dataEntrega: Date | string | null; dataConclusao: Date | string | null;
     estoqueOrigemEmpresa?: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
     precoTransferencia?: unknown;
@@ -613,6 +615,10 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
         <Card>
           <CardHeader><CardTitle className="text-base">Informações</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
+            <div className="flex justify-between items-center gap-2">
+              <span className="text-gray-500">Situação</span>
+              <StatusDimBadges entrega={pedido.statusEntrega} financeiro={pedido.statusFinanceiro} className="justify-end" />
+            </div>
             <div className="flex justify-between"><span className="text-gray-500">Cliente</span><span className="font-medium">{pedido.cliente.razaoSocial}</span></div>
             <div className="flex justify-between items-center">
               <span className="text-gray-500">Modalidade</span>

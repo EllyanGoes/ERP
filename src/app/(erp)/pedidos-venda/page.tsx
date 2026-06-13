@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import NovoPedidoButton from "@/components/pedidos-venda/NovoPedidoButton";
 import StatusBadge from "@/components/shared/StatusBadge";
+import StatusDimBadges from "@/components/pedidos-venda/StatusDimBadges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
@@ -28,6 +29,8 @@ type PedidoRow = {
   numero: string;
   numeroOrcamento: string | null;
   status: string;
+  statusEntrega?: string | null;
+  statusFinanceiro?: string | null;
   dataEmissao: string;
   dataEntrega: string | null;
   valorTotal: unknown;
@@ -143,7 +146,12 @@ const COLS: ColDef<PedidoRow>[] = [
     label: "Status",
     thClass: "text-left px-4 py-3 font-medium text-gray-600",
     tdClass: "px-4 py-3",
-    render: (p) => <StatusBadge status={p.status} />,
+    render: (p) => (
+      <div className="flex flex-col items-start gap-1">
+        <StatusBadge status={p.status} />
+        <StatusDimBadges entrega={p.statusEntrega} financeiro={p.statusFinanceiro} />
+      </div>
+    ),
   },
   {
     id: "dataEmissao",
@@ -368,6 +376,7 @@ function KanbanCard({
       {p.condicaoPagamento && (
         <p className="text-xs text-gray-400 mb-1">{p.condicaoPagamento}</p>
       )}
+      <StatusDimBadges entrega={p.statusEntrega} financeiro={p.statusFinanceiro} className="mb-1" />
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
         <span className="text-xs font-semibold text-gray-900">{formatBRL(decimalToNumber(p.valorTotal))}</span>
         {p.dataEntrega && (
