@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ModalPortal from "@/components/shared/ModalPortal";
-import StatusDimBadges from "@/components/pedidos-venda/StatusDimBadges";
+import StatusDimBadges, { FinanceiroBadge } from "@/components/pedidos-venda/StatusDimBadges";
+import StatusBadge from "@/components/shared/StatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -13,7 +14,7 @@ import { useSession } from "@/lib/session-context";
 import { Plus, Truck, Pencil, Package, Trash2, AlertTriangle } from "lucide-react";
 import MinutaActionsMenu from "./MinutaActionsMenu";
 import PagamentosInput, {
-  novaLinhaPagamento, pagamentosPayload, pagamentosValidos, contaCaixaPadrao,
+  novaLinhaPagamento, pagamentosPayload, pagamentosValidos, contaCaixaPadrao, parseValorBR,
   type LinhaPagamento, type FormaOpt,
 } from "./PagamentosInput";
 
@@ -83,7 +84,12 @@ type PedidoDetailProps = {
     vendedor?: { id: string; nome: string } | null;
     pagamentos?: { id: string; forma: string; valor: unknown; contaBancaria?: { id: string; nome: string } | null }[];
     itens: ItemRow[];
-    contasReceber: { id: string }[];
+    contasReceber: {
+      id: string; numero: string; status: string;
+      valorOriginal: unknown; valorPago: unknown;
+      dataVencimento: Date | string; dataPagamento: Date | string | null;
+      parcelaNumero?: number | null; parcelaTotal?: number | null;
+    }[];
     minutas?: MinutaDoPedido[];
   };
   itensComodato: ItemComodato[];
@@ -319,6 +325,52 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setSaidaErro(json.error ?? "Não foi possível registrar a saída do material."); return; }
       setSaidaOpen(false);
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Receber um título do pedido (baixa de contas a receber direto pelo detalhe).
+  const [crAlvo, setCrAlvo] = useState<{ id: string; numero: string; saldo: number } | null>(null);
+  const [crValor, setCrValor] = useState("");
+  const [crData, setCrData] = useState(todayInput());
+  const [crForma, setCrForma] = useState("");
+  const [crContaId, setCrContaId] = useState("");
+  const [crErro, setCrErro] = useState("");
+
+  function abrirReceberTitulo(c: PedidoDetailProps["pedido"]["contasReceber"][number]) {
+    const saldo = decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago);
+    setCrAlvo({ id: c.id, numero: c.numero, saldo });
+    setCrValor(saldo > 0 ? saldo.toFixed(2).replace(".", ",") : "");
+    setCrData(todayInput());
+    setCrForma(pedido.formaPagamento ?? "");
+    setCrContaId("");
+    setCrErro("");
+    fetch("/api/suprimentos/formas-pagamento").then((r) => r.json()).then((j) => setBalcaoFormas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+    fetch("/api/financeiro/contas").then((r) => r.json()).then((j) => {
+      const cs = Array.isArray(j) ? j : (j.data ?? []);
+      setBalcaoContas(cs);
+      setCrContaId(contaCaixaPadrao(cs));
+    }).catch(() => {});
+  }
+
+  async function receberTitulo() {
+    if (!crAlvo) return;
+    const valor = parseValorBR(crValor);
+    if (valor <= 0) { setCrErro("Informe o valor recebido."); return; }
+    if (!crData) { setCrErro("Confirme a data do recebimento."); return; }
+    setLoading(true);
+    setCrErro("");
+    try {
+      const res = await fetch(`/api/contas-receber/${crAlvo.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ valorPago: valor, dataPagamento: crData, formaPagamento: crForma || null, contaBancariaId: crContaId || null }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setCrErro(j.error ?? "Não foi possível registrar o recebimento."); return; }
+      setCrAlvo(null);
       router.refresh();
     } finally {
       setLoading(false);
@@ -678,6 +730,57 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           </CardContent>
         </Card>
       </div>
+
+      {/* Contas a Receber do pedido (lado financeiro, gerido como as minutas) */}
+      {pedido.contasReceber.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <CardTitle className="text-base">Contas a Receber</CardTitle>
+            <FinanceiroBadge status={pedido.statusFinanceiro} />
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-gray-100">
+                    <th className="py-2 font-medium">Título</th>
+                    <th className="py-2 font-medium">Parcela</th>
+                    <th className="py-2 font-medium">Vencimento</th>
+                    <th className="py-2 font-medium text-right">Valor</th>
+                    <th className="py-2 font-medium text-right">Recebido</th>
+                    <th className="py-2 font-medium">Situação</th>
+                    <th className="py-2 font-medium text-right" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {pedido.contasReceber.map((c) => {
+                    const saldo = decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago);
+                    const podeReceber = c.status !== "PAGA" && c.status !== "CANCELADA";
+                    return (
+                      <tr key={c.id} className="border-b border-gray-50">
+                        <td className="py-2.5 font-mono text-xs text-gray-700">{c.numero}</td>
+                        <td className="py-2.5 text-gray-500">{c.parcelaTotal && c.parcelaTotal > 1 ? `${c.parcelaNumero}/${c.parcelaTotal}` : "—"}</td>
+                        <td className="py-2.5 text-gray-600">{formatDate(c.dataVencimento)}</td>
+                        <td className="py-2.5 text-right tabular-nums">{formatBRL(decimalToNumber(c.valorOriginal))}</td>
+                        <td className="py-2.5 text-right tabular-nums text-gray-600">{formatBRL(decimalToNumber(c.valorPago))}</td>
+                        <td className="py-2.5"><StatusBadge status={c.status} /></td>
+                        <td className="py-2.5 text-right">
+                          {podeReceber && (
+                            <Button size="sm" variant="outline" onClick={() => abrirReceberTitulo(c)} disabled={loading}
+                              className="h-7 gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                              Receber{saldo > 0 ? ` ${formatBRL(saldo)}` : ""}
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tabs: Itens | Minutas | Comodato */}
       <div>
@@ -1171,6 +1274,52 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               <Button variant="outline" onClick={() => setSaidaOpen(false)} disabled={loading}>Cancelar</Button>
               <Button onClick={confirmarSaida} disabled={loading || saidaTudo !== "tudo"} className="bg-amber-600 hover:bg-amber-700 font-semibold">
                 {loading ? "Registrando..." : "Confirmar saída"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {crAlvo && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" onClick={() => !loading && setCrAlvo(null)}>
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <h3 className="font-bold text-gray-800">Receber título {crAlvo.numero}</h3>
+              <p className="text-sm text-gray-600 mt-0.5">Registra o recebimento (parcial ou total) e lança no caixa.</p>
+            </div>
+            {crErro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{crErro}</p>}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Valor recebido <span className="text-red-500">*</span></label>
+                <input value={crValor} onChange={(e) => setCrValor(e.target.value)} placeholder="0,00"
+                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm text-right font-mono bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data <span className="text-red-500">*</span></label>
+                <input type="date" value={crData} onChange={(e) => setCrData(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Forma de pagamento</label>
+              <select value={crForma} onChange={(e) => setCrForma(e.target.value)}
+                className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">— Selecionar —</option>
+                {crForma && !balcaoFormas.some((f) => f.nome === crForma) && <option value={crForma}>{crForma}</option>}
+                {balcaoFormas.filter((f) => f.ativo !== false).map((f) => <option key={f.id} value={f.nome}>{f.nome}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Conta de destino</label>
+              <select value={crContaId} onChange={(e) => setCrContaId(e.target.value)}
+                className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                {balcaoContas.filter((c) => c.ativo !== false).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setCrAlvo(null)} disabled={loading}>Cancelar</Button>
+              <Button onClick={receberTitulo} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 font-semibold">
+                {loading ? "Recebendo..." : "Confirmar recebimento"}
               </Button>
             </div>
           </div>

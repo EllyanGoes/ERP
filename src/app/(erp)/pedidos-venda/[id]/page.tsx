@@ -36,7 +36,7 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
             },
           },
         },
-        contasReceber: true,
+        contasReceber: { orderBy: [{ parcelaNumero: "asc" }, { dataVencimento: "asc" }] },
         minutas: {
           include: {
             localEstoque: { select: { id: true, nome: true } },
