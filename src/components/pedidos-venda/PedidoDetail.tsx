@@ -77,7 +77,7 @@ type PedidoDetailProps = {
     valorProdutos: unknown; valorDesconto: unknown; valorFrete: unknown; valorTotal: unknown;
     cliente: { id: string; razaoSocial: string };
     vendedor?: { id: string; nome: string } | null;
-    pagamentos?: { id: string; forma: string; valor: unknown }[];
+    pagamentos?: { id: string; forma: string; valor: unknown; contaBancaria?: { nome: string } | null }[];
     itens: ItemRow[];
     contasReceber: { id: string }[];
     minutas?: MinutaDoPedido[];
@@ -458,9 +458,12 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                 <span className="text-gray-500">Forma Pagamento</span>
                 <div className="mt-1 space-y-0.5">
                   {pedido.pagamentos.map((pg) => (
-                    <div key={pg.id} className="flex justify-between pl-2">
-                      <span className="text-gray-600">{pg.forma}</span>
-                      <span className="font-medium tabular-nums">{formatBRL(decimalToNumber(pg.valor))}</span>
+                    <div key={pg.id} className="flex justify-between pl-2 gap-2">
+                      <span className="text-gray-600 min-w-0 truncate">
+                        {pg.forma}
+                        {pg.contaBancaria?.nome && <span className="text-gray-400"> → {pg.contaBancaria.nome}</span>}
+                      </span>
+                      <span className="font-medium tabular-nums shrink-0">{formatBRL(decimalToNumber(pg.valor))}</span>
                     </div>
                   ))}
                 </div>

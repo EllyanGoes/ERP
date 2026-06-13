@@ -241,6 +241,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             },
           });
         }
+
+        // Registra no pedido as formas REAIS recebidas, com a conta de destino
+        // (ex.: PIX → Banco X), para o detalhe mostrar onde cada forma caiu.
+        await tx.pedidoVendaPagamento.deleteMany({ where: { pedidoVendaId: pedido.id } });
+        await tx.pedidoVendaPagamento.createMany({
+          data: linhasReais.map((l, i) => ({
+            pedidoVendaId: pedido.id,
+            forma: l.forma,
+            valor: l.valor,
+            ordem: i,
+            contaBancariaId: l.contaBancariaId,
+          })),
+        });
       }
 
       return { minuta, conta };

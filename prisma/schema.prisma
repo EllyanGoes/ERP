@@ -381,6 +381,7 @@ model ContaBancaria {
   updatedAt      DateTime               @updatedAt
   banco          Banco?                 @relation(fields: [bancoId], references: [id])
   lancamentos    LancamentoFinanceiro[]
+  pedidoPagamentos PedidoVendaPagamento[]
   contasReceber  ContaReceber[]
   contasPagar    ContaPagar[]
   recorrencias   Recorrencia[]
@@ -1154,12 +1155,14 @@ model PedidoVenda {
 // etc.). O Caixa pré-carrega esses valores; PedidoVenda.formaPagamento guarda
 // o resumo em texto ("PIX + Dinheiro") para as exibições/impressões.
 model PedidoVendaPagamento {
-  id            String      @id @default(cuid())
-  pedidoVendaId String
-  forma         String
-  valor         Decimal     @db.Decimal(15, 2)
-  ordem         Int         @default(0)
-  pedidoVenda   PedidoVenda @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
+  id              String         @id @default(cuid())
+  pedidoVendaId   String
+  forma           String
+  valor           Decimal        @db.Decimal(15, 2)
+  ordem           Int            @default(0)
+  contaBancariaId String? // conta de destino do recebimento (preenchida ao receber no caixa)
+  pedidoVenda     PedidoVenda    @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
+  contaBancaria   ContaBancaria? @relation(fields: [contaBancariaId], references: [id])
 
   @@index([pedidoVendaId])
 }
