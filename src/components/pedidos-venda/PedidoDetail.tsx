@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import ModalPortal from "@/components/shared/ModalPortal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -999,9 +1000,10 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
         )}
       </div>
 
+      <ModalPortal>
       {balcaoOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
           onClick={() => !loading && setBalcaoOpen(false)}
         >
           <div
@@ -1053,7 +1055,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
 
       {recebOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
           onClick={() => !loading && setRecebOpen(false)}
         >
           <div
@@ -1090,7 +1092,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
 
       {saidaOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
           onClick={() => !loading && setSaidaOpen(false)}
         >
           <div
@@ -1171,7 +1173,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
 
       {concluirOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
           onClick={() => !loading && setConcluirOpen(false)}
         >
           <div
@@ -1247,7 +1249,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
 
       {excluirOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
           onClick={() => !loading && setExcluirOpen(false)}
         >
           <div
@@ -1279,7 +1281,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
 
       {blockModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
           onClick={() => setBlockModal(null)}
         >
           <div
@@ -1326,6 +1328,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           </div>
         </div>
       )}
+      </ModalPortal>
     </div>
   );
 }
