@@ -29,6 +29,11 @@ export async function GET(req: NextRequest) {
   from.setHours(0, 0, 0, 0);
   to.setHours(23, 59, 59, 999);
 
+  // Critério do que conta como faturado:
+  //  • "entrega"      (padrão) → realização: balcão na conclusão + entregas (minuta ENTREGUE);
+  //  • "confirmacao"  → pelo pedido: confirmados/em agendamento/concluídos, valor total na emissão.
+  const criterio = searchParams.get("criterio") === "confirmacao" ? "confirmacao" : "entrega";
+
   type Entry = {
     id: string;
     numero: string;
@@ -39,6 +44,47 @@ export async function GET(req: NextRequest) {
     clienteNome: string;
     itens: { itemId: string; codigo: string; descricao: string; valor: number }[];
   };
+
+  const data: Entry[] = [];
+
+  // ── Critério "confirmacao": conta o pedido inteiro na data de emissão ─────
+  // (confirmados, em agendamento e concluídos — exclui orçamento e cancelado).
+  if (criterio === "confirmacao") {
+    const pedidos = await prisma.pedidoVenda.findMany({
+      where: {
+        status: { in: ["CONFIRMADO", "EM_AGENDAMENTO", "CONCLUIDO"] },
+        dataEmissao: { gte: from, lte: to },
+      },
+      select: {
+        id: true, numero: true, status: true, dataEmissao: true, valorTotal: true,
+        cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+        itens: { select: { valorTotal: true, item: { select: { id: true, codigo: true, descricao: true } } } },
+      },
+    });
+    for (const p of pedidos) {
+      data.push({
+        id: p.id,
+        numero: p.numero,
+        status: p.status,
+        data: p.dataEmissao.toISOString().slice(0, 10),
+        valor: decimalToNumber(p.valorTotal),
+        clienteId: p.cliente.id,
+        clienteNome: p.cliente.nomeFantasia || p.cliente.razaoSocial,
+        itens: p.itens.map((it) => ({
+          itemId: it.item.id, codigo: it.item.codigo, descricao: it.item.descricao,
+          valor: decimalToNumber(it.valorTotal),
+        })),
+      });
+    }
+
+    data.sort((a, b) => a.data.localeCompare(b.data));
+    return NextResponse.json({
+      data,
+      criterio,
+      from: from.toISOString().slice(0, 10),
+      to: to.toISOString().slice(0, 10),
+    });
+  }
 
   // ── Balcão: faturado na data de conclusão ─────────────────────────────────
   const balcao = await prisma.pedidoVenda.findMany({
@@ -79,8 +125,6 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  const data: Entry[] = [];
-
   for (const p of balcao) {
     data.push({
       id: p.id,
@@ -120,6 +164,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     data,
+    criterio,
     from: from.toISOString().slice(0, 10),
     to: to.toISOString().slice(0, 10),
   });

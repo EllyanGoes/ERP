@@ -87,6 +87,7 @@ export default function FaturamentoReportPage() {
   const router = useRouter();
 
   const [range, setRange] = useState<DateRange>(defaultRange);
+  const [criterio, setCriterio] = useState<"entrega" | "confirmacao">("entrega");
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -96,13 +97,15 @@ export default function FaturamentoReportPage() {
 
   const rangeRef = useRef(range);
   useEffect(() => { rangeRef.current = range; }, [range]);
+  const criterioRef = useRef(criterio);
+  useEffect(() => { criterioRef.current = criterio; }, [criterio]);
 
   const load = useCallback(async () => {
     const { from, to } = rangeRef.current;
     if (!from || !to) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/comercial/relatorios/faturamento?from=${from}&to=${to}`);
+      const res = await fetch(`/api/comercial/relatorios/faturamento?from=${from}&to=${to}&criterio=${criterioRef.current}`);
       const json = await res.json();
       setRows(Array.isArray(json.data) ? json.data : []);
       // reset drill ao recarregar
@@ -116,7 +119,7 @@ export default function FaturamentoReportPage() {
   useEffect(() => {
     if (!range.from || !range.to) return;
     load();
-  }, [range.from, range.to, load]);
+  }, [range.from, range.to, criterio, load]);
 
   // ── Agregações ──────────────────────────────────────────────────────────
   const porDia = useMemo<DiaAgg[]>(() => {
@@ -253,10 +256,30 @@ export default function FaturamentoReportPage() {
       />
 
       <div className="px-8 pb-8 space-y-6">
-        {/* Filtro de período */}
+        {/* Filtro de período + critério do que conta como faturado */}
         <div className="flex items-center gap-3 flex-wrap">
           <DateRangePicker value={range} onChange={setRange} />
-          <span className="text-xs text-gray-400">Volume faturado por data de emissão (pedidos confirmados, em agendamento e concluídos).</span>
+          <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden shrink-0">
+            <button
+              type="button"
+              onClick={() => setCriterio("entrega")}
+              className={cn("px-3 py-2 text-sm font-medium", criterio === "entrega" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50")}
+            >
+              Por entrega/conclusão
+            </button>
+            <button
+              type="button"
+              onClick={() => setCriterio("confirmacao")}
+              className={cn("px-3 py-2 text-sm font-medium border-l border-gray-300", criterio === "confirmacao" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50")}
+            >
+              Por confirmação do pedido
+            </button>
+          </div>
+          <span className="text-xs text-gray-400">
+            {criterio === "entrega"
+              ? "Faturamento realizado: balcão na conclusão e venda agendada a cada entrega (minuta entregue)."
+              : "Faturamento por pedido confirmado: confirmados, em agendamento e concluídos, pelo valor total na data de emissão."}
+          </span>
         </div>
 
         {/* KPIs */}
