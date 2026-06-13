@@ -822,7 +822,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           onClick={() => !loading && setBalcaoOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4"
+            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div>

@@ -73,24 +73,26 @@ export default function PagamentosInput({
       </div>
 
       {linhas.map((l) => (
-        <div key={l._key} className={cn("grid gap-2 items-center", mostrarConta ? "grid-cols-[1fr_1fr_auto_auto]" : "grid-cols-[1fr_auto_auto]")}>
-          <ComboboxWithCreate
-            value={l.forma}
-            onChange={(v) => up(l._key, "forma", v)}
-            placeholder="— Forma —"
-            noneLabel="Forma"
-            triggerClassName="h-9 rounded-lg"
-            options={[
-              ...formas.filter((f) => f.ativo !== false).map((f) => ({ value: f.nome, label: f.nome })),
-              // preserva a forma já escolhida que não está mais na lista ativa
-              ...(l.forma && !formas.some((f) => f.nome === l.forma) ? [{ value: l.forma, label: l.forma }] : []),
-            ]}
-          />
+        <div key={l._key} className={cn("grid gap-2 items-center", mostrarConta ? "grid-cols-[1fr_1fr_5rem_auto]" : "grid-cols-[1fr_5rem_auto]")}>
+          <div className="min-w-0">
+            <ComboboxWithCreate
+              value={l.forma}
+              onChange={(v) => up(l._key, "forma", v)}
+              placeholder="— Forma —"
+              noneLabel="Forma"
+              triggerClassName="h-9 rounded-lg w-full min-w-0"
+              options={[
+                ...formas.filter((f) => f.ativo !== false).map((f) => ({ value: f.nome, label: f.nome })),
+                // preserva a forma já escolhida que não está mais na lista ativa
+                ...(l.forma && !formas.some((f) => f.nome === l.forma) ? [{ value: l.forma, label: l.forma }] : []),
+              ]}
+            />
+          </div>
           {mostrarConta && (
             <select
               value={l.contaBancariaId}
               onChange={(e) => up(l._key, "contaBancariaId", e.target.value)}
-              className="h-9 rounded-lg border border-gray-300 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="h-9 w-full min-w-0 rounded-lg border border-gray-300 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {!temCaixaGeral && <option value="caixa-geral">Caixa Geral</option>}
               {contasOpts.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
@@ -100,7 +102,7 @@ export default function PagamentosInput({
             value={l.valor}
             onChange={(e) => up(l._key, "valor", e.target.value)}
             placeholder="0,00"
-            className="h-9 w-24 rounded-lg border border-gray-300 px-2 text-sm text-right font-mono bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="h-9 w-full min-w-0 rounded-lg border border-gray-300 px-2 text-sm text-right font-mono bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             type="button"
