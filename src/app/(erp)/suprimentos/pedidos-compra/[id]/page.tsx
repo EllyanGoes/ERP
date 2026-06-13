@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import StatusBadge from "@/components/shared/StatusBadge";
+import FinanceiroCompraBadge from "@/components/suprimentos/FinanceiroCompraBadge";
+import ModalPortal from "@/components/shared/ModalPortal";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import {
@@ -47,10 +49,18 @@ type NecessidadeMin = {
   setor:        { nome: string } | null;
 };
 
+type ContaPagarMin = {
+  id: string; numero: string; status: string;
+  valorOriginal: unknown; valorPago: unknown;
+  dataVencimento: string | null; parcelaNumero: number | null; parcelaTotal: number | null;
+};
+
 type PedidoCompra = {
   id: string;
   numero: string;
   status: string;
+  statusFinanceiro?: string | null;
+  contasPagar?: ContaPagarMin[];
   descricao: string | null;
   valorTotal: unknown;
   dataEntregaPrevista: string | null;
@@ -264,6 +274,48 @@ export default function PedidoCompraDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // ── Pagar um título do pedido (baixa de contas a pagar pelo detalhe) ────────
+  const [cpAlvo, setCpAlvo] = useState<ContaPagarMin | null>(null);
+  const [cpValor, setCpValor] = useState("");
+  const [cpData, setCpData] = useState(new Date().toISOString().slice(0, 10));
+  const [cpForma, setCpForma] = useState("");
+  const [cpContaId, setCpContaId] = useState("");
+  const [cpErro, setCpErro] = useState("");
+  const [cpFormas, setCpFormas] = useState<{ id: string; nome: string; ativo?: boolean }[]>([]);
+  const [cpContas, setCpContas] = useState<{ id: string; nome: string; tipo?: string; ativo?: boolean }[]>([]);
+
+  function abrirPagar(c: ContaPagarMin) {
+    const saldo = decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago);
+    setCpAlvo(c);
+    setCpValor(saldo > 0 ? saldo.toFixed(2).replace(".", ",") : "");
+    setCpData(new Date().toISOString().slice(0, 10));
+    setCpForma(""); setCpContaId(""); setCpErro("");
+    fetch("/api/suprimentos/formas-pagamento").then((r) => r.json()).then((j) => setCpFormas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+    fetch("/api/financeiro/contas").then((r) => r.json()).then((j) => {
+      const cs = Array.isArray(j) ? j : (j.data ?? []);
+      setCpContas(cs);
+      setCpContaId((cs.find((x: { tipo?: string }) => x.tipo === "CAIXA") ?? cs[0])?.id ?? "");
+    }).catch(() => {});
+  }
+
+  async function pagarTitulo() {
+    if (!cpAlvo) return;
+    const valor = parseFloat(cpValor.replace(/\./g, "").replace(",", "."));
+    if (!valor || valor <= 0) { setCpErro("Informe o valor pago."); return; }
+    if (!cpData) { setCpErro("Confirme a data."); return; }
+    setActioning(true); setCpErro("");
+    try {
+      const res = await fetch(`/api/contas-pagar/${cpAlvo.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ valorPago: valor, dataPagamento: cpData, formaPagamento: cpForma || null, contaBancariaId: cpContaId || null }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setCpErro(j.error ?? "Não foi possível registrar o pagamento."); return; }
+      setCpAlvo(null);
+      await load();
+    } finally { setActioning(false); }
+  }
+
   useEffect(() => {
     if (!waDropdownOpen) return;
     function handleClickOutside(e: MouseEvent) {
@@ -459,6 +511,7 @@ async function openWAModal() {
         ]}
         action={
           <div className="flex items-center gap-2">
+            <FinanceiroCompraBadge status={pedido.statusFinanceiro} />
             {/* Status inline selector */}
             <Select
               value={pedido.status}
@@ -930,6 +983,55 @@ async function openWAModal() {
           </div>
         </div>
 
+        {/* ── Contas a Pagar (gerado no Documento de Entrada pela condição) ── */}
+        {pedido.contasPagar && pedido.contasPagar.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800 text-sm">Contas a Pagar</h3>
+              <FinanceiroCompraBadge status={pedido.statusFinanceiro} />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-gray-100">
+                    <th className="px-4 py-2 font-medium">Título</th>
+                    <th className="px-4 py-2 font-medium">Parcela</th>
+                    <th className="px-4 py-2 font-medium">Vencimento</th>
+                    <th className="px-4 py-2 font-medium text-right">Valor</th>
+                    <th className="px-4 py-2 font-medium text-right">Pago</th>
+                    <th className="px-4 py-2 font-medium">Situação</th>
+                    <th className="px-4 py-2 font-medium text-right" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {pedido.contasPagar.map((c) => {
+                    const saldo = decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago);
+                    const podePagar = c.status !== "PAGA" && c.status !== "CANCELADA";
+                    return (
+                      <tr key={c.id} className="border-b border-gray-50">
+                        <td className="px-4 py-2.5 font-mono text-xs text-gray-700">{c.numero}</td>
+                        <td className="px-4 py-2.5 text-gray-500">{c.parcelaTotal && c.parcelaTotal > 1 ? `${c.parcelaNumero}/${c.parcelaTotal}` : "—"}</td>
+                        <td className="px-4 py-2.5 text-gray-600">{c.dataVencimento ? formatDate(c.dataVencimento) : <span className="text-gray-400 italic">sem previsão</span>}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums">{formatBRL(decimalToNumber(c.valorOriginal))}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{formatBRL(decimalToNumber(c.valorPago))}</td>
+                        <td className="px-4 py-2.5"><StatusBadge status={c.status} /></td>
+                        <td className="px-4 py-2.5 text-right">
+                          {podePagar && (
+                            <Button size="sm" variant="outline" onClick={() => abrirPagar(c)} disabled={actioning}
+                              className="h-7 gap-1 border-rose-200 text-rose-700 hover:bg-rose-50">
+                              Pagar{saldo > 0 ? ` ${formatBRL(saldo)}` : ""}
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* ── Itens do Pedido ───────────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
@@ -1165,6 +1267,53 @@ async function openWAModal() {
             </div>
           </div>
         </div>
+      )}
+
+      {cpAlvo && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" onClick={() => !actioning && setCpAlvo(null)}>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4" onClick={(e) => e.stopPropagation()}>
+              <div>
+                <h3 className="font-bold text-gray-800">Pagar título {cpAlvo.numero}</h3>
+                <p className="text-sm text-gray-600 mt-0.5">Registra o pagamento (parcial ou total) e lança no caixa.</p>
+              </div>
+              {cpErro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{cpErro}</p>}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Valor pago *</Label>
+                  <input value={cpValor} onChange={(e) => setCpValor(e.target.value)} placeholder="0,00"
+                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm text-right font-mono bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Data *</Label>
+                  <input type="date" value={cpData} onChange={(e) => setCpData(e.target.value)}
+                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Forma de pagamento</Label>
+                <select value={cpForma} onChange={(e) => setCpForma(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">— Selecionar —</option>
+                  {cpFormas.filter((f) => f.ativo !== false).map((f) => <option key={f.id} value={f.nome}>{f.nome}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Conta de origem</Label>
+                <select value={cpContaId} onChange={(e) => setCpContaId(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {cpContas.filter((c) => c.ativo !== false).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => setCpAlvo(null)} disabled={actioning}>Cancelar</Button>
+                <Button onClick={pagarTitulo} disabled={actioning} className="bg-rose-600 hover:bg-rose-700 font-semibold">
+                  {actioning ? "Pagando..." : "Confirmar pagamento"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
       )}
     </div>
   );

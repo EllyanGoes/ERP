@@ -9,6 +9,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import CreateDrawer from "@/components/shared/CreateDrawer";
 import PedidoCompraCreateForm from "@/components/suprimentos/PedidoCompraCreateForm";
 import StatusBadge from "@/components/shared/StatusBadge";
+import FinanceiroCompraBadge from "@/components/suprimentos/FinanceiroCompraBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ type Pedido = {
   id: string;
   numero: string;
   status: string;
+  statusFinanceiro?: string | null;
   descricao: string | null;
   valorTotal: unknown;
   dataEntregaPrevista: string | null;
@@ -160,7 +162,12 @@ const COLS: ColDef<Pedido>[] = [
     label: "Status",
     thClass: "text-left px-4 py-3 font-medium text-gray-600",
     tdClass: "px-4 py-3",
-    render: (p) => <StatusBadge status={p.status} />,
+    render: (p) => (
+      <div className="flex flex-col items-start gap-1">
+        <StatusBadge status={p.status} />
+        <FinanceiroCompraBadge status={p.statusFinanceiro} />
+      </div>
+    ),
   },
   {
     id: "valorTotal",

@@ -41,6 +41,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         include: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } } },
       },
       conferencia: { select: { id: true, numero: true, status: true } },
+      contasPagar: { orderBy: [{ parcelaNumero: "asc" }, { dataVencimento: "asc" }] },
       necessidade: {
         select: {
           id: true, numero: true, solicitante: true,
