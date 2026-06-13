@@ -78,6 +78,7 @@ type Conferencia = {
   despesas: unknown;
   desconto: unknown;
   vrTotal: unknown;
+  condicaoPagamentoId: string | null;
   pedidoId: string | null;
   localEstoqueId: string | null;
   modoLocalEstoque: string | null;
@@ -85,6 +86,8 @@ type Conferencia = {
   pedido: {
     id: string;
     numero: string;
+    condicaoPagamentoId: string | null;
+    condicoesPagamento: string | null;
     fornecedor: FornecedorInfo;
   } | null;
   fornecedor: FornecedorInfo | null;
@@ -166,6 +169,8 @@ export default function DocumentoEntradaDetailPage() {
   const [seguro, setSeguro] = useState("");
   const [despesas, setDespesas] = useState("");
   const [desconto, setDesconto] = useState("");
+  const [condicaoPagamentoId, setCondicaoPagamentoId] = useState("");
+  const [condicoes, setCondicoes] = useState<{ id: string; nome: string }[]>([]);
   const [validationError, setValidationError] = useState("");
   const [localAlertDismissed, setLocalAlertDismissed] = useState(false);
   const [showDivergenciaConfirm, setShowDivergenciaConfirm] = useState(false);
@@ -211,6 +216,8 @@ export default function DocumentoEntradaDetailPage() {
       setSerie(conf.serie ?? "");
       setDtEmissao(conf.dtEmissao ? conf.dtEmissao.slice(0, 10) : new Date().toISOString().slice(0, 10));
       setUfOrigem(conf.ufOrigem ?? "");
+      // Condição do DE: usa a do próprio DE, senão herda a do pedido.
+      setCondicaoPagamentoId(conf.condicaoPagamentoId ?? conf.pedido?.condicaoPagamentoId ?? "");
       setFrete(decimalToNumber(conf.frete) > 0 ? String(decimalToNumber(conf.frete)) : "");
       const forn = conf.fornecedor ?? conf.pedido?.fornecedor ?? null;
       setFornecedorId(forn?.id ?? "");
@@ -247,6 +254,12 @@ export default function DocumentoEntradaDetailPage() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    fetch("/api/suprimentos/condicoes-pagamento").then((r) => r.json())
+      .then((j) => setCondicoes(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+  }, []);
 
   // Sync usuarioResponsavelId from responsavel name once users are loaded
   useEffect(() => {
@@ -403,6 +416,7 @@ export default function DocumentoEntradaDetailPage() {
           seguro: seguro ? parseFloat(seguro) : null,
           despesas: despesas ? parseFloat(despesas) : null,
           desconto: desconto ? parseFloat(desconto) : null,
+          condicaoPagamentoId: condicaoPagamentoId || null,
           // Admin can change status at any state
           ...(isAdmin ? { status: adminStatus } : {}),
           itens: [
@@ -1500,6 +1514,21 @@ export default function DocumentoEntradaDetailPage() {
                 <Input value={formatBRL(vlrMercadoria)} readOnly className="bg-gray-50 text-right" />
               ) : (
                 <Input value={vlrMercadoria > 0 ? formatBRL(vlrMercadoria) : "—"} readOnly className="bg-gray-50 text-right" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Condição de Pagamento</Label>
+              {nfEditable ? (
+                <select
+                  value={condicaoPagamentoId}
+                  onChange={(e) => setCondicaoPagamentoId(e.target.value)}
+                  className="w-full h-9 rounded-md border border-gray-300 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— Herdar do pedido / à vista —</option>
+                  {condicoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              ) : (
+                <Input value={condicoes.find((c) => c.id === condicaoPagamentoId)?.nome ?? "—"} readOnly className="bg-gray-50" />
               )}
             </div>
             <div className="space-y-1">
