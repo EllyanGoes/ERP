@@ -167,6 +167,10 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   // Modal de conclusão: informa a data (default hoje; editável p/ lançamento passado).
   const [concluirOpen, setConcluirOpen] = useState(false);
   const [concluirData, setConcluirData] = useState(todayInput());
+  // Conclusão com saldo a entregar: pergunta se os materiais já foram retirados.
+  const [concluirRetirado, setConcluirRetirado] = useState<"sim" | "nao" | null>(null);
+  const [concluirLocalId, setConcluirLocalId] = useState("");
+  const [concluirErro, setConcluirErro] = useState("");
 
   // Venda balcão (retirada na loja): recebe o pagamento e conclui em uma ação.
   const balcaoTotal = decimalToNumber(pedido.valorTotal);
@@ -447,6 +451,56 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
       .reduce((s, mi) => s + parseFloat(mi.quantidade.toString()), 0);
   }
 
+  // Há material pedido ainda não entregue (mesmo critério do bloqueio de conclusão).
+  const temSaldoPendente = pedido.itens.some(
+    (it) => decimalToNumber(it.quantidade) - getEntregue(it) > 0.0001,
+  );
+
+  function abrirConcluir() {
+    setConcluirErro("");
+    setConcluirData(todayInput());
+    setConcluirRetirado(null);
+    setConcluirLocalId("");
+    if (temSaldoPendente) {
+      fetch("/api/suprimentos/locais-estoque")
+        .then((r) => r.json())
+        .then((j) => {
+          const l = Array.isArray(j) ? j : (j.data ?? []);
+          setBalcaoLocais(l);
+          if (l.length === 1) setConcluirLocalId(l[0].id);
+        })
+        .catch(() => {});
+    }
+    setConcluirOpen(true);
+  }
+
+  async function concluir() {
+    if (!concluirData) { setConcluirErro("Confirme a data de conclusão."); return; }
+    // Sem saldo pendente: conclusão normal.
+    if (!temSaldoPendente) { changeStatus("CONCLUIDO", concluirData); return; }
+    // Com saldo pendente: exige confirmar que os materiais já foram retirados.
+    if (concluirRetirado !== "sim") {
+      setConcluirErro("Há saldo a entregar. Confirme que os materiais já foram retirados ou conclua as entregas antes.");
+      return;
+    }
+    if (!concluirLocalId) { setConcluirErro("Informe o local de estoque da retirada."); return; }
+    setLoading(true);
+    setConcluirErro("");
+    try {
+      const res = await fetch(`/api/pedidos-venda/${pedido.id}/concluir-com-saida`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ localEstoqueId: concluirLocalId, dataConclusao: concluirData }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setConcluirErro(j.error ?? "Não foi possível concluir o pedido."); return; }
+      setConcluirOpen(false);
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const origemEmpresaNome = pedido.estoqueOrigemEmpresa
     ? (pedido.estoqueOrigemEmpresa.nomeFantasia || pedido.estoqueOrigemEmpresa.razaoSocial)
     : null;
@@ -523,7 +577,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               variant={a.variant ?? "default"}
               size="sm"
               onClick={() => {
-                if (a.next === "CONCLUIDO") { setConcluirData(todayInput()); setConcluirOpen(true); }
+                if (a.next === "CONCLUIDO") { abrirConcluir(); }
                 else changeStatus(a.next);
               }}
               disabled={loading}
@@ -1096,6 +1150,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                 Informe a data de conclusão. Por padrão é hoje; ajuste para registrar um lançamento passado.
               </p>
             </div>
+            {concluirErro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{concluirErro}</p>}
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data de Conclusão <span className="text-red-500">*</span></label>
               <input
@@ -1105,9 +1160,50 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                 className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+            {temSaldoPendente && (
+              <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm font-medium text-amber-800">
+                  Este pedido tem <span className="font-semibold">saldo a entregar</span>. Os materiais já foram retirados pelo cliente?
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant={concluirRetirado === "sim" ? "default" : "outline"}
+                    onClick={() => { setConcluirErro(""); setConcluirRetirado("sim"); }}
+                    className={concluirRetirado === "sim" ? "bg-amber-600 hover:bg-amber-700" : ""}
+                  >
+                    Sim, já retirados
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={concluirRetirado === "nao" ? "default" : "outline"}
+                    onClick={() => { setConcluirErro(""); setConcluirRetirado("nao"); }}
+                  >
+                    Não
+                  </Button>
+                </div>
+                {concluirRetirado === "sim" && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Local de Estoque <span className="text-red-500">*</span></label>
+                    <select
+                      value={concluirLocalId}
+                      onChange={(e) => setConcluirLocalId(e.target.value)}
+                      className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">— Selecionar local —</option>
+                      {balcaoLocais.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+                    </select>
+                    <p className="text-[11px] text-amber-700">A saída do saldo pendente baixa o estoque e a conclusão fica registrada.</p>
+                  </div>
+                )}
+                {concluirRetirado === "nao" && (
+                  <p className="text-[11px] text-amber-700">Para concluir, registre as entregas (minutas marcadas como Entregue) antes — ou confirme a retirada acima.</p>
+                )}
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setConcluirOpen(false)} disabled={loading}>Cancelar</Button>
-              <Button onClick={() => changeStatus("CONCLUIDO", concluirData)} disabled={loading || !concluirData} className="font-semibold">
+              <Button onClick={concluir} disabled={loading || !concluirData || (temSaldoPendente && concluirRetirado !== "sim")} className="font-semibold">
                 {loading ? "Concluindo..." : "Concluir"}
               </Button>
             </div>
