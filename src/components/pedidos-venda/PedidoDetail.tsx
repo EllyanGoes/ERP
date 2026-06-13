@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -77,7 +78,7 @@ type PedidoDetailProps = {
     valorProdutos: unknown; valorDesconto: unknown; valorFrete: unknown; valorTotal: unknown;
     cliente: { id: string; razaoSocial: string };
     vendedor?: { id: string; nome: string } | null;
-    pagamentos?: { id: string; forma: string; valor: unknown; contaBancaria?: { nome: string } | null }[];
+    pagamentos?: { id: string; forma: string; valor: unknown; contaBancaria?: { id: string; nome: string } | null }[];
     itens: ItemRow[];
     contasReceber: { id: string }[];
     minutas?: MinutaDoPedido[];
@@ -576,7 +577,14 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                     <div key={pg.id} className="flex justify-between pl-2 gap-2">
                       <span className="text-gray-600 min-w-0 truncate">
                         {pg.forma}
-                        {pg.contaBancaria?.nome && <span className="text-gray-400"> → {pg.contaBancaria.nome}</span>}
+                        {pg.contaBancaria && (
+                          <>
+                            {" → "}
+                            <Link href={`/financeiro/contas/${pg.contaBancaria.id}`} className="text-blue-600 hover:underline">
+                              {pg.contaBancaria.nome}
+                            </Link>
+                          </>
+                        )}
                       </span>
                       <span className="font-medium tabular-nums shrink-0">{formatBRL(decimalToNumber(pg.valor))}</span>
                     </div>

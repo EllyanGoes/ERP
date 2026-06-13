@@ -18,7 +18,7 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
         cliente: true,
         empresa: true,
         vendedor: { select: { id: true, nome: true } },
-        pagamentos: { orderBy: { ordem: "asc" }, include: { contaBancaria: { select: { nome: true } } } },
+        pagamentos: { orderBy: { ordem: "asc" }, include: { contaBancaria: { select: { id: true, nome: true } } } },
         itens: {
           include: {
             item: {
