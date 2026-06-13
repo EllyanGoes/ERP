@@ -939,43 +939,6 @@ export default function PedidoForm({
             )}
           </div>
 
-          <div className="space-y-4">
-          {/* Condição de Pagamento (a Forma de Pagamento foi para o rodapé, após os itens) */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Condição de Pagamento</Label>
-            <div ref={condicaoRef}>
-              <button
-                data-condicao-dd
-                ref={condicaoBtnRef}
-                type="button"
-                onClick={() => {
-                  if (condicaoOpen) {
-                    setCondicaoOpen(false);
-                  } else {
-                    const r = condicaoBtnRef.current!.getBoundingClientRect();
-                    setCondicaoDropPos({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX, width: r.width });
-                    setCondicaoOpen(true);
-                    setCondicaoSearch("");
-                    setShowNewCondicao(false);
-                    setNewCondicaoName("");
-                  }
-                }}
-                disabled={condicoesLoading}
-                className={cn(
-                  "w-full flex items-center justify-between h-10 px-3 rounded-lg border text-sm text-left transition-colors",
-                  condicaoOpen ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-300 hover:border-gray-400",
-                  condicaoPagamento ? "text-gray-900" : "text-gray-400",
-                  condicoesLoading && "opacity-50 cursor-not-allowed"
-                )}
-              >
-                <span className="truncate">{condicaoPagamento || "— Selecionar condição —"}</span>
-                <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-            </div>
-          </div>
-          </div>
         </div>
       </div>
       </div>{/* end max-w-5xl */}
@@ -1317,18 +1280,54 @@ export default function PedidoForm({
       </div>
       )}
 
-      {/* ── Rodapé sempre visível: pagamento (após os itens) + totais ──── */}
+      {/* ── Rodapé sempre visível: pagamento + condição (após os itens) + totais ──── */}
       <div className="bg-white rounded-xl border border-gray-300 shadow-sm p-5 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Forma de Pagamento</Label>
-          <PagamentosInput
-            linhas={pagamentos}
-            setLinhas={setPagamentos}
-            formas={formas}
-            contas={[]}
-            total={totalGeral}
-            mostrarConta={false}
-          />
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Forma de Pagamento</Label>
+            <PagamentosInput
+              linhas={pagamentos}
+              setLinhas={setPagamentos}
+              formas={formas}
+              contas={[]}
+              total={totalGeral}
+              mostrarConta={false}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Condição de Pagamento</Label>
+            <div ref={condicaoRef}>
+              <button
+                data-condicao-dd
+                ref={condicaoBtnRef}
+                type="button"
+                onClick={() => {
+                  if (condicaoOpen) {
+                    setCondicaoOpen(false);
+                  } else {
+                    const r = condicaoBtnRef.current!.getBoundingClientRect();
+                    setCondicaoDropPos({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX, width: r.width });
+                    setCondicaoOpen(true);
+                    setCondicaoSearch("");
+                    setShowNewCondicao(false);
+                    setNewCondicaoName("");
+                  }
+                }}
+                disabled={condicoesLoading}
+                className={cn(
+                  "w-full flex items-center justify-between h-10 px-3 rounded-lg border text-sm text-left transition-colors",
+                  condicaoOpen ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-300 hover:border-gray-400",
+                  condicaoPagamento ? "text-gray-900" : "text-gray-400",
+                  condicoesLoading && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                <span className="truncate">{condicaoPagamento || "— Selecionar condição —"}</span>
+                <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
         <div className="space-y-2.5 text-sm md:border-l md:border-gray-200 md:pl-6">
           <div className="flex justify-between text-gray-700 font-medium">
