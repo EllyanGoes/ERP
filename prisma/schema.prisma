@@ -180,6 +180,7 @@ model ConferenciaCompra {
   pedidoId             String?                 @unique
   status               StatusConferenciaCompra @default(PENDENTE)
   condicaoPagamentoId  String?
+  naturezaFinanceiraId String?
   dataConferencia      DateTime?
   responsavel          String?
   observacoes          String?
@@ -204,6 +205,7 @@ model ConferenciaCompra {
   updatedAt            DateTime                @updatedAt
   pedido               PedidoCompra?           @relation(fields: [pedidoId], references: [id])
   condicaoPagamentoRef CondicaoPagamento?      @relation("CondPgtoConferencia", fields: [condicaoPagamentoId], references: [id])
+  naturezaFinanceira   NaturezaFinanceira?     @relation(fields: [naturezaFinanceiraId], references: [id])
   fornecedor           Fornecedor?             @relation(fields: [fornecedorId], references: [id])
   localEstoque         LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
   itens                ConferenciaCompraItem[]
@@ -306,6 +308,8 @@ model ContaPagar {
   recorrencia           Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
   contaReceberEspelho   ContaReceber?          @relation("EspelhoIntragrupoCR", fields: [contaReceberEspelhoId], references: [id])
   pedidoCompra          PedidoCompra?          @relation(fields: [pedidoCompraId], references: [id])
+  naturezaFinanceiraId  String?
+  naturezaFinanceira    NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
   lancamentos           LancamentoFinanceiro[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
@@ -352,6 +356,8 @@ model ContaReceber {
   centroCusto           CentroCusto?           @relation(fields: [centroCustoId], references: [id])
   contaBancaria         ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
   recorrencia           Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
+  naturezaFinanceiraId  String?
+  naturezaFinanceira    NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
   espelhoPagar          ContaPagar?            @relation("EspelhoIntragrupoCR")
   lancamentos           LancamentoFinanceiro[]
 
@@ -421,6 +427,45 @@ model CategoriaFinanceira {
 
   @@index([paiId])
   @@index([tipo])
+}
+
+// Natureza financeira (estrutura de fluxo de caixa / DRE, separada do plano de
+// contas acima): classifica os títulos por tipo (entrada/saída) e grupo. Subgrupo
+// é um nível opcional de organização dentro do grupo.
+model NaturezaSubgrupo {
+  id        String               @id @default(cuid())
+  empresaId String               @default("emp_tramontin")
+  nome      String
+  grupo     NaturezaGrupo
+  ativo     Boolean              @default(true)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  naturezas NaturezaFinanceira[]
+  empresa   Empresa              @relation(fields: [empresaId], references: [id])
+
+  @@index([empresaId])
+}
+
+model NaturezaFinanceira {
+  id            String              @id @default(cuid())
+  empresaId     String              @default("emp_tramontin")
+  nome          String
+  tipo          NaturezaTipo
+  grupo         NaturezaGrupo
+  subgrupoId    String?
+  ativo         Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  subgrupo      NaturezaSubgrupo?   @relation(fields: [subgrupoId], references: [id])
+  empresa       Empresa             @relation(fields: [empresaId], references: [id])
+  contasReceber ContaReceber[]
+  contasPagar   ContaPagar[]
+  pedidosVenda  PedidoVenda[]
+  conferencias  ConferenciaCompra[]
+
+  @@index([empresaId])
+  @@index([tipo])
+  @@index([subgrupoId])
 }
 
 model Recorrencia {
@@ -576,6 +621,8 @@ model Empresa {
   conferenciaCompraItems    ConferenciaCompraItem[]
   contaPagars               ContaPagar[]
   contaRecebers             ContaReceber[]
+  naturezasFinanceiras      NaturezaFinanceira[]
+  naturezaSubgrupos         NaturezaSubgrupo[]
   contaBancarias            ContaBancaria[]
   recorrencias              Recorrencia[]
   cotacaoCompras            CotacaoCompra[]
@@ -1143,6 +1190,7 @@ model PedidoVenda {
   valorTotal             Decimal                @default(0) @db.Decimal(15, 2)
   condicaoPagamento      String?
   condicaoPagamentoId    String?
+  naturezaFinanceiraId   String?
   formaPagamento         String?
   observacoes            String?
   createdAt              DateTime               @default(now())
@@ -1151,6 +1199,7 @@ model PedidoVenda {
   espelhoCompra          PedidoCompra?          @relation("EspelhoIntragrupo")
   cliente                Cliente                @relation(fields: [clienteId], references: [id])
   condicaoPagamentoRef   CondicaoPagamento?     @relation(fields: [condicaoPagamentoId], references: [id])
+  naturezaFinanceira     NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
   tabelaPreco            TabelaPreco?           @relation(fields: [tabelaPrecoId], references: [id])
   vendedor               Vendedor?              @relation(fields: [vendedorId], references: [id])
   itens                  PedidoVendaItem[]
@@ -1946,6 +1995,19 @@ enum TipoContaBancaria {
   CORRENTE
   POUPANCA
   CAIXA
+}
+
+enum NaturezaTipo {
+  ENTRADA
+  SAIDA
+}
+
+enum NaturezaGrupo {
+  RECEITA_OPERACIONAL
+  CUSTO_OPERACIONAL
+  DESPESA_OPERACIONAL
+  INVESTIMENTO
+  FINANCIAMENTO
 }
 
 enum TipoCategoriaFinanceira {
