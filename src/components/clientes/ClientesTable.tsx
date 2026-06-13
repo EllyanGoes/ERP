@@ -1,7 +1,7 @@
 "use client";
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, type FilterFn } from "@tanstack/react-table";
 import DataTable from "@/components/shared/DataTable";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,17 @@ type ClienteRow = {
   cidade: string | null;
   estado: string | null;
   status: string;
+};
+
+// Busca por nome OU CPF/CNPJ — casa os dígitos ignorando pontuação.
+const filtroCliente: FilterFn<ClienteRow> = (row, _col, value) => {
+  const q = String(value ?? "").toLowerCase().trim();
+  if (!q) return true;
+  const c = row.original;
+  const nome = `${c.razaoSocial} ${c.nomeFantasia ?? ""}`.toLowerCase();
+  if (nome.includes(q)) return true;
+  const qDigits = q.replace(/\D/g, "");
+  return qDigits.length > 0 && (c.cpfCnpj ?? "").replace(/\D/g, "").includes(qDigits);
 };
 
 export default function ClientesTable({ clientes }: { clientes: ClienteRow[] }) {
@@ -69,7 +80,8 @@ export default function ClientesTable({ clientes }: { clientes: ClienteRow[] }) 
     <DataTable
       data={clientes}
       columns={columns}
-      searchPlaceholder="Buscar por razão social ou CPF/CNPJ..."
+      globalFilterFn={filtroCliente}
+      searchPlaceholder="Buscar por nome, CPF ou CNPJ..."
       onRowClick={(row) => router.push(`/clientes/${row.id}`)}
     />
   );

@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import {
   useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel,
   getPaginationRowModel, flexRender,
-  type ColumnDef, type SortingState,
+  type ColumnDef, type SortingState, type FilterFn,
 } from "@tanstack/react-table";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -16,9 +16,11 @@ interface DataTableProps<T> {
   searchPlaceholder?: string;
   isLoading?: boolean;
   onRowClick?: (row: T) => void;
+  // Filtro de busca customizado (ex.: casar CPF/CNPJ ignorando pontuação).
+  globalFilterFn?: FilterFn<T>;
 }
 
-export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick }: DataTableProps<T>) {
+export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
 
@@ -26,6 +28,7 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
     data,
     columns,
     state: { sorting, globalFilter },
+    ...(globalFilterFn ? { globalFilterFn } : {}),
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
