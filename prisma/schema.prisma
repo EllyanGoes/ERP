@@ -162,6 +162,8 @@ model CondicaoPagamento {
   numeroParcelas    Int      @default(1)
   prazoInicial      Int      @default(0)
   intervaloParcelas Int      @default(30)
+  // "Faturado / a combinar": gera o título SEM data de vencimento prevista.
+  semVencimento     Boolean  @default(false)
   descontoVista     Decimal? @db.Decimal(5, 2)
   ativo             Boolean  @default(true)
   createdAt         DateTime @default(now())
@@ -329,7 +331,7 @@ model ContaReceber {
   valorPago             Decimal                @default(0) @db.Decimal(15, 2)
   valorMulta            Decimal                @default(0) @db.Decimal(15, 2)
   valorJuros            Decimal                @default(0) @db.Decimal(15, 2)
-  dataVencimento        DateTime
+  dataVencimento        DateTime?              // null = sem data prevista (ex.: "Faturado")
   dataPagamento         DateTime?
   status                StatusConta            @default(ABERTA)
   formaPagamento        String?

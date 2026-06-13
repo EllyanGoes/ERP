@@ -87,7 +87,7 @@ type PedidoDetailProps = {
     contasReceber: {
       id: string; numero: string; status: string;
       valorOriginal: unknown; valorPago: unknown;
-      dataVencimento: Date | string; dataPagamento: Date | string | null;
+      dataVencimento: Date | string | null; dataPagamento: Date | string | null;
       parcelaNumero?: number | null; parcelaTotal?: number | null;
     }[];
     minutas?: MinutaDoPedido[];
@@ -760,7 +760,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                       <tr key={c.id} className="border-b border-gray-50">
                         <td className="py-2.5 font-mono text-xs text-gray-700">{c.numero}</td>
                         <td className="py-2.5 text-gray-500">{c.parcelaTotal && c.parcelaTotal > 1 ? `${c.parcelaNumero}/${c.parcelaTotal}` : "—"}</td>
-                        <td className="py-2.5 text-gray-600">{formatDate(c.dataVencimento)}</td>
+                        <td className="py-2.5 text-gray-600">{c.dataVencimento ? formatDate(c.dataVencimento) : <span className="text-gray-400 italic">sem previsão</span>}</td>
                         <td className="py-2.5 text-right tabular-nums">{formatBRL(decimalToNumber(c.valorOriginal))}</td>
                         <td className="py-2.5 text-right tabular-nums text-gray-600">{formatBRL(decimalToNumber(c.valorPago))}</td>
                         <td className="py-2.5"><StatusBadge status={c.status} /></td>

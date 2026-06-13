@@ -142,7 +142,7 @@ export async function espelharContaReceber(contaReceberId: string): Promise<void
           fornecedorId,
           descricao: `Intragrupo: ${cr.descricao}`,
           valorOriginal: cr.valorOriginal,
-          dataVencimento: cr.dataVencimento,
+          dataVencimento: cr.dataVencimento ?? new Date(),
           parcelaNumero: cr.parcelaNumero,
           parcelaTotal: cr.parcelaTotal,
           status: "ABERTA",

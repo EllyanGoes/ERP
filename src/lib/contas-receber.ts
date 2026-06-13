@@ -9,6 +9,7 @@ export type CondicaoParcelas = {
   numeroParcelas?: number | null;
   prazoInicial?: number | null;     // dias até a 1ª parcela
   intervaloParcelas?: number | null; // dias entre parcelas
+  semVencimento?: boolean | null;    // "Faturado / a combinar" → título sem vencimento
 } | null;
 
 /**
@@ -41,9 +42,11 @@ export async function gerarContasReceberDoPedido(
 
   const base = Math.floor((total / n) * 100) / 100;
   const grupoId = n > 1 ? crypto.randomUUID() : null;
+  const semVencimento = condicao?.semVencimento === true;
 
   for (let i = 0; i < n; i++) {
-    const venc = new Date(emissao.getTime() + (prazoInicial + i * intervalo) * 86400000);
+    // "Faturado / a combinar" → sem data prevista (null).
+    const venc = semVencimento ? null : new Date(emissao.getTime() + (prazoInicial + i * intervalo) * 86400000);
     const valor = i === n - 1 ? round2(total - base * (n - 1)) : base;
     const numero = generateDocNumber("CR", await proximaSequenciaDaEmpresa(pedido.empresaId, "CR"));
     await tx.contaReceber.create({

@@ -18,7 +18,7 @@ export default async function ContasReceberPage() {
     .reduce((s, c) => s + decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago), 0);
 
   const vencido = contas
-    .filter((c) => (c.status === "ABERTA" || c.status === "PARCIAL") && isVencida(c.dataVencimento))
+    .filter((c) => (c.status === "ABERTA" || c.status === "PARCIAL") && c.dataVencimento != null && isVencida(c.dataVencimento))
     .reduce((s, c) => s + decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago), 0);
 
   const now = new Date();
