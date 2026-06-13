@@ -8,7 +8,19 @@ import { cn, formatBRL } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 export type FormaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean };
-export type ContaOpt = { id: string; nome: string; ativo?: boolean };
+export type ContaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean };
+
+/**
+ * Conta de destino padrão para dinheiro: o "Caixa em Dinheiro" (tipo CAIXA) da
+ * empresa ativa, vindo da lista de contas já escopada. Cai em "caixa-geral" só
+ * se a empresa ainda não tiver um caixa cadastrado (a API resolve do mesmo
+ * jeito no back). Evita o antigo default fixo que mandava tudo pro caixa da
+ * Tramontin.
+ */
+export function contaCaixaPadrao(contas: ContaOpt[]): string {
+  const ativas = contas.filter((c) => c.ativo !== false);
+  return ativas.find((c) => c.tipo === "CAIXA")?.id ?? "caixa-geral";
+}
 
 export type LinhaPagamento = {
   _key: string;
@@ -53,15 +65,16 @@ export default function PagamentosInput({
     setLinhas((prev) => prev.map((l) => l._key === key ? { ...l, [campo]: valor } : l));
   }
   function add() {
-    // nova linha já sugere o que falta como valor
-    setLinhas((prev) => [...prev, novaLinhaPagamento("", "caixa-geral", falta > 0 ? String(falta.toFixed(2)).replace(".", ",") : "")]);
+    // nova linha já sugere o que falta como valor; conta = caixa da empresa
+    setLinhas((prev) => [...prev, novaLinhaPagamento("", contaCaixaPadrao(contas), falta > 0 ? String(falta.toFixed(2)).replace(".", ",") : "")]);
   }
   function rm(key: string) {
     setLinhas((prev) => prev.length > 1 ? prev.filter((l) => l._key !== key) : prev);
   }
 
   const contasOpts = contas.filter((c) => c.ativo !== false);
-  const temCaixaGeral = contasOpts.some((c) => c.id === "caixa-geral");
+  // Só oferece o "Caixa Geral" legado se a empresa não tiver nenhum caixa.
+  const temCaixa = contasOpts.some((c) => c.tipo === "CAIXA" || c.id === "caixa-geral");
 
   return (
     <div className="space-y-2">
@@ -94,7 +107,7 @@ export default function PagamentosInput({
               onChange={(e) => up(l._key, "contaBancariaId", e.target.value)}
               className="h-9 w-full min-w-0 rounded-lg border border-gray-300 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {!temCaixaGeral && <option value="caixa-geral">Caixa Geral</option>}
+              {!temCaixa && <option value="caixa-geral">Caixa Geral</option>}
               {contasOpts.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select>
           )}

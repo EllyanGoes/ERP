@@ -14,7 +14,7 @@ import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
 import { printEscPosUSB } from "@/lib/webusb-print";
 import { buildPedidoEscPos, printPedidoTermicaDialog, type PedidoPrintData } from "@/lib/print-pedido";
 import PagamentosInput, {
-  novaLinhaPagamento, parseValorBR, pagamentosPayload, pagamentosValidos,
+  novaLinhaPagamento, parseValorBR, pagamentosPayload, pagamentosValidos, contaCaixaPadrao,
   type LinhaPagamento, type FormaOpt,
 } from "@/components/pedidos-venda/PagamentosInput";
 import { Search, RefreshCw, Loader2, Receipt, CheckCircle2, Printer } from "lucide-react";
@@ -75,7 +75,7 @@ export default function PdvPage() {
 
   const [locais, setLocais] = useState<{ id: string; nome: string }[]>([]);
   const [formas, setFormas] = useState<FormaOpt[]>([]);
-  const [contas, setContas] = useState<{ id: string; nome: string; ativo?: boolean }[]>([]);
+  const [contas, setContas] = useState<{ id: string; nome: string; tipo?: string; ativo?: boolean }[]>([]);
 
   const [localId, setLocalId] = useState("");
   const [data, setData] = useState(hojeInput());
@@ -135,18 +135,19 @@ export default function PdvPage() {
         // Recebimento puxa a data de emissão (pagamento na hora); editável.
         setData(dataInput(j.data?.dataEmissao));
         const tot = decimalToNumber(j.data?.valorTotal ?? 0);
+        const caixaId = contaCaixaPadrao(contas);
         const pags: { forma: string; valor: unknown }[] = j.data?.pagamentos ?? [];
         if (pags.length > 0) {
           // Pré-carrega as formas previstas no pedido (vendedor já definiu);
-          // o caixa só confirma. Conta default Caixa Geral.
+          // o caixa só confirma. Conta default = caixa em dinheiro da empresa.
           setPagamentos(pags.map((p) =>
-            novaLinhaPagamento(p.forma, "caixa-geral", decimalToNumber(p.valor).toFixed(2).replace(".", ",")),
+            novaLinhaPagamento(p.forma, caixaId, decimalToNumber(p.valor).toFixed(2).replace(".", ",")),
           ));
         } else {
           // Sem pagamentos previstos: 1 linha com o total e a forma do pedido.
           setPagamentos([novaLinhaPagamento(
             j.data?.formaPagamento ?? "",
-            "caixa-geral",
+            caixaId,
             tot > 0 ? tot.toFixed(2).replace(".", ",") : "",
           )]);
         }

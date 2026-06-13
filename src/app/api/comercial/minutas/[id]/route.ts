@@ -131,6 +131,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
     if (!minuta) return NextResponse.json({ error: "Minuta não encontrada" }, { status: 404 });
 
+    // Editar uma minuta já ENTREGUE (entrega/retirada concluída) é privilégio de
+    // ADMIN — reconcilia estoque já baixado. Usuários comuns não alteram entregas
+    // finalizadas.
+    if (minuta.status === "ENTREGUE" && Array.isArray(body.itens) && auth.session.perfil !== "ADMIN") {
+      return NextResponse.json({ error: "Apenas administradores podem editar uma minuta já entregue." }, { status: 403 });
+    }
+
     const STATUS_VALIDOS = ["PENDENTE", "SAIU_PARA_ENTREGA", "ENTREGUE", "CANCELADA"] as const;
     const newStatus = body.status as (typeof STATUS_VALIDOS)[number] | undefined;
     if (newStatus !== undefined && !STATUS_VALIDOS.includes(newStatus)) {

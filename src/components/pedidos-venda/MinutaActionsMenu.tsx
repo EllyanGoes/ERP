@@ -48,9 +48,10 @@ export default function MinutaActionsMenu({ id, numero, status }: Props) {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  // Editar: liberado para qualquer minuta e qualquer usuário. A edição abre a
-  // tela completa, que reconcilia o estoque pelo delta — não exige mais admin.
-  const canEdit = true;
+  // Editar: liberado para qualquer minuta e qualquer usuário, EXCETO as já
+  // ENTREGUE — essas só ADMIN edita (reconcilia estoque já baixado). A edição
+  // abre a tela completa, que reconcilia o estoque pelo delta.
+  const canEdit = status !== "ENTREGUE" || isAdmin;
   // Excluir: minutas PENDENTE (qualquer usuário) ou qualquer status para ADMIN.
   // Em minutas já movimentadas, a API exige ADMIN e ESTORNA o estoque.
   const canDelete = status === "PENDENTE" || isAdmin;

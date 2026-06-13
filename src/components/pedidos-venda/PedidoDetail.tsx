@@ -10,7 +10,7 @@ import { useSession } from "@/lib/session-context";
 import { Plus, Truck, Pencil, Package, Trash2, AlertTriangle } from "lucide-react";
 import MinutaActionsMenu from "./MinutaActionsMenu";
 import PagamentosInput, {
-  novaLinhaPagamento, pagamentosPayload, pagamentosValidos,
+  novaLinhaPagamento, pagamentosPayload, pagamentosValidos, contaCaixaPadrao,
   type LinhaPagamento, type FormaOpt,
 } from "./PagamentosInput";
 
@@ -175,7 +175,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   const [balcaoErro, setBalcaoErro] = useState("");
   const [balcaoLocais, setBalcaoLocais] = useState<{ id: string; nome: string }[]>([]);
   const [balcaoFormas, setBalcaoFormas] = useState<FormaOpt[]>([]);
-  const [balcaoContas, setBalcaoContas] = useState<{ id: string; nome: string; ativo?: boolean }[]>([]);
+  const [balcaoContas, setBalcaoContas] = useState<{ id: string; nome: string; tipo?: string; ativo?: boolean }[]>([]);
   const [balcaoPagamentos, setBalcaoPagamentos] = useState<LinhaPagamento[]>([novaLinhaPagamento()]);
 
   function abrirBalcao() {
@@ -185,7 +185,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
     setBalcaoData(dateInput(pedido.dataEmissao));
     setBalcaoPagamentos([novaLinhaPagamento(
       pedido.formaPagamento ?? "",
-      "caixa-geral",
+      contaCaixaPadrao(balcaoContas),
       balcaoTotal > 0 ? balcaoTotal.toFixed(2).replace(".", ",") : "",
     )]);
     setBalcaoOpen(true);
@@ -244,7 +244,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   function abrirReceber() {
     setRecebErro("");
     setRecebData(todayInput());
-    setRecebPagamentos([novaLinhaPagamento(pedido.formaPagamento ?? "", "caixa-geral", balcaoTotal > 0 ? balcaoTotal.toFixed(2).replace(".", ",") : "")]);
+    setRecebPagamentos([novaLinhaPagamento(pedido.formaPagamento ?? "", contaCaixaPadrao(balcaoContas), balcaoTotal > 0 ? balcaoTotal.toFixed(2).replace(".", ",") : "")]);
     setRecebOpen(true);
     fetch("/api/suprimentos/formas-pagamento").then((r) => r.json()).then((j) => setBalcaoFormas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
     fetch("/api/financeiro/contas").then((r) => r.json()).then((j) => setBalcaoContas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});

@@ -155,7 +155,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       });
 
       // Pagamentos previstos: substitui (delete + create), como os itens.
-      if (Array.isArray(pagamentos)) {
+      // MAS só enquanto o pedido NÃO foi recebido — depois do recebimento, os
+      // pagamentos guardam a CONTA de destino real (gravada pelo balcão/receber)
+      // e a edição do admin não pode apagá-la. Se já há conta a receber, mantém.
+      const jaRecebido = await tx.contaReceber.count({ where: { pedidoVendaId: params.id } });
+      if (Array.isArray(pagamentos) && jaRecebido === 0) {
         await tx.pedidoVendaPagamento.deleteMany({ where: { pedidoVendaId: params.id } });
         if (pagamentos.length > 0) {
           await tx.pedidoVendaPagamento.createMany({
