@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
-import { recalcPedidoValorTotal, getItensPendentesEntrega } from "@/lib/pedido-totais";
+import { recalcPedidoValorTotal, getItensPendentesEntrega, recomputarStatusPedido } from "@/lib/pedido-totais";
 import { espelharConfirmacaoVenda, cancelarEspelhoVenda } from "@/lib/intragrupo";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -280,6 +280,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       // O comodato entra no total. Recalcula a partir dos itens já reconciliados
       // + comodato atualizado.
       await recalcPedidoValorTotal(tx, params.id);
+
+      // Itens/contas podem ter mudado → recomputa os status do pedido.
+      await recomputarStatusPedido(tx, params.id);
 
       return tx.pedidoVenda.findUnique({
         where: { id: params.id },

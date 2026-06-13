@@ -5,7 +5,7 @@ import { requireModulo } from "@/lib/permissions";
 import { minutaItensSchema } from "@/lib/validations/minuta";
 import { recalcularSaldos } from "@/lib/estoque-saldos";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
-import { generateDocNumber } from "@/lib/utils";
+import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { espelharEntregaMinuta } from "@/lib/intragrupo";
 
 // Lançado dentro das transações quando outra requisição mexeu na minuta no meio
@@ -58,15 +58,7 @@ async function checkAndConcludePedido(pedidoVendaId: string) {
       where: { id: pedidoVendaId },
       select: {
         id: true,
-        numero: true,
         status: true,
-        modalidade: true,
-        intragrupo: true,
-        empresaId: true,
-        clienteId: true,
-        valorTotal: true,
-        condicaoPagamento: true,
-        _count: { select: { contasReceber: true } },
         itens: {
           select: {
             id: true,
@@ -102,34 +94,12 @@ async function checkAndConcludePedido(pedidoVendaId: string) {
         data:  { status: "CONCLUIDO", dataConclusao: hoje },
       });
       console.log(`[Minutas] PedidoVenda ${pedidoVendaId} concluído automaticamente.`);
-
-      // Venda agendada: a conta a receber é gerada AO ENTREGAR (totalmente).
-      // Nasce EM ABERTO (recebimento futuro) se ainda não houver nenhuma — não
-      // duplica com "Registrar Recebimento"/"Gerar Conta a Receber". Balcão e
-      // intragrupo têm fluxo próprio e ficam de fora.
-      const valorTotal = parseFloat(pedido.valorTotal.toString());
-      if (
-        pedido.modalidade === "AGENDADA" &&
-        !pedido.intragrupo &&
-        pedido._count.contasReceber === 0 &&
-        valorTotal > 0
-      ) {
-        const numeroCR = generateDocNumber("CR", await proximaSequenciaDaEmpresa(pedido.empresaId, "CR"));
-        await prisma.contaReceber.create({
-          data: {
-            empresaId: pedido.empresaId,
-            numero: numeroCR,
-            clienteId: pedido.clienteId,
-            pedidoVendaId: pedido.id,
-            descricao: `Faturamento pedido ${pedido.numero} (entrega concluída)`,
-            valorOriginal: valorTotal,
-            dataVencimento: hoje,
-            status: "ABERTA",
-          },
-        });
-        console.log(`[Minutas] ContaReceber ${numeroCR} gerada na entrega do ${pedido.numero}.`);
-      }
     }
+
+    // A entrega mudou → recomputa os status (entrega + financeiro) do pedido.
+    // (O contas a receber é gerado na CONFIRMAÇÃO, conforme a condição de
+    // pagamento — não mais na entrega.)
+    await recomputarStatusPedido(prisma, pedidoVendaId);
   } catch (err) {
     // Não propaga — a conclusão do pedido é secundária, não deve derrubar o PATCH da minuta
     console.error("[checkAndConcludePedido]", err);
@@ -522,7 +492,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   try {
     const minuta = await prisma.minuta.findUnique({
       where: { id: params.id },
-      select: { id: true, numero: true, status: true },
+      select: { id: true, numero: true, status: true, pedidoVendaId: true },
     });
     if (!minuta) return NextResponse.json({ error: "Minuta não encontrada" }, { status: 404 });
 
@@ -572,6 +542,9 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
         const [itemId, localId] = key.split("|");
         await recalcularSaldos(tx, itemId, localId, null);
       }
+
+      // 5) A entrega mudou → recomputa os status do pedido.
+      if (minuta.pedidoVendaId) await recomputarStatusPedido(tx, minuta.pedidoVendaId);
     });
 
     return NextResponse.json({ ok: true });

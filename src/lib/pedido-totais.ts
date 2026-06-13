@@ -100,3 +100,57 @@ export async function recalcPedidoValorTotal(tx: Prisma.TransactionClient, pedid
     data: { valorProdutos, valorTotal },
   });
 }
+
+/**
+ * Recalcula e PERSISTE as duas dimensões do pedido:
+ *  • statusEntrega   — das minutas ENTREGUE vs. quantidade pedida;
+ *  • statusFinanceiro— das contas a receber (ignora canceladas).
+ * Aceita o client da transação (ou o prisma global). Chamar sempre que uma
+ * minuta ou uma conta a receber do pedido mudar.
+ */
+export async function recomputarStatusPedido(
+  client: Prisma.TransactionClient,
+  pedidoVendaId: string,
+): Promise<void> {
+  const pedido = await client.pedidoVenda.findUnique({
+    where: { id: pedidoVendaId },
+    select: {
+      itens: {
+        select: {
+          quantidade: true,
+          minutaItens: { where: { minuta: { status: "ENTREGUE" } }, select: { quantidade: true } },
+        },
+      },
+      contasReceber: {
+        where: { status: { not: "CANCELADA" } },
+        select: { valorOriginal: true, valorPago: true },
+      },
+    },
+  });
+  if (!pedido) return;
+
+  // Entrega
+  let algumEntregue = false;
+  const todosEntregues = pedido.itens.length > 0 && pedido.itens.every((it) => {
+    const pedida = decimalToNumber(it.quantidade);
+    const entregue = it.minutaItens.reduce((s, mi) => s + decimalToNumber(mi.quantidade), 0);
+    if (entregue > 0) algumEntregue = true;
+    return entregue >= pedida;
+  });
+  const statusEntrega = todosEntregues ? "ENTREGUE" : algumEntregue ? "PARCIAL" : "PENDENTE";
+
+  // Financeiro
+  const titulos = pedido.contasReceber.length;
+  const total = pedido.contasReceber.reduce((s, c) => s + decimalToNumber(c.valorOriginal), 0);
+  const pago = pedido.contasReceber.reduce((s, c) => s + decimalToNumber(c.valorPago), 0);
+  const statusFinanceiro =
+    titulos === 0 ? "NAO_FATURADO"
+    : pago >= total && total > 0 ? "RECEBIDO"
+    : pago > 0 ? "PARCIAL"
+    : "A_RECEBER";
+
+  await client.pedidoVenda.update({
+    where: { id: pedidoVendaId },
+    data: { statusEntrega, statusFinanceiro },
+  });
+}

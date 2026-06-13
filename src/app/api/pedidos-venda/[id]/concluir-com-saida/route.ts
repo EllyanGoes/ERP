@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
+import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { z } from "zod";
 
@@ -148,6 +149,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         });
       }
 
+      await recomputarStatusPedido(tx, pedido.id);
       return { minuta };
     });
 

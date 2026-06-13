@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { proximaSequenciaDaEmpresa, contaCaixaIdDaEmpresa } from "@/lib/empresa";
+import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { generateDocNumber } from "@/lib/utils";
 import { z } from "zod";
 
@@ -135,6 +136,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         await tx.pedidoVenda.update({ where: { id: pedido.id }, data: { status: "EM_AGENDAMENTO" } });
       }
 
+      await recomputarStatusPedido(tx, pedido.id);
       return novaConta;
     });
 

@@ -166,6 +166,7 @@ model CondicaoPagamento {
   ativo             Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  pedidosVenda      PedidoVenda[]
 }
 
 model ConferenciaCompra {
@@ -1109,6 +1110,11 @@ model PedidoVenda {
   vendedorId        String?
   modalidade        String            @default("AGENDADA") // BALCAO (retirada/PDV) | AGENDADA (entrega via minutas)
   status            StatusPedidoVenda @default(ORCAMENTO)
+  // Duas dimensões independentes do pedido (derivadas, mas persistidas p/ filtro):
+  //  • entrega   → minutas (Pendente/Parcial/Entregue)
+  //  • financeiro→ contas a receber, guiado pela condição de pagamento
+  statusEntrega    StatusEntregaPedido    @default(PENDENTE)
+  statusFinanceiro StatusFinanceiroPedido @default(NAO_FATURADO)
   dataEmissao       DateTime          @default(now())
   dataEntrega       DateTime?
   dataConclusao     DateTime?
@@ -1124,6 +1130,7 @@ model PedidoVenda {
   valorFrete        Decimal           @default(0) @db.Decimal(15, 2)
   valorTotal        Decimal           @default(0) @db.Decimal(15, 2)
   condicaoPagamento String?
+  condicaoPagamentoId String?
   formaPagamento    String?
   observacoes       String?
   createdAt         DateTime          @default(now())
@@ -1131,6 +1138,7 @@ model PedidoVenda {
   contasReceber     ContaReceber[]
   espelhoCompra     PedidoCompra?     @relation("EspelhoIntragrupo")
   cliente           Cliente           @relation(fields: [clienteId], references: [id])
+  condicaoPagamentoRef CondicaoPagamento? @relation(fields: [condicaoPagamentoId], references: [id])
   tabelaPreco       TabelaPreco?      @relation(fields: [tabelaPrecoId], references: [id])
   vendedor          Vendedor?         @relation(fields: [vendedorId], references: [id])
   itens             PedidoVendaItem[]
@@ -1868,6 +1876,21 @@ enum StatusPedidoVenda {
   EM_AGENDAMENTO
   CONCLUIDO
   CANCELADO
+}
+
+// Dimensão ENTREGA do pedido (derivada das minutas ENTREGUE vs. qty pedida).
+enum StatusEntregaPedido {
+  PENDENTE
+  PARCIAL
+  ENTREGUE
+}
+
+// Dimensão FINANCEIRA do pedido (derivada das contas a receber).
+enum StatusFinanceiroPedido {
+  NAO_FATURADO
+  A_RECEBER
+  PARCIAL
+  RECEBIDO
 }
 
 enum StatusRespostaFornecedor {
