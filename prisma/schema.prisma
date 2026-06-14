@@ -162,6 +162,10 @@ model CondicaoPagamento {
   numeroParcelas    Int                 @default(1)
   prazoInicial      Int                 @default(0)
   intervaloParcelas Int                 @default(30)
+  // Dias de vencimento de cada parcela a partir da emissão, ex.: "15,30,45" ou
+  // irregular "30,45,90". Quando preenchido, define o nº e os prazos das parcelas
+  // (sobrepõe numeroParcelas/prazoInicial/intervaloParcelas).
+  diasParcelas      String?
   // "Faturado / a combinar": gera o título SEM data de vencimento prevista.
   semVencimento     Boolean             @default(false)
   descontoVista     Decimal?            @db.Decimal(5, 2)

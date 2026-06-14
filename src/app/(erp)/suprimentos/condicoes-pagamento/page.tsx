@@ -16,6 +16,7 @@ interface Condicao {
   numeroParcelas: number;
   prazoInicial: number;
   intervaloParcelas: number;
+  diasParcelas: string | null;
   semVencimento: boolean;
   ativo: boolean;
 }
@@ -26,6 +27,7 @@ type FormState = {
   numeroParcelas: string;
   prazoInicial: string;
   intervaloParcelas: string;
+  diasParcelas: string;
   semVencimento: boolean;
 };
 
@@ -35,11 +37,19 @@ const empty = (): FormState => ({
   numeroParcelas: "1",
   prazoInicial: "0",
   intervaloParcelas: "30",
+  diasParcelas: "",
   semVencimento: false,
 });
 
+function diasList(s?: string | null): number[] {
+  if (!s) return [];
+  return s.split(/[,;/\s]+/).map((x) => parseInt(x.trim(), 10)).filter((n) => Number.isFinite(n) && n >= 0).sort((a, b) => a - b);
+}
+
 function resumoCondicao(c: Condicao): string {
   if (c.semVencimento) return "Sem vencimento previsto";
+  const dias = diasList(c.diasParcelas);
+  if (dias.length > 0) return dias.length > 1 ? `${dias.length}x · vence em ${dias.join("/")} dias` : `A prazo · ${dias[0]} dias`;
   const n = c.numeroParcelas ?? 1;
   const prazo = c.prazoInicial ?? 0;
   if (n > 1) return `${n}x · 1ª em ${prazo}d, a cada ${c.intervaloParcelas ?? 30}d`;
@@ -70,6 +80,7 @@ export default function CondicoesPagamentoPage() {
       numeroParcelas: String(r.numeroParcelas ?? 1),
       prazoInicial: String(r.prazoInicial ?? 0),
       intervaloParcelas: String(r.intervaloParcelas ?? 30),
+      diasParcelas: r.diasParcelas ?? "",
       semVencimento: r.semVencimento ?? false,
     });
     setEditingId(r.id); setError(null);
@@ -233,22 +244,34 @@ function CondicaoForm({ form, setForm, saving, error, onSave, onCancel, isNew }:
 
         {/* Parcelamento / prazo — só faz sentido quando há vencimento */}
         {!form.semVencimento && (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-3">
             <div>
-              <label className="text-xs font-medium text-gray-500 mb-1 block">Nº de parcelas</label>
-              <Input type="number" min="1" value={form.numeroParcelas} onChange={set("numeroParcelas")} />
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Dias das parcelas</label>
+              <Input value={form.diasParcelas} onChange={set("diasParcelas")} placeholder="Ex.: 15/30/45 ou 30,60,90 (pode ser irregular: 30/45/90)"
+                onKeyDown={(e) => { if (e.key === "Enter") onSave(); if (e.key === "Escape") onCancel(); }} />
+              <p className="text-[11px] text-gray-400 mt-1">
+                Dias de vencimento de cada parcela a partir da emissão. Quando preenchido, define o nº e os prazos das parcelas (sobrepõe os campos abaixo).
+              </p>
             </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 mb-1 block">Prazo 1ª (dias)</label>
-              <Input type="number" min="0" value={form.prazoInicial} onChange={set("prazoInicial")} />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 mb-1 block">Intervalo (dias)</label>
-              <Input type="number" min="0" value={form.intervaloParcelas} onChange={set("intervaloParcelas")} />
-            </div>
-            <p className="col-span-3 text-[11px] text-gray-400">
-              À vista: 1 parcela, prazo 0 (vence no dia). A prazo: prazo da 1ª parcela em dias. Parcelado: nº de parcelas e o intervalo entre elas.
-            </p>
+            {diasList(form.diasParcelas).length === 0 && (
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Nº de parcelas</label>
+                  <Input type="number" min="1" value={form.numeroParcelas} onChange={set("numeroParcelas")} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Prazo 1ª (dias)</label>
+                  <Input type="number" min="0" value={form.prazoInicial} onChange={set("prazoInicial")} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Intervalo (dias)</label>
+                  <Input type="number" min="0" value={form.intervaloParcelas} onChange={set("intervaloParcelas")} />
+                </div>
+                <p className="col-span-3 text-[11px] text-gray-400">
+                  À vista: 1 parcela, prazo 0. A prazo: prazo da 1ª em dias. Parcelado uniforme: nº de parcelas e intervalo.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

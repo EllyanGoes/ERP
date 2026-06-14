@@ -10,6 +10,7 @@ const schema = z.object({
   numeroParcelas: z.coerce.number().int().min(1).default(1),
   prazoInicial: z.coerce.number().int().min(0).default(0),
   intervaloParcelas: z.coerce.number().int().min(0).default(30),
+  diasParcelas: z.string().optional().nullable(),
   semVencimento: z.boolean().default(false),
   descontoVista: z.coerce.number().min(0).max(100).optional().nullable(),
 });
