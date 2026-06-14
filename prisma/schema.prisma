@@ -166,6 +166,9 @@ model CondicaoPagamento {
   // irregular "30,45,90". Quando preenchido, define o nº e os prazos das parcelas
   // (sobrepõe numeroParcelas/prazoInicial/intervaloParcelas).
   diasParcelas      String?
+  // Percentual de cada parcela sobre o total, ex.: "50,50" (entrada+saldo) ou
+  // "50,30,20". Quando preenchido, cada parcela usa seu % (senão divide igual).
+  percentuaisParcelas String?
   // "Faturado / a combinar": gera o título SEM data de vencimento prevista.
   semVencimento     Boolean             @default(false)
   descontoVista     Decimal?            @db.Decimal(5, 2)

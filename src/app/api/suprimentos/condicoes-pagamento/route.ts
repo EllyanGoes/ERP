@@ -11,6 +11,7 @@ const schema = z.object({
   prazoInicial: z.coerce.number().int().min(0).default(0),
   intervaloParcelas: z.coerce.number().int().min(0).default(30),
   diasParcelas: z.string().optional().nullable(),
+  percentuaisParcelas: z.string().optional().nullable(),
   semVencimento: z.boolean().default(false),
   descontoVista: z.coerce.number().min(0).max(100).optional().nullable(),
 });

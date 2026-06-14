@@ -17,6 +17,7 @@ interface Condicao {
   prazoInicial: number;
   intervaloParcelas: number;
   diasParcelas: string | null;
+  percentuaisParcelas: string | null;
   semVencimento: boolean;
   ativo: boolean;
 }
@@ -28,6 +29,7 @@ type FormState = {
   prazoInicial: string;
   intervaloParcelas: string;
   diasParcelas: string;
+  percentuaisParcelas: string;
   semVencimento: boolean;
 };
 
@@ -38,17 +40,20 @@ const empty = (): FormState => ({
   prazoInicial: "0",
   intervaloParcelas: "30",
   diasParcelas: "",
+  percentuaisParcelas: "",
   semVencimento: false,
 });
 
-function diasList(s?: string | null): number[] {
+function numsList(s?: string | null): number[] {
   if (!s) return [];
-  return s.split(/[,;/\s]+/).map((x) => parseInt(x.trim(), 10)).filter((n) => Number.isFinite(n) && n >= 0).sort((a, b) => a - b);
+  return s.split(/[,;/\s]+/).map((x) => parseFloat(x.trim().replace(",", "."))).filter((n) => Number.isFinite(n) && n >= 0);
 }
 
 function resumoCondicao(c: Condicao): string {
   if (c.semVencimento) return "Sem vencimento previsto";
-  const dias = diasList(c.diasParcelas);
+  const dias = numsList(c.diasParcelas).map((d) => Math.round(d));
+  const pcts = numsList(c.percentuaisParcelas);
+  if (pcts.length > 0) return `${pcts.length}x · ${pcts.join("/")}%${dias.length ? ` em ${dias.join("/")}d` : ""}`;
   if (dias.length > 0) return dias.length > 1 ? `${dias.length}x · vence em ${dias.join("/")} dias` : `A prazo · ${dias[0]} dias`;
   const n = c.numeroParcelas ?? 1;
   const prazo = c.prazoInicial ?? 0;
@@ -81,6 +86,7 @@ export default function CondicoesPagamentoPage() {
       prazoInicial: String(r.prazoInicial ?? 0),
       intervaloParcelas: String(r.intervaloParcelas ?? 30),
       diasParcelas: r.diasParcelas ?? "",
+      percentuaisParcelas: r.percentuaisParcelas ?? "",
       semVencimento: r.semVencimento ?? false,
     });
     setEditingId(r.id); setError(null);
@@ -253,7 +259,15 @@ function CondicaoForm({ form, setForm, saving, error, onSave, onCancel, isNew }:
                 Dias de vencimento de cada parcela a partir da emissão. Quando preenchido, define o nº e os prazos das parcelas (sobrepõe os campos abaixo).
               </p>
             </div>
-            {diasList(form.diasParcelas).length === 0 && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Percentuais das parcelas (%)</label>
+              <Input value={form.percentuaisParcelas} onChange={set("percentuaisParcelas")} placeholder="Ex.: 50/50 (entrada + saldo) ou 50/30/20"
+                onKeyDown={(e) => { if (e.key === "Enter") onSave(); if (e.key === "Escape") onCancel(); }} />
+              <p className="text-[11px] text-gray-400 mt-1">
+                % de cada parcela sobre o total (ex.: &quot;50% na entrada&quot; → dias <b>0/30</b> e percentuais <b>50/50</b>). Vazio = parcelas iguais.
+              </p>
+            </div>
+            {numsList(form.diasParcelas).length === 0 && numsList(form.percentuaisParcelas).length === 0 && (
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs font-medium text-gray-500 mb-1 block">Nº de parcelas</label>
