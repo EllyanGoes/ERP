@@ -4,7 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getItensPendentesEntrega, recomputarStatusPedido } from "@/lib/pedido-totais";
 import { gerarContasReceberDoPedido } from "@/lib/contas-receber";
-import { espelharConfirmacaoVenda, cancelarEspelhoVenda, espelharEntregaTriangular, cancelarEntregaTriangular } from "@/lib/intragrupo";
+import { espelharConfirmacaoVenda, cancelarEspelhoVenda, cancelarEntregaTriangular } from "@/lib/intragrupo";
 import { z } from "zod";
 
 const schema = z.object({
@@ -95,8 +95,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (parsed.data.status === "CONFIRMADO") await espelharConfirmacaoVenda(params.id);
   if (parsed.data.status === "CANCELADO") await cancelarEspelhoVenda(params.id);
 
-  // Venda à ordem (triangular): cria/cancela o pedido de entrega na empresa de origem
-  if (parsed.data.status === "CONFIRMADO") await espelharEntregaTriangular(params.id);
+  // Venda à ordem (triangular): a entrega passou a ser pela minuta da própria
+  // venda, que gera os movimentos virtuais (saída na origem + entrada/saída na
+  // empresa da venda) — ver src/lib/venda-ordem.ts. Não criamos mais o pedido de
+  // entrega na origem; o cancelamento ainda zera pedidos de entrega legados.
   if (parsed.data.status === "CANCELADO") await cancelarEntregaTriangular(params.id);
 
   return NextResponse.json({ data: updated });

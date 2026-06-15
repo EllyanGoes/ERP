@@ -7,6 +7,7 @@ import { recalcularSaldos } from "@/lib/estoque-saldos";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { espelharEntregaMinuta } from "@/lib/intragrupo";
+import { gerarMovimentosTriangulares } from "@/lib/venda-ordem";
 
 // Lançado dentro das transações quando outra requisição mexeu na minuta no meio
 // do caminho (duplo clique, duas abas). Aborta a transação e vira HTTP 409.
@@ -134,9 +135,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       include: {
         itens: true,
         localEstoque: { select: { id: true, nome: true } },
+        pedidoVenda: { select: { estoqueOrigemEmpresaId: true } },
       },
     });
     if (!minuta) return NextResponse.json({ error: "Minuta não encontrada" }, { status: 404 });
+
+    // Venda à ordem (triangular): a baixa normal do estoque é PULADA; na entrega
+    // (ENTREGUE) geramos os movimentos virtuais — ver src/lib/venda-ordem.ts.
+    const triangular = !!minuta.pedidoVenda?.estoqueOrigemEmpresaId;
 
     // Editar uma minuta já ENTREGUE (entrega/retirada concluída) é privilégio de
     // ADMIN — reconcilia estoque já baixado. Usuários comuns não alteram entregas
@@ -184,7 +190,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // ── SAIU_PARA_ENTREGA → gera SAÍDA no estoque ─────────────────────────────
     // Apenas a ação rápida do detalhe (só `status`). Pela tela de edição (com `itens`)
     // a saída é tratada na reconciliação abaixo, evitando baixa em dobro.
-    if (newStatus === "SAIU_PARA_ENTREGA" && !Array.isArray(body.itens)) {
+    if (newStatus === "SAIU_PARA_ENTREGA" && !Array.isArray(body.itens) && !triangular) {
       const localEstoqueId = body.localEstoqueId || minuta.localEstoqueId;
       if (!localEstoqueId) {
         return NextResponse.json(
@@ -299,7 +305,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       // A reconciliação abaixo reverte as movimentações atuais da minuta e reaplica
       // a saída conforme o status efetivo (newOut), atualizando as linhas no lugar
       // (sem lançar "Ajuste"). Saiu/Entregue → baixa; Pendente/Cancelada → devolve.
-      const newOut = effectiveStatus === "SAIU_PARA_ENTREGA" || effectiveStatus === "ENTREGUE";
+      // Venda à ordem: não baixa o estoque (inexistente) da empresa da venda —
+      // os movimentos virtuais são gerados na entrega (gerarMovimentosTriangulares).
+      const newOut = !triangular && (effectiveStatus === "SAIU_PARA_ENTREGA" || effectiveStatus === "ENTREGUE");
       if (newOut && !newLocal) {
         return NextResponse.json({ error: "Informe o Local de Estoque para registrar a saída" }, { status: 400 });
       }
@@ -452,6 +460,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (minuta.status === "ENTREGUE" || effectiveStatus === "ENTREGUE") {
         await checkAndConcludePedido(minuta.pedidoVendaId);
         await espelharEntregaMinuta(params.id); // intragrupo: entrada na compradora
+        if (triangular) await gerarMovimentosTriangulares(params.id); // venda à ordem
       }
 
       return NextResponse.json({ data: updated });
@@ -468,6 +477,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (newStatus === "ENTREGUE") {
       await checkAndConcludePedido(minuta.pedidoVendaId);
       await espelharEntregaMinuta(params.id); // intragrupo: entrada na compradora
+      if (triangular) await gerarMovimentosTriangulares(params.id); // venda à ordem
     }
 
     return NextResponse.json({ data: updated });
