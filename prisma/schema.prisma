@@ -1020,6 +1020,10 @@ model MovimentacaoEstoque {
   ordemProducao     OrdemProducao?          @relation(fields: [ordemProducaoId], references: [id])
   unidade           Unidade?                @relation(fields: [unidadeId], references: [id])
   clienteDono       Cliente?                @relation("MovimentacoesTerceiros", fields: [clienteDonoId], references: [id])
+  // Venda à ordem (triangular): liga os 3 movimentos virtuais (saída origem +
+  // entrada/saída na empresa da venda) ao pedido de venda que os originou.
+  vendaOrdemId      String?
+  vendaOrdem        PedidoVenda?            @relation("MovimentacoesVendaOrdem", fields: [vendaOrdemId], references: [id])
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -1029,6 +1033,7 @@ model MovimentacaoEstoque {
   @@index([tipo])
   @@index([clienteDonoId])
   @@index([ordemProducaoId])
+  @@index([vendaOrdemId])
   @@index([empresaId])
 }
 
@@ -1220,6 +1225,7 @@ model PedidoVenda {
   itens                  PedidoVendaItem[]
   pagamentos             PedidoVendaPagamento[]
   minutas                Minuta[]
+  movimentacoesVendaOrdem MovimentacaoEstoque[] @relation("MovimentacoesVendaOrdem")
 
   empresa              Empresa       @relation("PedidoVendaEmpresa", fields: [empresaId], references: [id])
   estoqueOrigemEmpresa Empresa?      @relation("PedidoVendaEstoqueOrigem", fields: [estoqueOrigemEmpresaId], references: [id])
