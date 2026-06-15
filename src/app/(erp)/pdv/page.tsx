@@ -49,13 +49,15 @@ function hojeInput() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// Data (Date|string) → "YYYY-MM-DD" no fuso de SP, para o <input type=date>.
+// Data (Date|string) → "YYYY-MM-DD" para o <input type=date>. Os campos de data
+// pura (ex.: dataEmissao) são gravados como meia-noite UTC, então lê-se em UTC
+// para não recuar um dia em fusos negativos (SP = UTC-3).
 function dataInput(value: Date | string | null | undefined) {
   if (!value) return hojeInput();
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return hojeInput();
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit",
   }).format(d);
 }
 
