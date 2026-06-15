@@ -59,8 +59,11 @@ export function calcularParcelas(
   // no intervalo fixo (prazoInicial + i·intervalo).
   const offset = (i: number) => (i < dias.length ? dias[i] : prazoInicial + i * intervalo);
 
-  const baseSP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(dataBase));
-  const emissao = new Date(`${baseSP}T00:00:00.000Z`);
+  // Os campos de data do projeto são datas puras gravadas como meia-noite UTC
+  // (e formatadas em UTC). Ancoramos o vencimento na DATA UTC da base — não no
+  // fuso de SP, que jogaria a meia-noite UTC para o dia anterior.
+  const d = new Date(dataBase);
+  const emissao = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   const grupoId = n > 1 ? crypto.randomUUID() : null;
 
   // Valor de cada parcela: por percentual (se informado) ou divisão igual. A

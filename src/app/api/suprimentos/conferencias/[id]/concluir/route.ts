@@ -143,13 +143,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     const finalStatus = hasDivergencia ? "DIVERGENCIA" : "CONCLUIDA";
+    // Data da conclusão como data pura (dia de hoje em Brasília, meia-noite UTC) —
+    // alinhada ao padrão de exibição (formatDate em UTC) p/ não desviar o dia.
+    const hojeSP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    const hojeUTC = new Date(`${hojeSP}T00:00:00.000Z`);
 
     // Update conferencia status
     const updatedConferencia = await tx.conferenciaCompra.update({
       where: { id: params.id },
       data: {
         status: finalStatus,
-        dataConferencia: new Date(),
+        dataConferencia: hojeUTC,
         ...(responsavel ? { responsavel } : {}),
       },
       include: {
@@ -324,7 +328,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               pedidoCompraId: pc.id,
               numeroPedido: pc.numero,
               valorTotal,
-              dataBase: conferencia.dtEmissao ?? new Date(),
+              dataBase: conferencia.dtEmissao ?? hojeUTC,
               naturezaFinanceiraId: conferencia.naturezaFinanceiraId,
             }, condicao);
             await recomputarStatusFinanceiroCompra(tx, pc.id);
