@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Plus, CheckCircle2, AlertCircle, X, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { formatBRL, formatDate, cn } from "@/lib/utils";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useSession } from "@/lib/session-context";
 
 type Cliente = { id: string; razaoSocial: string; nomeFantasia: string | null };
@@ -180,33 +181,25 @@ export default function ComodatoClient({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-              <select
+              <ComboboxWithCreate
                 value={clienteId}
-                onChange={(e) => setClienteId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              >
-                <option value="">Selecione...</option>
-                {clientes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nomeFantasia || c.razaoSocial}
-                  </option>
-                ))}
-              </select>
+                onChange={setClienteId}
+                placeholder="Selecione..."
+                noneLabel="Selecione"
+                triggerClassName="h-10 rounded-lg"
+                options={clientes.map((c) => ({ value: c.id, label: c.nomeFantasia || c.razaoSocial }))}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Item em Comodato</label>
-              <select
+              <ComboboxWithCreate
                 value={itemId}
-                onChange={(e) => onItemChange(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              >
-                <option value="">Selecione...</option>
-                {itens.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.codigo} — {i.descricao}
-                  </option>
-                ))}
-              </select>
+                onChange={onItemChange}
+                placeholder="Selecione..."
+                noneLabel="Selecione"
+                triggerClassName="h-10 rounded-lg"
+                options={itens.map((i) => ({ value: i.id, label: `${i.codigo} — ${i.descricao}` }))}
+              />
               {itens.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">
                   Nenhum item marcado como comodato. Marque a opção &quot;Comodato&quot; no cadastro do item.
