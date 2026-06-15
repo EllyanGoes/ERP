@@ -6,6 +6,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -174,10 +175,8 @@ function NovaContaDialog({ bancos, onDone }: { bancos: Banco[]; onDone: () => vo
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Banco</Label>
-              <select value={bancoId} onChange={(e) => setBancoId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
-                <option value="">— Nenhum —</option>
-                {bancos.map((b) => <option key={b.id} value={b.id}>{b.nome}</option>)}
-              </select>
+              <ComboboxWithCreate value={bancoId} onChange={setBancoId} placeholder="— Nenhum —" noneLabel="Nenhum" triggerClassName="h-10 rounded-lg"
+                options={bancos.map((b) => ({ value: b.id, label: b.nome }))} />
             </div>
             <div className="space-y-1.5">
               <Label>Tipo</Label>
@@ -250,17 +249,13 @@ function TransferenciaDialog({ contas, onDone }: { contas: Conta[]; onDone: () =
           {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>}
           <div className="space-y-1.5">
             <Label>De (origem)</Label>
-            <select value={contaOrigemId} onChange={(e) => setContaOrigemId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
-              <option value="">Selecione...</option>
-              {contas.map((c) => <option key={c.id} value={c.id}>{c.nome} ({formatBRL(c.saldoAtual)})</option>)}
-            </select>
+            <ComboboxWithCreate value={contaOrigemId} onChange={setContaOrigemId} placeholder="Selecione..." noneLabel="Selecione" triggerClassName="h-10 rounded-lg"
+              options={contas.map((c) => ({ value: c.id, label: `${c.nome} (${formatBRL(c.saldoAtual)})` }))} />
           </div>
           <div className="space-y-1.5">
             <Label>Para (destino)</Label>
-            <select value={contaDestinoId} onChange={(e) => setContaDestinoId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
-              <option value="">Selecione...</option>
-              {contas.map((c) => <option key={c.id} value={c.id}>{c.nome} ({formatBRL(c.saldoAtual)})</option>)}
-            </select>
+            <ComboboxWithCreate value={contaDestinoId} onChange={setContaDestinoId} placeholder="Selecione..." noneLabel="Selecione" triggerClassName="h-10 rounded-lg"
+              options={contas.map((c) => ({ value: c.id, label: `${c.nome} (${formatBRL(c.saldoAtual)})` }))} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
