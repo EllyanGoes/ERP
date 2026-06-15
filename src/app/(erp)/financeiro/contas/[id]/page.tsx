@@ -75,7 +75,7 @@ export default function ExtratoContaPage() {
 
       autoTable(doc, {
         startY: 31,
-        head: [["Data", "Descrição", "Pedido", "Categoria", "Valor", "Saldo"]],
+        head: [["Data", "Descrição", "Pedido", "Categoria", "Entradas", "Saídas", "Saldo"]],
         body: conta.extrato.map((l) => {
           const v = Number(l.valor);
           return [
@@ -83,14 +83,15 @@ export default function ExtratoContaPage() {
             l.descricao,
             l.contaReceber?.pedidoVenda?.numero ?? "",
             l.categoriaFinanceira?.nome ?? "",
-            `${v >= 0 ? "+" : "-"}${formatBRL(Math.abs(v))}`,
+            v > 0 ? formatBRL(v) : "",
+            v < 0 ? formatBRL(-v) : "",
             formatBRL(l.saldoCorrente),
           ];
         }),
         styles: { fontSize: 8, cellPadding: 1.4, textColor: [15, 23, 42] },
         headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold" },
         alternateRowStyles: { fillColor: [248, 250, 252] },
-        columnStyles: { 0: { cellWidth: 20 }, 2: { cellWidth: 20 }, 4: { halign: "right" }, 5: { halign: "right", fontStyle: "bold" } },
+        columnStyles: { 0: { cellWidth: 20 }, 2: { cellWidth: 20 }, 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right", fontStyle: "bold" } },
         margin: { left: M, right: M },
       });
 
@@ -172,7 +173,8 @@ export default function ExtratoContaPage() {
                       <th className="px-6 py-3 font-medium">Data</th>
                       <th className="px-6 py-3 font-medium">Descrição</th>
                       <th className="px-6 py-3 font-medium">Categoria</th>
-                      <th className="px-6 py-3 font-medium text-right">Valor</th>
+                      <th className="px-6 py-3 font-medium text-right">Entradas</th>
+                      <th className="px-6 py-3 font-medium text-right">Saídas</th>
                       <th className="px-6 py-3 font-medium text-right">Saldo</th>
                     </tr>
                   </thead>
@@ -207,8 +209,11 @@ export default function ExtratoContaPage() {
                             )}
                           </td>
                           <td className="px-6 py-3 text-gray-500">{l.categoriaFinanceira?.nome ?? "—"}</td>
-                          <td className={`px-6 py-3 text-right tabular-nums font-medium ${v >= 0 ? "text-emerald-700" : "text-red-600"}`}>
-                            {v >= 0 ? "+" : "−"}{formatBRL(Math.abs(v))}
+                          <td className="px-6 py-3 text-right tabular-nums font-medium text-emerald-700">
+                            {v > 0 ? formatBRL(v) : "—"}
+                          </td>
+                          <td className="px-6 py-3 text-right tabular-nums font-medium text-red-600">
+                            {v < 0 ? formatBRL(-v) : "—"}
                           </td>
                           <td className="px-6 py-3 text-right tabular-nums font-semibold text-gray-900">{formatBRL(l.saldoCorrente)}</td>
                         </tr>
