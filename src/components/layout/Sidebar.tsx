@@ -115,7 +115,7 @@ const mainModules: Module[] = [
         ],
       },
       {
-        kind: "Almoxarifado",
+        kind: "Estoque",
         items: [
           { href: "/suprimentos/produtos",       label: "Produtos",           icon: Package },
           { href: "/suprimentos/tipos-produto",  label: "Tipos de Produto",   icon: Tag },
@@ -165,7 +165,7 @@ const mainModules: Module[] = [
   },
   {
     id: "almoxarifado",
-    label: "Almoxarifado",
+    label: "Estoque",
     icon: Warehouse,
     sections: [
       {
@@ -242,7 +242,12 @@ const mainModules: Module[] = [
           { href: "/financeiro/agenda",    label: "Agenda Financeira", icon: CalendarClock },
           { href: "/financeiro/recorrencias", label: "Recorrências",   icon: Repeat },
           { href: "/financeiro/conciliacao", label: "Conciliação (OFX)", icon: FileCheck2 },
-          { href: "/fluxo-caixa",          label: "Fluxo de Caixa",    icon: BarChart3 },
+        ],
+      },
+      {
+        kind: "Relatórios",
+        items: [
+          { href: "/fluxo-caixa", label: "Fluxo de Caixa", icon: BarChart3 },
         ],
       },
     ],
