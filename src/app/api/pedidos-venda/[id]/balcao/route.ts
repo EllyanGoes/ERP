@@ -253,7 +253,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             data: {
               empresaId: pedido.empresaId,
               tipo: "RECEITA",
-              descricao: `Recebimento ${conta.numero} — venda balcão ${pedido.numero}${linhasReais.length > 1 ? ` (${l.forma})` : ""}`,
+              descricao: `Recebimento — venda balcão${linhasReais.length > 1 ? ` (${l.forma})` : ""}`,
               valor: l.valor,
               dataLancamento: hoje,
               contaReceberId: conta.id,

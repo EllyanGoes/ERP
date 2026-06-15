@@ -66,6 +66,8 @@ export const lancamentoFinanceiroSchema = z.object({
   descricao: z.string().min(2, "Descrição é obrigatória"),
   valor: z.coerce.number().min(0.01, "Valor inválido"),
   dataLancamento: z.string().min(1, "Data é obrigatória"),
+  dataVencimento: z.string().optional().nullable(),
+  dataCompetencia: z.string().optional().nullable(),
   contaBancariaId: z.string().min(1, "Conta bancária é obrigatória"),
   categoriaFinanceiraId: z.string().optional().nullable(),
   centroCustoId: z.string().optional().nullable(),

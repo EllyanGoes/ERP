@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/sheet";
 import { Loader2, TrendingDown, TrendingUp, ExternalLink } from "lucide-react";
 import Link from "next/link";
+import RelatorioAnual from "@/components/fluxo-caixa/RelatorioAnual";
 
 type DayEntry = {
   data: string;
@@ -60,6 +61,7 @@ type DayDetail = {
 };
 
 export default function FluxoCaixaPage() {
+  const [view, setView] = useState<"projecao" | "relatorio">("projecao");
   const [data, setData] = useState<DayEntry[]>([]);
   const [periodo, setPeriodo] = useState<"7" | "30" | "90">("30");
 
@@ -140,6 +142,16 @@ export default function FluxoCaixaPage() {
         breadcrumbs={[{ label: "Financeiro" }, { label: "Fluxo de Caixa" }]}
       />
       <div className="px-8 pb-8 space-y-6">
+        {/* View tabs */}
+        <div className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
+          <Button variant={view === "projecao" ? "default" : "ghost"} size="sm" onClick={() => setView("projecao")}>Projeção diária</Button>
+          <Button variant={view === "relatorio" ? "default" : "ghost"} size="sm" onClick={() => setView("relatorio")}>Relatório anual</Button>
+        </div>
+
+        {view === "relatorio" ? (
+          <RelatorioAnual />
+        ) : (
+        <>
         {/* Period selector */}
         <div className="flex items-center gap-2">
           {(["7", "30", "90"] as const).map((p) => (
@@ -270,6 +282,8 @@ export default function FluxoCaixaPage() {
             </div>
           </CardContent>
         </Card>
+        </>
+        )}
       </div>
 
       {/* Drill-down Sheet */}

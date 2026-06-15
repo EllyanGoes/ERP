@@ -25,6 +25,9 @@ type ExtratoLinha = {
   dataLancamento: string;
   saldoCorrente: number;
   favorecido: string | null;
+  observacoes: string | null;
+  dataVencimento: string | null;
+  dataCompetencia: string | null;
   categoriaFinanceira: { id: string; nome: string } | null;
   categoriaFinanceiraId: string | null;
   contaReceber: { id: string; numero: string; cliente: EmpresaContato | null; pedidoVenda: { id: string; numero: string } | null } | null;
@@ -37,6 +40,15 @@ function contatoLinha(l: ExtratoLinha): string {
     (l.contaPagar?.fornecedor && (l.contaPagar.fornecedor.nomeFantasia || l.contaPagar.fornecedor.razaoSocial)) ||
     "—"
   );
+}
+
+// O número do título e do pedido já aparecem como chips na linha; remove-os da
+// descrição para não repetir a mesma informação.
+function descricaoLimpa(l: ExtratoLinha): string {
+  const codigos = [l.contaReceber?.numero, l.contaPagar?.numero, l.contaReceber?.pedidoVenda?.numero].filter(Boolean) as string[];
+  let d = l.descricao;
+  for (const c of codigos) d = d.split(c).join("");
+  return d.replace(/\s{2,}/g, " ").replace(/\s*—\s*$/, "").replace(/^\s*—\s*/, "").trim() || l.descricao;
 }
 type Conta = {
   id: string;
@@ -63,12 +75,19 @@ export default function ExtratoContaPage() {
   const [erroNovo, setErroNovo] = useState("");
   const [novoTipo, setNovoTipo] = useState<"RECEITA" | "DESPESA">("DESPESA");
   const [novoData, setNovoData] = useState(hojeInput());
+  const [novoVencimento, setNovoVencimento] = useState("");
+  const [novoCompetencia, setNovoCompetencia] = useState("");
   const [novoDescricao, setNovoDescricao] = useState("");
   const [novoValor, setNovoValor] = useState("");
   const [novoCategoriaId, setNovoCategoriaId] = useState("");
   const [novoFavorecido, setNovoFavorecido] = useState("");
+  const [novoDetalhamento, setNovoDetalhamento] = useState("");
   const [categorias, setCategorias] = useState<CategoriaOpt[]>([]);
   const [editId, setEditId] = useState<string | null>(null); // null = novo; id = editando avulso
+  // Criação rápida de categoria (+ Adicionar categoria)
+  const [catNovaOpen, setCatNovaOpen] = useState(false);
+  const [catNovaNome, setCatNovaNome] = useState("");
+  const [catSalvando, setCatSalvando] = useState(false);
 
   function carregarCategorias() {
     if (categorias.length === 0) {
@@ -82,8 +101,9 @@ export default function ExtratoContaPage() {
   function abrirNovo() {
     setErroNovo(""); setEditId(null);
     setNovoTipo("DESPESA");
-    setNovoData(hojeInput());
-    setNovoDescricao(""); setNovoValor(""); setNovoCategoriaId(""); setNovoFavorecido("");
+    setNovoData(hojeInput()); setNovoVencimento(""); setNovoCompetencia("");
+    setNovoDescricao(""); setNovoValor(""); setNovoCategoriaId(""); setNovoFavorecido(""); setNovoDetalhamento("");
+    setCatNovaOpen(false); setCatNovaNome("");
     setNovoOpen(true);
     carregarCategorias();
   }
@@ -95,12 +115,36 @@ export default function ExtratoContaPage() {
     setErroNovo(""); setEditId(l.id);
     setNovoTipo(l.tipo === "RECEITA" ? "RECEITA" : "DESPESA");
     setNovoData(String(l.dataLancamento).slice(0, 10));
+    setNovoVencimento(l.dataVencimento ? String(l.dataVencimento).slice(0, 10) : "");
+    setNovoCompetencia(l.dataCompetencia ? String(l.dataCompetencia).slice(0, 10) : "");
     setNovoDescricao(l.descricao);
     setNovoValor(String(Number(l.valor)).replace(".", ","));
     setNovoCategoriaId(l.categoriaFinanceiraId ?? "");
     setNovoFavorecido(l.favorecido ?? "");
+    setNovoDetalhamento(l.observacoes ?? "");
+    setCatNovaOpen(false); setCatNovaNome("");
     setNovoOpen(true);
     carregarCategorias();
+  }
+
+  async function criarCategoriaInline() {
+    const nome = catNovaNome.trim();
+    if (!nome) return;
+    setCatSalvando(true);
+    try {
+      const res = await fetch("/api/financeiro/plano-contas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, tipo: novoTipo }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j.data?.id) {
+        const nova: CategoriaOpt = { id: j.data.id, nome, tipo: novoTipo };
+        setCategorias((p) => [...p, nova]);
+        setNovoCategoriaId(nova.id);
+        setCatNovaOpen(false); setCatNovaNome("");
+      }
+    } finally { setCatSalvando(false); }
   }
 
   async function excluirLancamento() {
@@ -132,9 +176,12 @@ export default function ExtratoContaPage() {
             descricao: novoDescricao.trim(),
             valor: valorNum,
             dataLancamento: novoData,
+            dataVencimento: novoVencimento || null,
+            dataCompetencia: novoCompetencia || null,
             contaBancariaId: params.id,
             categoriaFinanceiraId: novoCategoriaId || null,
             favorecido: novoFavorecido.trim() || null,
+            observacoes: novoDetalhamento.trim() || null,
           }),
         },
       );
@@ -308,7 +355,7 @@ export default function ExtratoContaPage() {
                               {l.tipo === "RECEITA" ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
                                 : l.tipo === "DESPESA" ? <ArrowDownLeft className="w-3.5 h-3.5 text-red-500" />
                                 : <ArrowLeftRight className="w-3.5 h-3.5 text-blue-500" />}
-                              {l.descricao}
+                              {descricaoLimpa(l)}
                             </span>
                             {titulo && <span className="ml-2 font-mono text-xs text-gray-400">{titulo}</span>}
                             {pedido && (
@@ -342,63 +389,132 @@ export default function ExtratoContaPage() {
         )}
       </div>
 
-      {/* Modal Novo Lançamento */}
+      {/* Drawer lateral — Novo / Editar Lançamento */}
       {novoOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !salvando && setNovoOpen(false)}>
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-bold text-gray-800">{editId ? "Editar Lançamento" : "Novo Lançamento"} — {conta?.nome}</h3>
-            {erroNovo && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erroNovo}</p>}
-
-            {/* Tipo: Entrada / Saída */}
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => { setNovoTipo("RECEITA"); setNovoCategoriaId(""); }}
-                className={`h-10 rounded-lg border text-sm font-semibold transition-colors ${novoTipo === "RECEITA" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-gray-300 text-gray-600 hover:border-gray-400"}`}>
-                ↑ Entrada
-              </button>
-              <button type="button" onClick={() => { setNovoTipo("DESPESA"); setNovoCategoriaId(""); }}
-                className={`h-10 rounded-lg border text-sm font-semibold transition-colors ${novoTipo === "DESPESA" ? "border-red-500 bg-red-50 text-red-700" : "border-gray-300 text-gray-600 hover:border-gray-400"}`}>
-                ↓ Saída
-              </button>
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={() => !salvando && setNovoOpen(false)}>
+          <div className="h-full w-full max-w-lg bg-white shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {/* Cabeçalho */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-800">{editId ? "Editar Lançamento" : "Novo Lançamento"}</h3>
+              <button onClick={() => setNovoOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data</label>
-                <input type="date" value={novoData} onChange={(e) => setNovoData(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              {erroNovo && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erroNovo}</p>}
+
+              {/* Tipo / Status / Conta */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Tipo de Movimentação</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button type="button" onClick={() => { setNovoTipo("RECEITA"); setNovoCategoriaId(""); }}
+                      className={`h-10 rounded-lg border text-xs font-semibold transition-colors ${novoTipo === "RECEITA" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-gray-300 text-gray-600 hover:border-gray-400"}`}>
+                      ↑ Entrada
+                    </button>
+                    <button type="button" onClick={() => { setNovoTipo("DESPESA"); setNovoCategoriaId(""); }}
+                      className={`h-10 rounded-lg border text-xs font-semibold transition-colors ${novoTipo === "DESPESA" ? "border-red-500 bg-red-50 text-red-700" : "border-gray-300 text-gray-600 hover:border-gray-400"}`}>
+                      ↓ Saída
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Status</label>
+                  <div className="h-10 flex items-center px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-600">
+                    {novoTipo === "RECEITA" ? "Recebimento" : "Pagamento"}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Conta</label>
+                  <div className="h-10 flex items-center px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-600 truncate">
+                    {conta?.nome}
+                  </div>
+                </div>
               </div>
+
+              {/* Nome / Descrição */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Nome / Contato</label>
+                  <input value={novoFavorecido} onChange={(e) => setNovoFavorecido(e.target.value)} placeholder="Cliente, fornecedor..."
+                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Descrição</label>
+                  <input value={novoDescricao} onChange={(e) => setNovoDescricao(e.target.value)} placeholder="Ex.: Serviço prestado"
+                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+
+              {/* Datas: Pagamento / Vencimento / Competência */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Pagamento</label>
+                  <input type="date" value={novoData} onChange={(e) => setNovoData(e.target.value)}
+                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Vencimento</label>
+                  <input type="date" value={novoVencimento} onChange={(e) => setNovoVencimento(e.target.value)}
+                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Competência</label>
+                  <input type="date" value={novoCompetencia} onChange={(e) => setNovoCompetencia(e.target.value)}
+                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+
+              {/* Categoria (+ adicionar) / Valor */}
+              <div className="grid grid-cols-2 gap-3 items-end">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Categoria</label>
+                  <select value={novoCategoriaId} onChange={(e) => setNovoCategoriaId(e.target.value)}
+                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">— Selecione uma categoria —</option>
+                    {categorias.filter((c) => c.tipo === novoTipo).map((c) => (
+                      <option key={c.id} value={c.id}>{c.nome}</option>
+                    ))}
+                  </select>
+                  {!catNovaOpen ? (
+                    <button type="button" onClick={() => setCatNovaOpen(true)} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+                      <Plus className="w-3 h-3" /> Adicionar categoria
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      <input autoFocus value={catNovaNome} onChange={(e) => setCatNovaNome(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") criarCategoriaInline(); }}
+                        placeholder={`Nova categoria de ${novoTipo === "RECEITA" ? "entrada" : "saída"}`}
+                        className="flex-1 h-8 rounded-lg border border-gray-300 px-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <Button size="sm" onClick={criarCategoriaInline} disabled={catSalvando || !catNovaNome.trim()} className="h-8 px-2 text-xs">OK</Button>
+                      <button type="button" onClick={() => { setCatNovaOpen(false); setCatNovaNome(""); }} className="text-gray-400 hover:text-gray-600 text-sm px-1">×</button>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Valor</label>
+                  <input inputMode="decimal" value={novoValor} onChange={(e) => setNovoValor(e.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00"
+                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+
+              {/* Detalhamento */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Valor</label>
-                <input inputMode="decimal" value={novoValor} onChange={(e) => setNovoValor(e.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00"
-                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Detalhamento (opcional)</label>
+                <textarea value={novoDetalhamento} onChange={(e) => setNovoDetalhamento(e.target.value)} rows={2} placeholder="Observações..."
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+
+              {/* Total */}
+              <div className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3">
+                <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total</span>
+                <span className={`text-lg font-bold ${novoTipo === "RECEITA" ? "text-emerald-700" : "text-red-600"}`}>
+                  {novoTipo === "RECEITA" ? "+" : "−"} {formatBRL(parseDecimal(novoValor) || 0)}
+                </span>
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Descrição</label>
-              <input value={novoDescricao} onChange={(e) => setNovoDescricao(e.target.value)} placeholder="Ex.: Tarifa bancária, aporte..."
-                className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Categoria</label>
-                <select value={novoCategoriaId} onChange={(e) => setNovoCategoriaId(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">— Sem categoria —</option>
-                  {categorias.filter((c) => c.tipo === novoTipo).map((c) => (
-                    <option key={c.id} value={c.id}>{c.nome}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Favorecido / Contato</label>
-                <input value={novoFavorecido} onChange={(e) => setNovoFavorecido(e.target.value)} placeholder="Opcional"
-                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-1">
+            {/* Rodapé */}
+            <div className="flex items-center gap-2 px-6 py-4 border-t border-gray-100">
               {editId && (
                 <Button variant="outline" onClick={excluirLancamento} disabled={salvando} className="text-red-600 border-red-200 hover:bg-red-50">
                   Excluir

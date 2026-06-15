@@ -4,7 +4,16 @@ import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Pencil, Check, ToggleLeft, ToggleRight, Loader2, Info, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import {
+  Plus, Pencil, Trash2, Loader2, Info, ArrowDownLeft, ArrowUpRight, FolderClosed, ChevronDown, Tag,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const GRUPOS = ["RECEITA_OPERACIONAL", "CUSTO_OPERACIONAL", "DESPESA_OPERACIONAL", "INVESTIMENTO", "FINANCIAMENTO"] as const;
@@ -17,24 +26,21 @@ const GRUPO_LABEL: Record<Grupo, string> = {
   FINANCIAMENTO: "Atividades de financiamento",
 };
 
+type Tipo = "ENTRADA" | "SAIDA";
 type Subgrupo = { id: string; nome: string; grupo: Grupo };
 type Natureza = {
-  id: string; nome: string; tipo: "ENTRADA" | "SAIDA"; grupo: Grupo;
+  id: string; nome: string; tipo: Tipo; grupo: Grupo;
   subgrupoId: string | null; subgrupo: { id: string; nome: string } | null; ativo: boolean;
 };
-type FormState = { nome: string; tipo: "ENTRADA" | "SAIDA"; grupo: Grupo; subgrupoId: string };
-
-const empty = (): FormState => ({ nome: "", tipo: "SAIDA", grupo: "DESPESA_OPERACIONAL", subgrupoId: "" });
 
 export default function NaturezasPage() {
   const [rows, setRows] = useState<Natureza[]>([]);
   const [subgrupos, setSubgrupos] = useState<Subgrupo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<string | "new" | null>(null);
-  const [form, setForm] = useState<FormState>(empty());
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [novoSub, setNovoSub] = useState("");
+
+  // null = fechado; objeto vazio = novo; objeto preenchido = edição
+  const [natModal, setNatModal] = useState<Natureza | "new" | null>(null);
+  const [subModal, setSubModal] = useState<Subgrupo | "new" | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,56 +54,42 @@ export default function NaturezasPage() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const startNew = () => { setForm(empty()); setNovoSub(""); setEditingId("new"); setError(null); };
-  const startEdit = (r: Natureza) => {
-    setForm({ nome: r.nome, tipo: r.tipo, grupo: r.grupo, subgrupoId: r.subgrupoId ?? "" });
-    setNovoSub(""); setEditingId(r.id); setError(null);
-  };
-  const cancel = () => { setEditingId(null); setError(null); };
-
-  async function criarSubgrupo() {
-    if (!novoSub.trim()) return;
-    const res = await fetch("/api/financeiro/naturezas/subgrupos", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: novoSub.trim(), grupo: form.grupo }),
-    });
-    if (res.ok) {
-      const { data } = await res.json();
-      setSubgrupos((prev) => [...prev, data]);
-      setForm((f) => ({ ...f, subgrupoId: data.id }));
-      setNovoSub("");
-    }
+  async function excluirNatureza(r: Natureza) {
+    if (!confirm(`Excluir a natureza "${r.nome}"?`)) return;
+    await fetch(`/api/financeiro/naturezas/${r.id}`, { method: "DELETE" });
+    await load();
+  }
+  async function excluirSubgrupo(s: Subgrupo) {
+    if (!confirm(`Excluir o subgrupo "${s.nome}"? As naturezas dentro dele ficarão sem subgrupo.`)) return;
+    await fetch(`/api/financeiro/naturezas/subgrupos/${s.id}`, { method: "DELETE" });
+    await load();
   }
 
-  const save = async () => {
-    if (!form.nome.trim()) { setError("Informe o nome."); return; }
-    setSaving(true); setError(null);
-    const url = editingId === "new" ? "/api/financeiro/naturezas" : `/api/financeiro/naturezas/${editingId}`;
-    const method = editingId === "new" ? "POST" : "PATCH";
-    const res = await fetch(url, {
-      method, headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: form.nome, tipo: form.tipo, grupo: form.grupo, subgrupoId: form.subgrupoId || null }),
-    });
-    if (!res.ok) { setError((await res.json()).error ?? "Erro ao salvar"); setSaving(false); return; }
-    setEditingId(null); await load(); setSaving(false);
-  };
-
-  const toggleAtivo = async (r: Natureza) => {
-    await fetch(`/api/financeiro/naturezas/${r.id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ativo: !r.ativo }),
-    });
-    await load();
-  };
-
-  const subsDoGrupo = subgrupos.filter((s) => s.grupo === form.grupo);
+  // Grupos que têm algum conteúdo (natureza ou subgrupo)
+  const gruposComConteudo = GRUPOS.filter(
+    (g) => rows.some((r) => r.grupo === g) || subgrupos.some((s) => s.grupo === g),
+  );
 
   return (
     <div>
       <PageHeader
         title="Naturezas Financeiras"
         breadcrumbs={[{ label: "Financeiro" }, { label: "Cadastros" }, { label: "Naturezas Financeiras" }]}
-        action={<Button size="sm" onClick={startNew} disabled={editingId !== null}><Plus className="w-4 h-4 mr-1" /> Nova Natureza</Button>}
+        action={
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button size="sm" />}>
+              <Plus className="w-4 h-4 mr-1.5" /> Adicionar <ChevronDown className="w-3.5 h-3.5 ml-1" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setNatModal("new")}>
+                <Tag className="w-4 h-4 mr-2" /> Nova natureza
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSubModal("new")}>
+                <FolderClosed className="w-4 h-4 mr-2" /> Novo subgrupo
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
       />
       <div className="px-8 pb-8 max-w-3xl space-y-6">
         <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-700">
@@ -107,112 +99,263 @@ export default function NaturezasPage() {
           </p>
         </div>
 
-        {editingId === "new" && (
-          <NaturezaForm form={form} setForm={setForm} subs={subsDoGrupo} novoSub={novoSub} setNovoSub={setNovoSub} onCriarSub={criarSubgrupo} saving={saving} error={error} onSave={save} onCancel={cancel} isNew />
+        {loading ? (
+          <div className="py-16 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-300" /></div>
+        ) : gruposComConteudo.length === 0 ? (
+          <div className="py-16 text-center text-gray-400 text-sm">Nenhuma natureza cadastrada.</div>
+        ) : (
+          <div className="space-y-8">
+            {gruposComConteudo.map((g) => (
+              <GrupoSecao
+                key={g}
+                grupo={g}
+                naturezas={rows.filter((r) => r.grupo === g)}
+                subgrupos={subgrupos.filter((s) => s.grupo === g)}
+                onEditNat={setNatModal}
+                onDelNat={excluirNatureza}
+                onEditSub={setSubModal}
+                onDelSub={excluirSubgrupo}
+              />
+            ))}
+          </div>
         )}
+      </div>
 
-        <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-100 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
-                <th className="text-left px-4 py-3">Natureza</th>
-                <th className="text-left px-4 py-3">Tipo</th>
-                <th className="text-left px-4 py-3">Grupo · Subgrupo</th>
-                <th className="text-center px-4 py-3 w-20">Ativo</th>
-                <th className="px-4 py-3 w-12" />
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={5} className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-300" /></td></tr>
-              ) : rows.length === 0 ? (
-                <tr><td colSpan={5} className="py-10 text-center text-gray-400 text-xs">Nenhuma natureza cadastrada</td></tr>
-              ) : rows.map((r) => (
-                <>
-                  <tr key={r.id} className={cn("border-b border-gray-100 last:border-0", !r.ativo && "opacity-50", editingId === r.id ? "bg-blue-50/30" : "hover:bg-gray-50")}>
-                    <td className="px-4 py-3 font-medium text-gray-800">{r.nome}</td>
-                    <td className="px-4 py-3">
-                      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium", r.tipo === "ENTRADA" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700")}>
-                        {r.tipo === "ENTRADA" ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownLeft className="w-3 h-3" />}
-                        {r.tipo === "ENTRADA" ? "Entrada" : "Saída"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{GRUPO_LABEL[r.grupo]}{r.subgrupo ? ` · ${r.subgrupo.nome}` : ""}</td>
-                    <td className="px-4 py-3 text-center">
-                      <button onClick={() => toggleAtivo(r)}>{r.ativo ? <ToggleRight className="w-5 h-5 text-green-500" /> : <ToggleLeft className="w-5 h-5 text-gray-300" />}</button>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {editingId === r.id ? null : (
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-400 hover:text-gray-700" onClick={() => startEdit(r)} disabled={editingId !== null}>
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                  {editingId === r.id && (
-                    <tr key={`${r.id}-edit`} className="bg-blue-50/30 border-b">
-                      <td colSpan={5} className="px-4 py-4">
-                        <NaturezaForm form={form} setForm={setForm} subs={subsDoGrupo} novoSub={novoSub} setNovoSub={setNovoSub} onCriarSub={criarSubgrupo} saving={saving} error={error} onSave={save} onCancel={cancel} />
-                      </td>
-                    </tr>
-                  )}
-                </>
+      {natModal && (
+        <NaturezaDialog
+          editing={natModal === "new" ? null : natModal}
+          subgrupos={subgrupos}
+          onClose={() => setNatModal(null)}
+          onSaved={() => { setNatModal(null); load(); }}
+        />
+      )}
+      {subModal && (
+        <SubgrupoDialog
+          editing={subModal === "new" ? null : subModal}
+          onClose={() => setSubModal(null)}
+          onSaved={() => { setSubModal(null); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function GrupoSecao({ grupo, naturezas, subgrupos, onEditNat, onDelNat, onEditSub, onDelSub }: {
+  grupo: Grupo;
+  naturezas: Natureza[];
+  subgrupos: Subgrupo[];
+  onEditNat: (n: Natureza) => void;
+  onDelNat: (n: Natureza) => void;
+  onEditSub: (s: Subgrupo) => void;
+  onDelSub: (s: Subgrupo) => void;
+}) {
+  const semSubgrupo = naturezas.filter((n) => !n.subgrupoId);
+  return (
+    <section className="space-y-1">
+      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 px-1 mb-2">{GRUPO_LABEL[grupo]}</h2>
+      <div className="border border-gray-200 rounded-xl bg-white shadow-sm divide-y divide-gray-100 overflow-hidden">
+        {subgrupos.map((s) => {
+          const filhas = naturezas.filter((n) => n.subgrupoId === s.id);
+          return (
+            <div key={s.id}>
+              <RowShell
+                indent={0}
+                left={
+                  <span className="inline-flex items-center gap-2 text-gray-800 font-medium">
+                    <FolderClosed className="w-4 h-4 text-gray-400" />
+                    {s.nome}
+                    <span className="text-xs font-normal text-gray-400">({filhas.length})</span>
+                  </span>
+                }
+                onEdit={() => onEditSub(s)}
+                onDelete={() => onDelSub(s)}
+              />
+              {filhas.map((n) => (
+                <NaturezaRow key={n.id} n={n} indent={1} onEdit={onEditNat} onDelete={onDelNat} />
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          );
+        })}
+        {semSubgrupo.map((n) => (
+          <NaturezaRow key={n.id} n={n} indent={0} onEdit={onEditNat} onDelete={onDelNat} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function NaturezaRow({ n, indent, onEdit, onDelete }: {
+  n: Natureza; indent: number; onEdit: (n: Natureza) => void; onDelete: (n: Natureza) => void;
+}) {
+  const entrada = n.tipo === "ENTRADA";
+  return (
+    <RowShell
+      indent={indent}
+      faded={!n.ativo}
+      left={
+        <span className="inline-flex items-center gap-2 text-gray-700">
+          {entrada
+            ? <ArrowUpRight className="w-4 h-4 text-emerald-500 shrink-0" />
+            : <ArrowDownLeft className="w-4 h-4 text-rose-500 shrink-0" />}
+          {n.nome}
+          {!n.ativo && <span className="text-[11px] text-gray-400">(inativa)</span>}
+        </span>
+      }
+      onEdit={() => onEdit(n)}
+      onDelete={() => onDelete(n)}
+    />
+  );
+}
+
+function RowShell({ indent, left, faded, onEdit, onDelete }: {
+  indent: number; left: React.ReactNode; faded?: boolean; onEdit: () => void; onDelete: () => void;
+}) {
+  return (
+    <div
+      className={cn("group flex items-center justify-between pr-3 py-2.5 hover:bg-gray-50", faded && "opacity-50")}
+      style={{ paddingLeft: `${16 + indent * 24}px` }}
+    >
+      <div className="text-sm">{left}</div>
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-400 hover:text-gray-700" onClick={onEdit}>
+          <Pencil className="w-3.5 h-3.5" />
+        </Button>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-400 hover:text-rose-600" onClick={onDelete}>
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
       </div>
     </div>
   );
 }
 
-function NaturezaForm({ form, setForm, subs, novoSub, setNovoSub, onCriarSub, saving, error, onSave, onCancel, isNew }: {
-  form: FormState; setForm: React.Dispatch<React.SetStateAction<FormState>>;
-  subs: Subgrupo[]; novoSub: string; setNovoSub: (v: string) => void; onCriarSub: () => void;
-  saving: boolean; error: string | null; onSave: () => void; onCancel: () => void; isNew?: boolean;
+function NaturezaDialog({ editing, subgrupos, onClose, onSaved }: {
+  editing: Natureza | null;
+  subgrupos: Subgrupo[];
+  onClose: () => void;
+  onSaved: () => void;
 }) {
+  const [nome, setNome] = useState(editing?.nome ?? "");
+  const [tipo, setTipo] = useState<Tipo>(editing?.tipo ?? "SAIDA");
+  const [grupo, setGrupo] = useState<Grupo>(editing?.grupo ?? "DESPESA_OPERACIONAL");
+  const [subgrupoId, setSubgrupoId] = useState(editing?.subgrupoId ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const subsDoGrupo = subgrupos.filter((s) => s.grupo === grupo);
+
+  async function salvar() {
+    if (!nome.trim()) { setError("Informe o nome."); return; }
+    setSaving(true); setError(null);
+    const url = editing ? `/api/financeiro/naturezas/${editing.id}` : "/api/financeiro/naturezas";
+    const res = await fetch(url, {
+      method: editing ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome: nome.trim(), tipo, grupo, subgrupoId: subgrupoId || null }),
+    });
+    if (!res.ok) { setError((await res.json()).error ?? "Erro ao salvar"); setSaving(false); return; }
+    onSaved();
+  }
+
   return (
-    <div className={cn("rounded-xl border border-blue-200 bg-white p-5 space-y-4", isNew && "mb-2")}>
-      <p className="text-sm font-semibold text-gray-700">{isNew ? "Nova natureza financeira" : "Editar natureza"}</p>
-      <div className="space-y-4">
-        <div>
-          <label className="text-xs font-medium text-gray-500 mb-1 block">Nome *</label>
-          <Input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} placeholder="Ex: Venda de mercadorias, Aluguel..." autoFocus={isNew}
-            onKeyDown={(e) => { if (e.key === "Enter") onSave(); if (e.key === "Escape") onCancel(); }} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">Tipo *</label>
-            <select value={form.tipo} onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value as "ENTRADA" | "SAIDA" }))} className="w-full h-10 rounded-md border border-gray-300 px-3 text-sm bg-white">
-              <option value="ENTRADA">Entrada</option>
-              <option value="SAIDA">Saída</option>
-            </select>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>{editing ? "Editar natureza" : "Nova natureza"}</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="flex items-center gap-6">
+            <TipoRadio label="Entrada" icon={<ArrowUpRight className="w-3.5 h-3.5" />} active={tipo === "ENTRADA"} onClick={() => setTipo("ENTRADA")} cor="emerald" />
+            <TipoRadio label="Saída" icon={<ArrowDownLeft className="w-3.5 h-3.5" />} active={tipo === "SAIDA"} onClick={() => setTipo("SAIDA")} cor="rose" />
           </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">Grupo *</label>
-            <select value={form.grupo} onChange={(e) => setForm((f) => ({ ...f, grupo: e.target.value as Grupo, subgrupoId: "" }))} className="w-full h-10 rounded-md border border-gray-300 px-3 text-sm bg-white">
+          <div className="space-y-1.5">
+            <Label>Nome da natureza *</Label>
+            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Venda de mercadorias, Aluguel..." autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter") salvar(); }} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Grupo *</Label>
+            <select value={grupo} onChange={(e) => { setGrupo(e.target.value as Grupo); setSubgrupoId(""); }} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
               {GRUPOS.map((g) => <option key={g} value={g}>{GRUPO_LABEL[g]}</option>)}
             </select>
           </div>
-        </div>
-        <div>
-          <label className="text-xs font-medium text-gray-500 mb-1 block">Subgrupo (opcional)</label>
-          <select value={form.subgrupoId} onChange={(e) => setForm((f) => ({ ...f, subgrupoId: e.target.value }))} className="w-full h-10 rounded-md border border-gray-300 px-3 text-sm bg-white">
-            <option value="">— Sem subgrupo —</option>
-            {subs.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-          </select>
-          <div className="flex gap-2 mt-2">
-            <Input value={novoSub} onChange={(e) => setNovoSub(e.target.value)} placeholder="Novo subgrupo neste grupo" className="h-9"
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onCriarSub(); } }} />
-            <Button type="button" size="sm" variant="outline" onClick={onCriarSub} disabled={!novoSub.trim()}>Criar</Button>
+          <div className="space-y-1.5">
+            <Label>Subgrupo (opcional)</Label>
+            <select value={subgrupoId} onChange={(e) => setSubgrupoId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
+              <option value="">— Sem subgrupo —</option>
+              {subsDoGrupo.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+            </select>
           </div>
+          {error && <p className="text-sm text-rose-500">{error}</p>}
         </div>
-      </div>
-      {error && <p className="text-sm text-red-500">{error}</p>}
-      <div className="flex gap-2 justify-end">
-        <Button variant="outline" size="sm" onClick={onCancel}>Cancelar</Button>
-        <Button size="sm" onClick={onSave} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Check className="w-4 h-4 mr-1" />} Salvar</Button>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={salvar} disabled={saving || !nome.trim()}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SubgrupoDialog({ editing, onClose, onSaved }: {
+  editing: Subgrupo | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [nome, setNome] = useState(editing?.nome ?? "");
+  const [grupo, setGrupo] = useState<Grupo>(editing?.grupo ?? "DESPESA_OPERACIONAL");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function salvar() {
+    if (!nome.trim()) { setError("Informe o nome."); return; }
+    setSaving(true); setError(null);
+    const url = editing ? `/api/financeiro/naturezas/subgrupos/${editing.id}` : "/api/financeiro/naturezas/subgrupos";
+    const res = await fetch(url, {
+      method: editing ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome: nome.trim(), grupo }),
+    });
+    if (!res.ok) { setError((await res.json()).error ?? "Erro ao salvar"); setSaving(false); return; }
+    onSaved();
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>{editing ? "Editar subgrupo" : "Novo subgrupo"}</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="space-y-1.5">
+            <Label>Nome do subgrupo *</Label>
+            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Deduções sobre receita" autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter") salvar(); }} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Grupo *</Label>
+            <select value={grupo} onChange={(e) => setGrupo(e.target.value as Grupo)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
+              {GRUPOS.map((g) => <option key={g} value={g}>{GRUPO_LABEL[g]}</option>)}
+            </select>
+          </div>
+          {error && <p className="text-sm text-rose-500">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={salvar} disabled={saving || !nome.trim()}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TipoRadio({ label, icon, active, onClick, cor }: {
+  label: string; icon: React.ReactNode; active: boolean; onClick: () => void; cor: "emerald" | "rose";
+}) {
+  return (
+    <button type="button" onClick={onClick} className="inline-flex items-center gap-2 text-sm">
+      <span className={cn("w-4 h-4 rounded-full border flex items-center justify-center",
+        active ? (cor === "emerald" ? "border-emerald-500" : "border-rose-500") : "border-gray-300")}>
+        {active && <span className={cn("w-2 h-2 rounded-full", cor === "emerald" ? "bg-emerald-500" : "bg-rose-500")} />}
+      </span>
+      <span className={cn("inline-flex items-center gap-1", active ? "text-gray-800 font-medium" : "text-gray-500")}>
+        {icon}{label}
+      </span>
+    </button>
   );
 }

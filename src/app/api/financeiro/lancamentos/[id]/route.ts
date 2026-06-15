@@ -41,6 +41,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       descricao: parsed.data.descricao,
       valor: parsed.data.valor,
       dataLancamento: new Date(parsed.data.dataLancamento),
+      dataVencimento: parsed.data.dataVencimento ? new Date(parsed.data.dataVencimento) : null,
+      dataCompetencia: parsed.data.dataCompetencia ? new Date(parsed.data.dataCompetencia) : null,
       contaBancariaId: parsed.data.contaBancariaId,
       categoriaFinanceiraId: parsed.data.categoriaFinanceiraId || null,
       centroCustoId: parsed.data.centroCustoId || null,
