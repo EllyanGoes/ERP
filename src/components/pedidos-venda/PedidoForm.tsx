@@ -1377,14 +1377,14 @@ export default function PedidoForm({
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Natureza Financeira{!pedido && " *"}</Label>
-            <select
+            <ComboboxWithCreate
               value={naturezaFinanceiraId}
-              onChange={(e) => setNaturezaFinanceiraId(e.target.value)}
-              className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">— Selecionar natureza —</option>
-              {naturezas.map((n) => <option key={n.id} value={n.id}>{n.nome}</option>)}
-            </select>
+              onChange={setNaturezaFinanceiraId}
+              placeholder="— Selecionar natureza —"
+              noneLabel="Sem natureza"
+              triggerClassName="h-10 rounded-lg"
+              options={naturezas.map((n) => ({ value: n.id, label: n.grupo ? `${n.nome}` : n.nome }))}
+            />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Condição de Pagamento{!pedido && " *"}</Label>
