@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { sendWAMessage }                    from "@/lib/whatsapp";
 import { sendTelegramMessage, escMD }       from "@/lib/telegram";
@@ -74,7 +74,8 @@ export async function POST(
 
     if (novoStatus === "REPROVADO") {
       // ── Reprovar SC ──────────────────────────────────────────────────────────
-      await prisma.necessidadeCompra.update({
+      // SC pode ser de outra empresa que não a ativa do aprovador → sem escopo.
+      await prismaSemEscopo.necessidadeCompra.update({
         where: { id: sc.id },
         data: {
           status: "REJEITADA",
@@ -169,8 +170,8 @@ export async function POST(
           }
         }
       } else {
-        // Última etapa aprovada → SC aprovada
-        await prisma.necessidadeCompra.update({
+        // Última etapa aprovada → SC aprovada (SC pode ser de outra empresa).
+        await prismaSemEscopo.necessidadeCompra.update({
           where: { id: sc.id },
           data: {
             status: "APROVADA",

@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { sendWAMessage } from "@/lib/whatsapp";
 
 // ── Autenticação do webhook ───────────────────────────────────────────────────
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
 
     if (novoStatus === "REPROVADO") {
       // Reprove the SC
-      await prisma.necessidadeCompra.update({
+      await prismaSemEscopo.necessidadeCompra.update({
         where: { id: aprovacao.necessidadeId },
         data: {
           status: "REJEITADA",
@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
         });
       } else {
         // No more etapas — approve the SC
-        await prisma.necessidadeCompra.update({
+        await prismaSemEscopo.necessidadeCompra.update({
           where: { id: aprovacao.necessidadeId },
           data: {
             status: "APROVADA",

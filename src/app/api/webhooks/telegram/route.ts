@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { answerCallbackQuery, editTelegramMessage, escMD, sendTelegramDM, sendTelegramDocument } from "@/lib/telegram";
 import { buildRelatorioEstoque, parseRelatorioDate } from "@/lib/relatorio-estoque";
 import { buildRelatorioNecessidades } from "@/lib/relatorio-necessidades";
@@ -247,7 +247,7 @@ export async function POST(req: NextRequest) {
     const sc = aprovacao.necessidade;
 
     if (novoStatus === "REPROVADO") {
-      await prisma.necessidadeCompra.update({
+      await prismaSemEscopo.necessidadeCompra.update({
         where: { id: sc.id },
         data: {
           status: "REJEITADA",
@@ -285,7 +285,7 @@ export async function POST(req: NextRequest) {
           });
         }
       } else {
-        await prisma.necessidadeCompra.update({
+        await prismaSemEscopo.necessidadeCompra.update({
           where: { id: sc.id },
           data: {
             status: "APROVADA",
