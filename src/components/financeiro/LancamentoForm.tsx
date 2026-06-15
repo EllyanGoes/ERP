@@ -179,10 +179,15 @@ export default function LancamentoForm({
           {contaFixa ? (
             <div className={`${inputCls} flex items-center text-gray-500 bg-gray-50`}>{contaFixa.nome}</div>
           ) : (
-            <select value={contaBancariaId} onChange={(e) => setContaBancariaId(e.target.value)} disabled={!pago} className={`${inputCls} disabled:bg-gray-50 disabled:text-gray-400`}>
-              <option value="">Selecione</option>
-              {contas.filter((c) => c.ativo !== false).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
+            <ComboboxWithCreate
+              value={contaBancariaId}
+              onChange={setContaBancariaId}
+              disabled={!pago}
+              placeholder="Selecione"
+              noneLabel="Selecione"
+              triggerClassName="h-10 rounded-lg"
+              options={contas.filter((c) => c.ativo !== false).map((c) => ({ value: c.id, label: c.nome }))}
+            />
           )}
         </div>
       </div>

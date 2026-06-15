@@ -5,6 +5,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -215,35 +216,27 @@ function NovaRecorrenciaDialog({ categorias, contas, clientes, fornecedores, onD
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Categoria</Label>
-              <select value={categoriaFinanceiraId} onChange={(e) => setCategoriaFinanceiraId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
-                <option value="">— Nenhuma —</option>
-                {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </select>
+              <ComboboxWithCreate value={categoriaFinanceiraId} onChange={setCategoriaFinanceiraId} placeholder="— Nenhuma —" noneLabel="Nenhuma" triggerClassName="h-10 rounded-lg"
+                options={categorias.map((c) => ({ value: c.id, label: c.nome ?? "" }))} />
             </div>
             <div className="space-y-1.5">
               <Label>Conta de liquidação</Label>
-              <select value={contaBancariaId} onChange={(e) => setContaBancariaId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
-                <option value="">— Nenhuma —</option>
-                {contas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </select>
+              <ComboboxWithCreate value={contaBancariaId} onChange={setContaBancariaId} placeholder="— Nenhuma —" noneLabel="Nenhuma" triggerClassName="h-10 rounded-lg"
+                options={contas.map((c) => ({ value: c.id, label: c.nome ?? "" }))} />
             </div>
           </div>
           {tipo === "RECEBER" ? (
             <div className="space-y-1.5">
               <Label>Cliente</Label>
-              <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
-                <option value="">Selecione...</option>
-                {clientes.map((c) => <option key={c.id} value={c.id}>{c.razaoSocial}</option>)}
-              </select>
+              <ComboboxWithCreate value={clienteId} onChange={setClienteId} placeholder="Selecione..." noneLabel="Nenhum" triggerClassName="h-10 rounded-lg"
+                options={clientes.map((c) => ({ value: c.id, label: c.razaoSocial ?? "" }))} />
               <p className="text-xs text-gray-400">Obrigatório para gerar títulos a receber.</p>
             </div>
           ) : (
             <div className="space-y-1.5">
               <Label>Fornecedor</Label>
-              <select value={fornecedorId} onChange={(e) => setFornecedorId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
-                <option value="">— Nenhum —</option>
-                {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.razaoSocial}</option>)}
-              </select>
+              <ComboboxWithCreate value={fornecedorId} onChange={setFornecedorId} placeholder="— Nenhum —" noneLabel="Nenhum" triggerClassName="h-10 rounded-lg"
+                options={fornecedores.map((f) => ({ value: f.id, label: f.razaoSocial ?? "" }))} />
             </div>
           )}
         </div>
