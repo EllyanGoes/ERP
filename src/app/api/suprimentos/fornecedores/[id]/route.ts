@@ -4,25 +4,28 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
+// O formulário de edição envia o registro inteiro, incluindo campos vazios como
+// null. Por isso todos os campos de texto opcionais precisam aceitar null além
+// de undefined — senão o Zod rejeita com "Invalid input".
 const schema = z.object({
   tipoPessoa: z.enum(["FISICA", "JURIDICA"]).optional(),
   razaoSocial: z.string().min(1).optional(),
-  nomeFantasia: z.string().optional(),
-  cpfCnpj: z.string().optional().nullable(),
-  ie: z.string().optional(),
-  email: z.string().optional(),
-  telefone: z.string().optional(),
-  celular: z.string().optional(),
-  contato: z.string().optional(),
-  cep: z.string().optional(),
-  logradouro: z.string().optional(),
-  numero: z.string().optional(),
-  complemento: z.string().optional(),
-  bairro: z.string().optional(),
-  cidade: z.string().optional(),
-  estado: z.string().optional(),
+  nomeFantasia: z.string().nullable().optional(),
+  cpfCnpj: z.string().nullable().optional(),
+  ie: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  telefone: z.string().nullable().optional(),
+  celular: z.string().nullable().optional(),
+  contato: z.string().nullable().optional(),
+  cep: z.string().nullable().optional(),
+  logradouro: z.string().nullable().optional(),
+  numero: z.string().nullable().optional(),
+  complemento: z.string().nullable().optional(),
+  bairro: z.string().nullable().optional(),
+  cidade: z.string().nullable().optional(),
+  estado: z.string().nullable().optional(),
   ativo: z.boolean().optional(),
-  observacoes: z.string().optional(),
+  observacoes: z.string().nullable().optional(),
 });
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -32,6 +35,15 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       produtos: { include: { item: { select: { id: true, codigo: true, descricao: true } } } },
       pedidosCompra: { orderBy: { createdAt: "desc" }, take: 10 },
       contatos: { orderBy: [{ principal: "desc" }, { nome: "asc" }] },
+      contasPagar: {
+        where: { status: { not: "CANCELADA" } },
+        orderBy: { dataVencimento: "asc" },
+        take: 50,
+        select: {
+          id: true, numero: true, descricao: true, status: true,
+          dataVencimento: true, valorOriginal: true, valorPago: true,
+        },
+      },
     },
   });
   if (!record) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });

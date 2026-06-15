@@ -98,6 +98,15 @@ type Fornecedor = {
     pedido: { id: string; numero: string } | null;
     itens: Array<{ id: string; vlrTotal: unknown }>;
   }>;
+  contasPagar: Array<{
+    id: string;
+    numero: string;
+    descricao: string;
+    status: string;
+    dataVencimento: string | null;
+    valorOriginal: unknown;
+    valorPago: unknown;
+  }>;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -139,7 +148,24 @@ function calcDocTotal(doc: { vrTotal: unknown; itens: Array<{ vlrTotal: unknown 
   return doc.itens.reduce((s, i) => s + decimalToNumber(i.vlrTotal), 0);
 }
 
-type PageTab = "dados" | "produtos" | "pedidos" | "contatos" | "documentos";
+// Contas a Pagar (status financeiro)
+const CONTA_STATUS_LABELS: Record<string, string> = {
+  ABERTA:    "Aberta",
+  PAGA:      "Paga",
+  VENCIDA:   "Vencida",
+  CANCELADA: "Cancelada",
+  PARCIAL:   "Parcial",
+};
+
+const CONTA_STATUS_COLOR: Record<string, string> = {
+  ABERTA:    "bg-blue-100 text-blue-700",
+  PAGA:      "bg-emerald-100 text-emerald-700",
+  VENCIDA:   "bg-red-100 text-red-700",
+  CANCELADA: "bg-gray-100 text-gray-500",
+  PARCIAL:   "bg-amber-100 text-amber-700",
+};
+
+type PageTab = "dados" | "produtos" | "pedidos" | "contatos" | "documentos" | "contas";
 
 type ProdutoItem = { id: string; codigo: string; descricao: string };
 
@@ -387,6 +413,7 @@ export default function FornecedorDetailPage() {
     { key: "produtos",  label: "Produtos",          count: fornecedor.produtos?.length ?? 0 },
     { key: "pedidos",   label: "Pedidos de Compra", count: fornecedor.pedidosCompra?.length ?? 0 },
     { key: "documentos", label: "Documentos de Entrada", count: fornecedor.documentosEntrada?.length ?? 0 },
+    { key: "contas",    label: "Contas a Pagar", count: fornecedor.contasPagar?.length ?? 0 },
   ];
 
   return (
@@ -1163,6 +1190,55 @@ export default function FornecedorDetailPage() {
                               <ExternalLink className="w-3.5 h-3.5" />
                             </Link>
                           </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* ── Contas a Pagar ────────────────────────────────────────────── */}
+        {activeTab === "contas" && (
+          <div className="max-w-5xl">
+            <Card>
+              <CardContent className="p-0">
+                {!fornecedor.contasPagar?.length ? (
+                  <div className="text-center py-16 text-gray-400 text-sm">
+                    Nenhuma conta a pagar para este fornecedor
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Número</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Descrição</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Vencimento</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Status</th>
+                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Valor</th>
+                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Pago</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {fornecedor.contasPagar.map((c) => (
+                        <tr key={c.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">{c.numero}</td>
+                          <td className="px-4 py-3 text-gray-700 max-w-[240px] truncate" title={c.descricao}>{c.descricao}</td>
+                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                            {c.dataVencimento ? formatDate(c.dataVencimento) : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={cn(
+                              "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
+                              CONTA_STATUS_COLOR[c.status] ?? "bg-gray-100 text-gray-600"
+                            )}>
+                              {CONTA_STATUS_LABELS[c.status] ?? c.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-gray-800">{formatBRL(decimalToNumber(c.valorOriginal))}</td>
+                          <td className="px-4 py-3 text-right text-emerald-600 font-medium">{formatBRL(decimalToNumber(c.valorPago))}</td>
                         </tr>
                       ))}
                     </tbody>
