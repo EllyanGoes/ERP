@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { formatBRL, parseDecimal } from "@/lib/utils";
 
 type Contato = { id: string; razaoSocial: string };
-type NaturezaOpt = { id: string; nome: string; subgrupo: { nome: string } | null };
 type ContaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean };
 type Linha = { key: string; naturezaFinanceiraId: string; detalhamento: string; valor: string };
 
@@ -236,10 +236,7 @@ export default function LancamentoForm({
         </div>
         {linhas.map((l) => (
           <div key={l.key} className="grid grid-cols-[1fr_1fr_6rem_auto] gap-2 items-center">
-            <select value={l.naturezaFinanceiraId} onChange={(e) => up(l.key, "naturezaFinanceiraId", e.target.value)} className="h-9 rounded-lg border border-gray-300 px-2 text-sm bg-white min-w-0">
-              <option value="">— Natureza —</option>
-              {naturezas.map((n) => <option key={n.id} value={n.id}>{n.subgrupo ? `${n.subgrupo.nome} · ` : ""}{n.nome}</option>)}
-            </select>
+            <NaturezaCombobox value={l.naturezaFinanceiraId} onChange={(id) => up(l.key, "naturezaFinanceiraId", id)} naturezas={naturezas} />
             <Input value={l.detalhamento} onChange={(e) => up(l.key, "detalhamento", e.target.value)} placeholder="Detalhamento (opcional)" className="h-9 min-w-0" />
             <Input value={l.valor} onChange={(e) => up(l.key, "valor", e.target.value)} placeholder="0,00" className="h-9 text-right font-mono min-w-0" />
             <button type="button" onClick={() => setLinhas((p) => (p.length > 1 ? p.filter((x) => x.key !== l.key) : p))} disabled={linhas.length <= 1} className="p-1.5 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 disabled:opacity-30">
