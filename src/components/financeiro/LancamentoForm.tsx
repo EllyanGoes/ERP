@@ -60,7 +60,8 @@ export default function LancamentoForm({ tipo, contatos }: { tipo: "receber" | "
       .then((r) => r.json()).then((j) => setNaturezas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
   }, [isReceber]);
 
-  const total = linhas.reduce((s, l) => s + parseDecimal(l.valor), 0);
+  const valorLinha = (s: string) => { const v = parseDecimal(s); return Number.isFinite(v) ? v : 0; };
+  const total = linhas.reduce((s, l) => s + valorLinha(l.valor), 0);
   const pago = status === "PAGAMENTO";
 
   function up(key: string, campo: keyof Linha, valor: string) {
