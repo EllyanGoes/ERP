@@ -6,15 +6,10 @@ import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { useTabTitle } from "@/lib/tabs-context";
 import { Button } from "@/components/ui/button";
-import { formatBRL, formatDate, parseDecimal } from "@/lib/utils";
+import CreateDrawer from "@/components/shared/CreateDrawer";
+import LancamentoForm from "@/components/financeiro/LancamentoForm";
+import { formatBRL, formatDate } from "@/lib/utils";
 import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, FileDown, Loader2, Plus } from "lucide-react";
-
-type CategoriaOpt = { id: string; nome: string; tipo: "RECEITA" | "DESPESA" };
-
-function hojeInput() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 type EmpresaContato = { razaoSocial: string; nomeFantasia: string | null };
 type ExtratoLinha = {
@@ -67,188 +62,8 @@ export default function ExtratoContaPage() {
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
   const [gerandoPdf, setGerandoPdf] = useState(false);
-  useTabTitle(conta?.nome);
-
-  // ── Novo Lançamento (entrada/saída avulsa direto na conta) ──────────────────
   const [novoOpen, setNovoOpen] = useState(false);
-  const [salvando, setSalvando] = useState(false);
-  const [erroNovo, setErroNovo] = useState("");
-  const [novoTipo, setNovoTipo] = useState<"RECEITA" | "DESPESA">("DESPESA");
-  const [novoStatus, setNovoStatus] = useState<"pagamento" | "agendamento">("pagamento");
-  const [novoData, setNovoData] = useState(hojeInput());
-  const [novoVencimento, setNovoVencimento] = useState("");
-  const [novoCompetencia, setNovoCompetencia] = useState("");
-  const [novoDescricao, setNovoDescricao] = useState("");
-  const [novoValor, setNovoValor] = useState("");
-  const [novoCategoriaId, setNovoCategoriaId] = useState("");
-  const [novoFavorecido, setNovoFavorecido] = useState("");
-  const [novoDetalhamento, setNovoDetalhamento] = useState("");
-  const [novoContaId, setNovoContaId] = useState("");
-  const [novoClienteId, setNovoClienteId] = useState(""); // agendamento + entrada → Conta a Receber exige cliente
-  const [categorias, setCategorias] = useState<CategoriaOpt[]>([]);
-  const [contasLista, setContasLista] = useState<{ id: string; nome: string }[]>([]);
-  const [clientesLista, setClientesLista] = useState<{ id: string; razaoSocial: string; nomeFantasia: string | null }[]>([]);
-  const [aviso, setAviso] = useState("");
-  const [editId, setEditId] = useState<string | null>(null); // null = novo; id = editando avulso
-  // Criação rápida de categoria (+ Adicionar categoria)
-  const [catNovaOpen, setCatNovaOpen] = useState(false);
-  const [catNovaNome, setCatNovaNome] = useState("");
-  const [catSalvando, setCatSalvando] = useState(false);
-
-  function carregarCategorias() {
-    if (categorias.length === 0) {
-      fetch("/api/financeiro/plano-contas")
-        .then((r) => r.json())
-        .then((j) => setCategorias(Array.isArray(j.flat) ? j.flat : []))
-        .catch(() => {});
-    }
-    if (contasLista.length === 0) {
-      fetch("/api/financeiro/contas")
-        .then((r) => r.json())
-        .then((j) => setContasLista(Array.isArray(j.data) ? j.data : []))
-        .catch(() => {});
-    }
-    if (clientesLista.length === 0) {
-      fetch("/api/clientes?limit=1000")
-        .then((r) => r.json())
-        .then((j) => setClientesLista(Array.isArray(j.data) ? j.data : []))
-        .catch(() => {});
-    }
-  }
-
-  function abrirNovo() {
-    setErroNovo(""); setEditId(null);
-    setNovoTipo("DESPESA"); setNovoStatus("pagamento"); setNovoContaId(params.id); setNovoClienteId("");
-    setNovoData(hojeInput()); setNovoVencimento(""); setNovoCompetencia("");
-    setNovoDescricao(""); setNovoValor(""); setNovoCategoriaId(""); setNovoFavorecido(""); setNovoDetalhamento("");
-    setCatNovaOpen(false); setCatNovaNome("");
-    setNovoOpen(true);
-    carregarCategorias();
-  }
-
-  // Edita um lançamento AVULSO (sem vínculo a título). Os ligados a recebimento/
-  // pagamento são geridos pelo título — não abrem aqui.
-  function abrirEditar(l: ExtratoLinha) {
-    if (l.contaReceber || l.contaPagar || l.tipo === "TRANSFERENCIA") return;
-    setErroNovo(""); setEditId(l.id);
-    setNovoTipo(l.tipo === "RECEITA" ? "RECEITA" : "DESPESA");
-    setNovoStatus("pagamento"); setNovoContaId(params.id);
-    setNovoData(String(l.dataLancamento).slice(0, 10));
-    setNovoVencimento(l.dataVencimento ? String(l.dataVencimento).slice(0, 10) : "");
-    setNovoCompetencia(l.dataCompetencia ? String(l.dataCompetencia).slice(0, 10) : "");
-    setNovoDescricao(l.descricao);
-    setNovoValor(String(Number(l.valor)).replace(".", ","));
-    setNovoCategoriaId(l.categoriaFinanceiraId ?? "");
-    setNovoFavorecido(l.favorecido ?? "");
-    setNovoDetalhamento(l.observacoes ?? "");
-    setCatNovaOpen(false); setCatNovaNome("");
-    setNovoOpen(true);
-    carregarCategorias();
-  }
-
-  async function criarCategoriaInline() {
-    const nome = catNovaNome.trim();
-    if (!nome) return;
-    setCatSalvando(true);
-    try {
-      const res = await fetch("/api/financeiro/plano-contas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, tipo: novoTipo }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (res.ok && j.data?.id) {
-        const nova: CategoriaOpt = { id: j.data.id, nome, tipo: novoTipo };
-        setCategorias((p) => [...p, nova]);
-        setNovoCategoriaId(nova.id);
-        setCatNovaOpen(false); setCatNovaNome("");
-      }
-    } finally { setCatSalvando(false); }
-  }
-
-  async function excluirLancamento() {
-    if (!editId) return;
-    if (!confirm("Excluir este lançamento?")) return;
-    setSalvando(true); setErroNovo("");
-    try {
-      const res = await fetch(`/api/financeiro/lancamentos/${editId}`, { method: "DELETE" });
-      if (!res.ok) { setErroNovo((await res.json().catch(() => ({}))).error || "Erro ao excluir."); return; }
-      setNovoOpen(false);
-      carregar();
-    } catch { setErroNovo("Erro de conexão."); }
-    finally { setSalvando(false); }
-  }
-
-  async function salvarNovo() {
-    if (!novoDescricao.trim()) { setErroNovo("Informe a descrição."); return; }
-    const valorNum = parseDecimal(novoValor);
-    if (!(valorNum > 0)) { setErroNovo("Informe um valor maior que zero."); return; }
-    setErroNovo("");
-
-    // ── Agendamento → vira título previsto (Conta a Pagar/Receber), não entra
-    // no saldo até dar baixa. Saída = Conta a Pagar; Entrada = Conta a Receber
-    // (exige cliente). Não aparece neste extrato (é um previsto, não realizado).
-    if (novoStatus === "agendamento" && !editId) {
-      const vencimento = novoVencimento || novoData;
-      const obs = [novoFavorecido.trim() && `Contato: ${novoFavorecido.trim()}`, novoDetalhamento.trim()].filter(Boolean).join(" — ") || null;
-      setSalvando(true);
-      try {
-        let res: Response;
-        if (novoTipo === "DESPESA") {
-          res = await fetch("/api/contas-pagar", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              descricao: novoDescricao.trim(), valorOriginal: valorNum, dataVencimento: vencimento,
-              categoriaFinanceiraId: novoCategoriaId || null, contaBancariaId: novoContaId || params.id, observacoes: obs,
-            }),
-          });
-        } else {
-          if (!novoClienteId) { setErroNovo("Para agendar uma entrada (Conta a Receber), selecione o cliente."); setSalvando(false); return; }
-          res = await fetch("/api/contas-receber", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              clienteId: novoClienteId, descricao: novoDescricao.trim(), valorOriginal: valorNum, dataVencimento: vencimento,
-              categoriaFinanceiraId: novoCategoriaId || null, contaBancariaId: novoContaId || params.id, observacoes: obs,
-            }),
-          });
-        }
-        if (!res.ok) { setErroNovo((await res.json().catch(() => ({}))).error || "Erro ao agendar."); return; }
-        setNovoOpen(false);
-        setAviso(`Agendamento criado em ${novoTipo === "DESPESA" ? "Contas a Pagar" : "Contas a Receber"} (não entra no saldo até dar baixa).`);
-        setTimeout(() => setAviso(""), 6000);
-      } catch { setErroNovo("Erro de conexão."); }
-      finally { setSalvando(false); }
-      return;
-    }
-
-    // ── Pagamento → lançamento realizado (entra no saldo) ──────────────────────
-    setSalvando(true);
-    try {
-      const res = await fetch(
-        editId ? `/api/financeiro/lancamentos/${editId}` : "/api/financeiro/lancamentos",
-        {
-          method: editId ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tipo: novoTipo,
-            descricao: novoDescricao.trim(),
-            valor: valorNum,
-            dataLancamento: novoData,
-            dataVencimento: novoVencimento || null,
-            dataCompetencia: novoCompetencia || null,
-            contaBancariaId: novoContaId || params.id,
-            categoriaFinanceiraId: novoCategoriaId || null,
-            favorecido: novoFavorecido.trim() || null,
-            observacoes: novoDetalhamento.trim() || null,
-          }),
-        },
-      );
-      if (!res.ok) { setErroNovo((await res.json().catch(() => ({}))).error || "Erro ao salvar."); return; }
-      setNovoOpen(false);
-      carregar();
-    } catch { setErroNovo("Erro de conexão."); }
-    finally { setSalvando(false); }
-  }
+  useTabTitle(conta?.nome);
 
   const carregar = useCallback(() => {
     setLoading(true);
@@ -334,9 +149,6 @@ export default function ExtratoContaPage() {
           <p className="text-sm text-gray-400 py-10 text-center">Conta não encontrada.</p>
         ) : (
           <>
-            {aviso && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{aviso}</div>
-            )}
             <div className="grid grid-cols-3 gap-4">
               <div className="rounded-xl p-4 bg-gray-50 text-gray-700">
                 <p className="text-sm font-medium opacity-75">Saldo inicial</p>
@@ -368,7 +180,7 @@ export default function ExtratoContaPage() {
                 <Button variant="outline" size="sm" onClick={() => { setDe(""); setAte(""); }} className="h-9">Limpar</Button>
               )}
               <div className="flex-1" />
-              <Button size="sm" onClick={abrirNovo} className="h-9 gap-1.5">
+              <Button size="sm" onClick={() => setNovoOpen(true)} className="h-9 gap-1.5">
                 <Plus className="w-4 h-4" /> Novo Lançamento
               </Button>
               <Button variant="outline" size="sm" onClick={baixarPdf} disabled={gerandoPdf || conta.extrato.length === 0} className="h-9 gap-1.5">
@@ -401,14 +213,11 @@ export default function ExtratoContaPage() {
                       const v = Number(l.valor);
                       const pedido = l.contaReceber?.pedidoVenda;
                       const titulo = l.contaReceber?.numero || l.contaPagar?.numero;
-                      // Avulso (sem título e não transferência) → clicável para editar.
-                      const editavel = !l.contaReceber && !l.contaPagar && l.tipo !== "TRANSFERENCIA";
                       return (
                         <tr
                           key={l.id}
-                          className={`border-b border-gray-50 hover:bg-gray-50 ${pedido || editavel ? "cursor-pointer" : ""}`}
-                          onClick={pedido ? () => router.push(`/pedidos-venda/${pedido.id}`) : editavel ? () => abrirEditar(l) : undefined}
-                          title={editavel ? "Clique para editar" : undefined}
+                          className={`border-b border-gray-50 hover:bg-gray-50 ${pedido ? "cursor-pointer" : ""}`}
+                          onClick={pedido ? () => router.push(`/pedidos-venda/${pedido.id}`) : undefined}
                         >
                           <td className="px-6 py-3 text-gray-600 whitespace-nowrap">{formatDate(l.dataLancamento)}</td>
                           <td className="px-6 py-3">
@@ -450,154 +259,22 @@ export default function ExtratoContaPage() {
         )}
       </div>
 
-      {/* Drawer lateral — Novo / Editar Lançamento */}
-      {novoOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={() => !salvando && setNovoOpen(false)}>
-          <div className="h-full w-full max-w-3xl bg-white shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-            {/* Cabeçalho */}
-            <div className="flex items-center justify-between px-8 py-5 border-b border-gray-100">
-              <h3 className="text-xl font-bold text-gray-800">{editId ? "Editar Lançamento" : "Novo Lançamento"}</h3>
-              <button onClick={() => setNovoOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-8 py-6 space-y-5">
-              {erroNovo && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erroNovo}</p>}
-
-              {/* Tipo / Status / Conta */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-700">Tipo de Movimentação</label>
-                  <select value={novoTipo} onChange={(e) => { setNovoTipo(e.target.value as "RECEITA" | "DESPESA"); setNovoCategoriaId(""); }}
-                    className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="RECEITA">↑ Entrada</option>
-                    <option value="DESPESA">↓ Saída</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-700">Status</label>
-                  <select value={novoStatus} onChange={(e) => setNovoStatus(e.target.value as "pagamento" | "agendamento")}
-                    className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="pagamento">Pagamento</option>
-                    <option value="agendamento">Agendamento</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-700">Conta</label>
-                  <select value={novoContaId} onChange={(e) => setNovoContaId(e.target.value)}
-                    className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    {contasLista.length === 0 && conta && <option value={conta.id}>{conta.nome}</option>}
-                    {contasLista.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Nome / Descrição */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-700">
-                    {novoStatus === "agendamento" && novoTipo === "RECEITA" ? <>Cliente <span className="text-red-500">*</span></> : "Nome"}
-                  </label>
-                  {novoStatus === "agendamento" && novoTipo === "RECEITA" ? (
-                    <select value={novoClienteId} onChange={(e) => setNovoClienteId(e.target.value)}
-                      className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="">Selecione um cliente...</option>
-                      {clientesLista.map((c) => <option key={c.id} value={c.id}>{c.nomeFantasia || c.razaoSocial}</option>)}
-                    </select>
-                  ) : (
-                    <input value={novoFavorecido} onChange={(e) => setNovoFavorecido(e.target.value)} placeholder="Selecione um contato..."
-                      className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-700">Descrição <span className="text-gray-400 font-normal">(opcional)</span></label>
-                  <input value={novoDescricao} onChange={(e) => setNovoDescricao(e.target.value)} placeholder="Ex.: Serviço prestado"
-                    className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              </div>
-
-              {/* Datas + Total */}
-              <div className="flex items-end gap-4">
-                <div className="flex-1 grid grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-gray-700">Pagamento</label>
-                    <input type="date" value={novoData} onChange={(e) => setNovoData(e.target.value)}
-                      className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-gray-700">Vencimento</label>
-                    <input type="date" value={novoVencimento} onChange={(e) => setNovoVencimento(e.target.value)}
-                      className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-gray-700">Competência</label>
-                    <input type="date" value={novoCompetencia} onChange={(e) => setNovoCompetencia(e.target.value)}
-                      className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                </div>
-                <div className="text-right shrink-0 pb-1">
-                  <div className="text-sm font-medium text-gray-700">Total</div>
-                  <div className={`text-2xl font-bold ${novoTipo === "RECEITA" ? "text-emerald-600" : "text-red-600"}`}>
-                    {formatBRL(parseDecimal(novoValor) || 0)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Categoria / Detalhamento / Valor */}
-              <div className="grid grid-cols-[1fr_1fr_auto] gap-4 items-start">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Categoria</label>
-                  <select value={novoCategoriaId} onChange={(e) => setNovoCategoriaId(e.target.value)}
-                    className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">Selecione uma categoria...</option>
-                    {categorias.filter((c) => c.tipo === novoTipo).map((c) => (
-                      <option key={c.id} value={c.id}>{c.nome}</option>
-                    ))}
-                  </select>
-                  {!catNovaOpen ? (
-                    <button type="button" onClick={() => setCatNovaOpen(true)} className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:underline">
-                      <Plus className="w-3.5 h-3.5" /> Adicionar categoria
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-1.5 pt-0.5">
-                      <input autoFocus value={catNovaNome} onChange={(e) => setCatNovaNome(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") criarCategoriaInline(); }}
-                        placeholder={`Nova categoria de ${novoTipo === "RECEITA" ? "entrada" : "saída"}`}
-                        className="flex-1 h-9 rounded-lg border border-gray-300 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      <Button size="sm" onClick={criarCategoriaInline} disabled={catSalvando || !catNovaNome.trim()} className="h-9 px-2 text-xs">OK</Button>
-                      <button type="button" onClick={() => { setCatNovaOpen(false); setCatNovaNome(""); }} className="text-gray-400 hover:text-gray-600 text-sm px-1">×</button>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Detalhamento <span className="font-normal normal-case">(opcional)</span></label>
-                  <input value={novoDetalhamento} onChange={(e) => setNovoDetalhamento(e.target.value)} placeholder="Detalhamento (opcional)"
-                    className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-right block">Valor</label>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-lg font-bold ${novoTipo === "RECEITA" ? "text-emerald-600" : "text-red-600"}`}>{novoTipo === "RECEITA" ? "↑" : "↓"}</span>
-                    <input inputMode="decimal" value={novoValor} onChange={(e) => setNovoValor(e.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00"
-                      className="w-32 h-11 rounded-lg border border-gray-300 px-3 text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Rodapé */}
-            <div className="flex items-center gap-3 px-8 py-5 border-t border-gray-100">
-              {editId && (
-                <Button variant="outline" onClick={excluirLancamento} disabled={salvando} className="text-red-600 border-red-200 hover:bg-red-50">
-                  Excluir
-                </Button>
-              )}
-              <button onClick={salvarNovo} disabled={salvando}
-                className="flex-1 h-12 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-sm transition-colors disabled:opacity-60">
-                {salvando ? "Salvando..." : editId ? "Salvar" : "Adicionar"}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Novo Lançamento — mesmo componente das listas de contas a pagar/receber,
+          com a conta do extrato travada e o tipo (Entrada/Saída) selecionável. */}
+      {conta && (
+        <CreateDrawer
+          open={novoOpen}
+          onOpenChange={setNovoOpen}
+          title="Novo Lançamento"
+          width="lg"
+          onCreated={() => carregar()}
+        >
+          <LancamentoForm
+            tipo="pagar"
+            tipoSelecionavel
+            contaFixa={{ id: conta.id, nome: conta.nome }}
+          />
+        </CreateDrawer>
       )}
     </div>
   );

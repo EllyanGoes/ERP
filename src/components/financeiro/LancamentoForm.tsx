@@ -25,40 +25,79 @@ const novaLinha = (): Linha => ({ key: crypto.randomUUID(), naturezaFinanceiraId
  * status (Pagamento/Agendamento), conta, contato, datas (pagamento/vencimento/
  * competência) e rateio (várias categorias = naturezas). Cada linha vira um
  * título via POST /api/financeiro/titulos.
+ *
+ * Dois modos:
+ * - Listas (contas a pagar/receber): `tipo` fixo, conta selecionável.
+ * - Conta (extrato): `tipoSelecionavel` → Entrada/Saída no próprio form, e
+ *   `contaFixa` trava a conta do extrato como destino do recebimento/pagamento.
  */
-export default function LancamentoForm({ tipo, contatos }: { tipo: "receber" | "pagar"; contatos: Contato[] }) {
-  const isReceber = tipo === "receber";
+export default function LancamentoForm({
+  tipo,
+  contatos = [],
+  tipoSelecionavel = false,
+  contaFixa,
+}: {
+  tipo: "receber" | "pagar";
+  contatos?: Contato[];
+  tipoSelecionavel?: boolean;
+  contaFixa?: { id: string; nome: string };
+}) {
+  const [tipoSel, setTipoSel] = useState<"receber" | "pagar">(tipo);
+  const isReceber = tipoSel === "receber";
   const [status, setStatus] = useState<"AGENDAMENTO" | "PAGAMENTO">("AGENDAMENTO");
   const [contatoId, setContatoId] = useState("");
-  const [contaBancariaId, setContaBancariaId] = useState("");
+  const [contaBancariaId, setContaBancariaId] = useState(contaFixa?.id ?? "");
   const [descricao, setDescricao] = useState("");
   const [dataPagamento, setDataPagamento] = useState(hojeInput());
   const [dataVencimento, setDataVencimento] = useState(hojeInput());
   const [dataCompetencia, setDataCompetencia] = useState(hojeInput());
   const [linhas, setLinhas] = useState<Linha[]>([novaLinha()]);
-  const [contas, setContas] = useState<ContaOpt[]>([]);
+  const [contas, setContas] = useState<ContaOpt[]>(contaFixa ? [contaFixa] : []);
   const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
+  // Modo conta: as listas de clientes/fornecedores trocam conforme o tipo.
+  const [clientes, setClientes] = useState<Contato[]>([]);
+  const [fornecedores, setFornecedores] = useState<Contato[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
+
+  const listaContatos = tipoSelecionavel ? (isReceber ? clientes : fornecedores) : contatos;
 
   const { confirmCreated, dialog } = useCreateFlow({
     entity: "lançamento", gender: "m",
     onNew: () => {
-      setStatus("AGENDAMENTO"); setContatoId(""); setContaBancariaId(""); setDescricao("");
+      setTipoSel(tipo); setStatus("AGENDAMENTO"); setContatoId("");
+      setContaBancariaId(contaFixa?.id ?? ""); setDescricao("");
       setDataPagamento(hojeInput()); setDataVencimento(hojeInput()); setDataCompetencia(hojeInput());
       setLinhas([novaLinha()]); setErro(null);
     },
   });
 
+  // Contas bancárias (só quando a conta não vem travada pelo extrato).
   useEffect(() => {
+    if (contaFixa) { setContas([contaFixa]); setContaBancariaId(contaFixa.id); return; }
     fetch("/api/financeiro/contas").then((r) => r.json()).then((j) => {
       const cs: ContaOpt[] = Array.isArray(j) ? j : (j.data ?? []);
       setContas(cs);
       setContaBancariaId((cs.find((c) => c.tipo === "CAIXA") ?? cs[0])?.id ?? "");
     }).catch(() => {});
+  }, [contaFixa]);
+
+  // Naturezas conforme o tipo (entrada/saída) — refaz ao alternar no modo conta.
+  useEffect(() => {
     fetch(`/api/financeiro/naturezas?tipo=${isReceber ? "ENTRADA" : "SAIDA"}&ativo=1`)
       .then((r) => r.json()).then((j) => setNaturezas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
   }, [isReceber]);
+
+  // Modo conta: carrega clientes e fornecedores (o tipo é escolhido aqui).
+  useEffect(() => {
+    if (!tipoSelecionavel) return;
+    const norm = (j: unknown): Contato[] => {
+      const lista = Array.isArray(j) ? j : ((j as { data?: unknown[] })?.data ?? []);
+      return (lista as { id: string; razaoSocial: string }[]).map((o) => ({ id: o.id, razaoSocial: o.razaoSocial }));
+    };
+    fetch("/api/clientes?limit=1000").then((r) => r.json()).then((j) => setClientes(norm(j))).catch(() => {});
+    fetch("/api/suprimentos/fornecedores?ativo=1").then((r) => r.json()).then((j) => setFornecedores(norm(j))).catch(() => {});
+  }, [tipoSelecionavel]);
 
   const valorLinha = (s: string) => { const v = parseDecimal(s); return Number.isFinite(v) ? v : 0; };
   const total = linhas.reduce((s, l) => s + valorLinha(l.valor), 0);
@@ -66,6 +105,13 @@ export default function LancamentoForm({ tipo, contatos }: { tipo: "receber" | "
 
   function up(key: string, campo: keyof Linha, valor: string) {
     setLinhas((prev) => prev.map((l) => (l.key === key ? { ...l, [campo]: valor } : l)));
+  }
+
+  // Alterna Entrada/Saída (modo conta): muda as naturezas e o tipo de contato.
+  function trocarTipo(novo: "receber" | "pagar") {
+    setTipoSel(novo);
+    setContatoId("");
+    setLinhas((prev) => prev.map((l) => ({ ...l, naturezaFinanceiraId: "" })));
   }
 
   async function salvar() {
@@ -80,7 +126,7 @@ export default function LancamentoForm({ tipo, contatos }: { tipo: "receber" | "
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tipo, status,
+          tipo: tipoSel, status,
           contatoId: contatoId || null,
           contaBancariaId: pago ? contaBancariaId : null,
           descricao: descricao.trim() || null,
@@ -105,10 +151,17 @@ export default function LancamentoForm({ tipo, contatos }: { tipo: "receber" | "
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1">
           <Label className="text-xs text-gray-500">Tipo de Movimentação</Label>
-          <div className={`h-10 rounded-lg border px-3 flex items-center gap-1.5 text-sm font-medium ${isReceber ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
-            {isReceber ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownLeft className="w-4 h-4" />}
-            {isReceber ? "Entrada" : "Saída"}
-          </div>
+          {tipoSelecionavel ? (
+            <select value={tipoSel} onChange={(e) => trocarTipo(e.target.value as "receber" | "pagar")} className={inputCls}>
+              <option value="receber">↑ Entrada</option>
+              <option value="pagar">↓ Saída</option>
+            </select>
+          ) : (
+            <div className={`h-10 rounded-lg border px-3 flex items-center gap-1.5 text-sm font-medium ${isReceber ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+              {isReceber ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownLeft className="w-4 h-4" />}
+              {isReceber ? "Entrada" : "Saída"}
+            </div>
+          )}
         </div>
         <div className="space-y-1">
           <Label className="text-xs text-gray-500">Status</Label>
@@ -118,11 +171,15 @@ export default function LancamentoForm({ tipo, contatos }: { tipo: "receber" | "
           </select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs text-gray-500">Conta {pago && <span className="text-red-500">*</span>}</Label>
-          <select value={contaBancariaId} onChange={(e) => setContaBancariaId(e.target.value)} disabled={!pago} className={`${inputCls} disabled:bg-gray-50 disabled:text-gray-400`}>
-            <option value="">Selecione</option>
-            {contas.filter((c) => c.ativo !== false).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-          </select>
+          <Label className="text-xs text-gray-500">Conta {pago && !contaFixa && <span className="text-red-500">*</span>}</Label>
+          {contaFixa ? (
+            <div className={`${inputCls} flex items-center text-gray-500 bg-gray-50`}>{contaFixa.nome}</div>
+          ) : (
+            <select value={contaBancariaId} onChange={(e) => setContaBancariaId(e.target.value)} disabled={!pago} className={`${inputCls} disabled:bg-gray-50 disabled:text-gray-400`}>
+              <option value="">Selecione</option>
+              {contas.filter((c) => c.ativo !== false).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          )}
         </div>
       </div>
 
@@ -133,7 +190,7 @@ export default function LancamentoForm({ tipo, contatos }: { tipo: "receber" | "
           <ComboboxWithCreate
             value={contatoId}
             onChange={setContatoId}
-            options={contatos.map((c) => ({ value: c.id, label: c.razaoSocial }))}
+            options={listaContatos.map((c) => ({ value: c.id, label: c.razaoSocial }))}
             placeholder={isReceber ? "Selecione o cliente..." : "Selecione o fornecedor..."}
             createHref={isReceber ? "/clientes/novo" : "/suprimentos/fornecedores/novo"}
             createLabel={isReceber ? "cliente" : "fornecedor"}
