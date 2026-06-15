@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
+import { requireSession } from "@/lib/auth";
 import { z } from "zod";
 
 const GRUPOS = ["RECEITA_OPERACIONAL", "CUSTO_OPERACIONAL", "DESPESA_OPERACIONAL", "INVESTIMENTO", "FINANCIAMENTO"] as const;
@@ -15,8 +16,11 @@ const schema = z.object({
 });
 
 // GET /api/financeiro/naturezas?tipo=ENTRADA|SAIDA&ativo=1
+// Lista de referência (seletor de natureza no Pedido de Venda, Doc. de Entrada
+// e lançamentos): basta estar autenticado — usada por vendedores que não têm o
+// módulo financeiro. A criação (POST) continua restrita ao módulo financeiro.
 export async function GET(req: NextRequest) {
-  const auth = await requireModulo("financeiro");
+  const auth = await requireSession();
   if (!auth.ok) return auth.response;
 
   const { searchParams } = new URL(req.url);
