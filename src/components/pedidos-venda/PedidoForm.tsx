@@ -898,8 +898,9 @@ export default function PedidoForm({
           </div>
           </div>
 
-          {/* Venda à ordem (triangular): estoque sai de outra empresa do grupo */}
-          {mostrarEmpresa && modalidade !== "BALCAO" && (
+          {/* Venda à ordem (triangular): estoque sai de outra empresa do grupo.
+              Disponível em qualquer modalidade (Balcão e Agendada). */}
+          {mostrarEmpresa && (
             <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Entrega / estoque por outra empresa</Label>
@@ -916,8 +917,9 @@ export default function PedidoForm({
                     ))}
                 </select>
                 <p className="text-xs text-gray-500">
-                  Venda à ordem: a venda fica nesta empresa, mas outra empresa do grupo entrega e baixa o estoque.
-                  Ao confirmar, um pedido de entrega é criado automaticamente nela.
+                  Venda à ordem: a venda fica nesta empresa, mas outra empresa do grupo fornece o estoque.
+                  Na entrega, o sistema gera os movimentos virtuais (saída na origem + entrada/saída nesta empresa)
+                  e o financeiro intragrupo automaticamente.
                 </p>
               </div>
               {estoqueOrigemId && (

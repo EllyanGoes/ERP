@@ -9,6 +9,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { proximaSequenciaDaEmpresa, contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { recomputarStatusPedido } from "@/lib/pedido-totais";
+import { gerarMovimentosTriangulares } from "@/lib/venda-ordem";
 import { generateDocNumber, generateSimpleDocNumber } from "@/lib/utils";
 import { pedidoPrintData } from "@/lib/print-pedido-server";
 import { z } from "zod";
@@ -56,6 +57,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (pedido.intragrupo) {
     return NextResponse.json({ error: "Venda entre empresas do grupo segue o fluxo normal de confirmação e entrega." }, { status: 422 });
   }
+  // Venda à ordem: o estoque sai de outra empresa do grupo. A baixa normal
+  // (abaixo) é pulada; os movimentos virtuais (saída na origem + entrada/saída
+  // nesta empresa) são gerados após o commit por gerarMovimentosTriangulares.
+  const triangular = !!pedido.estoqueOrigemEmpresaId;
+
   if (pedido.minutas.length > 0) {
     return NextResponse.json({ error: "Este pedido já possui minutas — conclua pelo fluxo de entrega." }, { status: 422 });
   }
@@ -162,50 +168,54 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         },
       });
 
-      const lote = await tx.loteMovimentacao.create({
-        data: {
-          empresaId: pedido.empresaId,
-          numero: movNumero,
-          tipo: "SAIDA",
-          documento: minuta.numero,
-          observacoes: `Venda balcão ${pedido.numero} — minuta ${minuta.numero}`,
-        },
-      });
-
-      for (const item of pedido.itens) {
-        const quantidade = parseFloat(item.quantidade.toString());
-
-        let estoque = await tx.estoqueItem.findFirst({
-          where: { empresaId: pedido.empresaId, itemId: item.itemId, localEstoqueId, clienteDonoId: null },
-        });
-        if (!estoque) {
-          estoque = await tx.estoqueItem.create({
-            data: { empresaId: pedido.empresaId, itemId: item.itemId, localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null },
-          });
-        }
-
-        // decrement atômico: o saldo da linha deriva do valor pós-update.
-        const atualizado = await tx.estoqueItem.update({
-          where: { id: estoque.id },
-          data: { quantidadeAtual: { decrement: quantidade } },
-        });
-        const saldoDepois = parseFloat(atualizado.quantidadeAtual.toString());
-
-        await tx.movimentacaoEstoque.create({
+      // Venda à ordem: pula a baixa normal — os movimentos virtuais são gerados
+      // após o commit (gerarMovimentosTriangulares).
+      if (!triangular) {
+        const lote = await tx.loteMovimentacao.create({
           data: {
             empresaId: pedido.empresaId,
-            itemId: item.itemId,
-            localEstoqueId,
-            loteId: lote.id,
-            pedidoVendaItemId: item.id,
+            numero: movNumero,
             tipo: "SAIDA",
-            quantidade,
-            saldoAntes: saldoDepois + quantidade,
-            saldoDepois,
             documento: minuta.numero,
-            observacoes: `Venda balcão — minuta ${minuta.numero}`,
+            observacoes: `Venda balcão ${pedido.numero} — minuta ${minuta.numero}`,
           },
         });
+
+        for (const item of pedido.itens) {
+          const quantidade = parseFloat(item.quantidade.toString());
+
+          let estoque = await tx.estoqueItem.findFirst({
+            where: { empresaId: pedido.empresaId, itemId: item.itemId, localEstoqueId, clienteDonoId: null },
+          });
+          if (!estoque) {
+            estoque = await tx.estoqueItem.create({
+              data: { empresaId: pedido.empresaId, itemId: item.itemId, localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null },
+            });
+          }
+
+          // decrement atômico: o saldo da linha deriva do valor pós-update.
+          const atualizado = await tx.estoqueItem.update({
+            where: { id: estoque.id },
+            data: { quantidadeAtual: { decrement: quantidade } },
+          });
+          const saldoDepois = parseFloat(atualizado.quantidadeAtual.toString());
+
+          await tx.movimentacaoEstoque.create({
+            data: {
+              empresaId: pedido.empresaId,
+              itemId: item.itemId,
+              localEstoqueId,
+              loteId: lote.id,
+              pedidoVendaItemId: item.id,
+              tipo: "SAIDA",
+              quantidade,
+              saldoAntes: saldoDepois + quantidade,
+              saldoDepois,
+              documento: minuta.numero,
+              observacoes: `Venda balcão — minuta ${minuta.numero}`,
+            },
+          });
+        }
       }
 
       // Recebimento à vista: o dinheiro entra na conta indicada. Se o pedido JÁ
@@ -279,6 +289,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       await recomputarStatusPedido(tx, pedido.id);
       return { minuta, conta };
     });
+
+    // Venda à ordem: gera os 3 movimentos virtuais + financeiro intragrupo a
+    // partir da minuta RETIRADA já ENTREGUE (idempotente).
+    if (triangular) await gerarMovimentosTriangulares(resultado.minuta.id);
 
     // Dados de impressão do cupom (o PDV imprime direto da resposta).
     const pedidoImpresso = await prisma.pedidoVenda.findUnique({
