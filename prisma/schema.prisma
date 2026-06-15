@@ -300,6 +300,7 @@ model ContaPagar {
   valorJuros            Decimal                @default(0) @db.Decimal(15, 2)
   dataVencimento        DateTime? // null = sem data prevista (ex.: "Faturado")
   dataPagamento         DateTime?
+  dataCompetencia       DateTime?
   status                StatusConta            @default(ABERTA)
   formaPagamento        String?
   notaFiscal            String?
@@ -350,6 +351,7 @@ model ContaReceber {
   valorJuros            Decimal                @default(0) @db.Decimal(15, 2)
   dataVencimento        DateTime? // null = sem data prevista (ex.: "Faturado")
   dataPagamento         DateTime?
+  dataCompetencia       DateTime?
   status                StatusConta            @default(ABERTA)
   formaPagamento        String?
   nossoNumero           String?
@@ -883,6 +885,9 @@ model LancamentoFinanceiro {
   descricao             String
   valor                 Decimal               @db.Decimal(15, 2)
   dataLancamento        DateTime
+  // Datas opcionais do lançamento (formulário rico): vencimento e competência.
+  dataVencimento        DateTime?
+  dataCompetencia       DateTime?
   contaBancariaId       String
   categoriaFinanceiraId String?
   centroCustoId         String?
