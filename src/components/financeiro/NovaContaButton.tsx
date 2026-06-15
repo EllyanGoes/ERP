@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CreateDrawer from "@/components/shared/CreateDrawer";
-import ContaPagarForm from "@/components/financeiro/ContaPagarForm";
-import ContaReceberForm from "@/components/financeiro/ContaReceberForm";
+import LancamentoForm from "@/components/financeiro/LancamentoForm";
 
 type Opcao = { id: string; razaoSocial: string };
 
@@ -37,23 +36,21 @@ export default function NovaContaButton({ tipo }: { tipo: "pagar" | "receber" })
     <>
       <Button onClick={() => setAberta(true)}>
         <Plus className="w-4 h-4 mr-2" />
-        Nova Conta
+        Novo Lançamento
       </Button>
       <CreateDrawer
         open={aberta}
         onOpenChange={setAberta}
-        title={tipo === "pagar" ? "Nova Conta a Pagar" : "Nova Conta a Receber"}
-        width="md"
+        title="Novo Lançamento"
+        width="lg"
         onCreated={() => router.refresh()}
       >
         {opcoes === null ? (
           <div className="flex items-center justify-center h-32">
             <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
           </div>
-        ) : tipo === "pagar" ? (
-          <ContaPagarForm fornecedores={opcoes} />
         ) : (
-          <ContaReceberForm clientes={opcoes} />
+          <LancamentoForm tipo={tipo} contatos={opcoes} />
         )}
       </CreateDrawer>
     </>
