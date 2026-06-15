@@ -787,14 +787,14 @@ export default function NecessidadeDetailPage() {
               </Button>
             )}
 
-            {/* RASCUNHO */}
+            {/* RASCUNHO → APROVADA direto (a aprovação agora é na cotação) */}
             {isRascunho && (
               <Button size="sm"
-                onClick={() => changeStatus("AGUARDANDO_APROVACAO")} disabled={actioning}
+                onClick={() => changeStatus("APROVADA")} disabled={actioning}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
               >
                 {actioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                Confirmar SC
+                Confirmar e liberar para cotação
               </Button>
             )}
 

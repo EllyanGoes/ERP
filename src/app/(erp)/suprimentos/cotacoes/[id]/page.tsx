@@ -64,7 +64,8 @@ type Cotacao = {
   id: string;
   numero: string;
   nome: string | null;
-  status: "PENDENTE" | "EM_ANALISE" | "CONCLUIDA";
+  status: "PENDENTE" | "EM_ANALISE" | "AGUARDANDO_APROVACAO" | "CONCLUIDA";
+  motivoReprovacao?: string | null;
   dataLimiteResposta: string | null;
   observacoes: string | null;
   infoEntrega: string | null;
@@ -311,6 +312,42 @@ export default function CotacaoDetailPage() {
     }
   }
 
+  async function submeterAprovacao() {
+    setActioning(true);
+    setActionError("");
+    try {
+      const res = await fetch(`/api/suprimentos/cotacoes/${id}/submeter-aprovacao`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+      });
+      const json = await res.json();
+      if (!res.ok) { setActionError(json.error || "Erro ao submeter"); return; }
+      await load();
+    } catch {
+      setActionError("Erro de conexão");
+    } finally {
+      setActioning(false);
+    }
+  }
+
+  async function reprovarCotacao() {
+    const motivo = window.prompt("Motivo da reprovação (opcional):") ?? undefined;
+    setActioning(true);
+    setActionError("");
+    try {
+      const res = await fetch(`/api/suprimentos/cotacoes/${id}/reprovar`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ motivo }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setActionError(json.error || "Erro ao reprovar"); return; }
+      await load();
+    } catch {
+      setActionError("Erro de conexão");
+    } finally {
+      setActioning(false);
+    }
+  }
+
   async function desqualificarFornecedor(cfId: string) {
     try {
       await fetch(`/api/suprimentos/cotacoes/${id}/fornecedores/${cfId}`, {
@@ -430,13 +467,27 @@ export default function CotacaoDetailPage() {
             )}
             {cotacao.status === "EM_ANALISE" && respondidas.length > 0 && (
               <Button
-                onClick={gerarPedido}
+                onClick={submeterAprovacao}
                 disabled={actioning}
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-blue-600 hover:bg-blue-700"
               >
                 {actioning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                Concluir e Gerar Pedido
+                Submeter à aprovação
               </Button>
+            )}
+            {cotacao.status === "AGUARDANDO_APROVACAO" && isAdmin && (
+              <>
+                <Button onClick={gerarPedido} disabled={actioning} className="bg-green-600 hover:bg-green-700">
+                  {actioning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                  Aprovar e gerar pedido
+                </Button>
+                <Button variant="outline" onClick={reprovarCotacao} disabled={actioning} className="text-red-600 border-red-200 hover:bg-red-50">
+                  Reprovar
+                </Button>
+              </>
+            )}
+            {cotacao.status === "AGUARDANDO_APROVACAO" && !isAdmin && (
+              <span className="text-sm font-medium text-amber-600 px-2">Aguardando aprovação</span>
             )}
             {canEdit && (
               <Button variant="outline" onClick={openEditModal}>

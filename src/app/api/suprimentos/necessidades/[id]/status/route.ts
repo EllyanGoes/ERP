@@ -8,7 +8,9 @@ import { sendTelegramDM, escMD } from "@/lib/telegram";
 // CANCELADA é um cancelamento "soft" (não exclui registros): disponível em todos os
 // estados de trabalho, exceto nos terminais já atendidos. É um estado final.
 const TRANSITIONS: Record<string, string[]> = {
-  RASCUNHO:             ["AGUARDANDO_APROVACAO", "CANCELADA"],
+  // A aprovação migrou para a cotação → a SC vai direto de RASCUNHO p/ APROVADA
+  // (sem etapa de aprovação da SC). AGUARDANDO_APROVACAO mantido p/ registros antigos.
+  RASCUNHO:             ["APROVADA", "AGUARDANDO_APROVACAO", "CANCELADA"],
   AGUARDANDO_APROVACAO: ["APROVADA", "REJEITADA", "CANCELADA"],
   APROVADA:             ["EM_COTACAO", "EM_PEDIDO", "CANCELADA"],
   REJEITADA:            ["AGUARDANDO_APROVACAO", "CANCELADA"],
