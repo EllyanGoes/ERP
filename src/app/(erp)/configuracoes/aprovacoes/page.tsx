@@ -57,6 +57,7 @@ type Fluxo = {
 
 const PROCESSO_LABELS: Record<string, string> = {
   SOLICITACAO_COMPRAS: "Solicitação de Compras",
+  PEDIDO_COMPRAS:      "Pedido de Compras (cotação)",
   PEDIDO_VENDA:        "Pedido de Venda",
   CONTRATO:            "Contrato",
   DESPESA:             "Despesa",
@@ -390,6 +391,7 @@ export default function AprovacoesPage() {
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
                 >
                   <option value="SOLICITACAO_COMPRAS">Solicitação de Compras</option>
+                  <option value="PEDIDO_COMPRAS">Pedido de Compras (cotação)</option>
                   <option value="PEDIDO_VENDA">Pedido de Venda</option>
                   <option value="CONTRATO">Contrato</option>
                   <option value="DESPESA">Despesa</option>

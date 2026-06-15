@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const numeroRef = cotacao.nome || cotacao.necessidade?.numero || cotacao.numero;
 
-    await prisma.$transaction(async (tx) => {
+    const aprovacaoId = await prisma.$transaction(async (tx) => {
       await tx.cotacaoCompra.update({
         where: { id: params.id },
         data: { status: "AGUARDANDO_APROVACAO" },
@@ -48,23 +48,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
       // Substitui pendências anteriores desta cotação.
       await tx.aprovacaoSC.deleteMany({ where: { cotacaoId: params.id, status: "PENDENTE" } });
-      if (aprovador) {
-        await tx.aprovacaoSC.create({
-          data: {
-            cotacaoId: params.id,
-            etapaOrdem: 1,
-            etapaNome: aprovador.etapaNome,
-            aprovadorId: aprovador.aprovadorId,
-            fluxoId: aprovador.fluxoId,
-            status: "PENDENTE",
-          },
-        });
-      }
+      if (!aprovador) return null;
+      const ap = await tx.aprovacaoSC.create({
+        data: {
+          cotacaoId: params.id,
+          etapaOrdem: 1,
+          etapaNome: aprovador.etapaNome,
+          aprovadorId: aprovador.aprovadorId,
+          fluxoId: aprovador.fluxoId,
+          status: "PENDENTE",
+        },
+      });
+      return ap.id;
     });
 
-    // Notificação remota (best-effort). A aprovação/reprovação é feita na tela
-    // Aprovações ou direto na cotação.
-    if (aprovador) {
+    // Notificação remota com botões inline (best-effort). Os mesmos botões
+    // sc_APPROVE_/sc_REJECT_ que a SC usa — o webhook trata cotação pelo cotacaoId.
+    if (aprovacaoId) {
       try {
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
           ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
@@ -74,11 +74,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             ``,
             `• *Cotação:* ${escMD(numeroRef)}`,
             ``,
-            `Avalie e aprove para gerar o Pedido de Compras.`,
+            `Aprovar gera o Pedido de Compras.`,
           ].join("\n"),
-          inlineKeyboard: [[
-            { text: "📋 Abrir aprovações", url: `${baseUrl}/aprovacoes` },
-          ]],
+          inlineKeyboard: [
+            [
+              { text: "✅ Aprovar", callbackData: `sc_APPROVE_${aprovacaoId}` },
+              { text: "❌ Reprovar", callbackData: `sc_REJECT_${aprovacaoId}` },
+            ],
+            [{ text: "📋 Abrir cotação", url: `${baseUrl}/suprimentos/cotacoes/${params.id}` }],
+          ],
         });
       } catch (e) {
         console.warn("[submeter-aprovacao] Telegram notify falhou (não bloqueia):", e);

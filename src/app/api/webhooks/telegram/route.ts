@@ -8,6 +8,7 @@ import { buildRelatorioEstoque, parseRelatorioDate } from "@/lib/relatorio-estoq
 import { buildRelatorioNecessidades } from "@/lib/relatorio-necessidades";
 import { buildRelatorioSolicitacoes } from "@/lib/relatorio-solicitacoes";
 import { buildRelatorioConsumo } from "@/lib/relatorio-consumo";
+import { gerarPedidoDeCotacao } from "@/lib/aprovacao-cotacao";
 
 // Telegram sends POST with callback_query when user clicks inline keyboard button
 export async function POST(req: NextRequest) {
@@ -220,6 +221,7 @@ export async function POST(req: NextRequest) {
           },
         },
         fluxo: true,
+        cotacao: { select: { id: true } },
       },
     });
 
@@ -243,6 +245,27 @@ export async function POST(req: NextRequest) {
       where: { id: aprovacaoId },
       data: { status: novoStatus, respondidoEm: new Date() },
     });
+
+    // ── Aprovação de COTAÇÃO → gera o Pedido de Compras ───────────────────────
+    if (aprovacao.cotacaoId) {
+      const cotacaoId = aprovacao.cotacaoId;
+      try {
+        if (novoStatus === "REPROVADO") {
+          await prisma.cotacaoCompra.update({
+            where: { id: cotacaoId },
+            data: { status: "EM_ANALISE", motivoReprovacao: `Reprovado por ${aprovacao.aprovador.nome} via Telegram` },
+          });
+        } else {
+          await prisma.$transaction((tx) => gerarPedidoDeCotacao(tx, cotacaoId));
+        }
+      } catch (e) {
+        await prisma.aprovacaoSC.update({ where: { id: aprovacaoId }, data: { status: "PENDENTE", respondidoEm: null } });
+        await answerCallbackQuery(cq.id, e instanceof Error ? e.message.slice(0, 180) : "Erro ao aprovar cotação");
+        return NextResponse.json({ ok: true });
+      }
+      await answerCallbackQuery(cq.id, novoStatus === "APROVADO" ? "✅ Cotação aprovada — pedido gerado" : "❌ Cotação reprovada");
+      return NextResponse.json({ ok: true });
+    }
 
     const sc = aprovacao.necessidade;
     // Só Solicitação de Compras passa por aqui; cotação tem fluxo próprio.
