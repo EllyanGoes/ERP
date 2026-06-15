@@ -1264,6 +1264,9 @@ model PedidoVendaItem {
   itemId        String
   quantidade    Decimal               @db.Decimal(15, 3)
   precoUnitario Decimal               @db.Decimal(15, 2)
+  // Venda à ordem: preço de compra unitário da empresa da venda com a origem
+  // (Cimento ← Tramontin). Valora a entrada/saída-origem e o financeiro intragrupo.
+  precoTransferencia Decimal?          @db.Decimal(15, 2)
   descontoPct   Decimal               @default(0) @db.Decimal(15, 4)
   desconto      Decimal               @default(0) @db.Decimal(15, 2)
   valorDesconto Decimal               @default(0) @db.Decimal(15, 2)

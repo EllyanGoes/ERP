@@ -4,6 +4,7 @@ export const pedidoVendaItemSchema = z.object({
   itemId:        z.string().min(1, "Item é obrigatório"),
   quantidade:    z.coerce.number().min(0.001, "Quantidade inválida"),
   precoUnitario: z.coerce.number().min(0, "Preço inválido"),
+  precoTransferencia: z.coerce.number().min(0).optional(),       // venda à ordem: preço de compra (origem)
   descontoPct:   z.coerce.number().min(0).max(100).default(0),   // % desconto
   valorDesconto: z.coerce.number().min(0).default(0),            // R$ calculado
   desconto:      z.coerce.number().min(0).default(0),            // compat

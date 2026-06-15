@@ -153,7 +153,10 @@ export async function gerarMovimentosTriangulares(minutaId: string): Promise<voi
         const pvi = mi.pedidoVendaItem;
         const precoVenda = new Prisma.Decimal(pvi.precoUnitario ?? 0);
         const totalItem = new Prisma.Decimal(pvi.valorTotal ?? 0);
-        const transferUnit = qtd.gt(0) ? totalItem.mul(fator).div(qtd).toDecimalPlaces(4) : precoVenda;
+        // Preço de compra (origem): por item quando informado; senão rateia o total.
+        const transferUnit = pvi.precoTransferencia != null
+          ? new Prisma.Decimal(pvi.precoTransferencia)
+          : (qtd.gt(0) ? totalItem.mul(fator).div(qtd).toDecimalPlaces(4) : precoVenda);
         transferTotal = transferTotal.add(transferUnit.mul(qtd));
 
         // 1) SAÍDA na origem (Tramontin) — baixa real, valorada na transferência.

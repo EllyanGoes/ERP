@@ -144,6 +144,8 @@ export async function POST(req: NextRequest) {
             itemId:        item.itemId,
             quantidade:    item.quantidade,
             precoUnitario: item.precoUnitario,
+            precoTransferencia: estoqueOrigemEmpresaId && item.precoTransferencia != null && Number(item.precoTransferencia) > 0
+              ? Number(item.precoTransferencia) : null,
             descontoPct:   item.descontoPct   ?? 0,
             valorDesconto: item.valorDesconto ?? 0,
             desconto:      item.desconto      ?? 0,
