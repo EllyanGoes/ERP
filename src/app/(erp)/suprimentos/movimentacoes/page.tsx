@@ -35,6 +35,7 @@ type MovItem = {
   item: { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null };
   localEstoque: { id: string; nome: string } | null;
   clienteDono?: { id: string; razaoSocial: string } | null;
+  vendaOrdem?: { id: string; numero: string } | null;
 };
 
 type Lote = {
@@ -98,6 +99,11 @@ const MOV_COLS: ColDef<MovItem>[] = [
           <span className="px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-medium whitespace-nowrap" title={`Mercadoria de terceiro: ${it.clienteDono.razaoSocial}`}>
             Terceiro: {it.clienteDono.razaoSocial}
           </span>
+        )}
+        {it.vendaOrdem && (
+          <Link href={`/pedidos-venda/${it.vendaOrdem.id}`} className="px-1.5 py-0.5 rounded border border-violet-200 bg-violet-50 text-violet-700 text-[10px] font-medium whitespace-nowrap hover:bg-violet-100" title={`Venda à ordem (movimentação virtual entre empresas) — ${it.vendaOrdem.numero}`}>
+            Venda à ordem: {it.vendaOrdem.numero}
+          </Link>
         )}
       </span>
     ),

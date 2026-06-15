@@ -293,6 +293,7 @@ export async function GET(req: NextRequest) {
         // expose origin fields so the UI can tell manual vs automatic
         pedidoVendaItem:  { select: { id: true } },
         conferenciaItem:  { select: { id: true } },
+        vendaOrdem:       { select: { id: true, numero: true } },
       },
       orderBy: { createdAt: "desc" },
       take,

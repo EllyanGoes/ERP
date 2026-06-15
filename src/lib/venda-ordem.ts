@@ -14,6 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { Prisma } from "@prisma/client";
 import { prismaSemEscopo } from "@/lib/prisma";
+import { generateDocNumber } from "@/lib/utils";
 
 type Tx = Prisma.TransactionClient;
 
@@ -113,7 +114,7 @@ export async function gerarMovimentosTriangulares(minutaId: string): Promise<voi
 
     const origem = await prismaSemEscopo.empresa.findFirst({
       where: { id: venda.estoqueOrigemEmpresaId, ativo: true },
-      select: { id: true, nomeFantasia: true, razaoSocial: true },
+      select: { id: true, nomeFantasia: true, razaoSocial: true, fornecedorId: true, clienteId: true },
     });
     if (!origem) {
       console.error(`[venda-ordem] empresa de origem ${venda.estoqueOrigemEmpresaId} inválida — minuta ${minuta.numero}`);
@@ -144,6 +145,7 @@ export async function gerarMovimentosTriangulares(minutaId: string): Promise<voi
       const loteEntradaA = await criarLote(tx, empresaA, "ENTRADA", minuta.numero, `Compra virtual de ${origemNome} (venda à ordem ${venda.numero})`);
       const loteSaidaA = await criarLote(tx, empresaA, "SAIDA", minuta.numero, `Entrega ao cliente ${clienteNome} (venda à ordem ${venda.numero})`);
 
+      let transferTotal = new Prisma.Decimal(0);
       for (const mi of minuta.itens) {
         const qtd = new Prisma.Decimal(mi.quantidadeConvertida ?? mi.quantidade);
         if (qtd.lte(0)) continue;
@@ -152,6 +154,7 @@ export async function gerarMovimentosTriangulares(minutaId: string): Promise<voi
         const precoVenda = new Prisma.Decimal(pvi.precoUnitario ?? 0);
         const totalItem = new Prisma.Decimal(pvi.valorTotal ?? 0);
         const transferUnit = qtd.gt(0) ? totalItem.mul(fator).div(qtd).toDecimalPlaces(4) : precoVenda;
+        transferTotal = transferTotal.add(transferUnit.mul(qtd));
 
         // 1) SAÍDA na origem (Tramontin) — baixa real, valorada na transferência.
         await movimentar(tx, {
@@ -174,6 +177,34 @@ export async function gerarMovimentosTriangulares(minutaId: string): Promise<voi
           observacoes: `Entrega ao cliente ${clienteNome} (venda à ordem ${venda.numero})`,
           valorUnitario: precoVenda, vendaOrdemId: venda.id, pedidoVendaItemId: mi.pedidoVendaItemId,
         });
+      }
+
+      // ── Financeiro intragrupo (compra virtual A ↔ B), pelo total de transferência.
+      const valor = transferTotal.toDecimalPlaces(2);
+      const vencimento = minuta.dataEntrega ?? new Date();
+      if (valor.gt(0)) {
+        // Conta a Receber na origem (B vende p/ A) — cliente = cadastro da empresa da venda.
+        if (venda.empresa.clienteId) {
+          const nCR = generateDocNumber("CR", await proximaSequencia(tx, origem.id, "CR"));
+          await tx.contaReceber.create({
+            data: {
+              empresaId: origem.id, numero: nCR, clienteId: venda.empresa.clienteId,
+              descricao: `Venda à ordem ${venda.numero} p/ ${empresaANome} (minuta ${minuta.numero})`,
+              valorOriginal: valor, dataVencimento: vencimento, status: "ABERTA", intragrupo: true,
+            },
+          });
+        }
+        // Conta a Pagar na empresa da venda (A compra de B) — fornecedor = cadastro da origem.
+        if (origem.fornecedorId) {
+          const nCP = generateDocNumber("CP", await proximaSequencia(tx, empresaA, "CP"));
+          await tx.contaPagar.create({
+            data: {
+              empresaId: empresaA, numero: nCP, fornecedorId: origem.fornecedorId,
+              descricao: `Compra intragrupo de ${origemNome} — venda à ordem ${venda.numero} (minuta ${minuta.numero})`,
+              valorOriginal: valor, dataVencimento: vencimento, status: "ABERTA", intragrupo: true,
+            },
+          });
+        }
       }
     });
   } catch (e) {
