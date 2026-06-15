@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Search, Loader2, Tag, Package } from "lucide-react";
@@ -257,7 +258,7 @@ export default function PedidoForm({
   const [condicoesLoading,  setCondicoesLoading]  = useState(false);
   // Natureza financeira (entrada) dos títulos a gerar.
   const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState(pedido?.naturezaFinanceiraId ?? "");
-  const [naturezas, setNaturezas] = useState<{ id: string; nome: string; grupo: string }[]>([]);
+  const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
   const [condicaoOpen,      setCondicaoOpen]      = useState(false);
   const [condicaoSearch,    setCondicaoSearch]    = useState("");
   const [newCondicaoName,   setNewCondicaoName]   = useState("");
@@ -1377,13 +1378,14 @@ export default function PedidoForm({
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Natureza Financeira{!pedido && " *"}</Label>
-            <ComboboxWithCreate
+            <NaturezaCombobox
               value={naturezaFinanceiraId}
               onChange={setNaturezaFinanceiraId}
-              placeholder="— Selecionar natureza —"
-              noneLabel="Sem natureza"
-              triggerClassName="h-10 rounded-lg"
-              options={naturezas.map((n) => ({ value: n.id, label: n.grupo ? `${n.nome}` : n.nome }))}
+              naturezas={naturezas}
+              defaultTipo="ENTRADA"
+              onCreated={(n) => setNaturezas((prev) => [...prev, n])}
+              placeholder="Selecione uma natureza..."
+              className="h-10"
             />
           </div>
           <div className="space-y-1.5">
