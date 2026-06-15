@@ -467,11 +467,12 @@ export default function PedidosVendaPage() {
         if (filters.statusOp === "is_not" &&  filters.statuses.includes(p.status)) return false;
       }
       if (filters.semOrcamento && (p.numeroOrcamento ?? "").trim() !== "") return false;
-      if (filters.dateFrom) {
-        if (new Date(p.dataEmissao) < new Date(filters.dateFrom)) return false;
-      }
-      if (filters.dateTo) {
-        if (new Date(p.dataEmissao) > new Date(filters.dateTo + "T23:59:59")) return false;
+      // Compara a data-calendário (UTC, igual ao formatDate exibido na coluna)
+      // como string YYYY-MM-DD — evita desvio de fuso no limite do período.
+      if (filters.dateFrom || filters.dateTo) {
+        const emiss = String(p.dataEmissao).slice(0, 10);
+        if (filters.dateFrom && emiss < filters.dateFrom) return false;
+        if (filters.dateTo && emiss > filters.dateTo) return false;
       }
       if (!q) return true;
       return (
