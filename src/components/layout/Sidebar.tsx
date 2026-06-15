@@ -162,6 +162,7 @@ const mainModules: Module[] = [
       { kind: "Relatórios" as SubSection["kind"], items: [
         { href: "/comercial/relatorios/faturamento", label: "Faturamento", icon: BarChart3 },
         { href: "/comercial/relatorios/faturamento-diario", label: "Resumo Diário", icon: FileText },
+        { href: "/comercial/relatorios/materiais", label: "Materiais Vendidos", icon: Package },
       ]},
     ],
   },
