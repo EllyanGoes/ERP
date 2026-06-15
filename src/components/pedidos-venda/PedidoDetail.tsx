@@ -17,6 +17,7 @@ import PagamentosInput, {
   novaLinhaPagamento, pagamentosPayload, pagamentosValidos, contaCaixaPadrao, parseValorBR,
   type LinhaPagamento, type FormaOpt,
 } from "./PagamentosInput";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 type MinutaItemSummary = { quantidade: string };
 
@@ -1302,19 +1303,16 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Forma de pagamento</label>
-              <select value={crForma} onChange={(e) => setCrForma(e.target.value)}
-                className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">— Selecionar —</option>
-                {crForma && !balcaoFormas.some((f) => f.nome === crForma) && <option value={crForma}>{crForma}</option>}
-                {balcaoFormas.filter((f) => f.ativo !== false).map((f) => <option key={f.id} value={f.nome}>{f.nome}</option>)}
-              </select>
+              <ComboboxWithCreate value={crForma} onChange={setCrForma} placeholder="— Selecionar —" noneLabel="Selecionar" triggerClassName="h-10 rounded-lg"
+                options={[
+                  ...(crForma && !balcaoFormas.some((f) => f.nome === crForma) ? [{ value: crForma, label: crForma }] : []),
+                  ...balcaoFormas.filter((f) => f.ativo !== false).map((f) => ({ value: f.nome, label: f.nome })),
+                ]} />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Conta de destino</label>
-              <select value={crContaId} onChange={(e) => setCrContaId(e.target.value)}
-                className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {balcaoContas.filter((c) => c.ativo !== false).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </select>
+              <ComboboxWithCreate value={crContaId} onChange={setCrContaId} placeholder="Selecione" noneLabel="Selecione" triggerClassName="h-10 rounded-lg"
+                options={balcaoContas.filter((c) => c.ativo !== false).map((c) => ({ value: c.id, label: c.nome }))} />
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setCrAlvo(null)} disabled={loading}>Cancelar</Button>
