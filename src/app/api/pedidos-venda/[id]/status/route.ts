@@ -40,10 +40,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   // Não permite concluir enquanto houver material pendente de entrega
-  // (qtd pedida ainda não totalmente coberta por minutas ENTREGUE).
-  // Venda à ordem (estoqueOrigemEmpresaId) não tem minuta própria — a entrega
-  // é controlada no pedido de entrega da empresa de origem; não bloqueia aqui.
-  if (parsed.data.status === "CONCLUIDO" && !pedido.estoqueOrigemEmpresaId) {
+  // (qtd pedida ainda não totalmente coberta por minutas ENTREGUE). A venda à
+  // ordem também tem minuta própria (a entrega gera os movimentos virtuais),
+  // então a checagem vale igualmente.
+  if (parsed.data.status === "CONCLUIDO") {
     const pendentes = await getItensPendentesEntrega(params.id);
     if (pendentes.length > 0) {
       return NextResponse.json(
@@ -76,8 +76,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // Confirmação → gera o contas a receber conforme a CONDIÇÃO DE PAGAMENTO
   // (à vista vence hoje; a prazo no futuro; parcelado em N). Nasce EM ABERTO e
   // é recebido no Caixa/seção Contas a Receber. Não duplica (guarda) e ignora
-  // intragrupo. A entrega segue independente, via minutas.
-  if (parsed.data.status === "CONFIRMADO" && !pedido.intragrupo && !pedido.estoqueOrigemEmpresaId) {
+  // intragrupo. A entrega segue independente, via minutas. A venda à ordem é a
+  // "venda oficial" (adquirente → cliente) e gera a receita normalmente; o
+  // financeiro da compra simbólica (origem) é tratado em src/lib/venda-ordem.ts.
+  if (parsed.data.status === "CONFIRMADO" && !pedido.intragrupo) {
     const valorTotal = parseFloat(pedido.valorTotal.toString());
     const jaTem = await prisma.contaReceber.count({ where: { pedidoVendaId: params.id } });
     if (valorTotal > 0 && jaTem === 0) {
