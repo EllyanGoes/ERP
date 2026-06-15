@@ -146,6 +146,14 @@ function isoToDateInput(iso: string | null): string {
   return d.toISOString().slice(0, 10);
 }
 
+// "Hoje" no fuso de São Paulo (YYYY-MM-DD) para o default da data de emissão,
+// evitando que perto da meia-noite a data UTC mostre o dia seguinte.
+function hojeInputSP(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date()); // en-CA já entrega "YYYY-MM-DD"
+}
+
 function buildInitialLinhas(pedido?: PedidoInicial): LineItem[] {
   if (!pedido) return [];
   return pedido.itens.map((it) => {
@@ -211,6 +219,8 @@ export default function PedidoForm({
   const { user: usuarioSessao } = useSession();
   const voltarLista = useVoltarCriacao("/pedidos-venda");
   const empresasGrupo = usuarioSessao?.empresas ?? [];
+  // Campo Empresa só aparece na criação quando há mais de uma empresa no grupo.
+  const mostrarEmpresa = !pedido && empresasGrupo.length > 1;
   const [empresaId, setEmpresaId] = useState(""); // "" = empresa ativa (só na criação)
   // Venda à ordem (triangular): estoque sai de outra empresa do grupo, que cria
   // automaticamente o pedido de entrega ao confirmar.
@@ -220,7 +230,7 @@ export default function PedidoForm({
   const [tabelaPrecoId,     setTabelaPrecoId]     = useState(pedido?.tabelaPrecoId ?? "");
   const [vendedorId,        setVendedorId]        = useState(pedido?.vendedorId ?? "");
   const [vendedores,        setVendedores]        = useState<{ id: string; nome: string; ativo?: boolean }[]>([]);
-  const [dataEmissao,       setDataEmissao]       = useState(pedido ? isoToDateInput(pedido.dataEmissao) : new Date().toISOString().slice(0, 10));
+  const [dataEmissao,       setDataEmissao]       = useState(pedido ? isoToDateInput(pedido.dataEmissao) : hojeInputSP());
   const [dataEntrega,       setDataEntrega]       = useState(pedido ? isoToDateInput(pedido.dataEntrega) : "");
   const [condicaoPagamento, setCondicaoPagamento] = useState(pedido?.condicaoPagamento ?? "");
   // Pagamento misto: formas previstas com valores (PIX + dinheiro etc.).
@@ -781,7 +791,9 @@ export default function PedidoForm({
         </div>
         <div className="p-5 space-y-5">
 
-          {!pedido && empresasGrupo.length > 1 && (
+          {/* Empresa + Cliente lado a lado (Empresa some na edição / empresa única) */}
+          <div className="grid grid-cols-2 gap-4 items-start">
+          {mostrarEmpresa && (
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Empresa</Label>
               <select
@@ -797,47 +809,8 @@ export default function PedidoForm({
             </div>
           )}
 
-          {/* Venda à ordem (triangular): estoque sai de outra empresa do grupo */}
-          {!pedido && empresasGrupo.length > 1 && modalidade !== "BALCAO" && (
-            <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Entrega / estoque por outra empresa</Label>
-                <select
-                  value={estoqueOrigemId}
-                  onChange={(e) => setEstoqueOrigemId(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
-                >
-                  <option value="">— Esta empresa entrega (normal) —</option>
-                  {empresasGrupo
-                    .filter((e) => e.id !== (empresaId || usuarioSessao?.activeEmpresaId))
-                    .map((e) => (
-                      <option key={e.id} value={e.id}>{e.nome} entrega e baixa do estoque</option>
-                    ))}
-                </select>
-                <p className="text-xs text-gray-500">
-                  Venda à ordem: a venda fica nesta empresa, mas outra empresa do grupo entrega e baixa o estoque.
-                  Ao confirmar, um pedido de entrega é criado automaticamente nela.
-                </p>
-              </div>
-              {estoqueOrigemId && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Preço de transferência (total)</Label>
-                  <Input
-                    inputMode="decimal"
-                    value={precoTransferencia}
-                    onChange={(e) => setPrecoTransferencia(e.target.value.replace(/[^0-9.,]/g, ""))}
-                    placeholder="Valor interno cobrado pela empresa que entrega"
-                    className="h-10 border-gray-300"
-                  />
-                  <p className="text-xs text-gray-400">Valor que a empresa de origem cobra internamente. Aparece no pedido de entrega; não gera financeiro por ora.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-4">
           {/* Cliente */}
-          <div className="space-y-1.5">
+          <div className={cn("space-y-1.5", !mostrarEmpresa && "col-span-2")}>
             <div className="flex items-center justify-between">
               <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Cliente *</Label>
               {clientes.some((c) => c.id === CONSUMIDOR_FINAL_ID) && clienteId !== CONSUMIDOR_FINAL_ID && (
@@ -899,20 +872,48 @@ export default function PedidoForm({
               )}
             </div>
           </div>
-
-          {/* Nº do Orçamento (controle de pedido físico) */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Nº do Orçamento</Label>
-            <Input
-              type="text"
-              value={numeroOrcamento}
-              onChange={(e) => setNumeroOrcamento(e.target.value)}
-              placeholder="Número no controle físico"
-              className="h-10 border-gray-300"
-            />
-          </div>
           </div>
 
+          {/* Venda à ordem (triangular): estoque sai de outra empresa do grupo */}
+          {mostrarEmpresa && modalidade !== "BALCAO" && (
+            <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Entrega / estoque por outra empresa</Label>
+                <select
+                  value={estoqueOrigemId}
+                  onChange={(e) => setEstoqueOrigemId(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                >
+                  <option value="">— Esta empresa entrega (normal) —</option>
+                  {empresasGrupo
+                    .filter((e) => e.id !== (empresaId || usuarioSessao?.activeEmpresaId))
+                    .map((e) => (
+                      <option key={e.id} value={e.id}>{e.nome} entrega e baixa do estoque</option>
+                    ))}
+                </select>
+                <p className="text-xs text-gray-500">
+                  Venda à ordem: a venda fica nesta empresa, mas outra empresa do grupo entrega e baixa o estoque.
+                  Ao confirmar, um pedido de entrega é criado automaticamente nela.
+                </p>
+              </div>
+              {estoqueOrigemId && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Preço de transferência (total)</Label>
+                  <Input
+                    inputMode="decimal"
+                    value={precoTransferencia}
+                    onChange={(e) => setPrecoTransferencia(e.target.value.replace(/[^0-9.,]/g, ""))}
+                    placeholder="Valor interno cobrado pela empresa que entrega"
+                    className="h-10 border-gray-300"
+                  />
+                  <p className="text-xs text-gray-400">Valor que a empresa de origem cobra internamente. Aparece no pedido de entrega; não gera financeiro por ora.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Vendedor + Nº do Orçamento lado a lado */}
+          <div className="grid grid-cols-2 gap-4">
           {/* Vendedor */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Vendedor</Label>
@@ -926,6 +927,19 @@ export default function PedidoForm({
                 <option key={v.id} value={v.id}>{v.nome}</option>
               ))}
             </select>
+          </div>
+
+          {/* Nº do Orçamento (controle de pedido físico) */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Nº do Orçamento</Label>
+            <Input
+              type="text"
+              value={numeroOrcamento}
+              onChange={(e) => setNumeroOrcamento(e.target.value)}
+              placeholder="Número no controle físico"
+              className="h-10 border-gray-300"
+            />
+          </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
