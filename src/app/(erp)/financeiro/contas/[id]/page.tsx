@@ -74,6 +74,7 @@ export default function ExtratoContaPage() {
   const [salvando, setSalvando] = useState(false);
   const [erroNovo, setErroNovo] = useState("");
   const [novoTipo, setNovoTipo] = useState<"RECEITA" | "DESPESA">("DESPESA");
+  const [novoStatus, setNovoStatus] = useState<"pagamento" | "agendamento">("pagamento");
   const [novoData, setNovoData] = useState(hojeInput());
   const [novoVencimento, setNovoVencimento] = useState("");
   const [novoCompetencia, setNovoCompetencia] = useState("");
@@ -82,7 +83,9 @@ export default function ExtratoContaPage() {
   const [novoCategoriaId, setNovoCategoriaId] = useState("");
   const [novoFavorecido, setNovoFavorecido] = useState("");
   const [novoDetalhamento, setNovoDetalhamento] = useState("");
+  const [novoContaId, setNovoContaId] = useState("");
   const [categorias, setCategorias] = useState<CategoriaOpt[]>([]);
+  const [contasLista, setContasLista] = useState<{ id: string; nome: string }[]>([]);
   const [editId, setEditId] = useState<string | null>(null); // null = novo; id = editando avulso
   // Criação rápida de categoria (+ Adicionar categoria)
   const [catNovaOpen, setCatNovaOpen] = useState(false);
@@ -96,11 +99,17 @@ export default function ExtratoContaPage() {
         .then((j) => setCategorias(Array.isArray(j.flat) ? j.flat : []))
         .catch(() => {});
     }
+    if (contasLista.length === 0) {
+      fetch("/api/financeiro/contas")
+        .then((r) => r.json())
+        .then((j) => setContasLista(Array.isArray(j.data) ? j.data : []))
+        .catch(() => {});
+    }
   }
 
   function abrirNovo() {
     setErroNovo(""); setEditId(null);
-    setNovoTipo("DESPESA");
+    setNovoTipo("DESPESA"); setNovoStatus("pagamento"); setNovoContaId(params.id);
     setNovoData(hojeInput()); setNovoVencimento(""); setNovoCompetencia("");
     setNovoDescricao(""); setNovoValor(""); setNovoCategoriaId(""); setNovoFavorecido(""); setNovoDetalhamento("");
     setCatNovaOpen(false); setCatNovaNome("");
@@ -114,6 +123,7 @@ export default function ExtratoContaPage() {
     if (l.contaReceber || l.contaPagar || l.tipo === "TRANSFERENCIA") return;
     setErroNovo(""); setEditId(l.id);
     setNovoTipo(l.tipo === "RECEITA" ? "RECEITA" : "DESPESA");
+    setNovoStatus("pagamento"); setNovoContaId(params.id);
     setNovoData(String(l.dataLancamento).slice(0, 10));
     setNovoVencimento(l.dataVencimento ? String(l.dataVencimento).slice(0, 10) : "");
     setNovoCompetencia(l.dataCompetencia ? String(l.dataCompetencia).slice(0, 10) : "");
@@ -164,6 +174,9 @@ export default function ExtratoContaPage() {
     if (!novoDescricao.trim()) { setErroNovo("Informe a descrição."); return; }
     const valorNum = parseDecimal(novoValor);
     if (!(valorNum > 0)) { setErroNovo("Informe um valor maior que zero."); return; }
+    // "Agendamento" (previsto, não entra no saldo) ainda será ligado ao módulo de
+    // títulos/fluxo previsto — por ora só "Pagamento" (realizado) é lançado.
+    if (novoStatus === "agendamento") { setErroNovo("Agendamento (lançamento previsto) está em implementação. Use Pagamento para lançar agora."); return; }
     setSalvando(true); setErroNovo("");
     try {
       const res = await fetch(
@@ -178,7 +191,7 @@ export default function ExtratoContaPage() {
             dataLancamento: novoData,
             dataVencimento: novoVencimento || null,
             dataCompetencia: novoCompetencia || null,
-            contaBancariaId: params.id,
+            contaBancariaId: novoContaId || params.id,
             categoriaFinanceiraId: novoCategoriaId || null,
             favorecido: novoFavorecido.trim() || null,
             observacoes: novoDetalhamento.trim() || null,
@@ -392,139 +405,138 @@ export default function ExtratoContaPage() {
       {/* Drawer lateral — Novo / Editar Lançamento */}
       {novoOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={() => !salvando && setNovoOpen(false)}>
-          <div className="h-full w-full max-w-lg bg-white shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="h-full w-full max-w-3xl bg-white shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
             {/* Cabeçalho */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h3 className="font-bold text-gray-800">{editId ? "Editar Lançamento" : "Novo Lançamento"}</h3>
-              <button onClick={() => setNovoOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+            <div className="flex items-center justify-between px-8 py-5 border-b border-gray-100">
+              <h3 className="text-xl font-bold text-gray-800">{editId ? "Editar Lançamento" : "Novo Lançamento"}</h3>
+              <button onClick={() => setNovoOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+            <div className="flex-1 overflow-y-auto px-8 py-6 space-y-5">
               {erroNovo && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erroNovo}</p>}
 
               {/* Tipo / Status / Conta */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Tipo de Movimentação</label>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button type="button" onClick={() => { setNovoTipo("RECEITA"); setNovoCategoriaId(""); }}
-                      className={`h-10 rounded-lg border text-xs font-semibold transition-colors ${novoTipo === "RECEITA" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-gray-300 text-gray-600 hover:border-gray-400"}`}>
-                      ↑ Entrada
-                    </button>
-                    <button type="button" onClick={() => { setNovoTipo("DESPESA"); setNovoCategoriaId(""); }}
-                      className={`h-10 rounded-lg border text-xs font-semibold transition-colors ${novoTipo === "DESPESA" ? "border-red-500 bg-red-50 text-red-700" : "border-gray-300 text-gray-600 hover:border-gray-400"}`}>
-                      ↓ Saída
-                    </button>
-                  </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">Tipo de Movimentação</label>
+                  <select value={novoTipo} onChange={(e) => { setNovoTipo(e.target.value as "RECEITA" | "DESPESA"); setNovoCategoriaId(""); }}
+                    className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="RECEITA">↑ Entrada</option>
+                    <option value="DESPESA">↓ Saída</option>
+                  </select>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Status</label>
-                  <div className="h-10 flex items-center px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-600">
-                    {novoTipo === "RECEITA" ? "Recebimento" : "Pagamento"}
-                  </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">Status</label>
+                  <select value={novoStatus} onChange={(e) => setNovoStatus(e.target.value as "pagamento" | "agendamento")}
+                    className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="pagamento">Pagamento</option>
+                    <option value="agendamento">Agendamento</option>
+                  </select>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Conta</label>
-                  <div className="h-10 flex items-center px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-600 truncate">
-                    {conta?.nome}
-                  </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">Conta</label>
+                  <select value={novoContaId} onChange={(e) => setNovoContaId(e.target.value)}
+                    className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {contasLista.length === 0 && conta && <option value={conta.id}>{conta.nome}</option>}
+                    {contasLista.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </select>
                 </div>
               </div>
 
               {/* Nome / Descrição */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Nome / Contato</label>
-                  <input value={novoFavorecido} onChange={(e) => setNovoFavorecido(e.target.value)} placeholder="Cliente, fornecedor..."
-                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">Nome</label>
+                  <input value={novoFavorecido} onChange={(e) => setNovoFavorecido(e.target.value)} placeholder="Selecione um contato..."
+                    className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Descrição</label>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">Descrição <span className="text-gray-400 font-normal">(opcional)</span></label>
                   <input value={novoDescricao} onChange={(e) => setNovoDescricao(e.target.value)} placeholder="Ex.: Serviço prestado"
-                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
 
-              {/* Datas: Pagamento / Vencimento / Competência */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Pagamento</label>
-                  <input type="date" value={novoData} onChange={(e) => setNovoData(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              {/* Datas + Total */}
+              <div className="flex items-end gap-4">
+                <div className="flex-1 grid grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">Pagamento</label>
+                    <input type="date" value={novoData} onChange={(e) => setNovoData(e.target.value)}
+                      className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">Vencimento</label>
+                    <input type="date" value={novoVencimento} onChange={(e) => setNovoVencimento(e.target.value)}
+                      className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">Competência</label>
+                    <input type="date" value={novoCompetencia} onChange={(e) => setNovoCompetencia(e.target.value)}
+                      className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Vencimento</label>
-                  <input type="date" value={novoVencimento} onChange={(e) => setNovoVencimento(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Competência</label>
-                  <input type="date" value={novoCompetencia} onChange={(e) => setNovoCompetencia(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <div className="text-right shrink-0 pb-1">
+                  <div className="text-sm font-medium text-gray-700">Total</div>
+                  <div className={`text-2xl font-bold ${novoTipo === "RECEITA" ? "text-emerald-600" : "text-red-600"}`}>
+                    {formatBRL(parseDecimal(novoValor) || 0)}
+                  </div>
                 </div>
               </div>
 
-              {/* Categoria (+ adicionar) / Valor */}
-              <div className="grid grid-cols-2 gap-3 items-end">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Categoria</label>
+              {/* Categoria / Detalhamento / Valor */}
+              <div className="grid grid-cols-[1fr_1fr_auto] gap-4 items-start">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Categoria</label>
                   <select value={novoCategoriaId} onChange={(e) => setNovoCategoriaId(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">— Selecione uma categoria —</option>
+                    className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Selecione uma categoria...</option>
                     {categorias.filter((c) => c.tipo === novoTipo).map((c) => (
                       <option key={c.id} value={c.id}>{c.nome}</option>
                     ))}
                   </select>
                   {!catNovaOpen ? (
-                    <button type="button" onClick={() => setCatNovaOpen(true)} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
-                      <Plus className="w-3 h-3" /> Adicionar categoria
+                    <button type="button" onClick={() => setCatNovaOpen(true)} className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:underline">
+                      <Plus className="w-3.5 h-3.5" /> Adicionar categoria
                     </button>
                   ) : (
                     <div className="flex items-center gap-1.5 pt-0.5">
                       <input autoFocus value={catNovaNome} onChange={(e) => setCatNovaNome(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") criarCategoriaInline(); }}
                         placeholder={`Nova categoria de ${novoTipo === "RECEITA" ? "entrada" : "saída"}`}
-                        className="flex-1 h-8 rounded-lg border border-gray-300 px-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      <Button size="sm" onClick={criarCategoriaInline} disabled={catSalvando || !catNovaNome.trim()} className="h-8 px-2 text-xs">OK</Button>
+                        className="flex-1 h-9 rounded-lg border border-gray-300 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <Button size="sm" onClick={criarCategoriaInline} disabled={catSalvando || !catNovaNome.trim()} className="h-9 px-2 text-xs">OK</Button>
                       <button type="button" onClick={() => { setCatNovaOpen(false); setCatNovaNome(""); }} className="text-gray-400 hover:text-gray-600 text-sm px-1">×</button>
                     </div>
                   )}
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Valor</label>
-                  <input inputMode="decimal" value={novoValor} onChange={(e) => setNovoValor(e.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00"
-                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Detalhamento <span className="font-normal normal-case">(opcional)</span></label>
+                  <input value={novoDetalhamento} onChange={(e) => setNovoDetalhamento(e.target.value)} placeholder="Detalhamento (opcional)"
+                    className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
-              </div>
-
-              {/* Detalhamento */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Detalhamento (opcional)</label>
-                <textarea value={novoDetalhamento} onChange={(e) => setNovoDetalhamento(e.target.value)} rows={2} placeholder="Observações..."
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-
-              {/* Total */}
-              <div className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3">
-                <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total</span>
-                <span className={`text-lg font-bold ${novoTipo === "RECEITA" ? "text-emerald-700" : "text-red-600"}`}>
-                  {novoTipo === "RECEITA" ? "+" : "−"} {formatBRL(parseDecimal(novoValor) || 0)}
-                </span>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-right block">Valor</label>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-lg font-bold ${novoTipo === "RECEITA" ? "text-emerald-600" : "text-red-600"}`}>{novoTipo === "RECEITA" ? "↑" : "↓"}</span>
+                    <input inputMode="decimal" value={novoValor} onChange={(e) => setNovoValor(e.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00"
+                      className="w-32 h-11 rounded-lg border border-gray-300 px-3 text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Rodapé */}
-            <div className="flex items-center gap-2 px-6 py-4 border-t border-gray-100">
+            <div className="flex items-center gap-3 px-8 py-5 border-t border-gray-100">
               {editId && (
                 <Button variant="outline" onClick={excluirLancamento} disabled={salvando} className="text-red-600 border-red-200 hover:bg-red-50">
                   Excluir
                 </Button>
               )}
-              <div className="flex-1" />
-              <Button variant="outline" onClick={() => setNovoOpen(false)} disabled={salvando}>Cancelar</Button>
-              <Button onClick={salvarNovo} disabled={salvando} className="font-semibold">
+              <button onClick={salvarNovo} disabled={salvando}
+                className="flex-1 h-12 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-sm transition-colors disabled:opacity-60">
                 {salvando ? "Salvando..." : editId ? "Salvar" : "Adicionar"}
-              </Button>
+              </button>
             </div>
           </div>
         </div>
