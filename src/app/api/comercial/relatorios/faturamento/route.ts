@@ -26,8 +26,10 @@ export async function GET(req: NextRequest) {
 
   const from = parseDate(searchParams.get("from"), defaultFrom);
   const to = parseDate(searchParams.get("to"), defaultTo);
-  from.setHours(0, 0, 0, 0);
-  to.setHours(23, 59, 59, 999);
+  // Janela ancorada em UTC (os campos de data são gravados em meia-noite UTC e
+  // exibidos via getUTC*); setHours dependia do fuso do servidor.
+  from.setUTCHours(0, 0, 0, 0);
+  to.setUTCHours(23, 59, 59, 999);
 
   // Critério do que conta como faturado:
   //  • "entrega"      (padrão) → realização: balcão na conclusão + entregas (minuta ENTREGUE);
