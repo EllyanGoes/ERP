@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import PageHeader from "@/components/shared/PageHeader";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Button } from "@/components/ui/button";
 import { formatBRL, formatDate, cn } from "@/lib/utils";
 import { Upload, Link2, Plus, Unlink, CheckCircle2, FileCheck2 } from "lucide-react";
@@ -107,10 +108,10 @@ export default function ConciliacaoPage() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 flex flex-wrap items-end gap-3">
           <div className="space-y-1.5">
             <label className="block text-xs font-medium text-gray-500">Conta bancária</label>
-            <select value={contaId} onChange={(e) => setContaId(e.target.value)} className="h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white min-w-[200px]">
-              <option value="">Selecione...</option>
-              {contas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
+            <div className="min-w-[200px]">
+              <ComboboxWithCreate value={contaId} onChange={setContaId} placeholder="Selecione..." noneLabel="Selecione" triggerClassName="h-10 rounded-lg"
+                options={contas.map((c) => ({ value: c.id, label: c.nome }))} />
+            </div>
           </div>
           <label className={cn(
             "inline-flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-medium cursor-pointer",

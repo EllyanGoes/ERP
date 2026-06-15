@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import PageHeader from "@/components/shared/PageHeader";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatBRL, formatDate, cn } from "@/lib/utils";
@@ -163,10 +164,10 @@ export default function AgendaFinanceiraPage() {
             <div className="flex-1" />
             <div className="space-y-1">
               <label className="block text-xs font-medium text-gray-500">Conta</label>
-              <select value={contaBancariaId} onChange={(e) => setContaBancariaId(e.target.value)} className="h-9 rounded-lg border border-gray-300 px-3 text-sm bg-white min-w-[180px]">
-                <option value="">Selecione a conta...</option>
-                {contas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </select>
+              <div className="min-w-[180px]">
+                <ComboboxWithCreate value={contaBancariaId} onChange={setContaBancariaId} placeholder="Selecione a conta..." noneLabel="Selecione" triggerClassName="h-9 rounded-lg"
+                  options={contas.map((c) => ({ value: c.id, label: c.nome }))} />
+              </div>
             </div>
             <div className="space-y-1">
               <label className="block text-xs font-medium text-gray-500">Data</label>
