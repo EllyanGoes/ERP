@@ -84,8 +84,11 @@ export default function ExtratoContaPage() {
   const [novoFavorecido, setNovoFavorecido] = useState("");
   const [novoDetalhamento, setNovoDetalhamento] = useState("");
   const [novoContaId, setNovoContaId] = useState("");
+  const [novoClienteId, setNovoClienteId] = useState(""); // agendamento + entrada → Conta a Receber exige cliente
   const [categorias, setCategorias] = useState<CategoriaOpt[]>([]);
   const [contasLista, setContasLista] = useState<{ id: string; nome: string }[]>([]);
+  const [clientesLista, setClientesLista] = useState<{ id: string; razaoSocial: string; nomeFantasia: string | null }[]>([]);
+  const [aviso, setAviso] = useState("");
   const [editId, setEditId] = useState<string | null>(null); // null = novo; id = editando avulso
   // Criação rápida de categoria (+ Adicionar categoria)
   const [catNovaOpen, setCatNovaOpen] = useState(false);
@@ -105,11 +108,17 @@ export default function ExtratoContaPage() {
         .then((j) => setContasLista(Array.isArray(j.data) ? j.data : []))
         .catch(() => {});
     }
+    if (clientesLista.length === 0) {
+      fetch("/api/clientes?limit=1000")
+        .then((r) => r.json())
+        .then((j) => setClientesLista(Array.isArray(j.data) ? j.data : []))
+        .catch(() => {});
+    }
   }
 
   function abrirNovo() {
     setErroNovo(""); setEditId(null);
-    setNovoTipo("DESPESA"); setNovoStatus("pagamento"); setNovoContaId(params.id);
+    setNovoTipo("DESPESA"); setNovoStatus("pagamento"); setNovoContaId(params.id); setNovoClienteId("");
     setNovoData(hojeInput()); setNovoVencimento(""); setNovoCompetencia("");
     setNovoDescricao(""); setNovoValor(""); setNovoCategoriaId(""); setNovoFavorecido(""); setNovoDetalhamento("");
     setCatNovaOpen(false); setCatNovaNome("");
@@ -174,10 +183,46 @@ export default function ExtratoContaPage() {
     if (!novoDescricao.trim()) { setErroNovo("Informe a descrição."); return; }
     const valorNum = parseDecimal(novoValor);
     if (!(valorNum > 0)) { setErroNovo("Informe um valor maior que zero."); return; }
-    // "Agendamento" (previsto, não entra no saldo) ainda será ligado ao módulo de
-    // títulos/fluxo previsto — por ora só "Pagamento" (realizado) é lançado.
-    if (novoStatus === "agendamento") { setErroNovo("Agendamento (lançamento previsto) está em implementação. Use Pagamento para lançar agora."); return; }
-    setSalvando(true); setErroNovo("");
+    setErroNovo("");
+
+    // ── Agendamento → vira título previsto (Conta a Pagar/Receber), não entra
+    // no saldo até dar baixa. Saída = Conta a Pagar; Entrada = Conta a Receber
+    // (exige cliente). Não aparece neste extrato (é um previsto, não realizado).
+    if (novoStatus === "agendamento" && !editId) {
+      const vencimento = novoVencimento || novoData;
+      const obs = [novoFavorecido.trim() && `Contato: ${novoFavorecido.trim()}`, novoDetalhamento.trim()].filter(Boolean).join(" — ") || null;
+      setSalvando(true);
+      try {
+        let res: Response;
+        if (novoTipo === "DESPESA") {
+          res = await fetch("/api/contas-pagar", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              descricao: novoDescricao.trim(), valorOriginal: valorNum, dataVencimento: vencimento,
+              categoriaFinanceiraId: novoCategoriaId || null, contaBancariaId: novoContaId || params.id, observacoes: obs,
+            }),
+          });
+        } else {
+          if (!novoClienteId) { setErroNovo("Para agendar uma entrada (Conta a Receber), selecione o cliente."); setSalvando(false); return; }
+          res = await fetch("/api/contas-receber", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              clienteId: novoClienteId, descricao: novoDescricao.trim(), valorOriginal: valorNum, dataVencimento: vencimento,
+              categoriaFinanceiraId: novoCategoriaId || null, contaBancariaId: novoContaId || params.id, observacoes: obs,
+            }),
+          });
+        }
+        if (!res.ok) { setErroNovo((await res.json().catch(() => ({}))).error || "Erro ao agendar."); return; }
+        setNovoOpen(false);
+        setAviso(`Agendamento criado em ${novoTipo === "DESPESA" ? "Contas a Pagar" : "Contas a Receber"} (não entra no saldo até dar baixa).`);
+        setTimeout(() => setAviso(""), 6000);
+      } catch { setErroNovo("Erro de conexão."); }
+      finally { setSalvando(false); }
+      return;
+    }
+
+    // ── Pagamento → lançamento realizado (entra no saldo) ──────────────────────
+    setSalvando(true);
     try {
       const res = await fetch(
         editId ? `/api/financeiro/lancamentos/${editId}` : "/api/financeiro/lancamentos",
@@ -289,6 +334,9 @@ export default function ExtratoContaPage() {
           <p className="text-sm text-gray-400 py-10 text-center">Conta não encontrada.</p>
         ) : (
           <>
+            {aviso && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{aviso}</div>
+            )}
             <div className="grid grid-cols-3 gap-4">
               <div className="rounded-xl p-4 bg-gray-50 text-gray-700">
                 <p className="text-sm font-medium opacity-75">Saldo inicial</p>
@@ -446,9 +494,19 @@ export default function ExtratoContaPage() {
               {/* Nome / Descrição */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-700">Nome</label>
-                  <input value={novoFavorecido} onChange={(e) => setNovoFavorecido(e.target.value)} placeholder="Selecione um contato..."
-                    className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="text-sm font-medium text-gray-700">
+                    {novoStatus === "agendamento" && novoTipo === "RECEITA" ? <>Cliente <span className="text-red-500">*</span></> : "Nome"}
+                  </label>
+                  {novoStatus === "agendamento" && novoTipo === "RECEITA" ? (
+                    <select value={novoClienteId} onChange={(e) => setNovoClienteId(e.target.value)}
+                      className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">Selecione um cliente...</option>
+                      {clientesLista.map((c) => <option key={c.id} value={c.id}>{c.nomeFantasia || c.razaoSocial}</option>)}
+                    </select>
+                  ) : (
+                    <input value={novoFavorecido} onChange={(e) => setNovoFavorecido(e.target.value)} placeholder="Selecione um contato..."
+                      className="w-full h-11 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-700">Descrição <span className="text-gray-400 font-normal">(opcional)</span></label>
