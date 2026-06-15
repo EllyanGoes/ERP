@@ -6,9 +6,17 @@ import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { useTabTitle } from "@/lib/tabs-context";
 import { Button } from "@/components/ui/button";
-import { formatBRL, formatDate } from "@/lib/utils";
-import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, FileDown, Loader2 } from "lucide-react";
+import { formatBRL, formatDate, parseDecimal } from "@/lib/utils";
+import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, FileDown, Loader2, Plus } from "lucide-react";
 
+type CategoriaOpt = { id: string; nome: string; tipo: "RECEITA" | "DESPESA" };
+
+function hojeInput() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+type EmpresaContato = { razaoSocial: string; nomeFantasia: string | null };
 type ExtratoLinha = {
   id: string;
   tipo: "RECEITA" | "DESPESA" | "TRANSFERENCIA";
@@ -16,10 +24,20 @@ type ExtratoLinha = {
   valor: string | number;
   dataLancamento: string;
   saldoCorrente: number;
+  favorecido: string | null;
   categoriaFinanceira: { id: string; nome: string } | null;
-  contaReceber: { id: string; numero: string; pedidoVenda: { id: string; numero: string } | null } | null;
-  contaPagar: { id: string; numero: string } | null;
+  categoriaFinanceiraId: string | null;
+  contaReceber: { id: string; numero: string; cliente: EmpresaContato | null; pedidoVenda: { id: string; numero: string } | null } | null;
+  contaPagar: { id: string; numero: string; fornecedor: EmpresaContato | null } | null;
 };
+function contatoLinha(l: ExtratoLinha): string {
+  return (
+    l.favorecido ||
+    (l.contaReceber?.cliente && (l.contaReceber.cliente.nomeFantasia || l.contaReceber.cliente.razaoSocial)) ||
+    (l.contaPagar?.fornecedor && (l.contaPagar.fornecedor.nomeFantasia || l.contaPagar.fornecedor.razaoSocial)) ||
+    "—"
+  );
+}
 type Conta = {
   id: string;
   nome: string;
@@ -38,6 +56,94 @@ export default function ExtratoContaPage() {
   const [ate, setAte] = useState("");
   const [gerandoPdf, setGerandoPdf] = useState(false);
   useTabTitle(conta?.nome);
+
+  // ── Novo Lançamento (entrada/saída avulsa direto na conta) ──────────────────
+  const [novoOpen, setNovoOpen] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [erroNovo, setErroNovo] = useState("");
+  const [novoTipo, setNovoTipo] = useState<"RECEITA" | "DESPESA">("DESPESA");
+  const [novoData, setNovoData] = useState(hojeInput());
+  const [novoDescricao, setNovoDescricao] = useState("");
+  const [novoValor, setNovoValor] = useState("");
+  const [novoCategoriaId, setNovoCategoriaId] = useState("");
+  const [novoFavorecido, setNovoFavorecido] = useState("");
+  const [categorias, setCategorias] = useState<CategoriaOpt[]>([]);
+  const [editId, setEditId] = useState<string | null>(null); // null = novo; id = editando avulso
+
+  function carregarCategorias() {
+    if (categorias.length === 0) {
+      fetch("/api/financeiro/plano-contas")
+        .then((r) => r.json())
+        .then((j) => setCategorias(Array.isArray(j.flat) ? j.flat : []))
+        .catch(() => {});
+    }
+  }
+
+  function abrirNovo() {
+    setErroNovo(""); setEditId(null);
+    setNovoTipo("DESPESA");
+    setNovoData(hojeInput());
+    setNovoDescricao(""); setNovoValor(""); setNovoCategoriaId(""); setNovoFavorecido("");
+    setNovoOpen(true);
+    carregarCategorias();
+  }
+
+  // Edita um lançamento AVULSO (sem vínculo a título). Os ligados a recebimento/
+  // pagamento são geridos pelo título — não abrem aqui.
+  function abrirEditar(l: ExtratoLinha) {
+    if (l.contaReceber || l.contaPagar || l.tipo === "TRANSFERENCIA") return;
+    setErroNovo(""); setEditId(l.id);
+    setNovoTipo(l.tipo === "RECEITA" ? "RECEITA" : "DESPESA");
+    setNovoData(String(l.dataLancamento).slice(0, 10));
+    setNovoDescricao(l.descricao);
+    setNovoValor(String(Number(l.valor)).replace(".", ","));
+    setNovoCategoriaId(l.categoriaFinanceiraId ?? "");
+    setNovoFavorecido(l.favorecido ?? "");
+    setNovoOpen(true);
+    carregarCategorias();
+  }
+
+  async function excluirLancamento() {
+    if (!editId) return;
+    if (!confirm("Excluir este lançamento?")) return;
+    setSalvando(true); setErroNovo("");
+    try {
+      const res = await fetch(`/api/financeiro/lancamentos/${editId}`, { method: "DELETE" });
+      if (!res.ok) { setErroNovo((await res.json().catch(() => ({}))).error || "Erro ao excluir."); return; }
+      setNovoOpen(false);
+      carregar();
+    } catch { setErroNovo("Erro de conexão."); }
+    finally { setSalvando(false); }
+  }
+
+  async function salvarNovo() {
+    if (!novoDescricao.trim()) { setErroNovo("Informe a descrição."); return; }
+    const valorNum = parseDecimal(novoValor);
+    if (!(valorNum > 0)) { setErroNovo("Informe um valor maior que zero."); return; }
+    setSalvando(true); setErroNovo("");
+    try {
+      const res = await fetch(
+        editId ? `/api/financeiro/lancamentos/${editId}` : "/api/financeiro/lancamentos",
+        {
+          method: editId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tipo: novoTipo,
+            descricao: novoDescricao.trim(),
+            valor: valorNum,
+            dataLancamento: novoData,
+            contaBancariaId: params.id,
+            categoriaFinanceiraId: novoCategoriaId || null,
+            favorecido: novoFavorecido.trim() || null,
+          }),
+        },
+      );
+      if (!res.ok) { setErroNovo((await res.json().catch(() => ({}))).error || "Erro ao salvar."); return; }
+      setNovoOpen(false);
+      carregar();
+    } catch { setErroNovo("Erro de conexão."); }
+    finally { setSalvando(false); }
+  }
 
   const carregar = useCallback(() => {
     setLoading(true);
@@ -75,13 +181,13 @@ export default function ExtratoContaPage() {
 
       autoTable(doc, {
         startY: 31,
-        head: [["Data", "Descrição", "Pedido", "Categoria", "Entradas", "Saídas", "Saldo"]],
+        head: [["Data", "Descrição", "Cliente / Contato", "Categoria", "Entradas", "Saídas", "Saldo"]],
         body: conta.extrato.map((l) => {
           const v = Number(l.valor);
           return [
             formatDate(l.dataLancamento),
             l.descricao,
-            l.contaReceber?.pedidoVenda?.numero ?? "",
+            contatoLinha(l) === "—" ? "" : contatoLinha(l),
             l.categoriaFinanceira?.nome ?? "",
             v > 0 ? formatBRL(v) : "",
             v < 0 ? formatBRL(-v) : "",
@@ -91,7 +197,7 @@ export default function ExtratoContaPage() {
         styles: { fontSize: 8, cellPadding: 1.4, textColor: [15, 23, 42] },
         headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold" },
         alternateRowStyles: { fillColor: [248, 250, 252] },
-        columnStyles: { 0: { cellWidth: 20 }, 2: { cellWidth: 20 }, 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right", fontStyle: "bold" } },
+        columnStyles: { 0: { cellWidth: 20 }, 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right", fontStyle: "bold" } },
         margin: { left: M, right: M },
       });
 
@@ -154,6 +260,9 @@ export default function ExtratoContaPage() {
                 <Button variant="outline" size="sm" onClick={() => { setDe(""); setAte(""); }} className="h-9">Limpar</Button>
               )}
               <div className="flex-1" />
+              <Button size="sm" onClick={abrirNovo} className="h-9 gap-1.5">
+                <Plus className="w-4 h-4" /> Novo Lançamento
+              </Button>
               <Button variant="outline" size="sm" onClick={baixarPdf} disabled={gerandoPdf || conta.extrato.length === 0} className="h-9 gap-1.5">
                 {gerandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
                 Baixar PDF
@@ -172,6 +281,7 @@ export default function ExtratoContaPage() {
                     <tr className="text-left text-gray-500 border-b border-gray-100 bg-gray-50">
                       <th className="px-6 py-3 font-medium">Data</th>
                       <th className="px-6 py-3 font-medium">Descrição</th>
+                      <th className="px-6 py-3 font-medium">Cliente / Contato</th>
                       <th className="px-6 py-3 font-medium">Categoria</th>
                       <th className="px-6 py-3 font-medium text-right">Entradas</th>
                       <th className="px-6 py-3 font-medium text-right">Saídas</th>
@@ -183,11 +293,14 @@ export default function ExtratoContaPage() {
                       const v = Number(l.valor);
                       const pedido = l.contaReceber?.pedidoVenda;
                       const titulo = l.contaReceber?.numero || l.contaPagar?.numero;
+                      // Avulso (sem título e não transferência) → clicável para editar.
+                      const editavel = !l.contaReceber && !l.contaPagar && l.tipo !== "TRANSFERENCIA";
                       return (
                         <tr
                           key={l.id}
-                          className={`border-b border-gray-50 hover:bg-gray-50 ${pedido ? "cursor-pointer" : ""}`}
-                          onClick={pedido ? () => router.push(`/pedidos-venda/${pedido.id}`) : undefined}
+                          className={`border-b border-gray-50 hover:bg-gray-50 ${pedido || editavel ? "cursor-pointer" : ""}`}
+                          onClick={pedido ? () => router.push(`/pedidos-venda/${pedido.id}`) : editavel ? () => abrirEditar(l) : undefined}
+                          title={editavel ? "Clique para editar" : undefined}
                         >
                           <td className="px-6 py-3 text-gray-600 whitespace-nowrap">{formatDate(l.dataLancamento)}</td>
                           <td className="px-6 py-3">
@@ -208,6 +321,7 @@ export default function ExtratoContaPage() {
                               </Link>
                             )}
                           </td>
+                          <td className="px-6 py-3 text-gray-600">{contatoLinha(l)}</td>
                           <td className="px-6 py-3 text-gray-500">{l.categoriaFinanceira?.nome ?? "—"}</td>
                           <td className="px-6 py-3 text-right tabular-nums font-medium text-emerald-700">
                             {v > 0 ? formatBRL(v) : "—"}
@@ -227,6 +341,78 @@ export default function ExtratoContaPage() {
           </>
         )}
       </div>
+
+      {/* Modal Novo Lançamento */}
+      {novoOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !salvando && setNovoOpen(false)}>
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-800">{editId ? "Editar Lançamento" : "Novo Lançamento"} — {conta?.nome}</h3>
+            {erroNovo && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erroNovo}</p>}
+
+            {/* Tipo: Entrada / Saída */}
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => { setNovoTipo("RECEITA"); setNovoCategoriaId(""); }}
+                className={`h-10 rounded-lg border text-sm font-semibold transition-colors ${novoTipo === "RECEITA" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-gray-300 text-gray-600 hover:border-gray-400"}`}>
+                ↑ Entrada
+              </button>
+              <button type="button" onClick={() => { setNovoTipo("DESPESA"); setNovoCategoriaId(""); }}
+                className={`h-10 rounded-lg border text-sm font-semibold transition-colors ${novoTipo === "DESPESA" ? "border-red-500 bg-red-50 text-red-700" : "border-gray-300 text-gray-600 hover:border-gray-400"}`}>
+                ↓ Saída
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data</label>
+                <input type="date" value={novoData} onChange={(e) => setNovoData(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Valor</label>
+                <input inputMode="decimal" value={novoValor} onChange={(e) => setNovoValor(e.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00"
+                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Descrição</label>
+              <input value={novoDescricao} onChange={(e) => setNovoDescricao(e.target.value)} placeholder="Ex.: Tarifa bancária, aporte..."
+                className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Categoria</label>
+                <select value={novoCategoriaId} onChange={(e) => setNovoCategoriaId(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">— Sem categoria —</option>
+                  {categorias.filter((c) => c.tipo === novoTipo).map((c) => (
+                    <option key={c.id} value={c.id}>{c.nome}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Favorecido / Contato</label>
+                <input value={novoFavorecido} onChange={(e) => setNovoFavorecido(e.target.value)} placeholder="Opcional"
+                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              {editId && (
+                <Button variant="outline" onClick={excluirLancamento} disabled={salvando} className="text-red-600 border-red-200 hover:bg-red-50">
+                  Excluir
+                </Button>
+              )}
+              <div className="flex-1" />
+              <Button variant="outline" onClick={() => setNovoOpen(false)} disabled={salvando}>Cancelar</Button>
+              <Button onClick={salvarNovo} disabled={salvando} className="font-semibold">
+                {salvando ? "Salvando..." : editId ? "Salvar" : "Adicionar"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

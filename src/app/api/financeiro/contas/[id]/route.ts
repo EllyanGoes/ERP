@@ -30,8 +30,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     where,
     include: {
       categoriaFinanceira: { select: { id: true, nome: true } },
-      contaReceber: { select: { id: true, numero: true, pedidoVenda: { select: { id: true, numero: true } } } },
-      contaPagar: { select: { id: true, numero: true } },
+      contaReceber: { select: { id: true, numero: true, cliente: { select: { razaoSocial: true, nomeFantasia: true } }, pedidoVenda: { select: { id: true, numero: true } } } },
+      contaPagar: { select: { id: true, numero: true, fornecedor: { select: { razaoSocial: true, nomeFantasia: true } } } },
     },
     orderBy: [{ dataLancamento: "asc" }, { createdAt: "asc" }],
   });
