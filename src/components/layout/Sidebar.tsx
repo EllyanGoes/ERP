@@ -16,6 +16,7 @@ import {
   TrendingDown,
   BarChart3,
   FileBarChart2,
+  FileText,
   Building2,
   Truck,
   ClipboardList,
@@ -160,6 +161,7 @@ const mainModules: Module[] = [
       ]},
       { kind: "Relatórios" as SubSection["kind"], items: [
         { href: "/comercial/relatorios/faturamento", label: "Faturamento", icon: BarChart3 },
+        { href: "/comercial/relatorios/faturamento-diario", label: "Resumo Diário", icon: FileText },
       ]},
     ],
   },
