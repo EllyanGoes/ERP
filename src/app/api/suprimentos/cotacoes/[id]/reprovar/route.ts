@@ -3,12 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { gerarPedidoDeCotacao } from "@/lib/aprovacao-cotacao";
 
-// POST /api/suprimentos/cotacoes/[id]/aprovar
-// Aprova a cotação e gera o Pedido de Compras (uma única aprovação). Quem pode:
-// ADMIN, ou o aprovador configurado para PEDIDO_COMPRAS (a aprovação pendente
-// desta cotação). Canal direto (in-app) — o canal remoto é o /aprovacoes.
+// POST /api/suprimentos/cotacoes/[id]/reprovar
+// O gerente reprova a cotação: volta para EM_ANALISE (o comprador revê) com o
+// motivo. Quem pode: ADMIN, ou o aprovador configurado da pendência.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("compras");
   if (!auth.ok) return auth.response;
@@ -17,30 +15,30 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   try {
     const body = await req.json().catch(() => ({}));
-    const cfIdParam = body.cfId as string | undefined;
+    const motivo: string | undefined = body.motivo?.trim() || undefined;
 
-    // Gate: ADMIN sempre; senão, precisa ser o aprovador da pendência da cotação.
     if (session.perfil !== "ADMIN") {
       const pend = await prisma.aprovacaoSC.findFirst({
         where: { cotacaoId: params.id, status: "PENDENTE" },
         select: { aprovadorId: true },
       });
       if (!pend || pend.aprovadorId !== session.sub) {
-        return NextResponse.json({ error: "Você não tem permissão para aprovar esta cotação" }, { status: 403 });
+        return NextResponse.json({ error: "Você não tem permissão para reprovar esta cotação" }, { status: 403 });
       }
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      const out = await gerarPedidoDeCotacao(tx, params.id, cfIdParam);
-      // Marca como respondidas as pendências de aprovação desta cotação.
+    await prisma.$transaction(async (tx) => {
+      await tx.cotacaoCompra.update({
+        where: { id: params.id },
+        data: { status: "EM_ANALISE", motivoReprovacao: motivo ?? null },
+      });
       await tx.aprovacaoSC.updateMany({
         where: { cotacaoId: params.id, status: "PENDENTE" },
-        data: { status: "APROVADO", respondidoEm: new Date() },
+        data: { status: "REPROVADO", observacao: motivo ?? null, respondidoEm: new Date() },
       });
-      return out;
     });
 
-    return NextResponse.json({ data: result });
+    return NextResponse.json({ ok: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Erro interno";
     return NextResponse.json({ error: msg }, { status: 400 });

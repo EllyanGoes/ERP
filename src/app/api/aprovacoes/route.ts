@@ -56,6 +56,19 @@ export async function GET(req: NextRequest) {
             },
           },
         },
+        cotacao: {
+          select: {
+            id: true,
+            numero: true,
+            nome: true,
+            createdAt: true,
+            necessidade: { select: { numero: true } },
+            fornecedores: {
+              where: { melhorOpcao: true },
+              select: { totalCalculado: true, fornecedor: { select: { razaoSocial: true, nomeFantasia: true } } },
+            },
+          },
+        },
       },
     }),
   ]);

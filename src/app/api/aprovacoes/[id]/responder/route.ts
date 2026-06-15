@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { gerarPedidoDeCotacao } from "@/lib/aprovacao-cotacao";
 import { sendWAMessage }                    from "@/lib/whatsapp";
 import { sendTelegramMessage, escMD }       from "@/lib/telegram";
 
@@ -42,6 +43,7 @@ export async function POST(
           },
         },
         fluxo: true,
+        cotacao: { select: { id: true, numero: true, nome: true } },
       },
     });
 
@@ -69,6 +71,26 @@ export async function POST(
         respondidoEm: new Date(),
       },
     });
+
+    // ── Aprovação de COTAÇÃO → gera o Pedido de Compras (uma única etapa) ──────
+    if (aprovacao.cotacaoId) {
+      const cotacaoId = aprovacao.cotacaoId;
+      try {
+        if (novoStatus === "REPROVADO") {
+          await prisma.cotacaoCompra.update({
+            where: { id: cotacaoId },
+            data: { status: "EM_ANALISE", motivoReprovacao: observacao ?? null },
+          });
+        } else {
+          await prisma.$transaction((tx) => gerarPedidoDeCotacao(tx, cotacaoId));
+        }
+      } catch (e) {
+        // Reverte a baixa da aprovação se a geração do pedido falhar.
+        await prisma.aprovacaoSC.update({ where: { id: aprovacao.id }, data: { status: "PENDENTE", respondidoEm: null } });
+        return NextResponse.json({ error: e instanceof Error ? e.message : "Erro ao aprovar cotação" }, { status: 400 });
+      }
+      return NextResponse.json({ ok: true, status: novoStatus });
+    }
 
     const sc = aprovacao.necessidade;
     // Este endpoint trata aprovações de Solicitação de Compras. Aprovações de

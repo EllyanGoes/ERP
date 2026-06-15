@@ -27,12 +27,19 @@ type SC = {
   itens: SCItem[];
 };
 
+type Cotacao = {
+  id: string; numero: string; nome: string | null; createdAt: string;
+  necessidade: { numero: string } | null;
+  fornecedores: { totalCalculado: string | number | null; fornecedor: { razaoSocial: string; nomeFantasia: string | null } }[];
+};
+
 type Aprovacao = {
   id: string; etapaOrdem: number; etapaNome: string | null;
   status: "PENDENTE" | "APROVADO" | "REPROVADO";
   observacao: string | null; respondidoEm: string | null;
   createdAt: string; waMsgId: string | null;
-  necessidade: SC;
+  necessidade: SC | null;
+  cotacao: Cotacao | null;
 };
 
 const PRIORIDADE: Record<number, { label: string; cls: string }> = {
@@ -61,8 +68,8 @@ function AprovacaoCard({
   const [done, setDone]       = useState<"APROVADO" | "REPROVADO" | null>(null);
 
   const sc        = item.necessidade;
-  const prio      = PRIORIDADE[sc.prioridade] ?? { label: String(sc.prioridade), cls: "text-gray-500" };
-  const filialNome = sc.filial ? sc.filial.nomeFantasia ?? sc.filial.razaoSocial : "—";
+  const prio      = sc ? (PRIORIDADE[sc.prioridade] ?? { label: String(sc.prioridade), cls: "text-gray-500" }) : null;
+  const filialNome = sc?.filial ? sc.filial.nomeFantasia ?? sc.filial.razaoSocial : "—";
   const isPendente = item.status === "PENDENTE" && !done;
 
   async function responder(acao: "APROVAR" | "REPROVAR") {
@@ -86,6 +93,67 @@ function AprovacaoCard({
   }
 
   const effectiveStatus = done ?? item.status;
+
+  // ── Aprovação de COTAÇÃO (gera o Pedido de Compras) ───────────────────────
+  const cot = item.cotacao;
+  if (!sc && cot) {
+    const vencedor = cot.fornecedores[0];
+    const venceNome = vencedor ? (vencedor.fornecedor.nomeFantasia || vencedor.fornecedor.razaoSocial) : null;
+    const venceTotal = vencedor?.totalCalculado != null ? Number(vencedor.totalCalculado) : null;
+    return (
+      <div
+        className={cn(
+          "bg-white rounded-xl border shadow-sm overflow-hidden transition-all p-4",
+          effectiveStatus === "APROVADO" ? "border-emerald-200 bg-emerald-50/30" :
+          effectiveStatus === "REPROVADO" ? "border-red-200 bg-red-50/30" :
+          "border-gray-200 hover:border-gray-300"
+        )}
+      >
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link href={`/suprimentos/cotacoes/${cot.id}`} className="font-semibold text-gray-900 hover:text-blue-600 transition-colors text-sm">
+            {cot.nome || cot.numero}
+          </Link>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium border border-amber-100">Cotação · Pedido de Compras</span>
+          {cot.necessidade && <span className="text-xs text-gray-400">SC {cot.necessidade.numero}</span>}
+        </div>
+        <div className="mt-2 text-sm text-gray-600">
+          {venceNome ? (
+            <>Fornecedor proposto: <span className="font-medium text-gray-800">{venceNome}</span>
+              {venceTotal != null && <> · <span className="tabular-nums">{venceTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span></>}
+            </>
+          ) : "Aprovar gera o Pedido de Compras a partir do fornecedor vencedor."}
+        </div>
+
+        {showObs && isPendente && (
+          <textarea
+            value={obs} onChange={(e) => setObs(e.target.value)}
+            placeholder="Motivo da reprovação (opcional)"
+            className="mt-3 w-full h-16 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        )}
+        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+
+        {isPendente ? (
+          <div className="mt-3 flex items-center gap-2">
+            <button onClick={() => responder("APROVAR")} disabled={!!loading}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60">
+              {loading === "APROVAR" ? "Aprovando..." : "Aprovar e gerar pedido"}
+            </button>
+            <button onClick={() => responder("REPROVAR")} disabled={!!loading}
+              className="px-3 py-1.5 rounded-lg border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 disabled:opacity-60">
+              {loading === "REPROVAR" ? "Reprovando..." : showObs ? "Confirmar reprovação" : "Reprovar"}
+            </button>
+          </div>
+        ) : (
+          <div className="mt-3 text-xs font-medium text-gray-500">
+            {effectiveStatus === "APROVADO" ? "✅ Aprovada — pedido de compras gerado" : "❌ Reprovada"}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (!sc) return null;
 
   return (
     <div
@@ -126,7 +194,7 @@ function AprovacaoCard({
                 {item.etapaNome}
               </span>
             )}
-            <span className={cn("text-xs font-medium", prio.cls)}>{prio.label}</span>
+            {prio && <span className={cn("text-xs font-medium", prio.cls)}>{prio.label}</span>}
           </div>
           <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400 flex-wrap">
             {filialNome !== "—" && <span>{filialNome}</span>}
