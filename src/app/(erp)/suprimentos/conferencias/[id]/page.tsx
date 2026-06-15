@@ -15,6 +15,7 @@ import { useSession } from "@/lib/session-context";
 import { useRouter } from "next/navigation";
 import { ShieldAlert, Save, Loader2, Trash2, LinkIcon } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import { useEscToClose } from "@/lib/use-esc-to-close";
 
 const UF_LIST = [
@@ -173,7 +174,7 @@ export default function DocumentoEntradaDetailPage() {
   const [condicaoPagamentoId, setCondicaoPagamentoId] = useState("");
   const [condicoes, setCondicoes] = useState<{ id: string; nome: string }[]>([]);
   const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState("");
-  const [naturezas, setNaturezas] = useState<{ id: string; nome: string }[]>([]);
+  const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
   const [validationError, setValidationError] = useState("");
   const [localAlertDismissed, setLocalAlertDismissed] = useState(false);
   const [showDivergenciaConfirm, setShowDivergenciaConfirm] = useState(false);
@@ -1542,14 +1543,12 @@ export default function DocumentoEntradaDetailPage() {
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Natureza Financeira</Label>
               {nfEditable ? (
-                <select
+                <NaturezaCombobox
                   value={naturezaFinanceiraId}
-                  onChange={(e) => setNaturezaFinanceiraId(e.target.value)}
-                  className="w-full h-9 rounded-md border border-gray-300 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">— Sem natureza —</option>
-                  {naturezas.map((n) => <option key={n.id} value={n.id}>{n.nome}</option>)}
-                </select>
+                  onChange={setNaturezaFinanceiraId}
+                  naturezas={naturezas}
+                  placeholder="— Selecionar natureza —"
+                />
               ) : (
                 <Input value={naturezas.find((n) => n.id === naturezaFinanceiraId)?.nome ?? "—"} readOnly className="bg-gray-50" />
               )}

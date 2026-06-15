@@ -1382,8 +1382,6 @@ export default function PedidoForm({
               value={naturezaFinanceiraId}
               onChange={setNaturezaFinanceiraId}
               naturezas={naturezas}
-              defaultTipo="ENTRADA"
-              onCreated={(n) => setNaturezas((prev) => [...prev, n])}
               placeholder="Selecione uma natureza..."
               className="h-10"
             />

@@ -241,6 +241,7 @@ export default function LancamentoForm({
               onChange={(id) => up(l.key, "naturezaFinanceiraId", id)}
               naturezas={naturezas}
               defaultTipo={isReceber ? "ENTRADA" : "SAIDA"}
+              allowCreate
               onCreated={(n) => setNaturezas((prev) => [...prev, n])}
             />
             <Input value={l.detalhamento} onChange={(e) => up(l.key, "detalhamento", e.target.value)} placeholder="Detalhamento (opcional)" className="h-9 min-w-0" />

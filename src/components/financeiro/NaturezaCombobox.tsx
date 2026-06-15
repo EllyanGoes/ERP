@@ -34,13 +34,18 @@ function Seta({ tipo, className }: { tipo: "ENTRADA" | "SAIDA"; className?: stri
 }
 
 export default function NaturezaCombobox({
-  value, onChange, naturezas, defaultTipo, onCreated, placeholder = "Selecione uma natureza...", className,
+  value, onChange, naturezas, defaultTipo = "SAIDA", allowCreate = false, onCreated, placeholder = "Selecione uma natureza...", className,
 }: {
   value: string;
   onChange: (id: string) => void;
   naturezas: NaturezaOpt[];
   /** Tipo usado ao criar uma natureza inline (segue o movimento do lançamento). */
-  defaultTipo: "ENTRADA" | "SAIDA";
+  defaultTipo?: "ENTRADA" | "SAIDA";
+  /**
+   * Habilita a criação inline ("Criar nova"). Só os processos do financeiro
+   * (lançamento) permitem criar natureza aqui; pedido e documento de entrada não.
+   */
+  allowCreate?: boolean;
   /** Chamado quando uma natureza é criada inline, para o pai atualizar a lista. */
   onCreated?: (n: NaturezaOpt) => void;
   placeholder?: string;
@@ -115,7 +120,7 @@ export default function NaturezaCombobox({
       </PopoverTrigger>
 
       <PopoverContent align="start" sideOffset={4} className="w-[320px] max-w-[calc(100vw-2rem)] p-0 gap-0 overflow-hidden">
-        {criando ? (
+        {allowCreate && criando ? (
           /* Painel de criação inline */
           <div className="p-3 space-y-2.5">
             <div className="flex items-center justify-between">
@@ -155,13 +160,15 @@ export default function NaturezaCombobox({
               />
             </div>
 
-            {/* Criar nova */}
-            <button
-              type="button" onClick={abrirCriar}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 border-b border-gray-100"
-            >
-              <Plus className="w-3.5 h-3.5" /> Criar nova
-            </button>
+            {/* Criar nova (apenas no financeiro) */}
+            {allowCreate && (
+              <button
+                type="button" onClick={abrirCriar}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 border-b border-gray-100"
+              >
+                <Plus className="w-3.5 h-3.5" /> Criar nova
+              </button>
+            )}
 
             {/* Lista agrupada */}
             <div className="max-h-64 overflow-y-auto py-1">
