@@ -633,6 +633,8 @@ export default function PedidoForm({
     setSubmitError("");
     if (!clienteId)     { setSubmitError("Selecione o cliente"); return false; }
     if (!dataEmissao)   { setSubmitError("Informe a data de emissão"); return false; }
+    if (!pedido && !naturezaFinanceiraId) { setSubmitError("Selecione a natureza financeira"); return false; }
+    if (!pedido && !condicaoPagamento)    { setSubmitError("Selecione a condição de pagamento"); return false; }
     if (linhas.length === 0) { setSubmitError("Adicione pelo menos um item"); return false; }
     if (linhas.find((l) => !l.itemId)) { setSubmitError("Selecione o produto em todas as linhas"); return false; }
     if (comodatoLinhas.some((l) => l.itemId && !(parseDecimal(l.quantidade) > 0))) {
@@ -1359,18 +1361,18 @@ export default function PedidoForm({
             )}
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Natureza Financeira</Label>
+            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Natureza Financeira{!pedido && " *"}</Label>
             <select
               value={naturezaFinanceiraId}
               onChange={(e) => setNaturezaFinanceiraId(e.target.value)}
               className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">— Sem natureza —</option>
+              <option value="">— Selecionar natureza —</option>
               {naturezas.map((n) => <option key={n.id} value={n.id}>{n.nome}</option>)}
             </select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Condição de Pagamento</Label>
+            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Condição de Pagamento{!pedido && " *"}</Label>
             <div ref={condicaoRef}>
               <button
                 data-condicao-dd

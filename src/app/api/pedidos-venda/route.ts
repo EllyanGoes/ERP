@@ -67,6 +67,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
 
+  // Natureza financeira e condição de pagamento são obrigatórias na criação
+  // (no schema ficam opcionais para não travar a edição de pedidos legados).
+  if (!parsed.data.naturezaFinanceiraId) {
+    return NextResponse.json({ error: "Natureza financeira é obrigatória" }, { status: 400 });
+  }
+  if (!parsed.data.condicaoPagamento) {
+    return NextResponse.json({ error: "Condição de pagamento é obrigatória" }, { status: 400 });
+  }
+
   const { itens, pagamentos, ...pedidoData } = parsed.data;
 
   // Comodato (saída) lançado junto com o pedido. Lido do corpo bruto porque o
