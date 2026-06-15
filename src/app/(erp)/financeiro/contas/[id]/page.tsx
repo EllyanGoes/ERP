@@ -63,6 +63,7 @@ export default function ExtratoContaPage() {
   const [ate, setAte] = useState("");
   const [gerandoPdf, setGerandoPdf] = useState(false);
   const [novoOpen, setNovoOpen] = useState(false);
+  const [aviso, setAviso] = useState("");
   useTabTitle(conta?.nome);
 
   const carregar = useCallback(() => {
@@ -149,6 +150,9 @@ export default function ExtratoContaPage() {
           <p className="text-sm text-gray-400 py-10 text-center">Conta não encontrada.</p>
         ) : (
           <>
+            {aviso && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{aviso}</div>
+            )}
             <div className="grid grid-cols-3 gap-4">
               <div className="rounded-xl p-4 bg-gray-50 text-gray-700">
                 <p className="text-sm font-medium opacity-75">Saldo inicial</p>
@@ -273,6 +277,12 @@ export default function ExtratoContaPage() {
             tipo="pagar"
             tipoSelecionavel
             contaFixa={{ id: conta.id, nome: conta.nome }}
+            onSaved={(info) => {
+              if (info.status === "AGENDAMENTO") {
+                setAviso(`Agendamento criado em ${info.tipo === "receber" ? "Contas a Receber" : "Contas a Pagar"} (não entra no saldo até dar baixa).`);
+                setTimeout(() => setAviso(""), 6000);
+              }
+            }}
           />
         </CreateDrawer>
       )}

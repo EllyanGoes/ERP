@@ -36,11 +36,14 @@ export default function LancamentoForm({
   contatos = [],
   tipoSelecionavel = false,
   contaFixa,
+  onSaved,
 }: {
   tipo: "receber" | "pagar";
   contatos?: Contato[];
   tipoSelecionavel?: boolean;
   contaFixa?: { id: string; nome: string };
+  /** Disparado após salvar com sucesso (antes do diálogo de confirmação). */
+  onSaved?: (info: { status: "AGENDAMENTO" | "PAGAMENTO"; tipo: "receber" | "pagar" }) => void;
 }) {
   const [tipoSel, setTipoSel] = useState<"receber" | "pagar">(tipo);
   const isReceber = tipoSel === "receber";
@@ -138,6 +141,7 @@ export default function LancamentoForm({
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setErro(j.error ?? "Erro ao salvar."); return; }
+      onSaved?.({ status, tipo: tipoSel });
       confirmCreated();
     } catch { setErro("Erro de conexão."); }
     finally { setSalvando(false); }
