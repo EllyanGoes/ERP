@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
         });
 
         const sc = aprovacao.necessidade;
+        if (!sc) return { id, status: "skip", error: "Sem solicitação vinculada" };
 
         if (novoStatus === "REPROVADO") {
           await prismaSemEscopo.necessidadeCompra.update({

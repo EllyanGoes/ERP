@@ -47,7 +47,8 @@ model AprovacaoFluxo {
 
 model AprovacaoSC {
   id            String            @id @default(cuid())
-  necessidadeId String
+  necessidadeId String?
+  cotacaoId     String?
   etapaOrdem    Int
   etapaNome     String?
   aprovadorId   String
@@ -59,7 +60,8 @@ model AprovacaoSC {
   fluxoId       String?
   aprovador     Usuario           @relation(fields: [aprovadorId], references: [id])
   fluxo         AprovacaoFluxo?   @relation(fields: [fluxoId], references: [id])
-  necessidade   NecessidadeCompra @relation(fields: [necessidadeId], references: [id], onDelete: Cascade)
+  necessidade   NecessidadeCompra? @relation(fields: [necessidadeId], references: [id], onDelete: Cascade)
+  cotacao       CotacaoCompra?    @relation(fields: [cotacaoId], references: [id], onDelete: Cascade)
 }
 
 model CentroCusto {
@@ -529,6 +531,7 @@ model CotacaoCompra {
   necessidade          NecessidadeCompra?  @relation(fields: [necessidadeId], references: [id])
   fornecedores         CotacaoFornecedor[]
   pedidos              PedidoCompra[]
+  aprovacoes           AprovacaoSC[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -1874,6 +1877,7 @@ enum PerfilUsuario {
 
 enum ProcessoAprovacao {
   SOLICITACAO_COMPRAS
+  PEDIDO_COMPRAS
   PEDIDO_VENDA
   CONTRATO
   DESPESA
@@ -1910,6 +1914,7 @@ enum StatusConta {
 enum StatusCotacaoCompra {
   PENDENTE
   EM_ANALISE
+  AGUARDANDO_APROVACAO
   CONCLUIDA
 }
 

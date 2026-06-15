@@ -71,6 +71,9 @@ export async function POST(
     });
 
     const sc = aprovacao.necessidade;
+    // Este endpoint trata aprovações de Solicitação de Compras. Aprovações de
+    // cotação (cotacaoId) têm fluxo próprio e não passam por aqui.
+    if (!sc) return NextResponse.json({ error: "Aprovação sem solicitação vinculada" }, { status: 400 });
 
     if (novoStatus === "REPROVADO") {
       // ── Reprovar SC ──────────────────────────────────────────────────────────

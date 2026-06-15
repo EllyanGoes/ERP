@@ -129,6 +129,11 @@ export async function POST(req: NextRequest) {
     if (!aprovacao || aprovacao.status !== "PENDENTE") {
       return NextResponse.json({ ok: true });
     }
+    // Aprovações de COTAÇÃO (cotacaoId) são tratadas por outro fluxo; este
+    // handler cobre só as de Solicitação de Compras (necessidade).
+    if (!aprovacao.necessidade || !aprovacao.necessidadeId) {
+      return NextResponse.json({ ok: true });
+    }
 
     const novoStatus = action === "APPROVE" ? "APROVADO" : "REPROVADO";
 

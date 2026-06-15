@@ -245,6 +245,8 @@ export async function POST(req: NextRequest) {
     });
 
     const sc = aprovacao.necessidade;
+    // Só Solicitação de Compras passa por aqui; cotação tem fluxo próprio.
+    if (!sc) { await answerCallbackQuery(cq.id, "Aprovação sem solicitação"); return NextResponse.json({ ok: true }); }
 
     if (novoStatus === "REPROVADO") {
       await prismaSemEscopo.necessidadeCompra.update({
