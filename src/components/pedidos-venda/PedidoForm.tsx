@@ -22,7 +22,7 @@ import PagamentosInput, {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type ClienteOption    = { id: string; razaoSocial: string; nomeFantasia: string | null };
+type ClienteOption    = { id: string; razaoSocial: string; nomeFantasia: string | null; cpfCnpj: string | null };
 type ItemUnidadeOption = { unidadeId: string; fatorConversao: unknown; unidade: { id: string; sigla: string; nome: string } };
 type ItemOption       = {
   id: string; codigo: string; descricao: string; precoVenda: unknown; unidadeMedida: string;
@@ -229,7 +229,7 @@ export default function PedidoForm({
   const [numeroOrcamento,   setNumeroOrcamento]   = useState(pedido?.numeroOrcamento ?? "");
   const [tabelaPrecoId,     setTabelaPrecoId]     = useState(pedido?.tabelaPrecoId ?? "");
   const [vendedorId,        setVendedorId]        = useState(pedido?.vendedorId ?? "");
-  const [vendedores,        setVendedores]        = useState<{ id: string; nome: string; ativo?: boolean }[]>([]);
+  const [vendedores,        setVendedores]        = useState<{ id: string; nome: string; ativo?: boolean; usuarioId?: string | null }[]>([]);
   const [dataEmissao,       setDataEmissao]       = useState(pedido ? isoToDateInput(pedido.dataEmissao) : hojeInputSP());
   const [dataEntrega,       setDataEntrega]       = useState(pedido ? isoToDateInput(pedido.dataEntrega) : "");
   const [condicaoPagamento, setCondicaoPagamento] = useState(pedido?.condicaoPagamento ?? "");
@@ -301,13 +301,21 @@ export default function PedidoForm({
       .finally(() => setTabelaLoading(false));
   }, []);
 
-  // Load vendedores on mount
+  // Load vendedores on mount. Em pedido NOVO, se o usuário logado estiver
+  // vinculado a um vendedor, puxa-o automaticamente.
   useEffect(() => {
     fetch("/api/comercial/vendedores?ativo=true")
       .then((r) => r.json())
-      .then((j) => setVendedores(Array.isArray(j) ? j : (j.data ?? [])))
+      .then((j) => {
+        const lista = Array.isArray(j) ? j : (j.data ?? []);
+        setVendedores(lista);
+        if (!pedido && usuarioSessao?.id) {
+          const meu = lista.find((v: { usuarioId?: string | null }) => v.usuarioId === usuarioSessao.id);
+          if (meu) setVendedorId((atual) => atual || meu.id);
+        }
+      })
       .catch(() => {});
-  }, []);
+  }, [pedido, usuarioSessao?.id]);
 
   // Load condições de pagamento on mount
   useEffect(() => {
@@ -767,12 +775,18 @@ export default function PedidoForm({
 
   // ── Filtered cliente list ────────────────────────────────────────────────────
 
-  const clientesFiltrados = clienteSearch.trim()
-    ? clientes.filter((c) =>
-        c.razaoSocial.toLowerCase().includes(clienteSearch.toLowerCase()) ||
-        (c.nomeFantasia ?? "").toLowerCase().includes(clienteSearch.toLowerCase())
-      )
-    : clientes;
+  const clientesFiltrados = (() => {
+    const termo = clienteSearch.trim();
+    if (!termo) return clientes;
+    const termoLower = termo.toLowerCase();
+    // Busca por CNPJ/CPF ignorando pontuação, para casar com ou sem máscara.
+    const termoDigitos = termo.replace(/\D/g, "");
+    return clientes.filter((c) =>
+      c.razaoSocial.toLowerCase().includes(termoLower) ||
+      (c.nomeFantasia ?? "").toLowerCase().includes(termoLower) ||
+      (termoDigitos !== "" && (c.cpfCnpj ?? "").replace(/\D/g, "").includes(termoDigitos))
+    );
+  })();
 
   const clienteSelecionado = clientes.find((c) => c.id === clienteId);
 
@@ -852,7 +866,7 @@ export default function PedidoForm({
                       autoFocus type="text"
                       value={clienteSearch}
                       onChange={(e) => setClienteSearch(e.target.value)}
-                      placeholder="Buscar cliente..."
+                      placeholder="Buscar por nome ou CNPJ..."
                       className="w-full pl-8 pr-3 py-2.5 text-sm focus:outline-none bg-transparent"
                     />
                   </div>
@@ -867,6 +881,7 @@ export default function PedidoForm({
                       >
                         <span className="font-medium">{c.razaoSocial}</span>
                         {c.nomeFantasia && <span className="text-gray-500 text-xs ml-1.5">({c.nomeFantasia})</span>}
+                        {c.cpfCnpj && <span className="block text-gray-400 text-xs">{c.cpfCnpj}</span>}
                       </button>
                     ))}
                   </div>

@@ -13,9 +13,12 @@ interface Vendedor {
   nome: string;
   telefone: string | null;
   ativo: boolean;
+  usuarioId: string | null;
+  usuario: { id: string; nome: string } | null;
 }
+type UsuarioOpt = { id: string; nome: string; email: string };
 
-const empty = () => ({ nome: "", telefone: "" });
+const empty = () => ({ nome: "", telefone: "", usuarioId: "" });
 
 export default function VendedoresPage() {
   useTabTitle("Vendedores");
@@ -25,6 +28,7 @@ export default function VendedoresPage() {
   const [form, setForm] = useState(empty());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usuarios, setUsuarios] = useState<UsuarioOpt[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,10 +38,13 @@ export default function VendedoresPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch("/api/configuracoes/usuarios").then((r) => r.json()).then((j) => setUsuarios(Array.isArray(j.data) ? j.data : [])).catch(() => {});
+  }, []);
 
   const startNew = () => { setForm(empty()); setEditingId("new"); setError(null); };
   const startEdit = (r: Vendedor) => {
-    setForm({ nome: r.nome, telefone: r.telefone ?? "" });
+    setForm({ nome: r.nome, telefone: r.telefone ?? "", usuarioId: r.usuarioId ?? "" });
     setEditingId(r.id); setError(null);
   };
   const cancel = () => { setEditingId(null); setError(null); };
@@ -79,7 +86,7 @@ export default function VendedoresPage() {
         {editingId === "new" && (
           <VendedorForm
             form={form} setForm={setForm} saving={saving} error={error}
-            onSave={save} onCancel={cancel} isNew
+            usuarios={usuarios} onSave={save} onCancel={cancel} isNew
           />
         )}
 
@@ -89,16 +96,17 @@ export default function VendedoresPage() {
               <tr className="bg-gray-100 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
                 <th className="text-left px-4 py-3">Nome</th>
                 <th className="text-left px-4 py-3">Telefone</th>
+                <th className="text-left px-4 py-3">Usuário vinculado</th>
                 <th className="text-center px-4 py-3 w-20">Ativo</th>
                 <th className="px-4 py-3 w-20" />
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={4} className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-300" /></td></tr>
+                <tr><td colSpan={5} className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-300" /></td></tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-14 text-center">
+                  <td colSpan={5} className="py-14 text-center">
                     <UserRound className="w-8 h-8 text-gray-200 mx-auto mb-2" />
                     <p className="text-gray-400 text-xs">Nenhum vendedor cadastrado</p>
                   </td>
@@ -108,6 +116,7 @@ export default function VendedoresPage() {
                   <tr key={r.id} className={cn("border-b border-gray-100 last:border-0", !r.ativo && "opacity-50", editingId === r.id ? "bg-blue-50/30" : "hover:bg-gray-50")}>
                     <td className="px-4 py-3 font-medium text-gray-800">{r.nome}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{r.telefone || "—"}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{r.usuario?.nome ?? "—"}</td>
                     <td className="px-4 py-3 text-center">
                       <button onClick={() => toggleAtivo(r)}>
                         {r.ativo
@@ -128,10 +137,10 @@ export default function VendedoresPage() {
                   </tr>
                   {editingId === r.id && (
                     <tr key={`${r.id}-edit`} className="bg-blue-50/30 border-b">
-                      <td colSpan={4} className="px-4 py-4">
+                      <td colSpan={5} className="px-4 py-4">
                         <VendedorForm
                           form={form} setForm={setForm} saving={saving} error={error}
-                          onSave={save} onCancel={cancel}
+                          usuarios={usuarios} onSave={save} onCancel={cancel}
                         />
                       </td>
                     </tr>
@@ -146,10 +155,11 @@ export default function VendedoresPage() {
   );
 }
 
-function VendedorForm({ form, setForm, saving, error, onSave, onCancel, isNew }: {
+function VendedorForm({ form, setForm, saving, error, usuarios, onSave, onCancel, isNew }: {
   form: ReturnType<typeof empty>;
   setForm: React.Dispatch<React.SetStateAction<ReturnType<typeof empty>>>;
   saving: boolean; error: string | null;
+  usuarios: UsuarioOpt[];
   onSave: () => void; onCancel: () => void;
   isNew?: boolean;
 }) {
@@ -172,6 +182,18 @@ function VendedorForm({ form, setForm, saving, error, onSave, onCancel, isNew }:
         <div>
           <label className="text-xs font-medium text-gray-500 mb-1 block">Telefone</label>
           <Input value={form.telefone} onChange={set("telefone")} placeholder="(00) 00000-0000" onKeyDown={onKey} />
+        </div>
+        <div className="col-span-2">
+          <label className="text-xs font-medium text-gray-500 mb-1 block">Usuário vinculado</label>
+          <select
+            value={form.usuarioId}
+            onChange={(e) => setForm((f) => ({ ...f, usuarioId: e.target.value }))}
+            className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">— Sem usuário —</option>
+            {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome} ({u.email})</option>)}
+          </select>
+          <p className="text-[11px] text-gray-400 mt-1">Quando esse usuário criar um pedido de venda, este vendedor é puxado automaticamente.</p>
         </div>
       </div>
       {error && <p className="text-sm text-red-500">{error}</p>}

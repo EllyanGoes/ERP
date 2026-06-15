@@ -1339,6 +1339,10 @@ model Vendedor {
   nome      String
   telefone  String?
   ativo     Boolean       @default(true)
+  // Vínculo opcional com um usuário do sistema: quando esse usuário cria um
+  // pedido de venda, o vendedor é puxado automaticamente.
+  usuarioId String?       @unique
+  usuario   Usuario?      @relation(fields: [usuarioId], references: [id])
   pedidos   PedidoVenda[]
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
@@ -1519,6 +1523,7 @@ model Usuario {
   ticketsAbertos     SupportTicket[]  @relation("TicketsAbertos")
   ticketsRespondidos SupportTicket[]  @relation("TicketsRespondidos")
   empresas           UsuarioEmpresa[]
+  vendedor           Vendedor?
 }
 
 // Vínculo usuário ↔ empresa (multiempresa, Fase 3). ADMIN enxerga todas as

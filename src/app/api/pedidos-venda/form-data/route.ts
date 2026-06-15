@@ -12,7 +12,7 @@ export async function GET() {
   if (!auth.ok) return auth.response;
 
   const [clientes, itens, itensComodatoRaw] = await Promise.all([
-    prisma.cliente.findMany({ where: { status: "ATIVO" }, orderBy: { razaoSocial: "asc" }, select: { id: true, razaoSocial: true, nomeFantasia: true } }),
+    prisma.cliente.findMany({ where: { status: "ATIVO" }, orderBy: { razaoSocial: "asc" }, select: { id: true, razaoSocial: true, nomeFantasia: true, cpfCnpj: true } }),
     prisma.item.findMany({
       where: { ativo: true, vendavel: true },
       orderBy: { codigo: "asc" },

@@ -23,7 +23,7 @@ const novaLinha = (): Linha => ({ key: crypto.randomUUID(), naturezaFinanceiraId
 /**
  * "Novo Lançamento" — cria contas a receber/pagar no formato flow-charted-funds:
  * status (Pagamento/Agendamento), conta, contato, datas (pagamento/vencimento/
- * competência) e rateio (várias categorias = naturezas). Cada linha vira um
+ * competência) e rateio por natureza financeira (várias linhas). Cada linha vira um
  * título via POST /api/financeiro/titulos.
  *
  * Dois modos:
@@ -121,7 +121,7 @@ export default function LancamentoForm({
     setErro(null);
     if (isReceber && !contatoId) { setErro("Selecione o cliente."); return; }
     const linhasValidas = linhas.filter((l) => parseDecimal(l.valor) > 0);
-    if (linhasValidas.length === 0) { setErro("Informe ao menos uma categoria com valor."); return; }
+    if (linhasValidas.length === 0) { setErro("Informe ao menos uma natureza com valor."); return; }
     if (pago && !contaBancariaId) { setErro("Selecione a conta de destino."); return; }
     setSalvando(true);
     try {
@@ -229,15 +229,15 @@ export default function LancamentoForm({
       {/* Rateio */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Categorias</Label>
+          <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Naturezas financeiras</Label>
           <button type="button" onClick={() => setLinhas((p) => [...p, novaLinha()])} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
-            <Plus className="w-3.5 h-3.5" /> Adicionar categoria
+            <Plus className="w-3.5 h-3.5" /> Adicionar natureza
           </button>
         </div>
         {linhas.map((l) => (
           <div key={l.key} className="grid grid-cols-[1fr_1fr_6rem_auto] gap-2 items-center">
             <select value={l.naturezaFinanceiraId} onChange={(e) => up(l.key, "naturezaFinanceiraId", e.target.value)} className="h-9 rounded-lg border border-gray-300 px-2 text-sm bg-white min-w-0">
-              <option value="">— Categoria —</option>
+              <option value="">— Natureza —</option>
               {naturezas.map((n) => <option key={n.id} value={n.id}>{n.subgrupo ? `${n.subgrupo.nome} · ` : ""}{n.nome}</option>)}
             </select>
             <Input value={l.detalhamento} onChange={(e) => up(l.key, "detalhamento", e.target.value)} placeholder="Detalhamento (opcional)" className="h-9 min-w-0" />
@@ -247,7 +247,7 @@ export default function LancamentoForm({
             </button>
           </div>
         ))}
-        <p className="text-[11px] text-gray-400">Cada categoria vira um título. Crie/edite categorias em Financeiro → Naturezas Financeiras.</p>
+        <p className="text-[11px] text-gray-400">Cada natureza vira um título. Crie/edite naturezas em Financeiro → Naturezas Financeiras.</p>
       </div>
 
       {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
