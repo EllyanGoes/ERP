@@ -95,6 +95,8 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
       : null,
     valorFrete: pedido.valorFrete,
     observacoes: pedido.observacoes,
+    estoqueOrigemEmpresaId: pedido.estoqueOrigemEmpresaId,
+    precoTransferencia: pedido.precoTransferencia,
     itens: pedido.itens.map((pi) => ({
       itemId: pi.itemId,
       codigo: pi.item.codigo,
@@ -108,6 +110,7 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
       })),
       quantidade: pi.quantidade,
       precoUnitario: pi.precoUnitario,
+      precoTransferencia: pi.precoTransferencia,
       desconto: pi.valorDesconto,
       valorTotal: pi.valorTotal,
     })),

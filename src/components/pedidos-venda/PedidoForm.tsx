@@ -139,6 +139,8 @@ type PedidoInicial = {
   pagamentoData?: string | null; // data do recebimento (YYYY-MM-DD), editável se pago
   valorFrete: unknown;
   observacoes: string | null;
+  estoqueOrigemEmpresaId?: string | null;
+  precoTransferencia?: unknown;
   itens: PedidoInicialItem[];
 };
 
@@ -226,11 +228,16 @@ export default function PedidoForm({
   const empresasGrupo = usuarioSessao?.empresas ?? [];
   // Campo Empresa só aparece na criação quando há mais de uma empresa no grupo.
   const mostrarEmpresa = !pedido && empresasGrupo.length > 1;
+  // Venda à ordem aparece na criação E na edição (um pedido normal pode virar
+  // à ordem depois) — enquanto não houver entrega (a API valida).
+  const mostrarVendaOrdem = empresasGrupo.length > 1;
   const [empresaId, setEmpresaId] = useState(""); // "" = empresa ativa (só na criação)
-  // Venda à ordem (triangular): estoque sai de outra empresa do grupo, que cria
-  // automaticamente o pedido de entrega ao confirmar.
-  const [estoqueOrigemId, setEstoqueOrigemId] = useState("");
-  const [precoTransferencia, setPrecoTransferencia] = useState("");
+  // Venda à ordem (triangular): estoque sai de outra empresa do grupo; a entrega
+  // gera os movimentos virtuais + financeiro intragrupo.
+  const [estoqueOrigemId, setEstoqueOrigemId] = useState(pedido?.estoqueOrigemEmpresaId ?? "");
+  const [precoTransferencia, setPrecoTransferencia] = useState(
+    pedido?.precoTransferencia != null ? decimalToNumber(pedido.precoTransferencia).toFixed(2) : "",
+  );
   const [numeroOrcamento,   setNumeroOrcamento]   = useState(pedido?.numeroOrcamento ?? "");
   const [tabelaPrecoId,     setTabelaPrecoId]     = useState(pedido?.tabelaPrecoId ?? "");
   const [vendedorId,        setVendedorId]        = useState(pedido?.vendedorId ?? "");
@@ -660,10 +667,10 @@ export default function PedidoForm({
   function buildPayload() {
     return {
       ...(pedido ? {} : { empresaId: empresaId || undefined }),
-      ...(pedido ? {} : {
-        estoqueOrigemEmpresaId: estoqueOrigemId || undefined,
-        precoTransferencia: estoqueOrigemId && precoTransferencia ? parseDecimal(precoTransferencia) : undefined,
-      }),
+      // Venda à ordem: enviado na criação E na edição (null limpa). A empresa da
+      // venda não muda na edição, mas a origem do estoque pode ser definida depois.
+      estoqueOrigemEmpresaId: estoqueOrigemId || null,
+      precoTransferencia: estoqueOrigemId && precoTransferencia ? parseDecimal(precoTransferencia) : null,
       clienteId,
       ...(pedido ? {} : { modalidade: modalidade ?? "AGENDADA" }),
       numeroOrcamento: numeroOrcamento.trim() || null,
@@ -899,8 +906,9 @@ export default function PedidoForm({
           </div>
 
           {/* Venda à ordem (triangular): estoque sai de outra empresa do grupo.
-              Disponível em qualquer modalidade (Balcão e Agendada). */}
-          {mostrarEmpresa && (
+              Disponível em qualquer modalidade (Balcão e Agendada) e também na
+              edição (um pedido normal pode virar à ordem). */}
+          {mostrarVendaOrdem && (
             <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Entrega / estoque por outra empresa</Label>

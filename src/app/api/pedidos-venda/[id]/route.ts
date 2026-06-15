@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
+import { getSession } from "@/lib/auth";
 import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
 import { recalcPedidoValorTotal, getItensPendentesEntrega, recomputarStatusPedido } from "@/lib/pedido-totais";
 import { espelharConfirmacaoVenda, cancelarEspelhoVenda } from "@/lib/intragrupo";
@@ -133,10 +134,42 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     );
   }
 
+  // Venda à ordem na edição: um pedido pode passar a ser (ou deixar de ser) à
+  // ordem enquanto não houver entrega. Lido do corpo bruto (o schema descarta).
+  const pedidoAtual = await prisma.pedidoVenda.findUnique({
+    where: { id: params.id },
+    select: { empresaId: true, estoqueOrigemEmpresaId: true },
+  });
+  if (!pedidoAtual) return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
+
+  const novaOrigem: string | null =
+    typeof body.estoqueOrigemEmpresaId === "string" && body.estoqueOrigemEmpresaId ? body.estoqueOrigemEmpresaId : null;
+  const novoPrecoTransf: number | null =
+    novaOrigem && body.precoTransferencia != null && Number(body.precoTransferencia) > 0 ? Number(body.precoTransferencia) : null;
+
+  if (novaOrigem !== (pedidoAtual.estoqueOrigemEmpresaId ?? null)) {
+    // Alterar a origem do estoque só é permitido antes de qualquer entrega.
+    const temMinuta = Array.from(minutadoByItem.values()).some((v) => v > 0);
+    if (temMinuta) {
+      return NextResponse.json({ error: "Não é possível alterar a venda à ordem após iniciar a entrega (já há minutas)." }, { status: 422 });
+    }
+    if (novaOrigem) {
+      if (novaOrigem === pedidoAtual.empresaId) {
+        return NextResponse.json({ error: "A empresa de origem do estoque deve ser diferente da empresa da venda" }, { status: 400 });
+      }
+      const session = await getSession();
+      if (!(session?.empresaIds ?? []).includes(novaOrigem)) {
+        return NextResponse.json({ error: "Empresa de origem não permitida para este usuário" }, { status: 403 });
+      }
+    }
+  }
+
   const mapLine = (item: (typeof itens)[number]) => ({
     itemId: item.itemId,
     quantidade: item.quantidade,
     precoUnitario: item.precoUnitario,
+    precoTransferencia: novaOrigem && item.precoTransferencia != null && Number(item.precoTransferencia) > 0
+      ? Number(item.precoTransferencia) : null,
     desconto: item.desconto ?? 0,
     valorTotal: item.valorTotal,
   });
@@ -149,6 +182,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           ...pedidoData,
           valorProdutos,
           valorTotal,
+          estoqueOrigemEmpresaId: novaOrigem,
+          precoTransferencia: novoPrecoTransf,
           dataEmissao: pedidoData.dataEmissao ? new Date(pedidoData.dataEmissao) : new Date(),
           dataEntrega: pedidoData.dataEntrega ? new Date(pedidoData.dataEntrega) : null,
         },
