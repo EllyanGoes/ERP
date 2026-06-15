@@ -236,7 +236,13 @@ export default function LancamentoForm({
         </div>
         {linhas.map((l) => (
           <div key={l.key} className="grid grid-cols-[1fr_1fr_6rem_auto] gap-2 items-center">
-            <NaturezaCombobox value={l.naturezaFinanceiraId} onChange={(id) => up(l.key, "naturezaFinanceiraId", id)} naturezas={naturezas} />
+            <NaturezaCombobox
+              value={l.naturezaFinanceiraId}
+              onChange={(id) => up(l.key, "naturezaFinanceiraId", id)}
+              naturezas={naturezas}
+              defaultTipo={isReceber ? "ENTRADA" : "SAIDA"}
+              onCreated={(n) => setNaturezas((prev) => [...prev, n])}
+            />
             <Input value={l.detalhamento} onChange={(e) => up(l.key, "detalhamento", e.target.value)} placeholder="Detalhamento (opcional)" className="h-9 min-w-0" />
             <Input value={l.valor} onChange={(e) => up(l.key, "valor", e.target.value)} placeholder="0,00" className="h-9 text-right font-mono min-w-0" />
             <button type="button" onClick={() => setLinhas((p) => (p.length > 1 ? p.filter((x) => x.key !== l.key) : p))} disabled={linhas.length <= 1} className="p-1.5 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 disabled:opacity-30">
