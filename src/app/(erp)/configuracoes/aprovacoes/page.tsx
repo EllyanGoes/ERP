@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -494,31 +495,23 @@ export default function AprovacoesPage() {
                           </button>
                         </div>
                         {row.tipoAprovador === "colaborador" ? (
-                          <select
+                          <ComboboxWithCreate
                             value={row.colaboradorId}
-                            onChange={(e) => updateEtapaRow(i, "colaboradorId", e.target.value)}
-                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                          >
-                            <option value="">Selecionar colaborador...</option>
-                            {colaboradores.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.nome}{c.telefone ? ` · ${c.telefone}` : " · sem WhatsApp"}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(v) => updateEtapaRow(i, "colaboradorId", v)}
+                            placeholder="Selecionar colaborador..."
+                            noneLabel="Selecionar colaborador..."
+                            triggerClassName="h-9 rounded-lg"
+                            options={colaboradores.map((c) => ({ value: c.id, label: `${c.nome}${c.telefone ? ` · ${c.telefone}` : " · sem WhatsApp"}` }))}
+                          />
                         ) : (
-                          <select
+                          <ComboboxWithCreate
                             value={row.aprovadorId}
-                            onChange={(e) => updateEtapaRow(i, "aprovadorId", e.target.value)}
-                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                          >
-                            <option value="">Selecionar usuário...</option>
-                            {usuarios.map((u) => (
-                              <option key={u.id} value={u.id}>
-                                {u.nome}{u.telefone ? ` · ${u.telefone}` : " · sem telefone"}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(v) => updateEtapaRow(i, "aprovadorId", v)}
+                            placeholder="Selecionar usuário..."
+                            noneLabel="Selecionar usuário..."
+                            triggerClassName="h-9 rounded-lg"
+                            options={usuarios.map((u) => ({ value: u.id, label: `${u.nome}${u.telefone ? ` · ${u.telefone}` : " · sem telefone"}` }))}
+                          />
                         )}
                       </div>
 

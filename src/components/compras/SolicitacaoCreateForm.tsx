@@ -565,15 +565,13 @@ export default function SolicitacaoCreateForm() {
             {(user?.empresas?.length ?? 0) > 1 && (
               <div className="space-y-1.5">
                 <Label>Empresa</Label>
-                <select
+                <ComboboxWithCreate
                   value={empresaId || user?.activeEmpresaId || ""}
-                  onChange={(e) => setEmpresaId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                >
-                  {user!.empresas!.map((e) => (
-                    <option key={e.id} value={e.id}>{e.nome}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setEmpresaId(v)}
+                  allowNone={false}
+                  triggerClassName="h-9 rounded-lg"
+                  options={user!.empresas!.map((e) => ({ value: e.id, label: e.nome }))}
+                />
                 <p className="text-xs text-gray-400">Para qual empresa do grupo é esta solicitação — todo o processo (cotação, pedido, conferência) seguirá nela.</p>
               </div>
             )}

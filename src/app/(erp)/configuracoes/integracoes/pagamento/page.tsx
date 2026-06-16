@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -109,17 +110,13 @@ export default function IntegracaoPagamentoPage() {
             {/* Seletor de empresa */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Empresa</Label>
-              <select
+              <ComboboxWithCreate
                 value={empresaSel}
-                onChange={(e) => { setEmpresaSel(e.target.value); setShowToken(false); setMsg(null); }}
-                className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {configs.map((c) => (
-                  <option key={c.empresaId} value={c.empresaId}>
-                    {c.empresaNome}{c.ativo ? " — ativo" : ""}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => { setEmpresaSel(v); setShowToken(false); setMsg(null); }}
+                allowNone={false}
+                triggerClassName="h-10 rounded-lg"
+                options={configs.map((c) => ({ value: c.empresaId, label: `${c.empresaNome}${c.ativo ? " — ativo" : ""}` }))}
+              />
             </div>
 
             {config && (

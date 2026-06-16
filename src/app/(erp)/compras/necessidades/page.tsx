@@ -8,6 +8,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import CreateDrawer from "@/components/shared/CreateDrawer";
 import SolicitacaoCreateForm from "@/components/compras/SolicitacaoCreateForm";
 import { Button } from "@/components/ui/button";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Input } from "@/components/ui/input";
 import StatusBadge from "@/components/shared/StatusBadge";
 import Link from "next/link";
@@ -873,14 +874,13 @@ export default function NecessidadesPage() {
 
           {/* Filial filter */}
           {filiais.length > 1 && (
-            <select
+            <ComboboxWithCreate
               value={filterFilial}
-              onChange={(e) => setFilterFilial(e.target.value)}
-              className="h-8 px-3 text-sm border border-gray-200 rounded-full bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
-            >
-              <option value="">Todas as filiais</option>
-              {filiais.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
-            </select>
+              onChange={(v) => setFilterFilial(v)}
+              noneLabel="Todas as filiais"
+              triggerClassName="h-8 rounded-full"
+              options={filiais.map((f) => ({ value: f.id, label: f.label }))}
+            />
           )}
 
           {/* Sort — hidden in kanban since order within column is inherent */}

@@ -8,9 +8,13 @@ import { espelharConfirmacaoVenda, cancelarEspelhoVenda, cancelarEntregaTriangul
 import { z } from "zod";
 
 const schema = z.object({
-  status: z.enum(["CONFIRMADO","EM_AGENDAMENTO","CONCLUIDO","CANCELADO"]),
+  // ORCAMENTO só é alcançável via override de admin (reverter cancelamento, etc.).
+  status: z.enum(["ORCAMENTO","CONFIRMADO","EM_AGENDAMENTO","CONCLUIDO","CANCELADO"]),
   // Data de conclusão (só usada ao concluir). Ausente → carimba o dia de hoje.
   dataConclusao: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  // Override de admin: ignora a máquina de transições (ex.: reverter um pedido
+  // cancelado por engano para outro status). Exige perfil ADMIN.
+  override: z.boolean().optional(),
 });
 
 const TRANSITIONS: Record<string, string[]> = {
@@ -34,9 +38,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   });
   if (!pedido) return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
 
-  const allowed = TRANSITIONS[pedido.status] ?? [];
-  if (!allowed.includes(parsed.data.status)) {
-    return NextResponse.json({ error: `Transição inválida: ${pedido.status} → ${parsed.data.status}` }, { status: 422 });
+  // Override só para ADMIN. Quando ativo, pula a validação da máquina de estados.
+  const override = parsed.data.override === true;
+  if (override && auth.session.perfil !== "ADMIN") {
+    return NextResponse.json({ error: "Apenas administradores podem forçar o status." }, { status: 403 });
+  }
+
+  if (!override) {
+    const allowed = TRANSITIONS[pedido.status] ?? [];
+    if (!allowed.includes(parsed.data.status)) {
+      return NextResponse.json({ error: `Transição inválida: ${pedido.status} → ${parsed.data.status}` }, { status: 422 });
+    }
+  }
+  if (pedido.status === parsed.data.status) {
+    return NextResponse.json({ data: pedido });
   }
 
   // Não permite concluir enquanto houver material pendente de entrega

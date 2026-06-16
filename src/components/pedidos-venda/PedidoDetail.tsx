@@ -11,7 +11,8 @@ import { Separator } from "@/components/ui/separator";
 import { formatBRL, formatDate, decimalToNumber, cn, parseDecimal } from "@/lib/utils";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
-import { Plus, Truck, Pencil, Package, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Truck, Pencil, Package, Trash2, AlertTriangle, RefreshCw, ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import MinutaActionsMenu from "./MinutaActionsMenu";
 import DevolucaoButton from "./DevolucaoButton";
 import PagamentosInput, {
@@ -412,13 +413,13 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
     pedido.status === "CONFIRMADO" ||
     pedido.status === "EM_AGENDAMENTO";
 
-  async function changeStatus(next: string, dataConclusao?: string) {
+  async function changeStatus(next: string, dataConclusao?: string, override?: boolean) {
     setLoading(true);
     try {
       const res = await fetch(`/api/pedidos-venda/${pedido.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: next, ...(dataConclusao ? { dataConclusao } : {}) }),
+        body: JSON.stringify({ status: next, ...(dataConclusao ? { dataConclusao } : {}), ...(override ? { override: true } : {}) }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
