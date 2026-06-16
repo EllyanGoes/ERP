@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import PageHeader from "@/components/shared/PageHeader";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -319,30 +320,28 @@ export default function EstoqueTerceirosPage() {
 
               <div className="space-y-1.5">
                 <Label>Produto <span className="text-red-500">*</span></Label>
-                <select className={selectCls} value={form.itemId} onChange={(e) => setForm({ ...form, itemId: e.target.value })}>
-                  <option value="">Selecionar...</option>
-                  {itens.map((i) => <option key={i.id} value={i.id}>{i.codigo} — {i.descricao}</option>)}
-                </select>
+                <ComboboxWithCreate value={form.itemId} onChange={(v) => setForm({ ...form, itemId: v })}
+                  placeholder="Selecionar..." noneLabel="Selecionar" triggerClassName="h-9 rounded-lg"
+                  options={itens.map((i) => ({ value: i.id, label: `${i.codigo} — ${i.descricao}` }))} />
               </div>
               <div className="space-y-1.5">
                 <Label>Local de Estoque <span className="text-red-500">*</span></Label>
-                <select className={selectCls} value={form.localEstoqueId} onChange={(e) => setForm({ ...form, localEstoqueId: e.target.value })}>
-                  <option value="">Selecionar...</option>
-                  {locais.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
-                </select>
+                <ComboboxWithCreate value={form.localEstoqueId} onChange={(v) => setForm({ ...form, localEstoqueId: v })}
+                  placeholder="Selecionar..." noneLabel="Selecionar" triggerClassName="h-9 rounded-lg"
+                  options={locais.map((l) => ({ value: l.id, label: l.nome }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>De (dono atual)</Label>
-                  <select className={selectCls} value={form.de} onChange={(e) => setForm({ ...form, de: e.target.value })}>
-                    {optDono(true)}
-                  </select>
+                  <ComboboxWithCreate value={form.de} onChange={(v) => setForm({ ...form, de: v })}
+                    noneLabel="Estoque próprio" triggerClassName="h-9 rounded-lg"
+                    options={clientes.map((c) => ({ value: c.id, label: c.nomeFantasia || c.razaoSocial }))} />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Para (novo dono)</Label>
-                  <select className={selectCls} value={form.para} onChange={(e) => setForm({ ...form, para: e.target.value })}>
-                    {optDono(true)}
-                  </select>
+                  <ComboboxWithCreate value={form.para} onChange={(v) => setForm({ ...form, para: v })}
+                    noneLabel="Estoque próprio" triggerClassName="h-9 rounded-lg"
+                    options={clientes.map((c) => ({ value: c.id, label: c.nomeFantasia || c.razaoSocial }))} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

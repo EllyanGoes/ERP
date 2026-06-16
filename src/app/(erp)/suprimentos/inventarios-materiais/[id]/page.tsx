@@ -7,6 +7,7 @@ import { ArrowLeft, ChevronRight, Loader2, Pencil, Save, X, Trash2, CheckCircle2
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 
@@ -250,11 +251,9 @@ export default function InventarioDetailPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
                 <Label className="text-xs mb-1 block">Funcionário</Label>
-                <select value={editColaborador} onChange={(e) => setEditColaborador(e.target.value)}
-                  className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white">
-                  <option value="">—</option>
-                  {colaboradores.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
+                <ComboboxWithCreate value={editColaborador} onChange={(v) => setEditColaborador(v)}
+                  noneLabel="—" triggerClassName="h-8 rounded-md"
+                  options={colaboradores.map((c) => ({ value: c.id, label: c.nome }))} />
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Data</Label>
@@ -318,16 +317,13 @@ export default function InventarioDetailPage() {
                         </td>
                         <td className="px-4 py-2.5 text-gray-700 text-xs min-w-[160px]">
                           {editMode ? (
-                            <select
+                            <ComboboxWithCreate
                               value={it.fornecedorId ?? ""}
-                              onChange={(e) => updateEditRow(idx, "fornecedorId", e.target.value)}
-                              className="w-full h-7 text-xs border border-gray-200 rounded-md bg-white px-2 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                            >
-                              <option value="">— Fornecedor —</option>
-                              {fornecedores.map(f => (
-                                <option key={f.id} value={f.id}>{f.nomeFantasia ?? f.razaoSocial}</option>
-                              ))}
-                            </select>
+                              onChange={(v) => updateEditRow(idx, "fornecedorId", v)}
+                              noneLabel="— Fornecedor —"
+                              triggerClassName="h-7 rounded-md text-xs"
+                              options={fornecedores.map((f) => ({ value: f.id, label: f.nomeFantasia ?? f.razaoSocial }))}
+                            />
                           ) : fornNome}
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono text-gray-700 text-xs">

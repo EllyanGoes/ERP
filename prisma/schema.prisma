@@ -1024,6 +1024,8 @@ model MovimentacaoEstoque {
   // entrada/saída na empresa da venda) ao pedido de venda que os originou.
   vendaOrdemId      String?
   vendaOrdem        PedidoVenda?            @relation("MovimentacoesVendaOrdem", fields: [vendaOrdemId], references: [id])
+  // Devolução de venda: tag do movimento (ENTRADA de volta) gerado por uma devolução.
+  devolucaoId       String?
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -1034,6 +1036,7 @@ model MovimentacaoEstoque {
   @@index([clienteDonoId])
   @@index([ordemProducaoId])
   @@index([vendaOrdemId])
+  @@index([devolucaoId])
   @@index([empresaId])
 }
 
@@ -1281,6 +1284,55 @@ model PedidoVendaItem {
   @@index([itemId])
   @@index([pedidoVendaId])
   @@index([empresaId])
+}
+
+// Devolução de venda: cliente devolve itens de um pedido. Resolução por estorno
+// (dinheiro de volta), crédito (vale do cliente) ou troca (outro material).
+// FKs como colunas escalares (sem relações reversas) para manter o schema enxuto.
+enum TipoResolucaoDevolucao {
+  ESTORNO
+  CREDITO
+  TROCA
+}
+
+enum StatusDevolucao {
+  CONCLUIDA
+  CANCELADA
+}
+
+model Devolucao {
+  id            String                 @id @default(cuid())
+  empresaId     String                 @default("emp_tramontin")
+  numero        String
+  pedidoVendaId String
+  clienteId     String
+  data          DateTime               @default(now())
+  valorTotal    Decimal                @db.Decimal(15, 2)
+  tipoResolucao TipoResolucaoDevolucao
+  status        StatusDevolucao        @default(CONCLUIDA)
+  contaBancariaId String?              // estorno: conta de saída do dinheiro
+  pedidoTrocaId   String?              // troca: novo pedido gerado (fase B3)
+  observacoes   String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  itens         DevolucaoItem[]
+
+  @@unique([empresaId, numero])
+  @@index([pedidoVendaId])
+  @@index([clienteId])
+}
+
+model DevolucaoItem {
+  id                String    @id @default(cuid())
+  devolucaoId       String
+  pedidoVendaItemId String
+  itemId            String
+  quantidade        Decimal   @db.Decimal(15, 3)
+  valorUnitario     Decimal   @db.Decimal(15, 2)
+  valorTotal        Decimal   @db.Decimal(15, 2)
+  devolucao         Devolucao @relation(fields: [devolucaoId], references: [id], onDelete: Cascade)
+
+  @@index([devolucaoId])
 }
 
 model PerfilAcesso {

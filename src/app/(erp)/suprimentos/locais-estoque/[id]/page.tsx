@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatBRL } from "@/lib/utils";
 
@@ -403,16 +404,13 @@ export default function LocalEstoqueDetailPage() {
               {/* Filial select */}
               <div className="w-72">
                 <Label className="text-xs text-gray-500 mb-1 block">Filial <span className="text-red-500">*</span></Label>
-                <select
+                <ComboboxWithCreate
                   value={form.filialId}
-                  onChange={(e) => setForm((p) => ({ ...p, filialId: e.target.value }))}
-                  className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                >
-                  <option value="">Sem filial vinculada</option>
-                  {filiais.map((f) => (
-                    <option key={f.id} value={f.id}>{f.nomeFantasia || f.razaoSocial}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setForm((p) => ({ ...p, filialId: v }))}
+                  noneLabel="Sem filial vinculada"
+                  triggerClassName="h-8 rounded-md"
+                  options={filiais.map((f) => ({ value: f.id, label: f.nomeFantasia || f.razaoSocial }))}
+                />
               </div>
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="ativo" checked={form.ativo} onChange={(e) => setForm((p) => ({ ...p, ativo: e.target.checked }))} className="rounded" />

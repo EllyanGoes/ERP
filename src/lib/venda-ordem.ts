@@ -48,7 +48,8 @@ async function movimentar(
   args: {
     empresaId: string; localEstoqueId: string; itemId: string; tipo: "ENTRADA" | "SAIDA";
     quantidade: Prisma.Decimal; loteId: string; documento: string; observacoes: string;
-    valorUnitario: Prisma.Decimal | null; vendaOrdemId: string; pedidoVendaItemId?: string | null;
+    valorUnitario: Prisma.Decimal | null; vendaOrdemId?: string | null; devolucaoId?: string | null;
+    pedidoVendaItemId?: string | null;
   },
 ) {
   const estoque = await tx.estoqueItem.findFirst({
@@ -71,7 +72,8 @@ async function movimentar(
       localEstoqueId: args.localEstoqueId,
       loteId: args.loteId,
       valorUnitario: args.valorUnitario,
-      vendaOrdemId: args.vendaOrdemId,
+      vendaOrdemId: args.vendaOrdemId ?? null,
+      devolucaoId: args.devolucaoId ?? null,
       pedidoVendaItemId: args.pedidoVendaItemId ?? null,
     },
   });
@@ -212,5 +214,90 @@ export async function gerarMovimentosTriangulares(minutaId: string): Promise<voi
     });
   } catch (e) {
     console.error(`[venda-ordem] falha ao gerar movimentos triangulares da minuta ${minutaId}:`, e);
+  }
+}
+
+/**
+ * Reverte os movimentos virtuais de uma DEVOLUÇÃO de venda à ordem: o material
+ * volta do cliente para a origem (Tramontin). Espelha ao contrário os 3
+ * movimentos: ENTRADA na empresa da venda + SAÍDA na empresa da venda + ENTRADA
+ * na origem. Idempotente (checa devolucaoId+documento). Roda na própria
+ * transação do endpoint (recebe o tx) para ser atômico com a Devolucao.
+ */
+export async function reverterMovimentosTriangulares(devolucaoId: string): Promise<void> {
+  try {
+    const dev = await prismaSemEscopo.devolucao.findUnique({ where: { id: devolucaoId }, include: { itens: true } });
+    if (!dev) return;
+
+    const venda = await prismaSemEscopo.pedidoVenda.findUnique({
+      where: { id: dev.pedidoVendaId },
+      include: { empresa: true, itens: true },
+    });
+    if (!venda?.estoqueOrigemEmpresaId) return;
+
+    const origem = await prismaSemEscopo.empresa.findFirst({
+      where: { id: venda.estoqueOrigemEmpresaId, ativo: true },
+      select: { id: true, nomeFantasia: true, razaoSocial: true },
+    });
+    if (!origem) return;
+
+    // Idempotência: reversão desta devolução já registrada?
+    const jaTem = await prismaSemEscopo.movimentacaoEstoque.findFirst({
+      where: { devolucaoId: dev.id }, select: { id: true },
+    });
+    if (jaTem) return;
+
+    const empresaA = venda.empresaId;
+    const origemNome = origem.nomeFantasia ?? origem.razaoSocial;
+    const vendaNome = venda.empresa.nomeFantasia ?? venda.empresa.razaoSocial;
+
+    const totalVenda = venda.itens.reduce((s, i) => s.add(new Prisma.Decimal(i.valorTotal ?? 0)), new Prisma.Decimal(0));
+    const transfer = venda.precoTransferencia != null ? new Prisma.Decimal(venda.precoTransferencia) : null;
+    const fator = transfer && totalVenda.gt(0) ? transfer.div(totalVenda) : new Prisma.Decimal(1);
+    const pviById = new Map(venda.itens.map((i) => [i.id, i]));
+
+    await prismaSemEscopo.$transaction(async (tx) => {
+      const localOrigem = await localPadrao(tx, origem.id);
+      const localA = await localPadrao(tx, empresaA);
+      const doc = dev.numero;
+
+      const loteEntradaA = await criarLote(tx, empresaA, "ENTRADA", doc, `Devolução ${doc} — retorno do cliente`);
+      const loteSaidaA = await criarLote(tx, empresaA, "SAIDA", doc, `Devolução ${doc} — retorno p/ ${origemNome}`);
+      const loteEntradaB = await criarLote(tx, origem.id, "ENTRADA", doc, `Devolução ${doc} — retorno de ${vendaNome}`);
+
+      for (const di of dev.itens) {
+        const qtd = new Prisma.Decimal(di.quantidade);
+        if (qtd.lte(0)) continue;
+        const pvi = pviById.get(di.pedidoVendaItemId);
+        const precoVenda = new Prisma.Decimal(di.valorUnitario);
+        const totalItem = pvi ? new Prisma.Decimal(pvi.valorTotal ?? 0) : qtd.mul(precoVenda);
+        const transferUnit = pvi?.precoTransferencia != null
+          ? new Prisma.Decimal(pvi.precoTransferencia)
+          : (pvi && new Prisma.Decimal(pvi.quantidade).gt(0)
+              ? totalItem.mul(fator).div(new Prisma.Decimal(pvi.quantidade)).toDecimalPlaces(4)
+              : precoVenda);
+
+        // ENTRADA na empresa da venda (material volta do cliente) — preço de venda.
+        await movimentar(tx, {
+          empresaId: empresaA, localEstoqueId: localA, itemId: di.itemId, tipo: "ENTRADA",
+          quantidade: qtd, loteId: loteEntradaA.id, documento: doc,
+          observacoes: `Devolução ${doc} — retorno do cliente`, valorUnitario: precoVenda, devolucaoId: dev.id,
+        });
+        // SAÍDA na empresa da venda (devolve para a origem) — preço de transferência.
+        await movimentar(tx, {
+          empresaId: empresaA, localEstoqueId: localA, itemId: di.itemId, tipo: "SAIDA",
+          quantidade: qtd, loteId: loteSaidaA.id, documento: doc,
+          observacoes: `Devolução ${doc} — retorno p/ ${origemNome}`, valorUnitario: transferUnit, devolucaoId: dev.id,
+        });
+        // ENTRADA na origem (recebe de volta) — preço de transferência.
+        await movimentar(tx, {
+          empresaId: origem.id, localEstoqueId: localOrigem, itemId: di.itemId, tipo: "ENTRADA",
+          quantidade: qtd, loteId: loteEntradaB.id, documento: doc,
+          observacoes: `Devolução ${doc} — retorno de ${vendaNome}`, valorUnitario: transferUnit, devolucaoId: dev.id,
+        });
+      }
+    });
+  } catch (e) {
+    console.error(`[venda-ordem] falha ao reverter movimentos triangulares da devolução ${devolucaoId}:`, e);
   }
 }
