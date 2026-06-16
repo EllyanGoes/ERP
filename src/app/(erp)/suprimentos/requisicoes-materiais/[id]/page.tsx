@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatDate } from "@/lib/utils";
 
@@ -294,27 +295,21 @@ export default function RequisicaoDetailPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
                 <Label className="text-xs mb-1 block">Funcionário</Label>
-                <select value={editForm.colaboradorId} onChange={(e) => setEditForm(p => ({ ...p, colaboradorId: e.target.value }))}
-                  className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white">
-                  <option value="">—</option>
-                  {colaboradores.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
+                <ComboboxWithCreate value={editForm.colaboradorId} onChange={(v) => setEditForm(p => ({ ...p, colaboradorId: v }))}
+                  noneLabel="—" triggerClassName="h-8 rounded-md"
+                  options={colaboradores.map((c) => ({ value: c.id, label: c.nome }))} />
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Setor</Label>
-                <select value={editForm.setorId} onChange={(e) => setEditForm(p => ({ ...p, setorId: e.target.value }))}
-                  className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white">
-                  <option value="">—</option>
-                  {setores.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-                </select>
+                <ComboboxWithCreate value={editForm.setorId} onChange={(v) => setEditForm(p => ({ ...p, setorId: v }))}
+                  noneLabel="—" triggerClassName="h-8 rounded-md"
+                  options={setores.map((s) => ({ value: s.id, label: s.nome }))} />
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Almoxarife</Label>
-                <select value={editForm.almoxarifeId} onChange={(e) => setEditForm(p => ({ ...p, almoxarifeId: e.target.value }))}
-                  className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white">
-                  <option value="">—</option>
-                  {colaboradores.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
+                <ComboboxWithCreate value={editForm.almoxarifeId} onChange={(v) => setEditForm(p => ({ ...p, almoxarifeId: v }))}
+                  noneLabel="—" triggerClassName="h-8 rounded-md"
+                  options={colaboradores.map((c) => ({ value: c.id, label: c.nome }))} />
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Data</Label>
@@ -327,11 +322,9 @@ export default function RequisicaoDetailPage() {
                 </div>
                 <div>
                   <Label className="text-xs mb-1 block">Centro de Custo</Label>
-                  <select value={editForm.centroCustoId} onChange={(e) => setEditForm(p => ({ ...p, centroCustoId: e.target.value }))}
-                    className="w-full h-8 px-2 text-sm border border-gray-200 rounded-md bg-white">
-                    <option value="">—</option>
-                    {centros.map((c) => <option key={c.id} value={c.id}>{c.codigo} — {c.nome}</option>)}
-                  </select>
+                  <ComboboxWithCreate value={editForm.centroCustoId} onChange={(v) => setEditForm(p => ({ ...p, centroCustoId: v }))}
+                    noneLabel="—" triggerClassName="h-8 rounded-md"
+                    options={centros.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))} />
                 </div>
                 <div>
                   <Label className="text-xs mb-1 block">Conta Contábil</Label>
@@ -430,11 +423,9 @@ export default function RequisicaoDetailPage() {
                         </td>
                         {req.tipo === "REQUISICAO" && <>
                           <td className="px-3 py-2">
-                            <select value={row.centroCustoId} onChange={(e) => updateEditRow(idx, "centroCustoId", e.target.value)}
-                              className="h-7 text-xs border border-gray-200 rounded px-1.5 bg-white w-full">
-                              <option value="">—</option>
-                              {centros.map((c) => <option key={c.id} value={c.id}>{c.codigo}</option>)}
-                            </select>
+                            <ComboboxWithCreate value={row.centroCustoId} onChange={(v) => updateEditRow(idx, "centroCustoId", v)}
+                              noneLabel="—" triggerClassName="h-7 rounded text-xs"
+                              options={centros.map((c) => ({ value: c.id, label: c.codigo }))} />
                           </td>
                           <td className="px-3 py-2">
                             <Input value={row.contaContabil} onChange={(e) => updateEditRow(idx, "contaContabil", e.target.value)} className="h-7 text-xs" />

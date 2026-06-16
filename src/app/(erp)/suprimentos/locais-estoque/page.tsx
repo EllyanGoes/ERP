@@ -7,6 +7,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { MapPin, Package, Plus, Pencil, Trash2, Loader2, AlertTriangle, X, Check, Save, Building2, GitBranch } from "lucide-react";
 import { formatBRL } from "@/lib/utils";
 
@@ -332,16 +333,13 @@ export default function LocaisEstoquePage() {
               </div>
               <div>
                 <Label>Filial</Label>
-                <select
+                <ComboboxWithCreate
                   value={createForm.filialId}
-                  onChange={(e) => setCreateForm((p) => ({ ...p, filialId: e.target.value }))}
-                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                >
-                  <option value="">Sem filial</option>
-                  {filiais.map((f) => (
-                    <option key={f.id} value={f.id}>{filialNome(f) ?? f.razaoSocial}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setCreateForm((p) => ({ ...p, filialId: v }))}
+                  noneLabel="Sem filial"
+                  triggerClassName="mt-1 h-9 rounded-lg"
+                  options={filiais.map((f) => ({ value: f.id, label: filialNome(f) ?? f.razaoSocial }))}
+                />
               </div>
               <div>
                 <Label>Descrição</Label>
@@ -389,16 +387,13 @@ export default function LocaisEstoquePage() {
               </div>
               <div>
                 <Label>Filial</Label>
-                <select
+                <ComboboxWithCreate
                   value={editForm.filialId}
-                  onChange={(e) => setEditForm((p) => ({ ...p, filialId: e.target.value }))}
-                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                >
-                  <option value="">Sem filial</option>
-                  {filiais.map((f) => (
-                    <option key={f.id} value={f.id}>{filialNome(f) ?? f.razaoSocial}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setEditForm((p) => ({ ...p, filialId: v }))}
+                  noneLabel="Sem filial"
+                  triggerClassName="mt-1 h-9 rounded-lg"
+                  options={filiais.map((f) => ({ value: f.id, label: filialNome(f) ?? f.razaoSocial }))}
+                />
               </div>
               <div>
                 <Label>Descrição</Label>

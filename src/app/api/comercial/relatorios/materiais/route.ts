@@ -16,7 +16,14 @@ function parseDate(value: string | null, fallback: Date): Date {
 //  • Vendas         → quantidade e valor vendidos (itens de pedidos não
 //    cancelados/orçamento, pela data de emissão) → preço médio de venda;
 //  • Preço médio geral → preço médio de venda histórico (todo o período), para
-//    comparar com o praticado no intervalo selecionado.
+//    comparar com o praticado no intervalo selecionado;
+//  • Venda à ordem  → quantidade entregue ao cliente via venda triangular.
+//
+// Venda à ordem (triangular) gera 3 movimentos virtuais marcados com vendaOrdemId:
+// SAÍDA na origem (transferência), ENTRADA virtual na empresa da venda e SAÍDA
+// ao cliente. A entrada virtual e a entrega contam normalmente (entrou + saiu),
+// mas a SAÍDA de transferência da origem é descartada para não duplicar a saída
+// quando o relatório enxerga mais de uma empresa (escopo de grupo).
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
@@ -31,11 +38,15 @@ export async function GET(req: NextRequest) {
   from.setUTCHours(0, 0, 0, 0);
   to.setUTCHours(23, 59, 59, 999);
 
-  const [movsAgg, vendasPeriodo, vendasGeral] = await Promise.all([
-    // Entradas/Saídas do estoque no período (quantidades)
+  const [movsAgg, vendasPeriodo, vendasGeral, vendaOrdemAgg] = await Promise.all([
+    // Entradas/Saídas do estoque no período (quantidades). Descarta a perna de
+    // transferência da venda à ordem (SAÍDA na origem, sem pedidoVendaItem).
     prisma.movimentacaoEstoque.groupBy({
       by: ["itemId", "tipo"],
-      where: { createdAt: { gte: from, lte: to } },
+      where: {
+        createdAt: { gte: from, lte: to },
+        NOT: { vendaOrdemId: { not: null }, tipo: "SAIDA", pedidoVendaItemId: null },
+      },
       _sum: { quantidade: true },
     }),
     // Vendas no período (qtd + valor) — por data de emissão
@@ -50,6 +61,12 @@ export async function GET(req: NextRequest) {
       where: { pedidoVenda: { status: { notIn: ["ORCAMENTO", "CANCELADO"] } } },
       _sum: { quantidade: true, valorTotal: true },
     }),
+    // Venda à ordem: quantidade entregue ao cliente (perna de SAÍDA com pedidoVendaItem).
+    prisma.movimentacaoEstoque.groupBy({
+      by: ["itemId"],
+      where: { createdAt: { gte: from, lte: to }, vendaOrdemId: { not: null }, pedidoVendaItemId: { not: null }, tipo: "SAIDA" },
+      _sum: { quantidade: true },
+    }),
   ]);
 
   const entrouMap = new Map<string, number>();
@@ -62,12 +79,14 @@ export async function GET(req: NextRequest) {
 
   const vendaPeriodoMap = new Map(vendasPeriodo.map((v) => [v.itemId, v]));
   const vendaGeralMap = new Map(vendasGeral.map((v) => [v.itemId, v]));
+  const vendaOrdemMap = new Map(vendaOrdemAgg.map((v) => [v.itemId, decimalToNumber(v._sum?.quantidade)]));
 
   // Materiais com atividade no período (movimentação ou venda).
   const itemIds = new Set<string>();
   entrouMap.forEach((_, k) => itemIds.add(k));
   saiuMap.forEach((_, k) => itemIds.add(k));
   vendaPeriodoMap.forEach((_, k) => itemIds.add(k));
+  vendaOrdemMap.forEach((_, k) => itemIds.add(k));
 
   // Relatório comercial: só produtos vendáveis.
   const itens = await prisma.item.findMany({
@@ -95,6 +114,7 @@ export async function GET(req: NextRequest) {
         unidade: info.unidade?.sigla ?? info.unidadeMedida ?? "UN",
         entrouQtd: entrouMap.get(itemId) ?? 0,
         saiuQtd: saiuMap.get(itemId) ?? 0,
+        vendaOrdemQtd: vendaOrdemMap.get(itemId) ?? 0,
         qtdVendida,
         valorVendido,
         precoMedioPeriodo: qtdVendida > 0 ? valorVendido / qtdVendida : 0,

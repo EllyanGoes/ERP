@@ -975,16 +975,13 @@ export default function DocumentoEntradaDetailPage() {
             <div className="space-y-1.5">
               <Label className="text-xs text-gray-500">UF Origem</Label>
               {nfEditable ? (
-                <select
+                <ComboboxWithCreate
                   value={ufOrigem}
-                  onChange={(e) => setUfOrigem(e.target.value)}
-                  className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">—</option>
-                  {UF_LIST.map((uf) => (
-                    <option key={uf} value={uf}>{uf}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setUfOrigem(v)}
+                  noneLabel="—"
+                  triggerClassName="h-9 rounded-md"
+                  options={UF_LIST.map((uf) => ({ value: uf, label: uf }))}
+                />
               ) : (
                 <Input value={conferencia.ufOrigem ?? "—"} readOnly className="bg-gray-50" />
               )}
@@ -1127,19 +1124,14 @@ export default function DocumentoEntradaDetailPage() {
                   Local de Estoque <span className="text-red-500">*</span>
                 </Label>
                 {nfEditable ? (
-                  <select
+                  <ComboboxWithCreate
                     value={localEstoqueGlobalId}
-                    onChange={(e) => handleGlobalLocalChange(e.target.value)}
-                    className={cn(
-                      "w-full h-9 px-3 border rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
-                      !localEstoqueGlobalId ? "border-red-300" : "border-gray-200"
-                    )}
-                  >
-                    <option value="">Selecionar local...</option>
-                    {locaisEstoque.map((l) => (
-                      <option key={l.id} value={l.id}>{l.nome}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => handleGlobalLocalChange(v)}
+                    placeholder="Selecionar local..."
+                    noneLabel="Selecionar local..."
+                    triggerClassName={cn("h-9 rounded-md", !localEstoqueGlobalId && "border-red-300")}
+                    options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
+                  />
                 ) : (
                   <Input
                     value={locaisEstoque.find((l) => l.id === localEstoqueGlobalId)?.nome ?? "—"}
@@ -1258,19 +1250,13 @@ export default function DocumentoEntradaDetailPage() {
                         {modoLocalEstoque === "POR_ITEM" && (
                           <td className="px-3 py-2">
                             {canEdit && ei ? (
-                              <select
+                              <ComboboxWithCreate
                                 value={ei.localEstoqueId}
-                                onChange={(e) => updateEditItem(item.id, "localEstoqueId", e.target.value)}
-                                className={cn(
-                                  "w-full h-7 px-2 border rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-red-400",
-                                  !ei.localEstoqueId ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200"
-                                )}
-                              >
-                                <option value="">—</option>
-                                {locaisEstoque.map((l) => (
-                                  <option key={l.id} value={l.id}>{l.nome}</option>
-                                ))}
-                              </select>
+                                onChange={(v) => updateEditItem(item.id, "localEstoqueId", v)}
+                                noneLabel="—"
+                                triggerClassName={cn("h-7 rounded text-xs", !ei.localEstoqueId && "border-red-400 bg-red-50 text-red-700")}
+                                options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
+                              />
                             ) : (
                               <span className="text-xs text-gray-600">{localNome ?? "—"}</span>
                             )}
@@ -1427,19 +1413,13 @@ export default function DocumentoEntradaDetailPage() {
                       <td className="px-3 py-2 text-xs text-gray-800 max-w-[200px]">{ni.descricao}</td>
                       {modoLocalEstoque === "POR_ITEM" && (
                         <td className="px-3 py-2">
-                          <select
+                          <ComboboxWithCreate
                             value={ni.localEstoqueId}
-                            onChange={(e) => updateNewItem(ni._key, "localEstoqueId", e.target.value)}
-                            className={cn(
-                              "w-full h-7 px-2 border rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-red-400",
-                              !ni.localEstoqueId ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200"
-                            )}
-                          >
-                            <option value="">—</option>
-                            {locaisEstoque.map((l) => (
-                              <option key={l.id} value={l.id}>{l.nome}</option>
-                            ))}
-                          </select>
+                            onChange={(v) => updateNewItem(ni._key, "localEstoqueId", v)}
+                            noneLabel="—"
+                            triggerClassName={cn("h-7 rounded text-xs", !ni.localEstoqueId && "border-red-400 bg-red-50 text-red-700")}
+                            options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
+                          />
                         </td>
                       )}
                       <td className="px-3 py-2 text-xs text-gray-500">{ni.unidadeMedida}</td>
@@ -1528,14 +1508,13 @@ export default function DocumentoEntradaDetailPage() {
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Condição de Pagamento</Label>
               {nfEditable ? (
-                <select
+                <ComboboxWithCreate
                   value={condicaoPagamentoId}
-                  onChange={(e) => setCondicaoPagamentoId(e.target.value)}
-                  className="w-full h-9 rounded-md border border-gray-300 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">— Herdar do pedido / à vista —</option>
-                  {condicoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
+                  onChange={(v) => setCondicaoPagamentoId(v)}
+                  noneLabel="— Herdar do pedido / à vista —"
+                  triggerClassName="h-9 rounded-md"
+                  options={condicoes.map((c) => ({ value: c.id, label: c.nome }))}
+                />
               ) : (
                 <Input value={condicoes.find((c) => c.id === condicaoPagamentoId)?.nome ?? "—"} readOnly className="bg-gray-50" />
               )}
@@ -1642,22 +1621,17 @@ export default function DocumentoEntradaDetailPage() {
             <CardContent className="pt-4">
               <div className="space-y-1.5 max-w-xs">
                 <Label>Responsável pela Conferência</Label>
-                <select
+                <ComboboxWithCreate
                   value={usuarioResponsavelId}
-                  onChange={(e) => {
-                    const selected = usuarios.find((u) => u.id === e.target.value);
-                    setUsuarioResponsavelId(e.target.value);
+                  onChange={(v) => {
+                    const selected = usuarios.find((u) => u.id === v);
+                    setUsuarioResponsavelId(v);
                     setResponsavel(selected?.nome ?? "");
                   }}
-                  className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">— Selecionar usuário —</option>
-                  {usuarios.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.nome}
-                    </option>
-                  ))}
-                </select>
+                  noneLabel="— Selecionar usuário —"
+                  triggerClassName="h-9 rounded-md"
+                  options={usuarios.map((u) => ({ value: u.id, label: u.nome }))}
+                />
               </div>
             </CardContent>
           </Card>

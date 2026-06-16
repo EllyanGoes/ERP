@@ -905,16 +905,13 @@ export default function ProdutoDetailPage() {
   const filtroEmpresaEstoque = empresasEstoque.length > 1 ? (
     <label className="flex items-center gap-1.5 text-xs text-gray-500">
       Empresa
-      <select
+      <ComboboxWithCreate
         value={empresaEstoqueId}
-        onChange={(e) => setEmpresaEstoqueId(e.target.value)}
-        className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      >
-        <option value="">Todas as empresas</option>
-        {empresasEstoque.map((emp) => (
-          <option key={emp.id} value={emp.id}>{emp.nomeFantasia || emp.razaoSocial}</option>
-        ))}
-      </select>
+        onChange={(v) => setEmpresaEstoqueId(v)}
+        noneLabel="Todas as empresas"
+        triggerClassName="h-8 rounded-lg text-xs"
+        options={empresasEstoque.map((emp) => ({ value: emp.id, label: emp.nomeFantasia || emp.razaoSocial }))}
+      />
     </label>
   ) : null;
   // Custo médio: média ponderada das últimas entradas
@@ -2868,38 +2865,33 @@ export default function ProdutoDetailPage() {
               {/* Filial (para filtrar locais) */}
               <div className="space-y-1.5">
                 <Label>Filial</Label>
-                <select
+                <ComboboxWithCreate
                   value={saldoFilialFilter}
-                  onChange={(e) => { setSaldoFilialFilter(e.target.value); setSaldoForm((p) => ({ ...p, localEstoqueId: "" })); }}
-                  className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Todas as filiais</option>
-                  {Array.from(new Map(
+                  onChange={(v) => { setSaldoFilialFilter(v); setSaldoForm((p) => ({ ...p, localEstoqueId: "" })); }}
+                  noneLabel="Todas as filiais"
+                  triggerClassName="h-9 rounded-md"
+                  options={Array.from(new Map(
                     locaisEstoque
                       .filter((l) => l.filial)
                       .map((l) => [l.filial!.id, l.filial!])
-                  ).values()).map((f) => (
-                    <option key={f.id} value={f.id}>{f.razaoSocial}</option>
-                  ))}
-                </select>
+                  ).values()).map((f) => ({ value: f.id, label: f.razaoSocial }))}
+                />
               </div>
 
               {/* Local de Estoque */}
               <div className="space-y-1.5">
                 <Label>Local de Estoque <span className="text-red-500">*</span></Label>
-                <select
+                <ComboboxWithCreate
                   value={saldoForm.localEstoqueId}
-                  onChange={(e) => setSaldoForm((p) => ({ ...p, localEstoqueId: e.target.value }))}
+                  onChange={(v) => setSaldoForm((p) => ({ ...p, localEstoqueId: v }))}
                   disabled={!!saldoForm.editMovId}
-                  className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
-                >
-                  <option value="">Selecionar local...</option>
-                  {locaisEstoque
+                  placeholder="Selecionar local..."
+                  noneLabel="Selecionar local..."
+                  triggerClassName="h-9 rounded-md"
+                  options={locaisEstoque
                     .filter((l) => !saldoFilialFilter || l.filial?.id === saldoFilialFilter)
-                    .map((l) => (
-                      <option key={l.id} value={l.id}>{l.nome}</option>
-                    ))}
-                </select>
+                    .map((l) => ({ value: l.id, label: l.nome }))}
+                />
                 {saldoForm.editMovId && (
                   <p className="text-[11px] text-gray-400">O local de estoque não pode ser alterado na edição.</p>
                 )}
@@ -2912,18 +2904,16 @@ export default function ProdutoDetailPage() {
                 return (
                   <div className="space-y-1.5">
                     <Label>Unidade de Entrada</Label>
-                    <select
+                    <ComboboxWithCreate
                       value={saldoForm.unidadeEntradaId}
-                      onChange={(e) => setSaldoForm((p) => ({ ...p, unidadeEntradaId: e.target.value }))}
-                      className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {itemUnidades.map((iu) => (
-                        <option key={iu.id} value={iu.unidade.id}>
-                          {iu.unidade.sigla} — {iu.unidade.nome}
-                          {iu.isPrincipal ? " (unidade base)" : iu.fatorConversao ? ` (1 ${iu.unidade.sigla} = ${Number(iu.fatorConversao).toLocaleString("pt-BR", { maximumFractionDigits: 6 })} ${principalSigla})` : ""}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(v) => setSaldoForm((p) => ({ ...p, unidadeEntradaId: v }))}
+                      allowNone={false}
+                      triggerClassName="h-9 rounded-md"
+                      options={itemUnidades.map((iu) => ({
+                        value: iu.unidade.id,
+                        label: `${iu.unidade.sigla} — ${iu.unidade.nome}${iu.isPrincipal ? " (unidade base)" : iu.fatorConversao ? ` (1 ${iu.unidade.sigla} = ${Number(iu.fatorConversao).toLocaleString("pt-BR", { maximumFractionDigits: 6 })} ${principalSigla})` : ""}`,
+                      }))}
+                    />
                   </div>
                 );
               })()}
@@ -3156,19 +3146,17 @@ export default function ProdutoDetailPage() {
                     <>
                       <div className="space-y-1.5">
                         <Label>Unidade <span className="text-red-500">*</span></Label>
-                        <select
+                        <ComboboxWithCreate
                           value={unidadeModal.unidadeId}
-                          onChange={(e) => {
-                            const u = unidades.find((x) => x.id === e.target.value);
-                            setUnidadeModal((m) => m ? { ...m, unidadeId: e.target.value, sigla: u?.sigla ?? "", nome: u?.nome ?? "" } : m);
+                          onChange={(v) => {
+                            const u = unidades.find((x) => x.id === v);
+                            setUnidadeModal((m) => m ? { ...m, unidadeId: v, sigla: u?.sigla ?? "", nome: u?.nome ?? "" } : m);
                           }}
-                          className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="">Selecionar...</option>
-                          {availableUnidades.map((u) => (
-                            <option key={u.id} value={u.id}>{u.sigla} — {u.nome}</option>
-                          ))}
-                        </select>
+                          placeholder="Selecionar..."
+                          noneLabel="Selecionar..."
+                          triggerClassName="h-9 rounded-md"
+                          options={availableUnidades.map((u) => ({ value: u.id, label: `${u.sigla} — ${u.nome}` }))}
+                        />
                       </div>
                       <div className="space-y-1.5">
                         <Label>Fator de Conversão</Label>

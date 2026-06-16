@@ -36,6 +36,7 @@ type MovItem = {
   localEstoque: { id: string; nome: string } | null;
   clienteDono?: { id: string; razaoSocial: string } | null;
   vendaOrdem?: { id: string; numero: string } | null;
+  devolucaoId?: string | null;
 };
 
 type Lote = {
@@ -104,6 +105,11 @@ const MOV_COLS: ColDef<MovItem>[] = [
           <Link href={`/pedidos-venda/${it.vendaOrdem.id}`} className="px-1.5 py-0.5 rounded border border-violet-200 bg-violet-50 text-violet-700 text-[10px] font-medium whitespace-nowrap hover:bg-violet-100" title={`Venda à ordem (movimentação virtual entre empresas) — ${it.vendaOrdem.numero}`}>
             Venda à ordem: {it.vendaOrdem.numero}
           </Link>
+        )}
+        {it.devolucaoId && (
+          <span className="px-1.5 py-0.5 rounded border border-orange-200 bg-orange-50 text-orange-700 text-[10px] font-medium whitespace-nowrap" title={it.observacoes ?? "Devolução de venda"}>
+            Devolução
+          </span>
         )}
       </span>
     ),

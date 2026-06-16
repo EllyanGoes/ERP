@@ -5,7 +5,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatBRL, cn } from "@/lib/utils";
-import { Package, Loader2, Search, Download, ArrowDownToLine, ArrowUpFromLine, TrendingUp } from "lucide-react";
+import { Package, Loader2, Search, Download, ArrowDownToLine, ArrowUpFromLine, TrendingUp, Shuffle } from "lucide-react";
 
 type Row = {
   itemId: string;
@@ -14,13 +14,14 @@ type Row = {
   unidade: string;
   entrouQtd: number;
   saiuQtd: number;
+  vendaOrdemQtd: number;
   qtdVendida: number;
   valorVendido: number;
   precoMedioPeriodo: number;
   precoMedioGeral: number;
 };
 
-type SortKey = "descricao" | "entrouQtd" | "saiuQtd" | "qtdVendida" | "precoMedioPeriodo" | "precoMedioGeral" | "valorVendido";
+type SortKey = "descricao" | "entrouQtd" | "saiuQtd" | "vendaOrdemQtd" | "qtdVendida" | "precoMedioPeriodo" | "precoMedioGeral" | "valorVendido";
 
 function fmtNum(n: number) {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
@@ -79,8 +80,9 @@ export default function MateriaisReportPage() {
     const totalEntrou = rows.reduce((s, r) => s + r.entrouQtd, 0);
     const totalSaiu = rows.reduce((s, r) => s + r.saiuQtd, 0);
     const totalVendido = rows.reduce((s, r) => s + r.valorVendido, 0);
+    const totalVendaOrdem = rows.reduce((s, r) => s + r.vendaOrdemQtd, 0);
     const comVenda = rows.filter((r) => r.qtdVendida > 0).length;
-    return { totalEntrou, totalSaiu, totalVendido, comVenda };
+    return { totalEntrou, totalSaiu, totalVendido, totalVendaOrdem, comVenda };
   }, [rows]);
 
   function toggleSort(key: SortKey) {
@@ -90,10 +92,10 @@ export default function MateriaisReportPage() {
   }
 
   function exportCsv() {
-    const header = ["Código", "Material", "Un", "Entrou", "Saiu", "Qtd Vendida", "Preço Médio (período)", "Preço Médio (geral)", "Total Vendido"];
+    const header = ["Código", "Material", "Un", "Entrou", "Saiu", "Venda à Ordem", "Qtd Vendida", "Preço Médio (período)", "Preço Médio (geral)", "Total Vendido"];
     const linhas = filtradas.map((r) => [
       r.codigo, r.descricao, r.unidade,
-      fmtNum(r.entrouQtd), fmtNum(r.saiuQtd), fmtNum(r.qtdVendida),
+      fmtNum(r.entrouQtd), fmtNum(r.saiuQtd), fmtNum(r.vendaOrdemQtd), fmtNum(r.qtdVendida),
       r.precoMedioPeriodo.toFixed(2), r.precoMedioGeral.toFixed(2), r.valorVendido.toFixed(2),
     ]);
     const csv = [header, ...linhas]
@@ -140,9 +142,10 @@ export default function MateriaisReportPage() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <KpiCard icon={<ArrowDownToLine className="w-4 h-4" />} label="Total que entrou" value={fmtNum(kpis.totalEntrou)} />
           <KpiCard icon={<ArrowUpFromLine className="w-4 h-4" />} label="Total que saiu" value={fmtNum(kpis.totalSaiu)} />
+          <KpiCard icon={<Shuffle className="w-4 h-4" />} label="Venda à ordem" value={fmtNum(kpis.totalVendaOrdem)} />
           <KpiCard icon={<TrendingUp className="w-4 h-4" />} label="Total vendido" value={formatBRL(kpis.totalVendido)} />
           <KpiCard icon={<Package className="w-4 h-4" />} label="Materiais com venda" value={String(kpis.comVenda)} />
         </div>
@@ -176,6 +179,7 @@ export default function MateriaisReportPage() {
                     <th className="text-left px-4 py-3 font-semibold">Un</th>
                     <Th label="Entrou" sortKey="entrouQtd" sort={sort} onSort={toggleSort} align="right" />
                     <Th label="Saiu" sortKey="saiuQtd" sort={sort} onSort={toggleSort} align="right" />
+                    <Th label="V. à Ordem" sortKey="vendaOrdemQtd" sort={sort} onSort={toggleSort} align="right" />
                     <Th label="Qtd Vendida" sortKey="qtdVendida" sort={sort} onSort={toggleSort} align="right" />
                     <Th label="Preço Médio (período)" sortKey="precoMedioPeriodo" sort={sort} onSort={toggleSort} align="right" />
                     <Th label="Preço Médio (geral)" sortKey="precoMedioGeral" sort={sort} onSort={toggleSort} align="right" />
@@ -192,6 +196,7 @@ export default function MateriaisReportPage() {
                       <td className="px-4 py-3 text-gray-500">{r.unidade}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-emerald-700">{r.entrouQtd ? fmtNum(r.entrouQtd) : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-rose-700">{r.saiuQtd ? fmtNum(r.saiuQtd) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-violet-700">{r.vendaOrdemQtd ? fmtNum(r.vendaOrdemQtd) : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.qtdVendida ? fmtNum(r.qtdVendida) : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{r.precoMedioPeriodo ? formatBRL(r.precoMedioPeriodo) : <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-500">{r.precoMedioGeral ? formatBRL(r.precoMedioGeral) : <span className="text-gray-300">—</span>}</td>
@@ -204,6 +209,7 @@ export default function MateriaisReportPage() {
                     <td className="px-4 py-3" colSpan={2}>Total ({filtradas.length})</td>
                     <td className="px-4 py-3 text-right tabular-nums">{fmtNum(filtradas.reduce((s, r) => s + r.entrouQtd, 0))}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{fmtNum(filtradas.reduce((s, r) => s + r.saiuQtd, 0))}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-violet-700">{fmtNum(filtradas.reduce((s, r) => s + r.vendaOrdemQtd, 0))}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{fmtNum(filtradas.reduce((s, r) => s + r.qtdVendida, 0))}</td>
                     <td className="px-4 py-3" colSpan={2} />
                     <td className="px-4 py-3 text-right tabular-nums">{formatBRL(filtradas.reduce((s, r) => s + r.valorVendido, 0))}</td>

@@ -8,6 +8,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import StatusBadge from "@/components/shared/StatusBadge";
 import FinanceiroCompraBadge from "@/components/suprimentos/FinanceiroCompraBadge";
 import ModalPortal from "@/components/shared/ModalPortal";
@@ -1292,18 +1293,15 @@ async function openWAModal() {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Forma de pagamento</Label>
-                <select value={cpForma} onChange={(e) => setCpForma(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">— Selecionar —</option>
-                  {cpFormas.filter((f) => f.ativo !== false).map((f) => <option key={f.id} value={f.nome}>{f.nome}</option>)}
-                </select>
+                <ComboboxWithCreate value={cpForma} onChange={(v) => setCpForma(v)}
+                  noneLabel="— Selecionar —" triggerClassName="h-10 rounded-lg"
+                  options={cpFormas.filter((f) => f.ativo !== false).map((f) => ({ value: f.nome, label: f.nome }))} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Conta de origem</Label>
-                <select value={cpContaId} onChange={(e) => setCpContaId(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  {cpContas.filter((c) => c.ativo !== false).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
+                <ComboboxWithCreate value={cpContaId} onChange={(v) => setCpContaId(v)}
+                  allowNone={false} triggerClassName="h-10 rounded-lg"
+                  options={cpContas.filter((c) => c.ativo !== false).map((c) => ({ value: c.id, label: c.nome }))} />
               </div>
               <div className="flex justify-end gap-2 pt-1">
                 <Button variant="outline" onClick={() => setCpAlvo(null)} disabled={actioning}>Cancelar</Button>
