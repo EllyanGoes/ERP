@@ -1335,6 +1335,32 @@ model DevolucaoItem {
   @@index([devolucaoId])
 }
 
+// Crédito (vale) do cliente — gerado por devolução com resolução CREDITO/TROCA;
+// consumido como forma de pagamento em vendas futuras (saldo = valor - valorUsado).
+enum StatusCreditoCliente {
+  ATIVO
+  USADO
+  CANCELADO
+}
+
+model CreditoCliente {
+  id                String               @id @default(cuid())
+  empresaId         String               @default("emp_tramontin")
+  numero            String
+  clienteId         String
+  origemDevolucaoId String?
+  valor             Decimal              @db.Decimal(15, 2)
+  valorUsado        Decimal              @default(0) @db.Decimal(15, 2)
+  status            StatusCreditoCliente @default(ATIVO)
+  observacoes       String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@unique([empresaId, numero])
+  @@index([clienteId])
+  @@index([status])
+}
+
 model PerfilAcesso {
   id         String    @id @default(cuid())
   nome       String    @unique

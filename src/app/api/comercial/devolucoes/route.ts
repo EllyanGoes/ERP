@@ -30,11 +30,7 @@ export async function POST(req: NextRequest) {
   const parsed = schema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos" }, { status: 400 });
   const f = parsed.data;
-
-  // B1 cobre só ESTORNO; crédito/troca chegam nas fases B2/B3.
-  if (f.tipoResolucao !== "ESTORNO") {
-    return NextResponse.json({ error: "Por enquanto a devolução suporta apenas Estorno (dinheiro de volta). Crédito e Troca em breve." }, { status: 400 });
-  }
+  const isEstorno = f.tipoResolucao === "ESTORNO";
 
   const pedido = await prisma.pedidoVenda.findUnique({
     where: { id: f.pedidoVendaId },
@@ -74,7 +70,7 @@ export async function POST(req: NextRequest) {
   if (valorTotal <= 0) return NextResponse.json({ error: "Valor da devolução inválido." }, { status: 400 });
 
   const triangular = !!pedido.estoqueOrigemEmpresaId;
-  const contaId = f.contaBancariaId || contaCaixaIdDaEmpresa(empresaId);
+  const contaId = isEstorno ? (f.contaBancariaId || contaCaixaIdDaEmpresa(empresaId)) : null;
   const hojeSP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
   const hoje = new Date(`${hojeSP}T00:00:00.000Z`);
 
@@ -84,7 +80,7 @@ export async function POST(req: NextRequest) {
       const dev = await tx.devolucao.create({
         data: {
           empresaId, numero, pedidoVendaId: pedido.id, clienteId: pedido.clienteId,
-          valorTotal, tipoResolucao: "ESTORNO", contaBancariaId: contaId,
+          valorTotal, tipoResolucao: f.tipoResolucao, contaBancariaId: contaId,
           observacoes: f.observacoes?.trim() || null,
           itens: { create: linhas },
         },
@@ -119,13 +115,26 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // ── Estorno em dinheiro (venda oficial) ──────────────────────────────
-      await tx.lancamentoFinanceiro.create({
-        data: {
-          empresaId, tipo: "DESPESA", valor: valorTotal, dataLancamento: hoje,
-          descricao: `Devolução ${numero} — PV ${pedido.numero}`, contaBancariaId: contaId,
-        },
-      });
+      // ── Resolução financeira ─────────────────────────────────────────────
+      if (isEstorno) {
+        // Estorno em dinheiro (venda oficial): saída na conta/caixa.
+        await tx.lancamentoFinanceiro.create({
+          data: {
+            empresaId, tipo: "DESPESA", valor: valorTotal, dataLancamento: hoje,
+            descricao: `Devolução ${numero} — PV ${pedido.numero}`, contaBancariaId: contaId!,
+          },
+        });
+      } else {
+        // Crédito/Troca: gera vale do cliente (saldo p/ compras futuras).
+        const nCRC = generateDocNumber("CRC", await proximaSequenciaDaEmpresa(empresaId, "CRC"));
+        await tx.creditoCliente.create({
+          data: {
+            empresaId, numero: nCRC, clienteId: pedido.clienteId, origemDevolucaoId: dev.id,
+            valor: valorTotal, status: "ATIVO",
+            observacoes: `${f.tipoResolucao === "TROCA" ? "Troca" : "Crédito"} — devolução ${numero} (PV ${pedido.numero})`,
+          },
+        });
+      }
 
       await recomputarStatusPedido(tx, pedido.id);
       return dev;
