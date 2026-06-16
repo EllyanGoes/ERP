@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 // continuam no fluxo normal de minutas.
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
+import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { proximaSequenciaDaEmpresa, contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { recomputarStatusPedido } from "@/lib/pedido-totais";
@@ -30,6 +31,9 @@ const schema = z.object({
   contaBancariaId: z.string().optional().nullable(),
   // Data do recebimento/conclusão (YYYY-MM-DD) — o caixa confirma; vazio = hoje.
   dataRecebimento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  // Venda à ordem marcada no caixa: estoque sai de outra empresa do grupo.
+  estoqueOrigemEmpresaId: z.string().optional().nullable(),
+  precoTransferencia: z.coerce.number().optional().nullable(),
 });
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -41,6 +45,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos" }, { status: 400 });
   }
   const { localEstoqueId, pagamentos: pagamentosIn, formaPagamento, contaBancariaId, dataRecebimento } = parsed.data;
+  const origemBody = parsed.data.estoqueOrigemEmpresaId || null;
+  const precoTransfBody = parsed.data.precoTransferencia != null && Number(parsed.data.precoTransferencia) > 0
+    ? Number(parsed.data.precoTransferencia) : null;
 
   const pedido = await prisma.pedidoVenda.findUnique({
     where: { id: params.id },
@@ -57,10 +64,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (pedido.intragrupo) {
     return NextResponse.json({ error: "Venda entre empresas do grupo segue o fluxo normal de confirmação e entrega." }, { status: 422 });
   }
-  // Venda à ordem: o estoque sai de outra empresa do grupo. A baixa normal
-  // (abaixo) é pulada; os movimentos virtuais (saída na origem + entrada/saída
-  // nesta empresa) são gerados após o commit por gerarMovimentosTriangulares.
-  const triangular = !!pedido.estoqueOrigemEmpresaId;
+  // Venda à ordem: o estoque sai de outra empresa do grupo. Pode já estar no
+  // pedido ou ser marcada aqui no caixa (origemBody). A baixa normal é pulada;
+  // os movimentos virtuais são gerados após o commit por gerarMovimentosTriangulares.
+  let origemEfetiva = pedido.estoqueOrigemEmpresaId;
+  if (origemBody && !pedido.estoqueOrigemEmpresaId) {
+    if (origemBody === pedido.empresaId) {
+      return NextResponse.json({ error: "A empresa de origem do estoque deve ser diferente da empresa da venda" }, { status: 400 });
+    }
+    const session = await getSession();
+    if (!(session?.empresaIds ?? []).includes(origemBody)) {
+      return NextResponse.json({ error: "Empresa de origem não permitida para este usuário" }, { status: 403 });
+    }
+    origemEfetiva = origemBody;
+  }
+  const triangular = !!origemEfetiva;
 
   if (pedido.minutas.length > 0) {
     return NextResponse.json({ error: "Este pedido já possui minutas — conclua pelo fluxo de entrega." }, { status: 422 });
@@ -142,6 +160,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           dataEntrega: dataRecebimento ? hoje : (pedido.dataEntrega ?? hoje),
           dataConclusao: hoje, // venda de balcão conclui na data do recebimento
           ...(formasResumo ? { formaPagamento: formasResumo } : {}),
+          // À ordem marcada no caixa: grava a origem (e preço de transferência)
+          // antes de gerar os movimentos virtuais.
+          ...(origemBody && !pedido.estoqueOrigemEmpresaId
+            ? { estoqueOrigemEmpresaId: origemEfetiva, precoTransferencia: precoTransfBody }
+            : {}),
         },
       });
       if (claimed.count === 0) {

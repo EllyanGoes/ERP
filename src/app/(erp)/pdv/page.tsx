@@ -10,7 +10,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useTabTitle } from "@/lib/tabs-context";
-import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
+import { useSession } from "@/lib/session-context";
+import { cn, formatBRL, decimalToNumber, parseDecimal } from "@/lib/utils";
 import { printEscPosUSB } from "@/lib/webusb-print";
 import { buildPedidoEscPos, printPedidoTermicaDialog, type PedidoPrintData } from "@/lib/print-pedido";
 import PagamentosInput, {
@@ -34,6 +35,7 @@ type PedidoCompleto = {
   valorTotal: unknown;
   formaPagamento: string | null;
   pagamentos?: { forma: string; valor: unknown }[];
+  estoqueOrigemEmpresa?: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
   cliente: { razaoSocial: string; nomeFantasia: string | null };
   itens: Array<{
     id: string;
@@ -83,6 +85,14 @@ export default function PdvPage() {
   const [data, setData] = useState(hojeInput());
   const [pagamentos, setPagamentos] = useState<LinhaPagamento[]>([novaLinhaPagamento()]);
 
+  // Venda à ordem: o pedido pode já vir marcado (estoqueOrigemEmpresa) ou ser
+  // marcado aqui no caixa (origemSel). O estoque sai de outra empresa do grupo.
+  const { user } = useSession();
+  const empresasGrupo = user?.empresas ?? [];
+  const activeEmpresaId = user?.activeEmpresaId;
+  const [origemSel, setOrigemSel] = useState("");      // A2: marcar à ordem no caixa
+  const [precoTransf, setPrecoTransf] = useState("");  // preço de transferência (total)
+
   const [concluindo, setConcluindo] = useState(false);
   const [erro, setErro] = useState("");
   const [sucesso, setSucesso] = useState<{ numero: string; troco: number | null; print: PedidoPrintData | null } | null>(null);
@@ -128,6 +138,8 @@ export default function PdvPage() {
     setSucesso(null);
     setErro("");
     setData(hojeInput());
+    setOrigemSel("");
+    setPrecoTransf("");
     setPedidoLoading(true);
     try {
       const res = await fetch(`/api/pedidos-venda/${id}`);
@@ -184,6 +196,11 @@ export default function PdvPage() {
           localEstoqueId: localId,
           pagamentos: pagamentosPayload(pagamentos, formas),
           dataRecebimento: data || null,
+          // Venda à ordem marcada aqui no caixa (se o pedido ainda não era).
+          ...(origemSel && !jaAOrdem ? {
+            estoqueOrigemEmpresaId: origemSel,
+            precoTransferencia: precoTransf ? parseDecimal(precoTransf) : undefined,
+          } : {}),
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -208,6 +225,15 @@ export default function PdvPage() {
   const total = pedido ? decimalToNumber(pedido.valorTotal) : 0;
   const pagoNum = pagamentos.reduce((s, l) => s + parseValorBR(l.valor), 0);
   const pagamentoOk = pagamentosValidos(pagamentos, formas, total);
+
+  // Venda à ordem: marcada no pedido OU escolhida aqui no caixa (origemSel).
+  const aOrdemEmpresa = pedido?.estoqueOrigemEmpresa ?? null;
+  const jaAOrdem = !!aOrdemEmpresa;
+  const origemEfetivaId = aOrdemEmpresa?.id || origemSel || "";
+  const aOrdem = !!origemEfetivaId;
+  const origemNome = aOrdemEmpresa
+    ? (aOrdemEmpresa.nomeFantasia || aOrdemEmpresa.razaoSocial)
+    : (empresasGrupo.find((e) => e.id === origemSel)?.nome ?? "");
 
   return (
     <div className="flex flex-col h-full">
@@ -317,9 +343,38 @@ export default function PdvPage() {
               {/* Cobrança */}
               <div className="border-t border-gray-200 px-5 py-4 space-y-3 bg-gray-50/60 rounded-b-xl">
                 {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
+
+                {/* Venda à ordem: estoque sai de outra empresa do grupo. */}
+                {aOrdem && (
+                  <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-800">
+                    <span className="font-semibold">Venda à ordem</span> — o estoque sai de <span className="font-semibold">{origemNome}</span>.
+                    O local abaixo é só onde os movimentos são registrados nesta empresa.
+                  </div>
+                )}
+                {/* A2: marcar à ordem aqui no caixa (se o pedido ainda não era). */}
+                {!jaAOrdem && empresasGrupo.length > 1 && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                      Estoque de outra empresa (à ordem)
+                      <select value={origemSel} onChange={(e) => setOrigemSel(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-2 text-sm font-normal normal-case bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">— Esta empresa (normal) —</option>
+                        {empresasGrupo.filter((e) => e.id !== activeEmpresaId).map((e) => (
+                          <option key={e.id} value={e.id}>{e.nome}</option>
+                        ))}
+                      </select>
+                    </label>
+                    {origemSel && (
+                      <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                        Preço de transferência (total) <span className="font-normal normal-case text-gray-400">(opcional)</span>
+                        <input inputMode="decimal" value={precoTransf} onChange={(e) => setPrecoTransf(e.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00" className="w-full h-10 rounded-lg border border-gray-300 px-2 text-sm font-normal text-right bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </label>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-3">
                   <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                    Local de estoque *
+                    {aOrdem ? `Local p/ registro${origemNome ? "" : ""} *` : "Local de estoque *"}
                     <select value={localId} onChange={(e) => setLocalId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-2 text-sm font-normal normal-case bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="">— Selecionar —</option>
                       {locais.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
