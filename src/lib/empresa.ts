@@ -37,6 +37,22 @@ export async function proximaSequenciaDaEmpresa(empresaId: string, prefixo: stri
 }
 
 /**
+ * TODAS as empresas ativas do grupo, independentemente do vínculo do usuário.
+ * Usado na venda à ordem (triangular): o vendedor de uma empresa pode acionar o
+ * estoque de outra empresa do grupo mesmo sem ter acesso a ela (a baixa na
+ * origem roda com prismaSemEscopo). Para o seletor de empresa ATIVA do usuário,
+ * use empresasVisiveis — este helper não filtra por permissão.
+ */
+export async function empresasDoGrupo(): Promise<EmpresaResumo[]> {
+  const ativas = await prismaSemEscopo.empresa.findMany({
+    where: { ativo: true },
+    select: { id: true, razaoSocial: true, nomeFantasia: true, slug: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return ativas.map((e) => ({ id: e.id, nome: e.nomeFantasia ?? e.razaoSocial, slug: e.slug }));
+}
+
+/**
  * Empresas que um usuário pode ativar no seletor (Fase 3):
  *   • ADMIN — todas as empresas ativas do grupo;
  *   • USUARIO — as vinculadas em UsuarioEmpresa (∩ ativas); sem nenhum

@@ -6,7 +6,7 @@ import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { recalcPedidoValorTotal } from "@/lib/pedido-totais";
 import { notifyPedidoVendaCriado } from "@/lib/notify-pedido-venda";
-import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa } from "@/lib/empresa";
+import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa, empresasDoGrupo } from "@/lib/empresa";
 import { getSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -104,15 +104,19 @@ export async function POST(req: NextRequest) {
   }
 
   // Venda à ordem (triangular): estoque sai de OUTRA empresa do grupo. Lido do
-  // corpo bruto (o schema descarta chaves desconhecidas). Valida contra a sessão.
+  // corpo bruto (o schema descarta chaves desconhecidas). A origem pode ser
+  // QUALQUER empresa ativa do grupo — mesmo que o vendedor não tenha acesso a
+  // ela (ex.: vendedor da Cimento aciona o estoque da Tramontin). A baixa na
+  // origem roda com prismaSemEscopo na minuta.
   let estoqueOrigemEmpresaId: string | null = null;
   let precoTransferencia: number | null = null;
   if (body.estoqueOrigemEmpresaId) {
     if (body.estoqueOrigemEmpresaId === empresaAlvo) {
       return NextResponse.json({ error: "A empresa de origem do estoque deve ser diferente da empresa da venda" }, { status: 400 });
     }
-    if (!empresasPermitidas.includes(body.estoqueOrigemEmpresaId)) {
-      return NextResponse.json({ error: "Empresa de origem não permitida para este usuário" }, { status: 403 });
+    const grupo = await empresasDoGrupo();
+    if (!grupo.some((e) => e.id === body.estoqueOrigemEmpresaId)) {
+      return NextResponse.json({ error: "Empresa de origem inválida" }, { status: 400 });
     }
     estoqueOrigemEmpresaId = body.estoqueOrigemEmpresaId as string;
     precoTransferencia = body.precoTransferencia != null && Number(body.precoTransferencia) > 0

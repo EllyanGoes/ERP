@@ -226,11 +226,16 @@ export default function PedidoForm({
   const { user: usuarioSessao } = useSession();
   const voltarLista = useVoltarCriacao("/pedidos-venda");
   const empresasGrupo = usuarioSessao?.empresas ?? [];
-  // Campo Empresa só aparece na criação quando há mais de uma empresa no grupo.
+  // Campo Empresa (dona da venda) só aparece na criação quando o USUÁRIO tem
+  // acesso a mais de uma empresa.
   const mostrarEmpresa = !pedido && empresasGrupo.length > 1;
-  // Venda à ordem aparece na criação E na edição (um pedido normal pode virar
-  // à ordem depois) — enquanto não houver entrega (a API valida).
-  const mostrarVendaOrdem = empresasGrupo.length > 1;
+  // Venda à ordem: a ORIGEM do estoque pode ser qualquer empresa do grupo, mesmo
+  // que o vendedor não tenha acesso a ela (ex.: vendedor da Cimento aciona o
+  // estoque da Tramontin). Por isso usa o grupo todo, não as empresas do usuário.
+  const [grupoEmpresas, setGrupoEmpresas] = useState<{ id: string; nome: string }[]>([]);
+  // Aparece na criação E na edição (um pedido normal pode virar à ordem depois),
+  // desde que o grupo tenha 2+ empresas — enquanto não houver entrega (a API valida).
+  const mostrarVendaOrdem = grupoEmpresas.length > 1;
   const [empresaId, setEmpresaId] = useState(""); // "" = empresa ativa (só na criação)
   // Venda à ordem (triangular): estoque sai de outra empresa do grupo; a entrega
   // gera os movimentos virtuais + financeiro intragrupo.
@@ -328,6 +333,14 @@ export default function PedidoForm({
       })
       .catch(() => {});
   }, [pedido, usuarioSessao?.id]);
+
+  // Empresas do grupo (todas as ativas) para a origem da venda à ordem.
+  useEffect(() => {
+    fetch("/api/empresa/grupo")
+      .then((r) => r.json())
+      .then((j) => setGrupoEmpresas(j.data ?? []))
+      .catch(() => {});
+  }, []);
 
   // Load condições de pagamento on mount
   useEffect(() => {
@@ -915,7 +928,7 @@ export default function PedidoForm({
                   onChange={(v) => setEstoqueOrigemId(v)}
                   noneLabel="— Esta empresa entrega (normal) —"
                   triggerClassName="h-10 rounded-lg"
-                  options={empresasGrupo
+                  options={grupoEmpresas
                     .filter((e) => e.id !== (empresaId || usuarioSessao?.activeEmpresaId))
                     .map((e) => ({ value: e.id, label: `${e.nome} entrega e baixa do estoque` }))}
                 />
