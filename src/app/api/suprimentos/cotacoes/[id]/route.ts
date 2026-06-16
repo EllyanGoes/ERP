@@ -35,6 +35,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         orderBy: { createdAt: "asc" },
       },
       pedidos: { select: { id: true, numero: true, status: true, conferencia: { select: { id: true } } } },
+      // Pendência de aprovação atual — libera o botão de aprovar ao aprovador
+      // designado (além do ADMIN) na tela da cotação.
+      aprovacoes: { where: { status: "PENDENTE" }, select: { id: true, aprovadorId: true } },
     },
   });
 

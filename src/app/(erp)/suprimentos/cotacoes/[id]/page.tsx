@@ -72,6 +72,7 @@ type Cotacao = {
   necessidade: { id: string; numero: string; itens: SCItem[] } | null;
   fornecedores: CotacaoFornecedor[];
   pedidos: Array<{ id: string; numero: string; status: string; conferencia: { id: string } | null }>;
+  aprovacoes?: Array<{ id: string; aprovadorId: string | null }>;
 };
 
 type HistoricoEntry = {
@@ -437,6 +438,9 @@ export default function CotacaoDetailPage() {
 
   const respondidas = cotacao.fornecedores.filter((cf) => cf.status === "RESPONDIDA");
   const canEdit = isAdmin || cotacao.status !== "CONCLUIDA";
+  // Aprovador designado da pendência atual (além do ADMIN) pode aprovar/reprovar.
+  const isAprovador = (cotacao.aprovacoes ?? []).some((a) => a.aprovadorId === user?.id);
+  const podeAprovar = isAdmin || isAprovador;
 
   return (
     <div>
@@ -475,7 +479,7 @@ export default function CotacaoDetailPage() {
                 Submeter à aprovação
               </Button>
             )}
-            {cotacao.status === "AGUARDANDO_APROVACAO" && isAdmin && (
+            {cotacao.status === "AGUARDANDO_APROVACAO" && podeAprovar && (
               <>
                 <Button onClick={gerarPedido} disabled={actioning} className="bg-green-600 hover:bg-green-700">
                   {actioning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
@@ -486,7 +490,7 @@ export default function CotacaoDetailPage() {
                 </Button>
               </>
             )}
-            {cotacao.status === "AGUARDANDO_APROVACAO" && !isAdmin && (
+            {cotacao.status === "AGUARDANDO_APROVACAO" && !podeAprovar && (
               <span className="text-sm font-medium text-amber-600 px-2">Aguardando aprovação</span>
             )}
             {canEdit && (

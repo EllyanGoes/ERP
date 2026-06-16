@@ -61,19 +61,18 @@ export default function FormalizacaoPage() {
     setSubmitting(true);
     setError("");
     try {
-      const res = await fetch(`/api/suprimentos/cotacoes/${id}/aprovar`, {
+      // Formalizar = escolher o vencedor e ENCAMINHAR para o aprovador. A geração
+      // do Pedido de Compras acontece quando o aprovador confirma (WEB ou Telegram).
+      const res = await fetch(`/api/suprimentos/cotacoes/${id}/submeter-aprovacao`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cfId }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Erro ao gerar documentos");
-      // Navigate to the generated pedido
-      if (json.data?.pedidoCompra?.id) {
-        router.push(`/suprimentos/pedidos-compra/${json.data.pedidoCompra.id}`);
-      } else {
-        router.push("/suprimentos/cotacoes");
-      }
+      if (!res.ok) throw new Error(json.error || "Erro ao enviar para aprovação");
+      // Volta para a cotação (agora AGUARDANDO_APROVACAO). O aprovador confirma na
+      // tela Aprovações, na própria cotação ou pelo Telegram.
+      router.push(`/suprimentos/cotacoes/${id}?enviada=1${json.semAprovador ? "&semAprovador=1" : ""}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro");
       setSubmitting(false);
@@ -209,7 +208,7 @@ export default function FormalizacaoPage() {
           disabled={submitting}
         >
           {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-          Gerar documentos
+          Enviar para aprovação
         </Button>
       </div>
     </div>
