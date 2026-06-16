@@ -13,6 +13,7 @@ import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { Plus, Truck, Pencil, Package, Trash2, AlertTriangle } from "lucide-react";
 import MinutaActionsMenu from "./MinutaActionsMenu";
+import DevolucaoButton from "./DevolucaoButton";
 import PagamentosInput, {
   novaLinhaPagamento, pagamentosPayload, pagamentosValidos, contaCaixaPadrao, parseValorBR,
   type LinhaPagamento, type FormaOpt,
@@ -593,7 +594,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
       )}
 
       {/* Actions bar */}
-      {(actions.length > 0 || canEdit || isAdmin || (pedido.status === "EM_AGENDAMENTO" && pedido.contasReceber.length === 0)) && (
+      {(actions.length > 0 || canEdit || isAdmin || pedido.status === "CONCLUIDO" || (pedido.status === "EM_AGENDAMENTO" && pedido.contasReceber.length === 0)) && (
         <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-xl border border-gray-100">
           <span className="text-sm text-gray-500 mr-2">Ações:</span>
           {canEdit && (
@@ -648,6 +649,10 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             <Button variant="outline" size="sm" onClick={gerarContaReceber} disabled={loading}>
               Gerar Conta a Receber
             </Button>
+          )}
+          {/* Devolução de material: disponível após a conclusão do pedido. */}
+          {pedido.status === "CONCLUIDO" && (
+            <DevolucaoButton pedidoVendaId={pedido.id} pedidoNumero={pedido.numero} onDone={() => router.refresh()} />
           )}
           {isAdmin && (
             <Button
