@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import ItemSearch, { type ItemLite } from "@/components/pcp/ItemSearch";
@@ -102,10 +103,13 @@ export default function EngenhariaPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Fluxo de produção *</label>
-                <select className={inputCls} value={novo.fluxoId} onChange={(e) => setNovo({ ...novo, fluxoId: e.target.value })}>
-                  <option value="">—</option>
-                  {fluxos.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-                </select>
+                <ComboboxWithCreate
+                  value={novo.fluxoId}
+                  onChange={(v) => setNovo({ ...novo, fluxoId: v })}
+                  noneLabel="—"
+                  triggerClassName="h-9 rounded-lg"
+                  options={fluxos.map((f) => ({ value: f.id, label: f.nome }))}
+                />
               </div>
             </div>
             <div className="mt-3 flex items-center justify-end gap-2">

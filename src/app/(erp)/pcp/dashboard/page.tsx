@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { cn } from "@/lib/utils";
 import { Factory, Flame, AlertTriangle, ShoppingCart, RefreshCw, Layers, Gauge } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
@@ -145,9 +146,13 @@ export default function PcpDashboardPage() {
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   <div>
                     <label className="block text-[11px] text-gray-500 mb-0.5">Forno</label>
-                    <select className="w-full rounded border border-gray-200 px-2 py-1 text-sm" value={fornoId} onChange={(e) => setFornoId(e.target.value)}>
-                      {d.fornos.map((f) => <option key={f.id} value={f.id}>{f.nome} ({Number(f.capacidadePadrao) || 0} {f.unidadeCapacidade ?? "/ciclo"})</option>)}
-                    </select>
+                    <ComboboxWithCreate
+                      value={fornoId}
+                      onChange={(v) => setFornoId(v)}
+                      allowNone={false}
+                      triggerClassName="h-8 rounded text-sm"
+                      options={d.fornos.map((f) => ({ value: f.id, label: `${f.nome} (${Number(f.capacidadePadrao) || 0} ${f.unidadeCapacidade ?? "/ciclo"})` }))}
+                    />
                   </div>
                   <div className="grid grid-cols-3 gap-1.5">
                     <div><label className="block text-[11px] text-gray-500 mb-0.5">Ciclo (h)</label><input className="w-full rounded border border-gray-200 px-2 py-1 text-sm text-right" inputMode="decimal" value={cicloH} onChange={(e) => setCicloH(e.target.value)} /></div>

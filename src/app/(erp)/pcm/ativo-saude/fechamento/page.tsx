@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import CriticidadeBadge from "@/components/pcm/CriticidadeBadge";
 import DetalheOs from "@/components/pcm/DetalheOs";
 import { cn } from "@/lib/utils";
@@ -205,18 +206,13 @@ export default function FechamentoPage() {
         </select>
         <label className="flex items-center gap-1.5 text-sm text-gray-600">
           Ativo
-          <select
+          <ComboboxWithCreate
             value={codAplFiltro === null ? "" : String(codAplFiltro)}
-            onChange={(e) => setCodAplFiltro(e.target.value ? Number(e.target.value) : null)}
-            className="rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[240px]"
-          >
-            <option value="">Todos os ativos</option>
-            {ativoOpts.map((a) => (
-              <option key={a.codApl} value={a.codApl}>
-                {a.descricao}{a.tag ? ` (${a.tag})` : ""}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setCodAplFiltro(v ? Number(v) : null)}
+            noneLabel="Todos os ativos"
+            triggerClassName="h-9 rounded-lg max-w-[240px]"
+            options={ativoOpts.map((a) => ({ value: String(a.codApl), label: `${a.descricao}${a.tag ? ` (${a.tag})` : ""}` }))}
+          />
         </label>
 
         <div className="flex items-center gap-1.5">

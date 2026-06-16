@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { cn, formatDate } from "@/lib/utils";
 import { useRelatorioCache } from "@/lib/use-relatorio-cache";
 import { RefreshCw, AlertTriangle, Users, CalendarClock, Search, X, Wrench } from "lucide-react";
@@ -69,16 +70,13 @@ export default function QuadroOsPage() {
             className="pl-8 pr-3 py-1.5 w-64 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <select
+        <ComboboxWithCreate
           value={setorFiltro}
-          onChange={(e) => setSetorFiltro(e.target.value)}
-          className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[200px]"
-        >
-          <option value="">Todos os setores</option>
-          {(data?.setores ?? []).map((s) => (
-            <option key={s.setor} value={s.setor}>{s.setor} ({s.total})</option>
-          ))}
-        </select>
+          onChange={(v) => setSetorFiltro(v)}
+          noneLabel="Todos os setores"
+          triggerClassName="h-9 rounded-lg max-w-[200px]"
+          options={(data?.setores ?? []).map((s) => ({ value: s.setor, label: `${s.setor} (${s.total})` }))}
+        />
         <select
           value={tipoFiltro}
           onChange={(e) => setTipoFiltro(e.target.value)}

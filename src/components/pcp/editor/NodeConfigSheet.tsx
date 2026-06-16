@@ -1,6 +1,7 @@
 "use client";
 
 import { X, Trash2, Plus } from "lucide-react";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { cn } from "@/lib/utils";
 import type { FlowNodeData, NodeKind, InsumoVinculo } from "@/lib/pcp/types";
 import { NODE_STYLE } from "./nodes";
@@ -93,10 +94,13 @@ export default function NodeConfigSheet({ kind, data, centros, locais, onChange,
             </div>
             <div>
               <label className={labelCls}>Local de estoque</label>
-              <select className={inputCls} value={data.localEstoqueId ?? ""} onChange={(e) => onChange({ localEstoqueId: e.target.value || null })}>
-                <option value="">—</option>
-                {locais.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
-              </select>
+              <ComboboxWithCreate
+                value={data.localEstoqueId ?? ""}
+                onChange={(v) => onChange({ localEstoqueId: v || null })}
+                noneLabel="—"
+                triggerClassName="h-9 rounded-lg"
+                options={locais.map((l) => ({ value: l.id, label: l.nome }))}
+              />
             </div>
           </>
         )}
@@ -114,18 +118,17 @@ export default function NodeConfigSheet({ kind, data, centros, locais, onChange,
         {(isOperacao || isTransporte || isInspecao) && (
           <div>
             <label className={labelCls}>Centro de trabalho</label>
-            <select
-              className={inputCls}
+            <ComboboxWithCreate
               value={data.centroTrabalhoId ?? ""}
-              onChange={(e) => {
-                const id = e.target.value || null;
+              onChange={(v) => {
+                const id = v || null;
                 const nome = centros.find((c) => c.id === id)?.nome ?? null;
                 onChange({ centroTrabalhoId: id, centroTrabalhoNome: nome });
               }}
-            >
-              <option value="">—</option>
-              {centros.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
+              noneLabel="—"
+              triggerClassName="h-9 rounded-lg"
+              options={centros.map((c) => ({ value: c.id, label: c.nome }))}
+            />
           </div>
         )}
 

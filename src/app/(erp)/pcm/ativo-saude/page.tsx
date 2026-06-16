@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import CriticidadeBadge from "@/components/pcm/CriticidadeBadge";
 import DetalheOs from "@/components/pcm/DetalheOs";
 import { cn } from "@/lib/utils";
@@ -114,22 +115,16 @@ export default function AtivoSaudePage() {
         </label>
         <label className="flex items-center gap-1.5 text-sm text-gray-600">
           Ativo
-          <select
+          <ComboboxWithCreate
             value={codApl === null ? "" : String(codApl)}
-            onChange={(e) => {
-              const v = e.target.value;
+            onChange={(v) => {
               setCodApl(v ? Number(v) : null);
               if (v) setFiltro("all"); // ao focar um ativo, a criticidade não se aplica
             }}
-            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[240px]"
-          >
-            <option value="">Todos os ativos</option>
-            {ativoOpts.map((a) => (
-              <option key={a.codApl} value={a.codApl}>
-                {a.descricao}{a.tag ? ` (${a.tag})` : ""}
-              </option>
-            ))}
-          </select>
+            noneLabel="Todos os ativos"
+            triggerClassName="h-9 rounded-lg max-w-[240px]"
+            options={ativoOpts.map((a) => ({ value: String(a.codApl), label: `${a.descricao}${a.tag ? ` (${a.tag})` : ""}` }))}
+          />
         </label>
         <div className="flex items-center gap-1.5">
           {(["all", "A", "B", "C"] as Filtro[]).map((f) => (

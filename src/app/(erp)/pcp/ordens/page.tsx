@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
@@ -113,9 +114,13 @@ export default function OrdensPage() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Fluxo publicado *</label>
-                  <select className={inputCls} value={form.fluxoId} onChange={(e) => setForm({ ...form, fluxoId: e.target.value })}>
-                    {fluxos.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-                  </select>
+                  <ComboboxWithCreate
+                    value={form.fluxoId}
+                    onChange={(v) => setForm({ ...form, fluxoId: v })}
+                    allowNone={false}
+                    triggerClassName="h-9 rounded-lg"
+                    options={fluxos.map((f) => ({ value: f.id, label: f.nome }))}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Quantidade *</label>
