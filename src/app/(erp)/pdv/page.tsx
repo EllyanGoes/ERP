@@ -37,7 +37,7 @@ type PedidoCompleto = {
   formaPagamento: string | null;
   pagamentos?: { forma: string; valor: unknown }[];
   estoqueOrigemEmpresa?: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
-  cliente: { razaoSocial: string; nomeFantasia: string | null };
+  cliente: { id: string; razaoSocial: string; nomeFantasia: string | null };
   itens: Array<{
     id: string;
     quantidade: unknown;
@@ -89,10 +89,15 @@ export default function PdvPage() {
   // Venda à ordem: o pedido pode já vir marcado (estoqueOrigemEmpresa) ou ser
   // marcado aqui no caixa (origemSel). O estoque sai de outra empresa do grupo.
   const { user } = useSession();
-  const empresasGrupo = user?.empresas ?? [];
   const activeEmpresaId = user?.activeEmpresaId;
+  // Origem da venda à ordem = qualquer empresa ativa do grupo (não só as do
+  // caixa). Ex.: caixa da Cimento aciona o estoque da Tramontin.
+  const [grupoEmpresas, setGrupoEmpresas] = useState<{ id: string; nome: string }[]>([]);
   const [origemSel, setOrigemSel] = useState("");      // A2: marcar à ordem no caixa
   const [precoTransf, setPrecoTransf] = useState("");  // preço de transferência (total)
+  // Crédito (vale) do cliente: saldo disponível + quanto abater nesta venda.
+  const [creditoSaldo, setCreditoSaldo] = useState(0);
+  const [creditoUsadoStr, setCreditoUsadoStr] = useState("");
 
   const [concluindo, setConcluindo] = useState(false);
   const [erro, setErro] = useState("");
@@ -132,6 +137,7 @@ export default function PdvPage() {
     }).catch(() => {});
     fetch("/api/suprimentos/formas-pagamento").then((r) => r.json()).then((j) => setFormas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
     fetch("/api/financeiro/contas").then((r) => r.json()).then((j) => setContas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+    fetch("/api/empresa/grupo").then((r) => r.json()).then((j) => setGrupoEmpresas(j.data ?? [])).catch(() => {});
   }, []);
 
   async function selecionar(id: string) {
@@ -141,12 +147,17 @@ export default function PdvPage() {
     setData(hojeInput());
     setOrigemSel("");
     setPrecoTransf("");
+    setCreditoUsadoStr("");
+    setCreditoSaldo(0);
     setPedidoLoading(true);
     try {
       const res = await fetch(`/api/pedidos-venda/${id}`);
       const j = await res.json();
       if (res.ok) {
         setPedido(j.data);
+        // Saldo de crédito (vale) do cliente — pode ser abatido nesta venda.
+        const cliId = j.data?.cliente?.id;
+        if (cliId) fetch(`/api/comercial/creditos?clienteId=${cliId}`).then((r) => r.json()).then((cj) => setCreditoSaldo(cj.saldo ?? 0)).catch(() => {});
         // Recebimento puxa a data de emissão (pagamento na hora); editável.
         setData(dataInput(j.data?.dataEmissao));
         const tot = decimalToNumber(j.data?.valorTotal ?? 0);
@@ -202,6 +213,8 @@ export default function PdvPage() {
             estoqueOrigemEmpresaId: origemSel,
             precoTransferencia: precoTransf ? parseDecimal(precoTransf) : undefined,
           } : {}),
+          // Crédito (vale) do cliente abatido nesta venda.
+          ...(creditoUsadoNum > 0 ? { creditoUsado: creditoUsadoNum } : {}),
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -224,8 +237,11 @@ export default function PdvPage() {
   }
 
   const total = pedido ? decimalToNumber(pedido.valorTotal) : 0;
+  // Crédito abatido (limitado ao saldo e ao total) → o caixa cobre o restante.
+  const creditoUsadoNum = Math.min(Math.max(0, parseValorBR(creditoUsadoStr) || 0), creditoSaldo, total);
+  const alvoCash = Math.max(0, Math.round((total - creditoUsadoNum) * 100) / 100);
   const pagoNum = pagamentos.reduce((s, l) => s + parseValorBR(l.valor), 0);
-  const pagamentoOk = pagamentosValidos(pagamentos, formas, total);
+  const pagamentoOk = alvoCash <= 0.001 ? true : pagamentosValidos(pagamentos, formas, alvoCash);
 
   // Venda à ordem: marcada no pedido OU escolhida aqui no caixa (origemSel).
   const aOrdemEmpresa = pedido?.estoqueOrigemEmpresa ?? null;
@@ -234,7 +250,7 @@ export default function PdvPage() {
   const aOrdem = !!origemEfetivaId;
   const origemNome = aOrdemEmpresa
     ? (aOrdemEmpresa.nomeFantasia || aOrdemEmpresa.razaoSocial)
-    : (empresasGrupo.find((e) => e.id === origemSel)?.nome ?? "");
+    : (grupoEmpresas.find((e) => e.id === origemSel)?.nome ?? "");
 
   return (
     <div className="flex flex-col h-full">
@@ -353,7 +369,7 @@ export default function PdvPage() {
                   </div>
                 )}
                 {/* A2: marcar à ordem aqui no caixa (se o pedido ainda não era). */}
-                {!jaAOrdem && empresasGrupo.length > 1 && (
+                {!jaAOrdem && grupoEmpresas.length > 1 && (
                   <div className="grid grid-cols-2 gap-3">
                     <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
                       Estoque de outra empresa (à ordem)
@@ -362,7 +378,7 @@ export default function PdvPage() {
                         onChange={(v) => setOrigemSel(v)}
                         noneLabel="— Esta empresa (normal) —"
                         triggerClassName="h-10 rounded-lg font-normal normal-case"
-                        options={empresasGrupo.filter((e) => e.id !== activeEmpresaId).map((e) => ({ value: e.id, label: e.nome }))}
+                        options={grupoEmpresas.filter((e) => e.id !== activeEmpresaId).map((e) => ({ value: e.id, label: e.nome }))}
                       />
                     </label>
                     {origemSel && (
@@ -391,15 +407,30 @@ export default function PdvPage() {
                   </label>
                 </div>
 
+                {/* Crédito (vale) do cliente: abate do total; o caixa cobre o restante. */}
+                {creditoSaldo > 0 && (
+                  <div className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-teal-800">Crédito do cliente — saldo {formatBRL(creditoSaldo)}</p>
+                      <p className="text-[11px] text-teal-600">Abater nesta venda (o caixa cobre o restante).</p>
+                    </div>
+                    <input inputMode="decimal" value={creditoUsadoStr} onChange={(e) => setCreditoUsadoStr(e.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00" className="w-28 h-9 rounded-lg border border-teal-300 px-2 text-sm text-right bg-white" />
+                    <button type="button" onClick={() => setCreditoUsadoStr(Math.min(creditoSaldo, total).toFixed(2).replace(".", ","))} className="text-xs text-teal-700 font-medium hover:underline whitespace-nowrap">usar máx.</button>
+                  </div>
+                )}
+
                 {/* Formas de pagamento (misto: PIX + dinheiro etc.) */}
-                <PagamentosInput linhas={pagamentos} setLinhas={setPagamentos} formas={formas} contas={contas} total={total} />
+                <PagamentosInput linhas={pagamentos} setLinhas={setPagamentos} formas={formas} contas={contas} total={alvoCash} />
 
                 <div className="flex items-center gap-3 pt-1">
-                  <span className="text-sm text-gray-500">Total <span className="font-bold text-gray-900 tabular-nums">{formatBRL(total)}</span></span>
+                  <span className="text-sm text-gray-500">
+                    Total <span className="font-bold text-gray-900 tabular-nums">{formatBRL(total)}</span>
+                    {creditoUsadoNum > 0 && <span className="ml-2 text-teal-700">− crédito {formatBRL(creditoUsadoNum)} = <span className="font-semibold">{formatBRL(alvoCash)}</span></span>}
+                  </span>
                   <div className="flex-1" />
                   <Button
                     onClick={confirmarPagamento}
-                    disabled={concluindo || !pagamentoOk || pagoNum <= 0}
+                    disabled={concluindo || !pagamentoOk || (pagoNum <= 0 && creditoUsadoNum <= 0)}
                     className="h-12 px-6 bg-emerald-600 hover:bg-emerald-700 text-base font-bold"
                   >
                     {concluindo ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Printer className="w-5 h-5 mr-2" />}

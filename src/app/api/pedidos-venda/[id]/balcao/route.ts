@@ -8,9 +8,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { proximaSequenciaDaEmpresa, contaCaixaIdDaEmpresa } from "@/lib/empresa";
+import { proximaSequenciaDaEmpresa, contaCaixaIdDaEmpresa, empresasDoGrupo } from "@/lib/empresa";
 import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { gerarMovimentosTriangulares } from "@/lib/venda-ordem";
+import { saldoCreditoCliente, consumirCreditoCliente } from "@/lib/credito-cliente";
 import { generateDocNumber, generateSimpleDocNumber } from "@/lib/utils";
 import { pedidoPrintData } from "@/lib/print-pedido-server";
 import { z } from "zod";
@@ -34,6 +35,8 @@ const schema = z.object({
   // Venda à ordem marcada no caixa: estoque sai de outra empresa do grupo.
   estoqueOrigemEmpresaId: z.string().optional().nullable(),
   precoTransferencia: z.coerce.number().optional().nullable(),
+  // Abatimento por crédito (vale) do cliente — o caixa cobre (total - crédito).
+  creditoUsado: z.coerce.number().optional().nullable(),
 });
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -72,9 +75,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (origemBody === pedido.empresaId) {
       return NextResponse.json({ error: "A empresa de origem do estoque deve ser diferente da empresa da venda" }, { status: 400 });
     }
-    const session = await getSession();
-    if (!(session?.empresaIds ?? []).includes(origemBody)) {
-      return NextResponse.json({ error: "Empresa de origem não permitida para este usuário" }, { status: 403 });
+    // A origem pode ser qualquer empresa ativa do grupo, mesmo que o caixa não
+    // tenha acesso a ela (venda à ordem). A baixa na origem usa prismaSemEscopo.
+    const grupo = await empresasDoGrupo();
+    if (!grupo.some((e) => e.id === origemBody)) {
+      return NextResponse.json({ error: "Empresa de origem inválida" }, { status: 400 });
     }
     origemEfetiva = origemBody;
   }
@@ -97,6 +102,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Pagamento misto: usa a lista `pagamentos`; sem ela, cai no fluxo de 1 forma
   // (formaPagamento + contaBancariaId únicos pelo valor total).
   const round2 = (n: number) => Math.round(n * 100) / 100;
+  // Crédito (vale) do cliente abatido nesta venda: o caixa cobre (total - crédito).
+  const creditoUsado = Math.max(0, round2(Number(parsed.data.creditoUsado ?? 0)));
+  const alvoCash = round2(Math.max(0, valorTotal - creditoUsado));
   const caixaPadrao = contaCaixaIdDaEmpresa(pedido.empresaId);
   const linhas = (pagamentosIn && pagamentosIn.length > 0)
     ? pagamentosIn.map((p) => ({
@@ -105,20 +113,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         valor: round2(p.valor),
         troco: !!p.troco,
       }))
-    : [{
+    : (alvoCash > 0 ? [{
         forma: (formaPagamento ?? pedido.formaPagamento ?? "À vista"),
         contaBancariaId: contaBancariaId || caixaPadrao,
-        valor: valorTotal,
+        valor: alvoCash,
         troco: false,
-      }];
+      }] : []);
 
-  if (valorTotal > 0) {
+  if (alvoCash > 0) {
     const somaPag = round2(linhas.reduce((s, l) => s + l.valor, 0));
-    if (somaPag < valorTotal - 0.001) {
-      return NextResponse.json({ error: `Pagamento insuficiente: faltam R$ ${round2(valorTotal - somaPag).toFixed(2)}.` }, { status: 422 });
+    if (somaPag < alvoCash - 0.001) {
+      return NextResponse.json({ error: `Pagamento insuficiente: faltam R$ ${round2(alvoCash - somaPag).toFixed(2)}.` }, { status: 422 });
     }
     // O excesso (troco) só pode sair das linhas de dinheiro (troco=true).
-    const troco = round2(somaPag - valorTotal);
+    const troco = round2(somaPag - alvoCash);
     const totalTroco = round2(linhas.filter((l) => l.troco).reduce((s, l) => s + l.valor, 0));
     if (troco > 0.001 && troco > totalTroco + 0.001) {
       return NextResponse.json({ error: "O troco excede o valor recebido em dinheiro." }, { status: 422 });
@@ -136,8 +144,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
   // Linhas efetivas com valor > 0 (após abater troco), resumo das formas.
   const linhasReais = linhas.filter((l) => l.valor > 0.001);
-  const formasResumo = Array.from(new Set(linhasReais.map((l) => l.forma))).join(" + ")
-    || (formaPagamento ?? pedido.formaPagamento ?? null);
+  const formasResumo = [
+    ...Array.from(new Set(linhasReais.map((l) => l.forma))),
+    ...(creditoUsado > 0 ? ["Crédito"] : []),
+  ].join(" + ") || (formaPagamento ?? pedido.formaPagamento ?? null);
+
+  // Valida o crédito antes da transação (erro limpo).
+  if (creditoUsado > 0) {
+    if (creditoUsado > valorTotal + 0.001) {
+      return NextResponse.json({ error: "O crédito abatido excede o valor da venda." }, { status: 422 });
+    }
+    const saldo = await saldoCreditoCliente(prisma, pedido.empresaId, pedido.clienteId);
+    if (creditoUsado > saldo + 0.001) {
+      return NextResponse.json({ error: `Crédito insuficiente do cliente (saldo R$ ${saldo.toFixed(2)}).` }, { status: 422 });
+    }
+  }
 
   // Numeração da empresa DONA do pedido (modo grupo pode operar outra empresa).
   const numeroMin = generateSimpleDocNumber("MIN", await proximaSequenciaDaEmpresa(pedido.empresaId, "MIN"));
@@ -307,6 +328,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             contaBancariaId: l.contaBancariaId,
           })),
         });
+
+        // Crédito (vale) do cliente: debita o saldo (FIFO) e registra a forma —
+        // sem lançamento de caixa (não é entrada de dinheiro). A CR fica PAGA.
+        if (creditoUsado > 0) {
+          await consumirCreditoCliente(tx, pedido.empresaId, pedido.clienteId, creditoUsado);
+          await tx.pedidoVendaPagamento.create({
+            data: { pedidoVendaId: pedido.id, forma: "Crédito do cliente", valor: creditoUsado, ordem: linhasReais.length },
+          });
+        }
       }
 
       await recomputarStatusPedido(tx, pedido.id);
