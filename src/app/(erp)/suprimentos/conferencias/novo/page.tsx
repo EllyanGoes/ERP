@@ -1050,19 +1050,14 @@ export default function NovoDocumentoEntradaPage() {
                   <Label className="text-xs text-gray-500">
                     Local de Estoque <span className="text-red-500">*</span>
                   </Label>
-                  <select
+                  <ComboboxWithCreate
                     value={localEstoqueGlobalId}
-                    onChange={(e) => handleGlobalLocalChange(e.target.value)}
-                    className={cn(
-                      "w-full h-9 px-3 border rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
-                      !localEstoqueGlobalId ? "border-red-300" : "border-gray-200"
-                    )}
-                  >
-                    <option value="">Selecionar local...</option>
-                    {locaisEstoque.map((l) => (
-                      <option key={l.id} value={l.id}>{l.nome}</option>
-                    ))}
-                  </select>
+                    onChange={handleGlobalLocalChange}
+                    placeholder="Selecionar local..."
+                    noneLabel="Selecionar local"
+                    triggerClassName={cn("h-9 rounded-md", !localEstoqueGlobalId && "border-red-300")}
+                    options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
+                  />
                 </div>
               )}
 
@@ -1322,23 +1317,17 @@ export default function NovoDocumentoEntradaPage() {
               <Label>
                 Responsável pela Conferência <span className="text-red-500">*</span>
               </Label>
-              <select
+              <ComboboxWithCreate
                 value={usuarioResponsavelId}
-                onChange={(e) => {
-                  const selected = usuarios.find((u) => u.id === e.target.value);
-                  setUsuarioResponsavelId(e.target.value);
-                  setResponsavel(selected?.nome ?? "");
+                onChange={(v) => {
+                  setUsuarioResponsavelId(v);
+                  setResponsavel(usuarios.find((u) => u.id === v)?.nome ?? "");
                 }}
-                className={cn(
-                  "w-full h-9 px-3 border rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500",
-                  !usuarioResponsavelId ? "border-red-300" : "border-gray-200"
-                )}
-              >
-                <option value="">— Selecionar usuário —</option>
-                {usuarios.map((u) => (
-                  <option key={u.id} value={u.id}>{u.nome}</option>
-                ))}
-              </select>
+                placeholder="— Selecionar usuário —"
+                noneLabel="Selecionar usuário"
+                triggerClassName={cn("h-9 rounded-md", !usuarioResponsavelId && "border-red-300")}
+                options={usuarios.map((u) => ({ value: u.id, label: u.nome }))}
+              />
             </div>
           </CardContent>
         </Card>

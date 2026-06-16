@@ -379,16 +379,14 @@ function ColaboradorQuickModal({
 
           <div className="space-y-1.5">
             <Label className="text-xs">Setor <span className="text-gray-400 font-normal">(opcional)</span></Label>
-            <select
+            <ComboboxWithCreate
               value={setorId}
-              onChange={(e) => setSetorId(e.target.value)}
-              className="w-full h-9 text-sm border border-gray-200 rounded-md px-3 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-gray-700"
-            >
-              <option value="">— Selecionar setor —</option>
-              {setores.map((s) => (
-                <option key={s.id} value={s.id}>{s.nome}</option>
-              ))}
-            </select>
+              onChange={setSetorId}
+              placeholder="— Selecionar setor —"
+              noneLabel="Selecionar setor"
+              triggerClassName="h-9 rounded-md"
+              options={setores.map((s) => ({ value: s.id, label: s.nome }))}
+            />
           </div>
         </div>
 
@@ -708,11 +706,9 @@ export default function RequisicaoCreateForm() {
                       </td>
                       {tipo === "REQUISICAO" && <>
                         <td className="px-3 py-2">
-                          <select value={row.centroCustoId} onChange={(e) => updateRow(row._key, "centroCustoId", e.target.value)}
-                            className="h-8 text-xs border border-gray-200 rounded-md px-2 bg-white w-full focus:outline-none focus:ring-1 focus:ring-blue-400">
-                            <option value="">—</option>
-                            {centros.map((c) => <option key={c.id} value={c.id}>{c.codigo}</option>)}
-                          </select>
+                          <ComboboxWithCreate value={row.centroCustoId} onChange={(v) => updateRow(row._key, "centroCustoId", v)}
+                            placeholder="—" noneLabel="—" triggerClassName="h-8 rounded-md text-xs"
+                            options={centros.map((c) => ({ value: c.id, label: c.codigo }))} />
                         </td>
                         <td className="px-3 py-2">
                           <Input value={row.contaContabil} onChange={(e) => updateRow(row._key, "contaContabil", e.target.value)} className="h-8 text-xs" />
