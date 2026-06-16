@@ -1040,16 +1040,13 @@ export default function MovimentacoesPage() {
                   {/* Proprietário — estoque próprio ou mercadoria de terceiro sob guarda */}
                   <div className="space-y-1.5">
                     <Label>Proprietário <span className="text-xs text-gray-400 font-normal">(de quem é a mercadoria)</span></Label>
-                    <select
+                    <ComboboxWithCreate
                       value={clienteDonoId}
-                      onChange={(e) => setClienteDonoId(e.target.value)}
-                      className="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                    >
-                      <option value="">Estoque próprio</option>
-                      {clientes.map((c) => (
-                        <option key={c.id} value={c.id}>{c.nomeFantasia || c.razaoSocial}</option>
-                      ))}
-                    </select>
+                      onChange={(v) => setClienteDonoId(v)}
+                      noneLabel="Estoque próprio"
+                      triggerClassName="h-9 rounded-lg"
+                      options={clientes.map((c) => ({ value: c.id, label: c.nomeFantasia || c.razaoSocial }))}
+                    />
                     {clienteDonoId && (
                       <p className="text-xs text-amber-600">
                         Mercadoria de terceiro sob guarda — não entra no custo médio, no estoque mínimo nem nos relatórios de consumo.

@@ -946,16 +946,14 @@ export default function NovoDocumentoEntradaPage() {
             {/* UF Origem */}
             <div className="space-y-1.5">
               <Label className="text-xs text-gray-500">UF Origem</Label>
-              <select
+              <ComboboxWithCreate
                 value={ufOrigem}
-                onChange={(e) => setUfOrigem(e.target.value)}
-                className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Selecione...</option>
-                {UF_LIST.map((uf) => (
-                  <option key={uf} value={uf}>{uf}</option>
-                ))}
-              </select>
+                onChange={(v) => setUfOrigem(v)}
+                placeholder="Selecione..."
+                noneLabel="Selecione..."
+                triggerClassName="h-9 rounded-md"
+                options={UF_LIST.map((uf) => ({ value: uf, label: uf }))}
+              />
             </div>
 
             {/* Loja (read-only) */}
@@ -1138,19 +1136,13 @@ export default function NovoDocumentoEntradaPage() {
                         {/* Local Estoque — only in Por Item mode */}
                         {modoLocalEstoque === "POR_ITEM" && (
                           <td className="px-3 py-2">
-                            <select
+                            <ComboboxWithCreate
                               value={row.localEstoqueId}
-                              onChange={(e) => updateItem(row._key, "localEstoqueId", e.target.value)}
-                              className={cn(
-                                "w-full h-7 px-2 border rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-red-400",
-                                !row.localEstoqueId ? "border-red-400 bg-red-50 text-red-700" : "border-gray-200 text-gray-800"
-                              )}
-                            >
-                              <option value="">—</option>
-                              {locaisEstoque.map((l) => (
-                                <option key={l.id} value={l.id}>{l.nome}</option>
-                              ))}
-                            </select>
+                              onChange={(v) => updateItem(row._key, "localEstoqueId", v)}
+                              noneLabel="—"
+                              triggerClassName={cn("h-7 rounded text-xs", !row.localEstoqueId && "border-red-400 bg-red-50 text-red-700")}
+                              options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
+                            />
                           </td>
                         )}
 
