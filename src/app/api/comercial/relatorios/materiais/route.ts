@@ -69,8 +69,9 @@ export async function GET(req: NextRequest) {
   saiuMap.forEach((_, k) => itemIds.add(k));
   vendaPeriodoMap.forEach((_, k) => itemIds.add(k));
 
+  // Relatório comercial: só produtos vendáveis.
   const itens = await prisma.item.findMany({
-    where: { id: { in: Array.from(itemIds) } },
+    where: { id: { in: Array.from(itemIds) }, vendavel: true },
     select: { id: true, codigo: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } },
   });
   const itemInfo = new Map(itens.map((i) => [i.id, i]));
@@ -78,6 +79,7 @@ export async function GET(req: NextRequest) {
   const rows = Array.from(itemIds)
     .map((itemId) => {
       const info = itemInfo.get(itemId);
+      if (!info) return null; // item não vendável → fora do relatório
       const vp = vendaPeriodoMap.get(itemId);
       const vg = vendaGeralMap.get(itemId);
 
@@ -88,9 +90,9 @@ export async function GET(req: NextRequest) {
 
       return {
         itemId,
-        codigo: info?.codigo ?? "—",
-        descricao: info?.descricao ?? "—",
-        unidade: info?.unidade?.sigla ?? info?.unidadeMedida ?? "UN",
+        codigo: info.codigo,
+        descricao: info.descricao,
+        unidade: info.unidade?.sigla ?? info.unidadeMedida ?? "UN",
         entrouQtd: entrouMap.get(itemId) ?? 0,
         saiuQtd: saiuMap.get(itemId) ?? 0,
         qtdVendida,
@@ -99,7 +101,7 @@ export async function GET(req: NextRequest) {
         precoMedioGeral: qtdGeral > 0 ? valorGeral / qtdGeral : 0,
       };
     })
-    .filter((r) => r.entrouQtd !== 0 || r.saiuQtd !== 0 || r.qtdVendida !== 0)
+    .filter((r): r is NonNullable<typeof r> => r !== null && (r.entrouQtd !== 0 || r.saiuQtd !== 0 || r.qtdVendida !== 0))
     .sort((a, b) => b.valorVendido - a.valorVendido || a.descricao.localeCompare(b.descricao, "pt-BR"));
 
   return NextResponse.json({
