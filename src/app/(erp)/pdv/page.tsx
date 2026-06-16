@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { cn, formatBRL, decimalToNumber, parseDecimal } from "@/lib/utils";
@@ -356,12 +357,13 @@ export default function PdvPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
                       Estoque de outra empresa (à ordem)
-                      <select value={origemSel} onChange={(e) => setOrigemSel(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-2 text-sm font-normal normal-case bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">— Esta empresa (normal) —</option>
-                        {empresasGrupo.filter((e) => e.id !== activeEmpresaId).map((e) => (
-                          <option key={e.id} value={e.id}>{e.nome}</option>
-                        ))}
-                      </select>
+                      <ComboboxWithCreate
+                        value={origemSel}
+                        onChange={(v) => setOrigemSel(v)}
+                        noneLabel="— Esta empresa (normal) —"
+                        triggerClassName="h-10 rounded-lg font-normal normal-case"
+                        options={empresasGrupo.filter((e) => e.id !== activeEmpresaId).map((e) => ({ value: e.id, label: e.nome }))}
+                      />
                     </label>
                     {origemSel && (
                       <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
@@ -375,10 +377,13 @@ export default function PdvPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
                     {aOrdem ? `Local p/ registro${origemNome ? "" : ""} *` : "Local de estoque *"}
-                    <select value={localId} onChange={(e) => setLocalId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-2 text-sm font-normal normal-case bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="">— Selecionar —</option>
-                      {locais.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
-                    </select>
+                    <ComboboxWithCreate
+                      value={localId}
+                      onChange={(v) => setLocalId(v)}
+                      noneLabel="— Selecionar —"
+                      triggerClassName="h-10 rounded-lg font-normal normal-case"
+                      options={locais.map((l) => ({ value: l.id, label: l.nome }))}
+                    />
                   </label>
                   <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
                     Data do recebimento

@@ -107,6 +107,15 @@ const NEXT_STATUS: Record<string, { label: string; next: string; variant?: "defa
   CANCELADO:   [],
 };
 
+// Todos os status do pedido (usado no override de admin).
+const STATUS_PEDIDO: { value: string; label: string }[] = [
+  { value: "ORCAMENTO", label: "Orçamento" },
+  { value: "CONFIRMADO", label: "Confirmado" },
+  { value: "EM_AGENDAMENTO", label: "Em agendamento" },
+  { value: "CONCLUIDO", label: "Concluído" },
+  { value: "CANCELADO", label: "Cancelado" },
+];
+
 const STATUS_LABEL: Record<string, string> = {
   PENDENTE:          "Pendente",
   SAIU_PARA_ENTREGA: "Saiu p/ Entrega",
@@ -656,11 +665,32 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             <DevolucaoButton pedidoVendaId={pedido.id} pedidoNumero={pedido.numero} onDone={() => router.refresh()} />
           )}
           {isAdmin && (
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="outline" size="sm" disabled={loading} className="ml-auto gap-1.5" />}>
+                <RefreshCw className="w-3.5 h-3.5" /> Alterar status <ChevronDown className="w-3.5 h-3.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {STATUS_PEDIDO.filter((s) => s.value !== pedido.status).map((s) => (
+                  <DropdownMenuItem
+                    key={s.value}
+                    onClick={() => {
+                      if (confirm(`Forçar o status do pedido para "${s.label}"? Esta é uma ação administrativa e ignora o fluxo normal.`)) {
+                        changeStatus(s.value, undefined, true);
+                      }
+                    }}
+                  >
+                    {s.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          {isAdmin && (
             <Button
               variant="outline" size="sm"
               onClick={() => { setExcluirErro(""); setExcluirOpen(true); }}
               disabled={loading}
-              className="ml-auto gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+              className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Excluir

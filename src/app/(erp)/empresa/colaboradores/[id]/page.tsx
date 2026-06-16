@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -291,16 +292,14 @@ export default function ColaboradorDetailPage() {
                   <Input value={eCargo} onChange={(e) => setECargo(e.target.value)} />
                 </Field>
                 <Field label="Setor" required>
-                  <select
+                  <ComboboxWithCreate
                     value={eSetorId}
-                    onChange={(e) => setESetorId(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                  >
-                    <option value="">Selecione o setor</option>
-                    {setores.filter((s) => s.ativo).map((s) => (
-                      <option key={s.id} value={s.id}>{s.nome}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setESetorId(v)}
+                    placeholder="Selecione o setor"
+                    noneLabel="Selecione o setor"
+                    triggerClassName="h-9 rounded-lg"
+                    options={setores.filter((s) => s.ativo).map((s) => ({ value: s.id, label: s.nome }))}
+                  />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -336,16 +335,13 @@ export default function ColaboradorDetailPage() {
                 </div>
               </Field>
               <Field label="Usuário do sistema" hint="Opcional — vincule ao usuário de login">
-                <select
+                <ComboboxWithCreate
                   value={eUsuarioId}
-                  onChange={(e) => setEUsuarioId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                >
-                  <option value="">Nenhum / Sem vínculo</option>
-                  {usuarios.map((u) => (
-                    <option key={u.id} value={u.id}>{u.nome} — {u.email}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setEUsuarioId(v)}
+                  noneLabel="Nenhum / Sem vínculo"
+                  triggerClassName="h-9 rounded-lg"
+                  options={usuarios.map((u) => ({ value: u.id, label: `${u.nome} — ${u.email}` }))}
+                />
               </Field>
               <div className="flex items-center gap-3 pt-1">
                 <input
