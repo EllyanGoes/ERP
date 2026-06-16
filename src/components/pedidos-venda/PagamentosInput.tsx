@@ -102,14 +102,16 @@ export default function PagamentosInput({
             />
           </div>
           {mostrarConta && (
-            <select
+            <ComboboxWithCreate
               value={l.contaBancariaId}
-              onChange={(e) => up(l._key, "contaBancariaId", e.target.value)}
-              className="h-9 w-full min-w-0 rounded-lg border border-gray-300 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {!temCaixa && <option value="caixa-geral">Caixa Geral</option>}
-              {contasOpts.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
+              onChange={(v) => up(l._key, "contaBancariaId", v)}
+              allowNone={false}
+              triggerClassName="h-9 rounded-lg"
+              options={[
+                ...(!temCaixa ? [{ value: "caixa-geral", label: "Caixa Geral" }] : []),
+                ...contasOpts.map((c) => ({ value: c.id, label: c.nome })),
+              ]}
+            />
           )}
           <input
             value={l.valor}

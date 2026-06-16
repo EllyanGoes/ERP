@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -146,10 +147,13 @@ function NovaCategoriaDialog({ flat, onDone }: { flat: FlatCat[]; onDone: () => 
           </div>
           <div className="space-y-1.5">
             <Label>Categoria pai (opcional)</Label>
-            <select value={paiId} onChange={(e) => setPaiId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
-              <option value="">— Raiz (sem pai) —</option>
-              {paisDisponiveis.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
+            <ComboboxWithCreate
+              value={paiId}
+              onChange={(v) => setPaiId(v)}
+              noneLabel="— Raiz (sem pai) —"
+              triggerClassName="h-10 rounded-lg"
+              options={paisDisponiveis.map((c) => ({ value: c.id, label: c.nome }))}
+            />
           </div>
         </div>
         <DialogFooter>

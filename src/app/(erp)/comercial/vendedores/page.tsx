@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Input } from "@/components/ui/input";
 import { Plus, Pencil, Check, ToggleLeft, ToggleRight, Loader2, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -185,14 +186,13 @@ function VendedorForm({ form, setForm, saving, error, usuarios, onSave, onCancel
         </div>
         <div className="col-span-2">
           <label className="text-xs font-medium text-gray-500 mb-1 block">Usuário vinculado</label>
-          <select
+          <ComboboxWithCreate
             value={form.usuarioId}
-            onChange={(e) => setForm((f) => ({ ...f, usuarioId: e.target.value }))}
-            className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">— Sem usuário —</option>
-            {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome} ({u.email})</option>)}
-          </select>
+            onChange={(v) => setForm((f) => ({ ...f, usuarioId: v }))}
+            noneLabel="— Sem usuário —"
+            triggerClassName="h-10 rounded-lg"
+            options={usuarios.map((u) => ({ value: u.id, label: `${u.nome} (${u.email})` }))}
+          />
           <p className="text-[11px] text-gray-400 mt-1">Quando esse usuário criar um pedido de venda, este vendedor é puxado automaticamente.</p>
         </div>
       </div>

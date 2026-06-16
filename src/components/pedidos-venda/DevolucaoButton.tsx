@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Undo2, Loader2 } from "lucide-react";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Button } from "@/components/ui/button";
 import ModalPortal from "@/components/shared/ModalPortal";
 import { formatBRL, decimalToNumber, parseDecimal } from "@/lib/utils";
@@ -120,10 +121,14 @@ export default function DevolucaoButton({ pedidoVendaId, pedidoNumero, onDone }:
 
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Conta de saída (estorno)</label>
-                      <select value={contaId} onChange={(e) => setContaId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
-                        <option value="">Selecione</option>
-                        {contas.filter((c) => c.ativo !== false).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                      </select>
+                      <ComboboxWithCreate
+                        value={contaId}
+                        onChange={(v) => setContaId(v)}
+                        placeholder="Selecione"
+                        noneLabel="Selecione"
+                        triggerClassName="h-10 rounded-lg"
+                        options={contas.filter((c) => c.ativo !== false).map((c) => ({ value: c.id, label: c.nome }))}
+                      />
                     </div>
 
                     <div className="space-y-1">

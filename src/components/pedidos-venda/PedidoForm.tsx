@@ -826,15 +826,13 @@ export default function PedidoForm({
           {mostrarEmpresa && (
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Empresa</Label>
-              <select
+              <ComboboxWithCreate
                 value={empresaId || usuarioSessao?.activeEmpresaId || ""}
-                onChange={(e) => setEmpresaId(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
-              >
-                {empresasGrupo.map((e) => (
-                  <option key={e.id} value={e.id}>{e.nome}</option>
-                ))}
-              </select>
+                onChange={(v) => setEmpresaId(v)}
+                allowNone={false}
+                triggerClassName="h-10 rounded-lg"
+                options={empresasGrupo.map((e) => ({ value: e.id, label: e.nome }))}
+              />
               <p className="text-xs text-gray-400">Para qual empresa do grupo é esta venda — minutas e numeração seguirão nela.</p>
             </div>
           )}
@@ -912,18 +910,15 @@ export default function PedidoForm({
             <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Entrega / estoque por outra empresa</Label>
-                <select
+                <ComboboxWithCreate
                   value={estoqueOrigemId}
-                  onChange={(e) => setEstoqueOrigemId(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
-                >
-                  <option value="">— Esta empresa entrega (normal) —</option>
-                  {empresasGrupo
+                  onChange={(v) => setEstoqueOrigemId(v)}
+                  noneLabel="— Esta empresa entrega (normal) —"
+                  triggerClassName="h-10 rounded-lg"
+                  options={empresasGrupo
                     .filter((e) => e.id !== (empresaId || usuarioSessao?.activeEmpresaId))
-                    .map((e) => (
-                      <option key={e.id} value={e.id}>{e.nome} entrega e baixa do estoque</option>
-                    ))}
-                </select>
+                    .map((e) => ({ value: e.id, label: `${e.nome} entrega e baixa do estoque` }))}
+                />
                 <p className="text-xs text-gray-500">
                   Venda à ordem: a venda fica nesta empresa, mas outra empresa do grupo fornece o estoque.
                   Na entrega, o sistema gera os movimentos virtuais (saída na origem + entrada/saída nesta empresa)
@@ -951,16 +946,13 @@ export default function PedidoForm({
           {/* Vendedor */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Vendedor</Label>
-            <select
+            <ComboboxWithCreate
               value={vendedorId}
-              onChange={(e) => setVendedorId(e.target.value)}
-              className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-gray-400 transition-colors"
-            >
-              <option value="">— Sem vendedor —</option>
-              {vendedores.filter((v) => v.ativo !== false || v.id === vendedorId).map((v) => (
-                <option key={v.id} value={v.id}>{v.nome}</option>
-              ))}
-            </select>
+              onChange={(v) => setVendedorId(v)}
+              noneLabel="— Sem vendedor —"
+              triggerClassName="h-10 rounded-lg"
+              options={vendedores.filter((v) => v.ativo !== false || v.id === vendedorId).map((v) => ({ value: v.id, label: v.nome }))}
+            />
           </div>
 
           {/* Nº do Orçamento (controle de pedido físico) */}
@@ -1131,17 +1123,16 @@ export default function PedidoForm({
                     {/* Unidade */}
                     <td className="px-3 py-2.5 text-center">
                       {linha.itemId && linha.itemUnidades.length > 0 ? (
-                        <select
+                        <ComboboxWithCreate
                           value={linha.unidadeId}
-                          onChange={(e) => changeUnidade(linha._key, e.target.value)}
-                          className="h-8 rounded-md border border-gray-300 bg-white text-xs font-semibold font-mono text-gray-700 px-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400 hover:border-blue-400 transition-colors cursor-pointer"
-                        >
-                          {linha.itemUnidades.map((iu) => (
-                            <option key={iu.unidadeId} value={iu.unidadeId}>
-                              {iu.unidade.sigla}{decimalToNumber(iu.fatorConversao) !== 1 ? ` (×${decimalToNumber(iu.fatorConversao)})` : ""}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(v) => changeUnidade(linha._key, v)}
+                          allowNone={false}
+                          triggerClassName="h-8 rounded-md text-xs font-semibold font-mono"
+                          options={linha.itemUnidades.map((iu) => ({
+                            value: iu.unidadeId,
+                            label: `${iu.unidade.sigla}${decimalToNumber(iu.fatorConversao) !== 1 ? ` (×${decimalToNumber(iu.fatorConversao)})` : ""}`,
+                          }))}
+                        />
                       ) : (
                         <span className="text-xs font-semibold text-gray-700 font-mono bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">
                           {linha.unidade || "—"}
@@ -1301,16 +1292,14 @@ export default function PedidoForm({
                       </td>
                       {/* Item em Comodato */}
                       <td className="px-3 py-2.5 min-w-[220px]">
-                        <select
+                        <ComboboxWithCreate
                           value={linha.itemId}
-                          onChange={(e) => updateComodatoLinha(linha._key, "itemId", e.target.value)}
-                          className="w-full h-9 rounded-lg border border-gray-300 bg-white px-2.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 hover:border-blue-400 transition-colors"
-                        >
-                          <option value="">Selecione...</option>
-                          {itensComodato.map((i) => (
-                            <option key={i.id} value={i.id}>{i.codigo} — {i.descricao}</option>
-                          ))}
-                        </select>
+                          onChange={(v) => updateComodatoLinha(linha._key, "itemId", v)}
+                          placeholder="Selecione..."
+                          noneLabel="Selecione..."
+                          triggerClassName="h-9 rounded-lg text-xs"
+                          options={itensComodato.map((i) => ({ value: i.id, label: `${i.codigo} — ${i.descricao}` }))}
+                        />
                       </td>
                       {/* Quantidade */}
                       <td className="px-3 py-2.5">

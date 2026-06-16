@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -278,10 +279,13 @@ function NaturezaDialog({ editing, subgrupos, onClose, onSaved }: {
           </div>
           <div className="space-y-1.5">
             <Label>Subgrupo (opcional)</Label>
-            <select value={subgrupoId} onChange={(e) => setSubgrupoId(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
-              <option value="">— Sem subgrupo —</option>
-              {subsDoGrupo.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-            </select>
+            <ComboboxWithCreate
+              value={subgrupoId}
+              onChange={(v) => setSubgrupoId(v)}
+              noneLabel="— Sem subgrupo —"
+              triggerClassName="h-10 rounded-lg"
+              options={subsDoGrupo.map((s) => ({ value: s.id, label: s.nome }))}
+            />
           </div>
           {error && <p className="text-sm text-rose-500">{error}</p>}
         </div>
