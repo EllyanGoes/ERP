@@ -819,31 +819,11 @@ export default function NecessidadeDetailPage() {
               </Button>
             )}
 
-            {/* Botão WA — disponível enquanto não aprovada/em cotação */}
-            {["RASCUNHO", "AGUARDANDO_APROVACAO", "REJEITADA"].includes(necessidade.status) && (
-              <Button size="sm" variant="outline"
-                className="border-green-500 text-green-700 hover:bg-green-50 gap-1.5"
-                onClick={openWAModal}
-              >
-                <MessageCircle className="w-3.5 h-3.5" />
-                Encaminhar Aprovação
-              </Button>
-            )}
-
-            {/* APROVADA */}
+            {/* APROVADA → gerar cotação (a aprovação do fluxo é só na cotação, CT→PC) */}
             {necessidade.status === "APROVADA" && (
-              <>
-                <Button size="sm" variant="outline"
-                  className="border-green-500 text-green-700 hover:bg-green-50 gap-1.5"
-                  onClick={openWAModal}
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  Encaminhar Aprovação
-                </Button>
-                <Button size="sm" onClick={gerarCotacao}>
-                  Gerar Cotação
-                </Button>
-              </>
+              <Button size="sm" onClick={gerarCotacao}>
+                Gerar Cotação
+              </Button>
             )}
           </div>
         }
