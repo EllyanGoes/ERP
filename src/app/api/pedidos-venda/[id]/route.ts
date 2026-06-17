@@ -173,7 +173,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     precoUnitario: item.precoUnitario,
     precoTransferencia: novaOrigem && item.precoTransferencia != null && Number(item.precoTransferencia) > 0
       ? Number(item.precoTransferencia) : null,
-    desconto: item.desconto ?? 0,
+    // Grava os TRÊS campos de desconto do item (igual ao POST) — antes só
+    // `desconto` era salvo, e o detalhe/edição leem `valorDesconto`/`descontoPct`,
+    // fazendo o desconto "sumir" ao reabrir.
+    descontoPct:   item.descontoPct   ?? 0,
+    valorDesconto: item.valorDesconto ?? 0,
+    desconto:      item.desconto      ?? 0,
     valorTotal: item.valorTotal,
   });
 
