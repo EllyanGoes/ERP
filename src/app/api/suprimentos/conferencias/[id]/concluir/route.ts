@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { gerarContasPagarDoDocumento } from "@/lib/contas-pagar";
-import { contabilizarPedidoCompra } from "@/lib/contabilidade";
+import { contabilizarPedidoCompra, contabilizarEntradaEstoque } from "@/lib/contabilidade";
 import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
 
@@ -412,7 +412,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }).catch(() => {});
   }
 
-  // Contabiliza (best-effort, pós-commit) a(s) conta(s) a pagar geradas pela conferência.
+  // Contabiliza (best-effort, pós-commit): entrada de estoque (D Estoque / C
+  // Fornecedor) e a(s) conta(s) a pagar (só o pagamento; a compra de estoque não
+  // duplica a despesa). Entrada primeiro (credita o fornecedor).
+  await contabilizarEntradaEstoque(params.id).catch(() => {});
   const confPedido = await prisma.conferenciaCompra.findUnique({ where: { id: params.id }, select: { pedido: { select: { id: true } } } });
   if (confPedido?.pedido?.id) await contabilizarPedidoCompra(confPedido.pedido.id).catch(() => {});
 

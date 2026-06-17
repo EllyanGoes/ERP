@@ -528,6 +528,8 @@ enum OrigemLancamento {
   RECEBIMENTO // baixa de a receber (D Caixa / C Clientes)
   COMPRA // título a pagar gerado (D Despesa / C Fornecedores)
   PAGAMENTO // baixa de a pagar (D Fornecedores / C Caixa)
+  ESTOQUE_ENTRADA // entrada de compra (D Estoque / C Fornecedor)
+  ESTOQUE_SAIDA // CMV na venda (D Custos / C Estoque)
   MANUAL
   ESTORNO
 }

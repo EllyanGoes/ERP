@@ -1,11 +1,12 @@
 import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
+import { custosDaEmpresa } from "@/lib/custo-empresa";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
 
 export type TipoPartidaIn = "DEBITO" | "CREDITO";
-export type OrigemIn = "VENDA" | "RECEBIMENTO" | "COMPRA" | "PAGAMENTO" | "MANUAL" | "ESTORNO";
+export type OrigemIn = "VENDA" | "RECEBIMENTO" | "COMPRA" | "PAGAMENTO" | "ESTOQUE_ENTRADA" | "ESTOQUE_SAIDA" | "MANUAL" | "ESTORNO";
 
 export type PartidaIn = {
   contaId: string;
@@ -35,6 +36,9 @@ export async function contaDoCliente(empresaId: string, clienteId: string) {
 }
 export async function contaDoFornecedor(empresaId: string, fornecedorId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, fornecedorId }, select: { id: true } });
+}
+export async function contaDoLocal(empresaId: string, localEstoqueId: string) {
+  return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, localEstoqueId }, select: { id: true } });
 }
 export async function contaDaNatureza(empresaId: string, naturezaFinanceiraId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, naturezaFinanceiraId }, select: { id: true } });
@@ -137,9 +141,14 @@ export async function contabilizarTituloReceber(crId: string) {
 export async function contabilizarTituloPagar(cpId: string) {
   const cp = await prismaSemEscopo.contaPagar.findUnique({
     where: { id: cpId },
-    select: { id: true, empresaId: true, fornecedorId: true, naturezaFinanceiraId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
+    select: { id: true, empresaId: true, fornecedorId: true, naturezaFinanceiraId: true, pedidoCompraId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
   });
   if (!cp || cp.status === "CANCELADA" || !cp.fornecedorId) return;
+
+  // Compra de estoque (CP de pedido de compra): a perna COMPRA (despesa) NÃO é
+  // gerada — a entrada de estoque (D Estoque / C Fornecedor) credita o
+  // fornecedor. Só o PAGAMENTO é contabilizado aqui. CP avulso (despesa) segue normal.
+  const ehCompraEstoque = cp.pedidoCompraId != null;
 
   // Despesa/custo cai na conta da natureza do título; senão na sintética 3.3.
   const [contaForn, contaNat, conta33, contaCaixa] = await Promise.all([
@@ -152,7 +161,7 @@ export async function contabilizarTituloPagar(cpId: string) {
   if (!contaForn) return;
 
   const valor = decimalToNumber(cp.valorOriginal);
-  if (valor > 0 && contaDespesa) {
+  if (!ehCompraEstoque && valor > 0 && contaDespesa) {
     await registrarLancamento({
       empresaId: cp.empresaId, data: cp.dataCompetencia ?? cp.createdAt,
       historico: `Compra — título ${cp.numero}`, origemTipo: "COMPRA", origemId: cp.id,
@@ -188,6 +197,98 @@ export async function contabilizarPedidoVenda(pedidoVendaId: string) {
 export async function contabilizarPedidoCompra(pedidoCompraId: string) {
   const cps = await prismaSemEscopo.contaPagar.findMany({ where: { pedidoCompraId }, select: { id: true } });
   for (const cp of cps) await contabilizarTituloPagar(cp.id).catch(() => null);
+}
+
+/**
+ * Entrada de estoque por conferência de compra (inventário perpétuo):
+ * D Estoque (conta do local) / C Fornecedor, pelo valor da NF (qtd × vlrUnitario).
+ * Idempotente por (empresa, ESTOQUE_ENTRADA, conferenciaId).
+ */
+export async function contabilizarEntradaEstoque(conferenciaId: string) {
+  const conf = await prismaSemEscopo.conferenciaCompra.findUnique({
+    where: { id: conferenciaId },
+    select: { id: true, empresaId: true, numero: true, fornecedorId: true, dtEmissao: true, createdAt: true, pedido: { select: { fornecedorId: true } } },
+  });
+  if (!conf) return;
+  const fornecedorId = conf.fornecedorId ?? conf.pedido?.fornecedorId ?? null;
+  if (!fornecedorId) return;
+
+  const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
+    where: { empresaId: conf.empresaId, documento: conf.numero, tipo: "ENTRADA", localEstoqueId: { not: null }, valorUnitario: { not: null } },
+    select: { localEstoqueId: true, quantidade: true, valorUnitario: true },
+  });
+  // Valor por local (qtd × vlrUnitario).
+  const porLocal = new Map<string, number>();
+  for (const m of movs) {
+    if (!m.localEstoqueId) continue;
+    const v = decimalToNumber(m.quantidade) * decimalToNumber(m.valorUnitario);
+    porLocal.set(m.localEstoqueId, (porLocal.get(m.localEstoqueId) ?? 0) + v);
+  }
+  const total = Array.from(porLocal.values()).reduce((s, v) => s + v, 0);
+  if (total <= 0) return;
+
+  const contaForn = await contaDoFornecedor(conf.empresaId, fornecedorId);
+  if (!contaForn) return;
+  const partidas: PartidaIn[] = [];
+  for (const [localId, v] of Array.from(porLocal.entries())) {
+    if (v <= 0) continue;
+    const cl = await contaDoLocal(conf.empresaId, localId);
+    if (!cl) return; // sem conta de local → aborta (não desbalancear)
+    partidas.push({ contaId: cl.id, tipo: "DEBITO", valor: v });
+  }
+  if (partidas.length === 0) return;
+  partidas.push({ contaId: contaForn.id, tipo: "CREDITO", valor: total, fornecedorId });
+
+  await registrarLancamento({
+    empresaId: conf.empresaId, data: conf.dtEmissao ?? conf.createdAt,
+    historico: `Entrada de estoque — ${conf.numero}`, origemTipo: "ESTOQUE_ENTRADA", origemId: conf.id,
+    partidas,
+  });
+}
+
+/**
+ * CMV na venda: D Custos (3.2) / C Estoque (conta do local), pelo custo médio
+ * (CMPM) dos itens baixados na minuta. Idempotente por (empresa, ESTOQUE_SAIDA, minutaId).
+ */
+export async function contabilizarCmvMinuta(minutaId: string) {
+  const minuta = await prismaSemEscopo.minuta.findUnique({
+    where: { id: minutaId },
+    select: { id: true, empresaId: true, numero: true, dataEntrega: true, dataEmissao: true, createdAt: true },
+  });
+  if (!minuta) return;
+
+  const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
+    where: { empresaId: minuta.empresaId, documento: minuta.numero, tipo: "SAIDA", localEstoqueId: { not: null } },
+    select: { itemId: true, localEstoqueId: true, quantidade: true },
+  });
+  if (movs.length === 0) return;
+
+  const custos = await custosDaEmpresa(prismaSemEscopo, minuta.empresaId, Array.from(new Set(movs.map((m) => m.itemId))));
+  const porLocal = new Map<string, number>();
+  for (const m of movs) {
+    if (!m.localEstoqueId) continue;
+    const custo = custos.get(m.itemId) ?? 0;
+    const v = decimalToNumber(m.quantidade) * (custo ?? 0);
+    if (v > 0) porLocal.set(m.localEstoqueId, (porLocal.get(m.localEstoqueId) ?? 0) + v);
+  }
+  const total = Array.from(porLocal.values()).reduce((s, v) => s + v, 0);
+  if (total <= 0) return;
+
+  const contaCusto = await contaPorCodigo(minuta.empresaId, "3.2");
+  if (!contaCusto) return;
+  const partidas: PartidaIn[] = [{ contaId: contaCusto.id, tipo: "DEBITO", valor: total }];
+  for (const [localId, v] of Array.from(porLocal.entries())) {
+    if (v <= 0) continue;
+    const cl = await contaDoLocal(minuta.empresaId, localId);
+    if (!cl) return;
+    partidas.push({ contaId: cl.id, tipo: "CREDITO", valor: v });
+  }
+
+  await registrarLancamento({
+    empresaId: minuta.empresaId, data: minuta.dataEntrega ?? minuta.dataEmissao ?? minuta.createdAt,
+    historico: `CMV — saída ${minuta.numero}`, origemTipo: "ESTOQUE_SAIDA", origemId: minuta.id,
+    partidas,
+  });
 }
 
 /**

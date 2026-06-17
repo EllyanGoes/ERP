@@ -8,6 +8,7 @@ import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { espelharEntregaMinuta } from "@/lib/intragrupo";
 import { gerarCompraVirtualVendaOrdem } from "@/lib/venda-ordem";
+import { contabilizarCmvMinuta } from "@/lib/contabilidade";
 
 // Lançado dentro das transações quando outra requisição mexeu na minuta no meio
 // do caminho (duplo clique, duas abas). Aborta a transação e vira HTTP 409.
@@ -278,6 +279,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         where: { id: params.id },
         include: MINUTA_INCLUDE,
       });
+      await contabilizarCmvMinuta(params.id).catch(() => {});
       return NextResponse.json({ data: updated });
     }
 
@@ -462,6 +464,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         if (entregaAOrdem) await gerarCompraVirtualVendaOrdem(params.id); // venda à ordem: compra virtual + financeiro na empresa da venda
       }
 
+      await contabilizarCmvMinuta(params.id).catch(() => {});
       return NextResponse.json({ data: updated });
     }
 

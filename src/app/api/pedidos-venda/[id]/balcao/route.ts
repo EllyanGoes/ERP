@@ -14,7 +14,7 @@ import { espelharEntregaTriangular } from "@/lib/intragrupo";
 import { saldoCreditoCliente, consumirCreditoCliente } from "@/lib/credito-cliente";
 import { generateDocNumber, generateSimpleDocNumber } from "@/lib/utils";
 import { pedidoPrintData } from "@/lib/print-pedido-server";
-import { contabilizarPedidoVenda } from "@/lib/contabilidade";
+import { contabilizarPedidoVenda, contabilizarCmvMinuta } from "@/lib/contabilidade";
 import { z } from "zod";
 
 const pagamentoSchema = z.object({
@@ -409,6 +409,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // Contabiliza (best-effort, pós-commit) a(s) conta(s) a receber do pedido.
     await contabilizarPedidoVenda(params.id).catch(() => {});
+    if (resultado.minuta?.id) await contabilizarCmvMinuta(resultado.minuta.id).catch(() => {});
 
     return NextResponse.json({
       data: {
