@@ -1,7 +1,7 @@
 // Resumo da cotação em PDF (server-side, jsPDF + autoTable). Gerado no envio da
 // aprovação CT→PC para anexar no Telegram, dando ao aprovador o comparativo dos
 // fornecedores e o detalhamento do vencedor antes de aprovar/reprovar.
-import { prisma } from "@/lib/prisma";
+import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -14,7 +14,7 @@ const nomeForn = (f: { razaoSocial: string; nomeFantasia: string | null }) => f.
  * dos itens do vencedor. Retorna null se a cotação não existir.
  */
 export async function buildCotacaoPDF(cotacaoId: string): Promise<{ buffer: Buffer; filename: string } | null> {
-  const cot = await prisma.cotacaoCompra.findUnique({
+  const cot = await prismaSemEscopo.cotacaoCompra.findUnique({
     where: { id: cotacaoId },
     include: {
       necessidade: { select: { numero: true } },
