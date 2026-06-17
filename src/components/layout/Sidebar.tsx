@@ -274,6 +274,7 @@ const mainModules: Module[] = [
       {
         kind: "Relatórios",
         items: [
+          { href: "/contabilidade/razao", label: "Razão", icon: FolderTree },
           { href: "/contabilidade/balancete", label: "Balancete", icon: Calculator },
           { href: "/contabilidade/dre", label: "DRE", icon: BarChart3 },
         ],
