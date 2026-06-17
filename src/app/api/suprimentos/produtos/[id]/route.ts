@@ -89,6 +89,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.tipo        !== undefined) updateData.tipo        = body.tipo;
   if (body.unidadeId   !== undefined) updateData.unidadeId   = body.unidadeId || null;
   if (body.tipoProdutoId !== undefined) updateData.tipoProdutoId = body.tipoProdutoId || null;
+  if (body.categoriaEstoque !== undefined) updateData.categoriaEstoque = body.categoriaEstoque || null;
   if (body.ncm         !== undefined) updateData.ncm         = body.ncm || null;
   if (body.precoVenda  !== undefined) updateData.precoVenda  = parseFloat(body.precoVenda) || 0;
   // precoCusto is auto-maintained by CMPM (entrada movements) — never updated via PATCH

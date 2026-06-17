@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
+import { CategoriaEstoque } from "@prisma/client";
 import { z } from "zod";
 
 const schema = z.object({
@@ -10,6 +11,7 @@ const schema = z.object({
   descricao: z.string().nullable().optional(),
   ativo:     z.boolean().optional(),
   filialId:  z.string().min(1, "Filial é obrigatória"),
+  categoriasAceitas: z.array(z.nativeEnum(CategoriaEstoque)).optional(),
 });
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {

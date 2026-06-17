@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { MapPin, Package, Plus, Pencil, Trash2, Loader2, AlertTriangle, X, Check, Save, Building2, GitBranch } from "lucide-react";
 import { formatBRL } from "@/lib/utils";
+import type { CategoriaEstoque } from "@prisma/client";
+import { CATEGORIA_ESTOQUE_VALUES, CATEGORIA_ESTOQUE_LABELS, CATEGORIA_ESTOQUE_DESCRICOES } from "@/lib/categoria-estoque-ui";
 
 type Filial = { id: string; razaoSocial: string; nomeFantasia: string | null };
 
@@ -20,12 +22,51 @@ type LocalRow = {
   ativo: boolean;
   filialId: string | null;
   filial: { id: string; razaoSocial: string } | null;
+  categoriasAceitas: CategoriaEstoque[];
   _count: { estoqueItens: number };
   estoqueItens: Array<{
     quantidadeAtual: unknown;
     item: { precoCusto: unknown } | null;
   }>;
 };
+
+// Multi-seleção de categorias aceitas pelo local. Vazio = aceita qualquer produto.
+function CategoriasPicker({
+  value,
+  onChange,
+}: {
+  value: CategoriaEstoque[];
+  onChange: (next: CategoriaEstoque[]) => void;
+}) {
+  function toggle(cat: CategoriaEstoque) {
+    onChange(value.includes(cat) ? value.filter((c) => c !== cat) : [...value, cat]);
+  }
+  return (
+    <div className="space-y-1.5">
+      <div className="space-y-1.5 rounded-lg border border-gray-200 p-2.5 max-h-52 overflow-auto">
+        {CATEGORIA_ESTOQUE_VALUES.map((cat) => (
+          <label key={cat} className="flex items-start gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={value.includes(cat)}
+              onChange={() => toggle(cat)}
+              className="mt-0.5 rounded border-gray-300"
+            />
+            <span className="leading-tight">
+              <span className="text-sm font-medium text-gray-800">{CATEGORIA_ESTOQUE_LABELS[cat]}</span>
+              <span className="block text-[11px] text-gray-400">{CATEGORIA_ESTOQUE_DESCRICOES[cat]}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <p className="text-[11px] text-gray-400">
+        {value.length === 0
+          ? "Nenhuma marcada → o local aceita qualquer produto."
+          : "Só produtos das categorias marcadas poderão entrar neste local."}
+      </p>
+    </div>
+  );
+}
 
 function toNum(v: unknown) {
   if (v == null) return 0;
@@ -43,13 +84,13 @@ export default function LocaisEstoquePage() {
 
   // Create modal
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ nome: "", descricao: "", filialId: "" });
+  const [createForm, setCreateForm] = useState<{ nome: string; descricao: string; filialId: string; categoriasAceitas: CategoriaEstoque[] }>({ nome: "", descricao: "", filialId: "", categoriasAceitas: [] });
   const [createSaving, setCreateSaving] = useState(false);
   const [createError, setCreateError] = useState("");
 
   // Edit modal
   const [editItem, setEditItem] = useState<LocalRow | null>(null);
-  const [editForm, setEditForm] = useState({ nome: "", descricao: "", ativo: true, filialId: "" });
+  const [editForm, setEditForm] = useState<{ nome: string; descricao: string; ativo: boolean; filialId: string; categoriasAceitas: CategoriaEstoque[] }>({ nome: "", descricao: "", ativo: true, filialId: "", categoriasAceitas: [] });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
@@ -76,7 +117,7 @@ export default function LocaisEstoquePage() {
   }, [load]);
 
   function openCreate() {
-    setCreateForm({ nome: "", descricao: "", filialId: "" });
+    setCreateForm({ nome: "", descricao: "", filialId: "", categoriasAceitas: [] });
     setCreateError("");
     setShowCreate(true);
   }
@@ -91,6 +132,7 @@ export default function LocaisEstoquePage() {
         nome:     createForm.nome.trim(),
         descricao: createForm.descricao.trim() || undefined,
         filialId: createForm.filialId || null,
+        categoriasAceitas: createForm.categoriasAceitas,
       }),
     });
     if (!res.ok) {
@@ -104,7 +146,7 @@ export default function LocaisEstoquePage() {
   function openEdit(item: LocalRow, e: React.MouseEvent) {
     e.stopPropagation();
     setEditItem(item);
-    setEditForm({ nome: item.nome, descricao: item.descricao ?? "", ativo: item.ativo, filialId: item.filialId ?? "" });
+    setEditForm({ nome: item.nome, descricao: item.descricao ?? "", ativo: item.ativo, filialId: item.filialId ?? "", categoriasAceitas: item.categoriasAceitas ?? [] });
     setEditError("");
   }
 
@@ -119,6 +161,7 @@ export default function LocaisEstoquePage() {
         descricao: editForm.descricao.trim() || undefined,
         ativo:    editForm.ativo,
         filialId: editForm.filialId || null,
+        categoriasAceitas: editForm.categoriasAceitas,
       }),
     });
     if (!res.ok) {
@@ -251,6 +294,15 @@ export default function LocaisEstoquePage() {
                           <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
                           <span className="font-medium text-gray-900">{local.nome}</span>
                         </div>
+                        {local.categoriasAceitas?.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1 pl-6">
+                            {local.categoriasAceitas.map((c) => (
+                              <span key={c} className="inline-flex items-center rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 border border-indigo-100">
+                                {CATEGORIA_ESTOQUE_LABELS[c]}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {local.filial ? (
@@ -350,6 +402,15 @@ export default function LocaisEstoquePage() {
                   className="mt-1"
                 />
               </div>
+              <div>
+                <Label>Categorias aceitas</Label>
+                <div className="mt-1">
+                  <CategoriasPicker
+                    value={createForm.categoriasAceitas}
+                    onChange={(next) => setCreateForm((p) => ({ ...p, categoriasAceitas: next }))}
+                  />
+                </div>
+              </div>
             </div>
             {createError && (
               <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{createError}</p>
@@ -412,6 +473,15 @@ export default function LocaisEstoquePage() {
                   className="rounded"
                 />
                 <Label htmlFor="ativo-edit" className="cursor-pointer">Ativo</Label>
+              </div>
+              <div>
+                <Label>Categorias aceitas</Label>
+                <div className="mt-1">
+                  <CategoriasPicker
+                    value={editForm.categoriasAceitas}
+                    onChange={(next) => setEditForm((p) => ({ ...p, categoriasAceitas: next }))}
+                  />
+                </div>
               </div>
             </div>
             {editError && (

@@ -4,6 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
+import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
 
 const postSchema = z.object({
   itemId:        z.string(),
@@ -25,6 +26,16 @@ export async function POST(req: NextRequest) {
   }
 
   const { itemId, localEstoqueId, tipo, quantidade, documento, observacoes } = parsed.data;
+
+  // Trava de categoria: produto só entra em local que aceite sua categoria.
+  if (tipo === "ENTRADA" && localEstoqueId) {
+    try {
+      await assertItensPermitidosNosLocais(prisma, [{ itemId, localEstoqueId }]);
+    } catch (e) {
+      if (e instanceof CategoriaLocalInvalidaError) return respostaCategoriaInvalida(e);
+      throw e;
+    }
+  }
 
   try {
     const result = await prisma.$transaction(async (tx) => {

@@ -6,6 +6,8 @@ import { z } from "zod";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
+import { respostaSaldoNegativo, SaldoNegativoError } from "@/lib/estoque-guard";
+import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
 
 const itemSchema = z.object({
   itemId:         z.string().min(1),
@@ -26,8 +28,6 @@ const postSchema = z.object({
   // cuja mercadoria está sob guarda (estoque de terceiros)
   clienteDonoId:    z.string().optional().nullable(),
   dataMovimentacao: z.string().optional().nullable(), // ISO date string
-  // true = usuário já viu o aviso de saldo negativo e confirmou o lançamento
-  permitirNegativo: z.boolean().optional(),
   itens:            z.array(itemSchema).min(1, "Adicione ao menos um item"),
 });
 
@@ -61,11 +61,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Aviso de saldo negativo ────────────────────────────────────────────────
-  // Em SAÍDA, se algum item ficar negativo o usuário precisa confirmar
-  // (permitirNegativo) — a tela mostra o aviso e pede revisão dos lançamentos.
-  // Checagem fora da transação: é um aviso de revisão, não trava de consistência.
-  if (tipo === "SAIDA" && !parsed.data.permitirNegativo) {
+  // ── Trava de saldo negativo (hard block) ───────────────────────────────────
+  // Em SAÍDA, nenhuma movimentação pode deixar o saldo negativo. Não há mais
+  // confirmação para "registrar mesmo assim": corrigir saldo é via inventário.
+  if (tipo === "SAIDA") {
     // soma as quantidades por (item + local) — o mesmo item pode repetir em linhas
     const porChave = new Map<string, { itemId: string; localEstoqueId: string; qtd: number }>();
     for (const it of itens) {
@@ -88,10 +87,22 @@ export async function POST(req: NextRequest) {
       }
     }
     if (negativos.length > 0) {
-      return NextResponse.json(
-        { error: "SALDO_NEGATIVO", negativos },
-        { status: 422 }
+      return respostaSaldoNegativo(new SaldoNegativoError(negativos));
+    }
+  }
+
+  // ── Trava de categoria do local (hard block, só na ENTRADA) ─────────────────
+  // Produto só entra em local que aceite sua categoria. Local sem categorias
+  // configuradas aceita tudo (legado). Saídas não são travadas.
+  if (tipo === "ENTRADA") {
+    try {
+      await assertItensPermitidosNosLocais(
+        prisma,
+        itens.map((i) => ({ itemId: i.itemId, localEstoqueId: i.localEstoqueId })),
       );
+    } catch (e) {
+      if (e instanceof CategoriaLocalInvalidaError) return respostaCategoriaInvalida(e);
+      throw e;
     }
   }
 

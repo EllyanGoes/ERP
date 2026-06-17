@@ -6,6 +6,7 @@ import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { gerarContasPagarDoDocumento } from "@/lib/contas-pagar";
 import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
+import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
 
 const num = (d: unknown) => parseFloat(String(d ?? 0));
 
@@ -15,6 +16,31 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const body = await req.json().catch(() => ({}));
   const responsavel = body.responsavel || null;
+
+  // ── Trava de categoria do local (antes da transação, para 422 limpo) ────────
+  // O recebimento dá ENTRADA no local de destino de cada item — produto só entra
+  // em local que aceite sua categoria. Local sem categorias configuradas aceita
+  // tudo (legado).
+  {
+    const conf = await prisma.conferenciaCompra.findUnique({
+      where: { id: params.id },
+      select: {
+        localEstoqueId: true,
+        itens: { select: { itemId: true, localEstoqueId: true, quantidadeRecebida: true } },
+      },
+    });
+    if (conf) {
+      const pares = conf.itens
+        .filter((it) => num(it.quantidadeRecebida) > 0)
+        .map((it) => ({ itemId: it.itemId, localEstoqueId: it.localEstoqueId ?? conf.localEstoqueId ?? null }));
+      try {
+        await assertItensPermitidosNosLocais(prisma, pares);
+      } catch (e) {
+        if (e instanceof CategoriaLocalInvalidaError) return respostaCategoriaInvalida(e);
+        throw e;
+      }
+    }
+  }
 
   const result = await prisma.$transaction(async (tx) => {
     const conferencia = await tx.conferenciaCompra.findUnique({

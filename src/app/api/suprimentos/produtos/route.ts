@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
           tipo: body.tipo ?? "PRODUTO",
           unidadeId: body.unidadeId || null,
           tipoProdutoId: body.tipoProdutoId || null,
+          categoriaEstoque: body.categoriaEstoque || null,
           ncm: body.ncm?.trim() || null,
           precoVenda: parseFloat(body.precoVenda) || 0,
           vendavel: body.vendavel === true,

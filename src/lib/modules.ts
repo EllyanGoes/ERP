@@ -94,6 +94,8 @@ export const MODULOS: ModuloDef[] = [
     recursos: [
       { key: "plano-contas", label: "Plano de Contas Contábil", acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "lancamentos",  label: "Diário Contábil",          acoes: ["ver", "inserir"] },
+      { key: "balancete",    label: "Balancete",                acoes: ["ver"] },
+      { key: "dre",          label: "DRE",                      acoes: ["ver"] },
     ],
   },
   {

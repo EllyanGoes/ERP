@@ -271,6 +271,13 @@ const mainModules: Module[] = [
           { href: "/contabilidade/lancamentos", label: "Diário Contábil", icon: BarChart3 },
         ],
       },
+      {
+        kind: "Relatórios",
+        items: [
+          { href: "/contabilidade/balancete", label: "Balancete", icon: Calculator },
+          { href: "/contabilidade/dre", label: "DRE", icon: BarChart3 },
+        ],
+      },
     ],
   },
   {

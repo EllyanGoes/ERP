@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { TipoProdutoQuickCreate, UnidadeQuickCreate } from "@/components/shared/QuickCreateDialogs";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
+import { CATEGORIA_ESTOQUE_VALUES, CATEGORIA_ESTOQUE_LABELS } from "@/lib/categoria-estoque-ui";
 
 type TipoProduto = { id: string; nome: string };
 type Unidade     = { id: string; sigla: string; nome: string };
@@ -19,6 +20,7 @@ type FormData = {
   descricao: string;
   tipo: "PRODUTO" | "MATERIA_PRIMA" | "SERVICO";
   tipoProdutoId: string;
+  categoriaEstoque: string;
   unidadeId: string;
   ncm: string;
   precoVenda: string;
@@ -32,6 +34,7 @@ const INITIAL: FormData = {
   descricao: "",
   tipo: "PRODUTO",
   tipoProdutoId: "",
+  categoriaEstoque: "",
   unidadeId: "",
   ncm: "",
   precoVenda: "",
@@ -102,6 +105,7 @@ export default function NovoProdutoPage() {
         comodato: form.comodato,
       };
       if (form.tipoProdutoId) payload.tipoProdutoId = form.tipoProdutoId;
+      if (form.categoriaEstoque) payload.categoriaEstoque = form.categoriaEstoque;
       if (form.unidadeId)    payload.unidadeId    = form.unidadeId;
 
       const res = await fetch("/api/suprimentos/produtos", {
@@ -194,6 +198,22 @@ export default function NovoProdutoPage() {
                 triggerClassName={errors.tipoProdutoId ? "border-red-300 focus:ring-red-400" : undefined}
               />
               {errors.tipoProdutoId && <p className="text-red-500 text-xs">{errors.tipoProdutoId}</p>}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Categoria de estoque</Label>
+              <Select value={form.categoriaEstoque || "__none"} onValueChange={(v) => set("categoriaEstoque", v === "__none" ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Não classificado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Não classificado</SelectItem>
+                  {CATEGORIA_ESTOQUE_VALUES.map((c) => (
+                    <SelectItem key={c} value={c}>{CATEGORIA_ESTOQUE_LABELS[c]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-gray-400">Define em quais locais de estoque o produto pode entrar.</p>
             </div>
 
             <div className="space-y-1.5">

@@ -14,12 +14,14 @@ import { Separator } from "@/components/ui/separator";
 import { decimalToNumber } from "@/lib/utils";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
+import { CATEGORIA_ESTOQUE_VALUES, CATEGORIA_ESTOQUE_LABELS } from "@/lib/categoria-estoque-ui";
 
 type ItemWithEstoque = {
   id: string;
   codigo: string;
   descricao: string;
   tipo: string;
+  categoriaEstoque: string | null;
   unidadeMedida: string;
   ncm: string | null;
   cest: string | null;
@@ -43,6 +45,7 @@ export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
       codigo: item.codigo,
       descricao: item.descricao,
       tipo: item.tipo as any,
+      categoriaEstoque: (item.categoriaEstoque ?? undefined) as ItemFormData["categoriaEstoque"],
       unidadeMedida: item.unidadeMedida as any,
       ncm: item.ncm ?? "",
       cest: item.cest ?? "",
@@ -113,6 +116,19 @@ export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
                     <SelectItem value="PRODUTO">Produto</SelectItem>
                     <SelectItem value="SERVICO">Serviço</SelectItem>
                     <SelectItem value="MATERIA_PRIMA">Matéria-Prima</SelectItem>
+                  </SelectContent>
+                </Select>
+              <FormMessage /></FormItem>
+            )} />
+            <FormField control={form.control} name="categoriaEstoque" render={({ field }) => (
+              <FormItem><FormLabel>Categoria de estoque</FormLabel>
+                <Select onValueChange={(v) => field.onChange(v === "__none" ? undefined : v)} value={field.value ?? "__none"}>
+                  <FormControl><SelectTrigger><SelectValue placeholder="Não classificado" /></SelectTrigger></FormControl>
+                  <SelectContent>
+                    <SelectItem value="__none">Não classificado</SelectItem>
+                    {CATEGORIA_ESTOQUE_VALUES.map((c) => (
+                      <SelectItem key={c} value={c}>{CATEGORIA_ESTOQUE_LABELS[c]}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               <FormMessage /></FormItem>

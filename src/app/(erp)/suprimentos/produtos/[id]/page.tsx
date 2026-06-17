@@ -20,6 +20,8 @@ import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker"
 import { cn, formatBRL, decimalToNumber, formatDate } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
+import type { CategoriaEstoque } from "@prisma/client";
+import { CATEGORIA_ESTOQUE_VALUES, CATEGORIA_ESTOQUE_LABELS, rotuloCategoria } from "@/lib/categoria-estoque-ui";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Movimentacao = {
@@ -52,6 +54,7 @@ type Item = {
   unidadeMedida: string;
   unidade: { id: string; sigla: string; nome: string } | null;
   tipoProduto: { id: string; nome: string } | null;
+  categoriaEstoque: CategoriaEstoque | null;
   ncm: string | null;
   precoVenda: unknown;
   precoCusto: unknown;
@@ -1066,6 +1069,21 @@ export default function ProdutoDetailPage() {
                         renderCreateModal={(args) => <TipoProdutoQuickCreate {...args} />}
                       />
                     </Field>
+                    <Field label="Categoria de estoque">
+                      <Select
+                        value={((form.categoriaEstoque as string) || "") || "__none"}
+                        onValueChange={(v) => setForm((p) => ({ ...p, categoriaEstoque: v === "__none" ? null : v }))}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Não classificado" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">Não classificado</SelectItem>
+                          {CATEGORIA_ESTOQUE_VALUES.map((c) => (
+                            <SelectItem key={c} value={c}>{CATEGORIA_ESTOQUE_LABELS[c]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-gray-400 mt-1">Define em quais locais de estoque o produto pode entrar.</p>
+                    </Field>
                     <Field label="Descrição" colSpan>
                       <Input value={(form.descricao as string) ?? ""} onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))} />
                     </Field>
@@ -1150,6 +1168,7 @@ export default function ProdutoDetailPage() {
                   <>
                     <Info label="Código" value={item.codigo} mono />
                     <Info label="Tipo de Produto" value={item.tipoProduto?.nome} />
+                    <Info label="Categoria de estoque" value={item.categoriaEstoque ? rotuloCategoria(item.categoriaEstoque) : undefined} />
                     <Info label="Descrição" value={item.descricao} colSpan />
 
                     {/* Unidade de Estoque — campo rico com referência às conversões */}
