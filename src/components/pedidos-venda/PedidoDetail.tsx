@@ -719,7 +719,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               <span className="text-gray-500">Situação</span>
               <StatusDimBadges entrega={pedido.statusEntrega} financeiro={pedido.statusFinanceiro} className="justify-end" />
             </div>
-            <div className="flex justify-between"><span className="text-gray-500">Cliente</span><span className="font-medium">{pedido.cliente.razaoSocial}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Cliente</span><Link href={`/clientes/${pedido.cliente.id}`} className="font-medium text-blue-600 hover:underline">{pedido.cliente.razaoSocial}</Link></div>
             <div className="flex justify-between items-center">
               <span className="text-gray-500">Modalidade</span>
               <span className={cn(
