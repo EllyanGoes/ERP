@@ -60,11 +60,15 @@ function NodeCard({ kind, data, selected }: { kind: NodeKind; data: FlowNodeData
           <p className="text-sm font-medium text-gray-800 truncate leading-tight">{data.label || "Sem nome"}</p>
         </div>
       </div>
-      {(sub || data.perdaPct != null || data.isBottleneck) && (
+      {(sub || data.perdaPct != null || data.isBottleneck || data.saldoBadge != null) && (
         <div className="mt-1 flex flex-wrap items-center gap-1">
           {sub && <span className="text-[10px] text-gray-500 truncate max-w-[180px]">{sub}</span>}
           {data.perdaPct != null && data.perdaPct > 0 && (
             <span className="text-[10px] rounded bg-rose-50 text-rose-600 px-1">perda {data.perdaPct}%</span>
+          )}
+          {/* Saldo da fase (tela de chão de fábrica). */}
+          {data.saldoBadge != null && (
+            <span className="text-[10px] font-semibold rounded bg-gray-900/85 text-white px-1.5 py-0.5">{String(data.saldoBadge)}</span>
           )}
           {data.isBottleneck && <span className="text-[10px] font-semibold text-red-600">⚠ gargalo</span>}
         </div>

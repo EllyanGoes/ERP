@@ -106,13 +106,25 @@ export default function NodeConfigSheet({ kind, data, centros, locais, onChange,
         )}
 
         {isBuffer && (
-          <div>
-            <label className={labelCls}>Estado do WIP</label>
-            <select className={inputCls} value={data.estadoWip ?? ""} onChange={(e) => onChange({ estadoWip: (e.target.value || null) as FlowNodeData["estadoWip"] })}>
-              <option value="">—</option>
-              {WIP_OPCOES.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
-            </select>
-          </div>
+          <>
+            <div>
+              <label className={labelCls}>Estado do WIP</label>
+              <select className={inputCls} value={data.estadoWip ?? ""} onChange={(e) => onChange({ estadoWip: (e.target.value || null) as FlowNodeData["estadoWip"] })}>
+                <option value="">—</option>
+                {WIP_OPCOES.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Local de estoque (fase)</label>
+              <ComboboxWithCreate
+                value={data.localEstoqueId ?? ""}
+                onChange={(v) => onChange({ localEstoqueId: v || null })}
+                noneLabel="—"
+                triggerClassName="h-9 rounded-lg"
+                options={locais.map((l) => ({ value: l.id, label: l.nome }))}
+              />
+            </div>
+          </>
         )}
 
         {(isOperacao || isTransporte || isInspecao) && (
