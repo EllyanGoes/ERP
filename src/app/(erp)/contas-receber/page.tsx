@@ -7,10 +7,24 @@ import { formatBRL, decimalToNumber, isVencida } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export default async function ContasReceberPage() {
-  const contas = await prisma.contaReceber.findMany({
+  const contasRaw = await prisma.contaReceber.findMany({
     where: { status: { notIn: ["CANCELADA"] } },
-    include: { cliente: { select: { id: true, razaoSocial: true } } },
+    include: {
+      cliente: { select: { id: true, razaoSocial: true } },
+      contaBancaria: { select: { id: true, nome: true } },
+      lancamentos: { select: { contaBancaria: { select: { id: true, nome: true } } } },
+    },
     orderBy: { dataVencimento: "asc" },
+  });
+
+  // Conta de contrapartida: onde o título caiu (lançamentos) ou, sem baixa, a
+  // conta designada do título. Distinta — um título com pagamento misto pode ter
+  // mais de uma conta.
+  const contas = contasRaw.map((c) => {
+    const lancContas = c.lancamentos.map((l) => l.contaBancaria).filter((x): x is { id: string; nome: string } => !!x);
+    const base = lancContas.length > 0 ? lancContas : (c.contaBancaria ? [c.contaBancaria] : []);
+    const distinta = Array.from(new Map(base.map((x) => [x.id, x])).values());
+    return { ...c, contasContrapartida: distinta };
   });
 
   const emAberto = contas

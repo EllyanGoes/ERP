@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { formatBRL, formatDate, decimalToNumber, isVencida } from "@/lib/utils";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import PagamentosInput, {
   type FormaOpt, type ContaOpt, type LinhaPagamento,
   novaLinhaPagamento, parseValorBR, contaPadraoParaForma, pagamentoContaInvalida,
@@ -19,6 +20,7 @@ type ContaRow = {
   dataVencimento: Date | string; dataPagamento: Date | string | null;
   valorOriginal: unknown; valorPago: unknown;
   fornecedor: { id: string; razaoSocial: string } | null;
+  contasContrapartida?: { id: string; nome: string }[];
 };
 
 type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "PAGA";
@@ -46,9 +48,19 @@ const FILTROS_PAGAR: { key: StatusFiltro; label: string }[] = [
 export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
   const router = useRouter();
   const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("TODOS");
+  const [contaFiltro, setContaFiltro] = useState<string>("");
+  // Contas de contrapartida distintas presentes na lista (para o filtro).
+  const contasDisponiveis = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of contas) for (const cc of c.contasContrapartida ?? []) m.set(cc.id, cc.nome);
+    return Array.from(m.entries()).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [contas]);
   const contasFiltradas = useMemo(
-    () => (statusFiltro === "TODOS" ? contas : contas.filter((c) => casaStatus(c, statusFiltro))),
-    [contas, statusFiltro],
+    () => contas.filter((c) =>
+      (statusFiltro === "TODOS" || casaStatus(c, statusFiltro)) &&
+      (contaFiltro === "" || (c.contasContrapartida ?? []).some((cc) => cc.id === contaFiltro)),
+    ),
+    [contas, statusFiltro, contaFiltro],
   );
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [dataPag, setDataPag] = useState(new Date().toISOString().split("T")[0]);
@@ -89,6 +101,14 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
     },
     { accessorKey: "valorOriginal", header: "Valor", cell: ({ row }) => <span className="font-medium">{formatBRL(decimalToNumber(row.original.valorOriginal))}</span> },
     { accessorKey: "status", header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
+    {
+      id: "conta",
+      header: "Conta",
+      cell: ({ row }) => {
+        const cs = row.original.contasContrapartida ?? [];
+        return cs.length ? <span className="text-xs text-gray-600">{cs.map((c) => c.nome).join(" + ")}</span> : <span className="text-gray-300">—</span>;
+      },
+    },
     {
       id: "actions",
       header: "",
@@ -145,6 +165,17 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
             </button>
           );
         })}
+        {contasDisponiveis.length > 0 && (
+          <div className="ml-auto w-60">
+            <ComboboxWithCreate
+              value={contaFiltro}
+              onChange={setContaFiltro}
+              noneLabel="Todas as contas"
+              triggerClassName="h-9 rounded-lg"
+              options={contasDisponiveis.map((c) => ({ value: c.id, label: c.nome }))}
+            />
+          </div>
+        )}
       </div>
       <DataTable
         data={contasFiltradas}
