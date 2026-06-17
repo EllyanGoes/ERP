@@ -45,6 +45,35 @@ export function formaEhDinheiro(nome: string, formas: FormaOpt[]): boolean {
   return /dinheiro|espécie|especie/i.test(nome);
 }
 
+/** É conta do tipo Caixa (dinheiro físico)? Inclui o "caixa-geral" legado. */
+export function contaEhCaixa(contaId: string, contas: ContaOpt[]): boolean {
+  if (!contaId) return false;
+  if (contaId === "caixa-geral") return true;
+  return contas.some((c) => c.id === contaId && c.tipo === "CAIXA");
+}
+
+/**
+ * Conta de destino sugerida para a forma: dinheiro cai no Caixa; formas
+ * eletrônicas (Pix, cartão, transferência…) NÃO recebem default — o caixa tem
+ * de escolher o banco, senão o eletrônico iria parar no Caixa em Dinheiro.
+ */
+export function contaPadraoParaForma(forma: string, formas: FormaOpt[], contas: ContaOpt[]): string {
+  return formaEhDinheiro(forma, formas) ? contaCaixaPadrao(contas) : "";
+}
+
+/**
+ * Bloqueio de roteamento: retorna a primeira linha (valor > 0) cuja forma NÃO é
+ * dinheiro mas a conta está vazia ou aponta para o Caixa — o que mandaria o
+ * dinheiro eletrônico para o caixa físico. null = tudo certo.
+ */
+export function pagamentoContaInvalida(linhas: LinhaPagamento[], formas: FormaOpt[], contas: ContaOpt[]): LinhaPagamento | null {
+  return linhas.find((l) =>
+    parseValorBR(l.valor) > 0 &&
+    !formaEhDinheiro(l.forma, formas) &&
+    (!l.contaBancariaId || contaEhCaixa(l.contaBancariaId, contas))
+  ) ?? null;
+}
+
 export default function PagamentosInput({
   linhas, setLinhas, formas, contas, total, mostrarConta = true,
 }: {
@@ -63,6 +92,18 @@ export default function PagamentosInput({
 
   function up(key: string, campo: keyof LinhaPagamento, valor: string) {
     setLinhas((prev) => prev.map((l) => l._key === key ? { ...l, [campo]: valor } : l));
+  }
+  // Ao trocar a forma, a conta de destino segue a forma: dinheiro → Caixa;
+  // eletrônica → limpa o Caixa (força escolher o banco), mas preserva um banco
+  // já selecionado para não atrapalhar quem alterna entre formas eletrônicas.
+  function changeForma(key: string, novaForma: string) {
+    setLinhas((prev) => prev.map((l) => {
+      if (l._key !== key) return l;
+      let conta = l.contaBancariaId;
+      if (formaEhDinheiro(novaForma, formas)) conta = contaCaixaPadrao(contas);
+      else if (contaEhCaixa(l.contaBancariaId, contas)) conta = "";
+      return { ...l, forma: novaForma, contaBancariaId: conta };
+    }));
   }
   function add() {
     // nova linha já sugere o que falta como valor; conta = caixa da empresa
@@ -90,7 +131,7 @@ export default function PagamentosInput({
           <div className="min-w-0">
             <ComboboxWithCreate
               value={l.forma}
-              onChange={(v) => up(l._key, "forma", v)}
+              onChange={(v) => changeForma(l._key, v)}
               placeholder="— Forma —"
               noneLabel="Forma"
               triggerClassName="h-9 rounded-lg w-full min-w-0"
@@ -101,18 +142,24 @@ export default function PagamentosInput({
               ]}
             />
           </div>
-          {mostrarConta && (
-            <ComboboxWithCreate
-              value={l.contaBancariaId}
-              onChange={(v) => up(l._key, "contaBancariaId", v)}
-              allowNone={false}
-              triggerClassName="h-9 rounded-lg"
-              options={[
-                ...(!temCaixa ? [{ value: "caixa-geral", label: "Caixa Geral" }] : []),
-                ...contasOpts.map((c) => ({ value: c.id, label: c.nome })),
-              ]}
-            />
-          )}
+          {mostrarConta && (() => {
+            // Forma eletrônica sem banco (ou apontando para o Caixa) = roteamento
+            // errado: destaca em vermelho e exige a escolha do banco.
+            const invalida = parseValorBR(l.valor) > 0 && !formaEhDinheiro(l.forma, formas) && (!l.contaBancariaId || contaEhCaixa(l.contaBancariaId, contas));
+            return (
+              <ComboboxWithCreate
+                value={l.contaBancariaId}
+                onChange={(v) => up(l._key, "contaBancariaId", v)}
+                allowNone={false}
+                placeholder="Conta de destino"
+                triggerClassName={cn("h-9 rounded-lg", invalida && "border-red-400 bg-red-50 text-red-700")}
+                options={[
+                  ...(!temCaixa ? [{ value: "caixa-geral", label: "Caixa Geral" }] : []),
+                  ...contasOpts.map((c) => ({ value: c.id, label: c.nome })),
+                ]}
+              />
+            );
+          })()}
           <input
             value={l.valor}
             onChange={(e) => up(l._key, "valor", e.target.value)}

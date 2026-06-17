@@ -120,6 +120,26 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         troco: false,
       }] : []);
 
+  // Guarda de roteamento: forma eletrônica (Pix, cartão, transferência…) não
+  // pode cair em conta tipo CAIXA (dinheiro físico). Espelha a trava do caixa e
+  // protege contra Pix/cartão sendo lançados no Caixa em Dinheiro.
+  if (linhas.length > 0) {
+    const contaIds = Array.from(new Set(linhas.map((l) => l.contaBancariaId)));
+    const [contasInfo, formasInfo] = await Promise.all([
+      prisma.contaBancaria.findMany({ where: { id: { in: contaIds } }, select: { id: true, tipo: true } }),
+      prisma.formaPagamento.findMany({ select: { nome: true, tipo: true } }),
+    ]);
+    const ehDinheiro = (forma: string) => {
+      const f = formasInfo.find((x) => x.nome === forma);
+      return f ? f.tipo === "DINHEIRO" : /dinheiro|esp[ée]cie/i.test(forma);
+    };
+    const contaEhCaixa = (id: string) => id === "caixa-geral" || contasInfo.some((c) => c.id === id && c.tipo === "CAIXA");
+    const ruim = linhas.find((l) => l.valor > 0 && !ehDinheiro(l.forma) && contaEhCaixa(l.contaBancariaId));
+    if (ruim) {
+      return NextResponse.json({ error: `A forma "${ruim.forma}" não pode ser recebida no Caixa em Dinheiro — selecione a conta bancária de destino.` }, { status: 422 });
+    }
+  }
+
   if (alvoCash > 0) {
     const somaPag = round2(linhas.reduce((s, l) => s + l.valor, 0));
     if (somaPag < alvoCash - 0.001) {

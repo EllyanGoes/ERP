@@ -16,7 +16,8 @@ import { cn, formatBRL, decimalToNumber, parseDecimal } from "@/lib/utils";
 import { printEscPosUSB } from "@/lib/webusb-print";
 import { buildPedidoEscPos, printPedidoTermicaDialog, type PedidoPrintData } from "@/lib/print-pedido";
 import PagamentosInput, {
-  novaLinhaPagamento, parseValorBR, pagamentosPayload, pagamentosValidos, contaCaixaPadrao,
+  novaLinhaPagamento, parseValorBR, pagamentosPayload, pagamentosValidos,
+  contaPadraoParaForma, pagamentoContaInvalida,
   type LinhaPagamento, type FormaOpt,
 } from "@/components/pedidos-venda/PagamentosInput";
 import { Search, RefreshCw, Loader2, Receipt, CheckCircle2, Printer } from "lucide-react";
@@ -161,19 +162,20 @@ export default function PdvPage() {
         // Recebimento puxa a data de emissão (pagamento na hora); editável.
         setData(dataInput(j.data?.dataEmissao));
         const tot = decimalToNumber(j.data?.valorTotal ?? 0);
-        const caixaId = contaCaixaPadrao(contas);
         const pags: { forma: string; valor: unknown }[] = j.data?.pagamentos ?? [];
         if (pags.length > 0) {
-          // Pré-carrega as formas previstas no pedido (vendedor já definiu);
-          // o caixa só confirma. Conta default = caixa em dinheiro da empresa.
+          // Pré-carrega as formas previstas no pedido (vendedor já definiu); o
+          // caixa só confirma. A conta default segue a forma: dinheiro → Caixa;
+          // eletrônica fica vazia para o caixa escolher o banco de destino.
           setPagamentos(pags.map((p) =>
-            novaLinhaPagamento(p.forma, caixaId, decimalToNumber(p.valor).toFixed(2).replace(".", ",")),
+            novaLinhaPagamento(p.forma, contaPadraoParaForma(p.forma, formas, contas), decimalToNumber(p.valor).toFixed(2).replace(".", ",")),
           ));
         } else {
           // Sem pagamentos previstos: 1 linha com o total e a forma do pedido.
+          const forma = j.data?.formaPagamento ?? "";
           setPagamentos([novaLinhaPagamento(
-            j.data?.formaPagamento ?? "",
-            caixaId,
+            forma,
+            contaPadraoParaForma(forma, formas, contas),
             tot > 0 ? tot.toFixed(2).replace(".", ",") : "",
           )]);
         }
@@ -196,6 +198,11 @@ export default function PdvPage() {
     const total = decimalToNumber(pedido.valorTotal);
     if (!pagamentosValidos(pagamentos, formas, total)) {
       setErro("Confira as formas de pagamento — a soma precisa cobrir o total (troco só em dinheiro).");
+      return;
+    }
+    const contaRuim = pagamentoContaInvalida(pagamentos, formas, contas);
+    if (contaRuim) {
+      setErro(`Selecione a conta bancária de destino para "${contaRuim.forma || "a forma eletrônica"}" — formas que não são dinheiro não podem cair no Caixa em Dinheiro.`);
       return;
     }
     setConcluindo(true);
