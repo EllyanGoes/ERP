@@ -1,0 +1,126 @@
+"use client";
+// Central de Documentação: explica cada módulo do sistema com os processos
+// mapeados em simbologia BPMN (macro + micro), mostrando como se relacionam.
+// Acessível pelo painel de Ajuda (tecla "?") → card "Documentação".
+import { useState } from "react";
+import Link from "next/link";
+import { ArrowRight, Info } from "lucide-react";
+import PageHeader from "@/components/shared/PageHeader";
+import ProcessoDiagram from "@/components/documentacao/ProcessoDiagram";
+import { MODULOS } from "@/lib/documentacao/conteudo";
+
+export default function DocumentacaoPage() {
+  const [ativoId, setAtivoId] = useState(MODULOS[0].id);
+  const ativo = MODULOS.find((m) => m.id === ativoId) ?? MODULOS[0];
+
+  return (
+    <div>
+      <PageHeader
+        title="Documentação"
+        subtitle="Como cada módulo funciona — processos mapeados em BPMN, do macro ao micro."
+        breadcrumbs={[{ label: "Ajuda" }, { label: "Documentação" }]}
+      />
+
+      <div className="px-8 pb-12 flex gap-8 items-start">
+        {/* Navegação por módulo */}
+        <nav className="w-56 shrink-0 sticky top-6 space-y-1">
+          {MODULOS.map((m) => {
+            const Icon = m.icon;
+            const ativoCls = m.id === ativoId;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setAtivoId(m.id)}
+                className={
+                  "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors " +
+                  (ativoCls
+                    ? "bg-blue-50 text-blue-700"
+                    : "text-gray-600 hover:bg-gray-50")
+                }
+              >
+                <Icon className={"h-4 w-4 shrink-0 " + (ativoCls ? "text-blue-600" : "text-gray-400")} />
+                {m.label}
+              </button>
+            );
+          })}
+          <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2.5 text-[11px] text-amber-700">
+            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <span>PCM, PCP e Contabilidade entram na documentação em breve.</span>
+          </div>
+        </nav>
+
+        {/* Conteúdo do módulo */}
+        <div className="flex-1 min-w-0 space-y-8">
+          <div>
+            <div className="flex items-center gap-2.5 mb-2">
+              <ativo.icon className="h-5 w-5 text-gray-700" />
+              <h2 className="text-xl font-semibold text-gray-900">{ativo.label}</h2>
+            </div>
+            <p className="text-sm text-gray-600 leading-relaxed max-w-3xl">{ativo.resumo}</p>
+          </div>
+
+          {/* Telas relacionadas */}
+          {ativo.telas.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 mb-3">
+                Telas deste módulo
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {ativo.telas.map((t) => (
+                  <Link
+                    key={t.href}
+                    href={t.href}
+                    className="group flex items-center justify-between gap-3 rounded-xl border border-gray-100 p-3.5 hover:border-gray-200 hover:shadow-sm transition-all"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors">{t.label}</p>
+                      <p className="text-xs text-gray-400">{t.descricao}</p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-gray-300 group-hover:text-blue-500 transition-colors" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Processos (BPMN) */}
+          {ativo.processos.map((p) => (
+            <div key={p.titulo}>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 mb-1.5">
+                Processo
+              </p>
+              <h3 className="text-base font-semibold text-gray-900">{p.titulo}</h3>
+              <p className="text-sm text-gray-600 leading-relaxed max-w-3xl mt-1 mb-3">{p.texto}</p>
+              <ProcessoDiagram grafo={p.grafo} altura={ativo.id === "visao-geral" ? 460 : 360} />
+            </div>
+          ))}
+
+          {/* Legenda BPMN */}
+          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 mb-3">
+              Legenda (simbologia BPMN)
+            </p>
+            <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-gray-600">
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 rounded-full border-2 border-emerald-500" /> Início do processo
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 rounded-full border-[3px] border-rose-500" /> Fim do processo
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-6 rounded border-2 border-gray-300 bg-white" /> Tarefa / atividade
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="h-3.5 w-3.5 rotate-45 border-2 border-amber-400 bg-amber-50" /> Decisão (gateway)
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-5 rounded border border-dashed border-gray-300 bg-white" /> Anotação
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -112,8 +112,8 @@ export default function HelpPanel() {
               <SupportCard
                 icon={<BookOpen className="h-4 w-4 text-violet-600" />}
                 title="Documentação"
-                description="Guias e tutoriais do sistema"
-                href="#"
+                description="Processos do sistema em BPMN, módulo a módulo"
+                href="/documentacao"
                 bg="bg-violet-50"
               />
             </div>
