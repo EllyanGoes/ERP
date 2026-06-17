@@ -179,11 +179,19 @@ export default function RequisicaoDetailPage() {
   }
 
   async function updateStatus(status: string) {
-    await fetch(`/api/suprimentos/requisicoes-materiais/${id}`, {
+    setSaveError("");
+    const res = await fetch(`/api/suprimentos/requisicoes-materiais/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
+    if (!res.ok) {
+      // Mostra o motivo (ex.: saldo insuficiente trava a baixa ao Atender) em vez
+      // de recarregar em silêncio — o botão parecia "não funcionar".
+      const j = await res.json().catch(() => ({}));
+      setSaveError(j.error || "Não foi possível alterar o status da requisição.");
+      return;
+    }
     await load();
   }
 
