@@ -44,7 +44,7 @@ export default function LancamentosContabeisPage() {
       const res = await fetch("/api/contabilidade/backfill", { method: "POST" });
       const j = await res.json();
       if (res.ok) {
-        setAviso(`Gerados/conferidos ${j.lancamentos} lançamento(s)${j.pulados ? `, ${j.pulados} pulado(s)` : ""}.`);
+        setAviso(`${j.processados} título(s) processado(s).${j.erros?.length ? ` ${j.erros.length} com erro.` : ""}`);
         await load();
       } else setAviso(j.error || "Erro ao gerar lançamentos");
     } finally { setGerando(false); }

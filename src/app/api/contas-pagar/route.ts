@@ -5,6 +5,7 @@ import { requireModulo } from "@/lib/permissions";
 import { contaPagarSchema } from "@/lib/validations/financeiro";
 import { generateDocNumber } from "@/lib/utils";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { contabilizarTituloPagar } from "@/lib/contabilidade";
 
 export async function GET(req: NextRequest) {
   const auth = await requireModulo("financeiro");
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest) {
         dataVencimento: new Date(parsed.data.dataVencimento),
       },
     });
+    await contabilizarTituloPagar(conta.id).catch(() => {});
     return NextResponse.json({ data: conta }, { status: 201 });
   }
 
@@ -93,6 +95,8 @@ export async function POST(req: NextRequest) {
     }
     return criadas;
   });
+
+  for (const conta of contas) await contabilizarTituloPagar(conta.id).catch(() => {});
 
   return NextResponse.json({ data: contas, grupoParcelamentoId }, { status: 201 });
 }

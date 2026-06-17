@@ -1,4 +1,5 @@
 import { prismaSemEscopo } from "@/lib/prisma";
+import { decimalToNumber } from "@/lib/utils";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -81,6 +82,88 @@ export async function registrarLancamento(input: LancamentoIn) {
     },
     select: { id: true },
   });
+}
+
+// ── Contabilização por título (reusada pelo backfill e pelos hooks ao vivo) ───
+// Idempotente: gera VENDA e (se houver valor pago) RECEBIMENTO de uma conta a
+// receber, conforme o estado atual do título. Best-effort: retorna sem lançar
+// quando o plano de contas não resolve.
+export async function contabilizarTituloReceber(crId: string) {
+  const cr = await prismaSemEscopo.contaReceber.findUnique({
+    where: { id: crId },
+    select: { id: true, empresaId: true, clienteId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
+  });
+  if (!cr || cr.status === "CANCELADA") return;
+
+  const [contaCli, contaReceita, contaCaixa] = await Promise.all([
+    contaDoCliente(cr.empresaId, cr.clienteId),
+    contaPorCodigo(cr.empresaId, "3.1"),
+    contaPorCodigo(cr.empresaId, "1.1.1"),
+  ]);
+  if (!contaCli) return;
+
+  const valor = decimalToNumber(cr.valorOriginal);
+  if (valor > 0 && contaReceita) {
+    await registrarLancamento({
+      empresaId: cr.empresaId, data: cr.dataCompetencia ?? cr.createdAt,
+      historico: `Venda — título ${cr.numero}`, origemTipo: "VENDA", origemId: cr.id,
+      partidas: [
+        { contaId: contaCli.id, tipo: "DEBITO", valor, clienteId: cr.clienteId },
+        { contaId: contaReceita.id, tipo: "CREDITO", valor },
+      ],
+    });
+  }
+  const pago = decimalToNumber(cr.valorPago);
+  if (pago > 0 && contaCaixa) {
+    await registrarLancamento({
+      empresaId: cr.empresaId, data: cr.dataPagamento ?? cr.createdAt,
+      historico: `Recebimento — título ${cr.numero}`, origemTipo: "RECEBIMENTO", origemId: cr.id,
+      partidas: [
+        { contaId: contaCaixa.id, tipo: "DEBITO", valor: pago },
+        { contaId: contaCli.id, tipo: "CREDITO", valor: pago, clienteId: cr.clienteId },
+      ],
+    });
+  }
+}
+
+// Idempotente: gera COMPRA e (se houver valor pago) PAGAMENTO de uma conta a
+// pagar. Só contabiliza títulos com fornecedor.
+export async function contabilizarTituloPagar(cpId: string) {
+  const cp = await prismaSemEscopo.contaPagar.findUnique({
+    where: { id: cpId },
+    select: { id: true, empresaId: true, fornecedorId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
+  });
+  if (!cp || cp.status === "CANCELADA" || !cp.fornecedorId) return;
+
+  const [contaForn, contaDespesa, contaCaixa] = await Promise.all([
+    contaDoFornecedor(cp.empresaId, cp.fornecedorId),
+    contaPorCodigo(cp.empresaId, "3.3"),
+    contaPorCodigo(cp.empresaId, "1.1.1"),
+  ]);
+  if (!contaForn) return;
+
+  const valor = decimalToNumber(cp.valorOriginal);
+  if (valor > 0 && contaDespesa) {
+    await registrarLancamento({
+      empresaId: cp.empresaId, data: cp.dataCompetencia ?? cp.createdAt,
+      historico: `Compra — título ${cp.numero}`, origemTipo: "COMPRA", origemId: cp.id,
+      partidas: [
+        { contaId: contaDespesa.id, tipo: "DEBITO", valor },
+        { contaId: contaForn.id, tipo: "CREDITO", valor, fornecedorId: cp.fornecedorId },
+      ],
+    });
+  }
+  const pago = decimalToNumber(cp.valorPago);
+  if (pago > 0 && contaCaixa) {
+    await registrarLancamento({
+      empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
+      historico: `Pagamento — título ${cp.numero}`, origemTipo: "PAGAMENTO", origemId: cp.id,
+      partidas: [
+        { contaId: contaForn.id, tipo: "DEBITO", valor: pago, fornecedorId: cp.fornecedorId },
+        { contaId: contaCaixa.id, tipo: "CREDITO", valor: pago },
+      ],
+    });
+  }
 }
 
 /**
