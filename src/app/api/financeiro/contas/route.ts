@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { contaBancariaSchema } from "@/lib/validations/financeiro";
 import { saldosTodasContas } from "@/lib/financeiro";
+import { garantirContaContabilBanco } from "@/lib/conta-contabil";
 
 export async function GET() {
   const auth = await requireModulo("financeiro");
@@ -11,7 +12,10 @@ export async function GET() {
 
   const [contas, saldos] = await Promise.all([
     prisma.contaBancaria.findMany({
-      include: { banco: { select: { id: true, nome: true } } },
+      include: {
+        banco: { select: { id: true, nome: true } },
+        contasContabeis: { select: { id: true, codigo: true, nome: true }, take: 1 },
+      },
       orderBy: { nome: "asc" },
     }),
     saldosTodasContas(),
@@ -39,5 +43,8 @@ export async function POST(req: NextRequest) {
       ativo: parsed.data.ativo,
     },
   });
+  // Vincula a conta à disponibilidade do plano de contas (analítica sob 1.1.1).
+  await garantirContaContabilBanco(conta.id).catch(() => {});
+
   return NextResponse.json({ data: conta }, { status: 201 });
 }

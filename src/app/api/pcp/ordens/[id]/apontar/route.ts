@@ -5,6 +5,7 @@ import { requireModulo } from "@/lib/permissions";
 import type { Prisma, StatusEtapaOP, StatusOrdemProducao } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateLocalProducao, getOrCreateWipItem, getOrCreateLoteProducao, postMovimento } from "@/lib/pcp/wip-estoque";
+import { contabilizarProducaoOrdem } from "@/lib/contabilidade";
 
 function numOrNull(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -169,6 +170,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       await tx.ordemProducao.update({ where: { id: params.id }, data: opData });
     }
   });
+
+  // Contabiliza a produção (D Estoque / C Custo de Produção) quando a ordem
+  // conclui. Best-effort, pós-commit — não bloqueia o apontamento.
+  await contabilizarProducaoOrdem(params.id).catch(() => {});
 
   return NextResponse.json({ ok: true });
 }

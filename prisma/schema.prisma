@@ -412,6 +412,7 @@ model ContaBancaria {
   contasPagar      ContaPagar[]
   recorrencias     Recorrencia[]
   importacoesOFX   ImportacaoOFX[]
+  contasContabeis  ContaContabil[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -499,6 +500,7 @@ model ContaContabil {
   fornecedorId     String? // analítica vinculada a um fornecedor (uma por empresa)
   naturezaFinanceiraId String? // analítica de resultado vinculada a uma natureza
   localEstoqueId   String? // analítica de estoque vinculada a um local
+  contaBancariaId  String? // analítica de disponibilidade vinculada a uma conta bancária
   ativo            Boolean           @default(true)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -508,6 +510,7 @@ model ContaContabil {
   fornecedor       Fornecedor?       @relation(fields: [fornecedorId], references: [id])
   naturezaFinanceira NaturezaFinanceira? @relation(fields: [naturezaFinanceiraId], references: [id])
   localEstoque     LocalEstoque?     @relation(fields: [localEstoqueId], references: [id])
+  contaBancaria    ContaBancaria?    @relation(fields: [contaBancariaId], references: [id])
   empresa          Empresa           @relation(fields: [empresaId], references: [id])
 
   @@unique([empresaId, codigo])
@@ -515,6 +518,7 @@ model ContaContabil {
   @@unique([empresaId, fornecedorId])
   @@unique([empresaId, naturezaFinanceiraId])
   @@unique([empresaId, localEstoqueId])
+  @@unique([empresaId, contaBancariaId])
   @@index([empresaId])
   @@index([paiId])
   @@index([grupo])
@@ -530,6 +534,11 @@ enum OrigemLancamento {
   PAGAMENTO // baixa de a pagar (D Fornecedores / C Caixa)
   ESTOQUE_ENTRADA // entrada de compra (D Estoque / C Fornecedor)
   ESTOQUE_SAIDA // CMV na venda (D Custos / C Estoque)
+  ESTOQUE_PRODUCAO // entrada de produção (D Estoque / C Custo de Produção)
+  ESTOQUE_CONSUMO // requisição/consumo (D Consumo de Materiais / C Estoque)
+  ESTOQUE_AJUSTE // ajuste/inventário (sobra: C Sobras; perda: D Perdas)
+  ESTOQUE_TRANSFERENCIA // transferência entre locais (D destino / C origem)
+  DEPRECIACAO // depreciação do imobilizado (D Despesa / C Depreciação Acumulada)
   MANUAL
   ESTORNO
 }
@@ -573,6 +582,55 @@ model PartidaContabil {
   @@index([empresaId])
   @@index([contaId])
   @@index([lancamentoId])
+}
+
+enum MetodoDepreciacao {
+  LINEAR
+}
+
+enum StatusImobilizado {
+  ATIVO
+  BAIXADO
+}
+
+// Bem do ativo não circulante (imobilizado). Ligado ao plano de contas: o bem tem
+// sua própria analítica sob 1.2.1; a depreciação acumulada (1.2.2) e a despesa de
+// depreciação (3.3.9003) são contas compartilhadas. Sem FK no banco (padrão do
+// projeto) — as contas são referenciadas por id em campos String.
+model Imobilizado {
+  id                          String                  @id @default(cuid())
+  empresaId                   String                  @default("emp_tramontin")
+  descricao                   String
+  dataAquisicao               DateTime
+  valorAquisicao              Decimal                 @db.Decimal(15, 2)
+  valorResidual               Decimal                 @default(0) @db.Decimal(15, 2)
+  vidaUtilMeses               Int
+  metodo                      MetodoDepreciacao       @default(LINEAR)
+  status                      StatusImobilizado       @default(ATIVO)
+  contaAtivoId                String? // analítica do bem (1.2.1.NNNN)
+  contaDepreciacaoAcumuladaId String? // 1.2.2 (compartilhada)
+  contaDespesaId              String? // 3.3.9003 (compartilhada)
+  observacoes                 String?
+  createdAt                   DateTime                @default(now())
+  updatedAt                   DateTime                @updatedAt
+  depreciacoes                DepreciacaoLancamento[]
+
+  @@index([empresaId])
+}
+
+// Registro de depreciação mensal de um bem (idempotente por competência).
+model DepreciacaoLancamento {
+  id                   String      @id @default(cuid())
+  empresaId            String      @default("emp_tramontin")
+  imobilizadoId        String
+  competencia          DateTime // 1º dia do mês de competência
+  valor                Decimal     @db.Decimal(15, 2)
+  lancamentoContabilId String? // lançamento contábil gerado
+  createdAt            DateTime    @default(now())
+  imobilizado          Imobilizado @relation(fields: [imobilizadoId], references: [id], onDelete: Cascade)
+
+  @@unique([imobilizadoId, competencia])
+  @@index([empresaId])
 }
 
 model Recorrencia {

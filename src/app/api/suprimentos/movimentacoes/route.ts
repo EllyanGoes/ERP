@@ -8,6 +8,7 @@ import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { respostaSaldoNegativo, SaldoNegativoError } from "@/lib/estoque-guard";
 import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
+import { contabilizarLoteMovimentacao } from "@/lib/contabilidade";
 
 const itemSchema = z.object({
   itemId:         z.string().min(1),
@@ -263,6 +264,11 @@ export async function POST(req: NextRequest) {
           });
         }).catch(() => {});
       }
+    }
+
+    // Contabiliza o lote (ajuste/sobra/perda ou transferência) — best-effort.
+    if (lote.lote?.id) {
+      await contabilizarLoteMovimentacao(lote.lote.id).catch(() => {});
     }
 
     return NextResponse.json({ data: lote.lote, autoVinculos: lote.autoVinculos }, { status: 201 });

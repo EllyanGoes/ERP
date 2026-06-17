@@ -23,6 +23,7 @@ type Conta = {
   saldoAtual: number;
   ativo: boolean;
   banco: { id: string; nome: string } | null;
+  contasContabeis?: { id: string; codigo: string; nome: string }[];
 };
 type Banco = { id: string; nome: string };
 
@@ -107,6 +108,9 @@ export default function ContasBancariasPage() {
                         <p className="text-xs text-gray-400">
                           {c.agencia ? `Ag. ${c.agencia}` : ""}{c.agencia && c.numero ? " · " : ""}{c.numero ? `C/C ${c.numero}` : ""}
                         </p>
+                      )}
+                      {c.contasContabeis?.[0] && (
+                        <p className="text-[11px] text-gray-400">Conta contábil {c.contasContabeis[0].codigo}</p>
                       )}
                     </td>
                     <td className="px-6 py-3 text-gray-600">

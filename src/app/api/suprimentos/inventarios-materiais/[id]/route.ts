@@ -4,6 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { definirCustoEmpresa } from "@/lib/custo-empresa";
 import { recalcularSaldos } from "@/lib/estoque-saldos";
+import { contabilizarInventario } from "@/lib/contabilidade";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.inventarioMaterial.findUnique({
@@ -143,6 +144,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     return updated;
   });
+
+  // Contabiliza o ajuste de inventário (sobra/perda) ao concluir. Best-effort.
+  if (body.status === "CONCLUIDO") {
+    await contabilizarInventario(params.id).catch(() => {});
+  }
 
   return NextResponse.json({ data: record });
 }

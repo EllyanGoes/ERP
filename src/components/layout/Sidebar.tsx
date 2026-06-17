@@ -263,6 +263,7 @@ const mainModules: Module[] = [
         kind: "Cadastros",
         items: [
           { href: "/contabilidade/plano-contas", label: "Plano de Contas", icon: FolderTree },
+          { href: "/contabilidade/imobilizado", label: "Imobilizado", icon: Calculator },
         ],
       },
       {

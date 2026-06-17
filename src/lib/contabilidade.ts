@@ -1,12 +1,18 @@
 import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { custosDaEmpresa } from "@/lib/custo-empresa";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
 
 export type TipoPartidaIn = "DEBITO" | "CREDITO";
-export type OrigemIn = "VENDA" | "RECEBIMENTO" | "COMPRA" | "PAGAMENTO" | "ESTOQUE_ENTRADA" | "ESTOQUE_SAIDA" | "MANUAL" | "ESTORNO";
+export type OrigemIn =
+  | "VENDA" | "RECEBIMENTO" | "COMPRA" | "PAGAMENTO"
+  | "ESTOQUE_ENTRADA" | "ESTOQUE_SAIDA"
+  | "ESTOQUE_PRODUCAO" | "ESTOQUE_CONSUMO" | "ESTOQUE_AJUSTE" | "ESTOQUE_TRANSFERENCIA"
+  | "DEPRECIACAO"
+  | "MANUAL" | "ESTORNO";
 
 export type PartidaIn = {
   contaId: string;
@@ -42,6 +48,9 @@ export async function contaDoLocal(empresaId: string, localEstoqueId: string) {
 }
 export async function contaDaNatureza(empresaId: string, naturezaFinanceiraId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, naturezaFinanceiraId }, select: { id: true } });
+}
+export async function contaDoBanco(empresaId: string, contaBancariaId: string) {
+  return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, contaBancariaId }, select: { id: true } });
 }
 
 /**
@@ -98,18 +107,21 @@ export async function registrarLancamento(input: LancamentoIn) {
 export async function contabilizarTituloReceber(crId: string) {
   const cr = await prismaSemEscopo.contaReceber.findUnique({
     where: { id: crId },
-    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
+    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, contaBancariaId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
   });
   if (!cr || cr.status === "CANCELADA") return;
 
   // Receita cai na conta da natureza do título; senão na sintética 3.1.
-  const [contaCli, contaNat, conta31, contaCaixa] = await Promise.all([
+  // Caixa/banco: conta de disponibilidade do banco do título; senão a sintética 1.1.1.
+  const [contaCli, contaNat, conta31, contaBanco, conta111] = await Promise.all([
     contaDoCliente(cr.empresaId, cr.clienteId),
     cr.naturezaFinanceiraId ? contaDaNatureza(cr.empresaId, cr.naturezaFinanceiraId) : Promise.resolve(null),
     contaPorCodigo(cr.empresaId, "3.1"),
+    cr.contaBancariaId ? contaDoBanco(cr.empresaId, cr.contaBancariaId) : Promise.resolve(null),
     contaPorCodigo(cr.empresaId, "1.1.1"),
   ]);
   const contaReceita = contaNat ?? conta31;
+  const contaCaixa = contaBanco ?? conta111;
   if (!contaCli) return;
 
   const valor = decimalToNumber(cr.valorOriginal);
@@ -141,7 +153,7 @@ export async function contabilizarTituloReceber(crId: string) {
 export async function contabilizarTituloPagar(cpId: string) {
   const cp = await prismaSemEscopo.contaPagar.findUnique({
     where: { id: cpId },
-    select: { id: true, empresaId: true, fornecedorId: true, naturezaFinanceiraId: true, pedidoCompraId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
+    select: { id: true, empresaId: true, fornecedorId: true, naturezaFinanceiraId: true, contaBancariaId: true, pedidoCompraId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
   });
   if (!cp || cp.status === "CANCELADA" || !cp.fornecedorId) return;
 
@@ -151,13 +163,16 @@ export async function contabilizarTituloPagar(cpId: string) {
   const ehCompraEstoque = cp.pedidoCompraId != null;
 
   // Despesa/custo cai na conta da natureza do título; senão na sintética 3.3.
-  const [contaForn, contaNat, conta33, contaCaixa] = await Promise.all([
+  // Caixa/banco: conta de disponibilidade do banco do título; senão a sintética 1.1.1.
+  const [contaForn, contaNat, conta33, contaBanco, conta111] = await Promise.all([
     contaDoFornecedor(cp.empresaId, cp.fornecedorId),
     cp.naturezaFinanceiraId ? contaDaNatureza(cp.empresaId, cp.naturezaFinanceiraId) : Promise.resolve(null),
     contaPorCodigo(cp.empresaId, "3.3"),
+    cp.contaBancariaId ? contaDoBanco(cp.empresaId, cp.contaBancariaId) : Promise.resolve(null),
     contaPorCodigo(cp.empresaId, "1.1.1"),
   ]);
   const contaDespesa = contaNat ?? conta33;
+  const contaCaixa = contaBanco ?? conta111;
   if (!contaForn) return;
 
   const valor = decimalToNumber(cp.valorOriginal);
@@ -289,6 +304,279 @@ export async function contabilizarCmvMinuta(minutaId: string) {
     historico: `CMV — saída ${minuta.numero}`, origemTipo: "ESTOQUE_SAIDA", origemId: minuta.id,
     partidas,
   });
+}
+
+// ── Movimentos de estoque não-comerciais (produção/consumo/ajuste/transferência) ──
+// Núcleo compartilhado: valora os movimentos ao CMPM, agrega a variação por local
+// e monta um lançamento balanceado. A perna de estoque (1.1.3 do local) recebe
+// débito quando o saldo sobe e crédito quando desce; a contrapartida vai para a
+// conta de resultado indicada (positivo = estoque subiu; negativo = estoque desceu).
+// Em transferência (`semContrapartida`), as pernas de estoque se balanceiam sozinhas.
+
+type MovIn = { itemId: string; localEstoqueId: string | null; tipo: string; quantidade: unknown; saldoAntes?: unknown; saldoDepois?: unknown; clienteDonoId?: string | null };
+
+async function postMovimentosEstoque(opts: {
+  empresaId: string;
+  data: Date;
+  historico: string;
+  origemTipo: OrigemIn;
+  origemId: string;
+  movs: MovIn[];
+  contaPositivoId?: string | null; // creditada quando o estoque sobe
+  contaNegativoId?: string | null; // debitada quando o estoque desce
+  semContrapartida?: boolean; // transferência: estoque ↔ estoque
+}) {
+  const { empresaId, movs } = opts;
+  // Só estoque próprio compõe o ativo (ignora estoque de terceiros).
+  const proprios = movs.filter((m) => m.localEstoqueId && !m.clienteDonoId);
+  if (proprios.length === 0) return;
+
+  const itemIds = Array.from(new Set(proprios.map((m) => m.itemId)));
+  const custos = await custosDaEmpresa(prismaSemEscopo, empresaId, itemIds);
+
+  // Variação de valor (signed) por local.
+  const porLocal = new Map<string, number>();
+  for (const m of proprios) {
+    if (!m.localEstoqueId) continue;
+    const custo = custos.get(m.itemId) ?? 0;
+    if (!custo) continue; // sem custo → não compõe valor
+    // Direção do AJUSTE pelo sinal de (saldoDepois − saldoAntes); demais pelo tipo.
+    let sinal = 0;
+    if (m.tipo === "ENTRADA") sinal = 1;
+    else if (m.tipo === "SAIDA") sinal = -1;
+    else sinal = decimalToNumber(m.saldoDepois) >= decimalToNumber(m.saldoAntes) ? 1 : -1;
+    const v = sinal * decimalToNumber(m.quantidade) * custo;
+    porLocal.set(m.localEstoqueId, (porLocal.get(m.localEstoqueId) ?? 0) + v);
+  }
+
+  let totalPos = 0;
+  let totalNeg = 0;
+  const partidas: PartidaIn[] = [];
+  for (const [localId, v] of Array.from(porLocal.entries())) {
+    if (Math.abs(v) < 0.005) continue;
+    const cl = await garantirContaLocalNaEmpresa(empresaId, localId);
+    if (!cl) return; // sem conta de local → aborta (não desbalancear)
+    if (v > 0) { partidas.push({ contaId: cl.id, tipo: "DEBITO", valor: v }); totalPos += v; }
+    else { partidas.push({ contaId: cl.id, tipo: "CREDITO", valor: -v }); totalNeg += -v; }
+  }
+  if (partidas.length === 0) return;
+
+  if (!opts.semContrapartida) {
+    if (totalPos > 0.005) {
+      if (!opts.contaPositivoId) return;
+      partidas.push({ contaId: opts.contaPositivoId, tipo: "CREDITO", valor: totalPos });
+    }
+    if (totalNeg > 0.005) {
+      if (!opts.contaNegativoId) return;
+      partidas.push({ contaId: opts.contaNegativoId, tipo: "DEBITO", valor: totalNeg });
+    }
+  }
+
+  await registrarLancamento({
+    empresaId, data: opts.data, historico: opts.historico,
+    origemTipo: opts.origemTipo, origemId: opts.origemId, partidas,
+  });
+}
+
+/**
+ * Entrada de produção (PCP): D Estoque (local) / C Custo de Produção (3.2.9001),
+ * ao CMPM do produto acabado. Só contabiliza quando a ordem está CONCLUIDA (todas
+ * as entradas de acabado já existem). Itens WIP têm CMPM ≈ 0 e não geram valor.
+ * Idempotente por (empresa, ESTOQUE_PRODUCAO, ordemId).
+ */
+export async function contabilizarProducaoOrdem(ordemId: string) {
+  const ordem = await prismaSemEscopo.ordemProducao.findUnique({
+    where: { id: ordemId },
+    select: { id: true, numero: true, status: true, updatedAt: true },
+  });
+  if (!ordem || ordem.status !== "CONCLUIDA") return;
+
+  const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
+    where: { ordemProducaoId: ordemId, tipo: "ENTRADA", localEstoqueId: { not: null }, clienteDonoId: null },
+    select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true },
+  });
+  if (movs.length === 0) return;
+  const empresaId = movs[0].empresaId;
+  const { producaoId } = await garantirContasSistemaEstoque(empresaId);
+
+  await postMovimentosEstoque({
+    empresaId, data: ordem.updatedAt, historico: `Produção — ${ordem.numero}`,
+    origemTipo: "ESTOQUE_PRODUCAO", origemId: ordemId,
+    movs, contaPositivoId: producaoId,
+  });
+}
+
+/**
+ * Requisição/devolução de materiais: consumo (SAIDA) D Consumo de Materiais
+ * (3.3.9001) / C Estoque; devolução (ENTRADA) inverte. Idempotente por
+ * (empresa, ESTOQUE_CONSUMO, requisicaoId).
+ */
+export async function contabilizarRequisicao(requisicaoId: string) {
+  const req = await prismaSemEscopo.requisicaoMaterial.findUnique({
+    where: { id: requisicaoId },
+    select: { id: true, numero: true, status: true, updatedAt: true },
+  });
+  if (!req || req.status !== "ATENDIDA") return;
+
+  const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
+    where: { documento: req.numero, localEstoqueId: { not: null }, clienteDonoId: null, tipo: { in: ["ENTRADA", "SAIDA"] } },
+    select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true },
+  });
+  if (movs.length === 0) return;
+  const empresaId = movs[0].empresaId;
+  const { consumoId } = await garantirContasSistemaEstoque(empresaId);
+
+  await postMovimentosEstoque({
+    empresaId, data: req.updatedAt, historico: `Requisição — ${req.numero}`,
+    origemTipo: "ESTOQUE_CONSUMO", origemId: requisicaoId,
+    movs, contaPositivoId: consumoId, contaNegativoId: consumoId,
+  });
+}
+
+/**
+ * Inventário (acerto de contagem): sobra D Estoque / C Sobras (3.1.9001); perda
+ * D Perdas (3.3.9002) / C Estoque. Idempotente por (empresa, ESTOQUE_AJUSTE, inventarioId).
+ */
+export async function contabilizarInventario(inventarioId: string) {
+  const inv = await prismaSemEscopo.inventarioMaterial.findUnique({
+    where: { id: inventarioId },
+    select: { id: true, numero: true, status: true, empresaId: true, updatedAt: true },
+  });
+  if (!inv || inv.status !== "CONCLUIDO") return;
+
+  const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
+    where: { documento: inv.numero, tipo: "AJUSTE", localEstoqueId: { not: null }, clienteDonoId: null },
+    select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, saldoAntes: true, saldoDepois: true, empresaId: true },
+  });
+  if (movs.length === 0) return;
+  const empresaId = movs[0].empresaId ?? inv.empresaId;
+  const { sobrasId, perdasId } = await garantirContasSistemaEstoque(empresaId);
+
+  await postMovimentosEstoque({
+    empresaId, data: inv.updatedAt, historico: `Inventário — ${inv.numero}`,
+    origemTipo: "ESTOQUE_AJUSTE", origemId: inventarioId,
+    movs, contaPositivoId: sobrasId, contaNegativoId: perdasId,
+  });
+}
+
+/**
+ * Lote de movimentação manual: ENTRADA → sobra (C 3.1.9001); SAIDA → perda
+ * (D 3.3.9002); lote TRANSFERENCIA → entre contas de local (sem resultado).
+ * Idempotente por (empresa, origem, loteId).
+ */
+export async function contabilizarLoteMovimentacao(loteId: string) {
+  const lote = await prismaSemEscopo.loteMovimentacao.findUnique({
+    where: { id: loteId },
+    select: { id: true, numero: true, tipo: true, createdAt: true },
+  });
+  if (!lote) return;
+
+  const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
+    where: { loteId, localEstoqueId: { not: null }, clienteDonoId: null, tipo: { in: ["ENTRADA", "SAIDA"] } },
+    select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true },
+  });
+  if (movs.length === 0) return;
+  const empresaId = movs[0].empresaId;
+  const ehTransferencia = lote.tipo === "TRANSFERENCIA";
+  const { sobrasId, perdasId } = ehTransferencia
+    ? { sobrasId: null, perdasId: null }
+    : await garantirContasSistemaEstoque(empresaId);
+
+  await postMovimentosEstoque({
+    empresaId, data: lote.createdAt, historico: `Movimentação manual — ${lote.numero}`,
+    origemTipo: ehTransferencia ? "ESTOQUE_TRANSFERENCIA" : "ESTOQUE_AJUSTE", origemId: loteId,
+    movs, contaPositivoId: sobrasId, contaNegativoId: perdasId, semContrapartida: ehTransferencia,
+  });
+}
+
+// ── Depreciação do imobilizado ────────────────────────────────────────────────
+/** Normaliza uma data para o 1º dia do mês (00:00 UTC) — competência. */
+function primeiroDiaDoMes(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+}
+
+/**
+ * Depreciação linear de um bem para uma competência (mês). Idempotente por
+ * (imobilizado, competência) via DepreciacaoLancamento e por (empresa,
+ * DEPRECIACAO, depreciacaoId) no lançamento. D Despesa de Depreciação (3.3.9003)
+ * / C Depreciação Acumulada (1.2.2). Retorna o valor depreciado (0 se nada).
+ */
+export async function contabilizarDepreciacaoMes(imobilizadoId: string, competenciaIn: Date): Promise<number> {
+  const bem = await prismaSemEscopo.imobilizado.findUnique({
+    where: { id: imobilizadoId },
+    select: {
+      id: true, empresaId: true, status: true, dataAquisicao: true,
+      valorAquisicao: true, valorResidual: true, vidaUtilMeses: true,
+      contaDepreciacaoAcumuladaId: true, contaDespesaId: true,
+    },
+  });
+  if (!bem || bem.status !== "ATIVO" || bem.vidaUtilMeses <= 0) return 0;
+
+  const competencia = primeiroDiaDoMes(competenciaIn);
+  // Não deprecia antes do mês de aquisição.
+  if (competencia < primeiroDiaDoMes(bem.dataAquisicao)) return 0;
+
+  const valorDepreciavel = decimalToNumber(bem.valorAquisicao) - decimalToNumber(bem.valorResidual);
+  if (valorDepreciavel <= 0) return 0;
+
+  // Já depreciado acumulado.
+  const ja = await prismaSemEscopo.depreciacaoLancamento.aggregate({
+    where: { imobilizadoId }, _sum: { valor: true },
+  });
+  const acumulado = decimalToNumber(ja._sum.valor ?? 0);
+  const restante = valorDepreciavel - acumulado;
+  if (restante <= 0.005) return 0;
+
+  // Já existe registro para esta competência? (idempotência por mês)
+  const existente = await prismaSemEscopo.depreciacaoLancamento.findUnique({
+    where: { imobilizadoId_competencia: { imobilizadoId, competencia } },
+    select: { id: true },
+  });
+  if (existente) return 0;
+
+  const mensal = Math.min(Math.round((valorDepreciavel / bem.vidaUtilMeses) * 100) / 100, restante);
+  if (mensal <= 0.005) return 0;
+
+  // Resolve contas (campos do bem; fallback para as compartilhadas semeadas).
+  let contaDespesaId = bem.contaDespesaId;
+  let contaDeprAcumId = bem.contaDepreciacaoAcumuladaId;
+  if (!contaDespesaId || !contaDeprAcumId) {
+    const c = await garantirContasImobilizado(bem.empresaId);
+    contaDespesaId = contaDespesaId ?? c.despesaId;
+    contaDeprAcumId = contaDeprAcumId ?? c.deprAcumId;
+  }
+  if (!contaDespesaId || !contaDeprAcumId) return 0;
+
+  const depr = await prismaSemEscopo.depreciacaoLancamento.create({
+    data: { empresaId: bem.empresaId, imobilizadoId, competencia, valor: mensal },
+    select: { id: true },
+  });
+
+  const lanc = await registrarLancamento({
+    empresaId: bem.empresaId, data: competencia,
+    historico: `Depreciação — competência ${competencia.toISOString().slice(0, 7)}`,
+    origemTipo: "DEPRECIACAO", origemId: depr.id,
+    partidas: [
+      { contaId: contaDespesaId, tipo: "DEBITO", valor: mensal },
+      { contaId: contaDeprAcumId, tipo: "CREDITO", valor: mensal },
+    ],
+  });
+  await prismaSemEscopo.depreciacaoLancamento.update({ where: { id: depr.id }, data: { lancamentoContabilId: lanc.id } });
+  return mensal;
+}
+
+/** Processa a depreciação de uma competência para todos os bens ATIVO de uma empresa. */
+export async function processarDepreciacaoEmpresa(empresaId: string, competencia: Date) {
+  const bens = await prismaSemEscopo.imobilizado.findMany({
+    where: { empresaId, status: "ATIVO" }, select: { id: true },
+  });
+  let processados = 0;
+  let total = 0;
+  for (const b of bens) {
+    const v = await contabilizarDepreciacaoMes(b.id, competencia).catch(() => 0);
+    if (v > 0) { processados++; total += v; }
+  }
+  return { processados, total, bens: bens.length };
 }
 
 /**
