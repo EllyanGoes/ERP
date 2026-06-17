@@ -122,6 +122,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/financeiro/bancos",                    label: "Bancos",                  group: "Financeiro",     section: "Financeiro",       icon: Landmark,       keywords: "banco febraban" },
   { href: "/financeiro/naturezas",                 label: "Naturezas Financeiras",   group: "Financeiro",     section: "Financeiro",       icon: ArrowLeftRight, keywords: "natureza financeira entrada saida fluxo caixa grupo subgrupo classificação título" },
   { href: "/contabilidade/plano-contas",           label: "Plano de Contas Contábil", group: "Contabilidade",  section: "Contabilidade",    icon: Calculator,     keywords: "contabilidade plano contas contábil ativo passivo patrimonio resultado devedora credora razão balancete" },
+  { href: "/contabilidade/lancamentos",            label: "Diário Contábil",          group: "Contabilidade",  section: "Contabilidade",    icon: Calculator,     keywords: "contabilidade diário lançamentos partidas dobradas débito crédito razão" },
   { href: "/contas-receber",                       label: "Contas a Receber",        group: "Financeiro",     section: "Financeiro",       icon: TrendingUp },
   { href: "/contas-pagar",                         label: "Contas a Pagar",          group: "Financeiro",     section: "Financeiro",       icon: TrendingDown },
   { href: "/financeiro/agenda",                    label: "Agenda Financeira",       group: "Financeiro",     section: "Financeiro",       icon: CalendarClock, keywords: "agenda vencimento baixa lote a vencer" },

@@ -56,6 +56,10 @@ model AprovacaoSC {
   observacao    String?
   respondidoEm  DateTime?
   waMsgId       String?
+  // Mensagem do Telegram enviada ao aprovador (DM) — guardada p/ editar ao
+  // aprovar/reprovar (novo status, sem botões).
+  telegramChatId String?
+  telegramMsgId  Int?
   createdAt     DateTime          @default(now())
   fluxoId       String?
   aprovador     Usuario           @relation(fields: [aprovadorId], references: [id])
@@ -507,6 +511,59 @@ model ContaContabil {
   @@index([empresaId])
   @@index([paiId])
   @@index([grupo])
+  partidas PartidaContabil[]
+}
+
+// Lançamentos contábeis (partidas dobradas). Derivados dos fatos do ERP
+// (vendas, compras, recebimentos, pagamentos…) — débito = crédito por lançamento.
+enum OrigemLancamento {
+  VENDA // título a receber gerado (D Clientes / C Receita)
+  RECEBIMENTO // baixa de a receber (D Caixa / C Clientes)
+  COMPRA // título a pagar gerado (D Despesa / C Fornecedores)
+  PAGAMENTO // baixa de a pagar (D Fornecedores / C Caixa)
+  MANUAL
+  ESTORNO
+}
+
+enum TipoPartida {
+  DEBITO
+  CREDITO
+}
+
+model LancamentoContabil {
+  id          String              @id @default(cuid())
+  empresaId   String              @default("emp_tramontin")
+  data        DateTime // competência
+  historico   String
+  origemTipo  OrigemLancamento
+  origemId    String? // id do fato gerador (ContaReceber, ContaPagar…)
+  estornoDeId String?             @unique
+  estornoDe   LancamentoContabil? @relation("Estorno", fields: [estornoDeId], references: [id])
+  estorno     LancamentoContabil? @relation("Estorno")
+  partidas    PartidaContabil[]
+  createdAt   DateTime            @default(now())
+  empresa     Empresa             @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, origemTipo, origemId])
+  @@index([empresaId, data])
+}
+
+model PartidaContabil {
+  id           String             @id @default(cuid())
+  empresaId    String             @default("emp_tramontin")
+  lancamentoId String
+  contaId      String
+  tipo         TipoPartida
+  valor        Decimal            @db.Decimal(15, 2)
+  clienteId    String? // razão auxiliar
+  fornecedorId String? // razão auxiliar
+  lancamento   LancamentoContabil @relation(fields: [lancamentoId], references: [id], onDelete: Cascade)
+  conta        ContaContabil      @relation(fields: [contaId], references: [id])
+  empresa      Empresa            @relation(fields: [empresaId], references: [id])
+
+  @@index([empresaId])
+  @@index([contaId])
+  @@index([lancamentoId])
 }
 
 model Recorrencia {
@@ -695,6 +752,8 @@ model Empresa {
   usuarioEmpresas           UsuarioEmpresa[]
   filials                   Filial[]
   contasContabeis           ContaContabil[]
+  lancamentosContabeis      LancamentoContabil[]
+  partidasContabeis         PartidaContabil[]
 }
 
 model EnderecoEstoque {
@@ -1222,7 +1281,10 @@ model PedidoVenda {
   clienteId              String
   tabelaPrecoId          String?
   vendedorId             String?
-  modalidade             String                 @default("AGENDADA") // BALCAO (retirada/PDV) | AGENDADA (entrega via minutas)
+  modalidade             String                 @default("AGENDADA") // legado/derivado de necessidadeEntrega (RETIRADA→BALCAO, ENTREGA→AGENDADA); mantido p/ relatórios
+  // Duas necessidades escolhidas na criação (substituem a escolha de modalidade):
+  necessidadePagamento   String                 @default("A_PRAZO") // A_VISTA (recebe agora) | A_PRAZO (conta a receber futura)
+  necessidadeEntrega     String                 @default("ENTREGA") // RETIRADA (leva na hora) | ENTREGA (agendada via minutas)
   status                 StatusPedidoVenda      @default(ORCAMENTO)
   // Duas dimensões independentes do pedido (derivadas, mas persistidas p/ filtro):
   //  • entrega   → minutas (Pendente/Parcial/Entregue)

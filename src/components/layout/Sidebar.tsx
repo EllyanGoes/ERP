@@ -265,6 +265,12 @@ const mainModules: Module[] = [
           { href: "/contabilidade/plano-contas", label: "Plano de Contas", icon: FolderTree },
         ],
       },
+      {
+        kind: "Processos",
+        items: [
+          { href: "/contabilidade/lancamentos", label: "Diário Contábil", icon: BarChart3 },
+        ],
+      },
     ],
   },
   {
