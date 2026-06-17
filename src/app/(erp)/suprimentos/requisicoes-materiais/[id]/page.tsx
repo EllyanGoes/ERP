@@ -99,6 +99,8 @@ export default function RequisicaoDetailPage() {
 
   const [showDelete, setShowDelete]     = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  // Aviso de saldo negativo ao Atender: itens que ficariam negativos + status alvo.
+  const [negConfirm, setNegConfirm] = useState<{ status: string; itens: { itemId: string; descricao?: string | null; saldoAtual: number; saldoDepois: number }[] } | null>(null);
 
   // Options
   const [colaboradores, setColaboradores] = useState<ColaboradorOpt[]>([]);
@@ -178,20 +180,25 @@ export default function RequisicaoDetailPage() {
     await load(); setEditMode(false); setSaving(false);
   }
 
-  async function updateStatus(status: string) {
+  async function updateStatus(status: string, permitirSaldoNegativo = false) {
     setSaveError("");
     const res = await fetch(`/api/suprimentos/requisicoes-materiais/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, permitirSaldoNegativo }),
     });
     if (!res.ok) {
-      // Mostra o motivo (ex.: saldo insuficiente trava a baixa ao Atender) em vez
-      // de recarregar em silêncio — o botão parecia "não funcionar".
       const j = await res.json().catch(() => ({}));
+      // Saldo negativo: não trava — avisa o usuário (verifique o saldo, vai ficar
+      // negativo) e deixa atender mesmo assim ao confirmar.
+      if (j.codigo === "SALDO_NEGATIVO" && Array.isArray(j.negativos)) {
+        setNegConfirm({ status, itens: j.negativos });
+        return;
+      }
       setSaveError(j.error || "Não foi possível alterar o status da requisição.");
       return;
     }
+    setNegConfirm(null);
     await load();
   }
 
@@ -509,6 +516,37 @@ export default function RequisicaoDetailPage() {
                 {deleteLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Excluir"}
               </Button>
               <Button variant="outline" className="flex-1" onClick={() => setShowDelete(false)}>Cancelar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Aviso de saldo negativo ao Atender */}
+      {negConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4">
+            <h3 className="text-base font-semibold text-gray-900">Estoque ficará negativo</h3>
+            <p className="text-sm text-gray-600">
+              Atender esta requisição deixará o saldo dos itens abaixo <span className="font-semibold">negativo</span>.
+              Verifique o estoque antes de confirmar.
+            </p>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 divide-y divide-amber-100 text-sm">
+              {negConfirm.itens.map((it) => (
+                <div key={it.itemId} className="flex items-center justify-between px-3 py-2">
+                  <span className="text-gray-800">{it.descricao ?? it.itemId}</span>
+                  <span className="font-mono text-xs">
+                    <span className="text-gray-500">{it.saldoAtual.toLocaleString("pt-BR")}</span>
+                    <span className="mx-1 text-gray-400">→</span>
+                    <span className="font-semibold text-red-600">{it.saldoDepois.toLocaleString("pt-BR")}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <Button className="flex-1 bg-amber-600 hover:bg-amber-700 text-white" onClick={() => updateStatus(negConfirm.status, true)}>
+                Atender mesmo assim
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => setNegConfirm(null)}>Cancelar</Button>
             </div>
           </div>
         </div>

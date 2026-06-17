@@ -150,8 +150,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         });
       }
 
-      // Aborta (rollback) se qualquer item da requisição ficou negativo.
-      assertSaldoNaoNegativo(negativos);
+      // Saldo negativo na requisição: por padrão devolve 422 com os itens (o
+      // front avisa). Se o usuário confirmar (permitirSaldoNegativo), deixa
+      // atender mesmo assim — requisição é consumo real; o saldo se ajusta depois.
+      if (body.permitirSaldoNegativo !== true) assertSaldoNaoNegativo(negativos);
     }
 
     return updated;
