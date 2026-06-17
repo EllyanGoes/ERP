@@ -1,7 +1,7 @@
 import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { custosDaEmpresa } from "@/lib/custo-empresa";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaReceitaFallback, garantirContaDespesaFallback } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -139,14 +139,14 @@ export async function contabilizarTituloReceber(crId: string) {
 
   // Receita cai na conta da natureza do título; senão na sintética 3.1.
   // Caixa/banco: conta de disponibilidade do banco do título; senão a sintética 1.1.1.
-  const [contaCli, contaNat, conta31, contaBanco, conta111] = await Promise.all([
+  const [contaCli, contaNat, contaReceitaFb, contaBanco, conta111] = await Promise.all([
     contaDoCliente(cr.empresaId, cr.clienteId),
     cr.naturezaFinanceiraId ? contaDaNatureza(cr.empresaId, cr.naturezaFinanceiraId) : Promise.resolve(null),
-    contaPorCodigo(cr.empresaId, "3.1"),
+    garantirContaReceitaFallback(cr.empresaId),
     cr.contaBancariaId ? contaDoBanco(cr.empresaId, cr.contaBancariaId) : Promise.resolve(null),
     contaPorCodigo(cr.empresaId, "1.1.1"),
   ]);
-  const contaReceita = contaNat ?? conta31;
+  const contaReceita = contaNat ?? contaReceitaFb;
   const contaCaixa = contaBanco ?? conta111;
   if (!contaCli) return;
 
@@ -190,14 +190,14 @@ export async function contabilizarTituloPagar(cpId: string) {
 
   // Despesa/custo cai na conta da natureza do título; senão na sintética 3.3.
   // Caixa/banco: conta de disponibilidade do banco do título; senão a sintética 1.1.1.
-  const [contaForn, contaNat, conta33, contaBanco, conta111] = await Promise.all([
+  const [contaForn, contaNat, contaDespesaFb, contaBanco, conta111] = await Promise.all([
     contaDoFornecedor(cp.empresaId, cp.fornecedorId),
     cp.naturezaFinanceiraId ? contaDaNatureza(cp.empresaId, cp.naturezaFinanceiraId) : Promise.resolve(null),
-    contaPorCodigo(cp.empresaId, "3.3"),
+    garantirContaDespesaFallback(cp.empresaId),
     cp.contaBancariaId ? contaDoBanco(cp.empresaId, cp.contaBancariaId) : Promise.resolve(null),
     contaPorCodigo(cp.empresaId, "1.1.1"),
   ]);
-  const contaDespesa = contaNat ?? conta33;
+  const contaDespesa = contaNat ?? contaDespesaFb;
   const contaCaixa = contaBanco ?? conta111;
   if (!contaForn) return;
 
@@ -315,7 +315,7 @@ export async function contabilizarCmvMinuta(minutaId: string) {
   const total = Array.from(porLocal.values()).reduce((s, v) => s + v, 0);
   if (total <= 0) return;
 
-  const contaCusto = await contaPorCodigo(minuta.empresaId, "3.2");
+  const contaCusto = await garantirContaCmv(minuta.empresaId);
   if (!contaCusto) return;
   const partidas: PartidaIn[] = [{ contaId: contaCusto.id, tipo: "DEBITO", valor: total }];
   for (const [localId, v] of Array.from(porLocal.entries())) {

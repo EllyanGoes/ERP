@@ -240,6 +240,21 @@ export async function garantirContaImobilizadoBem(empresaId: string, descricao: 
   });
 }
 
+// Contas de resultado dedicadas (analíticas .9xxx) para fatos que antes caíam nas
+// sintéticas 3.1/3.2/3.3 — assim o Balanço (que só soma analíticas) as enxerga.
+/** Analítica de CMV (3.2.9002) — baixa de estoque na venda. */
+export async function garantirContaCmv(empresaId: string) {
+  return garantirContaSistema(empresaId, { codigo: "3.2.9002", nome: "CMV — Custo das Mercadorias Vendidas", pai: "3.2" });
+}
+/** Analítica de receita sem natureza (3.1.9002). */
+export async function garantirContaReceitaFallback(empresaId: string) {
+  return garantirContaSistema(empresaId, { codigo: "3.1.9002", nome: "Receita de Vendas", pai: "3.1" });
+}
+/** Analítica de despesa sem natureza (3.3.9004). */
+export async function garantirContaDespesaFallback(empresaId: string) {
+  return garantirContaSistema(empresaId, { codigo: "3.3.9004", nome: "Despesas Gerais", pai: "3.3" });
+}
+
 /** Garante (idempotente) as 4 contas de sistema do estoque na empresa e retorna seus ids. */
 export async function garantirContasSistemaEstoque(empresaId: string) {
   const [sobras, producao, consumo, perdas] = await Promise.all([
