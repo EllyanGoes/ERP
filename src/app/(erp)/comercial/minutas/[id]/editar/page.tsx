@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Plus, X } from "lucide-react";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { TIPO_MINUTA_LABEL, statusMinutaLabel, type StatusMinuta } from "@/lib/minuta-labels";
 import { cn, parseDecimal } from "@/lib/utils";
@@ -81,6 +81,33 @@ type ItemRow = {
 
 function fmtQty(n: number) {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+}
+
+// Saldo do item de pedido ainda não consumido por minutas não-canceladas — o
+// máximo que um item recém-adicionado pode levar nesta minuta. Como só oferecemos
+// itens que NÃO estão nesta minuta, `pv.minutaItens` (não-canceladas) não inclui
+// esta minuta, então o resultado já é o disponível para adicionar.
+function calcSaldo(pv: PedidoVendaItem): number {
+  const total = parseFloat(pv.quantidade.toString());
+  const minutado = pv.minutaItens.reduce((s, mi) => s + parseFloat(mi.quantidade.toString()), 0);
+  return Math.max(total - minutado, 0);
+}
+
+// Constrói uma linha editável para um item do pedido que ainda não está na minuta.
+function rowFromPedidoItem(pv: PedidoVendaItem): ItemRow {
+  const saldo = calcSaldo(pv);
+  return {
+    pvItemId: pv.id,
+    itemId: pv.itemId,
+    descricao: pv.item.descricao,
+    codigo: pv.item.codigo,
+    unidadeBase: pv.item.unidade?.sigla ?? "UN",
+    baseUnitId: pv.item.unidade?.id ?? "",
+    saldoDisponivel: saldo,
+    quantidade: saldo > 0 ? String(saldo) : "0",
+    unidadeId: pv.item.unidade?.id ?? "",
+    unidades: pv.item.itemUnidades,
+  };
 }
 
 // Constrói as linhas editáveis a partir dos itens da minuta. O "saldo" mostrado é
@@ -190,6 +217,22 @@ export default function EditarMinutaPage() {
       return next;
     });
   }
+
+  function addItem(pvItemId: string) {
+    const pv = minuta?.pedidoVenda.itens.find(p => p.id === pvItemId);
+    if (!pv) return;
+    setRows(prev => [...prev, rowFromPedidoItem(pv)]);
+  }
+
+  function removeRow(idx: number) {
+    setRows(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  // Itens do pedido que ainda têm saldo e não estão nesta minuta — disponíveis para adicionar.
+  const currentPvIds = new Set(rows.map(r => r.pvItemId));
+  const itensAdicionaveis = (minuta?.pedidoVenda.itens ?? []).filter(
+    pv => !currentPvIds.has(pv.id) && calcSaldo(pv) > 0
+  );
 
   async function handleSave() {
     const validRows = rows.filter(r => parseDecimal(r.quantidade || "0") > 0);
@@ -308,6 +351,7 @@ export default function EditarMinutaPage() {
                     <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-32">Saldo</th>
                     <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-40">Qtd. {tipo === "RETIRADA" ? "Retirada" : "Entrega"}</th>
                     <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500 w-32">Unidade</th>
+                    <th className="px-2 py-3 w-10"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -354,10 +398,40 @@ export default function EditarMinutaPage() {
                           <span className="text-gray-500 text-sm px-1">{r.unidadeBase}</span>
                         )}
                       </td>
+                      <td className="px-2 py-3 align-middle text-center">
+                        <button
+                          type="button"
+                          onClick={() => removeRow(idx)}
+                          className="text-gray-300 hover:text-red-500 transition-colors"
+                          title="Remover item da minuta"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            )}
+            {itensAdicionaveis.length > 0 && (
+              <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+                <Select value="" onValueChange={addItem}>
+                  <SelectTrigger className="h-9 w-auto gap-2 border-dashed border-gray-300 text-sm text-gray-600">
+                    <Plus className="w-4 h-4" />
+                    <SelectValue placeholder="Adicionar item do pedido..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {itensAdicionaveis.map(pv => (
+                      <SelectItem key={pv.id} value={pv.id}>
+                        {pv.item.descricao}
+                        <span className="text-gray-400">
+                          {" "}— saldo {fmtQty(calcSaldo(pv))} {pv.item.unidade?.sigla ?? "UN"}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
           </div>
         </div>

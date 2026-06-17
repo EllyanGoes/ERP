@@ -8,7 +8,7 @@ import { buildRelatorioEstoque, parseRelatorioDate } from "@/lib/relatorio-estoq
 import { buildRelatorioNecessidades } from "@/lib/relatorio-necessidades";
 import { buildRelatorioSolicitacoes } from "@/lib/relatorio-solicitacoes";
 import { buildRelatorioConsumo } from "@/lib/relatorio-consumo";
-import { gerarPedidoDeCotacao } from "@/lib/aprovacao-cotacao";
+import { gerarPedidoDeCotacao, finalizarMensagemAprovacaoCotacao } from "@/lib/aprovacao-cotacao";
 
 // Telegram sends POST with callback_query when user clicks inline keyboard button
 export async function POST(req: NextRequest) {
@@ -249,6 +249,7 @@ export async function POST(req: NextRequest) {
     // ── Aprovação de COTAÇÃO → gera o Pedido de Compras ───────────────────────
     if (aprovacao.cotacaoId) {
       const cotacaoId = aprovacao.cotacaoId;
+      let novoPedidoNumero: string | null = null;
       try {
         if (novoStatus === "REPROVADO") {
           await prisma.cotacaoCompra.update({
@@ -256,7 +257,8 @@ export async function POST(req: NextRequest) {
             data: { status: "EM_ANALISE", motivoReprovacao: `Reprovado por ${aprovacao.aprovador.nome} via Telegram` },
           });
         } else {
-          await prisma.$transaction((tx) => gerarPedidoDeCotacao(tx, cotacaoId));
+          const out = await prisma.$transaction((tx) => gerarPedidoDeCotacao(tx, cotacaoId));
+          novoPedidoNumero = out.pedidoCompra.numero;
         }
       } catch (e) {
         await prisma.aprovacaoSC.update({ where: { id: aprovacaoId }, data: { status: "PENDENTE", respondidoEm: null } });
@@ -264,6 +266,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true });
       }
       await answerCallbackQuery(cq.id, novoStatus === "APROVADO" ? "✅ Cotação aprovada — pedido gerado" : "❌ Cotação reprovada");
+      // Atualiza a mensagem do aprovador (novo status, sem botões).
+      await finalizarMensagemAprovacaoCotacao(aprovacaoId, novoStatus, aprovacao.aprovador.nome, novoPedidoNumero);
       return NextResponse.json({ ok: true });
     }
 

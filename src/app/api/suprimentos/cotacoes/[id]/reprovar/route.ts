@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { finalizarMensagemAprovacaoCotacao } from "@/lib/aprovacao-cotacao";
 
 // POST /api/suprimentos/cotacoes/[id]/reprovar
 // O gerente reprova a cotação: volta para EM_ANALISE (o comprador revê) com o
@@ -27,6 +28,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     }
 
+    const pendencia = await prisma.aprovacaoSC.findFirst({
+      where: { cotacaoId: params.id, status: "PENDENTE" },
+      select: { id: true, aprovador: { select: { nome: true } } },
+    });
+
     await prisma.$transaction(async (tx) => {
       await tx.cotacaoCompra.update({
         where: { id: params.id },
@@ -37,6 +43,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         data: { status: "REPROVADO", observacao: motivo ?? null, respondidoEm: new Date() },
       });
     });
+
+    // Atualiza a mensagem do aprovador (reprovada, sem botões) — best-effort.
+    if (pendencia) {
+      await finalizarMensagemAprovacaoCotacao(pendencia.id, "REPROVADO", pendencia.aprovador?.nome ?? "Aprovador");
+    }
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { aprovadorPedidoCompras } from "@/lib/aprovacao-cotacao";
-import { sendTelegramMessage, sendTelegramDocument, escMD } from "@/lib/telegram";
+import { sendTelegramMessage, sendTelegramDocument, sendTelegramDM, escMD } from "@/lib/telegram";
 import { buildCotacaoPDF } from "@/lib/pdf-cotacao";
 
 // POST /api/suprimentos/cotacoes/[id]/submeter-aprovacao
@@ -63,11 +63,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return ap.id;
     });
 
-    // Notificação remota com botões inline (best-effort). Os mesmos botões
-    // sc_APPROVE_/sc_REJECT_ que a SC usa — o webhook trata cotação pelo cotacaoId.
-    // Envia o resumo da cotação em PDF (legenda + botões no próprio documento);
-    // se o PDF falhar, cai numa mensagem de texto com os mesmos botões.
-    if (aprovacaoId) {
+    // Notificação remota com botões inline (best-effort). A mensagem vai na
+    // conversa DIRETA com o aprovador (DM), não no grupo — assim só ele decide e
+    // a mensagem pode ser editada ao aprovar (novo status, sem botões). Sem DM
+    // configurada (Colaborador.telegramChatId), cai no chat padrão do grupo.
+    if (aprovacaoId && aprovador) {
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
         ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
       const inlineKeyboard = [
@@ -77,25 +77,44 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         ],
         [{ text: "📋 Abrir cotação", url: `${baseUrl}/suprimentos/cotacoes/${params.id}` }],
       ];
-      const caption = [
-        `🧾 *Cotação aguardando aprovação*`,
+      const texto = [
+        `🧾 *Cotação aguardando sua aprovação*`,
         ``,
         `• *Cotação:* ${escMD(numeroRef)}`,
         ``,
-        `Resumo em anexo\\. Aprovar gera o Pedido de Compras\\.`,
+        `Aprovar gera o Pedido de Compras\\.`,
       ].join("\n");
+
+      // DM do aprovador (colaborador vinculado ao usuário aprovador).
+      const colab = await prisma.colaborador.findFirst({
+        where: { usuarioId: aprovador.aprovadorId },
+        select: { telegramChatId: true },
+      });
+      const dmChatId = colab?.telegramChatId ?? null;
+
       try {
-        const pdf = await buildCotacaoPDF(params.id);
-        const enviado = pdf
-          ? await sendTelegramDocument({ filename: pdf.filename, buffer: pdf.buffer, caption, inlineKeyboard })
-          : { ok: false as const };
-        if (!enviado.ok) {
-          // Fallback: sem PDF, manda só a mensagem com os botões.
-          await sendTelegramMessage({ text: caption, inlineKeyboard });
+        if (dmChatId) {
+          // Mensagem de texto editável + botões na DM; guarda chat/msg p/ editar
+          // ao aprovar/reprovar. PDF vai como anexo separado (sem botões).
+          const enviado = await sendTelegramDM(dmChatId, { text: texto, inlineKeyboard });
+          if (enviado.ok && enviado.msgId) {
+            await prisma.aprovacaoSC.update({
+              where: { id: aprovacaoId },
+              data: { telegramChatId: dmChatId, telegramMsgId: enviado.msgId },
+            });
+          }
+          const pdf = await buildCotacaoPDF(params.id).catch(() => null);
+          if (pdf) await sendTelegramDocument({ chatId: dmChatId, filename: pdf.filename, buffer: pdf.buffer, caption: `Resumo — ${escMD(numeroRef)}` });
+        } else {
+          // Sem DM: fallback no grupo (não editável depois, mas notifica).
+          const pdf = await buildCotacaoPDF(params.id).catch(() => null);
+          const enviado = pdf
+            ? await sendTelegramDocument({ filename: pdf.filename, buffer: pdf.buffer, caption: texto, inlineKeyboard })
+            : { ok: false as const };
+          if (!enviado.ok) await sendTelegramMessage({ text: texto, inlineKeyboard });
         }
       } catch (e) {
         console.warn("[submeter-aprovacao] Telegram notify falhou (não bloqueia):", e);
-        try { await sendTelegramMessage({ text: caption, inlineKeyboard }); } catch { /* best-effort */ }
       }
     }
 

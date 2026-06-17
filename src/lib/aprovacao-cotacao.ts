@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
+import { editTelegramMessage, escMD } from "@/lib/telegram";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Aprovação da COTAÇÃO → geração do Pedido de Compras.
@@ -128,4 +129,43 @@ export async function gerarPedidoDeCotacao(
   }
 
   return { cotacao: updatedCotacao, pedidoCompra };
+}
+
+/**
+ * Edita a mensagem do Telegram (DM ao aprovador) enviada no submeter-aprovação,
+ * trocando para o status final e removendo os botões de ação. Best-effort —
+ * só edita se a pendência guardou chat/mensagem. Chamado pelos dois canais de
+ * aprovação (botão do Telegram via webhook e tela web).
+ */
+export async function finalizarMensagemAprovacaoCotacao(
+  aprovacaoId: string,
+  status: "APROVADO" | "REPROVADO",
+  aprovadorNome: string,
+  pedidoNumero?: string | null,
+): Promise<void> {
+  try {
+    const ap = await prisma.aprovacaoSC.findUnique({
+      where: { id: aprovacaoId },
+      select: {
+        telegramChatId: true,
+        telegramMsgId: true,
+        cotacao: { select: { numero: true, nome: true, necessidade: { select: { numero: true } } } },
+      },
+    });
+    if (!ap?.telegramChatId || !ap.telegramMsgId) return;
+
+    const ref = ap.cotacao?.nome || ap.cotacao?.necessidade?.numero || ap.cotacao?.numero || "Cotação";
+    const aprovado = status === "APROVADO";
+    const icon = aprovado ? "✅" : "❌";
+    const linhas = [
+      `${icon} *Cotação ${aprovado ? "aprovada" : "reprovada"}*`,
+      ``,
+      `• *Cotação:* ${escMD(ref)}`,
+      `• *${aprovado ? "Aprovada" : "Reprovada"} por:* ${escMD(aprovadorNome)}`,
+      ...(aprovado && pedidoNumero ? [`• *Pedido de Compras:* ${escMD(pedidoNumero)}`] : []),
+    ];
+    await editTelegramMessage(ap.telegramChatId, ap.telegramMsgId, linhas.join("\n"));
+  } catch (e) {
+    console.warn("[finalizarMensagemAprovacaoCotacao] falhou (não bloqueia):", e);
+  }
 }

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { gerarPedidoDeCotacao } from "@/lib/aprovacao-cotacao";
+import { gerarPedidoDeCotacao, finalizarMensagemAprovacaoCotacao } from "@/lib/aprovacao-cotacao";
 
 // POST /api/suprimentos/cotacoes/[id]/aprovar
 // Aprova a cotação e gera o Pedido de Compras (uma única aprovação). Quem pode:
@@ -30,6 +30,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     }
 
+    // Pendência (para editar a mensagem do Telegram do aprovador após aprovar).
+    const pendencia = await prisma.aprovacaoSC.findFirst({
+      where: { cotacaoId: params.id, status: "PENDENTE" },
+      select: { id: true, aprovador: { select: { nome: true } } },
+    });
+
     const result = await prisma.$transaction(async (tx) => {
       const out = await gerarPedidoDeCotacao(tx, params.id, cfIdParam);
       // Marca como respondidas as pendências de aprovação desta cotação.
@@ -39,6 +45,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
       return out;
     });
+
+    // Atualiza a mensagem do aprovador (novo status, sem botões) — best-effort.
+    if (pendencia) {
+      await finalizarMensagemAprovacaoCotacao(
+        pendencia.id, "APROVADO", pendencia.aprovador?.nome ?? "Aprovador", result.pedidoCompra.numero,
+      );
+    }
 
     return NextResponse.json({ data: result });
   } catch (e: unknown) {
