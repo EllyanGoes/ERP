@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
+import { assertSaldoNaoNegativo, respostaSaldoNegativo, SaldoNegativoError, type ItemSaldoNegativo } from "@/lib/estoque-guard";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.requisicaoMaterial.findUnique({
@@ -31,7 +32,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const body = await req.json();
 
-  const record = await prisma.$transaction(async (tx) => {
+  try {
+    const record = await prisma.$transaction(async (tx) => {
     const updateData: Record<string, unknown> = {};
 
     if (body.status        !== undefined) updateData.status        = body.status;
@@ -91,6 +93,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       const movTipo = isSaida ? "SAIDA" : "ENTRADA";
       const localEstoqueId = updated.localEstoqueId;
 
+      // Trava de saldo negativo: nenhuma requisição (SAÍDA) pode deixar item negativo.
+      const negativos: ItemSaldoNegativo[] = [];
+
       for (const item of updated.itens) {
         const qtd = parseFloat(String(item.quantidade));
         if (qtd <= 0) continue;
@@ -114,6 +119,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           });
           saldoDepois = parseFloat(String(atualizado.quantidadeAtual));
           saldoAntes  = isSaida ? saldoDepois + qtd : saldoDepois - qtd;
+          if (isSaida && saldoDepois < 0) {
+            negativos.push({ itemId: item.itemId, descricao: item.item.descricao, saldoAtual: saldoAntes, saldoDepois });
+          }
         } else if (!isSaida) {
           // Para devoluções, cria o registro de estoque se não existir
           saldoDepois = qtd;
@@ -141,10 +149,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           },
         });
       }
+
+      // Aborta (rollback) se qualquer item da requisição ficou negativo.
+      assertSaldoNaoNegativo(negativos);
     }
 
     return updated;
-  });
+    });
 
   // Notify Telegram when ATENDIDA (best-effort, outside transaction)
   if (body.status === "ATENDIDA" && record.tipo !== undefined) {
@@ -177,6 +188,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   return NextResponse.json({ data: record });
+  } catch (err) {
+    if (err instanceof SaldoNegativoError) return respostaSaldoNegativo(err);
+    throw err;
+  }
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
