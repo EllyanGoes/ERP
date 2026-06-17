@@ -181,6 +181,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         where: { id: params.id },
         data: {
           ...pedidoData,
+          // Re-deriva modalidade quando a necessidade de entrega é alterada.
+          ...(pedidoData.necessidadeEntrega
+            ? { modalidade: pedidoData.necessidadeEntrega === "RETIRADA" ? "BALCAO" : "AGENDADA" }
+            : {}),
           valorProdutos,
           valorTotal,
           estoqueOrigemEmpresaId: novaOrigem,

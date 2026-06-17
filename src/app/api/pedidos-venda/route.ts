@@ -139,6 +139,11 @@ export async function POST(req: NextRequest) {
         ...pedidoData,
         numero,
         empresaId: empresaAlvo,
+        // Necessidades do pedido (substituem a escolha de modalidade); modalidade
+        // fica DERIVADA da entrega p/ os relatórios legados continuarem somando.
+        necessidadePagamento: pedidoData.necessidadePagamento ?? "A_PRAZO",
+        necessidadeEntrega:   pedidoData.necessidadeEntrega ?? "ENTREGA",
+        modalidade: (pedidoData.necessidadeEntrega ?? "ENTREGA") === "RETIRADA" ? "BALCAO" : "AGENDADA",
         estoqueOrigemEmpresaId,
         precoTransferencia,
         valorProdutos,

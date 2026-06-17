@@ -76,6 +76,7 @@ type ItemPendente = {
 type PedidoDetailProps = {
   pedido: {
     id: string; numero: string; numeroOrcamento: string | null; status: string; intragrupo?: boolean; modalidade?: string;
+    necessidadePagamento?: string | null; necessidadeEntrega?: string | null;
     statusEntrega?: string | null; statusFinanceiro?: string | null;
     dataEmissao: Date | string; dataEntrega: Date | string | null; dataConclusao: Date | string | null;
     estoqueOrigemEmpresa?: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
@@ -643,7 +644,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           )}
           {/* Venda balcão em duas etapas: confirmar a saída do material (retirada)
               quando o cliente vem buscar — baixa estoque e conclui. */}
-          {pedido.modalidade === "BALCAO" &&
+          {pedido.necessidadeEntrega === "RETIRADA" &&
             pedido.status !== "CONCLUIDO" && pedido.status !== "CANCELADO" &&
             !pedido.intragrupo && !pedido.estoqueOrigemEmpresa &&
             minutas.filter((m) => m.status !== "CANCELADA").length === 0 && (
@@ -721,12 +722,21 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             </div>
             <div className="flex justify-between"><span className="text-gray-500">Cliente</span><Link href={`/clientes/${pedido.cliente.id}`} className="font-medium text-blue-600 hover:underline">{pedido.cliente.razaoSocial}</Link></div>
             <div className="flex justify-between items-center">
-              <span className="text-gray-500">Modalidade</span>
+              <span className="text-gray-500">Pagamento</span>
               <span className={cn(
                 "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold",
-                pedido.modalidade === "BALCAO" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700",
+                pedido.necessidadePagamento === "A_VISTA" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
               )}>
-                {pedido.modalidade === "BALCAO" ? "Balcão" : "Venda Agendada"}
+                {pedido.necessidadePagamento === "A_VISTA" ? "À vista" : "A prazo"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">Entrega</span>
+              <span className={cn(
+                "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold",
+                pedido.necessidadeEntrega === "RETIRADA" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700",
+              )}>
+                {pedido.necessidadeEntrega === "RETIRADA" ? "Retirada" : "Entrega agendada"}
               </span>
             </div>
             <div className="flex justify-between"><span className="text-gray-500">Vendedor</span><span>{pedido.vendedor?.nome || "—"}</span></div>

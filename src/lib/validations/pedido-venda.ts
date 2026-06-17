@@ -21,7 +21,9 @@ export const pedidoVendaPagamentoSchema = z.object({
 
 export const pedidoVendaSchema = z.object({
   clienteId:         z.string().min(1, "Cliente é obrigatório"),
-  modalidade:        z.enum(["BALCAO", "AGENDADA"]).optional(),
+  modalidade:        z.enum(["BALCAO", "AGENDADA"]).optional(), // legado: derivado de necessidadeEntrega
+  necessidadePagamento: z.enum(["A_VISTA", "A_PRAZO"]).optional(),
+  necessidadeEntrega:   z.enum(["RETIRADA", "ENTREGA"]).optional(),
   pagamentos:        z.array(pedidoVendaPagamentoSchema).optional(),
   // Data do recebimento (YYYY-MM-DD) — só aplicada ao editar pedido já pago.
   pagamentoData:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),

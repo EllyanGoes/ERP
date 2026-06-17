@@ -141,6 +141,8 @@ type PedidoInicial = {
   observacoes: string | null;
   estoqueOrigemEmpresaId?: string | null;
   precoTransferencia?: unknown;
+  necessidadePagamento?: string | null;
+  necessidadeEntrega?: string | null;
   itens: PedidoInicialItem[];
 };
 
@@ -198,14 +200,12 @@ export default function PedidoForm({
   itensComodato = [],
   comodatoInicial = [],
   pedido,
-  modalidade,
 }: {
   clientes:      ClienteOption[];
   itens:         ItemOption[];
   itensComodato?: ItemComodatoOption[];
   comodatoInicial?: ComodatoInicial[];
   pedido?:       PedidoInicial;
-  modalidade?:   "BALCAO" | "AGENDADA"; // só na criação; define o tipo do pedido
 }) {
   const router = useRouter();
   const isEdit = !!pedido;
@@ -250,6 +250,15 @@ export default function PedidoForm({
   const [dataEmissao,       setDataEmissao]       = useState(pedido ? isoToDateInput(pedido.dataEmissao) : hojeInputSP());
   const [dataEntrega,       setDataEntrega]       = useState(pedido ? isoToDateInput(pedido.dataEntrega) : "");
   const [condicaoPagamento, setCondicaoPagamento] = useState(pedido?.condicaoPagamento ?? "");
+  // Necessidades do pedido (substituem a escolha de modalidade balcão/agendada):
+  //  • pagamento: A_VISTA (recebe agora no caixa) | A_PRAZO (conta a receber futura)
+  //  • entrega:   RETIRADA (leva na hora) | ENTREGA (agendada via minutas)
+  const [necessidadePagamento, setNecessidadePagamento] = useState<"A_VISTA" | "A_PRAZO">(
+    (pedido?.necessidadePagamento as "A_VISTA" | "A_PRAZO") ?? "A_PRAZO",
+  );
+  const [necessidadeEntrega, setNecessidadeEntrega] = useState<"RETIRADA" | "ENTREGA">(
+    (pedido?.necessidadeEntrega as "RETIRADA" | "ENTREGA") ?? "ENTREGA",
+  );
   // Pagamento misto: formas previstas com valores (PIX + dinheiro etc.).
   const [pagamentos, setPagamentos] = useState<LinhaPagamento[]>(
     pedido?.pagamentos && pedido.pagamentos.length > 0
@@ -685,7 +694,10 @@ export default function PedidoForm({
       estoqueOrigemEmpresaId: estoqueOrigemId || null,
       precoTransferencia: estoqueOrigemId && precoTransferencia ? parseDecimal(precoTransferencia) : null,
       clienteId,
-      ...(pedido ? {} : { modalidade: modalidade ?? "AGENDADA" }),
+      // Necessidades do pedido (enviadas na criação E na edição). A modalidade é
+      // derivada da entrega no backend, p/ os relatórios legados.
+      necessidadePagamento,
+      necessidadeEntrega,
       numeroOrcamento: numeroOrcamento.trim() || null,
       tabelaPrecoId: tabelaPrecoId || null,
       vendedorId: vendedorId || null,
@@ -917,7 +929,7 @@ export default function PedidoForm({
           </div>
 
           {/* Venda à ordem (triangular): estoque sai de outra empresa do grupo.
-              Disponível em qualquer modalidade (Balcão e Agendada) e também na
+              Disponível para qualquer pedido (retirada ou entrega) e também na
               edição (um pedido normal pode virar à ordem). */}
           {mostrarVendaOrdem && (
             <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
@@ -992,6 +1004,42 @@ export default function PedidoForm({
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Previsão de Entrega</Label>
               <Input type="date" value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} className="h-10 border-gray-300" />
+            </div>
+          </div>
+
+          {/* Necessidades do pedido: pagamento e entrega (substituem balcão/agendada) */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Pagamento</Label>
+              <select
+                value={necessidadePagamento}
+                onChange={(e) => setNecessidadePagamento(e.target.value as "A_VISTA" | "A_PRAZO")}
+                className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+              >
+                <option value="A_VISTA">À vista — recebe agora (caixa)</option>
+                <option value="A_PRAZO">A prazo — conta a receber</option>
+              </select>
+              <p className="text-[11px] text-gray-400">
+                {necessidadePagamento === "A_VISTA"
+                  ? "O recebimento é feito na hora; a conta a receber nasce paga."
+                  : "Gera uma conta a receber para o futuro."}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Entrega</Label>
+              <select
+                value={necessidadeEntrega}
+                onChange={(e) => setNecessidadeEntrega(e.target.value as "RETIRADA" | "ENTREGA")}
+                className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+              >
+                <option value="RETIRADA">Retirada — leva na hora</option>
+                <option value="ENTREGA">Entrega — agendada (minutas)</option>
+              </select>
+              <p className="text-[11px] text-gray-400">
+                {necessidadeEntrega === "RETIRADA"
+                  ? "A saída do material baixa o estoque na hora."
+                  : "A entrega é feita por minutas (pode ser parcial)."}
+              </p>
             </div>
           </div>
 

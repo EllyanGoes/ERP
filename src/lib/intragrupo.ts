@@ -325,6 +325,8 @@ export async function espelharEntregaTriangular(pedidoVendaId: string): Promise<
           clienteId: venda.clienteId,
           status: "CONFIRMADO",
           modalidade: "AGENDADA",
+          necessidadeEntrega: "ENTREGA",
+          necessidadePagamento: "A_PRAZO",
           dataEmissao: new Date(),
           dataEntrega: venda.dataEntrega,
           valorProdutos,
