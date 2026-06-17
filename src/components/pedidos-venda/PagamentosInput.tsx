@@ -52,21 +52,30 @@ export function contaEhCaixa(contaId: string, contas: ContaOpt[]): boolean {
   return contas.some((c) => c.id === contaId && c.tipo === "CAIXA");
 }
 
+/** A empresa tem alguma conta bancária (não-Caixa) cadastrada? */
+export function temContaBanco(contas: ContaOpt[]): boolean {
+  return contas.some((c) => c.ativo !== false && c.tipo !== "CAIXA" && c.id !== "caixa-geral");
+}
+
 /**
  * Conta de destino sugerida para a forma: dinheiro cai no Caixa; formas
- * eletrônicas (Pix, cartão, transferência…) NÃO recebem default — o caixa tem
- * de escolher o banco, senão o eletrônico iria parar no Caixa em Dinheiro.
+ * eletrônicas (Pix, cartão, transferência…) NÃO recebem default quando há banco
+ * cadastrado — o caixa escolhe o banco, senão o eletrônico iria parar no Caixa.
+ * Sem nenhum banco cadastrado, cai no Caixa (única conta disponível).
  */
 export function contaPadraoParaForma(forma: string, formas: FormaOpt[], contas: ContaOpt[]): string {
-  return formaEhDinheiro(forma, formas) ? contaCaixaPadrao(contas) : "";
+  if (formaEhDinheiro(forma, formas)) return contaCaixaPadrao(contas);
+  return temContaBanco(contas) ? "" : contaCaixaPadrao(contas);
 }
 
 /**
  * Bloqueio de roteamento: retorna a primeira linha (valor > 0) cuja forma NÃO é
  * dinheiro mas a conta está vazia ou aponta para o Caixa — o que mandaria o
- * dinheiro eletrônico para o caixa físico. null = tudo certo.
+ * dinheiro eletrônico para o caixa físico. Só vale quando a empresa TEM banco
+ * cadastrado (sem banco, o Caixa é a única opção). null = tudo certo.
  */
 export function pagamentoContaInvalida(linhas: LinhaPagamento[], formas: FormaOpt[], contas: ContaOpt[]): LinhaPagamento | null {
+  if (!temContaBanco(contas)) return null;
   return linhas.find((l) =>
     parseValorBR(l.valor) > 0 &&
     !formaEhDinheiro(l.forma, formas) &&
@@ -101,7 +110,7 @@ export default function PagamentosInput({
       if (l._key !== key) return l;
       let conta = l.contaBancariaId;
       if (formaEhDinheiro(novaForma, formas)) conta = contaCaixaPadrao(contas);
-      else if (contaEhCaixa(l.contaBancariaId, contas)) conta = "";
+      else if (contaEhCaixa(l.contaBancariaId, contas)) conta = temContaBanco(contas) ? "" : l.contaBancariaId;
       return { ...l, forma: novaForma, contaBancariaId: conta };
     }));
   }
@@ -145,7 +154,7 @@ export default function PagamentosInput({
           {mostrarConta && (() => {
             // Forma eletrônica sem banco (ou apontando para o Caixa) = roteamento
             // errado: destaca em vermelho e exige a escolha do banco.
-            const invalida = parseValorBR(l.valor) > 0 && !formaEhDinheiro(l.forma, formas) && (!l.contaBancariaId || contaEhCaixa(l.contaBancariaId, contas));
+            const invalida = temContaBanco(contas) && parseValorBR(l.valor) > 0 && !formaEhDinheiro(l.forma, formas) && (!l.contaBancariaId || contaEhCaixa(l.contaBancariaId, contas));
             return (
               <ComboboxWithCreate
                 value={l.contaBancariaId}
