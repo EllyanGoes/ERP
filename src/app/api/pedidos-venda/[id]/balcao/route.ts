@@ -92,6 +92,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: "Pedido sem itens." }, { status: 422 });
   }
 
+  // Venda à ordem: o caixa só RECEBE e o pedido permanece CONFIRMADO (a expedição
+  // é na origem). Como o status não vira CONCLUIDO, a trava por status dentro da
+  // transação não impede reexecução — então um novo clique no caixa receberia
+  // de novo, duplicando a conta a receber. Bloqueia aqui se já há recebimento.
+  if (triangular && parseFloat(pedido.valorTotal.toString()) > 0) {
+    const jaRecebido = await prisma.contaReceber.count({
+      where: { pedidoVendaId: pedido.id, status: "PAGA" },
+    });
+    if (jaRecebido > 0) {
+      return NextResponse.json(
+        { error: "Esta venda à ordem já foi recebida no caixa. A expedição é feita pela empresa de origem." },
+        { status: 409 },
+      );
+    }
+  }
+
   // Dia confirmado pelo caixa (ou hoje em horário de Brasília), gravado como
   // meia-noite UTC (padrão dos campos de data).
   const hojeSP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
