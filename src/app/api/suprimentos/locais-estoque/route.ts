@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
+import { garantirContaContabilLocalEstoque } from "@/lib/conta-contabil";
+import { CategoriaEstoque } from "@prisma/client";
 import { z } from "zod";
 
 const schema = z.object({
@@ -10,6 +12,7 @@ const schema = z.object({
   descricao: z.string().nullable().optional(),
   filialId:  z.string().min(1, "Filial é obrigatória"),
   ativo:     z.boolean().optional(),
+  categoriasAceitas: z.array(z.nativeEnum(CategoriaEstoque)).optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -62,5 +65,6 @@ export async function POST(req: NextRequest) {
   const body = schema.safeParse(await req.json());
   if (!body.success) return NextResponse.json({ error: body.error.issues[0]?.message ?? "Dados inválidos" }, { status: 400 });
   const record = await prisma.localEstoque.create({ data: body.data });
+  await garantirContaContabilLocalEstoque(record.id).catch(() => null);
   return NextResponse.json(record, { status: 201 });
 }

@@ -80,3 +80,51 @@ export async function garantirContaContabilFornecedor(fornecedorId: string) {
     await garantirEntidadeEmpresa(e.id, "fornecedor", fornecedorId, fornecedor.razaoSocial).catch(() => null);
   }
 }
+
+// Conta-pai de Resultado para uma natureza, por grupo (fallback por tipo).
+function paiCodResultado(grupo: string, tipo: string): string {
+  if (grupo === "RECEITA_OPERACIONAL") return "3.1";
+  if (grupo === "CUSTO_OPERACIONAL") return "3.2";
+  if (grupo === "DESPESA_OPERACIONAL") return "3.3";
+  return tipo === "ENTRADA" ? "3.1" : "3.3";
+}
+
+// Cria a analítica de uma conta sob um pai (por código) na empresa indicada.
+async function garantirAnaliticaSobPai(
+  empresaId: string,
+  paiCodigo: string,
+  nome: string,
+  chave: { naturezaFinanceiraId: string } | { localEstoqueId: string },
+) {
+  const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, ...chave } });
+  if (existente) return existente;
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: paiCodigo } });
+  if (!pai) return null;
+  const filhos = await prismaSemEscopo.contaContabil.findMany({ where: { empresaId, paiId: pai.id }, select: { codigo: true } });
+  const codigo = montarProximo(pai.codigo, filhos.map((f) => f.codigo));
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo, nome,
+      grupo: pai.grupo, natureza: pai.natureza, tipo: "ANALITICA",
+      nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id, ...chave,
+    },
+  });
+}
+
+/** Garante (idempotente) a conta de Resultado de uma natureza, na empresa dela. */
+export async function garantirContaContabilNatureza(naturezaId: string) {
+  const n = await prismaSemEscopo.naturezaFinanceira.findUnique({
+    where: { id: naturezaId }, select: { empresaId: true, nome: true, grupo: true, tipo: true },
+  });
+  if (!n) return null;
+  return garantirAnaliticaSobPai(n.empresaId, paiCodResultado(n.grupo, n.tipo), n.nome, { naturezaFinanceiraId: naturezaId });
+}
+
+/** Garante (idempotente) a conta de Estoque de um local, na empresa dele. */
+export async function garantirContaContabilLocalEstoque(localId: string) {
+  const l = await prismaSemEscopo.localEstoque.findUnique({
+    where: { id: localId }, select: { empresaId: true, nome: true },
+  });
+  if (!l) return null;
+  return garantirAnaliticaSobPai(l.empresaId, "1.1.3", l.nome, { localEstoqueId: localId });
+}

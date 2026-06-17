@@ -455,6 +455,7 @@ model NaturezaFinanceira {
   conferencias  ConferenciaCompra[]
   lancamentos   LancamentoFinanceiro[]
   recorrencias  Recorrencia[]
+  contasContabeis ContaContabil[]
 
   @@index([empresaId])
   @@index([tipo])
@@ -496,6 +497,8 @@ model ContaContabil {
   paiId            String?
   clienteId        String? // analítica vinculada a um cliente (uma por empresa)
   fornecedorId     String? // analítica vinculada a um fornecedor (uma por empresa)
+  naturezaFinanceiraId String? // analítica de resultado vinculada a uma natureza
+  localEstoqueId   String? // analítica de estoque vinculada a um local
   ativo            Boolean           @default(true)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -503,11 +506,15 @@ model ContaContabil {
   filhos           ContaContabil[]   @relation("ContaArvore")
   cliente          Cliente?          @relation(fields: [clienteId], references: [id])
   fornecedor       Fornecedor?       @relation(fields: [fornecedorId], references: [id])
+  naturezaFinanceira NaturezaFinanceira? @relation(fields: [naturezaFinanceiraId], references: [id])
+  localEstoque     LocalEstoque?     @relation(fields: [localEstoqueId], references: [id])
   empresa          Empresa           @relation(fields: [empresaId], references: [id])
 
   @@unique([empresaId, codigo])
   @@unique([empresaId, clienteId])
   @@unique([empresaId, fornecedorId])
+  @@unique([empresaId, naturezaFinanceiraId])
+  @@unique([empresaId, localEstoqueId])
   @@index([empresaId])
   @@index([paiId])
   @@index([grupo])
@@ -912,6 +919,8 @@ model Item {
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @updatedAt
   tipoProdutoId          String?
+  // Natureza de armazenagem — valida em que locais o produto pode entrar.
+  categoriaEstoque       CategoriaEstoque?
   unidadeId              String?
   conferenciaCompraItens ConferenciaCompraItem[]
   cotacaoFornecedorItens CotacaoFornecedorItem[]
@@ -1049,6 +1058,10 @@ model LocalEstoque {
   nome                 String
   descricao            String?
   ativo                Boolean                 @default(true)
+  // Categorias de produto que este local aceita. Vazio = aceita qualquer
+  // produto (comportamento legado). Preenchido = só entram produtos cuja
+  // categoriaEstoque esteja na lista.
+  categoriasAceitas    CategoriaEstoque[]
   createdAt            DateTime                @default(now())
   updatedAt            DateTime                @updatedAt
   filialId             String?
@@ -1062,6 +1075,7 @@ model LocalEstoque {
   requisicoesMateriais RequisicaoMaterial[]
   inventariosMateriais InventarioMaterial[]
   minutas              Minuta[]
+  contasContabeis      ContaContabil[]
   empresa              Empresa                 @relation(fields: [empresaId], references: [id])
 
   @@index([empresaId])
@@ -2186,6 +2200,17 @@ enum TipoItem {
   PRODUTO
   SERVICO
   MATERIA_PRIMA
+}
+
+// Natureza do produto para fins de armazenagem. Amarra o produto ao(s) local(is)
+// de estoque que o aceitam, impedindo cadastro/movimentação em local errado
+// (ex.: Tijolão/Tijolinho — PRODUTO_ACABADO — não entram no Almoxarifado).
+enum CategoriaEstoque {
+  PRODUTO_ACABADO
+  MERCADORIA
+  WIP
+  INSUMO
+  ALMOXARIFADO
 }
 
 enum TipoLancamentoCaixa {

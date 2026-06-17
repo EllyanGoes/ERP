@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { requireSession } from "@/lib/auth";
+import { garantirContaContabilNatureza } from "@/lib/conta-contabil";
 import { z } from "zod";
 
 const GRUPOS = ["RECEITA_OPERACIONAL", "CUSTO_OPERACIONAL", "DESPESA_OPERACIONAL", "INVESTIMENTO", "FINANCIAMENTO"] as const;
@@ -46,5 +47,6 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos" }, { status: 400 });
 
   const data = await prisma.naturezaFinanceira.create({ data: parsed.data });
+  await garantirContaContabilNatureza(data.id).catch(() => null);
   return NextResponse.json({ data }, { status: 201 });
 }

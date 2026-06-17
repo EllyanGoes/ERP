@@ -36,6 +36,9 @@ export async function contaDoCliente(empresaId: string, clienteId: string) {
 export async function contaDoFornecedor(empresaId: string, fornecedorId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, fornecedorId }, select: { id: true } });
 }
+export async function contaDaNatureza(empresaId: string, naturezaFinanceiraId: string) {
+  return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, naturezaFinanceiraId }, select: { id: true } });
+}
 
 /**
  * Registra um lançamento contábil balanceado (débito = crédito). Idempotente por
@@ -91,15 +94,18 @@ export async function registrarLancamento(input: LancamentoIn) {
 export async function contabilizarTituloReceber(crId: string) {
   const cr = await prismaSemEscopo.contaReceber.findUnique({
     where: { id: crId },
-    select: { id: true, empresaId: true, clienteId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
+    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
   });
   if (!cr || cr.status === "CANCELADA") return;
 
-  const [contaCli, contaReceita, contaCaixa] = await Promise.all([
+  // Receita cai na conta da natureza do título; senão na sintética 3.1.
+  const [contaCli, contaNat, conta31, contaCaixa] = await Promise.all([
     contaDoCliente(cr.empresaId, cr.clienteId),
+    cr.naturezaFinanceiraId ? contaDaNatureza(cr.empresaId, cr.naturezaFinanceiraId) : Promise.resolve(null),
     contaPorCodigo(cr.empresaId, "3.1"),
     contaPorCodigo(cr.empresaId, "1.1.1"),
   ]);
+  const contaReceita = contaNat ?? conta31;
   if (!contaCli) return;
 
   const valor = decimalToNumber(cr.valorOriginal);
@@ -131,15 +137,18 @@ export async function contabilizarTituloReceber(crId: string) {
 export async function contabilizarTituloPagar(cpId: string) {
   const cp = await prismaSemEscopo.contaPagar.findUnique({
     where: { id: cpId },
-    select: { id: true, empresaId: true, fornecedorId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
+    select: { id: true, empresaId: true, fornecedorId: true, naturezaFinanceiraId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
   });
   if (!cp || cp.status === "CANCELADA" || !cp.fornecedorId) return;
 
-  const [contaForn, contaDespesa, contaCaixa] = await Promise.all([
+  // Despesa/custo cai na conta da natureza do título; senão na sintética 3.3.
+  const [contaForn, contaNat, conta33, contaCaixa] = await Promise.all([
     contaDoFornecedor(cp.empresaId, cp.fornecedorId),
+    cp.naturezaFinanceiraId ? contaDaNatureza(cp.empresaId, cp.naturezaFinanceiraId) : Promise.resolve(null),
     contaPorCodigo(cp.empresaId, "3.3"),
     contaPorCodigo(cp.empresaId, "1.1.1"),
   ]);
+  const contaDespesa = contaNat ?? conta33;
   if (!contaForn) return;
 
   const valor = decimalToNumber(cp.valorOriginal);
