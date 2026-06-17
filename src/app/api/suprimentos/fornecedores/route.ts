@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { garantirContaContabilFornecedor } from "@/lib/conta-contabil";
 import { z } from "zod";
 
 const schema = z.object({
@@ -36,7 +37,10 @@ export async function GET(req: NextRequest) {
       { cpfCnpj: { contains: search } },
     ];
   }
-  if (ativo !== null) where.ativo = ativo === "true";
+  // Aceita ativo=true|1 (ativos) e ativo=false|0 (inativos). Antes só "true"
+  // batia, então chamadas com ?ativo=1 (financeiro) caíam em ativo=false e a
+  // lista vinha vazia.
+  if (ativo !== null) where.ativo = ativo === "true" || ativo === "1";
 
   const data = await prisma.fornecedor.findMany({
     where,
@@ -58,6 +62,8 @@ export async function POST(req: NextRequest) {
   const data = cpfCnpjValue ? { ...rest, cpfCnpj: cpfCnpjValue } : rest;
   try {
     const record = await prisma.fornecedor.create({ data });
+    // Cria (best-effort) a conta contábil analítica do fornecedor.
+    await garantirContaContabilFornecedor(record.id).catch(() => null);
     return NextResponse.json(record, { status: 201 });
   } catch (e: any) {
     if (e?.code === "P2002") {
