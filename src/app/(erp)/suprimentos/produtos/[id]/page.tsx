@@ -218,8 +218,10 @@ export default function ProdutoDetailPage() {
   const [deletingMovId, setDeletingMovId] = useState<string | null>(null);
   const [deleteMovConfirm, setDeleteMovConfirm] = useState<Movimentacao | null>(null);
 
-  // Movimentações — period filter
+  // Movimentações — filtros (período, local de estoque, tipo)
   const [movPeriodo, setMovPeriodo] = useState<DateRange>({ from: "", to: "" });
+  const [movLocalFilter, setMovLocalFilter] = useState("");
+  const [movTipoFilter, setMovTipoFilter] = useState<"" | "ENTRADA" | "SAIDA">("");
 
   // Inserir Saldo Inicial
   const [showSaldoDialog, setShowSaldoDialog] = useState(false);
@@ -1753,9 +1755,19 @@ export default function ProdutoDetailPage() {
             const d = new Date(m.lote?.dataMovimentacao ?? m.createdAt);
             if (inicio && d < inicio) return false;
             if (fim    && d > fim)    return false;
+            if (movLocalFilter && (m.localEstoqueId ?? m.localEstoque?.id ?? "") !== movLocalFilter) return false;
+            if (movTipoFilter && m.tipo !== movTipoFilter) return false;
             return true;
           });
-          const temFiltro = !!movPeriodo.from || !!movPeriodo.to;
+          const temFiltro = !!movPeriodo.from || !!movPeriodo.to || !!movLocalFilter || !!movTipoFilter;
+          // Locais de estoque presentes nas movimentações (para o filtro).
+          const locaisMov = Array.from(
+            new Map(
+              item.movimentacoes
+                .filter((m) => m.localEstoque)
+                .map((m) => [m.localEstoque!.id, m.localEstoque!.nome] as const),
+            ).entries(),
+          ).sort((a, b) => a[1].localeCompare(b[1]));
 
           return (
           <div className="space-y-4">
@@ -1779,17 +1791,42 @@ export default function ProdutoDetailPage() {
               </div>
             </div>
 
-            {/* Period filter bar */}
-            <div className="flex items-center gap-3">
+            {/* Filtros: período, local de estoque e tipo */}
+            <div className="flex items-center gap-3 flex-wrap">
               <DateRangePicker
                 value={movPeriodo}
                 onChange={setMovPeriodo}
                 placeholder="Filtrar por período..."
               />
+              <select
+                value={movLocalFilter}
+                onChange={(e) => setMovLocalFilter(e.target.value)}
+                className="h-9 rounded-lg border border-gray-300 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos os locais</option>
+                {locaisMov.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+              </select>
+              <select
+                value={movTipoFilter}
+                onChange={(e) => setMovTipoFilter(e.target.value as "" | "ENTRADA" | "SAIDA")}
+                className="h-9 rounded-lg border border-gray-300 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Entradas e saídas</option>
+                <option value="ENTRADA">Só entradas</option>
+                <option value="SAIDA">Só saídas</option>
+              </select>
               {temFiltro && (
-                <span className="text-xs text-gray-400">
-                  {movsVisiveis.length} de {item.movimentacoes.length} movimentaç{movsVisiveis.length !== 1 ? "ões" : "ão"}
-                </span>
+                <>
+                  <button
+                    onClick={() => { setMovPeriodo({ from: "", to: "" }); setMovLocalFilter(""); setMovTipoFilter(""); }}
+                    className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    Limpar
+                  </button>
+                  <span className="text-xs text-gray-400">
+                    {movsVisiveis.length} de {item.movimentacoes.length} movimentaç{movsVisiveis.length !== 1 ? "ões" : "ão"}
+                  </span>
+                </>
               )}
             </div>
 

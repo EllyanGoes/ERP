@@ -26,7 +26,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const parsed = pagamentoSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
 
-  const { valorPago, dataPagamento, formaPagamento, valorMulta, valorJuros, contaBancariaId } = parsed.data;
+  const { dataPagamento, valorMulta, valorJuros } = parsed.data;
+
+  // Normaliza para uma lista de formas (1 forma = compat). Estrutura igual ao
+  // Pedido de Venda: cada forma cai na sua conta de destino e vira um lançamento.
+  const linhasPag = (parsed.data.pagamentos && parsed.data.pagamentos.length > 0)
+    ? parsed.data.pagamentos.map((p) => ({ forma: p.forma ?? null, contaBancariaId: p.contaBancariaId ?? null, valor: p.valor }))
+    : [{ forma: parsed.data.formaPagamento ?? null, contaBancariaId: parsed.data.contaBancariaId ?? null, valor: parsed.data.valorPago ?? 0 }];
+  const valorPagoTotal = Math.round(linhasPag.reduce((s, l) => s + l.valor, 0) * 100) / 100;
+  const formaResumo = Array.from(new Set(linhasPag.map((l) => l.forma).filter(Boolean))).join(" + ") || null;
 
   // Leitura e escrita na MESMA transação, com guard otimista no update: um
   // duplo clique no "Baixar" não pode somar o mesmo recebimento duas vezes nem
@@ -38,7 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return { erro: { msg: `Conta já está ${conta.status === "PAGA" ? "paga" : "cancelada"}.`, status: 409 }, data: null };
     }
 
-    const totalPago = parseFloat(conta.valorPago.toString()) + valorPago;
+    const totalPago = parseFloat(conta.valorPago.toString()) + valorPagoTotal;
     const totalOriginal = parseFloat(conta.valorOriginal.toString());
     const newStatus = totalPago >= totalOriginal ? "PAGA" : "PARCIAL";
 
@@ -51,7 +59,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         valorMulta: (parseFloat(conta.valorMulta.toString())) + valorMulta,
         valorJuros: (parseFloat(conta.valorJuros.toString())) + valorJuros,
         dataPagamento: newStatus === "PAGA" ? new Date(dataPagamento) : null,
-        formaPagamento: formaPagamento ?? conta.formaPagamento,
+        formaPagamento: formaResumo ?? conta.formaPagamento,
         status: newStatus,
       },
     });
@@ -59,18 +67,26 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return { erro: { msg: "A conta foi baixada por outra operação simultânea — recarregue e confira.", status: 409 }, data: null };
     }
 
-    await tx.lancamentoFinanceiro.create({
-      data: {
-        tipo: "RECEITA",
-        descricao: `Recebimento ${conta.numero}`,
-        valor: valorPago + valorMulta + valorJuros,
-        dataLancamento: new Date(dataPagamento),
-        contaReceberId: params.id,
-        contaBancariaId: contaBancariaId ?? conta.contaBancariaId ?? contaCaixaIdDaEmpresa(conta.empresaId),
-        naturezaFinanceiraId: conta.naturezaFinanceiraId ?? undefined,
-        centroCustoId: conta.centroCustoId ?? undefined,
-      },
-    });
+    // Um lançamento por forma (cada um na sua conta). Multa/juros entram na 1ª linha.
+    for (let i = 0; i < linhasPag.length; i++) {
+      const l = linhasPag[i];
+      const extra = i === 0 ? valorMulta + valorJuros : 0;
+      const contaDest = l.contaBancariaId && l.contaBancariaId !== "caixa-geral"
+        ? l.contaBancariaId
+        : (conta.contaBancariaId ?? contaCaixaIdDaEmpresa(conta.empresaId));
+      await tx.lancamentoFinanceiro.create({
+        data: {
+          tipo: "RECEITA",
+          descricao: `Recebimento ${conta.numero}${linhasPag.length > 1 && l.forma ? ` (${l.forma})` : ""}`,
+          valor: l.valor + extra,
+          dataLancamento: new Date(dataPagamento),
+          contaReceberId: params.id,
+          contaBancariaId: contaDest,
+          naturezaFinanceiraId: conta.naturezaFinanceiraId ?? undefined,
+          centroCustoId: conta.centroCustoId ?? undefined,
+        },
+      });
+    }
     const updated = await tx.contaReceber.findUnique({ where: { id: params.id } });
     // O financeiro do pedido mudou → recomputa o status do pedido.
     if (conta.pedidoVendaId) await recomputarStatusPedido(tx, conta.pedidoVendaId);

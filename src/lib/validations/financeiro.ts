@@ -27,13 +27,23 @@ export const contaPagarSchema = z.object({
 })
 
 export const pagamentoSchema = z.object({
-  valorPago: z.coerce.number().min(0.01, "Valor inválido"),
+  // valorPago/forma/conta únicos = baixa de 1 forma (compat). Para múltiplas
+  // formas (mesma estrutura do Pedido de Venda), use `pagamentos`.
+  valorPago: z.coerce.number().min(0.01, "Valor inválido").optional(),
   dataPagamento: z.string().min(1, "Data é obrigatória"),
   formaPagamento: z.string().optional().nullable(),
   valorMulta: z.coerce.number().min(0).default(0),
   valorJuros: z.coerce.number().min(0).default(0),
   contaBancariaId: z.string().optional().nullable(),
-})
+  pagamentos: z.array(z.object({
+    forma: z.string().optional().nullable(),
+    contaBancariaId: z.string().optional().nullable(),
+    valor: z.coerce.number().min(0.01),
+  })).optional(),
+}).refine(
+  (d) => (d.pagamentos && d.pagamentos.length > 0) || (d.valorPago != null && d.valorPago > 0),
+  { message: "Informe o valor recebido/pago", path: ["valorPago"] },
+)
 
 // ── Tesouraria (Fase 1) ─────────────────────────────────────────────────────
 
