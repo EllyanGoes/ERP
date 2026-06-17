@@ -10,7 +10,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { proximaSequenciaDaEmpresa, contaCaixaIdDaEmpresa, empresasDoGrupo } from "@/lib/empresa";
 import { recomputarStatusPedido } from "@/lib/pedido-totais";
-import { gerarMovimentosTriangulares } from "@/lib/venda-ordem";
+import { espelharEntregaTriangular } from "@/lib/intragrupo";
 import { saldoCreditoCliente, consumirCreditoCliente } from "@/lib/credito-cliente";
 import { generateDocNumber, generateSimpleDocNumber } from "@/lib/utils";
 import { pedidoPrintData } from "@/lib/print-pedido-server";
@@ -204,12 +204,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         // data confirmada pelo caixa prevalece sobre a previsão do pedido; a
         // forma de pagamento confirmada fica carimbada no pedido (e no cupom)
         data: {
-          status: "CONCLUIDO",
+          // À ordem: o caixa só RECEBE; a venda fica CONFIRMADA (expedição
+          // pendente na origem). Venda normal conclui na hora.
+          status: triangular ? "CONFIRMADO" : "CONCLUIDO",
           dataEntrega: dataRecebimento ? hoje : (pedido.dataEntrega ?? hoje),
-          dataConclusao: hoje, // venda de balcão conclui na data do recebimento
+          ...(triangular ? {} : { dataConclusao: hoje }),
           ...(formasResumo ? { formaPagamento: formasResumo } : {}),
           // À ordem marcada no caixa: grava a origem (e preço de transferência)
-          // antes de gerar os movimentos virtuais.
+          // p/ o pedido de entrega ser criado na origem (espelharEntregaTriangular).
           ...(origemBody && !pedido.estoqueOrigemEmpresaId
             ? { estoqueOrigemEmpresaId: origemEfetiva, precoTransferencia: precoTransfBody }
             : {}),
@@ -219,7 +221,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         throw new Error("CONFLITO: o pedido já foi concluído por outra operação — recarregue a página.");
       }
 
-      const minuta = await tx.minuta.create({
+      // À ordem: NÃO cria minuta na empresa da venda (a entrega/baixa é no pedido
+      // de entrega da origem). Venda normal: minuta de RETIRADA já ENTREGUE.
+      const minuta = triangular ? null : await tx.minuta.create({
         data: {
           numero: numeroMin,
           empresaId: pedido.empresaId,
@@ -247,8 +251,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             empresaId: pedido.empresaId,
             numero: movNumero,
             tipo: "SAIDA",
-            documento: minuta.numero,
-            observacoes: `Venda balcão ${pedido.numero} — minuta ${minuta.numero}`,
+            documento: minuta!.numero,
+            observacoes: `Venda balcão ${pedido.numero} — minuta ${minuta!.numero}`,
           },
         });
 
@@ -282,8 +286,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               quantidade,
               saldoAntes: saldoDepois + quantidade,
               saldoDepois,
-              documento: minuta.numero,
-              observacoes: `Venda balcão — minuta ${minuta.numero}`,
+              documento: minuta!.numero,
+              observacoes: `Venda balcão — minuta ${minuta!.numero}`,
             },
           });
         }
@@ -370,9 +374,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return { minuta, conta };
     });
 
-    // Venda à ordem: gera os 3 movimentos virtuais + financeiro intragrupo a
-    // partir da minuta RETIRADA já ENTREGUE (idempotente).
-    if (triangular) await gerarMovimentosTriangulares(resultado.minuta.id);
+    // Venda à ordem: cria o Pedido de Entrega na origem (Tramontin) — a baixa e
+    // a expedição acontecem lá; a compra virtual + financeiro disparam quando a
+    // origem entregar. O caixa apenas recebeu o pagamento (venda oficial).
+    if (triangular) await espelharEntregaTriangular(pedido.id);
 
     // Dados de impressão do cupom (o PDV imprime direto da resposta).
     const pedidoImpresso = await prisma.pedidoVenda.findUnique({
@@ -387,9 +392,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     return NextResponse.json({
       data: {
-        minutaId: resultado.minuta.id,
-        minutaNumero: resultado.minuta.numero,
+        minutaId: resultado.minuta?.id ?? null,
+        minutaNumero: resultado.minuta?.numero ?? null,
         contaNumero: resultado.conta?.numero ?? null,
+        triangular,
         print: pedidoImpresso ? pedidoPrintData(pedidoImpresso) : null,
       },
     }, { status: 201 });

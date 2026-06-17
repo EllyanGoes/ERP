@@ -218,6 +218,131 @@ export async function gerarMovimentosTriangulares(minutaId: string): Promise<voi
 }
 
 /**
+ * Compra virtual na empresa da venda (Cimento), disparada quando a minuta do
+ * PEDIDO DE ENTREGA da origem (Tramontin) é ENTREGUE. A baixa real na origem já
+ * é a própria minuta da entrega — aqui geramos só: ENTRADA na empresa da venda
+ * (compra virtual, preço de transferência) + SAÍDA (entrega ao cliente, preço
+ * de venda) + financeiro intragrupo (Conta a Receber origem / Conta a Pagar
+ * Cimento). Idempotente por (vendaOrdemId + documento da minuta de entrega).
+ * `entregaMinutaId` = minuta do pedido de entrega (pedido.pedidoVendaOrigemId set).
+ */
+export async function gerarCompraVirtualVendaOrdem(entregaMinutaId: string): Promise<void> {
+  try {
+    const entrega = await prismaSemEscopo.minuta.findUnique({
+      where: { id: entregaMinutaId },
+      include: { itens: true, pedidoVenda: { select: { id: true, pedidoVendaOrigemId: true, status: true, statusEntrega: true } } },
+    });
+    if (!entrega || entrega.status !== "ENTREGUE") return;
+    const vendaId = entrega.pedidoVenda?.pedidoVendaOrigemId;
+    if (!vendaId) return; // não é minuta de pedido de entrega à ordem
+
+    const venda = await prismaSemEscopo.pedidoVenda.findUnique({
+      where: { id: vendaId },
+      include: { empresa: true, cliente: { select: { razaoSocial: true, nomeFantasia: true } }, itens: true },
+    });
+    if (!venda?.estoqueOrigemEmpresaId) return;
+
+    const origem = await prismaSemEscopo.empresa.findFirst({
+      where: { id: venda.estoqueOrigemEmpresaId, ativo: true },
+      select: { id: true, nomeFantasia: true, razaoSocial: true, fornecedorId: true },
+    });
+    if (!origem) return;
+    const empresaA = venda.empresaId;
+    const origemNome = origem.nomeFantasia ?? origem.razaoSocial;
+    const clienteNome = venda.cliente.nomeFantasia ?? venda.cliente.razaoSocial;
+
+    // Idempotência: já gerou a compra virtual desta entrega?
+    const jaTem = await prismaSemEscopo.movimentacaoEstoque.findFirst({
+      where: { vendaOrdemId: venda.id, documento: entrega.numero },
+      select: { id: true },
+    });
+    if (jaTem) return;
+
+    // Preço por item da venda (venda + transferência) casado por itemId.
+    const totalVenda = venda.itens.reduce((s, i) => s.add(new Prisma.Decimal(i.valorTotal ?? 0)), new Prisma.Decimal(0));
+    const transfer = venda.precoTransferencia != null ? new Prisma.Decimal(venda.precoTransferencia) : null;
+    const fator = transfer && totalVenda.gt(0) ? transfer.div(totalVenda) : new Prisma.Decimal(1);
+    const vItemByItemId = new Map(venda.itens.map((i) => [i.itemId, i]));
+
+    await prismaSemEscopo.$transaction(async (tx) => {
+      const localA = await localPadrao(tx, empresaA);
+      const loteEntradaA = await criarLote(tx, empresaA, "ENTRADA", entrega.numero, `Compra virtual de ${origemNome} (venda à ordem ${venda.numero})`);
+      const loteSaidaA = await criarLote(tx, empresaA, "SAIDA", entrega.numero, `Entrega ao cliente ${clienteNome} (venda à ordem ${venda.numero})`);
+
+      let transferTotal = new Prisma.Decimal(0);
+      for (const mi of entrega.itens) {
+        const qtd = new Prisma.Decimal(mi.quantidadeConvertida ?? mi.quantidade);
+        if (qtd.lte(0)) continue;
+        const vi = vItemByItemId.get(mi.itemId);
+        const precoVenda = vi ? new Prisma.Decimal(vi.precoUnitario ?? 0) : new Prisma.Decimal(0);
+        const totalItem = vi ? new Prisma.Decimal(vi.valorTotal ?? 0) : new Prisma.Decimal(0);
+        const transferUnit = vi?.precoTransferencia != null
+          ? new Prisma.Decimal(vi.precoTransferencia)
+          : (vi && new Prisma.Decimal(vi.quantidade).gt(0)
+              ? totalItem.mul(fator).div(new Prisma.Decimal(vi.quantidade)).toDecimalPlaces(4)
+              : precoVenda);
+        transferTotal = transferTotal.add(transferUnit.mul(qtd));
+
+        // ENTRADA na empresa da venda (compra virtual — preço de transferência).
+        await movimentar(tx, {
+          empresaId: empresaA, localEstoqueId: localA, itemId: mi.itemId, tipo: "ENTRADA",
+          quantidade: qtd, loteId: loteEntradaA.id, documento: entrega.numero,
+          observacoes: `Compra virtual de ${origemNome} (venda à ordem ${venda.numero})`,
+          valorUnitario: transferUnit, vendaOrdemId: venda.id,
+        });
+        // SAÍDA na empresa da venda (entrega ao cliente — preço de venda).
+        await movimentar(tx, {
+          empresaId: empresaA, localEstoqueId: localA, itemId: mi.itemId, tipo: "SAIDA",
+          quantidade: qtd, loteId: loteSaidaA.id, documento: entrega.numero,
+          observacoes: `Entrega ao cliente ${clienteNome} (venda à ordem ${venda.numero})`,
+          valorUnitario: precoVenda, vendaOrdemId: venda.id, pedidoVendaItemId: vi?.id ?? null,
+        });
+      }
+
+      // Financeiro intragrupo (compra virtual A ↔ B), pelo total de transferência entregue.
+      const valor = transferTotal.toDecimalPlaces(2);
+      const vencimento = entrega.dataEntrega ?? new Date();
+      if (valor.gt(0)) {
+        if (venda.empresa.clienteId) {
+          const nCR = generateDocNumber("CR", await proximaSequencia(tx, origem.id, "CR"));
+          await tx.contaReceber.create({
+            data: {
+              empresaId: origem.id, numero: nCR, clienteId: venda.empresa.clienteId,
+              descricao: `Venda à ordem ${venda.numero} p/ ${venda.empresa.nomeFantasia ?? venda.empresa.razaoSocial} (entrega ${entrega.numero})`,
+              valorOriginal: valor, dataVencimento: vencimento, status: "ABERTA", intragrupo: true,
+            },
+          });
+        }
+        if (origem.fornecedorId) {
+          const nCP = generateDocNumber("CP", await proximaSequencia(tx, empresaA, "CP"));
+          await tx.contaPagar.create({
+            data: {
+              empresaId: empresaA, numero: nCP, fornecedorId: origem.fornecedorId,
+              descricao: `Compra intragrupo de ${origemNome} — venda à ordem ${venda.numero} (entrega ${entrega.numero})`,
+              valorOriginal: valor, dataVencimento: vencimento, status: "ABERTA", intragrupo: true,
+            },
+          });
+        }
+      }
+    });
+
+    // Espelha o status de entrega do pedido de entrega (origem) na venda à ordem
+    // — que não tem minuta própria. Conclui a venda quando a entrega concluir.
+    const ent = entrega.pedidoVenda!;
+    await prismaSemEscopo.pedidoVenda.update({
+      where: { id: venda.id },
+      data: {
+        statusEntrega: ent.statusEntrega,
+        ...(ent.status === "CONCLUIDO" && venda.status !== "CONCLUIDO"
+          ? { status: "CONCLUIDO", dataConclusao: new Date() } : {}),
+      },
+    });
+  } catch (e) {
+    console.error(`[venda-ordem] falha ao gerar compra virtual da entrega ${entregaMinutaId}:`, e);
+  }
+}
+
+/**
  * Reverte os movimentos virtuais de uma DEVOLUÇÃO de venda à ordem: o material
  * volta do cliente para a origem (Tramontin). Espelha ao contrário os 3
  * movimentos: ENTRADA na empresa da venda + SAÍDA na empresa da venda + ENTRADA

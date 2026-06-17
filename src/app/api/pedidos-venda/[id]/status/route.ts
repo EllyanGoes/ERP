@@ -4,7 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getItensPendentesEntrega, recomputarStatusPedido } from "@/lib/pedido-totais";
 import { gerarContasReceberDoPedido } from "@/lib/contas-receber";
-import { espelharConfirmacaoVenda, cancelarEspelhoVenda, cancelarEntregaTriangular } from "@/lib/intragrupo";
+import { espelharConfirmacaoVenda, cancelarEspelhoVenda, espelharEntregaTriangular, cancelarEntregaTriangular } from "@/lib/intragrupo";
 import { z } from "zod";
 
 const schema = z.object({
@@ -56,9 +56,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   // Não permite concluir enquanto houver material pendente de entrega
   // (qtd pedida ainda não totalmente coberta por minutas ENTREGUE). A venda à
-  // ordem também tem minuta própria (a entrega gera os movimentos virtuais),
-  // então a checagem vale igualmente.
-  if (parsed.data.status === "CONCLUIDO") {
+  // ordem NÃO tem minuta própria — a entrega é feita no pedido de entrega da
+  // origem (Tramontin) e a conclusão da venda é automática quando ela entrega;
+  // por isso não bloqueia aqui.
+  if (parsed.data.status === "CONCLUIDO" && !pedido.estoqueOrigemEmpresaId) {
     const pendentes = await getItensPendentesEntrega(params.id);
     if (pendentes.length > 0) {
       return NextResponse.json(
@@ -112,10 +113,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (parsed.data.status === "CONFIRMADO") await espelharConfirmacaoVenda(params.id);
   if (parsed.data.status === "CANCELADO") await cancelarEspelhoVenda(params.id);
 
-  // Venda à ordem (triangular): a entrega passou a ser pela minuta da própria
-  // venda, que gera os movimentos virtuais (saída na origem + entrada/saída na
-  // empresa da venda) — ver src/lib/venda-ordem.ts. Não criamos mais o pedido de
-  // entrega na origem; o cancelamento ainda zera pedidos de entrega legados.
+  // Venda à ordem (triangular): ao CONFIRMAR, cria o Pedido de Entrega na empresa
+  // de origem (Tramontin) — documento próprio de separação/expedição. A baixa
+  // real é pela minuta DESSE pedido (uma vez); a compra virtual + financeiro na
+  // empresa da venda disparam quando ele entrega. Cancelar zera o pedido de entrega.
+  if (parsed.data.status === "CONFIRMADO") await espelharEntregaTriangular(params.id);
   if (parsed.data.status === "CANCELADO") await cancelarEntregaTriangular(params.id);
 
   return NextResponse.json({ data: updated });

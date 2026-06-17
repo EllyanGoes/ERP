@@ -104,9 +104,14 @@ export async function POST(req: NextRequest) {
     if (!pedidoOrigem) {
       return NextResponse.json({ error: "Pedido de venda não encontrado" }, { status: 404 });
     }
-    // Venda à ordem: a minuta é da própria venda. A baixa normal do estoque é
-    // pulada e, na entrega, gera os movimentos virtuais (saída na origem +
-    // entrada/saída na empresa da venda) — ver src/lib/venda-ordem.ts.
+    // Venda à ordem: a venda comercial NÃO gera minuta própria — a entrega e a
+    // baixa são feitas no Pedido de Entrega da empresa de origem (Tramontin).
+    if (pedidoOrigem.estoqueOrigemEmpresaId) {
+      return NextResponse.json(
+        { error: "Esta é uma venda à ordem: a entrega e a baixa de estoque são feitas no pedido de entrega da empresa de origem." },
+        { status: 422 },
+      );
+    }
     const numeroMin = generateSimpleDocNumber(
       "MIN",
       await proximaSequenciaDaEmpresa(pedidoOrigem.empresaId, "MIN")

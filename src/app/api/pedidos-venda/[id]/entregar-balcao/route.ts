@@ -9,7 +9,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
-import { gerarMovimentosTriangulares } from "@/lib/venda-ordem";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { pedidoPrintData } from "@/lib/print-pedido-server";
 import { z } from "zod";
@@ -45,9 +44,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (pedido.intragrupo) {
     return NextResponse.json({ error: "Venda entre empresas do grupo segue o fluxo normal de entrega." }, { status: 422 });
   }
-  // Venda à ordem: o estoque sai de outra empresa. A baixa normal é pulada e os
-  // movimentos virtuais são gerados após o commit (gerarMovimentosTriangulares).
-  const triangular = !!pedido.estoqueOrigemEmpresaId;
+  // Venda à ordem: a saída/baixa é feita no Pedido de Entrega da empresa de
+  // origem (Tramontin), não aqui.
+  if (pedido.estoqueOrigemEmpresaId) {
+    return NextResponse.json({ error: "Venda à ordem: a saída do material é feita no pedido de entrega da empresa de origem." }, { status: 422 });
+  }
   if (pedido.minutas.length > 0) {
     return NextResponse.json({ error: "Este pedido já possui minutas — use o fluxo de entrega." }, { status: 422 });
   }
@@ -98,8 +99,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         },
       });
 
-      // Venda à ordem: pula a baixa normal — movimentos virtuais após o commit.
-      if (!triangular) {
+      {
         const lote = await tx.loteMovimentacao.create({
           data: {
             empresaId: pedido.empresaId,
@@ -148,9 +148,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
       return { minuta };
     });
-
-    // Venda à ordem: gera os 3 movimentos virtuais + financeiro intragrupo.
-    if (triangular) await gerarMovimentosTriangulares(resultado.minuta.id);
 
     const pedidoImpresso = await prisma.pedidoVenda.findUnique({
       where: { id: params.id },
