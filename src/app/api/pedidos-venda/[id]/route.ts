@@ -7,6 +7,8 @@ import { getSession } from "@/lib/auth";
 import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
 import { recalcPedidoValorTotal, getItensPendentesEntrega, recomputarStatusPedido } from "@/lib/pedido-totais";
 import { espelharConfirmacaoVenda, cancelarEspelhoVenda } from "@/lib/intragrupo";
+import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
+import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const pedido = await prisma.pedidoVenda.findUnique({
@@ -207,45 +209,59 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           });
         }
       } else if (Array.isArray(pagamentos) && jaRecebido > 0) {
-        // Pedido já pago: permite editar APENAS a CONTA de destino de cada forma —
-        // atualiza o pagamento e MOVE o lançamento no caixa para a nova conta. Os
-        // valores/identidade das linhas são preservados (o financeiro já lançado).
-        const existentes = await tx.pedidoVendaPagamento.findMany({
-          where: { pedidoVendaId: params.id }, orderBy: { ordem: "asc" },
-        });
-        for (let i = 0; i < existentes.length && i < pagamentos.length; i++) {
-          const novaConta = pagamentos[i].contaBancariaId ?? null;
-          if (novaConta && novaConta !== existentes[i].contaBancariaId) {
-            await tx.pedidoVendaPagamento.update({ where: { id: existentes[i].id }, data: { contaBancariaId: novaConta } });
-          }
+        // Pedido já recebido: re-sincroniza o financeiro com os valores/formas/
+        // contas editados (decisão do dono: reajustar tudo — o "valor recebido" e
+        // o total acompanham). Só para o recebimento PADRÃO (1 conta a receber
+        // PAGA, não parcelada). Parcelado/baixa manual bloqueia para não corromper.
+        const crs = await tx.contaReceber.findMany({ where: { pedidoVendaId: params.id } });
+        if (crs.length !== 1 || crs[0].status !== "PAGA" || crs[0].grupoParcelamentoId) {
+          throw new Error("PEDIDO_RECEBIDO_COMPLEXO");
         }
-        // Sincroniza os lançamentos do caixa com as contas atualizadas (por forma).
-        const atualizados = await tx.pedidoVendaPagamento.findMany({
-          where: { pedidoVendaId: params.id }, orderBy: { ordem: "asc" },
-        });
-        const contaPorForma = new Map<string, string>();
-        for (const p of atualizados) if (p.contaBancariaId) contaPorForma.set(p.forma.toLowerCase(), p.contaBancariaId);
-        // Data do recebimento editada → move o lançamento e a baixa (meia-noite UTC).
-        const novaData = pagamentoData ? new Date(`${pagamentoData}T00:00:00.000Z`) : null;
-        const crs = await tx.contaReceber.findMany({ where: { pedidoVendaId: params.id }, select: { id: true, status: true } });
-        for (const cr of crs) {
-          const lancs = await tx.lancamentoFinanceiro.findMany({ where: { contaReceberId: cr.id } });
-          for (const l of lancs) {
-            const m = l.descricao?.match(/\(([^)]+)\)\s*$/);
-            const forma = m ? m[1] : (atualizados.length === 1 ? atualizados[0].forma : undefined);
-            const conta = forma ? contaPorForma.get(forma.toLowerCase()) : undefined;
-            const upd: Record<string, unknown> = {};
-            if (conta && conta !== l.contaBancariaId) upd.contaBancariaId = conta;
-            if (novaData) upd.dataLancamento = novaData;
-            if (Object.keys(upd).length > 0) {
-              await tx.lancamentoFinanceiro.update({ where: { id: l.id }, data: upd });
-            }
-          }
-          // Carimba a data do recebimento na conta paga.
-          if (novaData && cr.status === "PAGA") {
-            await tx.contaReceber.update({ where: { id: cr.id }, data: { dataPagamento: novaData } });
-          }
+        const cr = crs[0];
+
+        // Substitui os pagamentos previstos com os valores/formas/contas editados.
+        await tx.pedidoVendaPagamento.deleteMany({ where: { pedidoVendaId: params.id } });
+        if (pagamentos.length > 0) {
+          await tx.pedidoVendaPagamento.createMany({
+            data: pagamentos.map((p, i) => ({ pedidoVendaId: params.id, forma: p.forma, valor: p.valor, ordem: i, contaBancariaId: p.contaBancariaId ?? null })),
+          });
         }
+
+        // Reconstrói os lançamentos da CR a partir das linhas editadas (uma por
+        // forma, na sua conta) e reajusta a conta a receber ao novo total.
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+        const caixaPadrao = contaCaixaIdDaEmpresa(cr.empresaId);
+        const linhasPag = pagamentos
+          .filter((p) => Number(p.valor) > 0)
+          .map((p) => ({ forma: p.forma, contaBancariaId: p.contaBancariaId || caixaPadrao, valor: round2(Number(p.valor)) }));
+
+        const ruim = await formaEletronicaNoCaixa(tx, cr.empresaId, linhasPag.map((l) => ({ forma: l.forma, contaBancariaId: l.contaBancariaId })));
+        if (ruim) throw new Error(`ROTEAMENTO::A forma "${ruim.forma}" não pode ser recebida no Caixa em Dinheiro — selecione a conta bancária de destino.`);
+
+        const novaData = pagamentoData ? new Date(`${pagamentoData}T00:00:00.000Z`) : (cr.dataPagamento ?? new Date());
+        await tx.lancamentoFinanceiro.deleteMany({ where: { contaReceberId: cr.id } });
+        for (const l of linhasPag) {
+          await tx.lancamentoFinanceiro.create({
+            data: {
+              empresaId: cr.empresaId, tipo: "RECEITA",
+              descricao: `Recebimento ${cr.numero}${linhasPag.length > 1 ? ` (${l.forma})` : ""}`,
+              valor: l.valor, dataLancamento: novaData,
+              contaReceberId: cr.id, contaBancariaId: l.contaBancariaId,
+              naturezaFinanceiraId: cr.naturezaFinanceiraId ?? undefined,
+            },
+          });
+        }
+        const somaPag = round2(linhasPag.reduce((s, l) => s + l.valor, 0));
+        await tx.contaReceber.update({
+          where: { id: cr.id },
+          data: {
+            valorOriginal: valorTotal,
+            valorPago: somaPag,
+            status: somaPag >= valorTotal - 0.001 ? "PAGA" : somaPag > 0 ? "PARCIAL" : "ABERTA",
+            dataPagamento: somaPag > 0 ? novaData : null,
+            formaPagamento: Array.from(new Set(linhasPag.map((l) => l.forma))).join(" + ") || null,
+          },
+        });
       }
 
       // Reconcile items: update existing rows in place (FK-safe), create new
@@ -337,6 +353,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         { error: "Não é possível alterar este pedido: há itens com minutas que seriam removidos. Cancele as minutas primeiro." },
         { status: 409 },
       );
+    }
+    if (err instanceof Error && err.message === "PEDIDO_RECEBIDO_COMPLEXO") {
+      return NextResponse.json(
+        { error: "Este pedido tem recebimento parcelado ou baixa manual — estorne o recebimento antes de alterar os valores." },
+        { status: 422 },
+      );
+    }
+    if (err instanceof Error && err.message.startsWith("ROTEAMENTO::")) {
+      return NextResponse.json({ error: err.message.slice("ROTEAMENTO::".length) }, { status: 422 });
     }
     return NextResponse.json(
       { error: "Erro ao salvar pedido. Verifique se há minutas vinculadas aos itens." },
