@@ -17,6 +17,7 @@ import MinutaActionsMenu from "./MinutaActionsMenu";
 import DevolucaoButton from "./DevolucaoButton";
 import PagamentosInput, {
   novaLinhaPagamento, pagamentosPayload, pagamentosValidos, contaCaixaPadrao, parseValorBR,
+  contaPadraoParaForma, pagamentoContaInvalida,
   type LinhaPagamento, type FormaOpt,
 } from "./PagamentosInput";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -211,7 +212,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
     setBalcaoData(dateInput(pedido.dataEmissao));
     setBalcaoPagamentos([novaLinhaPagamento(
       pedido.formaPagamento ?? "",
-      contaCaixaPadrao(balcaoContas),
+      contaPadraoParaForma(pedido.formaPagamento ?? "", balcaoFormas, balcaoContas),
       balcaoTotal > 0 ? balcaoTotal.toFixed(2).replace(".", ",") : "",
     )]);
     setBalcaoOpen(true);
@@ -238,6 +239,11 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
     if (!balcaoData) { setBalcaoErro("Confirme a data do recebimento."); return; }
     if (!pagamentosValidos(balcaoPagamentos, balcaoFormas, balcaoTotal)) {
       setBalcaoErro("Confira as formas de pagamento — a soma precisa cobrir o total (troco só em dinheiro).");
+      return;
+    }
+    const balcaoContaRuim = pagamentoContaInvalida(balcaoPagamentos, balcaoFormas, balcaoContas);
+    if (balcaoContaRuim) {
+      setBalcaoErro(`Selecione a conta bancária de destino para "${balcaoContaRuim.forma || "a forma eletrônica"}" — formas que não são dinheiro não podem cair no Caixa em Dinheiro.`);
       return;
     }
     setLoading(true);
@@ -270,7 +276,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   function abrirReceber() {
     setRecebErro("");
     setRecebData(todayInput());
-    setRecebPagamentos([novaLinhaPagamento(pedido.formaPagamento ?? "", contaCaixaPadrao(balcaoContas), balcaoTotal > 0 ? balcaoTotal.toFixed(2).replace(".", ",") : "")]);
+    setRecebPagamentos([novaLinhaPagamento(pedido.formaPagamento ?? "", contaPadraoParaForma(pedido.formaPagamento ?? "", balcaoFormas, balcaoContas), balcaoTotal > 0 ? balcaoTotal.toFixed(2).replace(".", ",") : "")]);
     setRecebOpen(true);
     fetch("/api/suprimentos/formas-pagamento").then((r) => r.json()).then((j) => setBalcaoFormas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
     fetch("/api/financeiro/contas").then((r) => r.json()).then((j) => setBalcaoContas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
@@ -280,6 +286,11 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
     if (!recebData) { setRecebErro("Confirme a data do recebimento."); return; }
     if (!pagamentosValidos(recebPagamentos, balcaoFormas, balcaoTotal)) {
       setRecebErro("Confira as formas de pagamento — a soma precisa cobrir o total (troco só em dinheiro).");
+      return;
+    }
+    const recebContaRuim = pagamentoContaInvalida(recebPagamentos, balcaoFormas, balcaoContas);
+    if (recebContaRuim) {
+      setRecebErro(`Selecione a conta bancária de destino para "${recebContaRuim.forma || "a forma eletrônica"}" — formas que não são dinheiro não podem cair no Caixa em Dinheiro.`);
       return;
     }
     setLoading(true);

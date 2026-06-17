@@ -66,6 +66,33 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     valor: round2(p.valor),
     troco: !!p.troco,
   }));
+
+  // Guarda de roteamento: forma eletrônica não pode cair em conta tipo CAIXA
+  // (dinheiro físico). Só vale se a empresa tem banco cadastrado — sem banco, o
+  // Caixa é a única opção possível.
+  {
+    const temBanco = await prisma.contaBancaria.findFirst({
+      where: { empresaId: pedido.empresaId, tipo: { not: "CAIXA" }, ativo: true },
+      select: { id: true },
+    });
+    if (temBanco) {
+      const contaIds = Array.from(new Set(linhas.map((l) => l.contaBancariaId)));
+      const [contasInfo, formasInfo] = await Promise.all([
+        prisma.contaBancaria.findMany({ where: { id: { in: contaIds } }, select: { id: true, tipo: true } }),
+        prisma.formaPagamento.findMany({ select: { nome: true, tipo: true } }),
+      ]);
+      const ehDinheiro = (forma: string) => {
+        const f = formasInfo.find((x) => x.nome === forma);
+        return f ? f.tipo === "DINHEIRO" : /dinheiro|esp[ée]cie/i.test(forma);
+      };
+      const contaEhCaixa = (id: string) => id === "caixa-geral" || contasInfo.some((c) => c.id === id && c.tipo === "CAIXA");
+      const ruim = linhas.find((l) => l.valor > 0 && !ehDinheiro(l.forma) && contaEhCaixa(l.contaBancariaId));
+      if (ruim) {
+        return NextResponse.json({ error: `A forma "${ruim.forma}" não pode ser recebida no Caixa em Dinheiro — selecione a conta bancária de destino.` }, { status: 422 });
+      }
+    }
+  }
+
   const somaPag = round2(linhas.reduce((s, l) => s + l.valor, 0));
   if (somaPag < valorTotal - 0.001) {
     return NextResponse.json({ error: `Pagamento insuficiente: faltam R$ ${round2(valorTotal - somaPag).toFixed(2)}.` }, { status: 422 });
