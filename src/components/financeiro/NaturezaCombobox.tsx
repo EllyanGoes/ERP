@@ -119,7 +119,7 @@ export default function NaturezaCombobox({
         <ChevronDown className={cn("w-4 h-4 text-gray-400 shrink-0 transition-transform", open && "rotate-180")} />
       </PopoverTrigger>
 
-      <PopoverContent align="start" sideOffset={4} className="w-[320px] max-w-[calc(100vw-2rem)] p-0 gap-0 overflow-hidden">
+      <PopoverContent align="start" sideOffset={4} className="w-[460px] max-w-[calc(100vw-2rem)] p-0 gap-0 overflow-hidden">
         {allowCreate && criando ? (
           /* Painel de criação inline */
           <div className="p-3 space-y-2.5">
@@ -186,16 +186,16 @@ export default function NaturezaCombobox({
                       <button
                         key={n.id} type="button" onClick={() => selecionar(n.id)}
                         className={cn(
-                          "w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors",
+                          "w-full flex items-start gap-2 px-3 py-2 text-sm text-left transition-colors",
                           value === n.id ? "bg-blue-50/70 text-blue-700" : "hover:bg-gray-50 text-gray-700",
                         )}
                       >
-                        <Seta tipo={n.tipo} />
-                        <span className="truncate">
+                        <span className="mt-0.5 shrink-0"><Seta tipo={n.tipo} /></span>
+                        <span className="flex-1 leading-snug">
                           {n.subgrupo ? <span className="text-gray-400">{n.subgrupo.nome} · </span> : null}
                           {n.nome}
                         </span>
-                        {value === n.id && <Check className="w-3.5 h-3.5 text-blue-600 ml-auto shrink-0" />}
+                        {value === n.id && <Check className="w-3.5 h-3.5 text-blue-600 ml-auto shrink-0 mt-0.5" />}
                       </button>
                     ))}
                   </div>

@@ -24,7 +24,7 @@ const schema = z.object({
   dataVencimento: DATE.optional().nullable(),
   dataCompetencia: DATE.optional().nullable(),
   linhas: z.array(z.object({
-    naturezaFinanceiraId: z.string().optional().nullable().transform((v) => v || null),
+    naturezaFinanceiraId: z.string().min(1, "Selecione a natureza financeira de cada linha"),
     detalhamento: z.string().optional().nullable(),
     valor: z.coerce.number().positive(),
   })).min(1, "Adicione ao menos uma categoria"),

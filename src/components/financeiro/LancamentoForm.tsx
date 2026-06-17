@@ -122,6 +122,7 @@ export default function LancamentoForm({
     if (isReceber && !contatoId) { setErro("Selecione o cliente."); return; }
     const linhasValidas = linhas.filter((l) => parseDecimal(l.valor) > 0);
     if (linhasValidas.length === 0) { setErro("Informe ao menos uma natureza com valor."); return; }
+    if (linhasValidas.some((l) => !l.naturezaFinanceiraId)) { setErro("Selecione a natureza financeira de todas as linhas com valor."); return; }
     if (pago && !contaBancariaId) { setErro("Selecione a conta de destino."); return; }
     setSalvando(true);
     try {
@@ -136,7 +137,7 @@ export default function LancamentoForm({
           dataPagamento: pago ? dataPagamento : null,
           dataVencimento,
           dataCompetencia,
-          linhas: linhasValidas.map((l) => ({ naturezaFinanceiraId: l.naturezaFinanceiraId || null, detalhamento: l.detalhamento.trim() || null, valor: parseDecimal(l.valor) })),
+          linhas: linhasValidas.map((l) => ({ naturezaFinanceiraId: l.naturezaFinanceiraId, detalhamento: l.detalhamento.trim() || null, valor: parseDecimal(l.valor) })),
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -234,7 +235,7 @@ export default function LancamentoForm({
       {/* Rateio */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Naturezas financeiras</Label>
+          <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Naturezas financeiras <span className="text-red-500">*</span></Label>
           <button type="button" onClick={() => setLinhas((p) => [...p, novaLinha()])} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
             <Plus className="w-3.5 h-3.5" /> Adicionar natureza
           </button>
