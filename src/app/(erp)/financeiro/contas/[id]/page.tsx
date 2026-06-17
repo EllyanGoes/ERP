@@ -104,7 +104,9 @@ export default function ExtratoContaPage() {
         startY: 31,
         head: [["Data", "Descrição", "Cliente / Contato", "Natureza", "Entradas", "Saídas", "Saldo"]],
         body: conta.extrato.map((l) => {
-          const v = Number(l.valor);
+          // valor é sempre positivo; a direção (entrada/saída) vem do tipo —
+          // mesma convenção do saldo na API (DESPESA = saída).
+          const v = l.tipo === "DESPESA" ? -Number(l.valor) : Number(l.valor);
           return [
             formatDate(l.dataLancamento),
             l.descricao,
@@ -214,7 +216,9 @@ export default function ExtratoContaPage() {
                   </thead>
                   <tbody>
                     {conta.extrato.map((l) => {
-                      const v = Number(l.valor);
+                      // valor é sempre positivo; a direção vem do tipo (DESPESA =
+                      // saída), igual ao cálculo do saldo na API.
+                      const v = l.tipo === "DESPESA" ? -Number(l.valor) : Number(l.valor);
                       const pedido = l.contaReceber?.pedidoVenda;
                       const titulo = l.contaReceber?.numero || l.contaPagar?.numero;
                       return (
