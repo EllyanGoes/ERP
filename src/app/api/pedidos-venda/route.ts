@@ -45,6 +45,8 @@ export async function GET(req: NextRequest) {
         cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
         vendedor: { select: { id: true, nome: true } },
         minutas: { select: { numeroFisico: true } },
+        // Venda à ordem (triangular): estoque sai de outra empresa do grupo.
+        estoqueOrigemEmpresa: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
         _count: { select: { minutas: true } },
       },
       orderBy: { createdAt: "desc" },

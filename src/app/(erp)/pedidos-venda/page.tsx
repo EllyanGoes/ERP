@@ -18,7 +18,7 @@ import { useSession } from "@/lib/session-context";
 import {
   Search, X, LayoutList, Kanban, Loader2,
   ChevronDown as ChevronDownIcon, CalendarDays, Download, Check,
-  ShoppingCart, AlertTriangle, Trash2,
+  ShoppingCart, AlertTriangle, Trash2, Shuffle,
 } from "lucide-react";
 import EmpresaTag from "@/components/shared/EmpresaTag";
 
@@ -38,6 +38,8 @@ type PedidoRow = {
   cliente: { id: string; razaoSocial: string; nomeFantasia: string | null };
   vendedor?: { id: string; nome: string } | null;
   minutas?: { numeroFisico: string | null }[];
+  estoqueOrigemEmpresaId?: string | null;
+  estoqueOrigemEmpresa?: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
   _count?: { minutas: number };
 };
 
@@ -79,10 +81,11 @@ type Filters = {
   dateTo:    string;
   groupBy:   "none" | "date" | "status";
   semOrcamento: boolean;
+  aOrdem:    boolean;
 };
 
 function loadFilters(): Filters {
-  const base: Filters = { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "", groupBy: "none", semOrcamento: false };
+  const base: Filters = { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "", groupBy: "none", semOrcamento: false, aOrdem: false };
   if (typeof window === "undefined") return base;
   try {
     const raw = localStorage.getItem(FILTER_KEY);
@@ -98,6 +101,7 @@ function loadFilters(): Filters {
         dateTo:   f.dateTo   ?? "",
         groupBy:  f.groupBy === "date" || f.groupBy === "status" ? f.groupBy : (f.groupByDate === true ? "date" : "none"),
         semOrcamento: f.semOrcamento === true,
+        aOrdem:   f.aOrdem === true,
       };
     }
   } catch {}
@@ -151,6 +155,26 @@ const COLS: ColDef<PedidoRow>[] = [
         <StatusBadge status={p.status} />
         <StatusDimBadges entrega={p.statusEntrega} financeiro={p.statusFinanceiro} />
       </div>
+    ),
+  },
+  {
+    id: "tipoVenda",
+    label: "Tipo",
+    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    tdClass: "px-4 py-3",
+    render: (p) => p.estoqueOrigemEmpresaId ? (
+      <span className="inline-flex flex-col items-start gap-0.5">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-violet-100 text-violet-700 border border-violet-200">
+          <Shuffle className="w-3 h-3" /> À ordem
+        </span>
+        {p.estoqueOrigemEmpresa && (
+          <span className="text-[11px] text-gray-400">
+            de {p.estoqueOrigemEmpresa.nomeFantasia || p.estoqueOrigemEmpresa.razaoSocial}
+          </span>
+        )}
+      </span>
+    ) : (
+      <span className="text-xs text-gray-300">Normal</span>
     ),
   },
   {
@@ -373,6 +397,11 @@ function KanbanCard({
       <p className="text-xs text-gray-700 font-medium mb-1 leading-snug line-clamp-2">
         {p.cliente.nomeFantasia || p.cliente.razaoSocial}
       </p>
+      {p.estoqueOrigemEmpresaId && (
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 border border-violet-200 mb-1">
+          <Shuffle className="w-2.5 h-2.5" /> À ordem
+        </span>
+      )}
       {p.condicaoPagamento && (
         <p className="text-xs text-gray-400 mb-1">{p.condicaoPagamento}</p>
       )}
@@ -467,6 +496,7 @@ export default function PedidosVendaPage() {
         if (filters.statusOp === "is_not" &&  filters.statuses.includes(p.status)) return false;
       }
       if (filters.semOrcamento && (p.numeroOrcamento ?? "").trim() !== "") return false;
+      if (filters.aOrdem && !p.estoqueOrigemEmpresaId) return false;
       // Compara a data-calendário (UTC, igual ao formatDate exibido na coluna)
       // como string YYYY-MM-DD — evita desvio de fuso no limite do período.
       if (filters.dateFrom || filters.dateTo) {
@@ -548,7 +578,7 @@ export default function PedidosVendaPage() {
     return groups;
   }, [filtered, filters.groupBy]);
 
-  const hasActive = filters.statuses.length > 0 || filters.search || filters.dateFrom || filters.dateTo || filters.semOrcamento;
+  const hasActive = filters.statuses.length > 0 || filters.search || filters.dateFrom || filters.dateTo || filters.semOrcamento || filters.aOrdem;
 
   // ── Drag-and-drop handlers ────────────────────────────────────────────────
   async function moveCard(pedidoId: string, newStatus: string) {
@@ -742,10 +772,25 @@ export default function PedidosVendaPage() {
           Sem orçamento
         </button>
 
+        {/* Venda à ordem */}
+        <button
+          onClick={() => updateFilters({ aOrdem: !filters.aOrdem })}
+          className={cn(
+            "flex items-center gap-1.5 h-8 px-2.5 text-xs border rounded-md transition-colors whitespace-nowrap",
+            filters.aOrdem
+              ? "border-violet-300 bg-violet-50 text-violet-700"
+              : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+          )}
+          title="Mostrar só pedidos de venda à ordem (estoque de outra empresa do grupo)"
+        >
+          <Shuffle className="w-3.5 h-3.5" />
+          À ordem
+        </button>
+
         {/* Limpar tudo */}
         {hasActive && (
           <button
-            onClick={() => updateFilters({ search: "", statuses: [], statusOp: "is", dateFrom: "", dateTo: "", semOrcamento: false })}
+            onClick={() => updateFilters({ search: "", statuses: [], statusOp: "is", dateFrom: "", dateTo: "", semOrcamento: false, aOrdem: false })}
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap"
           >
             Limpar tudo
