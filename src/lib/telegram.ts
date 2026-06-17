@@ -252,6 +252,7 @@ export async function sendTelegramDocument(opts: {
   filename: string;       // e.g. "relatorio.pdf"
   buffer: Buffer;         // raw file bytes
   caption?: string;       // optional caption (MarkdownV2)
+  inlineKeyboard?: { text: string; url?: string; callbackData?: string }[][]; // botões no documento
 }): Promise<{ ok: boolean; error?: string }> {
   const cfg = await getTGConfig();
   if (!cfg) return { ok: false, error: "Telegram não configurado" };
@@ -268,6 +269,16 @@ export async function sendTelegramDocument(opts: {
   if (opts.caption) {
     form.append("caption", opts.caption);
     form.append("parse_mode", "MarkdownV2");
+  }
+  if (opts.inlineKeyboard) {
+    const inline_keyboard = opts.inlineKeyboard.map((row) =>
+      row.map((btn) =>
+        btn.url ? { text: btn.text, url: btn.url }
+        : btn.callbackData ? { text: btn.text, callback_data: btn.callbackData }
+        : { text: btn.text, callback_data: btn.text },
+      ),
+    );
+    form.append("reply_markup", JSON.stringify({ inline_keyboard }));
   }
 
   try {

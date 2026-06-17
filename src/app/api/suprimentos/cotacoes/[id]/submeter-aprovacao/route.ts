@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { aprovadorPedidoCompras } from "@/lib/aprovacao-cotacao";
-import { sendTelegramMessage, escMD } from "@/lib/telegram";
+import { sendTelegramMessage, sendTelegramDocument, escMD } from "@/lib/telegram";
+import { buildCotacaoPDF } from "@/lib/pdf-cotacao";
 
 // POST /api/suprimentos/cotacoes/[id]/submeter-aprovacao
 // O comprador envia a cotação para aprovação do gerente. Cria a pendência
@@ -64,28 +65,37 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // Notificação remota com botões inline (best-effort). Os mesmos botões
     // sc_APPROVE_/sc_REJECT_ que a SC usa — o webhook trata cotação pelo cotacaoId.
+    // Envia o resumo da cotação em PDF (legenda + botões no próprio documento);
+    // se o PDF falhar, cai numa mensagem de texto com os mesmos botões.
     if (aprovacaoId) {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+        ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+      const inlineKeyboard = [
+        [
+          { text: "✅ Aprovar", callbackData: `sc_APPROVE_${aprovacaoId}` },
+          { text: "❌ Reprovar", callbackData: `sc_REJECT_${aprovacaoId}` },
+        ],
+        [{ text: "📋 Abrir cotação", url: `${baseUrl}/suprimentos/cotacoes/${params.id}` }],
+      ];
+      const caption = [
+        `🧾 *Cotação aguardando aprovação*`,
+        ``,
+        `• *Cotação:* ${escMD(numeroRef)}`,
+        ``,
+        `Resumo em anexo\\. Aprovar gera o Pedido de Compras\\.`,
+      ].join("\n");
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
-          ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
-        await sendTelegramMessage({
-          text: [
-            `🧾 *Cotação aguardando aprovação*`,
-            ``,
-            `• *Cotação:* ${escMD(numeroRef)}`,
-            ``,
-            `Aprovar gera o Pedido de Compras.`,
-          ].join("\n"),
-          inlineKeyboard: [
-            [
-              { text: "✅ Aprovar", callbackData: `sc_APPROVE_${aprovacaoId}` },
-              { text: "❌ Reprovar", callbackData: `sc_REJECT_${aprovacaoId}` },
-            ],
-            [{ text: "📋 Abrir cotação", url: `${baseUrl}/suprimentos/cotacoes/${params.id}` }],
-          ],
-        });
+        const pdf = await buildCotacaoPDF(params.id);
+        const enviado = pdf
+          ? await sendTelegramDocument({ filename: pdf.filename, buffer: pdf.buffer, caption, inlineKeyboard })
+          : { ok: false as const };
+        if (!enviado.ok) {
+          // Fallback: sem PDF, manda só a mensagem com os botões.
+          await sendTelegramMessage({ text: caption, inlineKeyboard });
+        }
       } catch (e) {
         console.warn("[submeter-aprovacao] Telegram notify falhou (não bloqueia):", e);
+        try { await sendTelegramMessage({ text: caption, inlineKeyboard }); } catch { /* best-effort */ }
       }
     }
 
