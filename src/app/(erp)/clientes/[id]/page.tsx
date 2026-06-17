@@ -9,7 +9,7 @@ import { decimalToNumber } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export default async function ClienteDetailPage({ params }: { params: { id: string } }) {
-  const [cliente, movimentacoesRaw] = await Promise.all([
+  const [cliente, movimentacoesRaw, contaContabil] = await Promise.all([
     prisma.cliente.findUnique({
       where: { id: params.id },
       include: {
@@ -22,8 +22,12 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
       orderBy: { data: "desc" },
       include: { item: { select: { id: true, codigo: true, descricao: true } } },
     }),
+    // Conta contábil do cliente na empresa ativa (escopo do prisma).
+    prisma.contaContabil.findFirst({ where: { clienteId: params.id }, select: { codigo: true, nome: true } }),
   ]);
   if (!cliente) notFound();
+
+  const contaContabilLabel = contaContabil ? `${contaContabil.codigo} — ${contaContabil.nome}` : null;
 
   // Movimentações de comodato deste cliente (saldo é calculado no componente).
   const comodato = movimentacoesRaw.map((m) => ({
@@ -48,7 +52,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
         }
       />
       <div className="px-8 pb-8">
-        <ClienteDetail cliente={cliente as any} comodato={comodato} />
+        <ClienteDetail cliente={cliente as any} comodato={comodato} contaContabil={contaContabilLabel} />
       </div>
     </div>
   );

@@ -11,7 +11,9 @@ import {
 } from "@/components/ui/dialog";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Plus, CornerDownRight, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Plus, CornerDownRight, Pencil, Trash2, Loader2, ChevronRight, ChevronDown } from "lucide-react";
+
+const COLLAPSE_KEY = "contabilidade:plano:collapsed";
 
 type Grupo = "ATIVO" | "PASSIVO" | "PATRIMONIO_LIQUIDO" | "RESULTADO";
 type Natureza = "DEVEDORA" | "CREDORA";
@@ -34,18 +36,13 @@ type Conta = {
 };
 type FlatConta = Omit<Conta, "filhos">;
 
-const GRUPO_LABEL: Record<Grupo, string> = {
-  ATIVO: "1 — Ativo",
-  PASSIVO: "2 — Passivo",
-  PATRIMONIO_LIQUIDO: "2.3 — Patrimônio Líquido",
-  RESULTADO: "3 — Resultado",
-};
-
 export default function PlanoContasContabilPage() {
   useTabTitle("Plano de Contas Contábil");
   const [arvore, setArvore] = useState<Conta[]>([]);
   const [flat, setFlat] = useState<FlatConta[]>([]);
   const [loading, setLoading] = useState(true);
+  // Conjunto de ids recolhidos (filhos ocultos), persistido no localStorage.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -56,6 +53,35 @@ export default function PlanoContasContabilPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Carrega o estado recolhido persistido.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(COLLAPSE_KEY);
+      if (raw) setCollapsed(new Set(JSON.parse(raw) as string[]));
+    } catch { /* ignore */ }
+  }, []);
+
+  const persist = useCallback((next: Set<string>) => {
+    setCollapsed(next);
+    try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
+  }, []);
+
+  const toggle = useCallback((id: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  // Recolher tudo = recolher todos os nós que têm filhos.
+  const recolherTudo = useCallback(() => {
+    const comFilhos = flat.filter((c) => flat.some((x) => x.paiId === c.id)).map((c) => c.id);
+    persist(new Set(comFilhos));
+  }, [flat, persist]);
+  const expandirTudo = useCallback(() => persist(new Set()), [persist]);
 
   // Raízes na ordem dos grupos (1, 2, 3).
   const raizes = useMemo(
@@ -78,25 +104,39 @@ export default function PlanoContasContabilPage() {
             Plano de contas vazio. Rode a migration do módulo Contabilidade para semear a estrutura padrão.
           </p>
         ) : (
-          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-            <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-5 py-2.5 border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              <span>Conta</span>
-              <span className="text-center w-16">D/C</span>
-              <span className="text-center w-20">Tipo</span>
-              <span className="w-16 text-right">Ações</span>
+          <>
+            <div className="flex items-center justify-end gap-2 mb-3">
+              <button type="button" onClick={recolherTudo} className="text-xs font-medium text-gray-500 hover:text-gray-700 px-2.5 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50">
+                Recolher tudo
+              </button>
+              <button type="button" onClick={expandirTudo} className="text-xs font-medium text-gray-500 hover:text-gray-700 px-2.5 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50">
+                Expandir tudo
+              </button>
             </div>
-            <ul>
-              {raizes.map((c) => <Node key={c.id} conta={c} onChanged={load} flat={flat} />)}
-            </ul>
-          </div>
+            <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+              <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-5 py-2.5 border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <span>Conta</span>
+                <span className="text-center w-16">D/C</span>
+                <span className="text-center w-20">Tipo</span>
+                <span className="w-16 text-right">Ações</span>
+              </div>
+              <ul>
+                {raizes.map((c) => <Node key={c.id} conta={c} onChanged={load} flat={flat} collapsed={collapsed} onToggle={toggle} />)}
+              </ul>
+            </div>
+          </>
         )}
       </div>
     </div>
   );
 }
 
-function Node({ conta, onChanged, flat }: { conta: Conta; onChanged: () => void; flat: FlatConta[] }) {
+function Node({ conta, onChanged, flat, collapsed, onToggle }: {
+  conta: Conta; onChanged: () => void; flat: FlatConta[]; collapsed: Set<string>; onToggle: (id: string) => void;
+}) {
   const auto = !!(conta.clienteId || conta.fornecedorId);
+  const temFilhos = conta.filhos.length > 0;
+  const recolhido = collapsed.has(conta.id);
   return (
     <li>
       <div
@@ -106,7 +146,18 @@ function Node({ conta, onChanged, flat }: { conta: Conta; onChanged: () => void;
         )}
       >
         <div className="flex items-center gap-2 min-w-0" style={{ paddingLeft: `${(conta.nivel - 1) * 18}px` }}>
-          {conta.nivel > 1 && <CornerDownRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />}
+          {temFilhos ? (
+            <button
+              type="button"
+              onClick={() => onToggle(conta.id)}
+              className="text-gray-400 hover:text-gray-700 shrink-0"
+              title={recolhido ? "Expandir" : "Recolher"}
+            >
+              {recolhido ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          ) : conta.nivel > 1 ? (
+            <CornerDownRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+          ) : null}
           <span className="font-mono text-xs text-gray-500 shrink-0">{conta.codigo}</span>
           <span className={cn("truncate", conta.tipo === "SINTETICA" ? "font-semibold text-gray-900" : "text-gray-700")}>
             {conta.nome}
@@ -130,11 +181,11 @@ function Node({ conta, onChanged, flat }: { conta: Conta; onChanged: () => void;
           {!auto && conta.filhos.length === 0 && <ExcluirContaButton conta={conta} onDone={onChanged} />}
         </div>
       </div>
-      {conta.filhos.length > 0 && (
+      {temFilhos && !recolhido && (
         <ul>
           {[...conta.filhos]
             .sort((a, b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true }))
-            .map((f) => <Node key={f.id} conta={f} onChanged={onChanged} flat={flat} />)}
+            .map((f) => <Node key={f.id} conta={f} onChanged={onChanged} flat={flat} collapsed={collapsed} onToggle={onToggle} />)}
         </ul>
       )}
     </li>

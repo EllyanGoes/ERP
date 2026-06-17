@@ -24,6 +24,7 @@ type ClienteDetailProps = {
     contasReceber: ContaRow[];
   };
   comodato: ComodatoMov[];
+  contaContabil?: string | null;
 };
 
 function fmtNum(n: number) {
@@ -60,7 +61,7 @@ const STATUS_CONTA_COLOR: Record<string, string> = {
   PARCIAL:  "bg-amber-100 text-amber-700",
 };
 
-export default function ClienteDetail({ cliente, comodato }: ClienteDetailProps) {
+export default function ClienteDetail({ cliente, comodato, contaContabil }: ClienteDetailProps) {
   const [tab, setTab] = useState<"dados" | "pedidos" | "contas" | "comodato">("dados");
   useTabTitle(cliente.nomeFantasia || cliente.razaoSocial);
 
@@ -133,6 +134,7 @@ export default function ClienteDetail({ cliente, comodato }: ClienteDetailProps)
               <Field label="Inscrição Estadual" value={cliente.ie} />
             )}
             <Field label="Status" value={cliente.status === "ATIVO" ? "Ativo" : cliente.status === "INATIVO" ? "Inativo" : "Prospecto"} />
+            <Field label="Conta Contábil" value={contaContabil} />
           </div>
 
           <div className="px-5 py-3 border-t border-b border-gray-100 bg-gray-50">

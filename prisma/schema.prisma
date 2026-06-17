@@ -111,7 +111,7 @@ model Cliente {
   estoqueTerceiros       EstoqueItem[]          @relation("EstoqueTerceiros")
   movimentacoesTerceiros MovimentacaoEstoque[]  @relation("MovimentacoesTerceiros")
   recorrencias           Recorrencia[]
-  contaContabil          ContaContabil?
+  contasContabeis        ContaContabil[]
   empresa                Empresa?
 
   @@index([cpfCnpj])
@@ -490,8 +490,8 @@ model ContaContabil {
   nivel            Int
   aceitaLancamento Boolean           @default(false) // true só nas analíticas
   paiId            String?
-  clienteId        String?           @unique // analítica vinculada a um cliente
-  fornecedorId     String?           @unique // analítica vinculada a um fornecedor
+  clienteId        String? // analítica vinculada a um cliente (uma por empresa)
+  fornecedorId     String? // analítica vinculada a um fornecedor (uma por empresa)
   ativo            Boolean           @default(true)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -502,6 +502,8 @@ model ContaContabil {
   empresa          Empresa           @relation(fields: [empresaId], references: [id])
 
   @@unique([empresaId, codigo])
+  @@unique([empresaId, clienteId])
+  @@unique([empresaId, fornecedorId])
   @@index([empresaId])
   @@index([paiId])
   @@index([grupo])
@@ -800,7 +802,7 @@ model Fornecedor {
   docEntradas     ConferenciaCompra[]
   inventarioItens InventarioMaterialItem[]
   recorrencias    Recorrencia[]
-  contaContabil   ContaContabil?
+  contasContabeis ContaContabil[]
   empresa         Empresa?
 }
 

@@ -107,6 +107,7 @@ type Fornecedor = {
     valorOriginal: unknown;
     valorPago: unknown;
   }>;
+  contaContabil: { codigo: string; nome: string } | null;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -569,6 +570,7 @@ export default function FornecedorDetailPage() {
                     <InfoRow label="Razão Social" value={fornecedor.razaoSocial} />
                     <InfoRow label="Nome Fantasia" value={fornecedor.nomeFantasia} />
                     <InfoRow label="IE" value={fornecedor.ie} />
+                    <InfoRow label="Conta Contábil" value={fornecedor.contaContabil ? `${fornecedor.contaContabil.codigo} — ${fornecedor.contaContabil.nome}` : null} mono />
                   </>
                 )}
               </CardContent>

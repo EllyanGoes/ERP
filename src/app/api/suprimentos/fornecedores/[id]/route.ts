@@ -71,7 +71,13 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     },
   });
 
-  return NextResponse.json({ ...record, documentosEntrada });
+  // Conta contábil do fornecedor na empresa ativa (escopo do prisma).
+  const contaContabil = await prisma.contaContabil.findFirst({
+    where: { fornecedorId: params.id },
+    select: { codigo: true, nome: true },
+  });
+
+  return NextResponse.json({ ...record, documentosEntrada, contaContabil });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

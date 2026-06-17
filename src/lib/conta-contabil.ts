@@ -1,80 +1,82 @@
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
 
 // Códigos das contas sintéticas-pai que recebem as analíticas por entidade
 // (criadas no seed da migration do módulo Contabilidade).
 const COD_CLIENTES = "1.1.2";
 const COD_FORNECEDORES = "2.1.1";
 
-// Próximo código sequencial sob um pai: <codigoPai>.NNNN
+// Próximo código sequencial sob um pai (empresa ativa / escopo atual). Usado pela
+// API de criação manual de contas.
 export async function proximoCodigo(paiId: string, paiCodigo: string): Promise<string> {
-  const filhos = await prisma.contaContabil.findMany({
-    where: { paiId },
-    select: { codigo: true },
-  });
+  const filhos = await prisma.contaContabil.findMany({ where: { paiId }, select: { codigo: true } });
+  return montarProximo(paiCodigo, filhos.map((f) => f.codigo));
+}
+
+function montarProximo(paiCodigo: string, codigos: string[]): string {
   let max = 0;
-  for (const f of filhos) {
-    const n = parseInt(f.codigo.split(".").pop() ?? "", 10);
+  for (const c of codigos) {
+    const n = parseInt(c.split(".").pop() ?? "", 10);
     if (!Number.isNaN(n) && n > max) max = n;
   }
   return `${paiCodigo}.${String(max + 1).padStart(4, "0")}`;
 }
 
-/**
- * Garante (idempotente) a conta contábil analítica de um cliente, sob a conta
- * sintética "Clientes" (1.1.2). Retorna null se o plano ainda não foi semeado.
- */
-export async function garantirContaContabilCliente(clienteId: string) {
-  const existente = await prisma.contaContabil.findUnique({ where: { clienteId } });
+// Garante a conta analítica de uma entidade (cliente/fornecedor) numa empresa
+// específica. Cross-empresa: usa prismaSemEscopo com empresaId explícito.
+async function garantirEntidadeEmpresa(
+  empresaId: string,
+  tipo: "cliente" | "fornecedor",
+  entidadeId: string,
+  nome: string,
+) {
+  const chave = tipo === "cliente" ? { clienteId: entidadeId } : { fornecedorId: entidadeId };
+  const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, ...chave } });
   if (existente) return existente;
 
-  const [cliente, pai] = await Promise.all([
-    prisma.cliente.findUnique({ where: { id: clienteId }, select: { razaoSocial: true } }),
-    prisma.contaContabil.findFirst({ where: { codigo: COD_CLIENTES } }),
-  ]);
-  if (!cliente || !pai) return null;
+  const codPai = tipo === "cliente" ? COD_CLIENTES : COD_FORNECEDORES;
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: codPai } });
+  if (!pai) return null; // plano da empresa ainda não semeado
 
-  const codigo = await proximoCodigo(pai.id, pai.codigo);
-  return prisma.contaContabil.create({
+  const filhos = await prismaSemEscopo.contaContabil.findMany({ where: { empresaId, paiId: pai.id }, select: { codigo: true } });
+  const codigo = montarProximo(pai.codigo, filhos.map((f) => f.codigo));
+
+  return prismaSemEscopo.contaContabil.create({
     data: {
+      empresaId,
       codigo,
-      nome: cliente.razaoSocial,
-      grupo: "ATIVO",
-      natureza: "DEVEDORA",
+      nome,
+      grupo: tipo === "cliente" ? "ATIVO" : "PASSIVO",
+      natureza: tipo === "cliente" ? "DEVEDORA" : "CREDORA",
       tipo: "ANALITICA",
       nivel: pai.nivel + 1,
       aceitaLancamento: true,
       paiId: pai.id,
-      clienteId,
+      ...chave,
     },
   });
 }
 
 /**
- * Garante (idempotente) a conta contábil analítica de um fornecedor, sob a
- * conta sintética "Fornecedores" (2.1.1). Retorna null se o plano não foi semeado.
+ * Garante (idempotente) a conta analítica do cliente em **todas as empresas** —
+ * cada empresa tem seu próprio plano de contas. Best-effort.
+ */
+export async function garantirContaContabilCliente(clienteId: string) {
+  const cliente = await prismaSemEscopo.cliente.findUnique({ where: { id: clienteId }, select: { razaoSocial: true } });
+  if (!cliente) return;
+  const empresas = await prismaSemEscopo.empresa.findMany({ select: { id: true } });
+  for (const e of empresas) {
+    await garantirEntidadeEmpresa(e.id, "cliente", clienteId, cliente.razaoSocial).catch(() => null);
+  }
+}
+
+/**
+ * Garante (idempotente) a conta analítica do fornecedor em todas as empresas.
  */
 export async function garantirContaContabilFornecedor(fornecedorId: string) {
-  const existente = await prisma.contaContabil.findUnique({ where: { fornecedorId } });
-  if (existente) return existente;
-
-  const [fornecedor, pai] = await Promise.all([
-    prisma.fornecedor.findUnique({ where: { id: fornecedorId }, select: { razaoSocial: true } }),
-    prisma.contaContabil.findFirst({ where: { codigo: COD_FORNECEDORES } }),
-  ]);
-  if (!fornecedor || !pai) return null;
-
-  const codigo = await proximoCodigo(pai.id, pai.codigo);
-  return prisma.contaContabil.create({
-    data: {
-      codigo,
-      nome: fornecedor.razaoSocial,
-      grupo: "PASSIVO",
-      natureza: "CREDORA",
-      tipo: "ANALITICA",
-      nivel: pai.nivel + 1,
-      aceitaLancamento: true,
-      paiId: pai.id,
-      fornecedorId,
-    },
-  });
+  const fornecedor = await prismaSemEscopo.fornecedor.findUnique({ where: { id: fornecedorId }, select: { razaoSocial: true } });
+  if (!fornecedor) return;
+  const empresas = await prismaSemEscopo.empresa.findMany({ select: { id: true } });
+  for (const e of empresas) {
+    await garantirEntidadeEmpresa(e.id, "fornecedor", fornecedorId, fornecedor.razaoSocial).catch(() => null);
+  }
 }
