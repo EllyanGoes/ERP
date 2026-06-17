@@ -199,6 +199,22 @@ async function garantirContaPorCodigo(
   });
 }
 
+/** Garante (idempotente) a analítica de PL que recebe o resultado do exercício (2.3.2.0001). */
+export async function garantirContaResultadoAcumulado(empresaId: string) {
+  const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "2.3.2.0001" }, select: { id: true } });
+  if (existente) return existente;
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "2.3.2" } });
+  if (!pai) return null;
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo: "2.3.2.0001", nome: "Lucros/Prejuízos Acumulados",
+      grupo: "PATRIMONIO_LIQUIDO", natureza: "CREDORA", tipo: "ANALITICA",
+      nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id,
+    },
+    select: { id: true },
+  });
+}
+
 /** Garante (idempotente) as contas compartilhadas do imobilizado e retorna seus ids. */
 export async function garantirContasImobilizado(empresaId: string) {
   const [deprAcum, despesa] = await Promise.all([

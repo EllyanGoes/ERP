@@ -270,6 +270,7 @@ const mainModules: Module[] = [
         kind: "Processos",
         items: [
           { href: "/contabilidade/lancamentos", label: "Diário Contábil", icon: BarChart3 },
+          { href: "/contabilidade/fechamento", label: "Encerramento do Exercício", icon: CalendarClock },
         ],
       },
       {
@@ -315,6 +316,7 @@ const mainModules: Module[] = [
       {
         kind: "Produção" as SubSection["kind"],
         items: [
+          { href: "/pcp/chao",             label: "Chão de Fábrica",      icon: Factory },
           { href: "/pcp/dashboard",        label: "Dashboard",            icon: BarChart3 },
           { href: "/pcp/ordens",           label: "Ordens de Produção",   icon: ClipboardList },
           { href: "/pcp/operacoes",        label: "Operações (fila)",      icon: ListChecks },

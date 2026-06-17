@@ -539,6 +539,7 @@ enum OrigemLancamento {
   ESTOQUE_AJUSTE // ajuste/inventário (sobra: C Sobras; perda: D Perdas)
   ESTOQUE_TRANSFERENCIA // transferência entre locais (D destino / C origem)
   DEPRECIACAO // depreciação do imobilizado (D Despesa / C Depreciação Acumulada)
+  ENCERRAMENTO // encerramento do exercício (zera Resultado contra o PL)
   MANUAL
   ESTORNO
 }
@@ -582,6 +583,29 @@ model PartidaContabil {
   @@index([empresaId])
   @@index([contaId])
   @@index([lancamentoId])
+}
+
+enum StatusFechamento {
+  FECHADO
+  REABERTO
+}
+
+// Encerramento do exercício: zera o grupo Resultado contra o PL e trava
+// lançamentos datados dentro do exercício fechado. Reabertura só do último.
+model FechamentoContabil {
+  id           String           @id @default(cuid())
+  empresaId    String           @default("emp_tramontin")
+  exercicio    Int // ano (ex.: 2026)
+  dataInicio   DateTime // 1º jan do exercício
+  dataFim      DateTime // 31 dez 23:59:59
+  resultado    Decimal          @db.Decimal(15, 2) // lucro(+)/prejuízo(−) apurado
+  lancamentoId String? // lançamento de encerramento
+  status       StatusFechamento @default(FECHADO)
+  reabertoEm   DateTime?
+  createdAt    DateTime         @default(now())
+
+  @@unique([empresaId, exercicio])
+  @@index([empresaId])
 }
 
 enum MetodoDepreciacao {
@@ -814,6 +838,7 @@ model Empresa {
   itemOrdemProducaos        ItemOrdemProducao[]
   consumoBiomassas          ConsumoBiomassa[]
   planoMestres              PlanoMestre[]
+  metasProducaoDiaria       MetaProducaoDiaria[]
   requisicaoMaterials       RequisicaoMaterial[]
   inventarioMaterials       InventarioMaterial[]
   usuarioEmpresas           UsuarioEmpresa[]
@@ -847,6 +872,10 @@ model EstoqueItem {
   updatedAt       DateTime      @updatedAt
   localEstoqueId  String?
   clienteDonoId   String? // null = estoque próprio; preenchido = mercadoria de terceiro sob guarda
+  // Estado do WIP (produto em processo) deste saldo. null = insumo/PA "normal".
+  // A fase do chão de fábrica é o LOCAL (cada buffer de WIP tem seu local); este
+  // campo rotula o estado e é usado pela conversão entre fases.
+  estadoWip       EstadoWIP?
   item            Item          @relation(fields: [itemId], references: [id])
   localEstoque    LocalEstoque? @relation(fields: [localEstoqueId], references: [id])
   clienteDono     Cliente?      @relation("EstoqueTerceiros", fields: [clienteDonoId], references: [id])
@@ -857,6 +886,7 @@ model EstoqueItem {
   @@index([clienteDonoId])
   @@index([itemId])
   @@index([empresaId])
+  @@index([estadoWip])
 }
 
 model Filial {
@@ -1003,6 +1033,7 @@ model Item {
   engenhariaProduto      EngenhariaProduto?       @relation("EngenhariaProdutoItem")
   insumosEngenharia      EngenhariaInsumo[]       @relation("EngenhariaInsumoItem")
   planosMestre           PlanoMestre[]
+  metasProducaoDiaria    MetaProducaoDiaria[]
   custosEmpresa          ItemCustoEmpresa[]
 
   @@index([codigo])
@@ -2123,6 +2154,32 @@ enum OrigemDemanda {
   MANUAL
   PEDIDO_VENDA
   MIN_MAX
+}
+
+// Meta de produção do DIA por produto acabado — base da "rotina diária" que gera
+// as OPs do dia. Pode ser MANUAL ou derivada do MPS mensal (rateio por dias úteis).
+model MetaProducaoDiaria {
+  id         String          @id @default(cuid())
+  empresaId  String          @default("emp_tramontin")
+  itemId     String
+  data       DateTime        @db.Date
+  quantidade Decimal         @db.Decimal(15, 3)
+  origem     OrigemMetaDiaria @default(MANUAL)
+  observacao String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  item       Item            @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  empresa    Empresa         @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, itemId, data])
+  @@index([data])
+  @@index([itemId])
+  @@index([empresaId])
+}
+
+enum OrigemMetaDiaria {
+  MANUAL
+  MPS
 }
 
 enum PerfilUsuario {

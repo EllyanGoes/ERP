@@ -1,7 +1,7 @@
 import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { custosDaEmpresa } from "@/lib/custo-empresa";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -11,7 +11,7 @@ export type OrigemIn =
   | "VENDA" | "RECEBIMENTO" | "COMPRA" | "PAGAMENTO"
   | "ESTOQUE_ENTRADA" | "ESTOQUE_SAIDA"
   | "ESTOQUE_PRODUCAO" | "ESTOQUE_CONSUMO" | "ESTOQUE_AJUSTE" | "ESTOQUE_TRANSFERENCIA"
-  | "DEPRECIACAO"
+  | "DEPRECIACAO" | "ENCERRAMENTO"
   | "MANUAL" | "ESTORNO";
 
 export type PartidaIn = {
@@ -32,6 +32,24 @@ export type LancamentoIn = {
 };
 
 const EPS = 0.005; // tolerância de centavos no balanceamento
+
+/** Lançamento recusado por cair em exercício já encerrado. */
+export class PeriodoFechadoError extends Error {
+  constructor(public ate: Date) {
+    super(`Período contábil encerrado até ${ate.toISOString().slice(0, 10)} — lançamento bloqueado`);
+    this.name = "PeriodoFechadoError";
+  }
+}
+
+/** Maior data de fim de exercício FECHADO da empresa (ou null). */
+export async function exercicioFechadoAte(empresaId: string): Promise<Date | null> {
+  const f = await prismaSemEscopo.fechamentoContabil.findFirst({
+    where: { empresaId, status: "FECHADO" },
+    orderBy: { dataFim: "desc" },
+    select: { dataFim: true },
+  });
+  return f?.dataFim ?? null;
+}
 
 // ── Resolvers de conta (por empresa) ─────────────────────────────────────────
 export async function contaPorCodigo(empresaId: string, codigo: string) {
@@ -68,6 +86,14 @@ export async function registrarLancamento(input: LancamentoIn) {
     throw new Error(`Lançamento desbalanceado: débito ${totalD.toFixed(2)} ≠ crédito ${totalC.toFixed(2)}`);
   }
   if (partidas.some((p) => p.valor <= 0)) throw new Error("Toda partida deve ter valor positivo");
+
+  // Trava de período encerrado: nada datado dentro de um exercício FECHADO,
+  // exceto o próprio encerramento e estornos (reabertura). Hooks best-effort
+  // pegam o erro e pulam; a API manual o propaga.
+  if (origemTipo !== "ENCERRAMENTO" && origemTipo !== "ESTORNO") {
+    const fechadoAte = await exercicioFechadoAte(empresaId);
+    if (fechadoAte && data <= fechadoAte) throw new PeriodoFechadoError(fechadoAte);
+  }
 
   // Idempotência por origem (quando há origem).
   if (origemId) {
@@ -579,11 +605,128 @@ export async function processarDepreciacaoEmpresa(empresaId: string, competencia
   return { processados, total, bens: bens.length };
 }
 
+// ── Encerramento do exercício (Fase G parte 2) ────────────────────────────────
+function fimDoExercicio(ano: number): Date { return new Date(Date.UTC(ano, 11, 31, 23, 59, 59, 999)); }
+function inicioDoExercicio(ano: number): Date { return new Date(Date.UTC(ano, 0, 1)); }
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Apura o resultado de um exercício: por analítica de Resultado (grupo RESULTADO,
+ * aceitaLancamento), net = Σcrédito − Σdébito das partidas no período. Retorna as
+ * partidas que zeram cada conta + o resultado (lucro+/prejuízo−).
+ */
+async function apurarResultadoExercicio(empresaId: string, dataInicio: Date, dataFim: Date) {
+  // Toda conta de Resultado com partidas próprias — inclusive sintéticas onde o
+  // motor lança (CMV cai em 3.2; receita/despesa sem natureza caem em 3.1/3.3).
+  const contas = await prismaSemEscopo.contaContabil.findMany({
+    where: { empresaId, grupo: "RESULTADO" },
+    select: { id: true },
+  });
+  if (contas.length === 0) return { partidas: [] as PartidaIn[], resultado: 0 };
+  const contaIds = contas.map((c) => c.id);
+  const grupos = await prismaSemEscopo.partidaContabil.groupBy({
+    by: ["contaId", "tipo"],
+    where: { empresaId, contaId: { in: contaIds }, lancamento: { data: { gte: dataInicio, lte: dataFim } } },
+    _sum: { valor: true },
+  });
+  const deb = new Map<string, number>();
+  const cred = new Map<string, number>();
+  for (const g of grupos) {
+    const v = decimalToNumber(g._sum.valor);
+    if (g.tipo === "DEBITO") deb.set(g.contaId, v); else cred.set(g.contaId, v);
+  }
+  const partidas: PartidaIn[] = [];
+  let resultado = 0;
+  for (const c of contas) {
+    const net = r2((cred.get(c.id) ?? 0) - (deb.get(c.id) ?? 0));
+    if (Math.abs(net) < EPS) continue;
+    if (net > 0) partidas.push({ contaId: c.id, tipo: "DEBITO", valor: net });
+    else partidas.push({ contaId: c.id, tipo: "CREDITO", valor: -net });
+    resultado += net;
+  }
+  return { partidas, resultado: r2(resultado) };
+}
+
+/** Apuração (sem gravar) do resultado de um exercício — usado no preview. */
+export async function previewEncerramento(empresaId: string, exercicio: number) {
+  const { resultado } = await apurarResultadoExercicio(empresaId, inicioDoExercicio(exercicio), fimDoExercicio(exercicio));
+  const jaFechado = await prismaSemEscopo.fechamentoContabil.findFirst({ where: { empresaId, exercicio, status: "FECHADO" }, select: { id: true } });
+  const maior = await prismaSemEscopo.fechamentoContabil.aggregate({ where: { empresaId, status: "FECHADO" }, _max: { exercicio: true } });
+  const podeFechar = !jaFechado && (maior._max.exercicio == null || exercicio > maior._max.exercicio);
+  return { exercicio, resultado, jaFechado: !!jaFechado, podeFechar };
+}
+
+/**
+ * Encerra um exercício: zera as contas de Resultado contra o PL (2.3.2.0001) com
+ * um lançamento ENCERRAMENTO datado em 31/dez, e trava lançamentos do período.
+ * Sequencial: só fecha exercício posterior ao último fechado.
+ */
+export async function fecharExercicio(empresaId: string, exercicio: number) {
+  const jaFechado = await prismaSemEscopo.fechamentoContabil.findFirst({ where: { empresaId, exercicio, status: "FECHADO" }, select: { id: true } });
+  if (jaFechado) throw new Error(`Exercício ${exercicio} já está encerrado`);
+  const maior = await prismaSemEscopo.fechamentoContabil.aggregate({ where: { empresaId, status: "FECHADO" }, _max: { exercicio: true } });
+  if (maior._max.exercicio != null && exercicio <= maior._max.exercicio) {
+    throw new Error(`Há exercício posterior já encerrado (${maior._max.exercicio}); encerre em ordem`);
+  }
+
+  const dataInicio = inicioDoExercicio(exercicio);
+  const dataFim = fimDoExercicio(exercicio);
+  const { partidas, resultado } = await apurarResultadoExercicio(empresaId, dataInicio, dataFim);
+
+  // Registra o fechamento (mesmo com resultado 0 — período fica travado).
+  const fechamento = await prismaSemEscopo.fechamentoContabil.upsert({
+    where: { empresaId_exercicio: { empresaId, exercicio } },
+    update: { status: "FECHADO", reabertoEm: null, dataInicio, dataFim, resultado },
+    create: { empresaId, exercicio, dataInicio, dataFim, resultado, status: "FECHADO" },
+    select: { id: true },
+  });
+
+  if (partidas.length > 0) {
+    const plConta = await garantirContaResultadoAcumulado(empresaId);
+    if (!plConta) throw new Error("Conta 2.3.2.0001 (Lucros/Prejuízos Acumulados) não encontrada");
+    const todas = [...partidas];
+    if (resultado > EPS) todas.push({ contaId: plConta.id, tipo: "CREDITO", valor: r2(resultado) });
+    else if (resultado < -EPS) todas.push({ contaId: plConta.id, tipo: "DEBITO", valor: r2(-resultado) });
+    const lanc = await registrarLancamento({
+      empresaId, data: dataFim, historico: `Encerramento do exercício ${exercicio}`,
+      origemTipo: "ENCERRAMENTO", origemId: fechamento.id, partidas: todas,
+    });
+    await prismaSemEscopo.fechamentoContabil.update({ where: { id: fechamento.id }, data: { lancamentoId: lanc.id } });
+  }
+  return { id: fechamento.id, exercicio, resultado };
+}
+
+/**
+ * Reabre o exercício mais recente fechado: remove o lançamento de encerramento
+ * (partidas primeiro — sem FK cascade no banco) e destrava o período. O controle
+ * fica registrado no próprio FechamentoContabil (status REABERTO + reabertoEm),
+ * e o encerramento é regenerado do zero num eventual novo fechamento.
+ */
+export async function reabrirExercicio(empresaId: string, exercicio: number) {
+  const fechamento = await prismaSemEscopo.fechamentoContabil.findFirst({
+    where: { empresaId, exercicio, status: "FECHADO" },
+    select: { id: true, lancamentoId: true },
+  });
+  if (!fechamento) throw new Error(`Exercício ${exercicio} não está encerrado`);
+  const maior = await prismaSemEscopo.fechamentoContabil.aggregate({ where: { empresaId, status: "FECHADO" }, _max: { exercicio: true } });
+  if (maior._max.exercicio != null && exercicio < maior._max.exercicio) {
+    throw new Error(`Só o último exercício encerrado (${maior._max.exercicio}) pode ser reaberto`);
+  }
+  if (fechamento.lancamentoId) {
+    await prismaSemEscopo.partidaContabil.deleteMany({ where: { lancamentoId: fechamento.lancamentoId } });
+    await prismaSemEscopo.lancamentoContabil.delete({ where: { id: fechamento.lancamentoId } }).catch(() => null);
+  }
+  await prismaSemEscopo.fechamentoContabil.update({
+    where: { id: fechamento.id }, data: { status: "REABERTO", reabertoEm: new Date(), lancamentoId: null },
+  });
+  return { id: fechamento.id, exercicio };
+}
+
 /**
  * Estorna um lançamento: cria um novo lançamento ESTORNO com as partidas
  * invertidas (débito ↔ crédito). Idempotente (só estorna uma vez).
  */
-export async function estornarLancamento(lancamentoId: string) {
+export async function estornarLancamento(lancamentoId: string, data?: Date) {
   const lan = await prismaSemEscopo.lancamentoContabil.findUnique({
     where: { id: lancamentoId },
     include: { partidas: true, estorno: { select: { id: true } } },
@@ -594,7 +737,7 @@ export async function estornarLancamento(lancamentoId: string) {
   return prismaSemEscopo.lancamentoContabil.create({
     data: {
       empresaId: lan.empresaId,
-      data: new Date(),
+      data: data ?? new Date(),
       historico: `Estorno — ${lan.historico}`,
       origemTipo: "ESTORNO",
       estornoDeId: lan.id,
