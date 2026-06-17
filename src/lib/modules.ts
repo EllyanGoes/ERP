@@ -97,6 +97,7 @@ export const MODULOS: ModuloDef[] = [
       { key: "razao",        label: "Razão",                    acoes: ["ver"] },
       { key: "balancete",    label: "Balancete",                acoes: ["ver"] },
       { key: "dre",          label: "DRE",                      acoes: ["ver"] },
+      { key: "balanco",      label: "Balanço Patrimonial",      acoes: ["ver"] },
     ],
   },
   {
