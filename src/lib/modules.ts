@@ -79,13 +79,20 @@ export const MODULOS: ModuloDef[] = [
     recursos: [
       { key: "contas-bancarias", label: "Contas Bancárias", acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "bancos",           label: "Bancos",           acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "plano-contas",     label: "Plano de Contas",  acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "contas-receber",   label: "Contas a Receber", acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "contas-pagar",     label: "Contas a Pagar",   acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "agenda-financeira", label: "Agenda Financeira", acoes: ["ver", "editar"] },
       { key: "recorrencias",     label: "Recorrências",     acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "conciliacao-ofx",  label: "Conciliação (OFX)", acoes: ["ver", "inserir", "editar"] },
       { key: "fluxo-caixa",      label: "Fluxo de Caixa",   acoes: ["ver"] },
+    ],
+  },
+  {
+    key: "contabilidade",
+    label: "Contabilidade",
+    group: "Contabilidade",
+    recursos: [
+      { key: "plano-contas", label: "Plano de Contas Contábil", acoes: ["ver", "inserir", "editar", "excluir"] },
     ],
   },
   {

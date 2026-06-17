@@ -10,7 +10,7 @@ export async function GET() {
 
   const data = await prisma.recorrencia.findMany({
     include: {
-      categoriaFinanceira: { select: { id: true, nome: true } },
+      naturezaFinanceira: { select: { id: true, nome: true } },
       contaBancaria: { select: { id: true, nome: true } },
       cliente: { select: { id: true, razaoSocial: true } },
       fornecedor: { select: { id: true, razaoSocial: true } },
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       tipo: parsed.data.tipo,
       descricao: parsed.data.descricao,
       valor: parsed.data.valor,
-      categoriaFinanceiraId: parsed.data.categoriaFinanceiraId || null,
+      naturezaFinanceiraId: parsed.data.naturezaFinanceiraId || null,
       contaBancariaId: parsed.data.contaBancariaId || null,
       clienteId: parsed.data.clienteId || null,
       fornecedorId: parsed.data.fornecedorId || null,

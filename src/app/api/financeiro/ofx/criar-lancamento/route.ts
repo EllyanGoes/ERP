@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
         valor: Math.abs(valor),
         dataLancamento: linha.data,
         contaBancariaId: linha.importacao.contaBancariaId,
-        categoriaFinanceiraId: parsed.data.categoriaFinanceiraId || null,
+        naturezaFinanceiraId: parsed.data.naturezaFinanceiraId || null,
         centroCustoId: parsed.data.centroCustoId || null,
         conciliado: true,
       },

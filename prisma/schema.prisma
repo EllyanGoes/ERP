@@ -76,7 +76,6 @@ model CentroCusto {
   necessidadesCompra     NecessidadeCompra[]
   requisicoesCompra      RequisicaoMaterial[]
   itensRequisicao        RequisicaoMaterialItem[]
-  categoriasFinanceiras  CategoriaFinanceira[]
   lancamentosFinanceiros LancamentoFinanceiro[]
   contasReceber          ContaReceber[]
   contasPagar            ContaPagar[]
@@ -112,6 +111,7 @@ model Cliente {
   estoqueTerceiros       EstoqueItem[]          @relation("EstoqueTerceiros")
   movimentacoesTerceiros MovimentacaoEstoque[]  @relation("MovimentacoesTerceiros")
   recorrencias           Recorrencia[]
+  contaContabil          ContaContabil?
   empresa                Empresa?
 
   @@index([cpfCnpj])
@@ -288,7 +288,6 @@ model ContaPagar {
   fornecedorId          String?
   descricao             String
   categoria             String?
-  categoriaFinanceiraId String?
   centroCustoId         String?
   contaBancariaId       String?
   grupoParcelamentoId   String?
@@ -312,7 +311,6 @@ model ContaPagar {
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   fornecedor            Fornecedor?            @relation(fields: [fornecedorId], references: [id])
-  categoriaFinanceira   CategoriaFinanceira?   @relation(fields: [categoriaFinanceiraId], references: [id])
   centroCusto           CentroCusto?           @relation(fields: [centroCustoId], references: [id])
   contaBancaria         ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
   recorrencia           Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
@@ -340,7 +338,6 @@ model ContaReceber {
   clienteId             String
   pedidoVendaId         String?
   descricao             String
-  categoriaFinanceiraId String?
   centroCustoId         String?
   contaBancariaId       String?
   grupoParcelamentoId   String?
@@ -363,7 +360,6 @@ model ContaReceber {
   updatedAt             DateTime               @updatedAt
   cliente               Cliente                @relation(fields: [clienteId], references: [id])
   pedidoVenda           PedidoVenda?           @relation(fields: [pedidoVendaId], references: [id])
-  categoriaFinanceira   CategoriaFinanceira?   @relation(fields: [categoriaFinanceiraId], references: [id])
   centroCusto           CentroCusto?           @relation(fields: [centroCustoId], references: [id])
   contaBancaria         ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
   recorrencia           Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
@@ -419,30 +415,10 @@ model ContaBancaria {
   @@index([empresaId])
 }
 
-model CategoriaFinanceira {
-  id            String                  @id @default(cuid())
-  nome          String
-  tipo          TipoCategoriaFinanceira
-  paiId         String?
-  centroCustoId String?
-  ativo         Boolean                 @default(true)
-  createdAt     DateTime                @default(now())
-  updatedAt     DateTime                @updatedAt
-  pai           CategoriaFinanceira?    @relation("CategoriaArvore", fields: [paiId], references: [id])
-  filhos        CategoriaFinanceira[]   @relation("CategoriaArvore")
-  centroCusto   CentroCusto?            @relation(fields: [centroCustoId], references: [id])
-  lancamentos   LancamentoFinanceiro[]
-  contasReceber ContaReceber[]
-  contasPagar   ContaPagar[]
-  recorrencias  Recorrencia[]
-
-  @@index([paiId])
-  @@index([tipo])
-}
-
-// Natureza financeira (estrutura de fluxo de caixa / DRE, separada do plano de
-// contas acima): classifica os títulos por tipo (entrada/saída) e grupo. Subgrupo
-// é um nível opcional de organização dentro do grupo.
+// Natureza financeira (estrutura de fluxo de caixa / DRE): classifica os títulos
+// e lançamentos por tipo (entrada/saída) e grupo. É a única classificação
+// gerencial — o plano de contas contábil vive em ContaContabil. Subgrupo é um
+// nível opcional de organização dentro do grupo.
 model NaturezaSubgrupo {
   id        String               @id @default(cuid())
   empresaId String               @default("emp_tramontin")
@@ -473,10 +449,62 @@ model NaturezaFinanceira {
   contasPagar   ContaPagar[]
   pedidosVenda  PedidoVenda[]
   conferencias  ConferenciaCompra[]
+  lancamentos   LancamentoFinanceiro[]
+  recorrencias  Recorrencia[]
 
   @@index([empresaId])
   @@index([tipo])
   @@index([subgrupoId])
+}
+
+// Plano de contas CONTÁBIL (módulo Contabilidade). Diferente das Naturezas
+// Financeiras (classificação gerencial), aqui cada conta tem natureza
+// devedora/credora, grupo (Ativo/Passivo/PL/Resultado) e hierarquia
+// sintética × analítica. Clientes e fornecedores ganham uma conta analítica
+// própria (clienteId/fornecedorId); estoque fica só sintético.
+enum GrupoContabil {
+  ATIVO
+  PASSIVO
+  PATRIMONIO_LIQUIDO
+  RESULTADO
+}
+
+enum NaturezaContabil {
+  DEVEDORA
+  CREDORA
+}
+
+enum TipoContaContabil {
+  SINTETICA
+  ANALITICA
+}
+
+model ContaContabil {
+  id               String            @id @default(cuid())
+  empresaId        String            @default("emp_tramontin")
+  codigo           String // hierárquico, ex "1.1.02.0001"
+  nome             String
+  grupo            GrupoContabil
+  natureza         NaturezaContabil
+  tipo             TipoContaContabil
+  nivel            Int
+  aceitaLancamento Boolean           @default(false) // true só nas analíticas
+  paiId            String?
+  clienteId        String?           @unique // analítica vinculada a um cliente
+  fornecedorId     String?           @unique // analítica vinculada a um fornecedor
+  ativo            Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  pai              ContaContabil?    @relation("ContaArvore", fields: [paiId], references: [id])
+  filhos           ContaContabil[]   @relation("ContaArvore")
+  cliente          Cliente?          @relation(fields: [clienteId], references: [id])
+  fornecedor       Fornecedor?       @relation(fields: [fornecedorId], references: [id])
+  empresa          Empresa           @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId])
+  @@index([paiId])
+  @@index([grupo])
 }
 
 model Recorrencia {
@@ -485,7 +513,7 @@ model Recorrencia {
   tipo                  TipoRecorrencia
   descricao             String
   valor                 Decimal                  @db.Decimal(15, 2)
-  categoriaFinanceiraId String?
+  naturezaFinanceiraId  String?
   contaBancariaId       String?
   clienteId             String?
   fornecedorId          String?
@@ -497,7 +525,7 @@ model Recorrencia {
   observacoes           String?
   createdAt             DateTime                 @default(now())
   updatedAt             DateTime                 @updatedAt
-  categoriaFinanceira   CategoriaFinanceira?     @relation(fields: [categoriaFinanceiraId], references: [id])
+  naturezaFinanceira    NaturezaFinanceira?      @relation(fields: [naturezaFinanceiraId], references: [id])
   contaBancaria         ContaBancaria?           @relation(fields: [contaBancariaId], references: [id])
   cliente               Cliente?                 @relation(fields: [clienteId], references: [id])
   fornecedor            Fornecedor?              @relation(fields: [fornecedorId], references: [id])
@@ -664,6 +692,7 @@ model Empresa {
   inventarioMaterials       InventarioMaterial[]
   usuarioEmpresas           UsuarioEmpresa[]
   filials                   Filial[]
+  contasContabeis           ContaContabil[]
 }
 
 model EnderecoEstoque {
@@ -771,6 +800,7 @@ model Fornecedor {
   docEntradas     ConferenciaCompra[]
   inventarioItens InventarioMaterialItem[]
   recorrencias    Recorrencia[]
+  contaContabil   ContaContabil?
   empresa         Empresa?
 }
 
@@ -892,7 +922,7 @@ model LancamentoFinanceiro {
   dataVencimento        DateTime?
   dataCompetencia       DateTime?
   contaBancariaId       String
-  categoriaFinanceiraId String?
+  naturezaFinanceiraId  String?
   centroCustoId         String?
   contaReceberId        String?
   contaPagarId          String?
@@ -902,7 +932,7 @@ model LancamentoFinanceiro {
   observacoes           String?
   createdAt             DateTime              @default(now())
   contaBancaria         ContaBancaria         @relation(fields: [contaBancariaId], references: [id])
-  categoriaFinanceira   CategoriaFinanceira?  @relation(fields: [categoriaFinanceiraId], references: [id])
+  naturezaFinanceira    NaturezaFinanceira?   @relation(fields: [naturezaFinanceiraId], references: [id])
   centroCusto           CentroCusto?          @relation(fields: [centroCustoId], references: [id])
   contaPagar            ContaPagar?           @relation(fields: [contaPagarId], references: [id])
   contaReceber          ContaReceber?         @relation(fields: [contaReceberId], references: [id])
@@ -915,7 +945,7 @@ model LancamentoFinanceiro {
   @@index([dataLancamento])
   @@index([tipo])
   @@index([contaBancariaId])
-  @@index([categoriaFinanceiraId])
+  @@index([naturezaFinanceiraId])
   @@index([empresaId])
   @@map("LancamentoCaixa")
 }
@@ -2119,10 +2149,6 @@ enum NaturezaGrupo {
   FINANCIAMENTO
 }
 
-enum TipoCategoriaFinanceira {
-  RECEITA
-  DESPESA
-}
 
 enum TipoRecorrencia {
   RECEBER

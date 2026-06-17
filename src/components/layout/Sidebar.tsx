@@ -233,7 +233,6 @@ const mainModules: Module[] = [
         items: [
           { href: "/financeiro/contas",       label: "Contas",           icon: Wallet },
           { href: "/financeiro/bancos",       label: "Bancos",           icon: Landmark },
-          { href: "/financeiro/plano-contas", label: "Plano de Contas",  icon: FolderTree },
           { href: "/financeiro/naturezas",    label: "Naturezas Financeiras", icon: ArrowLeftRight },
         ],
       },
@@ -251,6 +250,19 @@ const mainModules: Module[] = [
         kind: "Relatórios",
         items: [
           { href: "/fluxo-caixa", label: "Fluxo de Caixa", icon: BarChart3 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "contabilidade",
+    label: "Contabilidade",
+    icon: Calculator,
+    sections: [
+      {
+        kind: "Cadastros",
+        items: [
+          { href: "/contabilidade/plano-contas", label: "Plano de Contas", icon: FolderTree },
         ],
       },
     ],

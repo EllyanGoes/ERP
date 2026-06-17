@@ -21,7 +21,7 @@ type Recorrencia = {
   diaVencimento: number;
   proximaGeracao: string;
   ativo: boolean;
-  categoriaFinanceira: { id: string; nome: string } | null;
+  naturezaFinanceira: { id: string; nome: string } | null;
   contaBancaria: { id: string; nome: string } | null;
   cliente: { id: string; razaoSocial: string } | null;
   fornecedor: { id: string; razaoSocial: string } | null;
@@ -35,7 +35,7 @@ const PERIODO_LABEL: Record<string, string> = {
 
 export default function RecorrenciasPage() {
   const [recs, setRecs] = useState<Recorrencia[]>([]);
-  const [categorias, setCategorias] = useState<Opt[]>([]);
+  const [naturezas, setNaturezas] = useState<Opt[]>([]);
   const [contas, setContas] = useState<Opt[]>([]);
   const [clientes, setClientes] = useState<Opt[]>([]);
   const [fornecedores, setFornecedores] = useState<Opt[]>([]);
@@ -46,13 +46,13 @@ export default function RecorrenciasPage() {
     setLoading(true);
     const [r, pc, ct, cl, fo] = await Promise.all([
       fetch("/api/financeiro/recorrencias").then((x) => x.json()),
-      fetch("/api/financeiro/plano-contas").then((x) => x.json()),
+      fetch("/api/financeiro/naturezas?ativo=1").then((x) => x.json()),
       fetch("/api/financeiro/contas").then((x) => x.json()),
       fetch("/api/clientes").then((x) => x.json()),
       fetch("/api/suprimentos/fornecedores").then((x) => x.json()),
     ]);
     setRecs(r.data ?? []);
-    setCategorias((pc.flat ?? []).map((c: any) => ({ id: c.id, nome: c.nome })));
+    setNaturezas((pc.data ?? []).map((c: any) => ({ id: c.id, nome: c.nome })));
     setContas((ct.data ?? []).map((c: any) => ({ id: c.id, nome: c.nome })));
     setClientes((cl.data ?? []).map((c: any) => ({ id: c.id, razaoSocial: c.razaoSocial })));
     setFornecedores((Array.isArray(fo) ? fo : fo.data ?? []).map((f: any) => ({ id: f.id, razaoSocial: f.razaoSocial })));
@@ -77,7 +77,7 @@ export default function RecorrenciasPage() {
       <PageHeader
         title="Recorrências"
         breadcrumbs={[{ label: "Financeiro" }, { label: "Recorrências" }]}
-        action={<NovaRecorrenciaDialog categorias={categorias} contas={contas} clientes={clientes} fornecedores={fornecedores} onDone={load} />}
+        action={<NovaRecorrenciaDialog naturezas={naturezas} contas={contas} clientes={clientes} fornecedores={fornecedores} onDone={load} />}
       />
       <div className="px-8 pb-8">
         <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
@@ -106,7 +106,7 @@ export default function RecorrenciasPage() {
                       <p className="font-medium text-gray-900">{r.descricao}</p>
                       <p className="text-xs text-gray-400">
                         {r.cliente?.razaoSocial || r.fornecedor?.razaoSocial || "—"}
-                        {r.categoriaFinanceira ? ` · ${r.categoriaFinanceira.nome}` : ""}
+                        {r.naturezaFinanceira ? ` · ${r.naturezaFinanceira.nome}` : ""}
                       </p>
                     </td>
                     <td className="px-6 py-3">
@@ -137,8 +137,8 @@ export default function RecorrenciasPage() {
   );
 }
 
-function NovaRecorrenciaDialog({ categorias, contas, clientes, fornecedores, onDone }: {
-  categorias: Opt[]; contas: Opt[]; clientes: Opt[]; fornecedores: Opt[]; onDone: () => void;
+function NovaRecorrenciaDialog({ naturezas, contas, clientes, fornecedores, onDone }: {
+  naturezas: Opt[]; contas: Opt[]; clientes: Opt[]; fornecedores: Opt[]; onDone: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -148,7 +148,7 @@ function NovaRecorrenciaDialog({ categorias, contas, clientes, fornecedores, onD
   const [periodicidade, setPeriodicidade] = useState("MENSAL");
   const [diaVencimento, setDiaVencimento] = useState("1");
   const [proximaGeracao, setProximaGeracao] = useState(new Date().toISOString().slice(0, 10));
-  const [categoriaFinanceiraId, setCategoriaFinanceiraId] = useState("");
+  const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState("");
   const [contaBancariaId, setContaBancariaId] = useState("");
   const [clienteId, setClienteId] = useState("");
   const [fornecedorId, setFornecedorId] = useState("");
@@ -162,7 +162,7 @@ function NovaRecorrenciaDialog({ categorias, contas, clientes, fornecedores, onD
       body: JSON.stringify({
         tipo, descricao, valor, periodicidade, diaVencimento,
         proximaGeracao,
-        categoriaFinanceiraId: categoriaFinanceiraId || null,
+        naturezaFinanceiraId: naturezaFinanceiraId || null,
         contaBancariaId: contaBancariaId || null,
         clienteId: tipo === "RECEBER" ? (clienteId || null) : null,
         fornecedorId: tipo === "PAGAR" ? (fornecedorId || null) : null,
@@ -215,9 +215,9 @@ function NovaRecorrenciaDialog({ categorias, contas, clientes, fornecedores, onD
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Categoria</Label>
-              <ComboboxWithCreate value={categoriaFinanceiraId} onChange={setCategoriaFinanceiraId} placeholder="— Nenhuma —" noneLabel="Nenhuma" triggerClassName="h-10 rounded-lg"
-                options={categorias.map((c) => ({ value: c.id, label: c.nome ?? "" }))} />
+              <Label>Natureza</Label>
+              <ComboboxWithCreate value={naturezaFinanceiraId} onChange={setNaturezaFinanceiraId} placeholder="— Nenhuma —" noneLabel="Nenhuma" triggerClassName="h-10 rounded-lg"
+                options={naturezas.map((c) => ({ value: c.id, label: c.nome ?? "" }))} />
             </div>
             <div className="space-y-1.5">
               <Label>Conta de liquidação</Label>

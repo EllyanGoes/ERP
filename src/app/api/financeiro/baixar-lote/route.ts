@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
             dataLancamento: data,
             contaReceberId: id,
             contaBancariaId,
-            categoriaFinanceiraId: c.categoriaFinanceiraId ?? undefined,
+            naturezaFinanceiraId: c.naturezaFinanceiraId ?? undefined,
             centroCustoId: c.centroCustoId ?? undefined,
           },
         });
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
             dataLancamento: data,
             contaPagarId: id,
             contaBancariaId,
-            categoriaFinanceiraId: c.categoriaFinanceiraId ?? undefined,
+            naturezaFinanceiraId: c.naturezaFinanceiraId ?? undefined,
             centroCustoId: c.centroCustoId ?? undefined,
           },
         });

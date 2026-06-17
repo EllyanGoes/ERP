@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const lancamentos = await prisma.lancamentoFinanceiro.findMany({
     where,
     include: {
-      categoriaFinanceira: { select: { id: true, nome: true } },
+      naturezaFinanceira: { select: { id: true, nome: true } },
       contaReceber: { select: { id: true, numero: true, cliente: { select: { razaoSocial: true, nomeFantasia: true } }, pedidoVenda: { select: { id: true, numero: true } } } },
       contaPagar: { select: { id: true, numero: true, fornecedor: { select: { razaoSocial: true, nomeFantasia: true } } } },
     },

@@ -4,6 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { clienteSchema } from "@/lib/validations/cliente";
+import { garantirContaContabilCliente } from "@/lib/conta-contabil";
 
 // Mensagem amigável quando o CPF/CNPJ (campo único) já existe.
 function cpfCnpjEmUso(err: unknown): boolean {
@@ -59,6 +60,9 @@ export async function POST(req: NextRequest) {
   const data = { ...parsed.data, cpfCnpj: parsed.data.cpfCnpj?.trim() || null };
   try {
     const cliente = await prisma.cliente.create({ data });
+    // Cria (best-effort) a conta contábil analítica do cliente. Não bloqueia o
+    // cadastro se o plano de contas ainda não foi semeado.
+    await garantirContaContabilCliente(cliente.id).catch(() => null);
     return NextResponse.json({ data: cliente }, { status: 201 });
   } catch (err) {
     if (cpfCnpjEmUso(err)) {

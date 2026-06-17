@@ -23,8 +23,8 @@ type ExtratoLinha = {
   observacoes: string | null;
   dataVencimento: string | null;
   dataCompetencia: string | null;
-  categoriaFinanceira: { id: string; nome: string } | null;
-  categoriaFinanceiraId: string | null;
+  naturezaFinanceira: { id: string; nome: string } | null;
+  naturezaFinanceiraId: string | null;
   contaReceber: { id: string; numero: string; cliente: EmpresaContato | null; pedidoVenda: { id: string; numero: string } | null } | null;
   contaPagar: { id: string; numero: string; fornecedor: EmpresaContato | null } | null;
 };
@@ -102,14 +102,14 @@ export default function ExtratoContaPage() {
 
       autoTable(doc, {
         startY: 31,
-        head: [["Data", "Descrição", "Cliente / Contato", "Categoria", "Entradas", "Saídas", "Saldo"]],
+        head: [["Data", "Descrição", "Cliente / Contato", "Natureza", "Entradas", "Saídas", "Saldo"]],
         body: conta.extrato.map((l) => {
           const v = Number(l.valor);
           return [
             formatDate(l.dataLancamento),
             l.descricao,
             contatoLinha(l) === "—" ? "" : contatoLinha(l),
-            l.categoriaFinanceira?.nome ?? "",
+            l.naturezaFinanceira?.nome ?? "",
             v > 0 ? formatBRL(v) : "",
             v < 0 ? formatBRL(-v) : "",
             formatBRL(l.saldoCorrente),
@@ -243,7 +243,7 @@ export default function ExtratoContaPage() {
                             )}
                           </td>
                           <td className="px-6 py-3 text-gray-600">{contatoLinha(l)}</td>
-                          <td className="px-6 py-3 text-gray-500">{l.categoriaFinanceira?.nome ?? "—"}</td>
+                          <td className="px-6 py-3 text-gray-500">{l.naturezaFinanceira?.nome ?? "—"}</td>
                           <td className="px-6 py-3 text-right tabular-nums font-medium text-emerald-700">
                             {v > 0 ? formatBRL(v) : "—"}
                           </td>

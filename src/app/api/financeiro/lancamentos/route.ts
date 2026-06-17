@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     },
     include: {
       contaBancaria: { select: { id: true, nome: true } },
-      categoriaFinanceira: { select: { id: true, nome: true } },
+      naturezaFinanceira: { select: { id: true, nome: true } },
       contaReceber: { select: { id: true, numero: true } },
       contaPagar: { select: { id: true, numero: true } },
     },
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       dataVencimento: parsed.data.dataVencimento ? new Date(parsed.data.dataVencimento) : null,
       dataCompetencia: parsed.data.dataCompetencia ? new Date(parsed.data.dataCompetencia) : null,
       contaBancariaId: parsed.data.contaBancariaId,
-      categoriaFinanceiraId: parsed.data.categoriaFinanceiraId || null,
+      naturezaFinanceiraId: parsed.data.naturezaFinanceiraId || null,
       centroCustoId: parsed.data.centroCustoId || null,
       favorecido: parsed.data.favorecido || null,
       observacoes: parsed.data.observacoes || null,

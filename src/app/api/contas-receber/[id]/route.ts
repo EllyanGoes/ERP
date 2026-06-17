@@ -67,7 +67,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         dataLancamento: new Date(dataPagamento),
         contaReceberId: params.id,
         contaBancariaId: contaBancariaId ?? conta.contaBancariaId ?? contaCaixaIdDaEmpresa(conta.empresaId),
-        categoriaFinanceiraId: conta.categoriaFinanceiraId ?? undefined,
+        naturezaFinanceiraId: conta.naturezaFinanceiraId ?? undefined,
         centroCustoId: conta.centroCustoId ?? undefined,
       },
     });

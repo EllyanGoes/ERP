@@ -7,7 +7,7 @@ export const contaReceberSchema = z.object({
   dataVencimento: z.string().min(1, "Data de vencimento é obrigatória"),
   formaPagamento: z.string().optional().nullable(),
   observacoes: z.string().optional().nullable(),
-  categoriaFinanceiraId: z.string().optional().nullable(),
+  naturezaFinanceiraId: z.string().optional().nullable(),
   centroCustoId: z.string().optional().nullable(),
   contaBancariaId: z.string().optional().nullable(),
 })
@@ -21,7 +21,7 @@ export const contaPagarSchema = z.object({
   formaPagamento: z.string().optional().nullable(),
   notaFiscal: z.string().optional().nullable(),
   observacoes: z.string().optional().nullable(),
-  categoriaFinanceiraId: z.string().optional().nullable(),
+  naturezaFinanceiraId: z.string().optional().nullable(),
   centroCustoId: z.string().optional().nullable(),
   contaBancariaId: z.string().optional().nullable(),
 })
@@ -53,14 +53,6 @@ export const contaBancariaSchema = z.object({
   ativo: z.boolean().default(true),
 })
 
-export const categoriaFinanceiraSchema = z.object({
-  nome: z.string().min(2, "Nome é obrigatório"),
-  tipo: z.enum(["RECEITA", "DESPESA"]),
-  paiId: z.string().optional().nullable(),
-  centroCustoId: z.string().optional().nullable(),
-  ativo: z.boolean().default(true),
-})
-
 export const lancamentoFinanceiroSchema = z.object({
   tipo: z.enum(["RECEITA", "DESPESA"]),
   descricao: z.string().min(2, "Descrição é obrigatória"),
@@ -69,7 +61,7 @@ export const lancamentoFinanceiroSchema = z.object({
   dataVencimento: z.string().optional().nullable(),
   dataCompetencia: z.string().optional().nullable(),
   contaBancariaId: z.string().min(1, "Conta bancária é obrigatória"),
-  categoriaFinanceiraId: z.string().optional().nullable(),
+  naturezaFinanceiraId: z.string().optional().nullable(),
   centroCustoId: z.string().optional().nullable(),
   favorecido: z.string().optional().nullable(),
   observacoes: z.string().optional().nullable(),
@@ -92,7 +84,7 @@ export const recorrenciaSchema = z.object({
   tipo: z.enum(["RECEBER", "PAGAR"]),
   descricao: z.string().min(2, "Descrição é obrigatória"),
   valor: z.coerce.number().min(0.01, "Valor inválido"),
-  categoriaFinanceiraId: z.string().optional().nullable(),
+  naturezaFinanceiraId: z.string().optional().nullable(),
   contaBancariaId: z.string().optional().nullable(),
   clienteId: z.string().optional().nullable(),
   fornecedorId: z.string().optional().nullable(),
@@ -130,7 +122,7 @@ export const ofxConciliarSchema = z.object({
 
 export const ofxCriarLancamentoSchema = z.object({
   linhaId: z.string().min(1),
-  categoriaFinanceiraId: z.string().optional().nullable(),
+  naturezaFinanceiraId: z.string().optional().nullable(),
   centroCustoId: z.string().optional().nullable(),
 })
 
@@ -142,6 +134,5 @@ export type ContaPagarFormData = z.infer<typeof contaPagarSchema>
 export type PagamentoFormData = z.infer<typeof pagamentoSchema>
 export type BancoFormData = z.infer<typeof bancoSchema>
 export type ContaBancariaFormData = z.infer<typeof contaBancariaSchema>
-export type CategoriaFinanceiraFormData = z.infer<typeof categoriaFinanceiraSchema>
 export type LancamentoFinanceiroFormData = z.infer<typeof lancamentoFinanceiroSchema>
 export type TransferenciaFormData = z.infer<typeof transferenciaSchema>

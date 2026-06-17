@@ -18,7 +18,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       tipo: parsed.data.tipo,
       descricao: parsed.data.descricao,
       valor: parsed.data.valor,
-      categoriaFinanceiraId: parsed.data.categoriaFinanceiraId || null,
+      naturezaFinanceiraId: parsed.data.naturezaFinanceiraId || null,
       contaBancariaId: parsed.data.contaBancariaId || null,
       clienteId: parsed.data.clienteId || null,
       fornecedorId: parsed.data.fornecedorId || null,
