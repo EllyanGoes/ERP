@@ -1120,7 +1120,16 @@ export default function PedidosVendaPage() {
                   {delTarget.cliente.nomeFantasia || delTarget.cliente.razaoSocial} · {formatBRL(decimalToNumber(delTarget.valorTotal))}
                 </p>
                 <p className="text-sm text-gray-500 mt-2">
-                  Esta ação é <span className="font-semibold text-gray-700">permanente</span> e remove o lançamento e seus itens.
+                  Esta ação é <span className="font-semibold text-gray-700">permanente</span> e exclui o pedido{" "}
+                  <span className="font-medium text-gray-700">em cadeia</span>: remove também as minutas, estorna os
+                  movimentos de estoque (o saldo volta) e apaga as contas a receber e lançamentos vinculados.
+                  {delTarget.estoqueOrigemEmpresaId && (
+                    <> Como é uma <span className="font-medium text-gray-700">venda à ordem</span>, remove ainda o
+                    pedido de entrega e o financeiro intragrupo na empresa de origem
+                    {delTarget.estoqueOrigemEmpresa && (
+                      <> ({delTarget.estoqueOrigemEmpresa.nomeFantasia || delTarget.estoqueOrigemEmpresa.razaoSocial})</>
+                    )}.</>
+                  )}{" "}
                   Para apenas arquivar, mude o status para <span className="font-medium">Cancelado</span>.
                 </p>
               </div>

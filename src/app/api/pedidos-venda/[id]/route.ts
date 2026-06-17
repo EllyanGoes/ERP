@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { recalcularSaldos } from "@/lib/estoque-saldos";
 import { requireModulo } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
 import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
@@ -393,32 +394,117 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
 
   const pedido = await prisma.pedidoVenda.findUnique({
     where: { id: params.id },
-    select: { numero: true, _count: { select: { minutas: true, contasReceber: true } } },
+    select: { id: true, numero: true, estoqueOrigemEmpresaId: true },
   });
   if (!pedido) return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
 
-  const bloqueios: string[] = [];
-  if (pedido._count.minutas > 0) bloqueios.push(`${pedido._count.minutas} minuta(s) de entrega`);
-  if (pedido._count.contasReceber > 0) bloqueios.push(`${pedido._count.contasReceber} conta(s) a receber`);
-  if (bloqueios.length > 0) {
-    return NextResponse.json(
-      {
-        error:
-          `Não é possível excluir o pedido ${pedido.numero}: há ` +
-          bloqueios.join(" e ") +
-          " vinculada(s). Remova esses registros (ou apenas cancele o pedido) antes de excluir.",
-      },
-      { status: 409 },
-    );
-  }
-
+  // Exclusão EM CADEIA ("em rede"): remove o pedido e tudo que ele gerou, mesmo
+  // através das empresas do grupo — por isso usa prismaSemEscopo. Estorna o
+  // estoque (devolve o saldo dos movimentos), apaga as contas a receber/pagar
+  // (inclusive o financeiro intragrupo da venda à ordem) e, quando é venda à
+  // ordem, também o Pedido de Entrega criado na empresa de origem. A confirmação
+  // e o aviso ao usuário ficam na tela (este endpoint só é chamado após o "ok").
   try {
-    await prisma.pedidoVenda.delete({ where: { id: params.id } });
-  } catch {
+    const resumo = await prismaSemEscopo.$transaction(async (tx) => {
+      // Pedidos envolvidos: a venda + o(s) pedido(s) de entrega da origem (à ordem).
+      const entregas = await tx.pedidoVenda.findMany({
+        where: { pedidoVendaOrigemId: pedido.id },
+        select: { id: true },
+      });
+      const pedidoIds = [pedido.id, ...entregas.map((e) => e.id)];
+
+      // Itens e minutas desses pedidos — usados para achar os movimentos a estornar.
+      const [itens, minutas] = await Promise.all([
+        tx.pedidoVendaItem.findMany({ where: { pedidoVendaId: { in: pedidoIds } }, select: { id: true } }),
+        tx.minuta.findMany({ where: { pedidoVendaId: { in: pedidoIds } }, select: { numero: true } }),
+      ]);
+      const itemIds = itens.map((i) => i.id);
+      const minutaNumeros = minutas.map((m) => m.numero);
+
+      // Movimentos de estoque: tag de venda à ordem, ou documentados pelas minutas,
+      // ou amarrados a um item do pedido. Estorna o saldo de cada um antes de apagar.
+      const movs = await tx.movimentacaoEstoque.findMany({
+        where: {
+          OR: [
+            { vendaOrdemId: pedido.id },
+            ...(minutaNumeros.length ? [{ documento: { in: minutaNumeros } }] : []),
+            ...(itemIds.length ? [{ pedidoVendaItemId: { in: itemIds } }] : []),
+          ],
+        },
+        select: { id: true, itemId: true, localEstoqueId: true, clienteDonoId: true, tipo: true, quantidade: true, loteId: true },
+      });
+
+      const afetados = new Set<string>();
+      const loteIds = new Set<string>();
+      for (const mv of movs) {
+        if (mv.loteId) loteIds.add(mv.loteId);
+        if (!mv.localEstoqueId) continue;
+        const qtd = Number(mv.quantidade);
+        // Desfaz o efeito no saldo: ENTRADA somou (decrementa); SAIDA tirou (devolve).
+        const efeito = mv.tipo === "ENTRADA" ? qtd : mv.tipo === "SAIDA" ? -qtd : 0;
+        if (efeito !== 0) {
+          await tx.estoqueItem.updateMany({
+            where: { itemId: mv.itemId, localEstoqueId: mv.localEstoqueId, clienteDonoId: mv.clienteDonoId ?? null },
+            data: { quantidadeAtual: { decrement: efeito } },
+          });
+        }
+        afetados.add(`${mv.itemId}|${mv.localEstoqueId}|${mv.clienteDonoId ?? ""}`);
+      }
+      if (movs.length) await tx.movimentacaoEstoque.deleteMany({ where: { id: { in: movs.map((m) => m.id) } } });
+      // Recalcula a cadeia de saldos dos itens/locais afetados.
+      for (const chave of Array.from(afetados)) {
+        const [itemId, localEstoqueId, dono] = chave.split("|");
+        await recalcularSaldos(tx, itemId, localEstoqueId, dono || null);
+      }
+      // Remove lotes que ficaram sem movimentos.
+      for (const loteId of Array.from(loteIds)) {
+        const restantes = await tx.movimentacaoEstoque.count({ where: { loteId } });
+        if (restantes === 0) await tx.loteMovimentacao.delete({ where: { id: loteId } }).catch(() => {});
+      }
+
+      // Financeiro: contas a receber dos pedidos (venda oficial) + financeiro
+      // intragrupo da venda à ordem (CR na origem / CP na empresa da venda).
+      const crPedidos = await tx.contaReceber.findMany({ where: { pedidoVendaId: { in: pedidoIds } }, select: { id: true } });
+      const alvoIntragrupo = `à ordem ${pedido.numero} `; // espaço final evita casar PV-0141 com PV-01410
+      const [crIntra, cpIntra] = await Promise.all([
+        tx.contaReceber.findMany({ where: { intragrupo: true, descricao: { contains: alvoIntragrupo } }, select: { id: true } }),
+        tx.contaPagar.findMany({ where: { intragrupo: true, descricao: { contains: alvoIntragrupo } }, select: { id: true } }),
+      ]);
+      const crIds = Array.from(new Set([...crPedidos.map((c) => c.id), ...crIntra.map((c) => c.id)]));
+      const cpIds = cpIntra.map((c) => c.id);
+      if (crIds.length || cpIds.length) {
+        await tx.lancamentoFinanceiro.deleteMany({
+          where: { OR: [{ contaReceberId: { in: crIds } }, { contaPagarId: { in: cpIds } }] },
+        });
+      }
+      if (crIds.length) await tx.contaReceber.deleteMany({ where: { id: { in: crIds } } });
+      if (cpIds.length) await tx.contaPagar.deleteMany({ where: { id: { in: cpIds } } });
+
+      // Movimentos de comodato amarrados aos pedidos (sem FK; remove p/ não orfanar).
+      await tx.movimentacaoComodato.deleteMany({ where: { pedidoVendaId: { in: pedidoIds } } });
+
+      // Minutas e pedido(s) de entrega da origem (MinutaItem/itens caem em cascata).
+      await tx.minuta.deleteMany({ where: { pedidoVendaId: { in: pedidoIds } } });
+      if (entregas.length) await tx.pedidoVenda.deleteMany({ where: { id: { in: entregas.map((e) => e.id) } } });
+
+      // Por fim, a venda (itens e pagamentos caem em cascata).
+      await tx.pedidoVenda.delete({ where: { id: pedido.id } });
+
+      return {
+        movimentos: movs.length,
+        contasReceber: crIds.length,
+        contasPagar: cpIds.length,
+        minutas: minutaNumeros.length,
+        pedidosEntrega: entregas.length,
+      };
+    });
+
+    return NextResponse.json({ data: { ok: true, ...resumo } });
+  } catch (err) {
+    console.error("[DELETE /api/pedidos-venda/[id]]", err);
     return NextResponse.json(
-      { error: "Não foi possível excluir o pedido — há registros vinculados (minutas, financeiro ou comodato)." },
+      { error: "Não foi possível excluir o pedido em cadeia — verifique os registros vinculados e tente novamente." },
       { status: 409 },
     );
   }
-  return NextResponse.json({ data: { ok: true } });
 }
