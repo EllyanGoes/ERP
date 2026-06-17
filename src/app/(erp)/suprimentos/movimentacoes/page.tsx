@@ -467,10 +467,10 @@ export default function MovimentacoesPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await submitMovimentacao(false);
+    await submitMovimentacao();
   }
 
-  async function submitMovimentacao(permitirNegativo: boolean) {
+  async function submitMovimentacao() {
     if (!localEstoqueId) { setFormError("Selecione o local de estoque."); return; }
     const valid = linhas.filter((l) => l.itemId && qtdNum(l.quantidade) > 0);
     if (valid.length === 0) { setFormError("Adicione ao menos um item com produto e quantidade."); return; }
@@ -486,7 +486,6 @@ export default function MovimentacoesPage() {
           dataMovimentacao: dataMov || undefined,
           fornecedorId: tipoMov === "ENTRADA" && fornecedorId && !clienteDonoId ? fornecedorId : undefined,
           clienteDonoId: clienteDonoId || undefined,
-          permitirNegativo,
           itens: valid.map((l) => ({
             itemId:         l.itemId,
             localEstoqueId: localEstoqueId,
@@ -498,20 +497,18 @@ export default function MovimentacoesPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        // Aviso de saldo negativo: lista os itens e pede revisão; o usuário
-        // pode confirmar e registrar mesmo assim.
-        if (res.status === 422 && err.error === "SALDO_NEGATIVO" && Array.isArray(err.negativos)) {
+        // Saldo negativo é bloqueio (hard block): a saída é recusada e o usuário
+        // precisa corrigir o saldo via inventário/entrada antes de registrar.
+        if (res.status === 422 && err.codigo === "SALDO_NEGATIVO" && Array.isArray(err.negativos)) {
           const fmt = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
           const linhasAviso = err.negativos
             .map((n: { descricao: string; saldoAtual: number; saldoDepois: number }) =>
-              `• ${n.descricao}: ${fmt(n.saldoAtual)} → ${fmt(n.saldoDepois)}`)
-            .join("\n");
-          const confirma = window.confirm(
-            `ATENÇÃO: esta movimentação vai deixar saldo NEGATIVO em:\n\n${linhasAviso}\n\n` +
-            `Revise os lançamentos (quantidades, local de estoque e entradas pendentes).\n\n` +
-            `Deseja registrar mesmo assim?`
+              `${n.descricao}: ${fmt(n.saldoAtual)} → ${fmt(n.saldoDepois)}`)
+            .join("; ");
+          setFormError(
+            `Saída bloqueada — deixaria saldo negativo em ${linhasAviso}. ` +
+            `Registre a entrada ou ajuste o saldo via inventário antes.`
           );
-          if (confirma) { setSubmitting(false); await submitMovimentacao(true); }
           return;
         }
         setFormError(err.error || "Erro ao registrar");
