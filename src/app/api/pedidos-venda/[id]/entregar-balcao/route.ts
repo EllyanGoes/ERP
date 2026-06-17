@@ -85,10 +85,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           empresaId: pedido.empresaId,
           pedidoVendaId: pedido.id,
           localEstoqueId,
-          tipo: "RETIRADA",
+          tipo: pedido.necessidadeEntrega === "RETIRADA" ? "RETIRADA" : "ENTREGA",
           status: "ENTREGUE",
           dataEntrega: hoje,
-          observacoes: "Venda balcão — saída do material (retirada na loja)",
+          observacoes: pedido.necessidadeEntrega === "RETIRADA"
+            ? "Saída do material — retirada total na loja"
+            : "Saída do material — entrega total",
           itens: {
             create: pedido.itens.map((it) => ({
               pedidoVendaItemId: it.id,

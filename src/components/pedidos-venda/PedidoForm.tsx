@@ -256,7 +256,7 @@ export default function PedidoForm({
   const [condicaoPagamento, setCondicaoPagamento] = useState(pedido?.condicaoPagamento ?? "");
   // Necessidades do pedido (substituem a escolha de modalidade balcão/agendada):
   //  • pagamento: A_VISTA (recebe agora no caixa) | A_PRAZO (conta a receber futura)
-  //  • entrega:   RETIRADA (leva na hora) | ENTREGA (agendada via minutas)
+  //  • entrega:   RETIRADA (cliente retira) | ENTREGA (levamos ao cliente) — ambas por minutas, podem ser parciais
   const [necessidadePagamento, setNecessidadePagamento] = useState<"A_VISTA" | "A_PRAZO">(
     (pedido?.necessidadePagamento as "A_VISTA" | "A_PRAZO") ?? "A_PRAZO",
   );
@@ -1056,13 +1056,13 @@ export default function PedidoForm({
                 onChange={(e) => setNecessidadeEntrega(e.target.value as "RETIRADA" | "ENTREGA")}
                 className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
               >
-                <option value="RETIRADA">Retirada — leva na hora</option>
-                <option value="ENTREGA">Entrega — agendada (minutas)</option>
+                <option value="RETIRADA">Retirada — cliente retira na loja</option>
+                <option value="ENTREGA">Entrega — levamos ao cliente</option>
               </select>
               <p className="text-[11px] text-gray-400">
                 {necessidadeEntrega === "RETIRADA"
-                  ? "A saída do material baixa o estoque na hora."
-                  : "A entrega é feita por minutas (pode ser parcial)."}
+                  ? "Saída por minuta(s) de retirada — pode ser parcial."
+                  : "Entrega por minuta(s) — pode ser parcial."}
               </p>
             </div>
           </div>

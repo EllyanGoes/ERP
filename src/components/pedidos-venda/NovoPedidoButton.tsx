@@ -82,8 +82,10 @@ export default function NovoPedidoButton({ onCreated }: { onCreated: () => void 
                     <span className="font-semibold text-gray-900">Necessidade de entrega</span>
                   </div>
                   <ul className="text-[13px] text-gray-600 space-y-1 list-disc pl-5">
-                    <li><span className="font-medium text-gray-800">Retirada</span>: o cliente leva na hora — a saída do material <span className="font-medium">baixa o estoque na hora</span> (use &quot;Confirmar Saída do Material&quot;).</li>
-                    <li><span className="font-medium text-gray-800">Entrega</span>: feita por <span className="font-medium">minutas</span> (pode ser parcial); cada minuta marcada como Entregue baixa o estoque.</li>
+                    <li>As duas são feitas por <span className="font-medium">minutas</span> e <span className="font-medium">podem ser parciais</span>; cada minuta marcada como Entregue baixa o estoque.</li>
+                    <li><span className="font-medium text-gray-800">Retirada</span>: o cliente retira na loja (minuta de retirada).</li>
+                    <li><span className="font-medium text-gray-800">Entrega</span>: levamos ao cliente (minuta de entrega, com motorista/placa).</li>
+                    <li>Quando o cliente leva/recebe tudo de uma vez, use o atalho <span className="font-medium">&quot;Entregar tudo agora&quot;</span> no pedido.</li>
                   </ul>
                 </div>
 

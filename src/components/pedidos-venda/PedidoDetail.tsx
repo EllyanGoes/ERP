@@ -642,15 +642,15 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               Registrar Recebimento
             </Button>
           )}
-          {/* Venda balcão em duas etapas: confirmar a saída do material (retirada)
-              quando o cliente vem buscar — baixa estoque e conclui. */}
-          {pedido.necessidadeEntrega === "RETIRADA" &&
-            pedido.status !== "CONCLUIDO" && pedido.status !== "CANCELADO" &&
+          {/* Atalho "entregar tudo agora": quando o cliente leva/recebe tudo de
+              uma vez, cria UMA minuta cheia (retirada ou entrega, conforme o
+              pedido), baixa o estoque e conclui. A parcial é feita por minutas. */}
+          {pedido.status !== "CONCLUIDO" && pedido.status !== "CANCELADO" &&
             !pedido.intragrupo && !pedido.estoqueOrigemEmpresa &&
             minutas.filter((m) => m.status !== "CANCELADA").length === 0 && (
             <Button size="sm" onClick={abrirSaida} disabled={loading} className="bg-amber-600 hover:bg-amber-700 gap-1.5">
               <Truck className="w-4 h-4" />
-              Confirmar Saída do Material
+              {pedido.necessidadeEntrega === "RETIRADA" ? "Confirmar retirada (tudo)" : "Entregar tudo agora"}
             </Button>
           )}
           {actions.map((a) => (
@@ -1266,8 +1266,10 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             <div>
               <h3 className="font-bold text-gray-800">Confirmar saída do material</h3>
               <p className="text-sm text-gray-600 mt-0.5">
-                O cliente está retirando a mercadoria agora. Baixa o estoque (minuta de retirada)
-                e conclui o pedido — <span className="font-semibold">sem mexer no financeiro</span>
+                {pedido.necessidadeEntrega === "RETIRADA"
+                  ? "O cliente está retirando a mercadoria agora. Baixa o estoque (minuta de retirada)"
+                  : "Saída total do material ao cliente agora. Baixa o estoque (minuta de entrega)"}
+                {" "}e conclui o pedido — <span className="font-semibold">sem mexer no financeiro</span>
                 {pedido.contasReceber.length > 0 ? " (o recebimento já foi lançado)." : " (registre o recebimento à parte, se ainda não foi)."}
               </p>
             </div>

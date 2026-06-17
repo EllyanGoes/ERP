@@ -45,6 +45,7 @@ type PedidoVenda = {
   id: string;
   numero: string;
   status: string;
+  necessidadeEntrega?: string | null;
   cliente: { id: string; razaoSocial: string; nomeFantasia: string | null };
   itens: PedidoVendaItem[];
 };
@@ -177,6 +178,11 @@ export default function MinutaCreateForm() {
       const json = await res.json();
       const pv: PedidoVenda = json.data;
       setPedido(pv);
+      // O tipo da minuta nasce conforme a necessidade de entrega do pedido
+      // (Retirada → minuta de retirada; Entrega → de entrega). Pode ser trocado.
+      if (pv.necessidadeEntrega === "RETIRADA" || pv.necessidadeEntrega === "ENTREGA") {
+        setTipo(pv.necessidadeEntrega);
+      }
 
       const newRows: ItemRow[] = pv.itens
         .map((pvItem) => {
