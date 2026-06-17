@@ -16,5 +16,8 @@ ALTER TABLE "LancamentoCaixa" DROP COLUMN IF EXISTS "categoriaFinanceiraId";
 ALTER TABLE "Recorrencia"     DROP COLUMN IF EXISTS "categoriaFinanceiraId";
 
 -- ── Remove a tabela e o enum ──────────────────────────────────────────────────
-DROP TABLE IF EXISTS "CategoriaFinanceira";
-DROP TYPE IF EXISTS "TipoCategoriaFinanceira";
+-- CASCADE: derruba junto qualquer FK/coluna remanescente que ainda dependa da
+-- tabela ou do enum (defensivo p/ ambientes com resíduo de db push). O único
+-- dependente legítimo é a própria CategoriaFinanceira, que está sendo removida.
+DROP TABLE IF EXISTS "CategoriaFinanceira" CASCADE;
+DROP TYPE IF EXISTS "TipoCategoriaFinanceira" CASCADE;
