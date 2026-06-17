@@ -15,6 +15,31 @@
 import { Prisma } from "@prisma/client";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { generateDocNumber } from "@/lib/utils";
+import { custosDaEmpresa } from "@/lib/custo-empresa";
+
+/**
+ * Preço de transferência (custo) por item da venda à ordem. Precedência:
+ *   1) preço de transferência informado no item;
+ *   2) preço de transferência do pedido, rateado proporcionalmente (fator);
+ *   3) custo do item na empresa de ORIGEM (CMPM por empresa);
+ *   4) 0 — sem custo conhecido: não inventa o valor da venda (evita a CP/CR
+ *      intragrupo sair pelo valor cheio da venda). Com 0 a CP/CR é pulada.
+ */
+function precoTransferenciaItem(args: {
+  itemPrecoTransferencia: Prisma.Decimal | string | number | null;
+  totalItem: Prisma.Decimal;
+  qtd: Prisma.Decimal;
+  pedidoTemTransfer: boolean;
+  fator: Prisma.Decimal;
+  custoOrigem: number | undefined;
+}): Prisma.Decimal {
+  if (args.itemPrecoTransferencia != null) return new Prisma.Decimal(args.itemPrecoTransferencia);
+  if (args.pedidoTemTransfer) {
+    return args.qtd.gt(0) ? args.totalItem.mul(args.fator).div(args.qtd).toDecimalPlaces(4) : new Prisma.Decimal(0);
+  }
+  if (args.custoOrigem != null) return new Prisma.Decimal(args.custoOrigem);
+  return new Prisma.Decimal(0);
+}
 
 type Tx = Prisma.TransactionClient;
 
@@ -147,6 +172,10 @@ export async function gerarMovimentosTriangulares(minutaId: string): Promise<voi
       const loteEntradaA = await criarLote(tx, empresaA, "ENTRADA", minuta.numero, `Compra virtual de ${origemNome} (venda à ordem ${venda.numero})`);
       const loteSaidaA = await criarLote(tx, empresaA, "SAIDA", minuta.numero, `Entrega ao cliente ${clienteNome} (venda à ordem ${venda.numero})`);
 
+      // Custo dos itens na origem (Tramontin) — base do preço de transferência
+      // quando não há transferência informada (evita sair pelo valor da venda).
+      const custoMap = await custosDaEmpresa(tx, origem.id, minuta.itens.map((mi) => mi.itemId));
+
       let transferTotal = new Prisma.Decimal(0);
       for (const mi of minuta.itens) {
         const qtd = new Prisma.Decimal(mi.quantidadeConvertida ?? mi.quantidade);
@@ -155,10 +184,13 @@ export async function gerarMovimentosTriangulares(minutaId: string): Promise<voi
         const pvi = mi.pedidoVendaItem;
         const precoVenda = new Prisma.Decimal(pvi.precoUnitario ?? 0);
         const totalItem = new Prisma.Decimal(pvi.valorTotal ?? 0);
-        // Preço de compra (origem): por item quando informado; senão rateia o total.
-        const transferUnit = pvi.precoTransferencia != null
-          ? new Prisma.Decimal(pvi.precoTransferencia)
-          : (qtd.gt(0) ? totalItem.mul(fator).div(qtd).toDecimalPlaces(4) : precoVenda);
+        // Preço de compra (origem): item informado → transferência do pedido →
+        // custo da origem → 0 (nunca o valor da venda).
+        const transferUnit = precoTransferenciaItem({
+          itemPrecoTransferencia: pvi.precoTransferencia,
+          totalItem, qtd, pedidoTemTransfer: transfer != null, fator,
+          custoOrigem: custoMap.get(mi.itemId) ?? undefined,
+        });
         transferTotal = transferTotal.add(transferUnit.mul(qtd));
 
         // 1) SAÍDA na origem (Tramontin) — baixa real, valorada na transferência.
@@ -269,6 +301,9 @@ export async function gerarCompraVirtualVendaOrdem(entregaMinutaId: string): Pro
       const loteEntradaA = await criarLote(tx, empresaA, "ENTRADA", entrega.numero, `Compra virtual de ${origemNome} (venda à ordem ${venda.numero})`);
       const loteSaidaA = await criarLote(tx, empresaA, "SAIDA", entrega.numero, `Entrega ao cliente ${clienteNome} (venda à ordem ${venda.numero})`);
 
+      // Custo dos itens na origem — base do preço de transferência sem transf. informada.
+      const custoMap = await custosDaEmpresa(tx, origem.id, entrega.itens.map((mi) => mi.itemId));
+
       let transferTotal = new Prisma.Decimal(0);
       for (const mi of entrega.itens) {
         const qtd = new Prisma.Decimal(mi.quantidadeConvertida ?? mi.quantidade);
@@ -276,11 +311,12 @@ export async function gerarCompraVirtualVendaOrdem(entregaMinutaId: string): Pro
         const vi = vItemByItemId.get(mi.itemId);
         const precoVenda = vi ? new Prisma.Decimal(vi.precoUnitario ?? 0) : new Prisma.Decimal(0);
         const totalItem = vi ? new Prisma.Decimal(vi.valorTotal ?? 0) : new Prisma.Decimal(0);
-        const transferUnit = vi?.precoTransferencia != null
-          ? new Prisma.Decimal(vi.precoTransferencia)
-          : (vi && new Prisma.Decimal(vi.quantidade).gt(0)
-              ? totalItem.mul(fator).div(new Prisma.Decimal(vi.quantidade)).toDecimalPlaces(4)
-              : precoVenda);
+        const transferUnit = precoTransferenciaItem({
+          itemPrecoTransferencia: vi?.precoTransferencia ?? null,
+          totalItem, qtd: vi ? new Prisma.Decimal(vi.quantidade) : new Prisma.Decimal(0),
+          pedidoTemTransfer: transfer != null, fator,
+          custoOrigem: custoMap.get(mi.itemId) ?? undefined,
+        });
         transferTotal = transferTotal.add(transferUnit.mul(qtd));
 
         // ENTRADA na empresa da venda (compra virtual — preço de transferência).
@@ -390,17 +426,21 @@ export async function reverterMovimentosTriangulares(devolucaoId: string): Promi
       const loteSaidaA = await criarLote(tx, empresaA, "SAIDA", doc, `Devolução ${doc} — retorno p/ ${origemNome}`);
       const loteEntradaB = await criarLote(tx, origem.id, "ENTRADA", doc, `Devolução ${doc} — retorno de ${vendaNome}`);
 
+      // Custo dos itens na origem — mesma base do preço de transferência da venda.
+      const custoMap = await custosDaEmpresa(tx, origem.id, dev.itens.map((di) => di.itemId));
+
       for (const di of dev.itens) {
         const qtd = new Prisma.Decimal(di.quantidade);
         if (qtd.lte(0)) continue;
         const pvi = pviById.get(di.pedidoVendaItemId);
         const precoVenda = new Prisma.Decimal(di.valorUnitario);
         const totalItem = pvi ? new Prisma.Decimal(pvi.valorTotal ?? 0) : qtd.mul(precoVenda);
-        const transferUnit = pvi?.precoTransferencia != null
-          ? new Prisma.Decimal(pvi.precoTransferencia)
-          : (pvi && new Prisma.Decimal(pvi.quantidade).gt(0)
-              ? totalItem.mul(fator).div(new Prisma.Decimal(pvi.quantidade)).toDecimalPlaces(4)
-              : precoVenda);
+        const transferUnit = precoTransferenciaItem({
+          itemPrecoTransferencia: pvi?.precoTransferencia ?? null,
+          totalItem, qtd: pvi ? new Prisma.Decimal(pvi.quantidade) : new Prisma.Decimal(0),
+          pedidoTemTransfer: transfer != null, fator,
+          custoOrigem: custoMap.get(di.itemId) ?? undefined,
+        });
 
         // ENTRADA na empresa da venda (material volta do cliente) — preço de venda.
         await movimentar(tx, {

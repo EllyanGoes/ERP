@@ -6,6 +6,7 @@ import { pagamentoSchema } from "@/lib/validations/financeiro";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 import { contabilizarTituloPagar } from "@/lib/contabilidade";
+import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("financeiro");
@@ -68,13 +69,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return { erro: { msg: "A conta foi baixada por outra operação simultânea — recarregue e confira.", status: 409 }, data: null };
     }
 
-    // Um lançamento por forma (cada um na sua conta). Multa/juros entram na 1ª linha.
-    for (let i = 0; i < linhasPag.length; i++) {
-      const l = linhasPag[i];
-      const extra = i === 0 ? valorMulta + valorJuros : 0;
-      const contaOrigem = l.contaBancariaId && l.contaBancariaId !== "caixa-geral"
+    // Conta de destino efetiva por linha (cai no caixa da empresa se nada melhor).
+    const linhasComConta = linhasPag.map((l) => ({
+      ...l,
+      contaOrigem: l.contaBancariaId && l.contaBancariaId !== "caixa-geral"
         ? l.contaBancariaId
-        : (conta.contaBancariaId ?? contaCaixaIdDaEmpresa(conta.empresaId));
+        : (conta.contaBancariaId ?? contaCaixaIdDaEmpresa(conta.empresaId)),
+    }));
+    // Trava: forma eletrônica não pode cair no Caixa em Dinheiro (se há banco).
+    const ruim = await formaEletronicaNoCaixa(tx, conta.empresaId,
+      linhasComConta.map((l) => ({ forma: l.forma, contaBancariaId: l.contaOrigem })));
+    if (ruim) {
+      return { erro: { msg: `A forma "${ruim.forma}" não pode ser paga pelo Caixa em Dinheiro — selecione a conta bancária de origem.`, status: 422 }, data: null };
+    }
+
+    // Um lançamento por forma (cada um na sua conta). Multa/juros entram na 1ª linha.
+    for (let i = 0; i < linhasComConta.length; i++) {
+      const l = linhasComConta[i];
+      const extra = i === 0 ? valorMulta + valorJuros : 0;
+      const contaOrigem = l.contaOrigem;
       await tx.lancamentoFinanceiro.create({
         data: {
           tipo: "DESPESA",

@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { formatBRL, formatDate, decimalToNumber, isVencida } from "@/lib/utils";
 import PagamentosInput, {
   type FormaOpt, type ContaOpt, type LinhaPagamento,
-  novaLinhaPagamento, parseValorBR, contaCaixaPadrao,
+  novaLinhaPagamento, parseValorBR, contaPadraoParaForma, pagamentoContaInvalida,
 } from "@/components/pedidos-venda/PagamentosInput";
 
 type ContaRow = {
@@ -44,7 +44,7 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
     setErro(null);
     setDataPag(new Date().toISOString().split("T")[0]);
     const s = decimalToNumber(row.valorOriginal) - decimalToNumber(row.valorPago);
-    setLinhas([novaLinhaPagamento("", contaCaixaPadrao(contasBanco), s > 0 ? s.toFixed(2).replace(".", ",") : "")]);
+    setLinhas([novaLinhaPagamento("", contaPadraoParaForma("", formas, contasBanco), s > 0 ? s.toFixed(2).replace(".", ",") : "")]);
   }
 
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
@@ -77,6 +77,11 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
       .filter((l) => parseValorBR(l.valor) > 0)
       .map((l) => ({ forma: l.forma || null, contaBancariaId: l.contaBancariaId || null, valor: parseValorBR(l.valor) }));
     if (pagamentos.length === 0) { setErro("Informe ao menos uma forma com valor."); return; }
+    const contaRuim = pagamentoContaInvalida(linhas, formas, contasBanco);
+    if (contaRuim) {
+      setErro(`Selecione a conta bancária de destino para "${contaRuim.forma || "a forma eletrônica"}" — formas que não são dinheiro não podem cair no Caixa em Dinheiro.`);
+      return;
+    }
     setSaving(true); setErro(null);
     const res = await fetch(`/api/contas-receber/${selected.id}`, {
       method: "PATCH",

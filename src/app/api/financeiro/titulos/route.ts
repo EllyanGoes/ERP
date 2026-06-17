@@ -9,6 +9,7 @@ import { requireModulo } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
 import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa, contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { generateDocNumber } from "@/lib/utils";
+import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
 import { z } from "zod";
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -53,6 +54,15 @@ export async function POST(req: NextRequest) {
   const pagamento = pago ? (dateUTC(f.dataPagamento) ?? dateUTC(hojeSP)!) : null;
   const contaBancariaId = pago ? (f.contaBancariaId || contaCaixaIdDaEmpresa(empresaId)) : null;
   const prefixo = isReceber ? "CR" : "CP";
+
+  // Trava: título já pago com forma eletrônica não pode cair no Caixa em Dinheiro.
+  if (pago && contaBancariaId) {
+    const ruim = await formaEletronicaNoCaixa(prisma, empresaId, [{ forma: f.formaPagamento ?? null, contaBancariaId }]);
+    if (ruim) {
+      const verbo = isReceber ? "recebida" : "paga";
+      return NextResponse.json({ error: `A forma "${ruim.forma}" não pode ser ${verbo} pelo Caixa em Dinheiro — selecione a conta bancária.` }, { status: 422 });
+    }
+  }
 
   try {
     const criados = await prisma.$transaction(async (tx) => {
