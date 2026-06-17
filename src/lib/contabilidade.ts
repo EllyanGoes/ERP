@@ -176,6 +176,21 @@ export async function contabilizarTituloPagar(cpId: string) {
 }
 
 /**
+ * Contabiliza (idempotente) todas as contas a receber de um pedido de venda.
+ * Chamado pós-commit nas rotas que geram/baixam CR do pedido.
+ */
+export async function contabilizarPedidoVenda(pedidoVendaId: string) {
+  const crs = await prismaSemEscopo.contaReceber.findMany({ where: { pedidoVendaId }, select: { id: true } });
+  for (const cr of crs) await contabilizarTituloReceber(cr.id).catch(() => null);
+}
+
+/** Contabiliza (idempotente) todas as contas a pagar de um pedido de compra. */
+export async function contabilizarPedidoCompra(pedidoCompraId: string) {
+  const cps = await prismaSemEscopo.contaPagar.findMany({ where: { pedidoCompraId }, select: { id: true } });
+  for (const cp of cps) await contabilizarTituloPagar(cp.id).catch(() => null);
+}
+
+/**
  * Estorna um lançamento: cria um novo lançamento ESTORNO com as partidas
  * invertidas (débito ↔ crédito). Idempotente (só estorna uma vez).
  */

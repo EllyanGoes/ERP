@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { proximaSequenciaDaEmpresa, contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { generateDocNumber } from "@/lib/utils";
+import { contabilizarPedidoVenda } from "@/lib/contabilidade";
 import { z } from "zod";
 
 const pagamentoSchema = z.object({
@@ -166,6 +167,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       await recomputarStatusPedido(tx, pedido.id);
       return novaConta;
     });
+
+    // Contabiliza (best-effort, pós-commit) a conta a receber do pedido.
+    await contabilizarPedidoVenda(params.id).catch(() => {});
 
     return NextResponse.json({ data: { contaNumero: conta.numero } }, { status: 201 });
   } catch (err) {

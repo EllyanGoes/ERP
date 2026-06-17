@@ -4,6 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getItensPendentesEntrega, recomputarStatusPedido } from "@/lib/pedido-totais";
 import { gerarContasReceberDoPedido } from "@/lib/contas-receber";
+import { contabilizarPedidoVenda } from "@/lib/contabilidade";
 import { espelharConfirmacaoVenda, cancelarEspelhoVenda, espelharEntregaTriangular, cancelarEntregaTriangular } from "@/lib/intragrupo";
 import { z } from "zod";
 
@@ -119,6 +120,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // empresa da venda disparam quando ele entrega. Cancelar zera o pedido de entrega.
   if (parsed.data.status === "CONFIRMADO") await espelharEntregaTriangular(params.id);
   if (parsed.data.status === "CANCELADO") await cancelarEntregaTriangular(params.id);
+
+  // Contabiliza (best-effort, pós-commit) as contas a receber do pedido.
+  await contabilizarPedidoVenda(params.id).catch(() => {});
 
   return NextResponse.json({ data: updated });
 }
