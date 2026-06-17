@@ -41,6 +41,11 @@ export async function GET(req: NextRequest) {
             id: true,
             numero: true,
             numeroOrcamento: true,
+            // Entrega de venda à ordem: este pedido é o "pedido de entrega" da
+            // origem; pedidoVendaOrigem aponta para a venda comercial.
+            pedidoVendaOrigem: {
+              select: { id: true, numero: true, empresa: { select: { razaoSocial: true, nomeFantasia: true } } },
+            },
             cliente: {
               select: {
                 id: true,

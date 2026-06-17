@@ -17,7 +17,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { statusMinutaLabel, TIPO_MINUTA_LABEL, type TipoMinuta } from "@/lib/minuta-labels";
 import {
   Plus, Search, X, LayoutList, Kanban, Loader2,
-  ChevronDown as ChevronDownIcon, CalendarDays, Download, Check, Truck, Layers,
+  ChevronDown as ChevronDownIcon, CalendarDays, Download, Check, Truck, Layers, Shuffle,
 } from "lucide-react";
 import EmpresaTag from "@/components/shared/EmpresaTag";
 
@@ -37,6 +37,8 @@ type Minuta = {
     id: string;
     numero: string;
     cliente: { razaoSocial: string; nomeFantasia: string | null };
+    // Entrega de venda à ordem: aponta para a venda comercial de origem.
+    pedidoVendaOrigem?: { id: string; numero: string; empresa: { razaoSocial: string; nomeFantasia: string | null } | null } | null;
   };
   localEstoque: { id: string; nome: string } | null;
   itens: { id: string }[];
@@ -74,11 +76,12 @@ type Filters = {
   dateFrom:  string;
   dateTo:    string;
   groupByDelivery: boolean;
+  aOrdem:    boolean;
 };
 
 function loadFilters(): Filters {
   if (typeof window === "undefined")
-    return { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "", groupByDelivery: false };
+    return { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "", groupByDelivery: false, aOrdem: false };
   try {
     const raw = localStorage.getItem(FILTER_KEY);
     if (raw) {
@@ -92,10 +95,11 @@ function loadFilters(): Filters {
         dateFrom: f.dateFrom ?? "",
         dateTo:   f.dateTo   ?? "",
         groupByDelivery: f.groupByDelivery ?? false,
+        aOrdem:   f.aOrdem ?? false,
       };
     }
   } catch {}
-  return { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "", groupByDelivery: false };
+  return { search: "", statuses: [], statusOp: "is_not", sortKey: "dataEmissao_desc", view: "list", dateFrom: "", dateTo: "", groupByDelivery: false, aOrdem: false };
 }
 
 function saveFilters(f: Filters) {
@@ -122,8 +126,17 @@ const COLS: ColDef<Minuta>[] = [
     id: "pedido",
     label: "Pedido",
     thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 font-mono text-xs text-gray-500",
-    render: (m) => m.pedidoVenda.numero,
+    tdClass: "px-4 py-3 text-xs text-gray-500",
+    render: (m) => (
+      <div className="flex flex-col items-start gap-0.5">
+        <span className="font-mono">{m.pedidoVenda.numero}</span>
+        {m.pedidoVenda.pedidoVendaOrigem && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 border border-violet-200" title={`Entrega por conta e ordem — venda ${m.pedidoVenda.pedidoVendaOrigem.numero}${m.pedidoVenda.pedidoVendaOrigem.empresa ? ` da ${m.pedidoVenda.pedidoVendaOrigem.empresa.nomeFantasia || m.pedidoVenda.pedidoVendaOrigem.empresa.razaoSocial}` : ""}`}>
+            <Shuffle className="w-3 h-3" /> À ordem
+          </span>
+        )}
+      </div>
+    ),
   },
   {
     id: "cliente",
@@ -461,6 +474,7 @@ export default function MinutasPage() {
       if (filters.dateTo) {
         if (new Date(m.dataEmissao) > new Date(filters.dateTo + "T23:59:59")) return false;
       }
+      if (filters.aOrdem && !m.pedidoVenda.pedidoVendaOrigem) return false;
       if (!q) return true;
       const cliente = m.pedidoVenda.cliente;
       return (
@@ -531,7 +545,7 @@ export default function MinutasPage() {
     [filtered, filters.statuses, filters.statusOp]
   );
 
-  const hasActive = filters.statuses.length > 0 || filters.search || filters.dateFrom || filters.dateTo;
+  const hasActive = filters.statuses.length > 0 || filters.search || filters.dateFrom || filters.dateTo || filters.aOrdem;
 
   // ── PDF export ────────────────────────────────────────────────────────────
   async function downloadPDF() {
@@ -706,10 +720,22 @@ export default function MinutasPage() {
           />
         </div>
 
+        {/* Venda à ordem (entrega por conta e ordem da empresa de origem) */}
+        <button
+          onClick={() => updateFilters({ aOrdem: !filters.aOrdem })}
+          className={cn(
+            "inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs font-medium transition-colors whitespace-nowrap",
+            filters.aOrdem ? "border-violet-300 bg-violet-50 text-violet-700" : "border-gray-200 text-gray-500 hover:bg-gray-50",
+          )}
+          title="Mostrar só minutas de venda à ordem (pedido de entrega da empresa de origem)"
+        >
+          <Shuffle className="w-3.5 h-3.5" /> À ordem
+        </button>
+
         {/* Limpar tudo */}
         {hasActive && (
           <button
-            onClick={() => updateFilters({ search: "", statuses: [], statusOp: "is", dateFrom: "", dateTo: "" })}
+            onClick={() => updateFilters({ search: "", statuses: [], statusOp: "is", dateFrom: "", dateTo: "", aOrdem: false })}
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap"
           >
             Limpar tudo
