@@ -69,8 +69,8 @@ export async function buildCotacaoPDF(cotacaoId: string): Promise<{ buffer: Buff
     startY: y + 2,
     head: [["#", "Fornecedor", "Prazo", "Cond. pagto", "Frete R$", "Total R$"]],
     body: respondidas.map((f, i) => [
-      f.id === vencedor?.id ? `${i + 1} ✓` : String(i + 1),
-      nomeForn(f.fornecedor),
+      String(i + 1),
+      f.id === vencedor?.id ? `${nomeForn(f.fornecedor)}  (melhor)` : nomeForn(f.fornecedor),
       f.prazoEntregaDias != null ? `${f.prazoEntregaDias} d` : "—",
       f.condicoesPagamento || "—",
       brl(decimalToNumber(f.frete)),
