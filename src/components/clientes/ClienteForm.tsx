@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
+import { lookupParceiro, type ParceiroLookup } from "@/lib/parceiro-lookup";
 
 type ClienteData = { id: string } & ClienteFormData;
 
@@ -41,6 +42,37 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
 
   const tipoPessoa = form.watch("tipoPessoa");
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // Vínculo por CPF/CNPJ: se já existe um fornecedor com o mesmo doc, oferece
+  // copiar os dados (evita redigitar) e sinaliza que é a mesma pessoa.
+  const [fornecedorVinculo, setFornecedorVinculo] = useState<ParceiroLookup | null>(null);
+
+  async function checkCpfCnpj(value: string) {
+    const { fornecedor } = await lookupParceiro(value, { ignoreClienteId: cliente?.id });
+    setFornecedorVinculo(fornecedor);
+  }
+
+  function copiarDoFornecedor() {
+    const f = fornecedorVinculo;
+    if (!f) return;
+    const setIf = (campo: keyof ClienteFormData, valor: string | null) => {
+      if (valor && !form.getValues(campo)) form.setValue(campo, valor, { shouldDirty: true });
+    };
+    if (f.tipoPessoa === "FISICA" || f.tipoPessoa === "JURIDICA") form.setValue("tipoPessoa", f.tipoPessoa);
+    setIf("razaoSocial", f.razaoSocial);
+    setIf("nomeFantasia", f.nomeFantasia);
+    setIf("ie", f.ie);
+    setIf("email", f.email);
+    setIf("telefone", f.telefone);
+    setIf("celular", f.celular);
+    setIf("cep", f.cep);
+    setIf("logradouro", f.logradouro);
+    setIf("numero", f.numero);
+    setIf("complemento", f.complemento);
+    setIf("bairro", f.bairro);
+    setIf("cidade", f.cidade);
+    setIf("estado", f.estado);
+  }
 
   const { confirmCreated, dialog } = useCreateFlow({
     entity: "cliente",
@@ -78,6 +110,20 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 gap-6">
+
+        {/* ── Vínculo: já é fornecedor ────────────────────────────────────── */}
+        {fornecedorVinculo && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center justify-between gap-4">
+            <span>
+              Este CPF/CNPJ já é um <strong>fornecedor</strong>:{" "}
+              <strong>{fornecedorVinculo.nomeFantasia || fornecedorVinculo.razaoSocial}</strong>. É a mesma pessoa? Aproveite o cadastro.
+            </span>
+            <Button type="button" variant="outline" size="sm" className="border-amber-400 text-amber-800 shrink-0"
+              onClick={copiarDoFornecedor}>
+              Copiar dados do fornecedor
+            </Button>
+          </div>
+        )}
 
         {/* ── Two-column layout ──────────────────────────────────────────── */}
         <div className="grid grid-cols-3 gap-6 items-stretch flex-1">
@@ -149,7 +195,8 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
                     </FormLabel>
                     <FormControl>
                       <Input {...field} value={field.value ?? ""} className="h-10 border-gray-300"
-                        placeholder={tipoPessoa === "FISICA" ? "000.000.000-00" : "00.000.000/0001-00"} />
+                        placeholder={tipoPessoa === "FISICA" ? "000.000.000-00" : "00.000.000/0001-00"}
+                        onBlur={(e) => { field.onBlur(); checkCpfCnpj(e.target.value); }} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

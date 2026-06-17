@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -27,6 +28,19 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
   ]);
   if (!cliente) notFound();
 
+  // Vínculo: este cliente também está cadastrado como fornecedor? (mesmo CPF/CNPJ)
+  const cnpjDigits = (cliente.cpfCnpj ?? "").replace(/\D/g, "");
+  const fornecedorVinculo =
+    cnpjDigits.length >= 11
+      ? (
+          await prisma.$queryRawUnsafe<{ id: string; razaoSocial: string; nomeFantasia: string | null }[]>(
+            `SELECT id, "razaoSocial", "nomeFantasia" FROM "Fornecedor"
+             WHERE regexp_replace(coalesce("cpfCnpj", ''), '\\D', '', 'g') = $1 LIMIT 1`,
+            cnpjDigits,
+          )
+        )[0] ?? null
+      : null;
+
   const contaContabilLabel = contaContabil ? `${contaContabil.codigo} — ${contaContabil.nome}` : null;
 
   // Movimentações de comodato deste cliente (saldo é calculado no componente).
@@ -46,6 +60,13 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
         breadcrumbs={[{ label: "Clientes", href: "/clientes" }, { label: cliente.razaoSocial }]}
         action={
           <div className="flex items-center gap-2">
+            {fornecedorVinculo && (
+              <Link href={`/suprimentos/fornecedores/${fornecedorVinculo.id}`}
+                className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                title="Mesmo CPF/CNPJ cadastrado como fornecedor">
+                Também é fornecedor ↗
+              </Link>
+            )}
             <StatusBadge status={cliente.status} />
             <EditarTabButton href={`/clientes/${cliente.id}/editar`} />
           </div>

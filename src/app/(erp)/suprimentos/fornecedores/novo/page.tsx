@@ -28,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
+import { lookupParceiro, type ParceiroLookup } from "@/lib/parceiro-lookup";
 
 type FormData = {
   tipoPessoa: "JURIDICA" | "FISICA";
@@ -78,6 +79,39 @@ export default function NovoFornecedorPage() {
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState("");
   const [nomeFantasiaEdited, setNomeFantasiaEdited] = useState(false);
+
+  // Vínculo por CPF/CNPJ: se já existe um cliente com o mesmo doc, oferece copiar.
+  const [clienteVinculo, setClienteVinculo] = useState<ParceiroLookup | null>(null);
+
+  async function checkCpfCnpj(value: string) {
+    const { cliente } = await lookupParceiro(value);
+    setClienteVinculo(cliente);
+  }
+
+  function copiarDoCliente() {
+    const c = clienteVinculo;
+    if (!c) return;
+    setForm((prev) => {
+      const next = { ...prev };
+      const setIf = (k: keyof FormData, v: string | null) => { if (v && !next[k]) (next[k] as string) = v; };
+      if (c.tipoPessoa === "FISICA" || c.tipoPessoa === "JURIDICA") next.tipoPessoa = c.tipoPessoa;
+      setIf("razaoSocial", c.razaoSocial);
+      setIf("nomeFantasia", c.nomeFantasia);
+      setIf("ie", c.ie);
+      setIf("email", c.email);
+      setIf("telefone", c.telefone);
+      setIf("celular", c.celular);
+      setIf("cep", c.cep);
+      setIf("logradouro", c.logradouro);
+      setIf("numero", c.numero);
+      setIf("complemento", c.complemento);
+      setIf("bairro", c.bairro);
+      setIf("cidade", c.cidade);
+      setIf("estado", c.estado);
+      return next;
+    });
+    setNomeFantasiaEdited(true);
+  }
 
   const { confirmCreated, dialog } = useCreateFlow({
     entity: "fornecedor",
@@ -161,6 +195,19 @@ export default function NovoFornecedorPage() {
           </div>
         )}
 
+        {clienteVinculo && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center justify-between gap-4">
+            <span>
+              Este CPF/CNPJ já é um <strong>cliente</strong>:{" "}
+              <strong>{clienteVinculo.nomeFantasia || clienteVinculo.razaoSocial}</strong>. É a mesma pessoa? Aproveite o cadastro.
+            </span>
+            <Button type="button" variant="outline" size="sm" className="border-amber-400 text-amber-800 shrink-0"
+              onClick={copiarDoCliente}>
+              Copiar dados do cliente
+            </Button>
+          </div>
+        )}
+
         {/* Dados Principais */}
         <Card>
           <CardHeader>
@@ -187,6 +234,7 @@ export default function NovoFornecedorPage() {
               <Input
                 value={form.cpfCnpj}
                 onChange={(e) => set("cpfCnpj", maskCpfCnpj(e.target.value, form.tipoPessoa))}
+                onBlur={(e) => checkCpfCnpj(e.target.value)}
                 placeholder={form.tipoPessoa === "JURIDICA" ? "00.000.000/0000-00" : "000.000.000-00"}
                 maxLength={form.tipoPessoa === "JURIDICA" ? 18 : 14}
               />

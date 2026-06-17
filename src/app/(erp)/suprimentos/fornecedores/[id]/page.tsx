@@ -21,6 +21,7 @@ function maskCpfCnpj(value: string, tipo: string): string {
 }
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import { lookupParceiro, type ParceiroLookup } from "@/lib/parceiro-lookup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -201,6 +202,8 @@ export default function FornecedorDetailPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  // Vínculo: este fornecedor também é cliente? (mesmo CPF/CNPJ)
+  const [clienteVinculo, setClienteVinculo] = useState<ParceiroLookup | null>(null);
 
   // ── Product linking ─────────────────────────────────────────────────
   const [prodList, setProdList] = useState<ProdutoItem[]>([]);
@@ -233,6 +236,12 @@ export default function FornecedorDetailPage() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const doc = fornecedor?.cpfCnpj;
+    if (!doc) { setClienteVinculo(null); return; }
+    lookupParceiro(doc, { ignoreFornecedorId: id }).then((r) => setClienteVinculo(r.cliente));
+  }, [fornecedor?.cpfCnpj, id]);
 
   function startEdit() {
     setEditForm({ ...fornecedor });
@@ -428,6 +437,13 @@ export default function FornecedorDetailPage() {
         ]}
         action={
           <div className="flex items-center gap-2">
+            {clienteVinculo && (
+              <Link href={`/clientes/${clienteVinculo.id}`}
+                className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                title="Mesmo CPF/CNPJ cadastrado como cliente">
+                Também é cliente ↗
+              </Link>
+            )}
             <span
               className={cn(
                 "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
