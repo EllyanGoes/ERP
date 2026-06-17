@@ -4,7 +4,7 @@
 // implementados (venda balcão/agendada, venda à ordem, cotação→aprovação CT→PC,
 // requisição de materiais, recebimento/baixa financeira).
 import type { LucideIcon } from "lucide-react";
-import { Network, ShoppingCart, Boxes, ClipboardList, Wallet } from "lucide-react";
+import { Network, ShoppingCart, Boxes, ClipboardList, Wallet, Factory, Wrench, Calculator } from "lucide-react";
 import type { BpmnGrafo } from "@/components/documentacao/ProcessoDiagram";
 
 export type Tela = { label: string; href: string; descricao: string };
@@ -122,6 +122,82 @@ const financeiroFluxo: BpmnGrafo = {
   ],
 };
 
+// ── Produção (PCP) ────────────────────────────────────────────────────────────
+const pcpPreparacaoFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "a", tipo: "inicio", x: 0,   y: 40, label: "Montar a fábrica" },
+    { id: "b", tipo: "tarefa", x: 140, y: 24, label: "Centros de Trabalho", sub: "forno, prensa, secador", cor: "violeta" },
+    { id: "c", tipo: "tarefa", x: 360, y: 24, label: "Fluxo de Produção", sub: "desenhar e publicar", cor: "violeta" },
+    { id: "d", tipo: "tarefa", x: 580, y: 24, label: "Engenharia (BOM)", sub: "fluxo + insumos do produto", cor: "violeta" },
+    { id: "z", tipo: "fim",    x: 800, y: 40, label: "Pronto p/ planejar" },
+  ],
+  edges: [
+    { from: "a", to: "b" }, { from: "b", to: "c" }, { from: "c", to: "d" }, { from: "d", to: "z" },
+  ],
+};
+
+const pcpExecucaoFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "a", tipo: "inicio", x: 0,    y: 40, label: "Demanda (MPS)" },
+    { id: "b", tipo: "tarefa", x: 130,  y: 24, label: "Planejamento (MRP)", sub: "explode a estrutura, aponta o que comprar", cor: "cinza" },
+    { id: "c", tipo: "tarefa", x: 360,  y: 24, label: "Ordem de Produção", sub: "abre do fluxo publicado", cor: "violeta" },
+    { id: "g", tipo: "gateway",x: 570,  y: 28, label: "Liberada?" },
+    { id: "r", tipo: "nota",   x: 690,  y: 110,label: "Rascunho aguarda liberação" },
+    { id: "d", tipo: "tarefa", x: 700,  y: -34,label: "Operações (fila)", sub: "apontamento por etapa", cor: "violeta" },
+    { id: "e", tipo: "tarefa", x: 910,  y: -34,label: "Sequenciamento (forno)", sub: "programa o gargalo", cor: "violeta" },
+    { id: "z", tipo: "fim",    x: 1120, y: 0,  label: "Produto acabado → estoque" },
+  ],
+  edges: [
+    { from: "a", to: "b" }, { from: "b", to: "c" }, { from: "c", to: "g" },
+    { from: "g", to: "d", label: "sim" }, { from: "g", to: "r", label: "não" },
+    { from: "d", to: "e" }, { from: "e", to: "z" },
+  ],
+};
+
+// ── Manutenção (PCM) ──────────────────────────────────────────────────────────
+const pcmFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "a",  tipo: "inicio", x: 0,    y: -20, label: "Plano de manutenção" },
+    { id: "b",  tipo: "tarefa", x: 140,  y: -36, label: "Gera O.S. preventiva", sub: "por periodicidade / uso", cor: "rosa" },
+    { id: "ci", tipo: "inicio", x: 0,    y: 150, label: "Falha do ativo" },
+    { id: "bc", tipo: "tarefa", x: 140,  y: 134, label: "Abre O.S. corretiva", cor: "rosa" },
+    { id: "m",  tipo: "tarefa", x: 370,  y: 48,  label: "Quadro de O.S.", sub: "programar e atribuir", cor: "rosa" },
+    { id: "ex", tipo: "tarefa", x: 590,  y: 48,  label: "Executar + apontar", sub: "tempos, peças, parada", cor: "rosa" },
+    { id: "g",  tipo: "gateway",x: 800,  y: 52,  label: "Concluída?" },
+    { id: "z",  tipo: "tarefa", x: 930,  y: -10, label: "Indicadores MTBF/MTTR", sub: "saúde do ativo", cor: "cinza" },
+    { id: "bk", tipo: "nota",   x: 930,  y: 130, label: "Reabre se voltar a falhar" },
+    { id: "f",  tipo: "fim",    x: 1150, y: 16,  label: "Ativo disponível" },
+  ],
+  edges: [
+    { from: "a", to: "b" }, { from: "b", to: "m" },
+    { from: "ci", to: "bc" }, { from: "bc", to: "m" },
+    { from: "m", to: "ex" }, { from: "ex", to: "g" },
+    { from: "g", to: "z", label: "sim" }, { from: "g", to: "bk", label: "não" },
+    { from: "z", to: "f" },
+  ],
+};
+
+// ── Contabilidade ─────────────────────────────────────────────────────────────
+const contabilidadeFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "a", tipo: "inicio", x: 0,    y: 40, label: "Fato contábil", sub: "venda, compra, pagamento" },
+    { id: "b", tipo: "tarefa", x: 160,  y: 24, label: "Lançamento (Diário)", sub: "partida dobrada: débito = crédito", cor: "verde" },
+    { id: "p", tipo: "nota",   x: 180,  y: 130,label: "Classificado pelo Plano de Contas" },
+    { id: "c", tipo: "tarefa", x: 400,  y: 24, label: "Razão", sub: "movimento por conta", cor: "verde" },
+    { id: "d", tipo: "tarefa", x: 600,  y: 24, label: "Balancete", sub: "saldos conferidos", cor: "verde" },
+    { id: "g", tipo: "gateway",x: 800,  y: 28, label: "Natureza da conta" },
+    { id: "r1",tipo: "tarefa", x: 930,  y: -34,label: "DRE", sub: "contas de resultado", cor: "verde" },
+    { id: "r2",tipo: "tarefa", x: 930,  y: 90, label: "Balanço Patrimonial", sub: "ativo, passivo e PL", cor: "verde" },
+    { id: "z", tipo: "fim",    x: 1150, y: 20, label: "Demonstrações" },
+  ],
+  edges: [
+    { from: "a", to: "b" }, { from: "b", to: "p", label: "classifica" },
+    { from: "b", to: "c" }, { from: "c", to: "d" }, { from: "d", to: "g" },
+    { from: "g", to: "r1", label: "resultado" }, { from: "g", to: "r2", label: "patrimonial" },
+    { from: "r1", to: "z" }, { from: "r2", to: "z" },
+  ],
+};
+
 export const MODULOS: ModuloDoc[] = [
   {
     id: "visao-geral", label: "Visão geral", icon: Network,
@@ -188,6 +264,62 @@ export const MODULOS: ModuloDoc[] = [
       titulo: "Recebimento e baixa",
       texto: "Vendas e compras geram títulos (a receber/a pagar). Ao baixar, escolhe-se a forma e a conta de destino: dinheiro vai para o Caixa; formas eletrônicas (Pix, cartão) caem na conta bancária — a trava impede o eletrônico de cair no Caixa em Dinheiro. O lançamento move o saldo da conta.",
       grafo: financeiroFluxo,
+    }],
+  },
+  {
+    id: "producao", label: "Produção (PCP)", icon: Factory,
+    resumo: "Planejamento e controle da produção. Primeiro monta-se a fábrica (Centros de Trabalho → Fluxo de Produção → Engenharia/BOM por produto); depois a demanda (MPS) roda o MRP, que abre Ordens de Produção. Liberada a ordem, o chão aponta as etapas na fila de Operações e o forno (gargalo) é programado no Sequenciamento. O produto acabado entra no estoque.",
+    telas: [
+      { label: "Centros de Trabalho", href: "/pcp/centros-trabalho", descricao: "Recursos da fábrica: forno, prensa, secador." },
+      { label: "Fluxos de Produção", href: "/pcp/fluxos", descricao: "Desenhar e publicar o caminho da produção." },
+      { label: "Engenharia do Produto", href: "/pcp/engenharia", descricao: "Fluxo + insumos (BOM) de cada produto." },
+      { label: "Planejamento (MPS/MRP)", href: "/pcp/planejamento", descricao: "Demanda e explosão de necessidades." },
+      { label: "Ordens de Produção", href: "/pcp/ordens", descricao: "Abrir, liberar e acompanhar ordens." },
+      { label: "Operações (fila)", href: "/pcp/operacoes", descricao: "Apontamento das etapas pelo chão de fábrica." },
+    ],
+    processos: [
+      {
+        titulo: "Preparação: do recurso ao produto",
+        texto: "Antes de produzir, cadastra-se a estrutura: os Centros de Trabalho (recursos), o Fluxo de Produção (o caminho pela fábrica, que é publicado) e a Engenharia de cada produto, que liga o produto ao fluxo e lista os insumos com quantidades (BOM). Um mesmo fluxo serve a vários produtos.",
+        grafo: pcpPreparacaoFluxo,
+      },
+      {
+        titulo: "Do planejamento ao produto acabado",
+        texto: "A demanda (MPS) alimenta o MRP, que explode a estrutura e aponta o que falta comprar, abrindo as Ordens de Produção. Liberada a ordem, suas etapas entram na fila de Operações para apontamento (produção, perda, biomassa). O forno — gargalo — é programado no Sequenciamento. Ao concluir, o produto acabado dá entrada no estoque.",
+        grafo: pcpExecucaoFluxo,
+      },
+    ],
+  },
+  {
+    id: "manutencao", label: "Manutenção (PCM)", icon: Wrench,
+    resumo: "Planejamento e controle da manutenção dos ativos. A manutenção preventiva nasce dos Planos (periodicidade ou uso) que geram Ordens de Serviço; a corretiva nasce de uma falha do ativo. As O.S. são programadas no Quadro, executadas com apontamento (tempos e peças) e, ao concluir, alimentam os indicadores de confiabilidade (MTBF/MTTR) e a saúde do ativo.",
+    telas: [
+      { label: "Ativos", href: "/pcm/ativos", descricao: "Cadastro dos equipamentos e sua criticidade." },
+      { label: "Planos de Manutenção", href: "/pcm/planos", descricao: "Preventivas por periodicidade ou uso." },
+      { label: "Quadro de O.S.", href: "/pcm/quadro-os", descricao: "Programar, atribuir e executar ordens de serviço." },
+      { label: "MTBF / MTTR", href: "/pcm/ativo-saude", descricao: "Confiabilidade e saúde dos ativos." },
+    ],
+    processos: [{
+      titulo: "Preventiva e corretiva",
+      texto: "Dois gatilhos abrem uma Ordem de Serviço: o plano de manutenção (preventiva, no vencimento da periodicidade/uso) ou uma falha do ativo (corretiva). As O.S. entram no Quadro para programação e atribuição; o executante aponta tempos, peças e a parada. Concluída, a O.S. atualiza os indicadores MTBF/MTTR e a saúde do ativo — se a falha voltar, uma nova O.S. é aberta.",
+      grafo: pcmFluxo,
+    }],
+  },
+  {
+    id: "contabilidade", label: "Contabilidade", icon: Calculator,
+    resumo: "Escrituração pela partida dobrada. Cada fato contábil (venda, compra, pagamento) vira um lançamento no Diário, sempre com débito igual ao crédito, classificado pelo Plano de Contas. O Razão acumula o movimento por conta; o Balancete confere os saldos; e as demonstrações fecham o período: DRE (contas de resultado) e Balanço Patrimonial (ativo, passivo e PL). O Imobilizado controla os bens e sua depreciação.",
+    telas: [
+      { label: "Plano de Contas", href: "/contabilidade/plano-contas", descricao: "Contas contábeis (Ativo/Passivo/PL/Resultado)." },
+      { label: "Diário Contábil", href: "/contabilidade/lancamentos", descricao: "Lançamentos por partida dobrada." },
+      { label: "Razão", href: "/contabilidade/razao", descricao: "Movimento e saldo conta a conta." },
+      { label: "Balancete", href: "/contabilidade/balancete", descricao: "Conferência dos saldos do período." },
+      { label: "DRE", href: "/contabilidade/dre", descricao: "Demonstração do resultado." },
+      { label: "Balanço Patrimonial", href: "/contabilidade/balanco", descricao: "Posição patrimonial (ativo, passivo, PL)." },
+    ],
+    processos: [{
+      titulo: "Do lançamento às demonstrações",
+      texto: "Um fato contábil gera um lançamento no Diário em partida dobrada (débito = crédito), classificado pelo Plano de Contas. Os lançamentos são acumulados no Razão por conta e conferidos no Balancete. No fechamento, as contas de resultado compõem a DRE e as patrimoniais o Balanço Patrimonial.",
+      grafo: contabilidadeFluxo,
     }],
   },
 ];

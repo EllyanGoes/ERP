@@ -44,9 +44,9 @@ export default function DocumentacaoPage() {
               </button>
             );
           })}
-          <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2.5 text-[11px] text-amber-700">
+          <div className="mt-4 flex items-start gap-2 rounded-lg bg-blue-50 px-3 py-2.5 text-[11px] text-blue-700">
             <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            <span>PCM, PCP e Contabilidade entram na documentação em breve.</span>
+            <span>Selecione um módulo para ver suas telas e os processos em BPMN.</span>
           </div>
         </nav>
 
