@@ -243,6 +243,10 @@ export default function PedidoForm({
   const [precoTransferencia, setPrecoTransferencia] = useState(
     pedido?.precoTransferencia != null ? decimalToNumber(pedido.precoTransferencia).toFixed(2) : "",
   );
+  // Venda à ordem fica ESCONDIDA atrás de um checkbox: o vendedor só vê o seletor
+  // de empresa de origem ao marcar (evita marcar à ordem sem querer). Ao desmarcar,
+  // limpa a origem e o preço. Em edição, já vem marcado se o pedido for à ordem.
+  const [vendaOrdemAtiva, setVendaOrdemAtiva] = useState(!!pedido?.estoqueOrigemEmpresaId);
   const [numeroOrcamento,   setNumeroOrcamento]   = useState(pedido?.numeroOrcamento ?? "");
   const [tabelaPrecoId,     setTabelaPrecoId]     = useState(pedido?.tabelaPrecoId ?? "");
   const [vendedorId,        setVendedorId]        = useState(pedido?.vendedorId ?? "");
@@ -933,34 +937,54 @@ export default function PedidoForm({
               edição (um pedido normal pode virar à ordem). */}
           {mostrarVendaOrdem && (
             <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Entrega / estoque por outra empresa</Label>
-                <ComboboxWithCreate
-                  value={estoqueOrigemId}
-                  onChange={(v) => setEstoqueOrigemId(v)}
-                  noneLabel="— Esta empresa entrega (normal) —"
-                  triggerClassName="h-10 rounded-lg"
-                  options={grupoEmpresas
-                    .filter((e) => e.id !== (empresaId || usuarioSessao?.activeEmpresaId))
-                    .map((e) => ({ value: e.id, label: `${e.nome} entrega e baixa do estoque` }))}
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={vendaOrdemAtiva}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setVendaOrdemAtiva(on);
+                    if (!on) { setEstoqueOrigemId(""); setPrecoTransferencia(""); }
+                  }}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-400"
                 />
-                <p className="text-xs text-gray-500">
-                  Venda à ordem: a venda fica nesta empresa, mas outra empresa do grupo fornece o estoque.
-                  Na entrega, o sistema gera os movimentos virtuais (saída na origem + entrada/saída nesta empresa)
-                  e o financeiro intragrupo automaticamente.
-                </p>
-              </div>
-              {estoqueOrigemId && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Preço de transferência (total)</Label>
-                  <Input
-                    inputMode="decimal"
-                    value={precoTransferencia}
-                    onChange={(e) => setPrecoTransferencia(e.target.value.replace(/[^0-9.,]/g, ""))}
-                    placeholder="Valor interno cobrado pela empresa que entrega"
-                    className="h-10 border-gray-300"
-                  />
-                  <p className="text-xs text-gray-400">Valor que a empresa de origem cobra internamente. Aparece no pedido de entrega; não gera financeiro por ora.</p>
+                <span>
+                  <span className="block text-xs font-semibold text-gray-700 uppercase tracking-wide">Venda à ordem — estoque de outra empresa</span>
+                  <span className="block text-xs text-gray-500 mt-0.5">
+                    Marque só se o estoque sai de OUTRA empresa do grupo. A venda fica nesta empresa; na entrega o
+                    sistema gera os movimentos virtuais (saída na origem + entrada/saída nesta empresa) e o financeiro
+                    intragrupo automaticamente.
+                  </span>
+                </span>
+              </label>
+
+              {vendaOrdemAtiva && (
+                <div className="space-y-2 pl-7">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Empresa que entrega / fornece o estoque</Label>
+                    <ComboboxWithCreate
+                      value={estoqueOrigemId}
+                      onChange={(v) => setEstoqueOrigemId(v)}
+                      noneLabel="— Selecione a empresa de origem —"
+                      triggerClassName="h-10 rounded-lg"
+                      options={grupoEmpresas
+                        .filter((e) => e.id !== (empresaId || usuarioSessao?.activeEmpresaId))
+                        .map((e) => ({ value: e.id, label: `${e.nome} entrega e baixa do estoque` }))}
+                    />
+                  </div>
+                  {estoqueOrigemId && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Preço de transferência (total)</Label>
+                      <Input
+                        inputMode="decimal"
+                        value={precoTransferencia}
+                        onChange={(e) => setPrecoTransferencia(e.target.value.replace(/[^0-9.,]/g, ""))}
+                        placeholder="Valor interno cobrado pela empresa que entrega"
+                        className="h-10 border-gray-300"
+                      />
+                      <p className="text-xs text-gray-400">Valor que a empresa de origem cobra internamente. Aparece no pedido de entrega; não gera financeiro por ora.</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
