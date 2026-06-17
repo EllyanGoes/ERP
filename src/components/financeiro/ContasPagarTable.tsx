@@ -21,8 +21,35 @@ type ContaRow = {
   fornecedor: { id: string; razaoSocial: string } | null;
 };
 
+type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "PAGA";
+
+// Casa a conta com o filtro de status. "VENCIDA" é derivado (em aberto/parcial
+// com vencimento passado), não um status do banco.
+function casaStatus(c: ContaRow, f: StatusFiltro): boolean {
+  switch (f) {
+    case "ABERTA":  return c.status === "ABERTA";
+    case "PARCIAL": return c.status === "PARCIAL";
+    case "VENCIDA": return (c.status === "ABERTA" || c.status === "PARCIAL") && isVencida(c.dataVencimento, c.dataPagamento);
+    case "PAGA":    return c.status === "PAGA";
+    default:        return true;
+  }
+}
+
+const FILTROS_PAGAR: { key: StatusFiltro; label: string }[] = [
+  { key: "TODOS", label: "Todas" },
+  { key: "ABERTA", label: "Em aberto" },
+  { key: "PARCIAL", label: "Parciais" },
+  { key: "VENCIDA", label: "Vencidas" },
+  { key: "PAGA", label: "Pagas" },
+];
+
 export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
   const router = useRouter();
+  const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("TODOS");
+  const contasFiltradas = useMemo(
+    () => (statusFiltro === "TODOS" ? contas : contas.filter((c) => casaStatus(c, statusFiltro))),
+    [contas, statusFiltro],
+  );
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [dataPag, setDataPag] = useState(new Date().toISOString().split("T")[0]);
   const [linhas, setLinhas] = useState<LinhaPagamento[]>([novaLinhaPagamento()]);
@@ -98,8 +125,29 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
 
   return (
     <>
+      <div className="flex flex-wrap items-center gap-2">
+        {FILTROS_PAGAR.map((f) => {
+          const n = f.key === "TODOS" ? contas.length : contas.filter((c) => casaStatus(c, f.key)).length;
+          const ativo = statusFiltro === f.key;
+          return (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setStatusFiltro(f.key)}
+              className={
+                "px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors " +
+                (ativo
+                  ? "bg-blue-600 border-blue-600 text-white"
+                  : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50")
+              }
+            >
+              {f.label} <span className={ativo ? "opacity-80" : "text-gray-400"}>{n}</span>
+            </button>
+          );
+        })}
+      </div>
       <DataTable
-        data={contas}
+        data={contasFiltradas}
         columns={columns}
         searchPlaceholder="Buscar por número, fornecedor ou descrição..."
         onRowClick={(row) => {
