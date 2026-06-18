@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { contaPagarSchema, type ContaPagarFormData } from "@/lib/validations/financeiro";
@@ -14,13 +15,17 @@ import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 
 type FornecedorOption = { id: string; razaoSocial: string };
+type ContaPagarEdit = { id: string } & Partial<ContaPagarFormData>;
 const CATEGORIAS = ["Aluguel","Energia","Água","Internet","Folha de Pagamento","Impostos","Fornecedores","Marketing","Outros"];
 
-export default function ContaPagarForm({ fornecedores }: { fornecedores: FornecedorOption[] }) {
+export default function ContaPagarForm({ fornecedores, editing }: { fornecedores: FornecedorOption[]; editing?: ContaPagarEdit }) {
   const voltar = useVoltarCriacao("/contas-pagar");
+  const router = useRouter();
   const form = useForm<ContaPagarFormData>({
     resolver: zodResolver(contaPagarSchema) as Resolver<ContaPagarFormData>,
-    defaultValues: { dataVencimento: new Date().toISOString().split("T")[0] },
+    defaultValues: editing
+      ? { ...editing }
+      : { dataVencimento: new Date().toISOString().split("T")[0] },
   });
 
   const [serverError, setServerError] = useState<string | null>(null);
@@ -36,6 +41,17 @@ export default function ContaPagarForm({ fornecedores }: { fornecedores: Fornece
   async function onSubmit(data: ContaPagarFormData) {
     setServerError(null);
     try {
+      if (editing) {
+        const res = await fetch(`/api/contas-pagar/${editing.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (res.ok) { router.push("/contas-pagar"); router.refresh(); return; }
+        const json = await res.json().catch(() => ({}));
+        setServerError(json.error ?? "Erro ao salvar alterações.");
+        return;
+      }
       const res = await fetch("/api/contas-pagar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -61,13 +77,13 @@ export default function ContaPagarForm({ fornecedores }: { fornecedores: Fornece
           <CardContent className="grid grid-cols-2 gap-4">
             <FormField control={form.control} name="fornecedorId" render={({ field }) => (
               <FormItem className="col-span-2">
-                <FormLabel>Fornecedor</FormLabel>
+                <FormLabel>Fornecedor *</FormLabel>
                 <ComboboxWithCreate
                   options={fornecedores.map((f) => ({ value: f.id, label: f.razaoSocial }))}
                   value={field.value ?? ""}
                   onChange={field.onChange}
                   noneLabel="— Nenhum —"
-                  placeholder="Selecionar (opcional)..."
+                  placeholder="Selecionar fornecedor..."
                   createHref="/suprimentos/fornecedores/novo"
                   createParam="nome"
                   createLabel="fornecedor"
@@ -102,6 +118,7 @@ export default function ContaPagarForm({ fornecedores }: { fornecedores: Fornece
             )} />
           </CardContent>
         </Card>
+        {!editing && (
         <Card>
           <CardHeader><CardTitle className="text-base">Parcelamento</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
@@ -120,13 +137,14 @@ export default function ContaPagarForm({ fornecedores }: { fornecedores: Fornece
             )}
           </CardContent>
         </Card>
+        )}
         {serverError && (
           <div className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
             {serverError}
           </div>
         )}
         <div className="flex gap-3">
-          <Button type="submit" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? "Salvando..." : "Criar Conta"}</Button>
+          <Button type="submit" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? "Salvando..." : editing ? "Salvar alterações" : "Criar Conta"}</Button>
           <Button type="button" variant="outline" onClick={voltar}>Cancelar</Button>
         </div>
       </form>

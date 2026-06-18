@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
+import { useSession } from "@/lib/session-context";
 import { formatBRL, formatDate, decimalToNumber, isVencida } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import PagamentosInput, {
@@ -47,6 +48,8 @@ const FILTROS_PAGAR: { key: StatusFiltro; label: string }[] = [
 
 export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
   const router = useRouter();
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
   const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("TODOS");
   const [contaFiltro, setContaFiltro] = useState<string>("");
   // Contas de contrapartida distintas presentes na lista (para o filtro).
@@ -119,11 +122,18 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
     {
       id: "actions",
       header: "",
-      cell: ({ row }) => row.original.status !== "PAGA" && row.original.status !== "CANCELADA" ? (
-        <Button variant="outline" size="sm" onClick={() => abrir(row.original)}>Pagar</Button>
-      ) : null,
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-2">
+          {isAdmin && (
+            <Button variant="ghost" size="sm" onClick={() => router.push(`/contas-pagar/${row.original.id}/editar`)}>Editar</Button>
+          )}
+          {row.original.status !== "PAGA" && row.original.status !== "CANCELADA" && (
+            <Button variant="outline" size="sm" onClick={() => abrir(row.original)}>Pagar</Button>
+          )}
+        </div>
+      ),
     },
-  ], [contasBanco]);
+  ], [contasBanco, isAdmin]);
 
   async function handlePagamento() {
     if (!selected) return;

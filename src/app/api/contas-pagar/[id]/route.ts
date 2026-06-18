@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
-import { pagamentoSchema } from "@/lib/validations/financeiro";
+import { requireAdmin } from "@/lib/auth";
+import { pagamentoSchema, contaPagarSchema } from "@/lib/validations/financeiro";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 import { contabilizarTituloPagar } from "@/lib/contabilidade";
@@ -18,6 +19,51 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   });
   if (!conta) return NextResponse.json({ error: "Conta não encontrada" }, { status: 404 });
   return NextResponse.json({ data: conta });
+}
+
+// PUT: edição dos dados do título (admin) — usado para corrigir contas a pagar,
+// ex.: informar o fornecedor que faltava. Re-contabiliza o título.
+export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
+  const parsed = contaPagarSchema.safeParse(await req.json());
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
+  const d = parsed.data;
+
+  const conta = await prisma.contaPagar.findUnique({ where: { id: params.id } });
+  if (!conta) return NextResponse.json({ error: "Conta não encontrada" }, { status: 404 });
+
+  const atualizado = await prisma.contaPagar.update({
+    where: { id: params.id },
+    data: {
+      fornecedorId: d.fornecedorId,
+      descricao: d.descricao,
+      valorOriginal: d.valorOriginal,
+      dataVencimento: new Date(d.dataVencimento),
+      formaPagamento: d.formaPagamento || null,
+      notaFiscal: d.notaFiscal || null,
+      observacoes: d.observacoes || null,
+      naturezaFinanceiraId: d.naturezaFinanceiraId || null,
+      centroCustoId: d.centroCustoId || null,
+      contaBancariaId: d.contaBancariaId || null,
+    },
+  });
+
+  // Re-contabiliza: apaga os lançamentos de origem (COMPRA/PAGAMENTO) deste título
+  // e regenera com os dados novos (ex.: agora com fornecedor → passa pela conta
+  // de Fornecedores a Pagar). PartidaContabil não tem FK cascade — apagar à mão.
+  const lancs = await prismaSemEscopo.lancamentoContabil.findMany({
+    where: { empresaId: conta.empresaId, origemTipo: { in: ["COMPRA", "PAGAMENTO"] }, origemId: params.id },
+    select: { id: true },
+  });
+  for (const l of lancs) {
+    await prismaSemEscopo.partidaContabil.deleteMany({ where: { lancamentoId: l.id } });
+    await prismaSemEscopo.lancamentoContabil.delete({ where: { id: l.id } });
+  }
+  await contabilizarTituloPagar(params.id).catch(() => {});
+
+  return NextResponse.json({ data: atualizado });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

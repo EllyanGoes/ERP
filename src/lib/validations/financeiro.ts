@@ -13,7 +13,7 @@ export const contaReceberSchema = z.object({
 })
 
 export const contaPagarSchema = z.object({
-  fornecedorId: z.string().optional().nullable(),
+  fornecedorId: z.string().min(1, "Fornecedor é obrigatório"),
   descricao: z.string().min(2, "Descrição é obrigatória"),
   categoria: z.string().optional().nullable(),
   valorOriginal: z.coerce.number().min(0.01, "Valor inválido"),
