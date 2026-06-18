@@ -543,6 +543,7 @@ enum OrigemLancamento {
   ESTOQUE_TRANSFERENCIA // transferência entre locais (D destino / C origem)
   DEPRECIACAO // depreciação do imobilizado (D Despesa / C Depreciação Acumulada)
   ENCERRAMENTO // encerramento do exercício (zera Resultado contra o PL)
+  RECEITA_ENTREGA // reconhecimento de receita na entrega (D Material a Entregar / C Receita)
   MANUAL
   ESTORNO
 }

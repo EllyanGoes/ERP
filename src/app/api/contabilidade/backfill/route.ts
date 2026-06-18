@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
-import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntradaEstoque, contabilizarCmvMinuta } from "@/lib/contabilidade";
+import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntradaEstoque, contabilizarCmvMinuta, contabilizarReceitaMinuta } from "@/lib/contabilidade";
 
 // POST /api/contabilidade/backfill
 // Gera (idempotente) os lançamentos contábeis retroativos a partir dos títulos
@@ -52,6 +52,9 @@ export async function POST() {
   for (const m of minutas) {
     try { await contabilizarCmvMinuta(m.id); processados++; }
     catch (e) { erros.push(`Minuta ${m.numero}: ${(e as Error).message}`); }
+    // Receita na entrega (Material a Entregar → Receita) — só ENTREGUE (guard interno).
+    try { await contabilizarReceitaMinuta(m.id); }
+    catch (e) { erros.push(`Receita minuta ${m.numero}: ${(e as Error).message}`); }
   }
 
   return NextResponse.json({ ok: true, processados, erros: erros.slice(0, 20) });

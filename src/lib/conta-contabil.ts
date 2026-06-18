@@ -258,6 +258,21 @@ export async function garantirContaReceitaFallback(empresaId: string) {
 export async function garantirContaDespesaFallback(empresaId: string) {
   return garantirContaSistema(empresaId, { codigo: "3.3.9004", nome: "Despesas Gerais", pai: "3.3" });
 }
+/** Passivo "Material a Entregar" (2.1.2) — receita diferida até a entrega. */
+export async function garantirContaMaterialEntregar(empresaId: string) {
+  const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "2.1.2" }, select: { id: true } });
+  if (existente) return existente;
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "2.1" } });
+  if (!pai) return null;
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo: "2.1.2", nome: "Material a Entregar",
+      grupo: "PASSIVO", natureza: "CREDORA", tipo: "ANALITICA",
+      nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id,
+    },
+    select: { id: true },
+  });
+}
 
 /** Garante (idempotente) as 4 contas de sistema do estoque na empresa e retorna seus ids. */
 export async function garantirContasSistemaEstoque(empresaId: string) {

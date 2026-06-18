@@ -2,7 +2,7 @@ import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -12,7 +12,7 @@ export type OrigemIn =
   | "VENDA" | "RECEBIMENTO" | "COMPRA" | "PAGAMENTO"
   | "ESTOQUE_ENTRADA" | "ESTOQUE_SAIDA"
   | "ESTOQUE_PRODUCAO" | "ESTOQUE_CONSUMO" | "ESTOQUE_AJUSTE" | "ESTOQUE_TRANSFERENCIA"
-  | "DEPRECIACAO" | "ENCERRAMENTO"
+  | "DEPRECIACAO" | "ENCERRAMENTO" | "RECEITA_ENTREGA"
   | "MANUAL" | "ESTORNO";
 
 export type PartidaIn = {
@@ -136,7 +136,7 @@ export async function registrarLancamento(input: LancamentoIn) {
 export async function contabilizarTituloReceber(crId: string) {
   const cr = await prismaSemEscopo.contaReceber.findUnique({
     where: { id: crId },
-    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
+    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoVendaId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
   });
   if (!cr || cr.status === "CANCELADA") return;
 
@@ -156,14 +156,19 @@ export async function contabilizarTituloReceber(crId: string) {
   const contaCaixa = contaCaixaResolved ?? conta111;
   if (!contaCli) return;
 
+  // Venda de PEDIDO: receita diferida — crédito em Material a Entregar (passivo),
+  // reconhecida como Receita só na entrega da minuta. Venda avulsa (sem pedido):
+  // crédito direto na Receita (não há entrega a diferir).
   const valor = decimalToNumber(cr.valorOriginal);
-  if (valor > 0 && contaReceita) {
+  const contaCredito = cr.pedidoVendaId ? await garantirContaMaterialEntregar(cr.empresaId) : contaReceita;
+  if (valor > 0 && contaCredito) {
     await registrarLancamento({
       empresaId: cr.empresaId, data: cr.dataCompetencia ?? cr.createdAt,
-      historico: `Venda — título ${cr.numero}`, origemTipo: "VENDA", origemId: cr.id,
+      historico: cr.pedidoVendaId ? `Venda (a entregar) — título ${cr.numero}` : `Venda — título ${cr.numero}`,
+      origemTipo: "VENDA", origemId: cr.id,
       partidas: [
         { contaId: contaCli.id, tipo: "DEBITO", valor, clienteId: cr.clienteId },
-        { contaId: contaReceita.id, tipo: "CREDITO", valor },
+        { contaId: contaCredito.id, tipo: "CREDITO", valor },
       ],
     });
   }
@@ -351,6 +356,50 @@ export async function contabilizarCmvMinuta(minutaId: string) {
     empresaId: minuta.empresaId, data: minuta.dataEntrega ?? minuta.dataEmissao ?? minuta.createdAt,
     historico: `Custo da venda — saída ${minuta.numero}`, origemTipo: "ESTOQUE_SAIDA", origemId: minuta.id,
     partidas,
+  });
+}
+
+/**
+ * Reconhecimento de receita na entrega (CPC 47): quando a minuta fica ENTREGUE,
+ * baixa o passivo "Material a Entregar" e reconhece Receita pelo valor entregue
+ * (Σ qtd × preço de venda do item do pedido). D 2.1.2 / C Receita. Idempotente
+ * por (empresa, RECEITA_ENTREGA, minutaId).
+ */
+export async function contabilizarReceitaMinuta(minutaId: string) {
+  const minuta = await prismaSemEscopo.minuta.findUnique({
+    where: { id: minutaId },
+    select: {
+      id: true, empresaId: true, numero: true, status: true, dataEntrega: true, dataEmissao: true, createdAt: true, pedidoVendaId: true,
+      itens: { select: { quantidade: true, pedidoVendaItem: { select: { precoUnitario: true } } } },
+    },
+  });
+  if (!minuta || minuta.status !== "ENTREGUE") return;
+
+  const valor = minuta.itens.reduce(
+    (s, it) => s + decimalToNumber(it.quantidade) * decimalToNumber(it.pedidoVendaItem?.precoUnitario),
+    0,
+  );
+  if (valor <= 0.005) return;
+
+  // Receita pela natureza da CR do pedido; senão fallback 3.1.9002.
+  const cr = minuta.pedidoVendaId
+    ? await prismaSemEscopo.contaReceber.findFirst({ where: { pedidoVendaId: minuta.pedidoVendaId }, select: { naturezaFinanceiraId: true } })
+    : null;
+  const [contaMat, contaNat, contaReceitaFb] = await Promise.all([
+    garantirContaMaterialEntregar(minuta.empresaId),
+    cr?.naturezaFinanceiraId ? contaDaNatureza(minuta.empresaId, cr.naturezaFinanceiraId) : Promise.resolve(null),
+    garantirContaReceitaFallback(minuta.empresaId),
+  ]);
+  const contaReceita = contaNat ?? contaReceitaFb;
+  if (!contaMat || !contaReceita) return;
+
+  await registrarLancamento({
+    empresaId: minuta.empresaId, data: minuta.dataEntrega ?? minuta.dataEmissao ?? minuta.createdAt,
+    historico: `Receita na entrega — ${minuta.numero}`, origemTipo: "RECEITA_ENTREGA", origemId: minuta.id,
+    partidas: [
+      { contaId: contaMat.id, tipo: "DEBITO", valor: decimalToNumber(valor) },
+      { contaId: contaReceita.id, tipo: "CREDITO", valor: decimalToNumber(valor) },
+    ],
   });
 }
 
