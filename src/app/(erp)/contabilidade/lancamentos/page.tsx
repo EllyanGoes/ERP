@@ -13,7 +13,7 @@ import { Loader2, RefreshCw, BookText, Plus, Trash2 } from "lucide-react";
 
 type Partida = { id: string; tipo: "DEBITO" | "CREDITO"; valor: unknown; conta: { codigo: string; nome: string } };
 type Lancamento = {
-  id: string; data: string; historico: string; origemTipo: string; origemId: string | null; criadoPor: string | null; estornoDeId: string | null;
+  id: string; numero: string | null; data: string; historico: string; origemTipo: string; origemId: string | null; criadoPor: string | null; estornoDeId: string | null;
   partidas: Partida[];
 };
 
@@ -56,7 +56,7 @@ export default function LancamentosContabeisPage() {
   async function gerarRetroativos() {
     setGerando(true); setAviso("");
     try {
-      const res = await fetch("/api/contabilidade/backfill", { method: "POST" });
+      const res = await fetch("/api/contabilidade/backfill?reset=vendas", { method: "POST" });
       const j = await res.json();
       if (res.ok) {
         setAviso(`${j.processados} título(s) processado(s).${j.erros?.length ? ` ${j.erros.length} com erro.` : ""}`);
@@ -98,6 +98,7 @@ export default function LancamentosContabeisPage() {
               return (
                 <div key={l.id} id={`lanc-${l.id}`} className={cn("rounded-xl border bg-card overflow-hidden transition-colors", focusId === l.id ? "border-info ring-2 ring-info/50" : "border-border")}>
                   <div className="flex items-center gap-3 px-5 py-2.5 border-b border-border bg-muted">
+                    {l.numero && <span className="font-mono text-xs text-muted-foreground shrink-0">{l.numero}</span>}
                     <span className="text-xs text-muted-foreground w-20 shrink-0">{formatDate(l.data)}</span>
                     <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0", ORIGEM_COR[l.origemTipo] ?? "bg-muted text-muted-foreground")}>
                       {ORIGEM_LABEL[l.origemTipo] ?? l.origemTipo}

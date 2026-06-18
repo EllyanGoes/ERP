@@ -16,7 +16,7 @@ import { Loader2, BookOpen, FileDown } from "lucide-react";
 
 type FlatConta = { id: string; codigo: string; nome: string };
 type Mov = {
-  lancamentoId: string; data: string; historico: string; origemTipo: string; origemId: string | null; criadoPor: string | null;
+  lancamentoId: string; numero: string | null; data: string; historico: string; origemTipo: string; origemId: string | null; criadoPor: string | null;
   contaCodigo: string; contaNome: string;
   contrapartidas: { id: string; codigo: string; nome: string }[];
   debito: number; credito: number; saldo: number;
@@ -86,13 +86,14 @@ export default function RazaoPage() {
     const nat = razao.conta.natureza as NaturezaConta;
     const sintetica = razao.conta.tipo === "SINTETICA";
     const linhas: LinhaPdf[] = [
-      { estilo: "secao", celulas: ["", "Saldo anterior", "", "", "", fmtSaldo(razao.saldoInicial, modo, nat)] },
+      { estilo: "secao", celulas: ["", "", "Saldo anterior", "", "", "", fmtSaldo(razao.saldoInicial, modo, nat)] },
     ];
     for (const m of razao.movimentos) {
       const contrap = m.contrapartidas.map((c) => `${c.codigo} ${c.nome}`).join("; ") || "—";
       linhas.push({
         celulas: [
           formatDate(m.data),
+          m.numero ?? "—",
           `${m.historico}${sintetica ? ` [${m.contaCodigo}]` : ""}`,
           contrap,
           fmtColuna(m.debito, modo),
@@ -104,7 +105,7 @@ export default function RazaoPage() {
     linhas.push({
       estilo: "total",
       celulas: [
-        "", "Saldo final", "",
+        "", "", "Saldo final", "",
         fmtColuna(razao.movimentos.reduce((s, m) => s + m.debito, 0), modo),
         fmtColuna(razao.movimentos.reduce((s, m) => s + m.credito, 0), modo),
         fmtSaldo(razao.saldoFinal, modo, nat),
@@ -117,9 +118,9 @@ export default function RazaoPage() {
         `Conta: ${razao.conta.codigo} — ${razao.conta.nome} (${nat === "DEVEDORA" ? "Devedora" : "Credora"})`,
         `Período: ${formatDate(range.from)} a ${formatDate(range.to)} · Formato: ${modo === "contabil" ? "Contábil" : "Real"}`,
       ],
-      head: ["Data", "Descrição", "Contrapartida", "Débito", "Crédito", "Saldo"],
+      head: ["Data", "Lançamento", "Descrição", "Contrapartida", "Débito", "Crédito", "Saldo"],
       linhas,
-      alinharDireitaDe: 3,
+      alinharDireitaDe: 4,
       arquivo: `razao-${razao.conta.codigo}-${range.from}-a-${range.to}.pdf`,
     });
   }
@@ -169,6 +170,7 @@ export default function RazaoPage() {
               <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                 <tr>
                   <th className="text-left px-4 py-2 font-semibold w-24">Data</th>
+                  <th className="text-left px-4 py-2 font-semibold w-28">Lançamento</th>
                   <th className="text-left px-4 py-2 font-semibold">Descrição</th>
                   <th className="text-left px-4 py-2 font-semibold w-56">Contrapartida</th>
                   <th className="text-right px-4 py-2 font-semibold w-28">Débito</th>
@@ -178,7 +180,7 @@ export default function RazaoPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {razao.movimentos.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-10 text-muted-foreground text-sm">Sem movimentos no período</td></tr>
+                  <tr><td colSpan={7} className="text-center py-10 text-muted-foreground text-sm">Sem movimentos no período</td></tr>
                 ) : razao.movimentos.map((m, i) => {
                   const href = linkOrigemLancamento(m.origemTipo, m.origemId);
                   return (
@@ -188,6 +190,7 @@ export default function RazaoPage() {
                         {formatDate(m.data)}
                       </Link>
                     </td>
+                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">{m.numero ?? "—"}</td>
                     <td className="px-4 py-2 text-foreground">
                       {href ? (
                         <Link href={href} className="inline-flex items-center gap-1 text-info hover:underline" title="Abrir processo de origem">
@@ -229,7 +232,7 @@ export default function RazaoPage() {
               </tbody>
               <tfoot className="border-t-2 border-border bg-muted">
                 <tr className="font-bold text-foreground tabular-nums">
-                  <td className="px-4 py-2.5" colSpan={3}>Saldo final</td>
+                  <td className="px-4 py-2.5" colSpan={4}>Saldo final</td>
                   <td className="px-4 py-2.5 text-right text-info">{fmtColuna(razao.movimentos.reduce((s, m) => s + m.debito, 0), modo)}</td>
                   <td className="px-4 py-2.5 text-right text-warning">{fmtColuna(razao.movimentos.reduce((s, m) => s + m.credito, 0), modo)}</td>
                   <td className="px-4 py-2.5 text-right">{fmtSaldo(razao.saldoFinal, modo, razao.conta.natureza as NaturezaConta)}</td>

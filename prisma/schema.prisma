@@ -558,6 +558,7 @@ enum TipoPartida {
 model LancamentoContabil {
   id          String              @id @default(cuid())
   empresaId   String              @default("emp_tramontin")
+  numero      String? // código sequencial do lançamento (ex.: LC-2026-0001) p/ identificação no razão
   data        DateTime // competência
   historico   String
   origemTipo  OrigemLancamento
@@ -571,6 +572,7 @@ model LancamentoContabil {
   empresa     Empresa             @relation(fields: [empresaId], references: [id])
 
   @@unique([empresaId, origemTipo, origemId])
+  @@unique([empresaId, numero])
   @@index([empresaId, data])
 }
 

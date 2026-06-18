@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     orderBy: [{ data: "desc" }, { createdAt: "desc" }],
     take: limit,
     select: {
-      id: true, data: true, historico: true, origemTipo: true, origemId: true, criadoPor: true, estornoDeId: true,
+      id: true, numero: true, data: true, historico: true, origemTipo: true, origemId: true, criadoPor: true, estornoDeId: true,
       partidas: {
         select: {
           id: true, tipo: true, valor: true,

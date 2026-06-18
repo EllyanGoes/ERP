@@ -1,5 +1,5 @@
 import { prismaSemEscopo } from "@/lib/prisma";
-import { decimalToNumber } from "@/lib/utils";
+import { decimalToNumber, generateDocNumber } from "@/lib/utils";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
 import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaClienteReceber } from "@/lib/conta-contabil";
@@ -88,6 +88,25 @@ function resumoItens(itens: { quantidade: unknown; item?: { descricao?: string |
   return partes.join(", ") + (resto > 0 ? ` +${resto}` : "");
 }
 
+// Detalhe dos itens p/ o histórico no padrão do razão: "120× Areia × R$ 85,00;
+// 28× Brita 0 × R$ 260,00" — quantidade, produto e preço unitário por item.
+function detalheItens(
+  itens: { quantidade: unknown; precoUnitario?: unknown; item?: { descricao?: string | null } | null }[],
+  max = 4,
+): string {
+  if (!itens.length) return "";
+  const fmt = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const partes = itens.slice(0, max).map((it) => {
+    const q = decimalToNumber(it.quantidade);
+    const qStr = Number.isInteger(q) ? String(q) : q.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+    const desc = it.item?.descricao ?? "item";
+    const pu = it.precoUnitario != null ? decimalToNumber(it.precoUnitario) : null;
+    return `${qStr}× ${desc}${pu != null ? ` × R$ ${fmt(pu)}` : ""}`;
+  });
+  const resto = itens.length - max;
+  return partes.join("; ") + (resto > 0 ? ` +${resto} item(ns)` : "");
+}
+
 /**
  * Registra um lançamento contábil balanceado (débito = crédito). Idempotente por
  * (empresaId, origemTipo, origemId): se já existir, retorna o existente sem
@@ -121,9 +140,19 @@ export async function registrarLancamento(input: LancamentoIn) {
     if (existente) return existente;
   }
 
+  // Código sequencial do lançamento (LC-AAAA-NNNN), por empresa — identifica o
+  // lançamento no razão sem percorrer a rastreabilidade.
+  const seq = await prismaSemEscopo.sequencia.upsert({
+    where: { empresaId_prefixo: { empresaId, prefixo: "LC" } },
+    update: { ultimo: { increment: 1 } },
+    create: { empresaId, prefixo: "LC", ultimo: 1 },
+  });
+  const numero = generateDocNumber("LC", seq.ultimo);
+
   return prismaSemEscopo.lancamentoContabil.create({
     data: {
       empresaId,
+      numero,
       data,
       historico,
       origemTipo,
@@ -151,9 +180,12 @@ export async function registrarLancamento(input: LancamentoIn) {
 export async function contabilizarTituloReceber(crId: string) {
   const cr = await prismaSemEscopo.contaReceber.findUnique({
     where: { id: crId },
-    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoVendaId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
+    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoVendaId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true,
+      cliente: { select: { razaoSocial: true } }, pedidoVenda: { select: { numero: true } } },
   });
   if (!cr || cr.status === "CANCELADA") return;
+  const cliNome = cr.cliente?.razaoSocial ?? "";
+  const refPedido = cr.pedidoVenda?.numero ? ` · Pedido ${cr.pedidoVenda.numero}` : "";
 
   // Receita cai na conta da natureza do título; senão na sintética 3.1.
   // Caixa/banco: conta de disponibilidade do banco do título; senão a sintética 1.1.1.
@@ -178,7 +210,7 @@ export async function contabilizarTituloReceber(crId: string) {
   if (!cr.pedidoVendaId && valor > 0 && contaReceita) {
     await registrarLancamento({
       empresaId: cr.empresaId, data: cr.dataCompetencia ?? cr.createdAt,
-      historico: `Venda — título ${cr.numero}`, origemTipo: "VENDA", origemId: cr.id,
+      historico: `Venda — Título ${cr.numero}${refPedido}${cliNome ? ` · ${cliNome}` : ""}`, origemTipo: "VENDA", origemId: cr.id,
       partidas: [
         { contaId: contaCli.id, tipo: "DEBITO", valor, clienteId: cr.clienteId },
         { contaId: contaReceita.id, tipo: "CREDITO", valor },
@@ -209,7 +241,7 @@ export async function contabilizarTituloReceber(crId: string) {
       partidas.push({ contaId: contaCli.id, tipo: "CREDITO", valor: total, clienteId: cr.clienteId });
       await registrarLancamento({
         empresaId: cr.empresaId, data: cr.dataPagamento ?? cr.createdAt,
-        historico: `Recebimento — título ${cr.numero}`, origemTipo: "RECEBIMENTO", origemId: cr.id,
+        historico: `Recebimento — Título ${cr.numero}${refPedido}${cliNome ? ` · ${cliNome}` : ""}`, origemTipo: "RECEBIMENTO", origemId: cr.id,
         partidas,
       });
     }
@@ -346,7 +378,8 @@ export async function contabilizarVendaPedido(pedidoVendaId: string) {
     where: { id: pedidoVendaId },
     select: {
       id: true, empresaId: true, clienteId: true, numero: true, status: true, intragrupo: true, valorTotal: true, createdAt: true,
-      itens: { select: { quantidade: true, item: { select: { descricao: true } } } },
+      cliente: { select: { razaoSocial: true } },
+      itens: { select: { quantidade: true, precoUnitario: true, item: { select: { descricao: true } } } },
     },
   });
   if (!pedido || pedido.intragrupo) return;
@@ -360,10 +393,13 @@ export async function contabilizarVendaPedido(pedidoVendaId: string) {
   ]);
   if (!contaBens || !contaMat) return;
 
-  const resumo = resumoItens(pedido.itens);
+  // Histórico no padrão do razão: pedido · cliente · itens (qtd × produto × preço).
+  const detalhe = detalheItens(pedido.itens);
+  const cli = pedido.cliente?.razaoSocial ?? "";
+  const historico = `Venda (a entregar) — Pedido ${pedido.numero}${cli ? ` · ${cli}` : ""}${detalhe ? ` · ${detalhe}` : ""}`;
   await registrarLancamento({
     empresaId: pedido.empresaId, data: pedido.createdAt,
-    historico: `Venda (a entregar) — pedido ${pedido.numero}${resumo ? ` — ${resumo}` : ""}`, origemTipo: "VENDA", origemId: pedido.id,
+    historico, origemTipo: "VENDA", origemId: pedido.id,
     partidas: [
       { contaId: contaBens.id, tipo: "DEBITO", valor, clienteId: pedido.clienteId },
       { contaId: contaMat.id, tipo: "CREDITO", valor, clienteId: pedido.clienteId },
@@ -586,8 +622,8 @@ export async function contabilizarReceitaMinuta(minutaId: string) {
     where: { id: minutaId },
     select: {
       id: true, empresaId: true, numero: true, status: true, dataEntrega: true, dataEmissao: true, createdAt: true, pedidoVendaId: true,
-      pedidoVenda: { select: { clienteId: true } },
-      itens: { select: { quantidade: true, item: { select: { descricao: true } }, pedidoVendaItem: { select: { quantidade: true, valorTotal: true, valorDesconto: true } } } },
+      pedidoVenda: { select: { numero: true, clienteId: true, cliente: { select: { razaoSocial: true } }, contasReceber: { select: { numero: true } } } },
+      itens: { select: { quantidade: true, item: { select: { descricao: true } }, pedidoVendaItem: { select: { quantidade: true, precoUnitario: true, valorTotal: true, valorDesconto: true } } } },
     },
   });
   if (!minuta || minuta.status !== "ENTREGUE") return;
@@ -618,7 +654,18 @@ export async function contabilizarReceitaMinuta(minutaId: string) {
   ]);
   if (!contaMat || !contaReceita || !contaCli || !contaBens) return;
 
-  const hist = `Receita na entrega — ${minuta.numero}${resumoItens(minuta.itens) ? ` — ${resumoItens(minuta.itens)}` : ""}`;
+  // Histórico no padrão do razão: minuta · pedido · CR(s) · cliente · itens entregues.
+  const detalhe = detalheItens(minuta.itens.map((it) => ({
+    quantidade: it.quantidade, precoUnitario: it.pedidoVendaItem?.precoUnitario, item: it.item,
+  })));
+  const pedNum = minuta.pedidoVenda?.numero;
+  const crNums = (minuta.pedidoVenda?.contasReceber ?? []).map((c) => c.numero).join(", ");
+  const cli = minuta.pedidoVenda?.cliente?.razaoSocial ?? "";
+  const hist = `Receita na entrega — Minuta ${minuta.numero}`
+    + (pedNum ? ` · Pedido ${pedNum}` : "")
+    + (crNums ? ` · ${crNums}` : "")
+    + (cli ? ` · ${cli}` : "")
+    + (detalhe ? ` · ${detalhe}` : "");
   // Recebível + receita (a receita bruta é creditada; o desconto vira conta
   // redutora). E baixa do backlog: D Material a Entregar / C Bens a Entregar.
   const partidas: PartidaIn[] = [
