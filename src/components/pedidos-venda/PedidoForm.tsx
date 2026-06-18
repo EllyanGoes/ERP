@@ -400,7 +400,7 @@ export default function PedidoForm({
   // Tabela é por empresa: trocar a empresa do pedido limpa tabela de outra empresa
   useEffect(() => {
     if (pedido) return;
-    const alvo = empresaId || usuarioSessao?.activeEmpresaId;
+    const alvo = empresaId; // GET já vem escopado na empresa ativa; só filtra se o usuário escolher outra empresa explicitamente
     const t = tabelas.find((x) => x.id === tabelaPrecoId);
     if (t?.empresaId && alvo && t.empresaId !== alvo) setTabelaPrecoId("");
   }, [empresaId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1085,7 +1085,7 @@ export default function PedidoForm({
                 // empresa do pedido (modo grupo lista as de todas)
                 .filter((t) => {
                   if (pedido || !t.empresaId) return true;
-                  const alvo = empresaId || usuarioSessao?.activeEmpresaId;
+                  const alvo = empresaId; // GET já vem escopado na empresa ativa; só filtra se o usuário escolher outra empresa explicitamente
                   return !alvo || t.empresaId === alvo;
                 })
                 .map((t) => ({
