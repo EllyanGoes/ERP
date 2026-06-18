@@ -191,7 +191,7 @@ export default function ClienteForm({ cliente }: { cliente?: ClienteData }) {
                 <FormField control={form.control} name="cpfCnpj" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-xs font-semibold text-foreground uppercase tracking-wide">
-                      {tipoPessoa === "FISICA" ? "CPF" : "CNPJ"}
+                      {tipoPessoa === "FISICA" ? "CPF" : "CNPJ"} *
                     </FormLabel>
                     <FormControl>
                       <Input {...field} value={field.value ?? ""} className="h-10 border-border"
