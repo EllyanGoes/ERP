@@ -2,7 +2,7 @@ import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -455,9 +455,12 @@ export async function contabilizarCmvMinuta(minutaId: string) {
 
 /**
  * Reconhecimento de receita na entrega (CPC 47): quando a minuta fica ENTREGUE,
- * baixa o passivo "Material a Entregar" e reconhece Receita pelo valor entregue
- * (Σ qtd × preço de venda do item do pedido). D 2.1.2 / C Receita. Idempotente
- * por (empresa, RECEITA_ENTREGA, minutaId).
+ * baixa o passivo "Material a Entregar" pelo valor LÍQUIDO entregue e reconhece a
+ * Receita BRUTA, separando o desconto concedido numa conta redutora. Por item, o
+ * valor entregue é proporcional à fração entregue (qtd minuta ÷ qtd pedido):
+ *   D Material a Entregar (líquido) · D (-) Descontos Concedidos (desconto) · C Receita Bruta (bruto)
+ * Líquido = valorTotal do item (autoritativo); desconto = valorDesconto; bruto = líquido+desconto.
+ * Idempotente por (empresa, RECEITA_ENTREGA, minutaId).
  */
 export async function contabilizarReceitaMinuta(minutaId: string) {
   const minuta = await prismaSemEscopo.minuta.findUnique({
@@ -465,32 +468,51 @@ export async function contabilizarReceitaMinuta(minutaId: string) {
     select: {
       id: true, empresaId: true, numero: true, status: true, dataEntrega: true, dataEmissao: true, createdAt: true, pedidoVendaId: true,
       pedidoVenda: { select: { clienteId: true } },
-      itens: { select: { quantidade: true, item: { select: { descricao: true } }, pedidoVendaItem: { select: { precoUnitario: true } } } },
+      itens: { select: { quantidade: true, item: { select: { descricao: true } }, pedidoVendaItem: { select: { quantidade: true, valorTotal: true, valorDesconto: true } } } },
     },
   });
   if (!minuta || minuta.status !== "ENTREGUE") return;
 
-  const valor = minuta.itens.reduce(
-    (s, it) => s + decimalToNumber(it.quantidade) * decimalToNumber(it.pedidoVendaItem?.precoUnitario),
-    0,
-  );
-  if (valor <= 0.005) return;
+  // Líquido e desconto entregues, proporcionais à fração entregue de cada item.
+  let liquido = 0, desconto = 0;
+  for (const it of minuta.itens) {
+    const pvi = it.pedidoVendaItem;
+    if (!pvi) continue;
+    const qPed = decimalToNumber(pvi.quantidade);
+    if (qPed <= 0) continue;
+    const frac = decimalToNumber(it.quantidade) / qPed;
+    liquido += decimalToNumber(pvi.valorTotal) * frac;
+    desconto += decimalToNumber(pvi.valorDesconto) * frac;
+  }
+  liquido = Math.round(liquido * 100) / 100;
+  desconto = Math.round(desconto * 100) / 100;
+  const bruto = Math.round((liquido + desconto) * 100) / 100;
+  if (bruto <= 0.005) return;
 
-  // Receita de venda unificada numa única "Receita de Vendas" (3.1.9002).
   const clienteId = minuta.pedidoVenda?.clienteId ?? null;
-  const [contaMat, contaReceita] = await Promise.all([
+  const [contaMat, contaReceita, contaDesc] = await Promise.all([
     clienteId ? garantirContaMaterialEntregarCliente(minuta.empresaId, clienteId) : garantirContaMaterialEntregar(minuta.empresaId),
-    garantirContaReceitaFallback(minuta.empresaId),
+    garantirContaReceitaFallback(minuta.empresaId),                 // Receita BRUTA unificada (3.1.9002)
+    desconto > 0.005 ? garantirContaDescontoConcedido(minuta.empresaId) : Promise.resolve(null),
   ]);
   if (!contaMat || !contaReceita) return;
 
+  const hist = `Receita na entrega — ${minuta.numero}${resumoItens(minuta.itens) ? ` — ${resumoItens(minuta.itens)}` : ""}`;
+  const partidas: PartidaIn[] = [
+    { contaId: contaMat.id, tipo: "DEBITO", valor: liquido, clienteId },
+    { contaId: contaReceita.id, tipo: "CREDITO", valor: bruto },
+  ];
+  if (desconto > 0.005 && contaDesc) {
+    partidas.push({ contaId: contaDesc.id, tipo: "DEBITO", valor: desconto });
+  } else if (desconto > 0.005) {
+    // sem conta de desconto resolvida: cai no líquido para não desbalancear
+    partidas[1] = { contaId: contaReceita.id, tipo: "CREDITO", valor: liquido };
+  }
+
   await registrarLancamento({
     empresaId: minuta.empresaId, data: minuta.dataEntrega ?? minuta.dataEmissao ?? minuta.createdAt,
-    historico: `Receita na entrega — ${minuta.numero}${resumoItens(minuta.itens) ? ` — ${resumoItens(minuta.itens)}` : ""}`, origemTipo: "RECEITA_ENTREGA", origemId: minuta.id,
-    partidas: [
-      { contaId: contaMat.id, tipo: "DEBITO", valor: decimalToNumber(valor), clienteId },
-      { contaId: contaReceita.id, tipo: "CREDITO", valor: decimalToNumber(valor) },
-    ],
+    historico: hist, origemTipo: "RECEITA_ENTREGA", origemId: minuta.id,
+    partidas,
   });
 }
 

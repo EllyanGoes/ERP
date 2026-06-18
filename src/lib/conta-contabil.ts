@@ -285,6 +285,25 @@ export async function garantirContaDespesaFallback(empresaId: string) {
   return garantirContaSistema(empresaId, { codigo: "3.3.9004", nome: "Despesas Gerais", pai: "3.3" });
 }
 /**
+ * Conta redutora de receita "(-) Descontos Concedidos" (3.1.9003) — DEVEDORA sob
+ * 3.1 Receitas. Reconhece o desconto dado no pedido como dedução da receita bruta.
+ * (No DRE fica na seção de Deduções, que subtrai.) Get-or-create defensivo.
+ */
+export async function garantirContaDescontoConcedido(empresaId: string) {
+  const ex = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "3.1.9003" }, select: { id: true } });
+  if (ex) return ex;
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "3.1" } });
+  if (!pai) return null;
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo: "3.1.9003", nome: "(-) Descontos Concedidos",
+      grupo: "RESULTADO", natureza: "DEVEDORA", tipo: "ANALITICA",
+      nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id,
+    },
+    select: { id: true },
+  });
+}
+/**
  * Sintética "Material a Entregar" (2.1.2) — receita diferida até a entrega.
  * Passou a ser conta-pai: o saldo fica nas analíticas por cliente (2.1.2.NNNN),
  * espelhando Fornecedores a Pagar (2.1.1). Get-or-create defensivo.
