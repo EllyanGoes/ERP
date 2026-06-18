@@ -218,6 +218,30 @@ async function garantirContaPorCodigo(
   });
 }
 
+/** Garante (idempotente) a conta de PL "Saldos de Abertura" (2.3.3). */
+export async function garantirContaSaldoAbertura(empresaId: string) {
+  const ex = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "2.3.3" }, select: { id: true } });
+  if (ex) return ex;
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "2.3" } });
+  if (!pai) return null;
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo: "2.3.3", nome: "Saldos de Abertura",
+      grupo: "PATRIMONIO_LIQUIDO", natureza: "CREDORA", tipo: "ANALITICA",
+      nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id, ativo: true,
+    },
+    select: { id: true },
+  });
+}
+
+/** Conta de Estoque principal da empresa (1.1.3.x analítica) — destino de compras avulsas de revenda. */
+export async function contaEstoquePrincipal(empresaId: string) {
+  return prismaSemEscopo.contaContabil.findFirst({
+    where: { empresaId, codigo: { startsWith: "1.1.3." }, tipo: "ANALITICA", ativo: true },
+    select: { id: true }, orderBy: { codigo: "asc" },
+  });
+}
+
 /** Garante (idempotente) a analítica de PL que recebe o resultado do exercício (2.3.2.0001). */
 export async function garantirContaResultadoAcumulado(empresaId: string) {
   const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "2.3.2.0001" }, select: { id: true } });

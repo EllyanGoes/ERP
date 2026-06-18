@@ -2,7 +2,7 @@ import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaComprasMercadorias } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -240,12 +240,12 @@ export async function contabilizarTituloPagar(cpId: string) {
     contaDoBanco(cp.empresaId, caixaCbId),
     contaPorCodigo(cp.empresaId, "1.1.1"),
   ]);
-  // Sem natureza: empresa de revenda (não industrializa) → Compras de Mercadorias
-  // (dentro do CMV); fábrica → Despesas Gerais.
+  // Sem natureza: empresa de revenda (não industrializa) → compra de mercadoria
+  // entra no ESTOQUE (ativo, modelo perpétuo); fábrica → Despesas Gerais.
   let contaDespesa = contaNat;
   if (!contaDespesa) {
     contaDespesa = cp.empresa?.industrializa === false
-      ? await garantirContaComprasMercadorias(cp.empresaId)
+      ? (await contaEstoquePrincipal(cp.empresaId)) ?? contaDespesaFb
       : contaDespesaFb;
   }
   const contaCaixa = contaCaixaResolved ?? conta111;
@@ -339,6 +339,55 @@ export async function contabilizarVendaPedido(pedidoVendaId: string) {
       { contaId: contaCli.id, tipo: "DEBITO", valor, clienteId: pedido.clienteId },
       { contaId: contaMat.id, tipo: "CREDITO", valor, clienteId: pedido.clienteId },
     ],
+  });
+}
+
+/**
+ * Saldo de abertura de estoque (perpétuo): contabiliza as movimentações
+ * `SALDO-INICIAL` valorando cada item pela regra de custeio (acabado pelo preço
+ * médio de venda; demais pelo CMPM). D Estoque (local) / C 2.3.3 Saldos de
+ * Abertura. Resolve o estoque contábil negativo (saídas sem as entradas iniciais).
+ * Idempotente por (empresa, ESTOQUE_AJUSTE, abertura-estoque-<empresaId>).
+ */
+export async function contabilizarSaldoInicialEstoque(empresaId: string) {
+  const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
+    where: { empresaId, tipo: "ENTRADA", documento: "SALDO-INICIAL", localEstoqueId: { not: null }, clienteDonoId: null },
+    select: { itemId: true, localEstoqueId: true, quantidade: true, createdAt: true },
+  });
+  if (movs.length === 0) return;
+
+  const valores = await valoresEstoqueDaEmpresa(empresaId, movs.map((m) => m.itemId));
+  const porLocal = new Map<string, number>();
+  let dataMin: Date | null = null;
+  for (const m of movs) {
+    if (!m.localEstoqueId) continue;
+    const u = valores.get(m.itemId)?.valorUnitario ?? 0;
+    if (!u) continue;
+    porLocal.set(m.localEstoqueId, (porLocal.get(m.localEstoqueId) ?? 0) + decimalToNumber(m.quantidade) * u);
+    const d = m.createdAt ? new Date(m.createdAt) : null;
+    if (d && (!dataMin || d < dataMin)) dataMin = d;
+  }
+
+  const contaAbertura = await garantirContaSaldoAbertura(empresaId);
+  if (!contaAbertura) return;
+  const partidas: PartidaIn[] = [];
+  let totalDeb = 0;
+  for (const [localId, v] of Array.from(porLocal.entries())) {
+    const r = Math.round(v * 100) / 100;
+    if (r <= 0.005) continue;
+    const cl = await garantirContaLocalNaEmpresa(empresaId, localId);
+    if (!cl) return;
+    partidas.push({ contaId: cl.id, tipo: "DEBITO", valor: r });
+    totalDeb += r;
+  }
+  totalDeb = Math.round(totalDeb * 100) / 100;
+  if (totalDeb <= 0.005 || partidas.length === 0) return;
+  partidas.push({ contaId: contaAbertura.id, tipo: "CREDITO", valor: totalDeb });
+
+  await registrarLancamento({
+    empresaId, data: dataMin ?? new Date(),
+    historico: "Saldo de abertura de estoque", origemTipo: "ESTOQUE_AJUSTE", origemId: `abertura-estoque-${empresaId}`,
+    partidas,
   });
 }
 

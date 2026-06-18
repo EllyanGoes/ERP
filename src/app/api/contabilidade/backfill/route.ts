@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
-import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntradaEstoque, contabilizarCmvMinuta, contabilizarReceitaMinuta, contabilizarVendaPedido } from "@/lib/contabilidade";
+import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntradaEstoque, contabilizarCmvMinuta, contabilizarReceitaMinuta, contabilizarVendaPedido, contabilizarSaldoInicialEstoque } from "@/lib/contabilidade";
 
 // POST /api/contabilidade/backfill
 // Gera (idempotente) os lançamentos contábeis retroativos a partir dos títulos
@@ -14,6 +14,14 @@ export async function POST() {
 
   let processados = 0;
   const erros: string[] = [];
+
+  // 0) Saldo de abertura de estoque por empresa (D Estoque / C Saldos de Abertura)
+  //    — antes das saídas, para o estoque contábil não ficar negativo.
+  const empresas = await prismaSemEscopo.empresa.findMany({ select: { id: true } });
+  for (const e of empresas) {
+    try { await contabilizarSaldoInicialEstoque(e.id); processados++; }
+    catch (err) { erros.push(`Abertura estoque ${e.id}: ${(err as Error).message}`); }
+  }
 
   // 1) Entradas de estoque (conferências concluídas) — ANTES das CPs, para o
   //    fornecedor já estar creditado (a CP de estoque pula a perna COMPRA).
