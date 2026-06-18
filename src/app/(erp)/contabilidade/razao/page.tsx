@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
+import { linkOrigemLancamento } from "@/lib/origem-link";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -11,9 +14,13 @@ import { Loader2, BookOpen } from "lucide-react";
 
 type FlatConta = { id: string; codigo: string; nome: string };
 type Mov = {
-  data: string; historico: string; origemTipo: string;
-  contaCodigo: string; contaNome: string; debito: number; credito: number; saldo: number;
+  data: string; historico: string; origemTipo: string; origemId: string | null;
+  contaCodigo: string; contaNome: string;
+  contrapartidas: { codigo: string; nome: string }[];
+  debito: number; credito: number; saldo: number;
 };
+
+const CONTA_KEY = "contabilidade:razao:contaId";
 type Razao = {
   conta: { codigo: string; nome: string; natureza: string; tipo: string };
   saldoInicial: number; movimentos: Mov[]; saldoFinal: number;
@@ -40,15 +47,22 @@ export default function RazaoPage() {
     fetch("/api/contabilidade/plano-contas").then((r) => r.json()).then((j) => setContas(j.flat ?? []));
   }, []);
 
-  // Click-through do balancete/balanço/DRE: ?contaId=&from=&to=
+  // Click-through (?contaId=&from=&to=) tem prioridade; senão, restaura a última
+  // conta selecionada (persistida ao trocar de página).
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const cId = sp.get("contaId");
     const from = sp.get("from");
     const to = sp.get("to");
     if (cId) setContaId(cId);
+    else { try { const saved = localStorage.getItem(CONTA_KEY); if (saved) setContaId(saved); } catch { /* ignore */ } }
     if (from || to) setRange((r) => ({ from: from || r.from, to: to || r.to }));
   }, []);
+
+  // Persiste a conta selecionada (sobrevive à navegação entre páginas).
+  useEffect(() => {
+    try { if (contaId) localStorage.setItem(CONTA_KEY, contaId); } catch { /* ignore */ }
+  }, [contaId]);
 
   const load = useCallback(async () => {
     const { from, to } = rangeRef.current;
@@ -102,6 +116,7 @@ export default function RazaoPage() {
                 <tr>
                   <th className="text-left px-4 py-2 font-semibold w-24">Data</th>
                   <th className="text-left px-4 py-2 font-semibold">Histórico</th>
+                  <th className="text-left px-4 py-2 font-semibold w-56">Contrapartida</th>
                   <th className="text-right px-4 py-2 font-semibold w-28">Débito</th>
                   <th className="text-right px-4 py-2 font-semibold w-28">Crédito</th>
                   <th className="text-right px-4 py-2 font-semibold w-32">Saldo</th>
@@ -109,23 +124,38 @@ export default function RazaoPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {razao.movimentos.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center py-10 text-gray-400 text-sm">Sem movimentos no período</td></tr>
-                ) : razao.movimentos.map((m, i) => (
+                  <tr><td colSpan={6} className="text-center py-10 text-gray-400 text-sm">Sem movimentos no período</td></tr>
+                ) : razao.movimentos.map((m, i) => {
+                  const href = linkOrigemLancamento(m.origemTipo, m.origemId);
+                  return (
                   <tr key={i} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{formatDate(m.data)}</td>
                     <td className="px-4 py-2 text-gray-700">
-                      {m.historico}
+                      {href ? (
+                        <Link href={href} className="inline-flex items-center gap-1 text-blue-600 hover:underline" title="Abrir processo de origem">
+                          {m.historico}<ExternalLink className="w-3 h-3 opacity-60" />
+                        </Link>
+                      ) : m.historico}
                       {razao.conta.tipo === "SINTETICA" && <span className="ml-1.5 font-mono text-[11px] text-gray-400">[{m.contaCodigo}]</span>}
+                    </td>
+                    <td className="px-4 py-2 text-gray-600">
+                      {m.contrapartidas.length === 0 ? <span className="text-gray-300">—</span> : (
+                        <span title={m.contrapartidas.map((c) => `${c.codigo} ${c.nome}`).join(", ")}>
+                          <span className="font-mono text-[11px] text-gray-400">{m.contrapartidas[0].codigo}</span> {m.contrapartidas[0].nome}
+                          {m.contrapartidas.length > 1 && <span className="text-gray-400"> +{m.contrapartidas.length - 1}</span>}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums text-blue-700">{fmtColuna(m.debito, modo)}</td>
                     <td className="px-4 py-2 text-right tabular-nums text-amber-700">{fmtColuna(m.credito, modo)}</td>
                     <td className={cn("px-4 py-2 text-right tabular-nums font-medium", saldoAnormal(m.saldo) ? "text-red-600" : "text-gray-900")}>{fmtSaldo(m.saldo, modo, razao.conta.natureza as NaturezaConta)}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
               <tfoot className="border-t-2 border-gray-200 bg-gray-50">
                 <tr className="font-bold text-gray-900 tabular-nums">
-                  <td className="px-4 py-2.5" colSpan={2}>Saldo final</td>
+                  <td className="px-4 py-2.5" colSpan={3}>Saldo final</td>
                   <td className="px-4 py-2.5 text-right text-blue-700">{fmtColuna(razao.movimentos.reduce((s, m) => s + m.debito, 0), modo)}</td>
                   <td className="px-4 py-2.5 text-right text-amber-700">{fmtColuna(razao.movimentos.reduce((s, m) => s + m.credito, 0), modo)}</td>
                   <td className="px-4 py-2.5 text-right">{fmtSaldo(razao.saldoFinal, modo, razao.conta.natureza as NaturezaConta)}</td>

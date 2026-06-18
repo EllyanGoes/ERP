@@ -51,13 +51,30 @@ export async function GET(req: NextRequest) {
     prisma.partidaContabil.findMany({
       where: { contaId: { in: ids }, lancamento: { data: { gte: from, lte: to } } },
       select: {
-        tipo: true, valor: true,
+        tipo: true, valor: true, lancamentoId: true,
         conta: { select: { codigo: true, nome: true } },
-        lancamento: { select: { data: true, historico: true, origemTipo: true } },
+        lancamento: { select: { data: true, historico: true, origemTipo: true, origemId: true } },
       },
       orderBy: [{ lancamento: { data: "asc" } }, { id: "asc" }],
     }),
   ]);
+
+  // Contrapartidas: as partidas do lado oposto, dos mesmos lançamentos, em outras
+  // contas — para o gestor ver qual conta fez o pagamento/recebimento etc.
+  const lancIds = Array.from(new Set(movs.map((m) => m.lancamentoId)));
+  const idSet = new Set(ids);
+  const irmas = lancIds.length
+    ? await prisma.partidaContabil.findMany({
+        where: { lancamentoId: { in: lancIds } },
+        select: { lancamentoId: true, tipo: true, contaId: true, conta: { select: { codigo: true, nome: true } } },
+      })
+    : [];
+  const porLanc = new Map<string, typeof irmas>();
+  for (const p of irmas) {
+    const arr = porLanc.get(p.lancamentoId) ?? [];
+    arr.push(p);
+    porLanc.set(p.lancamentoId, arr);
+  }
 
   let debAntes = 0, credAntes = 0;
   for (const a of antes) {
@@ -71,12 +88,21 @@ export async function GET(req: NextRequest) {
     const deb = m.tipo === "DEBITO" ? v : 0;
     const cred = m.tipo === "CREDITO" ? v : 0;
     saldo += dev ? deb - cred : cred - deb;
+    // Contrapartidas: partidas do lado oposto, em contas diferentes da analisada.
+    const irmasLanc = porLanc.get(m.lancamentoId) ?? [];
+    const contrapartidas = Array.from(new Map(
+      irmasLanc
+        .filter((p) => p.tipo !== m.tipo && !idSet.has(p.contaId))
+        .map((p) => [p.conta.codigo, { codigo: p.conta.codigo, nome: p.conta.nome }]),
+    ).values());
     return {
       data: m.lancamento.data,
       historico: m.lancamento.historico,
       origemTipo: m.lancamento.origemTipo,
+      origemId: m.lancamento.origemId,
       contaCodigo: m.conta.codigo,
       contaNome: m.conta.nome,
+      contrapartidas,
       debito: deb,
       credito: cred,
       saldo,
