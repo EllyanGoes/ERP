@@ -170,7 +170,7 @@ export default function OrdemDetalhePage() {
 
         {/* KPIs rápidos */}
         <div className="flex flex-wrap gap-2 text-xs">
-          <span className="inline-flex items-center rounded-full bg-cyan-50 text-cyan-700 px-3 py-1 font-medium">
+          <span className="inline-flex items-center rounded-full bg-cyan-50 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 px-3 py-1 font-medium">
             {ordem.etapas.filter((e) => e.status === "CONCLUIDA").length}/{ordem.etapas.length} etapas concluídas
           </span>
           {leadHoras > 0 && (

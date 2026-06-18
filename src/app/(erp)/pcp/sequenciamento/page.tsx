@@ -126,14 +126,14 @@ export default function SequenciamentoPage() {
         {cron && (
           cron.itens.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-14 h-14 rounded-full bg-cyan-50 flex items-center justify-center mb-3"><CalendarClock className="w-7 h-7 text-cyan-400" /></div>
+              <div className="w-14 h-14 rounded-full bg-cyan-50 dark:bg-cyan-500/15 flex items-center justify-center mb-3"><CalendarClock className="w-7 h-7 text-cyan-400" /></div>
               <p className="text-sm font-medium text-foreground">Nenhuma ordem para sequenciar</p>
               <p className="text-xs text-muted-foreground mt-1">Libere ordens de produção (status Liberada) para vê-las no cronograma do forno.</p>
             </div>
           ) : (
             <div>
               <div className="flex flex-wrap gap-2 text-xs mb-2">
-                <span className="inline-flex items-center rounded-full bg-cyan-50 text-cyan-700 px-3 py-1 font-medium">{cron.totalOps} ordem(ns)</span>
+                <span className="inline-flex items-center rounded-full bg-cyan-50 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 px-3 py-1 font-medium">{cron.totalOps} ordem(ns)</span>
                 <span className="inline-flex items-center rounded-full bg-warning/10 text-warning px-3 py-1 font-medium">{cron.totalCiclos} ciclos de forno</span>
                 <span className="inline-flex items-center rounded-full bg-info/10 text-info px-3 py-1 font-medium">{cron.totalHoras} h (~{cron.totalDias} dias)</span>
               </div>
@@ -159,7 +159,7 @@ export default function SequenciamentoPage() {
                         <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{it.ciclos}</td>
                         <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">dia {it.inicioDia}</td>
                         <td className="px-4 py-2 text-right tabular-nums text-foreground font-medium">dia {it.fimDia}</td>
-                        {dataInicio && <td className="px-4 py-2 text-right tabular-nums text-cyan-700">{dataMais(dataInicio, it.fimDia)}</td>}
+                        {dataInicio && <td className="px-4 py-2 text-right tabular-nums text-cyan-700 dark:text-cyan-300">{dataMais(dataInicio, it.fimDia)}</td>}
                       </tr>
                     ))}
                   </tbody>

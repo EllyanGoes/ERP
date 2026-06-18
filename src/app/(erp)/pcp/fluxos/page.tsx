@@ -95,7 +95,7 @@ export default function FluxosPage() {
               type="button"
               onClick={() => criar("Tijolo 6 furos (exemplo)", seedTramontin())}
               disabled={busy}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-100 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 dark:border-cyan-500/30 bg-cyan-50 dark:bg-cyan-500/15 px-3 py-2 text-sm font-medium text-cyan-700 dark:text-cyan-300 hover:bg-cyan-100 dark:bg-cyan-500/25 disabled:opacity-50"
             >
               <Sparkles className="w-4 h-4" /> Criar exemplo
             </button>
@@ -115,7 +115,7 @@ export default function FluxosPage() {
         {erro && <div className="mb-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</div>}
 
         {novoNome !== null && (
-          <div className="mb-4 flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50/40 p-3">
+          <div className="mb-4 flex items-center gap-2 rounded-xl border border-cyan-200 dark:border-cyan-500/30 bg-cyan-50/40 p-3">
             <input
               autoFocus
               className="flex-1 rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500"
@@ -139,7 +139,7 @@ export default function FluxosPage() {
           </div>
         ) : fluxos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-14 h-14 rounded-full bg-cyan-50 flex items-center justify-center mb-3">
+            <div className="w-14 h-14 rounded-full bg-cyan-50 dark:bg-cyan-500/15 flex items-center justify-center mb-3">
               <Workflow className="w-7 h-7 text-cyan-400" />
             </div>
             <p className="text-sm font-medium text-foreground">Nenhum fluxo ainda</p>
@@ -155,11 +155,11 @@ export default function FluxosPage() {
                 <div key={f.id} className="group rounded-xl border border-border bg-card p-4 hover:border-cyan-300 hover:shadow-sm transition">
                   <div className="flex items-start justify-between gap-2">
                     <button onClick={() => router.push(`/pcp/fluxos/${f.id}/editor`)} className="flex items-start gap-2.5 min-w-0 text-left">
-                      <span className="flex w-9 h-9 shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600">
+                      <span className="flex w-9 h-9 shrink-0 items-center justify-center rounded-lg bg-cyan-50 dark:bg-cyan-500/15 text-cyan-600 dark:text-cyan-400">
                         <Workflow className="w-4.5 h-4.5" />
                       </span>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate group-hover:text-cyan-700">{f.nome}</p>
+                        <p className="text-sm font-semibold text-foreground truncate group-hover:text-cyan-700 dark:text-cyan-300">{f.nome}</p>
                         <p className="text-xs text-muted-foreground truncate">{f.item ? f.item.descricao : f.descricao ?? "Sem produto vinculado"}</p>
                       </div>
                     </button>
@@ -172,7 +172,7 @@ export default function FluxosPage() {
                       {STATUS_LABEL[st] ?? st}
                     </span>
                     <span className="text-[11px] text-muted-foreground">{f.totalVersoes} versão(ões)</span>
-                    <button onClick={() => router.push(`/pcp/fluxos/${f.id}/editor`)} className="inline-flex items-center gap-1 text-xs text-cyan-700 hover:text-cyan-900 font-medium">
+                    <button onClick={() => router.push(`/pcp/fluxos/${f.id}/editor`)} className="inline-flex items-center gap-1 text-xs text-cyan-700 dark:text-cyan-300 hover:text-cyan-900 font-medium">
                       <Pencil className="w-3.5 h-3.5" /> Abrir editor
                     </button>
                   </div>

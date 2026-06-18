@@ -82,7 +82,7 @@ export default function OperacoesPage() {
           <div className="flex items-center justify-center py-16 text-muted-foreground gap-2 text-sm"><RefreshCw className="w-4 h-4 animate-spin" /> Carregando…</div>
         ) : etapas.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-14 h-14 rounded-full bg-cyan-50 flex items-center justify-center mb-3"><Factory className="w-7 h-7 text-cyan-400" /></div>
+            <div className="w-14 h-14 rounded-full bg-cyan-50 dark:bg-cyan-500/15 flex items-center justify-center mb-3"><Factory className="w-7 h-7 text-cyan-400" /></div>
             <p className="text-sm font-medium text-foreground">Nenhuma etapa na fila</p>
             <p className="text-xs text-muted-foreground mt-1">Libere ordens de produção para que as etapas apareçam aqui por centro de trabalho.</p>
           </div>
@@ -91,7 +91,7 @@ export default function OperacoesPage() {
             {grupos.map(([centro, lista]) => (
               <div key={centro}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="flex w-7 h-7 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600"><Boxes className="w-4 h-4" /></span>
+                  <span className="flex w-7 h-7 items-center justify-center rounded-lg bg-cyan-50 dark:bg-cyan-500/15 text-cyan-600 dark:text-cyan-400"><Boxes className="w-4 h-4" /></span>
                   <h3 className="text-sm font-semibold text-foreground">{centro}</h3>
                   <span className="text-xs text-muted-foreground">{lista.length} etapa(s)</span>
                 </div>

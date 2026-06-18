@@ -123,7 +123,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_COLOR: Record<string, string> = {
   RASCUNHO:    "bg-muted text-muted-foreground",
   ENVIADO:     "bg-info/15 text-info",
-  CONFIRMADO:  "bg-indigo-100 text-indigo-700",
+  CONFIRMADO:  "bg-indigo-100 dark:bg-indigo-500/25 text-indigo-700 dark:text-indigo-300",
   EM_TRANSITO: "bg-warning/15 text-warning",
   RECEBIDO:    "bg-success/15 text-success",
   CANCELADO:   "bg-danger/15 text-danger",
@@ -439,7 +439,7 @@ export default function FornecedorDetailPage() {
           <div className="flex items-center gap-2">
             {clienteVinculo && (
               <Link href={`/clientes/${clienteVinculo.id}`}
-                className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                className="rounded-full border border-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 px-3 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:bg-indigo-500/25"
                 title="Mesmo CPF/CNPJ cadastrado como cliente">
                 Também é cliente ↗
               </Link>

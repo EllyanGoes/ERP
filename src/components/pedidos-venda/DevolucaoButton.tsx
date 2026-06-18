@@ -117,7 +117,7 @@ export default function DevolucaoButton({ pedidoVendaId, pedidoNumero, onDone }:
                         ))}
                       </div>
                       {tipo !== "ESTORNO" && (
-                        <p className="text-[11px] text-teal-600">
+                        <p className="text-[11px] text-teal-600 dark:text-teal-400">
                           {tipo === "TROCA" ? "Gera um crédito (vale) — use no caixa numa nova venda do material desejado." : "Gera um crédito (vale) que o cliente usa em compras futuras."}
                         </p>
                       )}

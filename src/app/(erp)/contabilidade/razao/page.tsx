@@ -139,7 +139,7 @@ export default function RazaoPage() {
                       ) : m.historico}
                       {razao.conta.tipo === "SINTETICA" && <span className="ml-1.5 font-mono text-[11px] text-muted-foreground">[{m.contaCodigo}]</span>}
                       {m.origemTipo === "MANUAL" ? (
-                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-500" title={m.criadoPor ? `Manual — ${m.criadoPor}` : "Manual"}>
+                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-500/15 text-purple-500" title={m.criadoPor ? `Manual — ${m.criadoPor}` : "Manual"}>
                           manual{m.criadoPor ? ` · ${m.criadoPor}` : ""}
                         </span>
                       ) : (

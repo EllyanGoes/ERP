@@ -384,21 +384,21 @@ function itemIsActive(item: NavItem, pathname: string) {
 }
 
 const kindStyle: Record<SubSection["kind"], string> = {
-  Cadastros:          "text-violet-500",
-  Processos:          "text-blue-500",
-  Estoque:            "text-emerald-500",
-  "Fluxo de Compras": "text-amber-500",
-  Almoxarifado:       "text-emerald-500",
-  Relatórios:         "text-rose-500",
-  Sistema:            "text-gray-400",
-  Comercial:          "text-blue-500",
-  Geral:              "text-blue-500",
-  Compras:            "text-amber-500",
-  Financeiro:         "text-emerald-600",
-  Configurações:      "text-purple-500",
-  "Aprovações":       "text-emerald-600",
-  "Manutenção":       "text-orange-500",
-  "Produção":         "text-cyan-500",
+  Cadastros:          "text-violet-500 dark:text-violet-400",
+  Processos:          "text-blue-500 dark:text-blue-400",
+  Estoque:            "text-emerald-500 dark:text-emerald-400",
+  "Fluxo de Compras": "text-amber-500 dark:text-amber-400",
+  Almoxarifado:       "text-emerald-500 dark:text-emerald-400",
+  Relatórios:         "text-rose-500 dark:text-rose-400",
+  Sistema:            "text-gray-400 dark:text-muted-foreground",
+  Comercial:          "text-blue-500 dark:text-blue-400",
+  Geral:              "text-blue-500 dark:text-blue-400",
+  Compras:            "text-amber-500 dark:text-amber-400",
+  Financeiro:         "text-emerald-600 dark:text-emerald-400",
+  Configurações:      "text-purple-500 dark:text-purple-400",
+  "Aprovações":       "text-emerald-600 dark:text-emerald-400",
+  "Manutenção":       "text-orange-500 dark:text-orange-400",
+  "Produção":         "text-cyan-500 dark:text-cyan-400",
 };
 
 // ── Tooltip wrapper (portal-based) ────────────────────────────────────────────

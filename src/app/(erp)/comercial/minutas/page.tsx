@@ -131,7 +131,7 @@ const COLS: ColDef<Minuta>[] = [
       <div className="flex flex-col items-start gap-0.5">
         <span className="font-mono">{m.pedidoVenda.numero}</span>
         {m.pedidoVenda.pedidoVendaOrigem && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 border border-violet-200" title={`Entrega por conta e ordem — venda ${m.pedidoVenda.pedidoVendaOrigem.numero}${m.pedidoVenda.pedidoVendaOrigem.empresa ? ` da ${m.pedidoVenda.pedidoVendaOrigem.empresa.nomeFantasia || m.pedidoVenda.pedidoVendaOrigem.empresa.razaoSocial}` : ""}`}>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 dark:bg-violet-500/25 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-500/30" title={`Entrega por conta e ordem — venda ${m.pedidoVenda.pedidoVendaOrigem.numero}${m.pedidoVenda.pedidoVendaOrigem.empresa ? ` da ${m.pedidoVenda.pedidoVendaOrigem.empresa.nomeFantasia || m.pedidoVenda.pedidoVendaOrigem.empresa.razaoSocial}` : ""}`}>
             <Shuffle className="w-3 h-3" /> À ordem
           </span>
         )}
@@ -725,7 +725,7 @@ export default function MinutasPage() {
           onClick={() => updateFilters({ aOrdem: !filters.aOrdem })}
           className={cn(
             "inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs font-medium transition-colors whitespace-nowrap",
-            filters.aOrdem ? "border-violet-300 bg-violet-50 text-violet-700" : "border-border text-muted-foreground hover:bg-muted",
+            filters.aOrdem ? "border-violet-300 bg-violet-50 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300" : "border-border text-muted-foreground hover:bg-muted",
           )}
           title="Mostrar só minutas de venda à ordem (pedido de entrega da empresa de origem)"
         >

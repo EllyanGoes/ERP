@@ -447,7 +447,7 @@ export default function LocalEstoqueDetailPage() {
             </>
           ) : (
             <>
-              <Button size="sm" variant="outline" className="text-teal-700 hover:bg-teal-50 border-teal-200"
+              <Button size="sm" variant="outline" className="text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:bg-teal-500/15 border-teal-200 dark:border-teal-500/30"
                 onClick={() => router.push(`/suprimentos/requisicoes-materiais/nova?localEstoqueId=${local.id}`)}>
                 <ClipboardList className="w-4 h-4 mr-1" />Req/Dev
               </Button>
@@ -456,7 +456,7 @@ export default function LocalEstoqueDetailPage() {
                 title="Baixar folha de conferência para impressão">
                 <Printer className="w-4 h-4 mr-1" />Conferência
               </Button>
-              <Button size="sm" variant="outline" className="text-indigo-700 hover:bg-indigo-50 border-indigo-200"
+              <Button size="sm" variant="outline" className="text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:bg-indigo-500/15 border-indigo-200 dark:border-indigo-500/30"
                 onClick={() => router.push(`/suprimentos/inventarios-materiais/nova?localEstoqueId=${local.id}`)}>
                 <ClipboardCheck className="w-4 h-4 mr-1" />Inventário
               </Button>
@@ -481,7 +481,7 @@ export default function LocalEstoqueDetailPage() {
           </div>
           <div className="px-5 py-3">
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Custo Total</p>
-            <p className="text-xl font-bold text-violet-700 mt-0.5 tabular-nums leading-tight">
+            <p className="text-xl font-bold text-violet-700 dark:text-violet-300 mt-0.5 tabular-nums leading-tight">
               {custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-muted-foreground/60">—</span>}
             </p>
           </div>
@@ -580,7 +580,7 @@ export default function LocalEstoqueDetailPage() {
                               <span className="text-xs font-medium text-muted-foreground ml-1">{unidade}</span>
                             </div>
                             {e.item.itemUnidades.filter((iu) => !iu.isPrincipal && iu.fatorConversao).map((iu) => (
-                              <span key={iu.id} className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded tabular-nums">
+                              <span key={iu.id} className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-100 px-1.5 py-0.5 rounded tabular-nums">
                                 {(atual / Number(iu.fatorConversao)).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                                 <span className="font-medium text-indigo-500">{iu.unidade.sigla}</span>
                               </span>
@@ -601,7 +601,7 @@ export default function LocalEstoqueDetailPage() {
                             </span>
                           </td>
                         )}
-                        <td className="px-4 py-3 text-right font-semibold text-violet-700 align-middle">
+                        <td className="px-4 py-3 text-right font-semibold text-violet-700 dark:text-violet-300 align-middle">
                           {itemCusto > 0 ? formatBRL(itemCusto) : <span className="text-muted-foreground/60 font-normal">—</span>}
                         </td>
                         <td className="px-4 py-3 text-center align-middle">
@@ -623,7 +623,7 @@ export default function LocalEstoqueDetailPage() {
                   <tfoot>
                     <tr className="border-t border-border bg-muted">
                       <td colSpan={2 + (hasEnderecos ? 1 : 0) + (hasMin ? 1 : 0) + (hasMax ? 1 : 0)} className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total</td>
-                      <td className="px-4 py-3 text-right font-bold text-violet-700 text-base">
+                      <td className="px-4 py-3 text-right font-bold text-violet-700 dark:text-violet-300 text-base">
                         {custoTotal > 0 ? formatBRL(custoTotal) : "—"}
                       </td>
                       <td />

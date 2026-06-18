@@ -35,7 +35,7 @@ export default async function ClientesPage() {
           {[
             { label: "Ativos", key: "ATIVO", color: "text-success bg-success/10" },
             { label: "Inativos", key: "INATIVO", color: "text-muted-foreground bg-muted" },
-            { label: "Prospectos", key: "PROSPECTO", color: "text-sky-600 bg-sky-50" },
+            { label: "Prospectos", key: "PROSPECTO", color: "text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-500/15" },
           ].map(({ label, key, color }) => (
             <div key={key} className={`rounded-xl p-4 ${color}`}>
               <p className="text-sm font-medium opacity-75">{label}</p>

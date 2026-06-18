@@ -198,7 +198,7 @@ export default function NodeConfigSheet({ kind, data, centros, locais, onChange,
             <div className="pt-1">
               <div className="flex items-center justify-between mb-1">
                 <label className={labelCls + " mb-0"}>Insumos por milheiro</label>
-                <button onClick={addInsumo} className="inline-flex items-center gap-1 text-[11px] text-cyan-700 hover:text-cyan-900">
+                <button onClick={addInsumo} className="inline-flex items-center gap-1 text-[11px] text-cyan-700 dark:text-cyan-300 hover:text-cyan-900">
                   <Plus className="w-3 h-3" /> add
                 </button>
               </div>

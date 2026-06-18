@@ -15,10 +15,10 @@ interface KindStyle {
 
 export const NODE_STYLE: Record<NodeKind, KindStyle> = {
   ESTOQUE_INSUMO: { icon: Boxes, ring: "border-amber-300", chipBg: "bg-warning/15", chipText: "text-warning", label: "Estoque / Insumo" },
-  OPERACAO: { icon: Cog, ring: "border-cyan-300", chipBg: "bg-cyan-100", chipText: "text-cyan-700", label: "Operação" },
-  TRANSPORTE: { icon: Truck, ring: "border-slate-300", chipBg: "bg-slate-100", chipText: "text-slate-700", label: "Transporte" },
+  OPERACAO: { icon: Cog, ring: "border-cyan-300", chipBg: "bg-cyan-100 dark:bg-cyan-500/25", chipText: "text-cyan-700 dark:text-cyan-300", label: "Operação" },
+  TRANSPORTE: { icon: Truck, ring: "border-slate-300", chipBg: "bg-slate-100 dark:bg-slate-500/25", chipText: "text-slate-700 dark:text-slate-300", label: "Transporte" },
   BUFFER_WIP: { icon: Layers, ring: "border-blue-300", chipBg: "bg-info/15", chipText: "text-info", label: "Buffer de WIP" },
-  INSPECAO: { icon: SearchCheck, ring: "border-violet-300", chipBg: "bg-violet-100", chipText: "text-violet-700", label: "Inspeção" },
+  INSPECAO: { icon: SearchCheck, ring: "border-violet-300", chipBg: "bg-violet-100 dark:bg-violet-500/25", chipText: "text-violet-700 dark:text-violet-300", label: "Inspeção" },
   ESTOCAGEM_PA: { icon: PackageCheck, ring: "border-emerald-300", chipBg: "bg-success/15", chipText: "text-success", label: "Produto Acabado" },
 };
 

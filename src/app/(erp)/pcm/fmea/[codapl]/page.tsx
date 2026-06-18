@@ -334,8 +334,8 @@ export default function FMEAPage() {
                 label="MTBF"
                 value={fmtH(data.mtbf)}
                 sub="tempo médio entre falhas"
-                color="text-teal-600"
-                bg="bg-teal-50"
+                color="text-teal-600 dark:text-teal-400"
+                bg="bg-teal-50 dark:bg-teal-500/15"
                 icon={Activity}
               />
               <Kpi

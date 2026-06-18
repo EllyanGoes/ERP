@@ -215,7 +215,7 @@ export default function WhatsAppIntegracaoPage() {
               "text-[10px] font-medium px-2 py-0.5 rounded-full border",
               provider === "evolution" ? "bg-success/10 text-success border-success/30" :
               provider === "meta"      ? "bg-info/10 text-info border-info/20" :
-                                        "bg-purple-50 text-purple-600 border-purple-100"
+                                        "bg-purple-50 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-100"
             )}>
               {providerLabel}
             </span>

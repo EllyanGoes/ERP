@@ -370,7 +370,7 @@ export default function PdvPage() {
 
                 {/* Venda à ordem: estoque sai de outra empresa do grupo. */}
                 {aOrdem && (
-                  <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-800">
+                  <div className="rounded-lg border border-violet-200 dark:border-violet-500/30 bg-violet-50 dark:bg-violet-500/15 px-3 py-2 text-xs text-violet-800 dark:text-violet-300">
                     <span className="font-semibold">Venda à ordem</span> — o estoque sai de <span className="font-semibold">{origemNome}</span>.
                     O local abaixo é só onde os movimentos são registrados nesta empresa.
                   </div>
@@ -416,13 +416,13 @@ export default function PdvPage() {
 
                 {/* Crédito (vale) do cliente: abate do total; o caixa cobre o restante. */}
                 {creditoSaldo > 0 && (
-                  <div className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 flex items-center gap-3">
+                  <div className="rounded-lg border border-teal-200 dark:border-teal-500/30 bg-teal-50 dark:bg-teal-500/15 px-3 py-2 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-teal-800">Crédito do cliente — saldo {formatBRL(creditoSaldo)}</p>
-                      <p className="text-[11px] text-teal-600">Abater nesta venda (o caixa cobre o restante).</p>
+                      <p className="text-xs font-semibold text-teal-800 dark:text-teal-300">Crédito do cliente — saldo {formatBRL(creditoSaldo)}</p>
+                      <p className="text-[11px] text-teal-600 dark:text-teal-400">Abater nesta venda (o caixa cobre o restante).</p>
                     </div>
                     <input inputMode="decimal" value={creditoUsadoStr} onChange={(e) => setCreditoUsadoStr(e.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00" className="w-28 h-9 rounded-lg border border-teal-300 px-2 text-sm text-right bg-card" />
-                    <button type="button" onClick={() => setCreditoUsadoStr(Math.min(creditoSaldo, total).toFixed(2).replace(".", ","))} className="text-xs text-teal-700 font-medium hover:underline whitespace-nowrap">usar máx.</button>
+                    <button type="button" onClick={() => setCreditoUsadoStr(Math.min(creditoSaldo, total).toFixed(2).replace(".", ","))} className="text-xs text-teal-700 dark:text-teal-300 font-medium hover:underline whitespace-nowrap">usar máx.</button>
                   </div>
                 )}
 
@@ -432,7 +432,7 @@ export default function PdvPage() {
                 <div className="flex items-center gap-3 pt-1">
                   <span className="text-sm text-muted-foreground">
                     Total <span className="font-bold text-foreground tabular-nums">{formatBRL(total)}</span>
-                    {creditoUsadoNum > 0 && <span className="ml-2 text-teal-700">− crédito {formatBRL(creditoUsadoNum)} = <span className="font-semibold">{formatBRL(alvoCash)}</span></span>}
+                    {creditoUsadoNum > 0 && <span className="ml-2 text-teal-700 dark:text-teal-300">− crédito {formatBRL(creditoUsadoNum)} = <span className="font-semibold">{formatBRL(alvoCash)}</span></span>}
                   </span>
                   <div className="flex-1" />
                   <Button

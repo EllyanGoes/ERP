@@ -360,7 +360,7 @@ export default function CentrosCustoPage() {
                     <td className="px-4 py-3 font-medium text-foreground">{centro.nome}</td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {centro.grupoCentroCusto ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-violet-50 text-violet-700">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-violet-50 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300">
                           {centro.grupoCentroCusto.nome}
                         </span>
                       ) : (

@@ -246,8 +246,8 @@ function SubgrupoBloco({ sub, onDrill, mostrarTituloSub }: { sub: SubNode; onDri
 function LinhaResumo({ label, valores, destaque, forte }: { label: string; valores: number[]; destaque?: boolean; forte?: boolean }) {
   const total = soma(valores);
   return (
-    <tr className={cn("border-b", forte ? "bg-muted border-border" : destaque ? "bg-slate-50 border-border" : "border-border")}>
-      <td className={cn("px-4 py-2 sticky left-0 z-10", forte ? "bg-muted font-bold text-foreground" : "bg-slate-50 font-semibold text-foreground")}>
+    <tr className={cn("border-b", forte ? "bg-muted border-border" : destaque ? "bg-slate-50 dark:bg-slate-500/15 border-border" : "border-border")}>
+      <td className={cn("px-4 py-2 sticky left-0 z-10", forte ? "bg-muted font-bold text-foreground" : "bg-slate-50 dark:bg-slate-500/15 font-semibold text-foreground")}>
         = {label}
       </td>
       {valores.map((v, i) => <td key={i} className={cn("px-3 py-2 text-right tabular-nums font-medium", valorCor(v))}>{fmt(v)}</td>)}

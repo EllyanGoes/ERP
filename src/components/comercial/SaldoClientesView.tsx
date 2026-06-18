@@ -60,7 +60,7 @@ const numberFmt = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 3 });
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
     CONFIRMADO: { label: "Confirmado", cls: "bg-info/10 text-info" },
-    EM_AGENDAMENTO: { label: "Em agendamento", cls: "bg-violet-50 text-violet-700" },
+    EM_AGENDAMENTO: { label: "Em agendamento", cls: "bg-violet-50 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300" },
   };
   const s = map[status] ?? { label: status, cls: "bg-muted text-muted-foreground" };
   return (

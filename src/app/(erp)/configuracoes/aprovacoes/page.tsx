@@ -286,7 +286,7 @@ export default function AprovacoesPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
                       <CardTitle className="text-base">{fluxo.nome}</CardTitle>
-                      <span className="inline-flex items-center text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 rounded-full px-2 py-0.5">
+                      <span className="inline-flex items-center text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-500/25 border border-slate-200 dark:border-slate-500/30 rounded-full px-2 py-0.5">
                         {PROCESSO_LABELS[fluxo.processo] ?? fluxo.processo}
                       </span>
                       {fluxo.ativo ? (

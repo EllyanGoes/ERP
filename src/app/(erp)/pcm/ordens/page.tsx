@@ -66,9 +66,9 @@ const STATUS_CONFIG: Record<string, {
 }> = {
   A: { label: "Em Aberto",    color: "#3b82f6", bg: "bg-info/10",   border: "border-info/30",  text: "text-info",   Icon: AlertCircle   },
   E: { label: "Em Espera",    color: "#f59e0b", bg: "bg-warning/10",  border: "border-warning/30", text: "text-warning",  Icon: Clock         },
-  P: { label: "Em Progresso", color: "#6366f1", bg: "bg-indigo-50", border: "border-indigo-200",text: "text-indigo-700", Icon: Circle        },
+  P: { label: "Em Progresso", color: "#6366f1", bg: "bg-indigo-50 dark:bg-indigo-500/15", border: "border-indigo-200 dark:border-indigo-500/30",text: "text-indigo-700 dark:text-indigo-300", Icon: Circle        },
   F: { label: "Concluídas",   color: "#22c55e", bg: "bg-success/10",  border: "border-success/30", text: "text-success",  Icon: CheckCircle2  },
-  C: { label: "Canceladas",   color: "#94a3b8", bg: "bg-slate-50",  border: "border-slate-200", text: "text-slate-600",  Icon: XCircle       },
+  C: { label: "Canceladas",   color: "#94a3b8", bg: "bg-slate-50 dark:bg-slate-500/15",  border: "border-slate-200 dark:border-slate-500/30", text: "text-slate-600 dark:text-slate-400",  Icon: XCircle       },
 };
 
 const PRIORIDADE_CONFIG: Record<string, string> = {
@@ -1048,7 +1048,7 @@ export default function OrdensReportPage() {
                               {apl.emProgresso > 0 ? (
                                 <button
                                   onClick={() => { setDrillStatus("P"); setDrillEquip(apl.equipamento); }}
-                                  className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
+                                  className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 dark:bg-indigo-500/25 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 transition-colors"
                                 >
                                   {apl.emProgresso}
                                 </button>

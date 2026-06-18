@@ -57,9 +57,9 @@ function StatusBadge({ status }: { status: StatusTicket }) {
 
 function TipoBadge({ tipo }: { tipo: TipoTicket }) {
   const map: Record<TipoTicket, { label: string; cls: string; icon: React.ReactNode }> = {
-    MELHORIA: { label: "Melhoria", cls: "bg-purple-100 text-purple-700 border-purple-200", icon: <Lightbulb className="w-3 h-3" /> },
+    MELHORIA: { label: "Melhoria", cls: "bg-purple-100 dark:bg-purple-500/25 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/30", icon: <Lightbulb className="w-3 h-3" /> },
     BUG:      { label: "Bug",      cls: "bg-danger/15 text-danger border-danger/30",          icon: <Bug className="w-3 h-3" /> },
-    DUVIDA:   { label: "Dúvida",   cls: "bg-sky-100 text-sky-700 border-sky-200",          icon: <HelpCircle className="w-3 h-3" /> },
+    DUVIDA:   { label: "Dúvida",   cls: "bg-sky-100 dark:bg-sky-500/25 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/30",          icon: <HelpCircle className="w-3 h-3" /> },
   };
   const { label, cls, icon } = map[tipo];
   return (
@@ -499,9 +499,9 @@ export default function SuportePage() {
                     <Label className="text-sm font-medium">Tipo <span className="text-red-500">*</span></Label>
                     <div className="grid grid-cols-3 gap-2">
                       {([
-                        { key: "MELHORIA", label: "Melhoria", icon: <Lightbulb className="w-4 h-4" />, cls: "text-purple-600 bg-purple-50 border-purple-200" },
+                        { key: "MELHORIA", label: "Melhoria", icon: <Lightbulb className="w-4 h-4" />, cls: "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/15 border-purple-200 dark:border-purple-500/30" },
                         { key: "BUG",      label: "Bug",      icon: <Bug className="w-4 h-4" />,       cls: "text-danger bg-danger/10 border-danger/30" },
-                        { key: "DUVIDA",   label: "Dúvida",   icon: <HelpCircle className="w-4 h-4" />,cls: "text-sky-600 bg-sky-50 border-sky-200" },
+                        { key: "DUVIDA",   label: "Dúvida",   icon: <HelpCircle className="w-4 h-4" />,cls: "text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-500/15 border-sky-200 dark:border-sky-500/30" },
                       ] as const).map((opt) => (
                         <button key={opt.key} type="button" onClick={() => setFTipo(opt.key)}
                           className={cn(

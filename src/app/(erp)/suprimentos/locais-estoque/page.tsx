@@ -247,7 +247,7 @@ export default function LocaisEstoquePage() {
           </div>
           <div className="px-5 py-3">
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Custo Total Estoque</p>
-            <p className="text-lg font-bold text-violet-700 mt-0.5 tabular-nums leading-tight">
+            <p className="text-lg font-bold text-violet-700 dark:text-violet-300 mt-0.5 tabular-nums leading-tight">
               {custoTotalGeral > 0 ? formatBRL(custoTotalGeral) : <span className="text-muted-foreground/60">—</span>}
             </p>
           </div>
@@ -297,7 +297,7 @@ export default function LocaisEstoquePage() {
                         {local.categoriasAceitas?.length > 0 && (
                           <div className="mt-1 flex flex-wrap gap-1 pl-6">
                             {local.categoriasAceitas.map((c) => (
-                              <span key={c} className="inline-flex items-center rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 border border-indigo-100">
+                              <span key={c} className="inline-flex items-center rounded-full bg-indigo-50 dark:bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:text-indigo-300 border border-indigo-100">
                                 {CATEGORIA_ESTOQUE_LABELS[c]}
                               </span>
                             ))}
@@ -321,7 +321,7 @@ export default function LocaisEstoquePage() {
                           {local._count.estoqueItens}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold text-violet-700">
+                      <td className="px-4 py-3 text-right font-semibold text-violet-700 dark:text-violet-300">
                         {custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-muted-foreground/60 font-normal">—</span>}
                       </td>
                       <td className="px-4 py-3 text-center">

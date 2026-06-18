@@ -101,11 +101,11 @@ export default function IntegracoesPage() {
     {
       href:    "/configuracoes/integracoes/telegram",
       icon:    <Send className="w-5 h-5 text-sky-500" />,
-      bg:      "bg-sky-50 border-sky-100",
+      bg:      "bg-sky-50 dark:bg-sky-500/15 border-sky-100",
       title:   "Telegram",
       desc:    "Notificações e aprovações via bot do Telegram",
       badge:   "Bot API",
-      badgeCn: "bg-sky-50 text-sky-600 border-sky-100",
+      badgeCn: "bg-sky-50 dark:bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-100",
       status:  tgStatus,
     },
     {

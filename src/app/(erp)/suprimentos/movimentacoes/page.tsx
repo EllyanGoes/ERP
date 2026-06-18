@@ -102,7 +102,7 @@ const MOV_COLS: ColDef<MovItem>[] = [
           </span>
         )}
         {it.vendaOrdem && (
-          <Link href={`/pedidos-venda/${it.vendaOrdem.id}`} className="px-1.5 py-0.5 rounded border border-violet-200 bg-violet-50 text-violet-700 text-[10px] font-medium whitespace-nowrap hover:bg-violet-100" title={`Venda à ordem (movimentação virtual entre empresas) — ${it.vendaOrdem.numero}`}>
+          <Link href={`/pedidos-venda/${it.vendaOrdem.id}`} className="px-1.5 py-0.5 rounded border border-violet-200 dark:border-violet-500/30 bg-violet-50 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300 text-[10px] font-medium whitespace-nowrap hover:bg-violet-100 dark:bg-violet-500/25" title={`Venda à ordem (movimentação virtual entre empresas) — ${it.vendaOrdem.numero}`}>
             Venda à ordem: {it.vendaOrdem.numero}
           </Link>
         )}
@@ -176,7 +176,7 @@ const MOV_COLS: ColDef<MovItem>[] = [
     tdClass: "px-4 py-2.5",
     render: (it) =>
       it.pedidoVendaItemId || it.conferenciaItemId ? (
-        <span className="inline-flex items-center gap-1 text-xs font-medium bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+        <span className="inline-flex items-center gap-1 text-xs font-medium bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full">
           <RefreshCw className="w-3 h-3" />Auto
         </span>
       ) : (
@@ -202,7 +202,7 @@ const TIPO_FILTER_OPTIONS: FilterOption[] = [
 const ORIGEM_FILTER_OPTIONS: FilterOption[] = [
   { key: "todos",       label: "Todas",     color: "bg-muted text-muted-foreground" },
   { key: "manual",      label: "Manual",    color: "bg-muted text-muted-foreground" },
-  { key: "automatica",  label: "Automática", color: "bg-purple-100 text-purple-700" },
+  { key: "automatica",  label: "Automática", color: "bg-purple-100 dark:bg-purple-500/25 text-purple-700 dark:text-purple-300" },
 ];
 
 function toNum(v: unknown) { return parseFloat(String(v ?? 0)); }
@@ -790,7 +790,7 @@ export default function MovimentacoesPage() {
 
                     {/* Origem badge */}
                     {loteOrigem(lote.itens) === "automatica" ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 shrink-0">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 shrink-0">
                         <RefreshCw className="w-3 h-3" /> Auto
                       </span>
                     ) : (

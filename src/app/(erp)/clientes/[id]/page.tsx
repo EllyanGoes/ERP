@@ -62,7 +62,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           <div className="flex items-center gap-2">
             {fornecedorVinculo && (
               <Link href={`/suprimentos/fornecedores/${fornecedorVinculo.id}`}
-                className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                className="rounded-full border border-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 px-3 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:bg-indigo-500/25"
                 title="Mesmo CPF/CNPJ cadastrado como fornecedor">
                 Também é fornecedor ↗
               </Link>

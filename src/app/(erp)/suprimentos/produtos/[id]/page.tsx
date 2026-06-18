@@ -128,7 +128,7 @@ const TIPO_MOV_COLOR: Record<string, string> = {
   ENTRADA: "text-success bg-success/10",
   SAIDA: "text-danger bg-danger/10",
   AJUSTE: "text-info bg-info/10",
-  TRANSFERENCIA: "text-purple-600 bg-purple-50",
+  TRANSFERENCIA: "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/15",
 };
 
 function formatDateTime(d: string) {
@@ -1333,9 +1333,9 @@ export default function ProdutoDetailPage() {
                     )}
                   </div>
                   {/* Custo Médio */}
-                  <div className="rounded-xl bg-violet-50 px-4 py-3">
-                    <p className="text-xs text-violet-600 font-medium mb-1">Custo Médio</p>
-                    <p className="text-xl font-bold text-violet-800">
+                  <div className="rounded-xl bg-violet-50 dark:bg-violet-500/15 px-4 py-3">
+                    <p className="text-xs text-violet-600 dark:text-violet-400 font-medium mb-1">Custo Médio</p>
+                    <p className="text-xl font-bold text-violet-800 dark:text-violet-300">
                       {custoMedio > 0 ? formatBRL(custoMedio) : "—"}
                     </p>
                     {item.fornecedores.filter((f) => decimalToNumber(f.precoUltimo) > 0).length > 0 && (
@@ -1545,7 +1545,7 @@ export default function ProdutoDetailPage() {
                               <tr key={e.id} className={cn("hover:bg-indigo-50/40 transition-colors", abaixo && "bg-danger/10", isEditingRow && "bg-warning/10 hover:bg-warning/10")}>
                                 <td className="px-4 py-3.5 text-foreground text-xs font-semibold">
                                   {empresasEstoque.length > 1 && (
-                                    <span className="block text-[10px] font-semibold text-indigo-600 uppercase tracking-wide">
+                                    <span className="block text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide">
                                       {e.empresa.nomeFantasia || e.empresa.razaoSocial}
                                     </span>
                                   )}
@@ -1608,7 +1608,7 @@ export default function ProdutoDetailPage() {
                                 </td>
                                 <td className="px-4 py-3.5 text-right text-muted-foreground text-xs">
                                   {custoLinha > 0 ? (
-                                    <span className="font-mono bg-violet-100 text-violet-800 border border-violet-200 px-1.5 py-0.5 rounded">{formatBRL(custoLinha)}</span>
+                                    <span className="font-mono bg-violet-100 dark:bg-violet-500/25 text-violet-800 dark:text-violet-300 border border-violet-200 dark:border-violet-500/30 px-1.5 py-0.5 rounded">{formatBRL(custoLinha)}</span>
                                   ) : <span className="text-muted-foreground">—</span>}
                                 </td>
                                 <td className="px-4 py-3.5 text-right font-semibold text-info">
@@ -1655,7 +1655,7 @@ export default function ProdutoDetailPage() {
                                     ) : (
                                       <button
                                         onClick={() => openEstoqueEdit(e)}
-                                        className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-indigo-600 transition-colors"
+                                        className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-indigo-600 dark:text-indigo-400 transition-colors"
                                         title="Editar registro"
                                       >
                                         <Pencil className="w-3.5 h-3.5" />
@@ -1959,7 +1959,7 @@ export default function ProdutoDetailPage() {
                         </td>
                         <td className="px-4 py-3">
                           {(m.pedidoVendaItemId || m.conferenciaItemId) ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+                            <span className="inline-flex items-center gap-1 text-xs font-medium bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full">
                               <RefreshCw className="w-3 h-3" />Automática
                             </span>
                           ) : (
@@ -3046,8 +3046,8 @@ export default function ProdutoDetailPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Custo Médio</Label>
-                  <div className="flex items-center h-9 px-3 rounded-md border border-border bg-violet-50">
-                    <span className="text-sm text-violet-700 font-semibold">
+                  <div className="flex items-center h-9 px-3 rounded-md border border-border bg-violet-50 dark:bg-violet-500/15">
+                    <span className="text-sm text-violet-700 dark:text-violet-300 font-semibold">
                       {saldoForm.custo ? formatBRL(parseFloat(saldoForm.custo)) : (custoUnit > 0 ? formatBRL(custoUnit) : "—")}
                     </span>
                   </div>
@@ -3610,7 +3610,7 @@ const KPI_COLORS: Record<string, { bg: string; icon: string; value: string; bord
   emerald: { bg: "bg-success/10", icon: "text-emerald-500", value: "text-emerald-900", border: "border-emerald-100" },
   amber:   { bg: "bg-warning/10",   icon: "text-amber-500",   value: "text-amber-900",   border: "border-amber-100" },
   red:     { bg: "bg-danger/10",     icon: "text-red-500",     value: "text-red-900",     border: "border-danger/20" },
-  violet:  { bg: "bg-violet-50",  icon: "text-violet-500",  value: "text-violet-900",  border: "border-violet-100" },
+  violet:  { bg: "bg-violet-50 dark:bg-violet-500/15",  icon: "text-violet-500",  value: "text-violet-900",  border: "border-violet-100" },
   gray:    { bg: "bg-muted",    icon: "text-muted-foreground",    value: "text-foreground",    border: "border-border" },
 };
 

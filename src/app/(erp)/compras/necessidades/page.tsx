@@ -71,7 +71,7 @@ const KANBAN_COLUMNS: { status: string; label: string; color: string; dot: strin
   { status: "APROVADA",              label: "Aprovada",              color: "bg-success/10 border-success/30", dot: "bg-emerald-500" },
   { status: "REJEITADA",             label: "Rejeitada",             color: "bg-danger/10 border-danger/30",         dot: "bg-red-500" },
   { status: "EM_COTACAO",            label: "Em Cotação",            color: "bg-info/10 border-info/30",       dot: "bg-blue-500" },
-  { status: "EM_PEDIDO",             label: "Em Pedido",             color: "bg-indigo-50 border-indigo-200",   dot: "bg-indigo-500" },
+  { status: "EM_PEDIDO",             label: "Em Pedido",             color: "bg-indigo-50 dark:bg-indigo-500/15 border-indigo-200 dark:border-indigo-500/30",   dot: "bg-indigo-500" },
   { status: "TOTALMENTE_ATENDIDA",   label: "Totalmente Atendida",   color: "bg-success/10 border-success/30", dot: "bg-emerald-600" },
   { status: "PARCIALMENTE_ATENDIDA", label: "Parcialmente Atendida", color: "bg-warning/10 border-orange-200",   dot: "bg-orange-500" },
   { status: "CANCELADA",             label: "Cancelada",             color: "bg-muted border-border",      dot: "bg-gray-500" },

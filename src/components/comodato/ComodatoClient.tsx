@@ -152,7 +152,7 @@ export default function ComodatoClient({
     <>
       {/* Resumo */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-xl p-4 bg-sky-50 text-sky-700">
+        <div className="rounded-xl p-4 bg-sky-50 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300">
           <p className="text-sm font-medium opacity-75">Clientes com saldo</p>
           <p className="text-3xl font-bold mt-1">{totais.clientesComSaldo}</p>
         </div>

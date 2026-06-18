@@ -63,8 +63,8 @@ export default function InventariosMaterialPage() {
     <div className="px-8 py-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center">
-            <ClipboardCheck className="w-4.5 h-4.5 text-indigo-600" />
+          <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-500/25 flex items-center justify-center">
+            <ClipboardCheck className="w-4.5 h-4.5 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">Inventário de Materiais</h1>
@@ -128,7 +128,7 @@ export default function InventariosMaterialPage() {
               {filtered.map((r) => (
                 <tr key={r.id} onClick={() => router.push(`/suprimentos/inventarios-materiais/${r.id}`)}
                   className="hover:bg-indigo-50/40 cursor-pointer transition-colors">
-                  <td className="px-4 py-3.5 font-mono text-xs font-bold text-indigo-700">{r.numero}</td>
+                  <td className="px-4 py-3.5 font-mono text-xs font-bold text-indigo-700 dark:text-indigo-300">{r.numero}</td>
                   <td className="px-4 py-3.5 text-foreground font-medium">{r.localEstoque?.nome ?? "—"}</td>
                   <td className="px-4 py-3.5 text-muted-foreground text-xs font-medium">{TIPO_LABEL[r.tipo] ?? r.tipo}</td>
                   <td className="px-4 py-3.5 text-foreground">{r.colaborador?.nome ?? "—"}</td>

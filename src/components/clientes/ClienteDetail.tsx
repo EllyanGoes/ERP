@@ -43,7 +43,7 @@ function Field({ label, value }: { label: string; value: string | null | undefin
 const STATUS_PEDIDO_COLOR: Record<string, string> = {
   ORCAMENTO:    "bg-muted text-muted-foreground",
   CONFIRMADO:   "bg-info/15 text-info",
-  EM_AGENDAMENTO: "bg-violet-100 text-violet-700",
+  EM_AGENDAMENTO: "bg-violet-100 dark:bg-violet-500/25 text-violet-700 dark:text-violet-300",
   CONCLUIDO:      "bg-success/15 text-success",
   CANCELADO:      "bg-danger/15 text-danger",
 };

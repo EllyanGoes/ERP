@@ -56,7 +56,7 @@ const FILTER_KEY = "erp:pedidos-venda:filters:v2";
 const STATUS_COLS: { key: string; label: string; color: string; bg: string; border: string; dot: string }[] = [
   { key: "ORCAMENTO",   label: "Orçamento",   color: "text-muted-foreground",    bg: "bg-muted",    border: "border-border",   dot: "bg-gray-400"   },
   { key: "CONFIRMADO",  label: "Confirmado",  color: "text-info",    bg: "bg-info/10",    border: "border-info/30",   dot: "bg-blue-500"   },
-  { key: "EM_AGENDAMENTO", label: "Em Agendamento", color: "text-violet-700", bg: "bg-violet-50", border: "border-violet-200", dot: "bg-violet-500" },
+  { key: "EM_AGENDAMENTO", label: "Em Agendamento", color: "text-violet-700 dark:text-violet-300", bg: "bg-violet-50 dark:bg-violet-500/15", border: "border-violet-200 dark:border-violet-500/30", dot: "bg-violet-500" },
   { key: "CONCLUIDO",   label: "Concluído",   color: "text-success", bg: "bg-success/10", border: "border-success/30",dot: "bg-emerald-600"},
   { key: "CANCELADO",   label: "Cancelado",   color: "text-red-500",     bg: "bg-danger/10",     border: "border-danger/30",    dot: "bg-red-400"    },
 ];
@@ -166,7 +166,7 @@ const COLS: ColDef<PedidoRow>[] = [
     tdClass: "px-4 py-3",
     render: (p) => p.estoqueOrigemEmpresaId ? (
       <span className="inline-flex flex-col items-start gap-0.5">
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-violet-100 text-violet-700 border border-violet-200">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-violet-100 dark:bg-violet-500/25 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-500/30">
           <Shuffle className="w-3 h-3" /> À ordem
         </span>
         {p.estoqueOrigemEmpresa && (
@@ -177,7 +177,7 @@ const COLS: ColDef<PedidoRow>[] = [
       </span>
     ) : p.pedidoVendaOrigemId ? (
       <span className="inline-flex flex-col items-start gap-0.5">
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-violet-100 text-violet-700 border border-violet-200">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-violet-100 dark:bg-violet-500/25 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-500/30">
           <Truck className="w-3 h-3" /> Entrega à ordem
         </span>
         {p.pedidoVendaOrigem?.empresa && (
@@ -411,12 +411,12 @@ function KanbanCard({
         {p.cliente.nomeFantasia || p.cliente.razaoSocial}
       </p>
       {p.estoqueOrigemEmpresaId && (
-        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 border border-violet-200 mb-1">
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 dark:bg-violet-500/25 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-500/30 mb-1">
           <Shuffle className="w-2.5 h-2.5" /> À ordem
         </span>
       )}
       {!p.estoqueOrigemEmpresaId && p.pedidoVendaOrigemId && (
-        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 border border-violet-200 mb-1">
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 dark:bg-violet-500/25 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-500/30 mb-1">
           <Truck className="w-2.5 h-2.5" /> Entrega à ordem
         </span>
       )}
@@ -796,7 +796,7 @@ export default function PedidosVendaPage() {
           className={cn(
             "flex items-center gap-1.5 h-8 px-2.5 text-xs border rounded-md transition-colors whitespace-nowrap",
             filters.aOrdem
-              ? "border-violet-300 bg-violet-50 text-violet-700"
+              ? "border-violet-300 bg-violet-50 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300"
               : "border-border bg-card text-muted-foreground hover:bg-muted"
           )}
           title="Mostrar só pedidos de venda à ordem (a venda na origem e a entrega na matriz)"

@@ -12,7 +12,7 @@ import type { QuadroOsResponse, CardOS } from "@/app/api/pcm/quadro-os/route";
 const STATUS_META: Record<string, { label: string; chip: string }> = {
   A: { label: "Aberta",    chip: "bg-info/10 text-info" },
   E: { label: "Espera",    chip: "bg-warning/10 text-warning" },
-  P: { label: "Progresso", chip: "bg-violet-50 text-violet-700" },
+  P: { label: "Progresso", chip: "bg-violet-50 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300" },
 };
 
 export default function QuadroOsPage() {

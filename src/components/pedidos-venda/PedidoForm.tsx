@@ -1269,7 +1269,7 @@ export default function PedidoForm({
                           onChange={(e) => updateLinha(linha._key, "precoTransferencia", e.target.value)}
                           placeholder="compra (origem)"
                           title="Preço de compra da origem (venda à ordem) — valora a movimentação virtual e o financeiro intragrupo"
-                          className="h-7 mt-1 text-[11px] text-right border-violet-200 bg-violet-50/40 text-violet-700 placeholder:text-violet-300"
+                          className="h-7 mt-1 text-[11px] text-right border-violet-200 dark:border-violet-500/30 bg-violet-50/40 text-violet-700 dark:text-violet-300 placeholder:text-violet-300"
                         />
                       )}
                     </td>

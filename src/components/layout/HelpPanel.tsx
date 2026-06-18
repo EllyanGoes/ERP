@@ -110,11 +110,11 @@ export default function HelpPanel() {
                 bg="bg-success/10"
               />
               <SupportCard
-                icon={<BookOpen className="h-4 w-4 text-violet-600" />}
+                icon={<BookOpen className="h-4 w-4 text-violet-600 dark:text-violet-400" />}
                 title="Documentação"
                 description="Processos do sistema em BPMN, módulo a módulo"
                 href="/documentacao"
-                bg="bg-violet-50"
+                bg="bg-violet-50 dark:bg-violet-500/15"
               />
             </div>
           </div>

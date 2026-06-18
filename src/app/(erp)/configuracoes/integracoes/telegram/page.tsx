@@ -329,9 +329,9 @@ export default function TelegramIntegracaoPage() {
       <div className="px-8 pb-8 max-w-2xl space-y-6">
 
         {/* How to */}
-        <div className="bg-sky-50 border border-sky-100 rounded-xl px-4 py-3 space-y-1.5 text-xs text-sky-700">
+        <div className="bg-sky-50 dark:bg-sky-500/15 border border-sky-100 rounded-xl px-4 py-3 space-y-1.5 text-xs text-sky-700 dark:text-sky-300">
           <p className="font-semibold">Como configurar</p>
-          <ol className="list-decimal list-inside space-y-1 text-sky-600 leading-relaxed">
+          <ol className="list-decimal list-inside space-y-1 text-sky-600 dark:text-sky-400 leading-relaxed">
             <li>Abra o Telegram e busque por <strong>@BotFather</strong></li>
             <li>Envie <strong>/newbot</strong> e siga as instruções para criar o bot</li>
             <li>Copie o <strong>token</strong> fornecido pelo BotFather</li>
@@ -456,9 +456,9 @@ export default function TelegramIntegracaoPage() {
           </div>
 
           {webhookUrl && (
-            <div className="bg-sky-50 border border-sky-100 rounded-xl px-4 py-3 space-y-1">
-              <p className="text-[11px] font-semibold text-sky-700">Webhook registrado:</p>
-              <p className="text-xs text-sky-700 font-mono break-all select-all">{webhookUrl}</p>
+            <div className="bg-sky-50 dark:bg-sky-500/15 border border-sky-100 rounded-xl px-4 py-3 space-y-1">
+              <p className="text-[11px] font-semibold text-sky-700 dark:text-sky-300">Webhook registrado:</p>
+              <p className="text-xs text-sky-700 dark:text-sky-300 font-mono break-all select-all">{webhookUrl}</p>
             </div>
           )}
 

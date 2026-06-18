@@ -74,8 +74,8 @@ export default function RequisicoesMaterialPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-teal-100 flex items-center justify-center">
-            <ClipboardList className="w-4.5 h-4.5 text-teal-600" />
+          <div className="w-9 h-9 rounded-xl bg-teal-100 dark:bg-teal-500/25 flex items-center justify-center">
+            <ClipboardList className="w-4.5 h-4.5 text-teal-600 dark:text-teal-400" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">Req/Dev de Materiais</h1>

@@ -411,11 +411,11 @@ export default function AnaliseCotacaoPage() {
         <button
           disabled
           title="Em breve"
-          className="inline-flex items-center gap-2 border border-purple-200 text-purple-600 rounded-lg px-3 py-1.5 text-sm font-medium opacity-50 cursor-not-allowed"
+          className="inline-flex items-center gap-2 border border-purple-200 dark:border-purple-500/30 text-purple-600 dark:text-purple-400 rounded-lg px-3 py-1.5 text-sm font-medium opacity-50 cursor-not-allowed"
         >
           <Sparkles className="h-4 w-4" />
           Análise por IA
-          <span className="ml-1 inline-block bg-purple-100 text-purple-600 text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none">
+          <span className="ml-1 inline-block bg-purple-100 dark:bg-purple-500/25 text-purple-600 dark:text-purple-400 text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none">
             Em breve
           </span>
         </button>

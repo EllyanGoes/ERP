@@ -196,7 +196,7 @@ export default function MateriaisReportPage() {
                       <td className="px-4 py-3 text-muted-foreground">{r.unidade}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-success">{r.entrouQtd ? fmtNum(r.entrouQtd) : <span className="text-muted-foreground/60">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-danger">{r.saiuQtd ? fmtNum(r.saiuQtd) : <span className="text-muted-foreground/60">—</span>}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-violet-700">{r.vendaOrdemQtd ? fmtNum(r.vendaOrdemQtd) : <span className="text-muted-foreground/60">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-violet-700 dark:text-violet-300">{r.vendaOrdemQtd ? fmtNum(r.vendaOrdemQtd) : <span className="text-muted-foreground/60">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-foreground">{r.qtdVendida ? fmtNum(r.qtdVendida) : <span className="text-muted-foreground/60">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-medium text-foreground">{r.precoMedioPeriodo ? formatBRL(r.precoMedioPeriodo) : <span className="text-muted-foreground/60">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.precoMedioGeral ? formatBRL(r.precoMedioGeral) : <span className="text-muted-foreground/60">—</span>}</td>
@@ -209,7 +209,7 @@ export default function MateriaisReportPage() {
                     <td className="px-4 py-3" colSpan={2}>Total ({filtradas.length})</td>
                     <td className="px-4 py-3 text-right tabular-nums">{fmtNum(filtradas.reduce((s, r) => s + r.entrouQtd, 0))}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{fmtNum(filtradas.reduce((s, r) => s + r.saiuQtd, 0))}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-violet-700">{fmtNum(filtradas.reduce((s, r) => s + r.vendaOrdemQtd, 0))}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-violet-700 dark:text-violet-300">{fmtNum(filtradas.reduce((s, r) => s + r.vendaOrdemQtd, 0))}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{fmtNum(filtradas.reduce((s, r) => s + r.qtdVendida, 0))}</td>
                     <td className="px-4 py-3" colSpan={2} />
                     <td className="px-4 py-3 text-right tabular-nums">{formatBRL(filtradas.reduce((s, r) => s + r.valorVendido, 0))}</td>

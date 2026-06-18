@@ -34,27 +34,29 @@ export type IconColor = {
   selText: string;
 };
 
+// Chips de ícone por seção. Cada hue ganha variante dark: (fundo translúcido +
+// texto mais claro) p/ legibilidade no escuro; no claro fica como antes.
 export const SECTION_COLORS: Record<string, IconColor> = {
-  "Relatórios":       { bg: "bg-rose-50",    text: "text-rose-600",    selBg: "bg-rose-100",    selText: "text-rose-700"    },
-  "Estoque":          { bg: "bg-emerald-50", text: "text-emerald-600", selBg: "bg-emerald-100", selText: "text-emerald-700" },
-  "Fluxo de Compras": { bg: "bg-amber-50",   text: "text-amber-600",   selBg: "bg-amber-100",   selText: "text-amber-700"   },
-  "Aprovações":       { bg: "bg-emerald-50", text: "text-emerald-600", selBg: "bg-emerald-100", selText: "text-emerald-700" },
-  "Processos":        { bg: "bg-blue-50",    text: "text-blue-600",    selBg: "bg-blue-100",    selText: "text-blue-700"    },
-  "Geral":            { bg: "bg-blue-50",    text: "text-blue-600",    selBg: "bg-blue-100",    selText: "text-blue-700"    },
-  "Almoxarifado":     { bg: "bg-emerald-50", text: "text-emerald-600", selBg: "bg-emerald-100", selText: "text-emerald-700" },
-  "Sistema":          { bg: "bg-slate-100",  text: "text-slate-500",   selBg: "bg-slate-200",   selText: "text-slate-600"   },
-  "Configurações":    { bg: "bg-violet-50",  text: "text-violet-600",  selBg: "bg-violet-100",  selText: "text-violet-700"  },
-  "Manutenção":       { bg: "bg-orange-50",  text: "text-orange-600",  selBg: "bg-orange-100",  selText: "text-orange-700"  },
-  "Faturamento":        { bg: "bg-blue-50",    text: "text-blue-600",    selBg: "bg-blue-100",    selText: "text-blue-700"    },
-  "Financeiro":       { bg: "bg-teal-50",    text: "text-teal-600",    selBg: "bg-teal-100",    selText: "text-teal-700"    },
-  "Compras":            { bg: "bg-amber-50",   text: "text-amber-600",   selBg: "bg-amber-100",   selText: "text-amber-700"   },
-  "Cadastros":          { bg: "bg-violet-50",  text: "text-violet-600",  selBg: "bg-violet-100",  selText: "text-violet-700"  },
-  "Relatórios Compras": { bg: "bg-rose-50",    text: "text-rose-600",    selBg: "bg-rose-100",    selText: "text-rose-700"    },
-  "Produção":           { bg: "bg-cyan-50",    text: "text-cyan-600",    selBg: "bg-cyan-100",    selText: "text-cyan-700"     },
+  "Relatórios":       { bg: "bg-rose-50 dark:bg-rose-500/15",       text: "text-rose-600 dark:text-rose-400",       selBg: "bg-rose-100 dark:bg-rose-500/25",       selText: "text-rose-700 dark:text-rose-300"    },
+  "Estoque":          { bg: "bg-emerald-50 dark:bg-emerald-500/15", text: "text-emerald-600 dark:text-emerald-400", selBg: "bg-emerald-100 dark:bg-emerald-500/25", selText: "text-emerald-700 dark:text-emerald-300" },
+  "Fluxo de Compras": { bg: "bg-amber-50 dark:bg-amber-500/15",     text: "text-amber-600 dark:text-amber-400",     selBg: "bg-amber-100 dark:bg-amber-500/25",     selText: "text-amber-700 dark:text-amber-300"   },
+  "Aprovações":       { bg: "bg-emerald-50 dark:bg-emerald-500/15", text: "text-emerald-600 dark:text-emerald-400", selBg: "bg-emerald-100 dark:bg-emerald-500/25", selText: "text-emerald-700 dark:text-emerald-300" },
+  "Processos":        { bg: "bg-blue-50 dark:bg-blue-500/15",       text: "text-blue-600 dark:text-blue-400",       selBg: "bg-blue-100 dark:bg-blue-500/25",       selText: "text-blue-700 dark:text-blue-300"    },
+  "Geral":            { bg: "bg-blue-50 dark:bg-blue-500/15",       text: "text-blue-600 dark:text-blue-400",       selBg: "bg-blue-100 dark:bg-blue-500/25",       selText: "text-blue-700 dark:text-blue-300"    },
+  "Almoxarifado":     { bg: "bg-emerald-50 dark:bg-emerald-500/15", text: "text-emerald-600 dark:text-emerald-400", selBg: "bg-emerald-100 dark:bg-emerald-500/25", selText: "text-emerald-700 dark:text-emerald-300" },
+  "Sistema":          { bg: "bg-slate-100 dark:bg-slate-500/15",    text: "text-slate-500 dark:text-slate-400",     selBg: "bg-slate-200 dark:bg-slate-500/25",     selText: "text-slate-600 dark:text-slate-300"   },
+  "Configurações":    { bg: "bg-violet-50 dark:bg-violet-500/15",   text: "text-violet-600 dark:text-violet-400",   selBg: "bg-violet-100 dark:bg-violet-500/25",   selText: "text-violet-700 dark:text-violet-300"  },
+  "Manutenção":       { bg: "bg-orange-50 dark:bg-orange-500/15",   text: "text-orange-600 dark:text-orange-400",   selBg: "bg-orange-100 dark:bg-orange-500/25",   selText: "text-orange-700 dark:text-orange-300"  },
+  "Faturamento":        { bg: "bg-blue-50 dark:bg-blue-500/15",     text: "text-blue-600 dark:text-blue-400",       selBg: "bg-blue-100 dark:bg-blue-500/25",       selText: "text-blue-700 dark:text-blue-300"    },
+  "Financeiro":       { bg: "bg-teal-50 dark:bg-teal-500/15",       text: "text-teal-600 dark:text-teal-400",       selBg: "bg-teal-100 dark:bg-teal-500/25",       selText: "text-teal-700 dark:text-teal-300"    },
+  "Compras":            { bg: "bg-amber-50 dark:bg-amber-500/15",   text: "text-amber-600 dark:text-amber-400",     selBg: "bg-amber-100 dark:bg-amber-500/25",     selText: "text-amber-700 dark:text-amber-300"   },
+  "Cadastros":          { bg: "bg-violet-50 dark:bg-violet-500/15", text: "text-violet-600 dark:text-violet-400",   selBg: "bg-violet-100 dark:bg-violet-500/25",   selText: "text-violet-700 dark:text-violet-300"  },
+  "Relatórios Compras": { bg: "bg-rose-50 dark:bg-rose-500/15",     text: "text-rose-600 dark:text-rose-400",       selBg: "bg-rose-100 dark:bg-rose-500/25",       selText: "text-rose-700 dark:text-rose-300"    },
+  "Produção":           { bg: "bg-cyan-50 dark:bg-cyan-500/15",     text: "text-cyan-600 dark:text-cyan-400",       selBg: "bg-cyan-100 dark:bg-cyan-500/25",       selText: "text-cyan-700 dark:text-cyan-300"     },
 };
 
 export const DEFAULT_COLOR: IconColor = {
-  bg: "bg-gray-100", text: "text-gray-500", selBg: "bg-gray-200", selText: "text-gray-600",
+  bg: "bg-muted", text: "text-muted-foreground", selBg: "bg-muted", selText: "text-foreground",
 };
 
 // ── Route type ────────────────────────────────────────────────────────────────

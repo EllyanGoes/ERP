@@ -13,7 +13,7 @@ const ACAO_LABEL: Record<Acao, string> = {
 };
 
 const ACAO_COLOR: Record<Acao, string> = {
-  ver:     "bg-sky-50 text-sky-700 border-sky-200",
+  ver:     "bg-sky-50 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/30",
   inserir: "bg-success/10 text-success border-success/30",
   editar:  "bg-warning/10 text-warning border-warning/30",
   excluir: "bg-danger/10 text-danger border-danger/30",

@@ -105,7 +105,7 @@ export default function OrdensPage() {
         {erro && <div className="mb-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</div>}
 
         {form && (
-          <div className="mb-4 rounded-xl border border-cyan-200 bg-cyan-50/40 p-4">
+          <div className="mb-4 rounded-xl border border-cyan-200 dark:border-cyan-500/30 bg-cyan-50/40 p-4">
             {fluxos.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Nenhum fluxo <strong>publicado</strong> ainda. Publique um fluxo em <strong>Fluxos de Produção</strong> para criar ordens.
@@ -151,7 +151,7 @@ export default function OrdensPage() {
           </div>
         ) : ordens.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-14 h-14 rounded-full bg-cyan-50 flex items-center justify-center mb-3">
+            <div className="w-14 h-14 rounded-full bg-cyan-50 dark:bg-cyan-500/15 flex items-center justify-center mb-3">
               <Factory className="w-7 h-7 text-cyan-400" />
             </div>
             <p className="text-sm font-medium text-foreground">Nenhuma ordem de produção</p>

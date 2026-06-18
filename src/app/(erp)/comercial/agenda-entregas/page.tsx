@@ -629,7 +629,7 @@ export default function AgendaEntregasPage() {
           </span>
         )}
         {!loading && retiradas > 0 && (
-          <span className="inline-flex items-center gap-1 text-xs text-violet-600">
+          <span className="inline-flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400">
             <PackageCheck className="w-3.5 h-3.5" /> {retiradas} retirada{retiradas !== 1 ? "s" : ""}
           </span>
         )}
@@ -817,7 +817,7 @@ function RightRail({
                     <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
                     <span className="font-mono text-xs font-bold text-foreground">{m.numero}</span>
                     {isRetirada && (
-                      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-500/25 text-violet-700 dark:text-violet-300">
                         <PackageOpen className="w-3 h-3" /> Retirada
                       </span>
                     )}

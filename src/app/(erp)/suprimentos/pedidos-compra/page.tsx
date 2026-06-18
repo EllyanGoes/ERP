@@ -147,7 +147,7 @@ const COLS: ColDef<Pedido>[] = [
         <Link
           href={`/suprimentos/cotacoes/${p.cotacao.id}`}
           onClick={(e) => e.stopPropagation()}
-          className="group flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+          className="group flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:text-indigo-300 hover:underline"
         >
           <FileText className="w-3 h-3 flex-shrink-0" />
           {p.cotacao.numero}
@@ -196,7 +196,7 @@ const COLS: ColDef<Pedido>[] = [
         <Link
           href={`/suprimentos/conferencias/${p.conferencia.id}`}
           onClick={(e) => e.stopPropagation()}
-          className="group flex items-center gap-1 text-xs font-medium text-teal-600 hover:text-teal-700 hover:underline"
+          className="group flex items-center gap-1 text-xs font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:text-teal-300 hover:underline"
         >
           <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
           {p.conferencia.numero}
@@ -435,7 +435,7 @@ function KanbanCard({
         <Link
           href={`/suprimentos/cotacoes/${p.cotacao.id}`}
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 hover:underline mb-1"
+          className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:text-indigo-300 hover:underline mb-1"
         >
           <FileText className="w-3 h-3" />
           {p.cotacao.numero}

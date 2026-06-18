@@ -629,7 +629,7 @@ async function openWAModal() {
                   {sc && (
                     <Link
                       href={`/compras/necessidades/${sc.id}`}
-                      className="flex items-center gap-1 text-xs text-indigo-600 hover:underline font-medium"
+                      className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
                     >
                       <FileText className="w-3 h-3" />
                       {sc.numero}
@@ -694,7 +694,7 @@ async function openWAModal() {
                               key={n.id}
                               type="button"
                               onMouseDown={() => vincularNecessidade(n.id)}
-                              className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-indigo-50 border-b border-gray-50 last:border-0"
+                              className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-indigo-50 dark:bg-indigo-500/15 border-b border-gray-50 last:border-0"
                             >
                               <span className="font-mono font-semibold text-foreground">{n.numero}</span>
                               <div className="text-right">
@@ -794,7 +794,7 @@ async function openWAModal() {
               {pedido.cotacao && (
                 <Link
                   href={`/suprimentos/cotacoes/${pedido.cotacao.id}`}
-                  className="flex items-center gap-1 text-xs text-indigo-600 hover:underline font-medium"
+                  className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
                 >
                   <FileText className="w-3 h-3" />
                   {pedido.cotacao.numero}{pedido.cotacao.nome ? ` — ${pedido.cotacao.nome}` : ""}
@@ -861,7 +861,7 @@ async function openWAModal() {
                           key={c.id}
                           type="button"
                           onMouseDown={() => vincularCotacao(c.id)}
-                          className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-indigo-50 border-b border-gray-50 last:border-0"
+                          className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-indigo-50 dark:bg-indigo-500/15 border-b border-gray-50 last:border-0"
                         >
                           <span className="font-mono font-semibold text-foreground">{c.numero}</span>
                           <div className="text-right">

@@ -38,7 +38,7 @@ const TIPO_ITEM_OPTIONS: { id: string; nome: string }[] = [
   { id: "SERVICO",       nome: "Serviço" },
 ];
 
-const ACTIVE_TAB_CLS = "border-b-2 border-indigo-600 text-indigo-700 font-medium";
+const ACTIVE_TAB_CLS = "border-b-2 border-indigo-600 text-indigo-700 dark:text-indigo-300 font-medium";
 const INACTIVE_TAB_CLS = "border-b-2 border-transparent text-muted-foreground hover:text-foreground";
 
 /* Portal-based single select */
@@ -75,7 +75,7 @@ function PortalSelect<T extends { id: string }>({
           className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:bg-muted border-b border-gray-50">{placeholder}</button>
         {filtered.map((o) => (
           <button key={o.id} type="button" onMouseDown={() => { onChange(o.id); setOpen(false); }}
-            className={cn("w-full text-left px-3 py-2 text-sm hover:bg-muted border-b border-gray-50 last:border-0", value === o.id && "bg-indigo-50 text-indigo-700")}>
+            className={cn("w-full text-left px-3 py-2 text-sm hover:bg-muted border-b border-gray-50 last:border-0", value === o.id && "bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300")}>
             {getLabel(o)}
           </button>
         ))}
@@ -146,7 +146,7 @@ function PortalMultiSelect<T extends { id: string }>({
       </div>
       {values.length > 0 && (
         <div className="px-3 py-1.5 border-b border-border flex items-center justify-between">
-          <span className="text-xs text-indigo-600 font-medium">{values.length} selecionado(s)</span>
+          <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">{values.length} selecionado(s)</span>
           <button type="button" onMouseDown={() => onChange([])} className="text-xs text-muted-foreground hover:text-red-500">Limpar</button>
         </div>
       )}
@@ -158,14 +158,14 @@ function PortalMultiSelect<T extends { id: string }>({
             return (
               <button key={o.id} type="button" onMouseDown={() => toggle(o.id)}
                 className={cn("w-full text-left px-3 py-2 text-sm flex items-center gap-2.5 hover:bg-muted border-b border-gray-50 last:border-0",
-                  checked && "bg-indigo-50")}>
+                  checked && "bg-indigo-50 dark:bg-indigo-500/15")}>
                 <span className={cn("w-4 h-4 rounded border flex items-center justify-center shrink-0",
                   checked ? "bg-indigo-600 border-indigo-600" : "border-border")}>
                   {checked && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>}
                 </span>
-                <span className={checked ? "text-indigo-700 font-medium" : "text-foreground"}>{getLabel(o)}</span>
+                <span className={checked ? "text-indigo-700 dark:text-indigo-300 font-medium" : "text-foreground"}>{getLabel(o)}</span>
               </button>
             );
           })

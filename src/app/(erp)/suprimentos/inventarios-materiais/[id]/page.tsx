@@ -196,7 +196,7 @@ export default function InventarioDetailPage() {
             <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium", STATUS_COLOR[inv.status] ?? "bg-muted text-muted-foreground")}>
               {STATUS_LABEL[inv.status] ?? inv.status}
             </span>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
               {TIPO_LABEL[inv.tipo] ?? inv.tipo}
             </span>
           </div>

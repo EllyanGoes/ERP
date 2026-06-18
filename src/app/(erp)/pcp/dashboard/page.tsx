@@ -99,11 +99,11 @@ export default function PcpDashboardPage() {
       <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8 space-y-4">
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <Kpi label="Ordens abertas" value={String(opAbertas)} sub={`${d.ordens.CONCLUIDA ?? 0} concluídas`} icon={Factory} color="bg-cyan-50 text-cyan-600" />
+          <Kpi label="Ordens abertas" value={String(opAbertas)} sub={`${d.ordens.CONCLUIDA ?? 0} concluídas`} icon={Factory} color="bg-cyan-50 dark:bg-cyan-500/15 text-cyan-600 dark:text-cyan-400" />
           <Kpi label="Perda total" value={String(Math.round(totalPerda))} sub="soma das etapas" icon={AlertTriangle} color="bg-danger/10 text-danger" />
           <Kpi label="Biomassa/milheiro" value={d.biomassa.porMilheiro != null ? `${d.biomassa.porMilheiro} kg` : "—"} sub={`${Math.round(d.biomassa.kg)} kg total`} icon={Flame} color="bg-warning/10 text-warning" />
           <Kpi label="A comprar (MRP)" value={String(Math.round(d.mrp.totalAComprar))} sub={`${d.mrp.porCategoria.length} categoria(s)`} icon={ShoppingCart} color="bg-info/10 text-info" />
-          <Kpi label="Demanda planejada" value={`${d.demandaTotalMilheiros}`} sub="milheiros (MPS)" icon={Layers} color="bg-violet-50 text-violet-600" />
+          <Kpi label="Demanda planejada" value={`${d.demandaTotalMilheiros}`} sub="milheiros (MPS)" icon={Layers} color="bg-violet-50 dark:bg-violet-500/15 text-violet-600 dark:text-violet-400" />
         </div>
 
         {/* Produção por estágio */}
@@ -182,7 +182,7 @@ export default function PcpDashboardPage() {
             <div className="flex flex-wrap gap-2">
               {d.filaPorCentro.map((f) => (
                 <span key={f.centro} className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-sm text-foreground">
-                  {f.centro} <span className="font-semibold text-cyan-700">{f.count}</span>
+                  {f.centro} <span className="font-semibold text-cyan-700 dark:text-cyan-300">{f.count}</span>
                 </span>
               ))}
             </div>

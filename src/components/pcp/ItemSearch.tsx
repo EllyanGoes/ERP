@@ -82,7 +82,7 @@ export default function ItemSearch({
               key={it.id}
               type="button"
               onClick={() => { onSelect(it); setQ(""); setResults([]); setOpen(false); }}
-              className="w-full text-left px-3 py-2 hover:bg-cyan-50 text-sm"
+              className="w-full text-left px-3 py-2 hover:bg-cyan-50 dark:bg-cyan-500/15 text-sm"
             >
               <span className="font-mono text-muted-foreground text-xs mr-2">{it.codigo}</span>
               {it.descricao}

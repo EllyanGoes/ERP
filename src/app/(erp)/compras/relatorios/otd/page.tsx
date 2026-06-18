@@ -576,8 +576,8 @@ export default function OtdPage() {
               <SummaryCard
                 label="OTD Global"
                 value={`${(s?.otdPct ?? 0).toFixed(1)}%`}
-                icon={<TrendingUp className="w-5 h-5 text-violet-600" />}
-                color="bg-violet-50"
+                icon={<TrendingUp className="w-5 h-5 text-violet-600 dark:text-violet-400" />}
+                color="bg-violet-50 dark:bg-violet-500/15"
               />
               <SummaryCard
                 label="Atendidos"

@@ -69,8 +69,8 @@ export default function AjudaPcpPage() {
       />
       <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-10 space-y-6 max-w-4xl">
         {/* Intro */}
-        <div className="rounded-xl border border-cyan-200 bg-cyan-50/50 p-4 flex items-start gap-3">
-          <BookOpen className="w-5 h-5 text-cyan-600 mt-0.5 shrink-0" />
+        <div className="rounded-xl border border-cyan-200 dark:border-cyan-500/30 bg-cyan-50/50 p-4 flex items-start gap-3">
+          <BookOpen className="w-5 h-5 text-cyan-600 dark:text-cyan-400 mt-0.5 shrink-0" />
           <p className="text-sm text-foreground">
             O <strong>PCP</strong> organiza a produção da matéria-prima ao produto acabado, com o
             <strong> forno como o ponto central</strong>. Você desenha o processo, define a receita de
@@ -112,9 +112,9 @@ export default function AjudaPcpPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {TELAS.map((t) => (
               <Link key={t.href} href={t.href} className="flex items-start gap-3 rounded-lg border border-border bg-card p-3 hover:border-cyan-300 group">
-                <span className="flex w-8 h-8 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600 shrink-0"><t.icon className="w-4 h-4" /></span>
+                <span className="flex w-8 h-8 items-center justify-center rounded-lg bg-cyan-50 dark:bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 shrink-0"><t.icon className="w-4 h-4" /></span>
                 <span className="min-w-0">
-                  <span className="text-sm font-semibold text-foreground group-hover:text-cyan-700 flex items-center gap-1">{t.t}<ArrowRight className="w-3 h-3 text-muted-foreground/60 group-hover:text-cyan-500" /></span>
+                  <span className="text-sm font-semibold text-foreground group-hover:text-cyan-700 dark:text-cyan-300 flex items-center gap-1">{t.t}<ArrowRight className="w-3 h-3 text-muted-foreground/60 group-hover:text-cyan-500" /></span>
                   <span className="block text-xs text-muted-foreground mt-0.5">{t.d}</span>
                 </span>
               </Link>

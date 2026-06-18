@@ -783,7 +783,7 @@ export default function SolicitacaoCreateForm() {
                             "px-1.5 py-0.5 rounded text-[10px] font-medium",
                             p.tipo === "SC"
                               ? "bg-info/15 text-info"
-                              : "bg-purple-100 text-purple-700"
+                              : "bg-purple-100 dark:bg-purple-500/25 text-purple-700 dark:text-purple-300"
                           )}>{p.tipo}</span>
                           <span className="text-muted-foreground">{STATUS_PT[p.status] ?? p.status}</span>
                         </li>

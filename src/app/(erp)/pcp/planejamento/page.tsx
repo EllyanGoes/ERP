@@ -125,7 +125,7 @@ export default function PlanejamentoPage() {
         breadcrumbs={[{ label: "PCP" }, { label: "Planejamento" }]}
         action={
           <div className="flex items-center gap-2">
-            <button onClick={calcularMrp} disabled={calc || linhas.length === 0} className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-100 disabled:opacity-50">
+            <button onClick={calcularMrp} disabled={calc || linhas.length === 0} className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 dark:border-cyan-500/30 bg-cyan-50 dark:bg-cyan-500/15 px-3 py-2 text-sm font-medium text-cyan-700 dark:text-cyan-300 hover:bg-cyan-100 dark:bg-cyan-500/25 disabled:opacity-50">
               {calc ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />} Calcular necessidades (MRP)
             </button>
             <button onClick={() => setNovo({ item: null, periodo: mesAtual(), quantidade: "" })} className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700">
@@ -139,7 +139,7 @@ export default function PlanejamentoPage() {
         {erro && <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</div>}
 
         {novo && (
-          <div className="rounded-xl border border-cyan-200 bg-cyan-50/40 p-4">
+          <div className="rounded-xl border border-cyan-200 dark:border-cyan-500/30 bg-cyan-50/40 p-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
               <div className="md:col-span-2">
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Produto *</label>
