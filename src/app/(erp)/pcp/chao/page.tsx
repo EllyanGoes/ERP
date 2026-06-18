@@ -8,7 +8,7 @@ import { RefreshCw } from "lucide-react";
 const ChaoView = dynamic(() => import("@/components/pcp/chao/ChaoView"), {
   ssr: false,
   loading: () => (
-    <div className="flex items-center justify-center h-full text-gray-400 gap-2 text-sm">
+    <div className="flex items-center justify-center h-full text-muted-foreground gap-2 text-sm">
       <RefreshCw className="w-4 h-4 animate-spin" /> Carregando chão de fábrica…
     </div>
   ),

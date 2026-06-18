@@ -21,14 +21,14 @@ function DialogShell({
 }) {
   return createPortal(
     <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full space-y-5">
+      <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-gray-900 text-base">{title}</h3>
+          <h3 className="font-semibold text-foreground text-base">{title}</h3>
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-muted-foreground hover:text-muted-foreground transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -86,7 +86,7 @@ export function LocalEstoqueQuickCreate({ initialValue, onCreated, onClose }: Cr
             placeholder="Descrição opcional"
           />
         </div>
-        {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+        {error && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{error}</p>}
       </div>
       <div className="flex gap-2 justify-end">
         <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancelar</Button>
@@ -136,7 +136,7 @@ export function TipoProdutoQuickCreate({ initialValue, onCreated, onClose }: Cre
             onKeyDown={(e) => e.key === "Enter" && handleSave()}
           />
         </div>
-        {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+        {error && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{error}</p>}
       </div>
       <div className="flex gap-2 justify-end">
         <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancelar</Button>
@@ -198,7 +198,7 @@ export function UnidadeQuickCreate({ initialValue, onCreated, onClose }: CreateM
             />
           </div>
         </div>
-        {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+        {error && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{error}</p>}
       </div>
       <div className="flex gap-2 justify-end">
         <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancelar</Button>

@@ -144,7 +144,7 @@ export default function EditarUsuarioPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -176,15 +176,15 @@ export default function EditarUsuarioPage() {
 
       <div className="px-8 pb-12 max-w-3xl space-y-8">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
+          <div className="bg-danger/10 border border-danger/30 text-danger text-sm px-4 py-3 rounded-xl">
             {error}
           </div>
         )}
 
         {/* ── Informações do Usuário ─────────────────────────────── */}
-        <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-            <h2 className="text-sm font-semibold text-gray-800">Informações do Usuário</h2>
+        <section className="bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-border bg-muted">
+            <h2 className="text-sm font-semibold text-foreground">Informações do Usuário</h2>
           </div>
           <div className="px-6 py-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
             {/* Nome */}
@@ -210,7 +210,7 @@ export default function EditarUsuarioPage() {
 
             {/* Senha */}
             <div className="space-y-1.5">
-              <Label>Nova Senha <span className="text-gray-400 font-normal text-xs">(deixe em branco para manter)</span></Label>
+              <Label>Nova Senha <span className="text-muted-foreground font-normal text-xs">(deixe em branco para manter)</span></Label>
               <div className="relative">
                 <Input
                   type={showPass ? "text" : "password"}
@@ -222,7 +222,7 @@ export default function EditarUsuarioPage() {
                 <button
                   type="button"
                   onClick={() => setShowPass((p) => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
                 >
                   {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -261,23 +261,23 @@ export default function EditarUsuarioPage() {
 
         {/* ── Permissões ─────────────────────────────────────────── */}
         {perfil === "ADMIN" ? (
-          <section className="bg-blue-50 border border-blue-100 rounded-2xl px-6 py-5 flex items-center gap-3">
+          <section className="bg-info/10 border border-info/20 rounded-2xl px-6 py-5 flex items-center gap-3">
             <ShieldCheck className="w-5 h-5 text-blue-500 shrink-0" />
             <div>
-              <p className="text-sm font-semibold text-blue-800">Acesso total</p>
-              <p className="text-xs text-blue-600 mt-0.5">Administradores têm acesso completo a todos os módulos e recursos do sistema.</p>
+              <p className="text-sm font-semibold text-info">Acesso total</p>
+              <p className="text-xs text-info mt-0.5">Administradores têm acesso completo a todos os módulos e recursos do sistema.</p>
             </div>
           </section>
         ) : (
-          <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-800">Permissões de Acesso</h2>
+          <section className="bg-card border border-border rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-border bg-muted flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-foreground">Permissões de Acesso</h2>
               <button
                 type="button"
                 onClick={() =>
                   setPermissoes(permissoes.length === allPerms.length ? [] : [...allPerms])
                 }
-                className="text-xs text-blue-600 hover:underline"
+                className="text-xs text-info hover:underline"
               >
                 {permissoes.length === allPerms.length ? "Desmarcar todos" : "Marcar todos"}
               </button>
@@ -285,14 +285,14 @@ export default function EditarUsuarioPage() {
 
             {/* Seletor de perfil de acesso */}
             {perfisList.length > 0 && (
-              <div className="px-6 py-4 border-b border-gray-100 bg-amber-50/60 flex items-center gap-3">
+              <div className="px-6 py-4 border-b border-border bg-warning/10 flex items-center gap-3">
                 <Zap className="w-4 h-4 text-amber-500 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-amber-800">Aplicar perfil de acesso</p>
-                  <p className="text-xs text-amber-600 mt-0.5">Carrega automaticamente as permissões do perfil selecionado</p>
+                  <p className="text-xs font-semibold text-warning">Aplicar perfil de acesso</p>
+                  <p className="text-xs text-warning mt-0.5">Carrega automaticamente as permissões do perfil selecionado</p>
                 </div>
                 <Select value={perfilAcessoId} onValueChange={applyPerfil}>
-                  <SelectTrigger className="w-44 h-8 text-xs bg-white">
+                  <SelectTrigger className="w-44 h-8 text-xs bg-card">
                     <SelectValue placeholder="Selecionar perfil..." />
                   </SelectTrigger>
                   <SelectContent position="popper" sideOffset={4}>
@@ -320,21 +320,21 @@ export default function EditarUsuarioPage() {
 
         {/* ── Empresas (multiempresa) ────────────────────────────── */}
         {perfil === "USUARIO" && empresasGrupo.length > 1 && (
-          <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-blue-600" />
-              <h2 className="text-sm font-semibold text-gray-800">Empresas</h2>
+          <section className="bg-card border border-border rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-border bg-muted flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-info" />
+              <h2 className="text-sm font-semibold text-foreground">Empresas</h2>
             </div>
             <div className="px-6 py-5 space-y-3">
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Empresas que este usuário pode acessar pelo seletor. Sem nenhuma marcada,
                 o acesso fica restrito à Tramontin.
               </p>
               {empresasGrupo.map((emp) => (
-                <label key={emp.id} className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
+                <label key={emp.id} className="flex items-center gap-2.5 text-sm text-foreground cursor-pointer">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="h-4 w-4 rounded border-border text-info focus:ring-blue-500"
                     checked={empresasVinculadas.includes(emp.id)}
                     onChange={(e) =>
                       setEmpresasVinculadas((atual) =>

@@ -42,10 +42,10 @@ type Ticket = {
 
 function StatusBadge({ status }: { status: StatusTicket }) {
   const map: Record<StatusTicket, { label: string; cls: string; icon: React.ReactNode }> = {
-    ABERTO:     { label: "Aberto",     cls: "bg-blue-100 text-blue-700 border-blue-200",     icon: <Clock className="w-3 h-3" /> },
-    EM_ANALISE: { label: "Em análise", cls: "bg-amber-100 text-amber-700 border-amber-200",  icon: <RefreshCw className="w-3 h-3" /> },
-    RESOLVIDO:  { label: "Resolvido",  cls: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: <CheckCircle2 className="w-3 h-3" /> },
-    FECHADO:    { label: "Fechado",    cls: "bg-gray-100 text-gray-500 border-gray-200",     icon: <X className="w-3 h-3" /> },
+    ABERTO:     { label: "Aberto",     cls: "bg-info/15 text-info border-info/30",     icon: <Clock className="w-3 h-3" /> },
+    EM_ANALISE: { label: "Em análise", cls: "bg-warning/15 text-warning border-warning/30",  icon: <RefreshCw className="w-3 h-3" /> },
+    RESOLVIDO:  { label: "Resolvido",  cls: "bg-success/15 text-success border-success/30", icon: <CheckCircle2 className="w-3 h-3" /> },
+    FECHADO:    { label: "Fechado",    cls: "bg-muted text-muted-foreground border-border",     icon: <X className="w-3 h-3" /> },
   };
   const { label, cls, icon } = map[status];
   return (
@@ -58,7 +58,7 @@ function StatusBadge({ status }: { status: StatusTicket }) {
 function TipoBadge({ tipo }: { tipo: TipoTicket }) {
   const map: Record<TipoTicket, { label: string; cls: string; icon: React.ReactNode }> = {
     MELHORIA: { label: "Melhoria", cls: "bg-purple-100 text-purple-700 border-purple-200", icon: <Lightbulb className="w-3 h-3" /> },
-    BUG:      { label: "Bug",      cls: "bg-red-100 text-red-700 border-red-200",          icon: <Bug className="w-3 h-3" /> },
+    BUG:      { label: "Bug",      cls: "bg-danger/15 text-danger border-danger/30",          icon: <Bug className="w-3 h-3" /> },
     DUVIDA:   { label: "Dúvida",   cls: "bg-sky-100 text-sky-700 border-sky-200",          icon: <HelpCircle className="w-3 h-3" /> },
   };
   const { label, cls, icon } = map[tipo];
@@ -71,10 +71,10 @@ function TipoBadge({ tipo }: { tipo: TipoTicket }) {
 
 function PrioridadeBadge({ prioridade }: { prioridade: PrioridadeTicket }) {
   const map: Record<PrioridadeTicket, { label: string; cls: string }> = {
-    BAIXA:   { label: "Baixa",    cls: "bg-gray-100 text-gray-500 border-gray-200" },
-    MEDIA:   { label: "Média",    cls: "bg-blue-100 text-blue-600 border-blue-200" },
-    ALTA:    { label: "Alta",     cls: "bg-orange-100 text-orange-600 border-orange-200" },
-    CRITICA: { label: "Crítica",  cls: "bg-red-100 text-red-700 border-red-200" },
+    BAIXA:   { label: "Baixa",    cls: "bg-muted text-muted-foreground border-border" },
+    MEDIA:   { label: "Média",    cls: "bg-info/15 text-info border-info/30" },
+    ALTA:    { label: "Alta",     cls: "bg-warning/15 text-orange-600 border-orange-200" },
+    CRITICA: { label: "Crítica",  cls: "bg-danger/15 text-danger border-danger/30" },
   };
   const { label, cls } = map[prioridade];
   return (
@@ -123,12 +123,12 @@ function ImageUploadZone({
 
   if (value) {
     return (
-      <div className="relative rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
+      <div className="relative rounded-xl overflow-hidden border border-border bg-muted">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={value} alt={nome ?? "imagem"} className="w-full max-h-64 object-contain bg-gray-100" />
-        <div className="flex items-center justify-between px-3 py-2 bg-white border-t border-gray-100">
-          <span className="text-xs text-gray-500 truncate max-w-[200px]">{nome}</span>
-          <button type="button" onClick={onClear} className="text-gray-400 hover:text-red-500 transition-colors ml-2">
+        <img src={value} alt={nome ?? "imagem"} className="w-full max-h-64 object-contain bg-muted" />
+        <div className="flex items-center justify-between px-3 py-2 bg-card border-t border-border">
+          <span className="text-xs text-muted-foreground truncate max-w-[200px]">{nome}</span>
+          <button type="button" onClick={onClear} className="text-muted-foreground hover:text-red-500 transition-colors ml-2">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -142,22 +142,22 @@ function ImageUploadZone({
         onDrop={onDrop}
         onDragOver={(e) => e.preventDefault()}
         onClick={() => inputRef.current?.click()}
-        className="border-2 border-dashed border-gray-200 hover:border-blue-300 rounded-xl p-6 text-center cursor-pointer transition-colors group"
+        className="border-2 border-dashed border-border hover:border-blue-300 rounded-xl p-6 text-center cursor-pointer transition-colors group"
       >
         <input ref={inputRef} type="file" accept="image/*" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
         {uploading ? (
           <div className="flex flex-col items-center gap-2">
             <Loader2 className="w-7 h-7 text-blue-400 animate-spin" />
-            <p className="text-sm text-gray-500">Enviando...</p>
+            <p className="text-sm text-muted-foreground">Enviando...</p>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
-            <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-blue-50 flex items-center justify-center transition-colors">
-              <ImageIcon className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
+            <div className="w-12 h-12 rounded-full bg-muted group-hover:bg-info/10 flex items-center justify-center transition-colors">
+              <ImageIcon className="w-5 h-5 text-muted-foreground group-hover:text-blue-500" />
             </div>
-            <p className="text-sm text-gray-500">Arraste ou <span className="text-blue-600 font-medium">clique para selecionar</span></p>
-            <p className="text-xs text-gray-400">PNG, JPG, GIF, WebP — máx. 10 MB</p>
+            <p className="text-sm text-muted-foreground">Arraste ou <span className="text-info font-medium">clique para selecionar</span></p>
+            <p className="text-xs text-muted-foreground">PNG, JPG, GIF, WebP — máx. 10 MB</p>
           </div>
         )}
       </div>
@@ -308,17 +308,17 @@ export default function SuportePage() {
 
         {/* Summary cards */}
         <div className="grid grid-cols-3 gap-3 max-w-sm">
-          <div className="rounded-xl p-3 bg-blue-50 text-blue-700 text-center cursor-pointer hover:bg-blue-100 transition-colors"
+          <div className="rounded-xl p-3 bg-info/10 text-info text-center cursor-pointer hover:bg-info/15 transition-colors"
             onClick={() => setFilterStatus(filterStatus === "ABERTO" ? "todos" : "ABERTO")}>
             <p className="text-xs font-medium opacity-75">Abertos</p>
             <p className="text-2xl font-bold mt-0.5">{countAberto}</p>
           </div>
-          <div className="rounded-xl p-3 bg-amber-50 text-amber-700 text-center cursor-pointer hover:bg-amber-100 transition-colors"
+          <div className="rounded-xl p-3 bg-warning/10 text-warning text-center cursor-pointer hover:bg-warning/15 transition-colors"
             onClick={() => setFilterStatus(filterStatus === "EM_ANALISE" ? "todos" : "EM_ANALISE")}>
             <p className="text-xs font-medium opacity-75">Em análise</p>
             <p className="text-2xl font-bold mt-0.5">{countAnalise}</p>
           </div>
-          <div className="rounded-xl p-3 bg-emerald-50 text-emerald-700 text-center cursor-pointer hover:bg-emerald-100 transition-colors"
+          <div className="rounded-xl p-3 bg-success/10 text-success text-center cursor-pointer hover:bg-success/15 transition-colors"
             onClick={() => setFilterStatus(filterStatus === "RESOLVIDO" ? "todos" : "RESOLVIDO")}>
             <p className="text-xs font-medium opacity-75">Resolvidos</p>
             <p className="text-2xl font-bold mt-0.5">{countResolvido}</p>
@@ -328,15 +328,15 @@ export default function SuportePage() {
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
               type="text" value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar por número ou título..."
-              className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
@@ -350,7 +350,7 @@ export default function SuportePage() {
                   "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
                   filterStatus === opt.key
                     ? "bg-gray-900 text-white border-gray-900"
-                    : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                    : "bg-card text-muted-foreground border-border hover:border-border"
                 )}>
                 {opt.label}
               </button>
@@ -365,7 +365,7 @@ export default function SuportePage() {
                   "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
                   filterTipo === opt.key
                     ? "bg-gray-900 text-white border-gray-900"
-                    : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                    : "bg-card text-muted-foreground border-border hover:border-border"
                 )}>
                 {opt.label}
               </button>
@@ -374,7 +374,7 @@ export default function SuportePage() {
 
           {(search || filterStatus !== "todos" || filterTipo !== "todos") && (
             <button onClick={() => { setSearch(""); setFilterStatus("todos"); setFilterTipo("todos"); }}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600">
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-muted-foreground">
               <X className="w-3 h-3" /> Limpar
             </button>
           )}
@@ -382,9 +382,9 @@ export default function SuportePage() {
 
         {/* Ticket list */}
         {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
             <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="font-medium">{tickets.length === 0 ? "Nenhum ticket aberto ainda" : "Nenhum ticket encontrado"}</p>
             {tickets.length === 0 && (
@@ -392,10 +392,10 @@ export default function SuportePage() {
             )}
           </div>
         ) : (
-          <div className="rounded-xl border border-gray-200 overflow-hidden">
+          <div className="rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-100 border-b border-gray-300">
-                <tr className="text-xs text-gray-600 uppercase tracking-wide font-semibold">
+              <thead className="bg-muted border-b border-border">
+                <tr className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">
                   <th className="text-left px-4 py-3">Nº</th>
                   <th className="text-left px-4 py-3">Tipo</th>
                   <th className="text-left px-4 py-3">Título</th>
@@ -406,19 +406,19 @@ export default function SuportePage() {
                   <th className="w-8" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-border">
                 {filtered.map((t) => (
                   <tr key={t.id}
                     onClick={() => openDetail(t)}
-                    className="hover:bg-blue-50/40 cursor-pointer transition-colors group">
+                    className="hover:bg-info/10 cursor-pointer transition-colors group">
                     <td className="px-4 py-3.5">
-                      <span className="font-mono text-xs font-semibold text-blue-600">{t.numero}</span>
+                      <span className="font-mono text-xs font-semibold text-info">{t.numero}</span>
                     </td>
                     <td className="px-4 py-3.5"><TipoBadge tipo={t.tipo} /></td>
                     <td className="px-4 py-3.5">
-                      <p className="font-medium text-gray-900 truncate max-w-[260px]">{t.titulo}</p>
+                      <p className="font-medium text-foreground truncate max-w-[260px]">{t.titulo}</p>
                       {t.resposta && (
-                        <p className="text-xs text-emerald-600 mt-0.5 flex items-center gap-1">
+                        <p className="text-xs text-success mt-0.5 flex items-center gap-1">
                           <MessageSquare className="w-3 h-3" /> Respondido
                         </p>
                       )}
@@ -428,24 +428,24 @@ export default function SuportePage() {
                     {isAdmin && (
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-1.5">
-                          <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
-                            <User className="w-3 h-3 text-gray-500" />
+                          <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center shrink-0">
+                            <User className="w-3 h-3 text-muted-foreground" />
                           </div>
-                          <span className="text-xs text-gray-600 truncate max-w-[120px]">{t.usuario.nome}</span>
+                          <span className="text-xs text-muted-foreground truncate max-w-[120px]">{t.usuario.nome}</span>
                         </div>
                       </td>
                     )}
-                    <td className="px-4 py-3.5 text-xs text-gray-400 whitespace-nowrap">
+                    <td className="px-4 py-3.5 text-xs text-muted-foreground whitespace-nowrap">
                       {formatDate(t.createdAt)}
                     </td>
                     <td className="px-3 py-3.5">
-                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-muted-foreground transition-colors" />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 font-medium">
+            <div className="px-4 py-3 bg-muted border-t border-border text-xs text-muted-foreground font-medium">
               {filtered.length} ticket{filtered.length !== 1 ? "s" : ""}
             </div>
           </div>
@@ -455,14 +455,14 @@ export default function SuportePage() {
       {/* ── CREATE MODAL ──────────────────────────────────────────────────────── */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
               <div>
-                <h2 className="font-semibold text-gray-900">Novo Ticket</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Descreva sua solicitação de melhoria ou reporte um bug</p>
+                <h2 className="font-semibold text-foreground">Novo Ticket</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Descreva sua solicitação de melhoria ou reporte um bug</p>
               </div>
-              <button onClick={() => { setShowCreate(false); resetCreate(); }} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => { setShowCreate(false); resetCreate(); }} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -470,15 +470,15 @@ export default function SuportePage() {
             {/* Success state */}
             {created ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+                <div className="w-16 h-16 rounded-full bg-success/15 flex items-center justify-center">
+                  <CheckCircle2 className="w-8 h-8 text-success" />
                 </div>
                 <div>
-                  <p className="text-lg font-semibold text-gray-900">Ticket criado!</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Seu ticket <strong className="text-gray-700 font-mono">{created}</strong> foi registrado com sucesso.
+                  <p className="text-lg font-semibold text-foreground">Ticket criado!</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Seu ticket <strong className="text-foreground font-mono">{created}</strong> foi registrado com sucesso.
                   </p>
-                  <p className="text-sm text-gray-400 mt-1">Nossa equipe irá analisá-lo em breve.</p>
+                  <p className="text-sm text-muted-foreground mt-1">Nossa equipe irá analisá-lo em breve.</p>
                 </div>
                 <div className="flex gap-2 mt-2">
                   <Button onClick={() => { resetCreate(); }}>
@@ -500,13 +500,13 @@ export default function SuportePage() {
                     <div className="grid grid-cols-3 gap-2">
                       {([
                         { key: "MELHORIA", label: "Melhoria", icon: <Lightbulb className="w-4 h-4" />, cls: "text-purple-600 bg-purple-50 border-purple-200" },
-                        { key: "BUG",      label: "Bug",      icon: <Bug className="w-4 h-4" />,       cls: "text-red-600 bg-red-50 border-red-200" },
+                        { key: "BUG",      label: "Bug",      icon: <Bug className="w-4 h-4" />,       cls: "text-danger bg-danger/10 border-danger/30" },
                         { key: "DUVIDA",   label: "Dúvida",   icon: <HelpCircle className="w-4 h-4" />,cls: "text-sky-600 bg-sky-50 border-sky-200" },
                       ] as const).map((opt) => (
                         <button key={opt.key} type="button" onClick={() => setFTipo(opt.key)}
                           className={cn(
                             "flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 text-sm font-medium transition-all",
-                            fTipo === opt.key ? opt.cls + " border-current" : "border-gray-200 text-gray-500 hover:border-gray-300"
+                            fTipo === opt.key ? opt.cls + " border-current" : "border-border text-muted-foreground hover:border-border"
                           )}>
                           {opt.icon}{opt.label}
                         </button>
@@ -519,15 +519,15 @@ export default function SuportePage() {
                     <Label className="text-sm font-medium">Prioridade</Label>
                     <div className="flex gap-2 flex-wrap">
                       {([
-                        { key: "BAIXA",   label: "Baixa",   cls: "text-gray-600 bg-gray-50 border-gray-300" },
-                        { key: "MEDIA",   label: "Média",   cls: "text-blue-600 bg-blue-50 border-blue-300" },
-                        { key: "ALTA",    label: "Alta",    cls: "text-orange-600 bg-orange-50 border-orange-300" },
-                        { key: "CRITICA", label: "Crítica", cls: "text-red-600 bg-red-50 border-red-300" },
+                        { key: "BAIXA",   label: "Baixa",   cls: "text-muted-foreground bg-muted border-border" },
+                        { key: "MEDIA",   label: "Média",   cls: "text-info bg-info/10 border-blue-300" },
+                        { key: "ALTA",    label: "Alta",    cls: "text-orange-600 bg-warning/10 border-orange-300" },
+                        { key: "CRITICA", label: "Crítica", cls: "text-danger bg-danger/10 border-red-300" },
                       ] as const).map((opt) => (
                         <button key={opt.key} type="button" onClick={() => setFPrior(opt.key)}
                           className={cn(
                             "px-3 py-1.5 rounded-lg text-xs font-semibold border-2 transition-all",
-                            fPrior === opt.key ? opt.cls + " border-current" : "border-gray-200 text-gray-500 hover:border-gray-300"
+                            fPrior === opt.key ? opt.cls + " border-current" : "border-border text-muted-foreground hover:border-border"
                           )}>
                           {opt.label}
                         </button>
@@ -560,13 +560,13 @@ export default function SuportePage() {
                           ? "Descreva a melhoria: qual funcionalidade, como funcionaria, qual o benefício..."
                           : "Descreva sua dúvida com o máximo de detalhes..."
                       }
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder:text-gray-400"
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder:text-muted-foreground"
                     />
                   </div>
 
                   {/* Imagem */}
                   <div className="space-y-1.5">
-                    <Label>Imagem <span className="text-xs text-gray-400 font-normal">(opcional — screenshot, foto)</span></Label>
+                    <Label>Imagem <span className="text-xs text-muted-foreground font-normal">(opcional — screenshot, foto)</span></Label>
                     <ImageUploadZone
                       value={fImgUrl}
                       nome={fImgNome}
@@ -576,12 +576,12 @@ export default function SuportePage() {
                   </div>
 
                   {fError && (
-                    <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{fError}</p>
+                    <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{fError}</p>
                   )}
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-4 border-t border-gray-100 flex gap-2 justify-end shrink-0">
+                <div className="px-6 py-4 border-t border-border flex gap-2 justify-end shrink-0">
                   <Button type="button" variant="outline" onClick={() => { setShowCreate(false); resetCreate(); }}>
                     Cancelar
                   </Button>
@@ -600,26 +600,26 @@ export default function SuportePage() {
       {selected && (
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setSelected(null)} />
-          <div className="w-full max-w-lg bg-white shadow-2xl flex flex-col overflow-hidden">
+          <div className="w-full max-w-lg bg-card shadow-2xl flex flex-col overflow-hidden">
             {/* Panel header */}
-            <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-gray-100 shrink-0">
+            <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-border shrink-0">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm font-bold text-blue-600">{selected.numero}</span>
+                  <span className="font-mono text-sm font-bold text-info">{selected.numero}</span>
                   <TipoBadge tipo={selected.tipo} />
                   <PrioridadeBadge prioridade={selected.prioridade} />
                 </div>
-                <h2 className="font-semibold text-gray-900 text-base leading-snug">{selected.titulo}</h2>
+                <h2 className="font-semibold text-foreground text-base leading-snug">{selected.titulo}</h2>
               </div>
-              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 ml-4 shrink-0">
+              <button onClick={() => setSelected(null)} className="text-muted-foreground hover:text-muted-foreground ml-4 shrink-0">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto">
               {/* Meta info */}
-              <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 space-y-2">
-                <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
+              <div className="px-6 py-4 bg-muted border-b border-border space-y-2">
+                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                   <span className="flex items-center gap-1.5">
                     <User className="w-3.5 h-3.5" />
                     {selected.usuario.nome}
@@ -633,37 +633,37 @@ export default function SuportePage() {
               </div>
 
               {/* Description */}
-              <div className="px-6 py-4 border-b border-gray-100">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Descrição</p>
-                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{selected.descricao}</p>
+              <div className="px-6 py-4 border-b border-border">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Descrição</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{selected.descricao}</p>
               </div>
 
               {/* Image */}
               {selected.imagemUrl && (
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Imagem Anexada</p>
+                <div className="px-6 py-4 border-b border-border">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Imagem Anexada</p>
                   <a href={selected.imagemUrl} target="_blank" rel="noopener noreferrer">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={selected.imagemUrl}
                       alt={selected.imagemNome ?? "imagem"}
-                      className="rounded-xl border border-gray-200 max-h-72 w-full object-contain bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
+                      className="rounded-xl border border-border max-h-72 w-full object-contain bg-muted hover:opacity-90 transition-opacity cursor-zoom-in"
                     />
                   </a>
-                  <p className="text-xs text-gray-400 mt-1">{selected.imagemNome}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{selected.imagemNome}</p>
                 </div>
               )}
 
               {/* Existing response (non-admin view) */}
               {!isAdmin && selected.resposta && (
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <div className="px-6 py-4 border-b border-border">
+                  <p className="text-xs font-semibold text-success uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <MessageSquare className="w-3.5 h-3.5" /> Resposta da Equipe
                   </p>
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{selected.resposta}</p>
+                  <div className="bg-success/10 border border-success/30 rounded-xl px-4 py-3">
+                    <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{selected.resposta}</p>
                     {selected.respondidoPor && (
-                      <p className="text-xs text-gray-400 mt-2">— {selected.respondidoPor.nome}</p>
+                      <p className="text-xs text-muted-foreground mt-2">— {selected.respondidoPor.nome}</p>
                     )}
                   </div>
                 </div>
@@ -672,7 +672,7 @@ export default function SuportePage() {
               {/* Admin panel */}
               {isAdmin && (
                 <div className="px-6 py-4 space-y-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5" /> Gerenciar Ticket
                   </p>
 
@@ -681,15 +681,15 @@ export default function SuportePage() {
                     <Label className="text-xs">Status</Label>
                     <div className="grid grid-cols-2 gap-2">
                       {([
-                        { key: "ABERTO",     label: "Aberto",     cls: "text-blue-700 bg-blue-50 border-blue-300" },
-                        { key: "EM_ANALISE", label: "Em análise", cls: "text-amber-700 bg-amber-50 border-amber-300" },
-                        { key: "RESOLVIDO",  label: "Resolvido",  cls: "text-emerald-700 bg-emerald-50 border-emerald-300" },
-                        { key: "FECHADO",    label: "Fechado",    cls: "text-gray-600 bg-gray-50 border-gray-300" },
+                        { key: "ABERTO",     label: "Aberto",     cls: "text-info bg-info/10 border-blue-300" },
+                        { key: "EM_ANALISE", label: "Em análise", cls: "text-warning bg-warning/10 border-amber-300" },
+                        { key: "RESOLVIDO",  label: "Resolvido",  cls: "text-success bg-success/10 border-emerald-300" },
+                        { key: "FECHADO",    label: "Fechado",    cls: "text-muted-foreground bg-muted border-border" },
                       ] as const).map((opt) => (
                         <button key={opt.key} type="button" onClick={() => setAdminStatus(opt.key)}
                           className={cn(
                             "py-2 rounded-lg text-xs font-semibold border-2 transition-all",
-                            adminStatus === opt.key ? opt.cls + " border-current" : "border-gray-200 text-gray-500 hover:border-gray-300"
+                            adminStatus === opt.key ? opt.cls + " border-current" : "border-border text-muted-foreground hover:border-border"
                           )}>
                           {opt.label}
                         </button>
@@ -699,18 +699,18 @@ export default function SuportePage() {
 
                   {/* Response */}
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Resposta ao usuário <span className="text-gray-400 font-normal">(opcional)</span></Label>
+                    <Label className="text-xs">Resposta ao usuário <span className="text-muted-foreground font-normal">(opcional)</span></Label>
                     <textarea
                       value={adminResposta}
                       onChange={(e) => setAdminResposta(e.target.value)}
                       rows={4}
                       placeholder="Digite sua resposta para o solicitante..."
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder:text-gray-400"
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder:text-muted-foreground"
                     />
                   </div>
 
                   {adminError && (
-                    <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{adminError}</p>
+                    <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{adminError}</p>
                   )}
 
                   <Button onClick={handleAdminSave} disabled={adminSaving} className="w-full">

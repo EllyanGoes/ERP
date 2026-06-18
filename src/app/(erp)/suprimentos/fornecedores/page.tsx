@@ -36,15 +36,15 @@ const COLS: ColDef<Fornecedor>[] = [
   {
     id: "razaoSocial",
     label: "Razão Social",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 font-medium text-gray-900",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 font-medium text-foreground",
     render: (f) => _search ? <Highlight text={f.razaoSocial} query={_search} /> : f.razaoSocial,
   },
   {
     id: "nomeFantasia",
     label: "Nome Fantasia",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-gray-500",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-muted-foreground",
     render: (f) =>
       f.nomeFantasia
         ? _search ? <Highlight text={f.nomeFantasia} query={_search} /> : f.nomeFantasia
@@ -53,8 +53,8 @@ const COLS: ColDef<Fornecedor>[] = [
   {
     id: "cpfCnpj",
     label: "CPF/CNPJ",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-gray-600 font-mono text-xs",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-muted-foreground font-mono text-xs",
     render: (f) =>
       f.cpfCnpj
         ? _search ? <Highlight text={f.cpfCnpj} query={_search} /> : f.cpfCnpj
@@ -63,8 +63,8 @@ const COLS: ColDef<Fornecedor>[] = [
   {
     id: "cidadeUf",
     label: "Cidade/UF",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-gray-600",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-muted-foreground",
     render: (f) =>
       f.cidade && f.estado
         ? `${f.cidade}/${f.estado}`
@@ -73,19 +73,19 @@ const COLS: ColDef<Fornecedor>[] = [
   {
     id: "produtos",
     label: "Produtos",
-    thClass: "text-center px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-center text-gray-600 text-sm",
+    thClass: "text-center px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-center text-muted-foreground text-sm",
     render: (f) => f._count.produtos,
   },
   {
     id: "status",
     label: "Status",
-    thClass: "text-center px-4 py-3 font-medium text-gray-600",
+    thClass: "text-center px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3 text-center",
     render: (f) => (
       <span className={cn(
         "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-        f.ativo ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+        f.ativo ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
       )}>
         {f.ativo ? "Ativo" : "Inativo"}
       </span>
@@ -94,9 +94,9 @@ const COLS: ColDef<Fornecedor>[] = [
 ];
 
 const ATIVO_OPTIONS: FilterOption[] = [
-  { key: "todos",    label: "Todos",    color: "bg-gray-100 text-gray-600" },
-  { key: "ativos",   label: "Ativos",   color: "bg-green-100 text-green-700" },
-  { key: "inativos", label: "Inativos", color: "bg-red-100 text-red-700" },
+  { key: "todos",    label: "Todos",    color: "bg-muted text-muted-foreground" },
+  { key: "ativos",   label: "Ativos",   color: "bg-success/15 text-success" },
+  { key: "inativos", label: "Inativos", color: "bg-danger/15 text-danger" },
 ];
 
 export default function FornecedoresPage() {
@@ -170,11 +170,11 @@ export default function FornecedoresPage() {
       <div className="px-8 pb-8 space-y-5">
         {/* Summary */}
         <div className="grid grid-cols-2 gap-4 max-w-xs">
-          <div className="rounded-xl p-4 bg-blue-50 text-blue-700">
+          <div className="rounded-xl p-4 bg-info/10 text-info">
             <p className="text-sm font-medium opacity-75">Total</p>
             <p className="text-3xl font-bold mt-1">{items.length}</p>
           </div>
-          <div className="rounded-xl p-4 bg-green-50 text-green-700">
+          <div className="rounded-xl p-4 bg-success/10 text-success">
             <p className="text-sm font-medium opacity-75">Ativos</p>
             <p className="text-3xl font-bold mt-1">{totalAtivos}</p>
           </div>
@@ -184,18 +184,18 @@ export default function FornecedoresPage() {
         <div className="flex flex-wrap items-center gap-2">
           {/* Search */}
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
               type="text"
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
               placeholder="Buscar por nome, fantasia ou CNPJ..."
-              className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {search && (
               <button
                 onClick={() => handleSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -216,7 +216,7 @@ export default function FornecedoresPage() {
           {hasFilters && (
             <button
               onClick={() => { handleSearch(""); handleAtivo("todos"); }}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-muted-foreground transition-colors"
             >
               <X className="w-3 h-3" />
               Limpar filtros
@@ -229,10 +229,10 @@ export default function FornecedoresPage() {
         {/* Table */}
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : items.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
             <p className="font-medium">
               {hasFilters
                 ? "Nenhum fornecedor encontrado com esses filtros"
@@ -248,20 +248,20 @@ export default function FornecedoresPage() {
             )}
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {items.map((f) => (
                   <tr
                     key={f.id}
-                    className="hover:bg-blue-50/40 transition-colors cursor-pointer"
+                    className="hover:bg-info/10 transition-colors cursor-pointer"
                     onClick={() => router.push(`/suprimentos/fornecedores/${f.id}`)}
                   >
                     {orderedCols.map((col) => (
@@ -273,7 +273,7 @@ export default function FornecedoresPage() {
             </table>
 
             {/* Result count */}
-            <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50 text-xs text-gray-400">
+            <div className="px-4 py-2.5 border-t border-border bg-muted text-xs text-muted-foreground">
               {items.length} {items.length === 1 ? "fornecedor" : "fornecedores"} encontrado{items.length === 1 ? "" : "s"}
             </div>
           </div>
@@ -291,7 +291,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
   return (
     <>
       {text.slice(0, idx)}
-      <mark className="bg-yellow-100 text-yellow-900 rounded-sm px-0.5">
+      <mark className="bg-warning/15 text-yellow-900 rounded-sm px-0.5">
         {text.slice(idx, idx + query.length)}
       </mark>
       {text.slice(idx + query.length)}

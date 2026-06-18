@@ -26,8 +26,8 @@ const WIP_OPCOES = [
   { v: "ACABADO", l: "Acabado" },
 ];
 
-const inputCls = "w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500";
-const labelCls = "block text-[11px] font-medium text-gray-500 mb-1";
+const inputCls = "w-full rounded-lg border border-border px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500";
+const labelCls = "block text-[11px] font-medium text-muted-foreground mb-1";
 
 function num(v: string): number | null {
   if (v.trim() === "") return null;
@@ -55,15 +55,15 @@ export default function NodeConfigSheet({ kind, data, centros, locais, onChange,
   function rmInsumo(i: number) { onChange({ insumos: insumos.filter((_, idx) => idx !== i) }); }
 
   return (
-    <div className="absolute top-0 right-0 h-full w-80 bg-white border-l border-gray-200 shadow-xl z-20 flex flex-col">
-      <div className="flex items-center justify-between px-4 h-14 border-b border-gray-100 shrink-0">
+    <div className="absolute top-0 right-0 h-full w-80 bg-card border-l border-border shadow-xl z-20 flex flex-col">
+      <div className="flex items-center justify-between px-4 h-14 border-b border-border shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <span className={cn("flex w-6 h-6 items-center justify-center rounded-md", s.chipBg, s.chipText)}>
             <s.icon className="w-3.5 h-3.5" />
           </span>
-          <span className="text-sm font-semibold text-gray-800 truncate">{s.label}</span>
+          <span className="text-sm font-semibold text-foreground truncate">{s.label}</span>
         </div>
-        <button onClick={onClose} className="p-1 rounded-lg text-gray-400 hover:bg-gray-100" title="Fechar">
+        <button onClick={onClose} className="p-1 rounded-lg text-muted-foreground hover:bg-muted" title="Fechar">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -79,10 +79,10 @@ export default function NodeConfigSheet({ kind, data, centros, locais, onChange,
             <div>
               <label className={labelCls}>Item / material (real)</label>
               {data.itemId ? (
-                <div className="flex items-center justify-between rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm bg-white">
-                  <span className="truncate text-gray-700">{data.itemDescricao ?? "item"}</span>
+                <div className="flex items-center justify-between rounded-lg border border-border px-2.5 py-1.5 text-sm bg-card">
+                  <span className="truncate text-foreground">{data.itemDescricao ?? "item"}</span>
                   <button type="button" onClick={() => onChange({ itemId: null, itemDescricao: null })} title="Trocar">
-                    <X className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 shrink-0" />
+                    <X className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-muted-foreground shrink-0" />
                   </button>
                 </div>
               ) : (
@@ -202,13 +202,13 @@ export default function NodeConfigSheet({ kind, data, centros, locais, onChange,
                   <Plus className="w-3 h-3" /> add
                 </button>
               </div>
-              {insumos.length === 0 && <p className="text-[11px] text-gray-400">Vincule água, caco, biomassa…</p>}
+              {insumos.length === 0 && <p className="text-[11px] text-muted-foreground">Vincule água, caco, biomassa…</p>}
               <div className="space-y-1.5">
                 {insumos.map((ins, i) => (
                   <div key={i} className="flex items-center gap-1.5">
                     <input className={inputCls + " flex-1"} value={ins.descricao ?? ""} onChange={(e) => setInsumo(i, { descricao: e.target.value })} placeholder="insumo" />
                     <input className={inputCls + " w-20"} inputMode="decimal" value={ins.consumoPorMilheiro == null ? "" : String(ins.consumoPorMilheiro)} onChange={(e) => setInsumo(i, { consumoPorMilheiro: num(e.target.value) })} placeholder="qtd" />
-                    <button onClick={() => rmInsumo(i)} className="p-1 text-gray-300 hover:text-red-500" title="Remover"><X className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => rmInsumo(i)} className="p-1 text-muted-foreground/60 hover:text-red-500" title="Remover"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ))}
               </div>
@@ -218,10 +218,10 @@ export default function NodeConfigSheet({ kind, data, centros, locais, onChange,
             <div className="pt-1">
               <label className={labelCls}>Subproduto / resíduo gerado</label>
               {data.subprodutoItemId ? (
-                <div className="flex items-center justify-between rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm bg-white">
-                  <span className="truncate text-gray-700">{data.subprodutoDescricao ?? "item"}</span>
+                <div className="flex items-center justify-between rounded-lg border border-border px-2.5 py-1.5 text-sm bg-card">
+                  <span className="truncate text-foreground">{data.subprodutoDescricao ?? "item"}</span>
                   <button type="button" onClick={() => onChange({ subprodutoItemId: null, subprodutoDescricao: null })}>
-                    <X className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 shrink-0" />
+                    <X className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-muted-foreground shrink-0" />
                   </button>
                 </div>
               ) : (
@@ -252,8 +252,8 @@ export default function NodeConfigSheet({ kind, data, centros, locais, onChange,
         )}
       </div>
 
-      <div className="p-3 border-t border-gray-100 shrink-0">
-        <button onClick={onDelete} className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 text-red-600 px-3 py-2 text-sm hover:bg-red-50">
+      <div className="p-3 border-t border-border shrink-0">
+        <button onClick={onDelete} className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-danger/30 text-danger px-3 py-2 text-sm hover:bg-danger/10">
           <Trash2 className="w-4 h-4" /> Remover etapa
         </button>
       </div>

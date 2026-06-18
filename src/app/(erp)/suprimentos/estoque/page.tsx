@@ -56,7 +56,7 @@ const COLS: ColDef<ProdutoRow>[] = [
     thClass: "text-left px-4 py-3 font-semibold",
     tdClass: "px-4 py-3.5",
     render: (p) => (
-      <Link href={`/suprimentos/produtos/${p.itemId}`} className="font-mono text-xs font-semibold text-blue-600 hover:underline">
+      <Link href={`/suprimentos/produtos/${p.itemId}`} className="font-mono text-xs font-semibold text-info hover:underline">
         {p.codigo}
       </Link>
     ),
@@ -65,7 +65,7 @@ const COLS: ColDef<ProdutoRow>[] = [
     id: "descricao",
     label: "Descrição",
     thClass: "text-left px-4 py-3 font-semibold",
-    tdClass: "px-4 py-3.5 font-semibold text-gray-900",
+    tdClass: "px-4 py-3.5 font-semibold text-foreground",
     render: (p) => p.descricao,
   },
   {
@@ -78,12 +78,12 @@ const COLS: ColDef<ProdutoRow>[] = [
       const abaixo = p.minTotal > 0 && propria < p.minTotal;
       return (
         <>
-          <span className={cn("font-bold text-base", abaixo ? "text-red-600" : "text-gray-900")}>
+          <span className={cn("font-bold text-base", abaixo ? "text-danger" : "text-foreground")}>
             {p.qtdTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
           </span>
-          <span className="text-xs text-gray-600 ml-1 font-semibold">{p.unidade}</span>
+          <span className="text-xs text-muted-foreground ml-1 font-semibold">{p.unidade}</span>
           {p.qtdTerceiros > 0 && (
-            <div className="text-[11px] text-amber-700 font-medium">
+            <div className="text-[11px] text-warning font-medium">
               dos quais {p.qtdTerceiros.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} de terceiros
             </div>
           )}
@@ -95,15 +95,15 @@ const COLS: ColDef<ProdutoRow>[] = [
     id: "minimo",
     label: "Mínimo",
     thClass: "text-right px-4 py-3 font-semibold",
-    tdClass: "px-4 py-3.5 text-right text-gray-700 text-sm font-semibold",
-    render: (p) => p.minTotal > 0 ? p.minTotal.toLocaleString("pt-BR") : <span className="text-gray-400">—</span>,
+    tdClass: "px-4 py-3.5 text-right text-foreground text-sm font-semibold",
+    render: (p) => p.minTotal > 0 ? p.minTotal.toLocaleString("pt-BR") : <span className="text-muted-foreground">—</span>,
   },
   {
     id: "maximo",
     label: "Máximo",
     thClass: "text-right px-4 py-3 font-semibold",
-    tdClass: "px-4 py-3.5 text-right text-gray-700 text-sm font-semibold",
-    render: (p) => p.maxTotal !== null ? p.maxTotal.toLocaleString("pt-BR") : <span className="text-gray-400">—</span>,
+    tdClass: "px-4 py-3.5 text-right text-foreground text-sm font-semibold",
+    render: (p) => p.maxTotal !== null ? p.maxTotal.toLocaleString("pt-BR") : <span className="text-muted-foreground">—</span>,
   },
   {
     id: "situacao",
@@ -115,25 +115,25 @@ const COLS: ColDef<ProdutoRow>[] = [
       const abaixo = p.minTotal > 0 && propria < p.minTotal;
       const acima  = p.maxTotal !== null && propria > p.maxTotal;
       if (abaixo) return (
-        <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 border border-red-200 px-2.5 py-1 rounded-full">
+        <span className="inline-flex items-center gap-1 text-xs font-semibold text-danger bg-danger/15 border border-danger/30 px-2.5 py-1 rounded-full">
           <AlertTriangle className="w-3 h-3" /> Baixo
         </span>
       );
       if (acima) return (
-        <span className="text-xs font-semibold text-amber-700 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full">Acima máx.</span>
+        <span className="text-xs font-semibold text-warning bg-warning/15 border border-warning/30 px-2.5 py-1 rounded-full">Acima máx.</span>
       );
       return (
-        <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full">Normal</span>
+        <span className="text-xs font-semibold text-success bg-success/15 border border-success/30 px-2.5 py-1 rounded-full">Normal</span>
       );
     },
   },
 ];
 
 const SITUACAO_OPTIONS: FilterOption[] = [
-  { key: "todos",  label: "Todas",      color: "bg-gray-100 text-gray-600" },
-  { key: "baixo",  label: "Abaixo min", color: "bg-red-100 text-red-700" },
-  { key: "normal", label: "Normal",     color: "bg-emerald-100 text-emerald-700" },
-  { key: "acima",  label: "Acima máx",  color: "bg-amber-100 text-amber-700" },
+  { key: "todos",  label: "Todas",      color: "bg-muted text-muted-foreground" },
+  { key: "baixo",  label: "Abaixo min", color: "bg-danger/15 text-danger" },
+  { key: "normal", label: "Normal",     color: "bg-success/15 text-success" },
+  { key: "acima",  label: "Acima máx",  color: "bg-warning/15 text-warning" },
 ];
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -240,8 +240,8 @@ export default function EstoquePage() {
   const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<ProdutoRow> => c !== undefined && colVis[c.id] !== false);
 
   const localOptions: FilterOption[] = [
-    { key: "todos", label: "Todos os locais", color: "bg-gray-100 text-gray-600" },
-    ...locais.map((l) => ({ key: l.id, label: l.nome, color: "bg-emerald-100 text-emerald-700" })),
+    { key: "todos", label: "Todos os locais", color: "bg-muted text-muted-foreground" },
+    ...locais.map((l) => ({ key: l.id, label: l.nome, color: "bg-success/15 text-success" })),
   ];
 
   function clearFilters() { setSearch(""); setLocalId("todos"); setSituacao("todos"); }
@@ -256,11 +256,11 @@ export default function EstoquePage() {
         {/* Summary */}
         {abaixoMinimo > 0 && (
           <div className="flex gap-4">
-            <div className="rounded-xl bg-red-50 px-4 py-3 flex items-center gap-2">
+            <div className="rounded-xl bg-danger/10 px-4 py-3 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
               <div>
-                <p className="text-xs text-red-600 font-medium">Abaixo min.</p>
-                <p className="text-2xl font-bold text-red-700 mt-0.5">{abaixoMinimo}</p>
+                <p className="text-xs text-danger font-medium">Abaixo min.</p>
+                <p className="text-2xl font-bold text-danger mt-0.5">{abaixoMinimo}</p>
               </div>
             </div>
           </div>
@@ -269,15 +269,15 @@ export default function EstoquePage() {
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
               type="text" value={search}
               onChange={(e) => handleSearch(e.target.value)}
               placeholder="Buscar por código ou descrição..."
-              className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {search && (
-              <button onClick={() => handleSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button onClick={() => handleSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
@@ -302,7 +302,7 @@ export default function EstoquePage() {
           />
 
           {hasFilters && (
-            <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600">
+            <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-muted-foreground">
               <X className="w-3 h-3" /> Limpar filtros
             </button>
           )}
@@ -313,34 +313,34 @@ export default function EstoquePage() {
         {/* Table */}
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
             <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="font-medium">{hasFilters ? "Nenhum produto encontrado com esses filtros" : "Nenhum produto em estoque"}</p>
             {!hasFilters && <p className="text-sm mt-1">O estoque é alimentado ao registrar movimentações de entrada.</p>}
             {hasFilters && <button onClick={clearFilters} className="mt-2 text-sm text-blue-500 hover:underline">Limpar filtros</button>}
           </div>
         ) : (
-          <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm bg-white">
+          <div className="rounded-xl border border-border overflow-hidden shadow-sm bg-card">
             <table className="w-full text-sm">
-              <thead className="bg-gray-100 border-b border-gray-200">
-                <tr className="text-xs text-gray-600 uppercase tracking-wide font-semibold">
+              <thead className="bg-muted border-b border-border">
+                <tr className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-border">
                 {filtered.map((p) => {
                   const abaixo = p.minTotal > 0 && p.qtdTotal < p.minTotal;
                   return (
                     <tr
                       key={p.itemId}
                       className={cn(
-                        "hover:bg-blue-50/40 transition-colors",
-                        abaixo && "bg-red-50/40 hover:bg-red-50/60",
+                        "hover:bg-info/10 transition-colors",
+                        abaixo && "bg-danger/10 hover:bg-danger/10",
                         !p.ativo && "opacity-50"
                       )}
                     >
@@ -352,7 +352,7 @@ export default function EstoquePage() {
                 })}
               </tbody>
             </table>
-            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-600 font-medium">
+            <div className="px-4 py-3 bg-muted border-t border-border text-xs text-muted-foreground font-medium">
               {filtered.length} produto{filtered.length !== 1 ? "s" : ""}
               {localId !== "todos" && ` · filtrado por local`}
               {hasFilters && totalUnique !== filtered.length && ` (${totalUnique} no total)`}

@@ -95,9 +95,9 @@ function filterTree(
 
 // ── Seletor de criticidade (inline por linha) ────────────────────────────────
 const OPCOES: { v: Crit; on: string; off: string }[] = [
-  { v: "A", on: "bg-red-600 text-white border-red-600", off: "text-red-600 border-red-200 hover:bg-red-50" },
-  { v: "B", on: "bg-amber-500 text-white border-amber-500", off: "text-amber-600 border-amber-200 hover:bg-amber-50" },
-  { v: "C", on: "bg-emerald-600 text-white border-emerald-600", off: "text-emerald-600 border-emerald-200 hover:bg-emerald-50" },
+  { v: "A", on: "bg-red-600 text-white border-red-600", off: "text-danger border-danger/30 hover:bg-danger/10" },
+  { v: "B", on: "bg-amber-500 text-white border-amber-500", off: "text-warning border-warning/30 hover:bg-warning/10" },
+  { v: "C", on: "bg-emerald-600 text-white border-emerald-600", off: "text-success border-success/30 hover:bg-success/10" },
 ];
 
 function CritSelector({
@@ -121,13 +121,13 @@ function CritSelector({
           title={`Criticidade ${o.v}`}
           className={cn(
             "w-6 h-6 rounded border text-xs font-bold transition-colors disabled:opacity-40",
-            value === o.v ? o.on : `bg-white ${o.off}`,
+            value === o.v ? o.on : `bg-card ${o.off}`,
           )}
         >
           {o.v}
         </button>
       ))}
-      {saving && <RefreshCw className="w-3 h-3 text-gray-400 animate-spin" />}
+      {saving && <RefreshCw className="w-3 h-3 text-muted-foreground animate-spin" />}
     </div>
   );
 }
@@ -151,7 +151,7 @@ function RegimeSelector({
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => onPick(e.target.value === "" ? null : Number(e.target.value))}
       title="Regime de operação (horas/dia) — base do tempo de funcionamento no MTBF"
-      className="shrink-0 rounded border border-gray-200 bg-white text-xs text-gray-600 px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40"
+      className="shrink-0 rounded border border-border bg-card text-xs text-muted-foreground px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40"
     >
       <option value="">— 24h</option>
       {REGIMES.map((h) => (
@@ -191,14 +191,14 @@ function AtivoRow({
   return (
     <div>
       <div
-        className="flex items-center gap-2 pr-3 py-1.5 border-b border-gray-50 hover:bg-gray-50"
+        className="flex items-center gap-2 pr-3 py-1.5 border-b border-gray-50 hover:bg-muted"
         style={{ paddingLeft: indent }}
       >
         {hasChildren ? (
           <button
             type="button"
             onClick={() => toggle(node.taggru)}
-            className="p-0.5 text-gray-400 hover:text-gray-600 shrink-0"
+            className="p-0.5 text-muted-foreground hover:text-muted-foreground shrink-0"
           >
             {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
@@ -206,16 +206,16 @@ function AtivoRow({
           <span className="w-5 shrink-0" />
         )}
         <Icon
-          className={cn("w-4 h-4 shrink-0", hasChildren ? "text-indigo-400" : "text-gray-400")}
+          className={cn("w-4 h-4 shrink-0", hasChildren ? "text-indigo-400" : "text-muted-foreground")}
         />
         <div className="min-w-0 flex-1">
           <p
-            className={cn("text-sm truncate", hasChildren ? "font-medium text-gray-800" : "text-gray-700")}
+            className={cn("text-sm truncate", hasChildren ? "font-medium text-foreground" : "text-foreground")}
             title={node.descricao}
           >
             {node.descricao}
           </p>
-          <p className="text-[11px] text-gray-400 font-mono truncate">{node.tag}</p>
+          <p className="text-[11px] text-muted-foreground font-mono truncate">{node.tag}</p>
         </div>
         <RegimeSelector
           value={node.regimeHorasDia}
@@ -264,7 +264,7 @@ function Chip({
         "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-colors",
         active
           ? "bg-blue-600 text-white border-blue-600"
-          : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50",
+          : "bg-card text-muted-foreground border-border hover:bg-muted",
       )}
     >
       {children}
@@ -392,26 +392,26 @@ export default function AtivosPage() {
       {/* Toolbar */}
       <div className="px-8 pb-3 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[240px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar por TAG ou descrição…"
-            className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full rounded-lg border border-border pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
         <div className="flex items-center gap-1.5 ml-auto">
           <button
             type="button"
             onClick={expandirTodos}
-            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50"
+            className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
           >
             <ChevronsUpDown className="w-4 h-4" /> Expandir
           </button>
           <button
             type="button"
             onClick={recolherTodos}
-            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50"
+            className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
           >
             <ChevronsDownUp className="w-4 h-4" /> Recolher
           </button>
@@ -438,7 +438,7 @@ export default function AtivosPage() {
       </div>
 
       {erroSalvar && (
-        <div className="mx-8 mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="mx-8 mb-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
           {erroSalvar}
         </div>
       )}
@@ -446,15 +446,15 @@ export default function AtivosPage() {
       {/* Conteúdo */}
       <div className="flex-1 overflow-y-auto px-8 pb-8">
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-gray-400 gap-2 text-sm">
+          <div className="flex items-center justify-center py-20 text-muted-foreground gap-2 text-sm">
             <RefreshCw className="w-4 h-4 animate-spin" /> Carregando ativos…
           </div>
         ) : erroCarga ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mb-3">
+            <div className="w-14 h-14 rounded-full bg-warning/10 flex items-center justify-center mb-3">
               <AlertTriangle className="w-7 h-7 text-amber-400" />
             </div>
-            <p className="text-sm font-medium text-gray-700">{erroCarga}</p>
+            <p className="text-sm font-medium text-foreground">{erroCarga}</p>
             <button
               type="button"
               onClick={load}
@@ -465,16 +465,16 @@ export default function AtivosPage() {
           </div>
         ) : visible.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-              <PackageSearch className="w-7 h-7 text-gray-300" />
+            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-3">
+              <PackageSearch className="w-7 h-7 text-muted-foreground/60" />
             </div>
-            <p className="text-sm font-medium text-gray-700">Nenhum ativo encontrado</p>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-sm font-medium text-foreground">Nenhum ativo encontrado</p>
+            <p className="text-xs text-muted-foreground mt-1">
               {filtering ? "Ajuste a busca ou o filtro de criticidade." : "Nenhum ativo ativo no Engeman."}
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
             {visible.map((node) => (
               <AtivoRow
                 key={node.taggru}

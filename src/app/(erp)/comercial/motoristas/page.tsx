@@ -73,7 +73,7 @@ export default function MotoristasPage() {
 
         {/* Header row */}
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-500">{rows.length} motorista(s) cadastrado(s)</p>
+          <p className="text-sm text-muted-foreground">{rows.length} motorista(s) cadastrado(s)</p>
           <Button size="sm" onClick={startNew} disabled={editingId !== null}>
             <Plus className="w-4 h-4 mr-1" /> Novo Motorista
           </Button>
@@ -88,10 +88,10 @@ export default function MotoristasPage() {
         )}
 
         {/* List */}
-        <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+        <div className="border border-border rounded-xl overflow-hidden bg-card shadow-sm">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-100 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
+              <tr className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                 <th className="text-left px-4 py-3">Nome</th>
                 <th className="text-left px-4 py-3">CPF</th>
                 <th className="text-left px-4 py-3">CNH</th>
@@ -102,32 +102,32 @@ export default function MotoristasPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-300" /></td></tr>
+                <tr><td colSpan={6} className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground/60" /></td></tr>
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-14 text-center">
                     <Truck className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-                    <p className="text-gray-400 text-xs">Nenhum motorista cadastrado</p>
+                    <p className="text-muted-foreground text-xs">Nenhum motorista cadastrado</p>
                   </td>
                 </tr>
               ) : rows.map((r) => (
                 <>
-                  <tr key={r.id} className={cn("border-b border-gray-100 last:border-0", !r.ativo && "opacity-50", editingId === r.id ? "bg-blue-50/30" : "hover:bg-gray-50")}>
-                    <td className="px-4 py-3 font-medium text-gray-800">{r.nome}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{r.cpf || "—"}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{r.cnh || "—"}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{r.telefone || "—"}</td>
+                  <tr key={r.id} className={cn("border-b border-border last:border-0", !r.ativo && "opacity-50", editingId === r.id ? "bg-info/10" : "hover:bg-muted")}>
+                    <td className="px-4 py-3 font-medium text-foreground">{r.nome}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{r.cpf || "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{r.cnh || "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{r.telefone || "—"}</td>
                     <td className="px-4 py-3 text-center">
                       <button onClick={() => toggleAtivo(r)}>
                         {r.ativo
                           ? <ToggleRight className="w-5 h-5 text-green-500" />
-                          : <ToggleLeft className="w-5 h-5 text-gray-300" />}
+                          : <ToggleLeft className="w-5 h-5 text-muted-foreground/60" />}
                       </button>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end">
                         {editingId !== r.id && (
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-400 hover:text-gray-700"
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground"
                             onClick={() => startEdit(r)} disabled={editingId !== null}>
                             <Pencil className="w-3.5 h-3.5" />
                           </Button>
@@ -136,7 +136,7 @@ export default function MotoristasPage() {
                     </td>
                   </tr>
                   {editingId === r.id && (
-                    <tr key={`${r.id}-edit`} className="bg-blue-50/30 border-b">
+                    <tr key={`${r.id}-edit`} className="bg-info/10 border-b">
                       <td colSpan={6} className="px-4 py-4">
                         <MotoristaForm
                           form={form} setForm={setForm} saving={saving} error={error}
@@ -171,23 +171,23 @@ function MotoristaForm({ form, setForm, saving, error, onSave, onCancel, isNew }
   };
 
   return (
-    <div className={cn("rounded-xl border border-blue-200 bg-white p-5 space-y-4", isNew && "mb-2")}>
-      <p className="text-sm font-semibold text-gray-700">{isNew ? "Novo motorista" : "Editar motorista"}</p>
+    <div className={cn("rounded-xl border border-info/30 bg-card p-5 space-y-4", isNew && "mb-2")}>
+      <p className="text-sm font-semibold text-foreground">{isNew ? "Novo motorista" : "Editar motorista"}</p>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-xs font-medium text-gray-500 mb-1 block">Nome *</label>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Nome *</label>
           <Input value={form.nome} onChange={set("nome")} placeholder="Nome completo" autoFocus={isNew} onKeyDown={onKey} />
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-500 mb-1 block">Telefone</label>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Telefone</label>
           <Input value={form.telefone} onChange={set("telefone")} placeholder="(00) 00000-0000" onKeyDown={onKey} />
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-500 mb-1 block">CPF</label>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">CPF</label>
           <Input value={form.cpf} onChange={set("cpf")} placeholder="000.000.000-00" onKeyDown={onKey} />
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-500 mb-1 block">CNH</label>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">CNH</label>
           <Input value={form.cnh} onChange={set("cnh")} placeholder="Número da CNH" onKeyDown={onKey} />
         </div>
       </div>

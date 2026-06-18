@@ -135,7 +135,7 @@ export default function AgendaFinanceiraPage() {
                   const aberto = Number(t.valorOriginal) - Number(t.valorPago);
                   const vencido = new Date(t.dataVencimento) < new Date(new Date().toDateString());
                   return (
-                    <tr key={t.id} className={cn("border-b border-gray-50 hover:bg-muted", sel.has(t.id) && "bg-info/10/40")}>
+                    <tr key={t.id} className={cn("border-b border-gray-50 hover:bg-muted", sel.has(t.id) && "bg-info/10")}>
                       <td className="px-4 py-3"><input type="checkbox" checked={sel.has(t.id)} onChange={() => toggle(t.id)} /></td>
                       <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{t.numero}</td>
                       <td className="px-4 py-3">

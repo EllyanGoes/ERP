@@ -38,9 +38,9 @@ export default function ClientesTable({ clientes }: { clientes: ClienteRow[] }) 
       header: "Razão Social",
       cell: ({ row }) => (
         <div>
-          <p className="font-medium text-gray-900">{row.original.razaoSocial}</p>
+          <p className="font-medium text-foreground">{row.original.razaoSocial}</p>
           {row.original.nomeFantasia && (
-            <p className="text-xs text-gray-400">{row.original.nomeFantasia}</p>
+            <p className="text-xs text-muted-foreground">{row.original.nomeFantasia}</p>
           )}
         </div>
       ),
@@ -57,7 +57,7 @@ export default function ClientesTable({ clientes }: { clientes: ClienteRow[] }) 
       header: "Cidade/UF",
       cell: ({ row }) => {
         const loc = [row.original.cidade, row.original.estado].filter(Boolean).join(" / ");
-        return <span className="text-sm text-gray-500">{loc || "—"}</span>;
+        return <span className="text-sm text-muted-foreground">{loc || "—"}</span>;
       },
     },
     {

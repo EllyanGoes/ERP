@@ -38,7 +38,7 @@ function fmtMonth(m: string) {
 
 function EmptyChart() {
   return (
-    <div className="flex items-center justify-center h-full text-gray-300 text-sm">
+    <div className="flex items-center justify-center h-full text-muted-foreground/60 text-sm">
       Sem dados no período
     </div>
   );
@@ -376,9 +376,9 @@ function PieChart({
                 className="w-2.5 h-2.5 rounded-sm shrink-0"
                 style={{ background: s.color }}
               />
-              <span className="text-xs text-gray-600 truncate flex-1">{s.categoria}</span>
-              <span className="text-xs text-gray-500 shrink-0">{s.total}</span>
-              <span className="text-xs font-semibold text-gray-800 shrink-0 w-10 text-right">
+              <span className="text-xs text-muted-foreground truncate flex-1">{s.categoria}</span>
+              <span className="text-xs text-muted-foreground shrink-0">{s.total}</span>
+              <span className="text-xs font-semibold text-foreground shrink-0 w-10 text-right">
                 {pct.toFixed(1)}%
               </span>
             </div>
@@ -404,7 +404,7 @@ function SummaryCard({
   color: string;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
+    <div className="bg-card rounded-xl border border-border p-4 flex items-center gap-4">
       <span
         className={cn(
           "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
@@ -414,9 +414,9 @@ function SummaryCard({
         {icon}
       </span>
       <div className="min-w-0">
-        <p className="text-xs text-gray-400 font-medium">{label}</p>
-        <p className="text-lg font-bold text-gray-900 truncate">{value}</p>
-        {sub && <p className="text-[11px] text-gray-400">{sub}</p>}
+        <p className="text-xs text-muted-foreground font-medium">{label}</p>
+        <p className="text-lg font-bold text-foreground truncate">{value}</p>
+        {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
       </div>
     </div>
   );
@@ -430,7 +430,7 @@ function FornecedorTable({
 }) {
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-300 text-sm">
+      <div className="flex items-center justify-center h-full text-muted-foreground/60 text-sm">
         Sem dados no período
       </div>
     );
@@ -442,14 +442,14 @@ function FornecedorTable({
   const globalOtd        = grandTotal > 0 ? (totalAtendido / grandTotal) * 100 : 0;
 
   return (
-    <div className="overflow-y-auto max-h-64 rounded-lg border border-gray-100">
+    <div className="overflow-y-auto max-h-64 rounded-lg border border-border">
       <table className="w-full text-xs">
-        <thead className="bg-gray-50 sticky top-0 z-10">
-          <tr className="border-b border-gray-100">
-            <th className="text-left px-3 py-2 font-semibold text-gray-600">Fornecedor</th>
-            <th className="text-right px-3 py-2 font-semibold text-emerald-700">Atendido</th>
-            <th className="text-right px-3 py-2 font-semibold text-red-600">Não Atend.</th>
-            <th className="text-right px-3 py-2 font-semibold text-blue-700">OTD %</th>
+        <thead className="bg-muted sticky top-0 z-10">
+          <tr className="border-b border-border">
+            <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Fornecedor</th>
+            <th className="text-right px-3 py-2 font-semibold text-success">Atendido</th>
+            <th className="text-right px-3 py-2 font-semibold text-danger">Não Atend.</th>
+            <th className="text-right px-3 py-2 font-semibold text-info">OTD %</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
@@ -457,28 +457,28 @@ function FornecedorTable({
             <tr
               key={f.id}
               className={cn(
-                "hover:bg-gray-50 transition-colors",
-                i % 2 === 1 && "bg-gray-50/50"
+                "hover:bg-muted transition-colors",
+                i % 2 === 1 && "bg-muted/50"
               )}
             >
-              <td className="px-3 py-1.5 text-gray-800 font-medium truncate max-w-[160px]">
+              <td className="px-3 py-1.5 text-foreground font-medium truncate max-w-[160px]">
                 {f.nome}
               </td>
               <td className="px-3 py-1.5 text-right">
-                <span className="text-emerald-700 font-semibold">{f.atendido}</span>
+                <span className="text-success font-semibold">{f.atendido}</span>
               </td>
               <td className="px-3 py-1.5 text-right">
-                <span className="text-red-600 font-semibold">{f.naoAtendido}</span>
+                <span className="text-danger font-semibold">{f.naoAtendido}</span>
               </td>
               <td className="px-3 py-1.5 text-right">
                 <span
                   className={cn(
                     "font-bold",
                     f.pct >= 90
-                      ? "text-emerald-600"
+                      ? "text-success"
                       : f.pct >= 70
-                      ? "text-amber-600"
-                      : "text-red-600"
+                      ? "text-warning"
+                      : "text-danger"
                   )}
                 >
                   {f.pct.toFixed(1)}%
@@ -487,12 +487,12 @@ function FornecedorTable({
             </tr>
           ))}
         </tbody>
-        <tfoot className="border-t-2 border-gray-200 bg-gray-100 sticky bottom-0">
+        <tfoot className="border-t-2 border-border bg-muted sticky bottom-0">
           <tr>
-            <td className="px-3 py-2 font-bold text-gray-700">Total</td>
-            <td className="px-3 py-2 text-right font-bold text-emerald-700">{totalAtendido}</td>
-            <td className="px-3 py-2 text-right font-bold text-red-600">{totalNaoAtendido}</td>
-            <td className="px-3 py-2 text-right font-bold text-blue-700">
+            <td className="px-3 py-2 font-bold text-foreground">Total</td>
+            <td className="px-3 py-2 text-right font-bold text-success">{totalAtendido}</td>
+            <td className="px-3 py-2 text-right font-bold text-danger">{totalNaoAtendido}</td>
+            <td className="px-3 py-2 text-right font-bold text-info">
               {globalOtd.toFixed(1)}%
             </td>
           </tr>
@@ -549,7 +549,7 @@ export default function OtdPage() {
           <DateRangePicker value={range} onChange={setRange} />
           <button
             onClick={load}
-            className="flex items-center justify-center h-9 w-9 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-center h-9 w-9 border border-border rounded-lg text-muted-foreground hover:bg-muted transition-colors"
             title="Atualizar"
           >
             <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
@@ -560,7 +560,7 @@ export default function OtdPage() {
       <div className="px-8 pb-8 space-y-5">
         {loading && !data ? (
           <div className="flex justify-center py-24">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground/60" />
           </div>
         ) : (
           <>
@@ -570,8 +570,8 @@ export default function OtdPage() {
                 label="Total Pedidos"
                 value={(s?.total ?? 0).toLocaleString("pt-BR")}
                 sub="excluídos rascunhos e cancelados"
-                icon={<PackageCheck className="w-5 h-5 text-blue-600" />}
-                color="bg-blue-50"
+                icon={<PackageCheck className="w-5 h-5 text-info" />}
+                color="bg-info/10"
               />
               <SummaryCard
                 label="OTD Global"
@@ -582,22 +582,22 @@ export default function OtdPage() {
               <SummaryCard
                 label="Atendidos"
                 value={(s?.atendidos ?? 0).toLocaleString("pt-BR")}
-                icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />}
-                color="bg-emerald-50"
+                icon={<CheckCircle2 className="w-5 h-5 text-success" />}
+                color="bg-success/10"
               />
               <SummaryCard
                 label="Não Atendidos"
                 value={(s?.naoAtendidos ?? 0).toLocaleString("pt-BR")}
                 icon={<XCircle className="w-5 h-5 text-red-500" />}
-                color="bg-red-50"
+                color="bg-danger/10"
               />
             </div>
 
             {/* ── Row 2: Combined Chart + Fornecedor Table ────────────────── */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-              <div className="lg:col-span-3 bg-white rounded-xl border border-gray-200 p-5">
-                <p className="text-sm font-semibold text-gray-700 mb-1">OTD por Mês</p>
-                <p className="text-xs text-gray-400 mb-4">
+              <div className="lg:col-span-3 bg-card rounded-xl border border-border p-5">
+                <p className="text-sm font-semibold text-foreground mb-1">OTD por Mês</p>
+                <p className="text-xs text-muted-foreground mb-4">
                   Barras: volume por status · Linha: taxa OTD %
                 </p>
                 <div className="h-[260px]">
@@ -605,10 +605,10 @@ export default function OtdPage() {
                 </div>
               </div>
 
-              <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5 flex flex-col">
+              <div className="lg:col-span-2 bg-card rounded-xl border border-border p-5 flex flex-col">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-semibold text-gray-700">Por Fornecedor</p>
-                  <span className="text-xs text-gray-400">
+                  <p className="text-sm font-semibold text-foreground">Por Fornecedor</p>
+                  <span className="text-xs text-muted-foreground">
                     {data?.byFornecedor.length ?? 0} fornecedores
                   </span>
                 </div>
@@ -620,17 +620,17 @@ export default function OtdPage() {
 
             {/* ── Row 3: Horizontal Stacked Bar + Pie Chart ───────────────── */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <p className="text-sm font-semibold text-gray-700 mb-1">Top 7 Fornecedores</p>
-                <p className="text-xs text-gray-400 mb-3">
+              <div className="bg-card rounded-xl border border-border p-5">
+                <p className="text-sm font-semibold text-foreground mb-1">Top 7 Fornecedores</p>
+                <p className="text-xs text-muted-foreground mb-3">
                   Volume de pedidos por status de entrega
                 </p>
                 <div className="flex gap-3 mb-3">
-                  <span className="flex items-center gap-1 text-xs text-gray-500">
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" />
                     Atendido
                   </span>
-                  <span className="flex items-center gap-1 text-xs text-gray-500">
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <span className="w-2.5 h-2.5 rounded-sm bg-red-500 inline-block" />
                     Não Atendido
                   </span>
@@ -638,9 +638,9 @@ export default function OtdPage() {
                 <HorizontalStackedBar data={data?.byFornecedor ?? []} />
               </div>
 
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <p className="text-sm font-semibold text-gray-700 mb-1">Por Categoria</p>
-                <p className="text-xs text-gray-400 mb-4">
+              <div className="bg-card rounded-xl border border-border p-5">
+                <p className="text-sm font-semibold text-foreground mb-1">Por Categoria</p>
+                <p className="text-xs text-muted-foreground mb-4">
                   Distribuição de pedidos por tipo de produto
                 </p>
                 <PieChart data={data?.byCategoria ?? []} />

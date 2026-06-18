@@ -15,7 +15,7 @@ export default function ClickableRow({ href, children, className = "" }: Clickab
         if ((e.target as HTMLElement).closest("button, a, input, select, textarea")) return;
         router.push(href);
       }}
-      className={`cursor-pointer transition-colors hover:bg-blue-50/40 ${className}`}
+      className={`cursor-pointer transition-colors hover:bg-info/10 ${className}`}
     >
       {children}
     </tr>

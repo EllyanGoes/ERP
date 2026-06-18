@@ -78,7 +78,7 @@ export default function VendedoresPage() {
       <div className="px-8 pb-8 max-w-3xl space-y-6">
 
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-500">{rows.length} vendedor(es) cadastrado(s)</p>
+          <p className="text-sm text-muted-foreground">{rows.length} vendedor(es) cadastrado(s)</p>
           <Button size="sm" onClick={startNew} disabled={editingId !== null}>
             <Plus className="w-4 h-4 mr-1" /> Novo Vendedor
           </Button>
@@ -91,10 +91,10 @@ export default function VendedoresPage() {
           />
         )}
 
-        <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+        <div className="border border-border rounded-xl overflow-hidden bg-card shadow-sm">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-100 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
+              <tr className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                 <th className="text-left px-4 py-3">Nome</th>
                 <th className="text-left px-4 py-3">Telefone</th>
                 <th className="text-left px-4 py-3">Usuário vinculado</th>
@@ -104,31 +104,31 @@ export default function VendedoresPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-300" /></td></tr>
+                <tr><td colSpan={5} className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground/60" /></td></tr>
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-14 text-center">
                     <UserRound className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-                    <p className="text-gray-400 text-xs">Nenhum vendedor cadastrado</p>
+                    <p className="text-muted-foreground text-xs">Nenhum vendedor cadastrado</p>
                   </td>
                 </tr>
               ) : rows.map((r) => (
                 <>
-                  <tr key={r.id} className={cn("border-b border-gray-100 last:border-0", !r.ativo && "opacity-50", editingId === r.id ? "bg-blue-50/30" : "hover:bg-gray-50")}>
-                    <td className="px-4 py-3 font-medium text-gray-800">{r.nome}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{r.telefone || "—"}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{r.usuario?.nome ?? "—"}</td>
+                  <tr key={r.id} className={cn("border-b border-border last:border-0", !r.ativo && "opacity-50", editingId === r.id ? "bg-info/10" : "hover:bg-muted")}>
+                    <td className="px-4 py-3 font-medium text-foreground">{r.nome}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{r.telefone || "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{r.usuario?.nome ?? "—"}</td>
                     <td className="px-4 py-3 text-center">
                       <button onClick={() => toggleAtivo(r)}>
                         {r.ativo
                           ? <ToggleRight className="w-5 h-5 text-green-500" />
-                          : <ToggleLeft className="w-5 h-5 text-gray-300" />}
+                          : <ToggleLeft className="w-5 h-5 text-muted-foreground/60" />}
                       </button>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end">
                         {editingId !== r.id && (
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-400 hover:text-gray-700"
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground"
                             onClick={() => startEdit(r)} disabled={editingId !== null}>
                             <Pencil className="w-3.5 h-3.5" />
                           </Button>
@@ -137,7 +137,7 @@ export default function VendedoresPage() {
                     </td>
                   </tr>
                   {editingId === r.id && (
-                    <tr key={`${r.id}-edit`} className="bg-blue-50/30 border-b">
+                    <tr key={`${r.id}-edit`} className="bg-info/10 border-b">
                       <td colSpan={5} className="px-4 py-4">
                         <VendedorForm
                           form={form} setForm={setForm} saving={saving} error={error}
@@ -173,19 +173,19 @@ function VendedorForm({ form, setForm, saving, error, usuarios, onSave, onCancel
   };
 
   return (
-    <div className={cn("rounded-xl border border-blue-200 bg-white p-5 space-y-4", isNew && "mb-2")}>
-      <p className="text-sm font-semibold text-gray-700">{isNew ? "Novo vendedor" : "Editar vendedor"}</p>
+    <div className={cn("rounded-xl border border-info/30 bg-card p-5 space-y-4", isNew && "mb-2")}>
+      <p className="text-sm font-semibold text-foreground">{isNew ? "Novo vendedor" : "Editar vendedor"}</p>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-xs font-medium text-gray-500 mb-1 block">Nome *</label>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Nome *</label>
           <Input value={form.nome} onChange={set("nome")} placeholder="Nome do vendedor" autoFocus={isNew} onKeyDown={onKey} />
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-500 mb-1 block">Telefone</label>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Telefone</label>
           <Input value={form.telefone} onChange={set("telefone")} placeholder="(00) 00000-0000" onKeyDown={onKey} />
         </div>
         <div className="col-span-2">
-          <label className="text-xs font-medium text-gray-500 mb-1 block">Usuário vinculado</label>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Usuário vinculado</label>
           <ComboboxWithCreate
             value={form.usuarioId}
             onChange={(v) => setForm((f) => ({ ...f, usuarioId: v }))}
@@ -193,7 +193,7 @@ function VendedorForm({ form, setForm, saving, error, usuarios, onSave, onCancel
             triggerClassName="h-10 rounded-lg"
             options={usuarios.map((u) => ({ value: u.id, label: `${u.nome} (${u.email})` }))}
           />
-          <p className="text-[11px] text-gray-400 mt-1">Quando esse usuário criar um pedido de venda, este vendedor é puxado automaticamente.</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Quando esse usuário criar um pedido de venda, este vendedor é puxado automaticamente.</p>
         </div>
       </div>
       {error && <p className="text-sm text-red-500">{error}</p>}

@@ -101,7 +101,7 @@ export default function EditarPerfilPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -132,16 +132,16 @@ export default function EditarPerfilPage() {
 
       <div className="px-8 pb-12 max-w-3xl space-y-8">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">{error}</div>
+          <div className="bg-danger/10 border border-danger/30 text-danger text-sm px-4 py-3 rounded-xl">{error}</div>
         )}
         {success && (
-          <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-3 rounded-xl">{success}</div>
+          <div className="bg-success/10 border border-success/30 text-success text-sm px-4 py-3 rounded-xl">{success}</div>
         )}
 
         {/* Dados do perfil */}
-        <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-            <h2 className="text-sm font-semibold text-gray-800">Dados do Perfil</h2>
+        <section className="bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-border bg-muted">
+            <h2 className="text-sm font-semibold text-foreground">Dados do Perfil</h2>
           </div>
           <div className="px-6 py-6 space-y-5">
             <div className="space-y-1.5">
@@ -149,7 +149,7 @@ export default function EditarPerfilPage() {
               <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Comprador, Financeiro..." />
             </div>
             <div className="space-y-1.5">
-              <Label>Descrição <span className="text-gray-400 font-normal text-xs">(opcional)</span></Label>
+              <Label>Descrição <span className="text-muted-foreground font-normal text-xs">(opcional)</span></Label>
               <Textarea
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
@@ -161,16 +161,16 @@ export default function EditarPerfilPage() {
         </section>
 
         {/* Permissões */}
-        <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+        <section className="bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-border bg-muted flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-gray-800">Permissões de Acesso</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Defina quais recursos este perfil pode acessar</p>
+              <h2 className="text-sm font-semibold text-foreground">Permissões de Acesso</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Defina quais recursos este perfil pode acessar</p>
             </div>
             <button
               type="button"
               onClick={() => setPermissoes(permissoes.length === allPerms.length ? [] : [...allPerms])}
-              className="text-xs text-blue-600 hover:underline shrink-0"
+              className="text-xs text-info hover:underline shrink-0"
             >
               {permissoes.length === allPerms.length ? "Desmarcar todos" : "Marcar todos"}
             </button>
@@ -188,11 +188,11 @@ export default function EditarPerfilPage() {
         </section>
 
         {/* Usuários vinculados */}
-        <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+        <section className="bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-border bg-muted flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-gray-800">Usuários Vinculados</h2>
-              <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full font-medium">
+              <h2 className="text-sm font-semibold text-foreground">Usuários Vinculados</h2>
+              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-medium">
                 {userCount}
               </span>
             </div>
@@ -212,23 +212,23 @@ export default function EditarPerfilPage() {
           </div>
 
           {usuarios.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400">
+            <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
               <Users className="w-8 h-8 text-gray-200" />
               <p className="text-sm">Nenhum usuário vinculado a este perfil</p>
-              <p className="text-xs text-gray-400">Vincule ao criar ou editar um usuário</p>
+              <p className="text-xs text-muted-foreground">Vincule ao criar ou editar um usuário</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-border">
               {usuarios.map((u) => {
                 const initials = u.nome.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
                 return (
-                  <div key={u.id} className="flex items-center gap-3 px-6 py-3 hover:bg-gray-50 transition-colors">
-                    <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs font-bold shrink-0">
+                  <div key={u.id} className="flex items-center gap-3 px-6 py-3 hover:bg-muted transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs font-bold shrink-0">
                       {initials}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{u.nome}</p>
-                      <p className="text-xs text-gray-400">{u.email}</p>
+                      <p className="text-sm font-medium text-foreground">{u.nome}</p>
+                      <p className="text-xs text-muted-foreground">{u.email}</p>
                     </div>
                   </div>
                 );

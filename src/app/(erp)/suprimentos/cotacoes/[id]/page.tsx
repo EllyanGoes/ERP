@@ -90,9 +90,9 @@ type HistoricoEntry = {
 
 // ── Status badge ───────────────────────────────────────────────────────────────
 const STATUS_RESP_BADGE: Record<string, { label: string; cls: string }> = {
-  AGUARDANDO: { label: "Pendente",            cls: "bg-amber-100 text-amber-700 border border-amber-200" },
-  RESPONDIDA: { label: "Proposta Registrada", cls: "bg-green-100 text-green-700 border border-green-200" },
-  RECUSADA:   { label: "Desqualificado",      cls: "bg-red-100 text-red-700 border border-red-200" },
+  AGUARDANDO: { label: "Pendente",            cls: "bg-warning/15 text-warning border border-warning/30" },
+  RESPONDIDA: { label: "Proposta Registrada", cls: "bg-success/15 text-success border border-success/30" },
+  RECUSADA:   { label: "Desqualificado",      cls: "bg-danger/15 text-danger border border-danger/30" },
 };
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -407,7 +407,7 @@ export default function CotacaoDetailPage() {
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) return (
     <div className="flex items-center justify-center py-24">
-      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
     </div>
   );
   if (!cotacao) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
@@ -485,13 +485,13 @@ export default function CotacaoDetailPage() {
                   {actioning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
                   Aprovar e gerar pedido
                 </Button>
-                <Button variant="outline" onClick={reprovarCotacao} disabled={actioning} className="text-red-600 border-red-200 hover:bg-red-50">
+                <Button variant="outline" onClick={reprovarCotacao} disabled={actioning} className="text-danger border-danger/30 hover:bg-danger/10">
                   Reprovar
                 </Button>
               </>
             )}
             {cotacao.status === "AGUARDANDO_APROVACAO" && !podeAprovar && (
-              <span className="text-sm font-medium text-amber-600 px-2">Aguardando aprovação</span>
+              <span className="text-sm font-medium text-warning px-2">Aguardando aprovação</span>
             )}
             {canEdit && (
               <Button variant="outline" onClick={openEditModal}>
@@ -509,7 +509,7 @@ export default function CotacaoDetailPage() {
               <Button
                 variant="outline"
                 onClick={() => { setDeleteError(""); setShowDeleteModal(true); }}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                className="text-danger hover:text-danger hover:bg-danger/10 border-danger/30"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Excluir
@@ -525,86 +525,86 @@ export default function CotacaoDetailPage() {
 
       <div className="px-8 pb-8 space-y-6 max-w-6xl">
         {actionError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{actionError}</div>
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{actionError}</div>
         )}
 
         {/* ── Info header card ───────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 px-5 py-4">
+        <div className="bg-card rounded-xl border border-border px-5 py-4">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
             <div>
-              <p className="text-xs text-gray-400 mb-0.5">Apelido</p>
-              <p className="font-semibold text-gray-800 truncate">{cotacao.nome || <span className="text-gray-300 font-normal">—</span>}</p>
+              <p className="text-xs text-muted-foreground mb-0.5">Apelido</p>
+              <p className="font-semibold text-foreground truncate">{cotacao.nome || <span className="text-muted-foreground/60 font-normal">—</span>}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 mb-0.5">Solicitação vinculada</p>
+              <p className="text-xs text-muted-foreground mb-0.5">Solicitação vinculada</p>
               {cotacao.necessidade ? (
                 <Link
                   href={`/compras/necessidades/${cotacao.necessidade.id}`}
-                  className="inline-flex items-center gap-1 font-mono text-sm font-semibold text-blue-700 hover:text-blue-900 hover:underline"
+                  className="inline-flex items-center gap-1 font-mono text-sm font-semibold text-info hover:text-blue-900 hover:underline"
                 >
                   {cotacao.necessidade.numero}
                 </Link>
               ) : (
-                <span className="text-gray-300">—</span>
+                <span className="text-muted-foreground/60">—</span>
               )}
             </div>
             <div>
-              <p className="text-xs text-gray-400 mb-0.5">Prazo de resposta</p>
-              <p className="font-medium text-gray-800">
+              <p className="text-xs text-muted-foreground mb-0.5">Prazo de resposta</p>
+              <p className="font-medium text-foreground">
                 {cotacao.dataLimiteResposta
                   ? formatDate(cotacao.dataLimiteResposta)
-                  : <span className="text-gray-300">—</span>}
+                  : <span className="text-muted-foreground/60">—</span>}
               </p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 mb-0.5">Informações de entrega</p>
-              <p className="text-gray-700 text-xs line-clamp-2 whitespace-pre-wrap">
-                {cotacao.infoEntrega || <span className="text-gray-300">—</span>}
+              <p className="text-xs text-muted-foreground mb-0.5">Informações de entrega</p>
+              <p className="text-foreground text-xs line-clamp-2 whitespace-pre-wrap">
+                {cotacao.infoEntrega || <span className="text-muted-foreground/60">—</span>}
               </p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 mb-0.5">Observações</p>
-              <p className="text-gray-700 text-xs line-clamp-2 whitespace-pre-wrap">
-                {cotacao.observacoes || <span className="text-gray-300">—</span>}
+              <p className="text-xs text-muted-foreground mb-0.5">Observações</p>
+              <p className="text-foreground text-xs line-clamp-2 whitespace-pre-wrap">
+                {cotacao.observacoes || <span className="text-muted-foreground/60">—</span>}
               </p>
             </div>
           </div>
         </div>
 
         {/* ── Itens da cotação (collapsible) ─────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
           <button
             type="button"
-            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200 hover:bg-gray-100 transition-colors"
+            className="w-full flex items-center justify-between px-4 py-3 bg-muted border-b border-border hover:bg-muted transition-colors"
             onClick={() => setItensOpen(!itensOpen)}
           >
-            <span className="font-semibold text-sm text-gray-800">Itens da cotação</span>
-            {itensOpen ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
+            <span className="font-semibold text-sm text-foreground">Itens da cotação</span>
+            {itensOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
           </button>
           {itensOpen && (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
+              <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600">Código</th>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600">Descrição</th>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600">U.M.</th>
-                  <th className="text-right px-4 py-2 font-medium text-gray-600">Quantidade</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Código</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Descrição</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">U.M.</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground">Quantidade</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {Array.from(allItemsMap.entries()).map(([itemId, item]) => (
-                  <tr key={itemId} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 font-mono text-xs text-gray-500">{item.codigo}</td>
-                    <td className="px-4 py-2 text-gray-800">{item.descricao}</td>
-                    <td className="px-4 py-2 text-gray-600">{item.unidadeMedida}</td>
-                    <td className="px-4 py-2 text-right text-gray-700">
+                  <tr key={itemId} className="hover:bg-muted">
+                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{item.codigo}</td>
+                    <td className="px-4 py-2 text-foreground">{item.descricao}</td>
+                    <td className="px-4 py-2 text-muted-foreground">{item.unidadeMedida}</td>
+                    <td className="px-4 py-2 text-right text-foreground">
                       {decimalToNumber(item.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                     </td>
                   </tr>
                 ))}
                 {allItemsMap.size === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-4 text-center text-gray-400 text-sm">
+                    <td colSpan={4} className="px-4 py-4 text-center text-muted-foreground text-sm">
                       Nenhum item na cotação
                     </td>
                   </tr>
@@ -617,13 +617,13 @@ export default function CotacaoDetailPage() {
         {/* ── Supplier cards ─────────────────────────────────────────────── */}
         <div className="space-y-4">
           {cotacao.fornecedores.length === 0 && (
-            <p className="text-sm text-gray-400 italic text-center py-8">
+            <p className="text-sm text-muted-foreground italic text-center py-8">
               Nenhum fornecedor vinculado a esta cotação.
             </p>
           )}
 
           {cotacao.fornecedores.map((cf, idx) => {
-            const badge = STATUS_RESP_BADGE[cf.status] ?? { label: cf.status, cls: "bg-gray-100 text-gray-600" };
+            const badge = STATUS_RESP_BADGE[cf.status] ?? { label: cf.status, cls: "bg-muted text-muted-foreground" };
             const fornNome = cf.fornecedor.nomeFantasia || cf.fornecedor.razaoSocial;
             const codigoForn = cf.fornecedor.id.slice(-8).toUpperCase();
             const propostaNum = `PROPOSTA ${String(idx + 1).padStart(2, "0")}`;
@@ -635,20 +635,20 @@ export default function CotacaoDetailPage() {
               <div
                 key={cf.id}
                 className={cn(
-                  "bg-white rounded-xl border shadow-sm overflow-hidden",
-                  cf.melhorOpcao && cf.status === "RESPONDIDA" ? "border-green-400" : "border-gray-200"
+                  "bg-card rounded-xl border shadow-sm overflow-hidden",
+                  cf.melhorOpcao && cf.status === "RESPONDIDA" ? "border-green-400" : "border-border"
                 )}
               >
                 {/* Card header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted">
                   <div className="flex items-center gap-3">
                     <span className={cn("text-xs font-medium px-2.5 py-0.5 rounded-full", badge.cls)}>
                       {badge.label}
                     </span>
-                    <span className="font-semibold text-gray-900">{fornNome}</span>
-                    <span className="text-xs text-gray-400 font-mono">{propostaNum}</span>
+                    <span className="font-semibold text-foreground">{fornNome}</span>
+                    <span className="text-xs text-muted-foreground font-mono">{propostaNum}</span>
                     {cf.melhorOpcao && cf.status === "RESPONDIDA" && (
-                      <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                      <span className="text-xs font-semibold text-success bg-success/15 px-2 py-0.5 rounded-full">
                         Melhor preço
                       </span>
                     )}
@@ -686,7 +686,7 @@ export default function CotacaoDetailPage() {
                         </DropdownMenuItem>
                         {canEdit && cf.status !== "RECUSADA" && (
                           <DropdownMenuItem
-                            className="text-amber-600"
+                            className="text-warning"
                             onClick={() => desqualificarFornecedor(cf.id)}
                           >
                             Desqualificar
@@ -694,7 +694,7 @@ export default function CotacaoDetailPage() {
                         )}
                         {canEdit && (
                           <DropdownMenuItem
-                            className="text-red-600"
+                            className="text-danger"
                             onClick={() => excluirFornecedor(cf.id)}
                           >
                             Excluir proposta
@@ -708,32 +708,32 @@ export default function CotacaoDetailPage() {
                 {/* Card body */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 px-4 py-3 text-sm">
                   <div>
-                    <p className="text-xs text-gray-400 mb-0.5">Código fornecedor</p>
-                    <p className="font-mono font-medium text-gray-800">{codigoForn}</p>
+                    <p className="text-xs text-muted-foreground mb-0.5">Código fornecedor</p>
+                    <p className="font-mono font-medium text-foreground">{codigoForn}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400 mb-0.5">CPF/CNPJ</p>
-                    <p className="font-medium text-gray-800">{cf.fornecedor.cpfCnpj || "—"}</p>
+                    <p className="text-xs text-muted-foreground mb-0.5">CPF/CNPJ</p>
+                    <p className="font-medium text-foreground">{cf.fornecedor.cpfCnpj || "—"}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400 mb-0.5">Moeda</p>
-                    <p className="font-medium text-gray-800">REAL</p>
+                    <p className="text-xs text-muted-foreground mb-0.5">Moeda</p>
+                    <p className="font-medium text-foreground">REAL</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400 mb-0.5">Total da cotação</p>
-                    <p className="font-semibold text-gray-900">
+                    <p className="text-xs text-muted-foreground mb-0.5">Total da cotação</p>
+                    <p className="font-semibold text-foreground">
                       {cf.status === "RESPONDIDA" ? formatBRL(total) : "—"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400 mb-0.5">Itens pendentes</p>
-                    <p className="font-medium text-gray-800">
+                    <p className="text-xs text-muted-foreground mb-0.5">Itens pendentes</p>
+                    <p className="font-medium text-foreground">
                       {cf.status === "RESPONDIDA" ? `${itensSemPreco}/${totalItens}` : `${totalItens}/${totalItens}`}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400 mb-0.5">Prazo entrega</p>
-                    <p className="font-medium text-gray-800">
+                    <p className="text-xs text-muted-foreground mb-0.5">Prazo entrega</p>
+                    <p className="font-medium text-foreground">
                       {cf.prazoEntregaDias ? `${cf.prazoEntregaDias} dias` : "—"}
                     </p>
                   </div>
@@ -743,7 +743,7 @@ export default function CotacaoDetailPage() {
                 <div className="mt-3 pt-2 border-t text-center">
                   <button
                     onClick={() => openHistorico(cf.id, fornNome)}
-                    className="text-xs text-blue-600 hover:underline"
+                    className="text-xs text-info hover:underline"
                   >
                     Exibir histórico de propostas
                   </button>
@@ -755,9 +755,9 @@ export default function CotacaoDetailPage() {
 
         {/* ── Concluída: pedidos gerados ────────────────────────────────── */}
         {cotacao.status === "CONCLUIDA" && cotacao.pedidos.length > 0 && (
-          <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-3">
-            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
-            <span className="text-sm text-green-800 font-medium">
+          <div className="bg-success/10 border border-success/30 rounded-xl px-4 py-3 flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-success shrink-0" />
+            <span className="text-sm text-success font-medium">
               Pedido gerado:{" "}
               {cotacao.pedidos.map((p) => (
                 <Link
@@ -777,16 +777,16 @@ export default function CotacaoDetailPage() {
       {/* ── Edit cotação modal ─────────────────────────────────────────────────── */}
       {showEditModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
               <div>
-                <h2 className="font-semibold text-gray-900">Editar cotação</h2>
-                <p className="text-xs text-gray-400 mt-0.5">{cotacao?.numero}</p>
+                <h2 className="font-semibold text-foreground">Editar cotação</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{cotacao?.numero}</p>
               </div>
               <button
                 onClick={() => setShowEditModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-muted-foreground hover:text-muted-foreground"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -818,7 +818,7 @@ export default function CotacaoDetailPage() {
                   onChange={(e) => setEditDataLimite(e.target.value)}
                   className={cn(!editDataLimite && editError ? "border-red-400" : "")}
                 />
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-muted-foreground">
                   Prazo limite para os fornecedores enviarem suas propostas.
                 </p>
               </div>
@@ -847,14 +847,14 @@ export default function CotacaoDetailPage() {
               </div>
 
               {editError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
                   {editError}
                 </p>
               )}
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end gap-2">
+            <div className="px-6 py-4 border-t border-border bg-muted rounded-b-2xl flex justify-end gap-2">
               <Button
                 variant="outline"
                 onClick={() => setShowEditModal(false)}
@@ -893,18 +893,18 @@ export default function CotacaoDetailPage() {
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh]">
+            <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh]">
               {/* Header */}
-              <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+              <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
                 <div>
-                  <h2 className="font-semibold text-gray-900">Adicionar participantes</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <h2 className="font-semibold text-foreground">Adicionar participantes</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {selectedFornIds.size > 0
                       ? `${selectedFornIds.size} fornecedor${selectedFornIds.size > 1 ? "es" : ""} selecionado${selectedFornIds.size > 1 ? "s" : ""}`
                       : "Selecione os fornecedores que participarão da cotação"}
                   </p>
                 </div>
-                <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => setShowAddModal(false)} className="text-muted-foreground hover:text-muted-foreground">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -912,13 +912,13 @@ export default function CotacaoDetailPage() {
               {/* Search */}
               <div className="px-6 pt-4 pb-2">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
                     type="text"
                     value={searchForn}
                     onChange={(e) => setSearchForn(e.target.value)}
                     placeholder="Buscar por nome, fantasia ou CNPJ..."
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     autoFocus
                   />
                 </div>
@@ -928,11 +928,11 @@ export default function CotacaoDetailPage() {
               <div className="overflow-y-auto flex-1 px-6 py-2 space-y-1">
                 {!fornecedoresLoaded && (
                   <div className="flex justify-center py-8">
-                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                   </div>
                 )}
                 {fornecedoresLoaded && filtered.length === 0 && (
-                  <p className="text-center text-sm text-gray-400 py-8">
+                  <p className="text-center text-sm text-muted-foreground py-8">
                     {available.length === 0 ? "Todos os fornecedores já estão na cotação." : "Nenhum fornecedor encontrado."}
                   </p>
                 )}
@@ -954,13 +954,13 @@ export default function CotacaoDetailPage() {
                       className={cn(
                         "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors",
                         isSelected
-                          ? "bg-blue-50 border border-blue-200"
-                          : "hover:bg-gray-50 border border-transparent"
+                          ? "bg-info/10 border border-info/30"
+                          : "hover:bg-muted border border-transparent"
                       )}
                     >
                       <div className={cn(
                         "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
-                        isSelected ? "bg-blue-600 border-blue-600" : "border-gray-300"
+                        isSelected ? "bg-blue-600 border-blue-600" : "border-border"
                       )}>
                         {isSelected && (
                           <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 8" fill="none">
@@ -969,13 +969,13 @@ export default function CotacaoDetailPage() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{label}</p>
+                        <p className="text-sm font-medium text-foreground truncate">{label}</p>
                         {f.nomeFantasia && (
-                          <p className="text-xs text-gray-400 truncate">{f.razaoSocial}</p>
+                          <p className="text-xs text-muted-foreground truncate">{f.razaoSocial}</p>
                         )}
                       </div>
                       {f.cpfCnpj && (
-                        <span className="text-xs text-gray-400 font-mono shrink-0">{f.cpfCnpj}</span>
+                        <span className="text-xs text-muted-foreground font-mono shrink-0">{f.cpfCnpj}</span>
                       )}
                     </button>
                   );
@@ -985,12 +985,12 @@ export default function CotacaoDetailPage() {
               {/* Error */}
               {addError && (
                 <div className="mx-6 mb-2">
-                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{addError}</p>
+                  <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{addError}</p>
                 </div>
               )}
 
               {/* Footer */}
-              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end gap-2">
+              <div className="px-6 py-4 border-t border-border bg-muted rounded-b-2xl flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setShowAddModal(false)} disabled={addingParticipants}>
                   Cancelar
                 </Button>
@@ -1014,16 +1014,16 @@ export default function CotacaoDetailPage() {
       {/* ── History modal ──────────────────────────────────────────────────────── */}
       {historicoTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+          <div className="bg-card rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <div>
-                <h2 className="text-base font-semibold text-gray-900">
+                <h2 className="text-base font-semibold text-foreground">
                   Histórico de propostas
                 </h2>
-                <p className="text-sm text-gray-500">{historicoTarget.fornNome}</p>
+                <p className="text-sm text-muted-foreground">{historicoTarget.fornNome}</p>
               </div>
-              <button onClick={() => setHistoricoTarget(null)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setHistoricoTarget(null)} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -1032,46 +1032,46 @@ export default function CotacaoDetailPage() {
             <div className="overflow-y-auto flex-1 p-6">
               {loadingHistorico && (
                 <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               )}
               {!loadingHistorico && historicoData.length === 0 && (
-                <p className="text-center text-gray-400 py-8 text-sm">
+                <p className="text-center text-muted-foreground py-8 text-sm">
                   Nenhum histórico de proposta registrado ainda.
                 </p>
               )}
               {!loadingHistorico && historicoData.map((h) => (
                 <div key={h.id} className="border rounded-lg p-4 mb-4 last:mb-0">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-semibold text-gray-700">
+                    <span className="text-sm font-semibold text-foreground">
                       Versão {h.versao}
                     </span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-muted-foreground">
                       {new Date(h.createdAt).toLocaleString("pt-BR")}
                     </span>
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-xs mb-3">
                     <div>
-                      <p className="text-gray-400">Total</p>
+                      <p className="text-muted-foreground">Total</p>
                       <p className="font-medium">{formatBRL(decimalToNumber(h.totalCalculado))}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400">Frete</p>
+                      <p className="text-muted-foreground">Frete</p>
                       <p className="font-medium">{formatBRL(decimalToNumber(h.frete))}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400">Desconto</p>
+                      <p className="text-muted-foreground">Desconto</p>
                       <p className="font-medium">{decimalToNumber(h.desconto).toFixed(2)}%</p>
                     </div>
                     {h.condicoesPagamento && (
                       <div>
-                        <p className="text-gray-400">Cond. Pagamento</p>
+                        <p className="text-muted-foreground">Cond. Pagamento</p>
                         <p className="font-medium">{h.condicoesPagamento}</p>
                       </div>
                     )}
                     {h.prazoEntregaDias != null && (
                       <div>
-                        <p className="text-gray-400">Prazo entrega</p>
+                        <p className="text-muted-foreground">Prazo entrega</p>
                         <p className="font-medium">{h.prazoEntregaDias} dias</p>
                       </div>
                     )}
@@ -1079,7 +1079,7 @@ export default function CotacaoDetailPage() {
                   {h.itensSnapshot && h.itensSnapshot.length > 0 && (
                     <table className="w-full text-xs border-t pt-2 mt-2">
                       <thead>
-                        <tr className="text-gray-400">
+                        <tr className="text-muted-foreground">
                           <th className="text-left py-1">Produto</th>
                           <th className="text-left py-1">Descrição</th>
                           <th className="text-right py-1">Qtd</th>
@@ -1090,7 +1090,7 @@ export default function CotacaoDetailPage() {
                       <tbody>
                         {h.itensSnapshot.map((item, idx) => (
                           <tr key={idx} className="border-t border-gray-50">
-                            <td className="py-1 text-gray-500">{item.codigo}</td>
+                            <td className="py-1 text-muted-foreground">{item.codigo}</td>
                             <td className="py-1">{item.descricao}</td>
                             <td className="py-1 text-right">{item.quantidade}</td>
                             <td className="py-1 text-right">{item.precoUnitario ? formatBRL(parseFloat(item.precoUnitario)) : "—"}</td>
@@ -1110,25 +1110,25 @@ export default function CotacaoDetailPage() {
       {/* ── Modal: sem proposta para analisar ─────────────────────────────────── */}
       {showSemPropostaModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm flex flex-col">
             <div className="px-6 pt-6 pb-4 flex flex-col items-center text-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
-                <BarChart3 className="w-6 h-6 text-amber-600" />
+              <div className="w-12 h-12 rounded-full bg-warning/15 flex items-center justify-center">
+                <BarChart3 className="w-6 h-6 text-warning" />
               </div>
               <div>
-                <h2 className="font-semibold text-gray-900 text-base">Nenhuma proposta registrada</h2>
-                <p className="text-sm text-gray-500 mt-1">
+                <h2 className="font-semibold text-foreground text-base">Nenhuma proposta registrada</h2>
+                <p className="text-sm text-muted-foreground mt-1">
                   Para analisar a cotação é necessário que pelo menos um fornecedor tenha enviado sua proposta.
                   Registre uma proposta antes de continuar.
                 </p>
               </div>
-              <div className="w-full mt-1 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-sm text-amber-800">
+              <div className="w-full mt-1 bg-warning/10 border border-warning/30 rounded-lg px-4 py-2.5 text-sm text-warning">
                 {cotacao.fornecedores.length === 0
                   ? "Nenhum fornecedor vinculado a esta cotação."
                   : `${cotacao.fornecedores.length} fornecedor${cotacao.fornecedores.length > 1 ? "es" : ""} aguardando resposta.`}
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end">
+            <div className="px-6 py-4 border-t border-border bg-muted rounded-b-2xl flex justify-end">
               <Button onClick={() => setShowSemPropostaModal(false)} className="bg-blue-600 hover:bg-blue-700">
                 Entendido
               </Button>
@@ -1140,15 +1140,15 @@ export default function CotacaoDetailPage() {
       {/* Modal — Excluir cotação (admin) */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md mx-4">
             <div className="px-6 py-5">
-              <p className="font-semibold text-gray-900">Excluir cotação {cotacao.numero}?</p>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="font-semibold text-foreground">Excluir cotação {cotacao.numero}?</p>
+              <p className="text-sm text-muted-foreground mt-1">
                 Esta ação remove a cotação e todas as propostas dos fornecedores vinculadas.
                 {cotacao.pedidos.length > 0 && (() => {
                   const nDE = cotacao.pedidos.filter((p) => p.conferencia).length;
                   return (
-                    <> Também serão <strong className="text-red-600">
+                    <> Também serão <strong className="text-danger">
                       excluídos {cotacao.pedidos.length} pedido(s) de compra
                       {nDE > 0 ? ` e ${nDE} documento(s) de entrada` : ""}
                     </strong> gerados a partir desta cotação{nDE > 0 ? ", revertendo o estoque lançado" : ""}.</>
@@ -1157,12 +1157,12 @@ export default function CotacaoDetailPage() {
                 {" "}Não pode ser desfeita.
               </p>
               {deleteError && (
-                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <div className="mt-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                   {deleteError}
                 </div>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end gap-2">
+            <div className="px-6 py-4 border-t border-border bg-muted rounded-b-2xl flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowDeleteModal(false)} disabled={deleteLoading}>
                 Cancelar
               </Button>

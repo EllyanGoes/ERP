@@ -98,23 +98,23 @@ export default function PlanoContasContabilPage() {
       />
       <div className="px-8 pb-8">
         {loading ? (
-          <p className="text-sm text-gray-400 py-10 text-center">Carregando...</p>
+          <p className="text-sm text-muted-foreground py-10 text-center">Carregando...</p>
         ) : raizes.length === 0 ? (
-          <p className="text-sm text-gray-400 py-10 text-center">
+          <p className="text-sm text-muted-foreground py-10 text-center">
             Plano de contas vazio. Rode a migration do módulo Contabilidade para semear a estrutura padrão.
           </p>
         ) : (
           <>
             <div className="flex items-center justify-end gap-2 mb-3">
-              <button type="button" onClick={recolherTudo} className="text-xs font-medium text-gray-500 hover:text-gray-700 px-2.5 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50">
+              <button type="button" onClick={recolherTudo} className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-md border border-border hover:bg-muted">
                 Recolher tudo
               </button>
-              <button type="button" onClick={expandirTudo} className="text-xs font-medium text-gray-500 hover:text-gray-700 px-2.5 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50">
+              <button type="button" onClick={expandirTudo} className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-md border border-border hover:bg-muted">
                 Expandir tudo
               </button>
             </div>
-            <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-              <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-5 py-2.5 border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-5 py-2.5 border-b border-border bg-muted text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 <span>Conta</span>
                 <span className="text-center w-16">D/C</span>
                 <span className="text-center w-20">Tipo</span>
@@ -143,7 +143,7 @@ function Node({ conta, onChanged, flat, collapsed, onToggle }: {
     <li>
       <div
         className={cn(
-          "grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-5 py-2 border-b border-gray-50 hover:bg-gray-50/60 text-sm",
+          "grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-5 py-2 border-b border-gray-50 hover:bg-muted/60 text-sm",
           !conta.ativo && "opacity-50",
         )}
       >
@@ -152,38 +152,38 @@ function Node({ conta, onChanged, flat, collapsed, onToggle }: {
             <button
               type="button"
               onClick={() => onToggle(conta.id)}
-              className="text-gray-400 hover:text-gray-700 shrink-0"
+              className="text-muted-foreground hover:text-foreground shrink-0"
               title={recolhido ? "Expandir" : "Recolher"}
             >
               {recolhido ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
           ) : conta.nivel > 1 ? (
-            <CornerDownRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+            <CornerDownRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
           ) : null}
-          <span className="font-mono text-xs text-gray-500 shrink-0">{conta.codigo}</span>
-          <span className={cn("truncate", conta.tipo === "SINTETICA" ? "font-semibold text-gray-900" : "text-gray-700")}>
+          <span className="font-mono text-xs text-muted-foreground shrink-0">{conta.codigo}</span>
+          <span className={cn("truncate", conta.tipo === "SINTETICA" ? "font-semibold text-foreground" : "text-foreground")}>
             {conta.nome}
           </span>
           {qtdDentro > 0 && (
             <span
-              className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-gray-100 text-gray-500 text-[11px] font-medium shrink-0 tabular-nums"
+              className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-muted text-muted-foreground text-[11px] font-medium shrink-0 tabular-nums"
               title={`${qtdDentro} ${qtdDentro === 1 ? "conta" : "contas"} dentro`}
             >
               {qtdDentro}
             </span>
           )}
-          {auto && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-400 shrink-0">auto</span>}
-          {!conta.ativo && <span className="text-xs text-gray-400 shrink-0">(inativa)</span>}
+          {auto && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">auto</span>}
+          {!conta.ativo && <span className="text-xs text-muted-foreground shrink-0">(inativa)</span>}
         </div>
         <span className="w-16 text-center">
           <span className={cn(
             "inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold",
-            conta.natureza === "DEVEDORA" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700",
+            conta.natureza === "DEVEDORA" ? "bg-info/15 text-info" : "bg-warning/15 text-warning",
           )} title={conta.natureza === "DEVEDORA" ? "Devedora" : "Credora"}>
             {conta.natureza === "DEVEDORA" ? "D" : "C"}
           </span>
         </span>
-        <span className="w-20 text-center text-xs text-gray-500">
+        <span className="w-20 text-center text-xs text-muted-foreground">
           {conta.tipo === "SINTETICA" ? "Sintética" : "Analítica"}
         </span>
         <div className="w-16 flex items-center justify-end gap-1">
@@ -236,7 +236,7 @@ function NovaContaDialog({ flat, onDone }: { flat: FlatConta[]; onDone: () => vo
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>Nova conta contábil</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
-          {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
+          {erro && <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{erro}</p>}
           <div className="space-y-1.5">
             <Label>Conta pai *</Label>
             <ComboboxWithCreate
@@ -246,7 +246,7 @@ function NovaContaDialog({ flat, onDone }: { flat: FlatConta[]; onDone: () => vo
               triggerClassName="h-10 rounded-lg"
               options={pais.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))}
             />
-            <p className="text-xs text-gray-400">Código, grupo e natureza são herdados da conta pai.</p>
+            <p className="text-xs text-muted-foreground">Código, grupo e natureza são herdados da conta pai.</p>
           </div>
           <div className="space-y-1.5">
             <Label>Nome *</Label>
@@ -254,7 +254,7 @@ function NovaContaDialog({ flat, onDone }: { flat: FlatConta[]; onDone: () => vo
           </div>
           <div className="space-y-1.5">
             <Label>Tipo</Label>
-            <select value={tipo} onChange={(e) => setTipo(e.target.value as Tipo)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
+            <select value={tipo} onChange={(e) => setTipo(e.target.value as Tipo)} className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card">
               <option value="ANALITICA">Analítica (aceita lançamento)</option>
               <option value="SINTETICA">Sintética (agrupadora)</option>
             </select>
@@ -289,7 +289,7 @@ function EditarContaButton({ conta, onDone }: { conta: Conta; onDone: () => void
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<button type="button" className="text-gray-300 hover:text-blue-500 transition-colors" title="Editar" />}>
+      <DialogTrigger render={<button type="button" className="text-muted-foreground/60 hover:text-blue-500 transition-colors" title="Editar" />}>
         <Pencil className="w-3.5 h-3.5" />
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -301,13 +301,13 @@ function EditarContaButton({ conta, onDone }: { conta: Conta; onDone: () => void
           </div>
           <div className="space-y-1.5">
             <Label>Natureza</Label>
-            <select value={natureza} onChange={(e) => setNatureza(e.target.value as Natureza)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
+            <select value={natureza} onChange={(e) => setNatureza(e.target.value as Natureza)} className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card">
               <option value="DEVEDORA">Devedora</option>
               <option value="CREDORA">Credora</option>
             </select>
           </div>
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-blue-600" />
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} className="w-4 h-4 rounded border-border text-info" />
             Conta ativa
           </label>
         </div>
@@ -337,7 +337,7 @@ function ExcluirContaButton({ conta, onDone }: { conta: Conta; onDone: () => voi
       type="button"
       onClick={excluir}
       disabled={deleting}
-      className="text-gray-300 hover:text-red-500 transition-colors"
+      className="text-muted-foreground/60 hover:text-red-500 transition-colors"
       title={erro || "Excluir"}
     >
       {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}

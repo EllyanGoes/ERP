@@ -57,11 +57,11 @@ export default function MateriaisGrid({
   if (filtered.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-          <PackageSearch className="w-7 h-7 text-gray-300" />
+        <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-3">
+          <PackageSearch className="w-7 h-7 text-muted-foreground/60" />
         </div>
-        <p className="text-sm font-medium text-gray-700">Nenhum saldo pendente</p>
-        <p className="text-xs text-gray-400 mt-1">
+        <p className="text-sm font-medium text-foreground">Nenhum saldo pendente</p>
+        <p className="text-xs text-muted-foreground mt-1">
           {query
             ? "Nenhum material corresponde à busca."
             : "Todos os pedidos confirmados já foram totalmente entregues."}
@@ -74,13 +74,13 @@ export default function MateriaisGrid({
     <div className="space-y-4">
       {/* Contadores */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-600 px-2.5 py-1 font-medium">
+        <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground px-2.5 py-1 font-medium">
           {totals.nMateriais} {totals.nMateriais === 1 ? "material" : "materiais"}
         </span>
-        <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2.5 py-1 font-medium">
+        <span className="inline-flex items-center rounded-full bg-info/10 text-info px-2.5 py-1 font-medium">
           {totals.nLinhas} {totals.nLinhas === 1 ? "linha" : "linhas"}
         </span>
-        <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-1 font-semibold">
+        <span className="inline-flex items-center rounded-full bg-success/10 text-success px-2.5 py-1 font-semibold">
           {formatBRL(totals.valorTotal)} a entregar
         </span>
       </div>
@@ -88,18 +88,18 @@ export default function MateriaisGrid({
       {filtered.map((m) => (
         <div
           key={m.id}
-          className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden"
+          className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
         >
           {/* Cabeçalho do material */}
-          <div className="flex items-center gap-3 px-5 py-3 bg-gray-50 border-b border-gray-200">
-            <span className="font-semibold text-gray-900 flex-1 truncate">
+          <div className="flex items-center gap-3 px-5 py-3 bg-muted border-b border-border">
+            <span className="font-semibold text-foreground flex-1 truncate">
               {m.descricao}{" "}
-              <span className="text-gray-400 font-normal">{m.codigo}</span>
+              <span className="text-muted-foreground font-normal">{m.codigo}</span>
             </span>
-            <span className="text-sm text-gray-500 tabular-nums">
+            <span className="text-sm text-muted-foreground tabular-nums">
               {numberFmt.format(m.totalQuantidade)} {m.unidade}
             </span>
-            <span className="text-sm font-semibold text-emerald-700">
+            <span className="text-sm font-semibold text-success">
               {formatBRL(m.totalValor)}
             </span>
           </div>
@@ -107,7 +107,7 @@ export default function MateriaisGrid({
           {/* Tabela (rola na horizontal em telas estreitas) */}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+              <thead className="bg-muted text-xs text-muted-foreground uppercase tracking-wider">
                 <tr>
                   <th className="text-left font-medium px-3 py-2 w-28">Data</th>
                   <th className="text-left font-medium px-3 py-2 w-24">Ped.</th>
@@ -117,48 +117,48 @@ export default function MateriaisGrid({
                   <th className="text-right font-medium px-3 py-2 w-32">Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {m.rows.map((r, i) => (
                   <tr key={`${r.pedidoId}-${i}`}>
-                    <td className="px-3 py-2 text-gray-600 tabular-nums whitespace-nowrap">
+                    <td className="px-3 py-2 text-muted-foreground tabular-nums whitespace-nowrap">
                       {formatDate(r.dataEmissao)}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
-                      <span className="text-gray-800">{r.numero}</span>
+                      <span className="text-foreground">{r.numero}</span>
                       {r.numeroOrcamento && (
-                        <span className="text-gray-400 ml-1 text-xs">
+                        <span className="text-muted-foreground ml-1 text-xs">
                           Orç. {r.numeroOrcamento}
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-gray-800 truncate max-w-[260px]">
+                    <td className="px-3 py-2 text-foreground truncate max-w-[260px]">
                       {r.clienteNome}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-blue-700 whitespace-nowrap">
+                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-info whitespace-nowrap">
                       {numberFmt.format(r.quantidade)} {m.unidade}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-gray-600 whitespace-nowrap">
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground whitespace-nowrap">
                       {formatBRL(r.valorUnitario)}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-gray-900 whitespace-nowrap">
+                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-foreground whitespace-nowrap">
                       {formatBRL(r.valorTotal)}
                     </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="bg-gray-50 border-t border-gray-200">
+              <tfoot className="bg-muted border-t border-border">
                 <tr>
                   <td
-                    className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-gray-500"
+                    className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"
                     colSpan={3}
                   >
                     Total
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums font-bold text-gray-900 whitespace-nowrap">
+                  <td className="px-3 py-2 text-right tabular-nums font-bold text-foreground whitespace-nowrap">
                     {numberFmt.format(m.totalQuantidade)} {m.unidade}
                   </td>
                   <td />
-                  <td className="px-3 py-2 text-right tabular-nums font-bold text-emerald-700 whitespace-nowrap">
+                  <td className="px-3 py-2 text-right tabular-nums font-bold text-success whitespace-nowrap">
                     {formatBRL(m.totalValor)}
                   </td>
                 </tr>

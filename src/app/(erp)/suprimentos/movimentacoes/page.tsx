@@ -76,7 +76,7 @@ const MOV_COLS: ColDef<MovItem>[] = [
     thClass: "text-left px-6 py-2 font-medium",
     tdClass: "px-6 py-2.5",
     render: (it) => (
-      <Link href={`/suprimentos/produtos/${it.item.id}`} className="font-mono text-xs text-blue-600 hover:underline">
+      <Link href={`/suprimentos/produtos/${it.item.id}`} className="font-mono text-xs text-info hover:underline">
         {it.item.codigo}
       </Link>
     ),
@@ -85,19 +85,19 @@ const MOV_COLS: ColDef<MovItem>[] = [
     id: "descricao",
     label: "Descrição",
     thClass: "text-left px-4 py-2 font-medium",
-    tdClass: "px-4 py-2.5 text-gray-800",
+    tdClass: "px-4 py-2.5 text-foreground",
     render: (it) => it.item.descricao,
   },
   {
     id: "local",
     label: "Local",
     thClass: "text-left px-4 py-2 font-medium",
-    tdClass: "px-4 py-2.5 text-xs text-gray-500",
+    tdClass: "px-4 py-2.5 text-xs text-muted-foreground",
     render: (it) => (
       <span className="inline-flex items-center gap-1.5">
-        {it.localEstoque?.nome ?? <span className="text-gray-300">—</span>}
+        {it.localEstoque?.nome ?? <span className="text-muted-foreground/60">—</span>}
         {it.clienteDono && (
-          <span className="px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-medium whitespace-nowrap" title={`Mercadoria de terceiro: ${it.clienteDono.razaoSocial}`}>
+          <span className="px-1.5 py-0.5 rounded border border-warning/30 bg-warning/10 text-warning text-[10px] font-medium whitespace-nowrap" title={`Mercadoria de terceiro: ${it.clienteDono.razaoSocial}`}>
             Terceiro: {it.clienteDono.razaoSocial}
           </span>
         )}
@@ -107,7 +107,7 @@ const MOV_COLS: ColDef<MovItem>[] = [
           </Link>
         )}
         {it.devolucaoId && (
-          <span className="px-1.5 py-0.5 rounded border border-orange-200 bg-orange-50 text-orange-700 text-[10px] font-medium whitespace-nowrap" title={it.observacoes ?? "Devolução de venda"}>
+          <span className="px-1.5 py-0.5 rounded border border-orange-200 bg-warning/10 text-warning text-[10px] font-medium whitespace-nowrap" title={it.observacoes ?? "Devolução de venda"}>
             Devolução
           </span>
         )}
@@ -123,9 +123,9 @@ const MOV_COLS: ColDef<MovItem>[] = [
       const isEntra = _movIsEntrada;
       const un = it.item.unidade?.sigla || it.item.unidadeMedida;
       return (
-        <span className={isEntra ? "text-emerald-600" : "text-red-600"}>
+        <span className={isEntra ? "text-success" : "text-danger"}>
           {isEntra ? "+" : "−"}{toNum(it.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-          <span className="text-xs font-normal text-gray-400 ml-1">{un}</span>
+          <span className="text-xs font-normal text-muted-foreground ml-1">{un}</span>
         </span>
       );
     },
@@ -134,39 +134,39 @@ const MOV_COLS: ColDef<MovItem>[] = [
     id: "custoUnit",
     label: "Custo Unit.",
     thClass: "text-right px-4 py-2 font-medium",
-    tdClass: "px-4 py-2.5 text-right text-xs text-gray-500",
+    tdClass: "px-4 py-2.5 text-right text-xs text-muted-foreground",
     render: (it) => {
       const vUnit = it.valorUnitario ? toNum(it.valorUnitario) : null;
       return vUnit !== null
         ? vUnit.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-        : <span className="text-gray-300">—</span>;
+        : <span className="text-muted-foreground/60">—</span>;
     },
   },
   {
     id: "custoTotal",
     label: "Custo Total",
     thClass: "text-right px-4 py-2 font-medium",
-    tdClass: "px-4 py-2.5 text-right text-xs text-gray-700 font-medium",
+    tdClass: "px-4 py-2.5 text-right text-xs text-foreground font-medium",
     render: (it) => {
       const vUnit = it.valorUnitario ? toNum(it.valorUnitario) : null;
       const qtd   = toNum(it.quantidade);
       return vUnit !== null && qtd > 0
         ? (vUnit * qtd).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-        : <span className="text-gray-300">—</span>;
+        : <span className="text-muted-foreground/60">—</span>;
     },
   },
   {
     id: "saldoAntes",
     label: "Saldo Antes",
     thClass: "text-right px-4 py-2 font-medium",
-    tdClass: "px-4 py-2.5 text-right text-gray-400 text-xs",
+    tdClass: "px-4 py-2.5 text-right text-muted-foreground text-xs",
     render: (it) => toNum(it.saldoAntes).toLocaleString("pt-BR", { maximumFractionDigits: 3 }),
   },
   {
     id: "saldoDepois",
     label: "Saldo Depois",
     thClass: "text-right px-4 py-2 font-medium",
-    tdClass: "px-4 py-2.5 text-right text-gray-700 text-sm font-medium",
+    tdClass: "px-4 py-2.5 text-right text-foreground text-sm font-medium",
     render: (it) => toNum(it.saldoDepois).toLocaleString("pt-BR", { maximumFractionDigits: 3 }),
   },
   {
@@ -180,28 +180,28 @@ const MOV_COLS: ColDef<MovItem>[] = [
           <RefreshCw className="w-3 h-3" />Auto
         </span>
       ) : (
-        <span className="text-xs text-gray-400">Manual</span>
+        <span className="text-xs text-muted-foreground">Manual</span>
       ),
   },
   {
     id: "obs",
     label: "Obs.",
     thClass: "text-left px-4 py-2 font-medium",
-    tdClass: "px-4 py-2.5 text-xs text-gray-400 max-w-[140px] truncate",
+    tdClass: "px-4 py-2.5 text-xs text-muted-foreground max-w-[140px] truncate",
     render: (it) => it.observacoes || "—",
   },
 ];
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const TIPO_FILTER_OPTIONS: FilterOption[] = [
-  { key: "todos",   label: "Todos",   color: "bg-gray-100 text-gray-600" },
-  { key: "ENTRADA", label: "Entrada", color: "bg-emerald-100 text-emerald-700" },
-  { key: "SAIDA",   label: "Saída",   color: "bg-red-100 text-red-700" },
+  { key: "todos",   label: "Todos",   color: "bg-muted text-muted-foreground" },
+  { key: "ENTRADA", label: "Entrada", color: "bg-success/15 text-success" },
+  { key: "SAIDA",   label: "Saída",   color: "bg-danger/15 text-danger" },
 ];
 
 const ORIGEM_FILTER_OPTIONS: FilterOption[] = [
-  { key: "todos",       label: "Todas",     color: "bg-gray-100 text-gray-600" },
-  { key: "manual",      label: "Manual",    color: "bg-gray-100 text-gray-600" },
+  { key: "todos",       label: "Todas",     color: "bg-muted text-muted-foreground" },
+  { key: "manual",      label: "Manual",    color: "bg-muted text-muted-foreground" },
   { key: "automatica",  label: "Automática", color: "bg-purple-100 text-purple-700" },
 ];
 
@@ -241,14 +241,14 @@ function UnitSelect({ value, options, onChange, disabled }: {
 
   if (disabled || options.length === 0) {
     return (
-      <div className="h-8 flex items-center px-2 text-sm border border-gray-100 rounded-md bg-gray-50 font-mono text-gray-500">
+      <div className="h-8 flex items-center px-2 text-sm border border-border rounded-md bg-muted font-mono text-muted-foreground">
         {value || "—"}
       </div>
     );
   }
   if (options.length === 1) {
     return (
-      <div className="h-8 flex items-center px-2 text-sm border border-gray-100 rounded-md bg-gray-50 font-mono text-gray-700">
+      <div className="h-8 flex items-center px-2 text-sm border border-border rounded-md bg-muted font-mono text-foreground">
         {value || options[0].sigla}
       </div>
     );
@@ -258,27 +258,27 @@ function UnitSelect({ value, options, onChange, disabled }: {
     <>
       <button ref={btnRef} type="button" onClick={() => setOpen((p) => !p)}
         className={cn(
-          "h-8 w-full flex items-center justify-between px-2 text-sm border border-gray-200 rounded-md bg-white font-mono transition-colors hover:border-gray-300",
+          "h-8 w-full flex items-center justify-between px-2 text-sm border border-border rounded-md bg-card font-mono transition-colors hover:border-border",
           open && "border-blue-400 ring-1 ring-blue-200"
         )}>
-        <span className={value ? "text-gray-800" : "text-gray-400"}>{value || "Un."}</span>
-        <ChevronDown className={cn("w-3 h-3 text-gray-400 shrink-0 transition-transform", open && "rotate-180")} />
+        <span className={value ? "text-foreground" : "text-muted-foreground"}>{value || "Un."}</span>
+        <ChevronDown className={cn("w-3 h-3 text-muted-foreground shrink-0 transition-transform", open && "rotate-180")} />
       </button>
       {open && typeof window !== "undefined" && (
         <>
           <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
           {pos && (
-            <div className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-auto"
+            <div className="fixed z-[9999] bg-card border border-border rounded-xl shadow-lg overflow-auto"
               style={{ top: pos.top, bottom: pos.bottom, left: pos.left, width: Math.max(pos.width, 140), maxHeight: 180 }}>
               {options.map((u) => (
                 <button key={u.id} type="button" onClick={() => { onChange(u.sigla); setOpen(false); }}
                   className={cn(
-                    "w-full px-3 py-2 text-sm text-left hover:bg-blue-50 hover:text-blue-700 transition-colors font-mono",
-                    value === u.sigla && "bg-blue-50 text-blue-700 font-medium"
+                    "w-full px-3 py-2 text-sm text-left hover:bg-info/10 hover:text-info transition-colors font-mono",
+                    value === u.sigla && "bg-info/10 text-info font-medium"
                   )}>
                   <span className="font-bold">{u.sigla}</span>
-                  {u.nome && <span className="text-gray-400 ml-1.5 text-xs font-sans">{u.nome}</span>}
-                  {u.isPrincipal && <span className="ml-1.5 text-[10px] text-emerald-600">principal</span>}
+                  {u.nome && <span className="text-muted-foreground ml-1.5 text-xs font-sans">{u.nome}</span>}
+                  {u.isPrincipal && <span className="ml-1.5 text-[10px] text-success">principal</span>}
                 </button>
               ))}
             </div>
@@ -613,8 +613,8 @@ export default function MovimentacoesPage() {
 
   // Build local filter options from the already-loaded locais list
   const LOCAL_FILTER_OPTIONS: FilterOption[] = [
-    { key: "todos", label: "Todos os locais", color: "bg-gray-100 text-gray-600" },
-    ...locais.map((l) => ({ key: l.id, label: l.nome, color: "bg-emerald-100 text-emerald-700" })),
+    { key: "todos", label: "Todos os locais", color: "bg-muted text-muted-foreground" },
+    ...locais.map((l) => ({ key: l.id, label: l.nome, color: "bg-success/15 text-success" })),
   ];
 
   function toggleExpand(id: string) {
@@ -629,7 +629,7 @@ export default function MovimentacoesPage() {
   function linhaAlert(linha: LinhaItem) {
     if (!linha.itemId || !localEstoqueId) return null;
     if (linha.stockLoading) return (
-      <span className="text-[10px] text-gray-400 flex items-center gap-1">
+      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
         <Loader2 className="w-2.5 h-2.5 animate-spin" /> verificando...
       </span>
     );
@@ -637,26 +637,26 @@ export default function MovimentacoesPage() {
     const { exists, quantidadeAtual } = linha.stockInfo;
     if (tipoMov === "SAIDA") {
       if (!exists || quantidadeAtual <= 0) return (
-        <span className="text-[10px] text-red-600 flex items-center gap-1">
+        <span className="text-[10px] text-danger flex items-center gap-1">
           <AlertTriangle className="w-2.5 h-2.5" />
           Saldo insuficiente ({quantidadeAtual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })})
         </span>
       );
       return (
-        <span className="text-[10px] text-gray-500 flex items-center gap-1">
+        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
           <Info className="w-2.5 h-2.5" />
           Saldo: {quantidadeAtual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
         </span>
       );
     }
     if (!exists) return (
-      <span className="text-[10px] text-blue-600 flex items-center gap-1">
+      <span className="text-[10px] text-info flex items-center gap-1">
         <Info className="w-2.5 h-2.5" />
         Novo vínculo será criado
       </span>
     );
     return (
-      <span className="text-[10px] text-gray-500 flex items-center gap-1">
+      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
         <Info className="w-2.5 h-2.5" />
         Saldo: {quantidadeAtual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
       </span>
@@ -698,15 +698,15 @@ export default function MovimentacoesPage() {
       <div className="px-8 pb-8 space-y-5">
         {/* Summary cards */}
         <div className="grid grid-cols-3 gap-4 max-w-sm">
-          <div className="rounded-xl p-4 bg-gray-50 text-gray-700">
+          <div className="rounded-xl p-4 bg-muted text-foreground">
             <p className="text-xs font-medium opacity-75">Total</p>
             <p className="text-2xl font-bold mt-0.5">{lotes.length}</p>
           </div>
-          <div className="rounded-xl p-4 bg-emerald-50 text-emerald-700">
+          <div className="rounded-xl p-4 bg-success/10 text-success">
             <p className="text-xs font-medium opacity-75">Entradas</p>
             <p className="text-2xl font-bold mt-0.5">{totalEntradas}</p>
           </div>
-          <div className="rounded-xl p-4 bg-red-50 text-red-700">
+          <div className="rounded-xl p-4 bg-danger/10 text-danger">
             <p className="text-xs font-medium opacity-75">Saídas</p>
             <p className="text-2xl font-bold mt-0.5">{totalSaidas}</p>
           </div>
@@ -715,15 +715,15 @@ export default function MovimentacoesPage() {
         {/* Search + filters */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
               type="text" value={search}
               onChange={(e) => handleSearch(e.target.value)}
               placeholder="Buscar por número, documento ou produto..."
-              className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {search && (
-              <button onClick={() => handleSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button onClick={() => handleSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
@@ -739,7 +739,7 @@ export default function MovimentacoesPage() {
           <FilterDropdown label="Local" options={LOCAL_FILTER_OPTIONS} value={localFilter} onChange={setLocalFilter} allKey="todos" placeholder="Local..." />
           <FilterDropdown label="Origem" options={ORIGEM_FILTER_OPTIONS} value={origemFilter} onChange={setOrigemFilter} allKey="todos" placeholder="Origem..." />
           {hasFilters && (
-            <button onClick={() => { setSearch(""); setTipoFilter("todos"); setLocalFilter("todos"); setOrigemFilter("todos"); setDateRange(defaultRange); }} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600">
+            <button onClick={() => { setSearch(""); setTipoFilter("todos"); setLocalFilter("todos"); setOrigemFilter("todos"); setDateRange(defaultRange); }} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-muted-foreground">
               <X className="w-3 h-3" /> Limpar
             </button>
           )}
@@ -749,12 +749,12 @@ export default function MovimentacoesPage() {
 
         {/* List */}
         {loadError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{loadError}</div>
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-xl text-sm">{loadError}</div>
         )}
         {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         ) : sortedFiltered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
             <p className="font-medium">{hasFilters ? "Nenhuma movimentação encontrada no período" : "Nenhuma movimentação registrada"}</p>
           </div>
         ) : (
@@ -769,20 +769,20 @@ export default function MovimentacoesPage() {
               }, 0);
               const hasCusto = lote.itens.some(i => i.valorUnitario && toNum(i.valorUnitario) > 0);
               return (
-                <div key={lote.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div key={lote.id} className="bg-card rounded-xl border border-border overflow-hidden">
                   {/* Header row */}
                   <button
                     onClick={() => toggleExpand(lote.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted transition-colors text-left"
                   >
                     {isOpen
-                      ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
-                      : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />}
+                      ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                      : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
 
                     {/* Tipo badge */}
                     <span className={cn(
                       "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold shrink-0",
-                      isEntra ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                      isEntra ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
                     )}>
                       {isEntra ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                       {isEntra ? "Entrada" : "Saída"}
@@ -794,32 +794,32 @@ export default function MovimentacoesPage() {
                         <RefreshCw className="w-3 h-3" /> Auto
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 shrink-0">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground shrink-0">
                         Manual
                       </span>
                     )}
 
                     {/* Número */}
-                    <span className="font-mono text-xs font-semibold text-gray-700 shrink-0">{lote.numero}</span>
+                    <span className="font-mono text-xs font-semibold text-foreground shrink-0">{lote.numero}</span>
 
                     {/* Documento */}
                     {lote.documento && (
-                      <span className="text-xs text-gray-400 shrink-0">· {lote.documento}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">· {lote.documento}</span>
                     )}
 
                     {/* Item count pill */}
-                    <span className="ml-1 bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full shrink-0">
+                    <span className="ml-1 bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded-full shrink-0">
                       {lote.itens.length} {lote.itens.length === 1 ? "item" : "itens"}
                     </span>
 
                     {/* Total qty */}
-                    <span className="text-xs text-gray-400 shrink-0">
+                    <span className="text-xs text-muted-foreground shrink-0">
                       total: {totalQtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                     </span>
 
                     {/* Total custo */}
                     {hasCusto && (
-                      <span className="text-xs font-medium text-gray-600 shrink-0">
+                      <span className="text-xs font-medium text-muted-foreground shrink-0">
                         · {totalCusto.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </span>
                     )}
@@ -829,19 +829,19 @@ export default function MovimentacoesPage() {
 
                     {/* Observações (truncated) */}
                     {lote.observacoes && (
-                      <span className="text-xs text-gray-400 truncate max-w-[200px]">{lote.observacoes}</span>
+                      <span className="text-xs text-muted-foreground truncate max-w-[200px]">{lote.observacoes}</span>
                     )}
 
                     {/* Date */}
-                    <span className="text-xs text-gray-400 shrink-0 ml-2">{formatDateTime(lote.createdAt)}</span>
+                    <span className="text-xs text-muted-foreground shrink-0 ml-2">{formatDateTime(lote.createdAt)}</span>
                   </button>
 
                   {/* Expanded items */}
                   {isOpen && (
-                    <div className="border-t border-gray-100">
+                    <div className="border-t border-border">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="bg-gray-50 text-xs text-gray-400 uppercase tracking-wide">
+                          <tr className="bg-muted text-xs text-muted-foreground uppercase tracking-wide">
                             {orderedMovCols
                               .filter((col) => (col.id !== "custoUnit" && col.id !== "custoTotal") || isEntra)
                               .map((col) => (
@@ -854,7 +854,7 @@ export default function MovimentacoesPage() {
                           {lote.itens.map((it) => {
                             _movIsEntrada = isEntra;
                             return (
-                              <tr key={it.id} className="group/row hover:bg-gray-50">
+                              <tr key={it.id} className="group/row hover:bg-muted">
                                 {orderedMovCols
                                   .filter((col) => (col.id !== "custoUnit" && col.id !== "custoTotal") || isEntra)
                                   .map((col) => (
@@ -864,14 +864,14 @@ export default function MovimentacoesPage() {
                                   <div className="flex items-center justify-end gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
                                     <button
                                       onClick={() => openEditMov(it)}
-                                      className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                      className="p-1.5 rounded-lg text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
                                       title="Editar"
                                     >
                                       <Pencil className="w-3.5 h-3.5" />
                                     </button>
                                     <button
                                       onClick={() => { setDeleteMov(it); setDeleteMovError(""); }}
-                                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                      className="p-1.5 rounded-lg text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
                                       title="Excluir"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -889,7 +889,7 @@ export default function MovimentacoesPage() {
               );
             })}
 
-            <p className="text-xs text-gray-400 text-right pt-1">
+            <p className="text-xs text-muted-foreground text-right pt-1">
               {sortedFiltered.length} movimentaç{sortedFiltered.length === 1 ? "ão" : "ões"} · mais recente primeiro
             </p>
           </div>
@@ -899,13 +899,13 @@ export default function MovimentacoesPage() {
       {/* ── Modal Editar Movimentação ─────────────────────────────────────────── */}
       {editMov && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <div className="bg-card rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-border">
               <div>
-                <h2 className="font-semibold text-gray-900">Editar Movimentação</h2>
-                <p className="text-xs text-gray-400 mt-0.5 font-mono">{editMov.item.codigo} — {editMov.item.descricao}</p>
+                <h2 className="font-semibold text-foreground">Editar Movimentação</h2>
+                <p className="text-xs text-muted-foreground mt-0.5 font-mono">{editMov.item.codigo} — {editMov.item.descricao}</p>
               </div>
-              <button onClick={() => setEditMov(null)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setEditMov(null)} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -927,11 +927,11 @@ export default function MovimentacoesPage() {
                   placeholder="Opcional"
                 />
               </div>
-              <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
+              <p className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
                 Quantidade e saldo não podem ser alterados para preservar a integridade do estoque.
               </p>
               {editMovError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editMovError}</p>
+                <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{editMovError}</p>
               )}
             </div>
             <div className="px-5 pb-5 flex gap-2 justify-end">
@@ -948,22 +948,22 @@ export default function MovimentacoesPage() {
       {/* ── Modal Excluir Movimentação ────────────────────────────────────────── */}
       {deleteMov && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+          <div className="bg-card rounded-2xl shadow-xl w-full max-w-sm p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Excluir movimentação?</p>
-                <p className="text-sm text-gray-500 mt-0.5 font-mono">{deleteMov.item.codigo} — {deleteMov.item.descricao}</p>
+                <p className="font-semibold text-foreground">Excluir movimentação?</p>
+                <p className="text-sm text-muted-foreground mt-0.5 font-mono">{deleteMov.item.codigo} — {deleteMov.item.descricao}</p>
               </div>
             </div>
-            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+            <p className="text-sm text-warning bg-warning/10 border border-warning/30 rounded-lg px-3 py-2 mb-3">
               O saldo de estoque será revertido automaticamente.
             </p>
-            <p className="text-sm text-gray-600 mb-4">Esta ação é permanente e não pode ser desfeita.</p>
+            <p className="text-sm text-muted-foreground mb-4">Esta ação é permanente e não pode ser desfeita.</p>
             {deleteMovError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{deleteMovError}</p>
+              <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">{deleteMovError}</p>
             )}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setDeleteMov(null)} disabled={deleteMovLoading}>Cancelar</Button>
@@ -979,11 +979,11 @@ export default function MovimentacoesPage() {
       {/* ── Modal Nova Movimentação ────────────────────────────────────────────── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+          <div className="bg-card rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
             {/* Modal header */}
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 shrink-0">
-              <h2 className="font-semibold text-gray-900">Nova Movimentação</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border shrink-0">
+              <h2 className="font-semibold text-foreground">Nova Movimentação</h2>
+              <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1005,9 +1005,9 @@ export default function MovimentacoesPage() {
                             "flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 text-sm font-medium transition-colors",
                             tipoMov === t
                               ? t === "ENTRADA"
-                                ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                                : "border-red-500 bg-red-50 text-red-700"
-                              : "border-gray-200 text-gray-500 hover:border-gray-300"
+                                ? "border-emerald-500 bg-success/10 text-success"
+                                : "border-red-500 bg-danger/10 text-danger"
+                              : "border-border text-muted-foreground hover:border-border"
                           )}
                         >
                           {t === "ENTRADA" ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
@@ -1036,7 +1036,7 @@ export default function MovimentacoesPage() {
 
                   {/* Proprietário — estoque próprio ou mercadoria de terceiro sob guarda */}
                   <div className="space-y-1.5">
-                    <Label>Proprietário <span className="text-xs text-gray-400 font-normal">(de quem é a mercadoria)</span></Label>
+                    <Label>Proprietário <span className="text-xs text-muted-foreground font-normal">(de quem é a mercadoria)</span></Label>
                     <ComboboxWithCreate
                       value={clienteDonoId}
                       onChange={(v) => setClienteDonoId(v)}
@@ -1045,7 +1045,7 @@ export default function MovimentacoesPage() {
                       options={clientes.map((c) => ({ value: c.id, label: c.nomeFantasia || c.razaoSocial }))}
                     />
                     {clienteDonoId && (
-                      <p className="text-xs text-amber-600">
+                      <p className="text-xs text-warning">
                         Mercadoria de terceiro sob guarda — não entra no custo médio, no estoque mínimo nem nos relatórios de consumo.
                       </p>
                     )}
@@ -1054,7 +1054,7 @@ export default function MovimentacoesPage() {
                   {/* Fornecedor — só para ENTRADA própria */}
                   {tipoMov === "ENTRADA" && !clienteDonoId && (
                     <div className="space-y-1.5">
-                      <Label>Fornecedor <span className="text-xs text-gray-400 font-normal">(opcional — vincula automaticamente)</span></Label>
+                      <Label>Fornecedor <span className="text-xs text-muted-foreground font-normal">(opcional — vincula automaticamente)</span></Label>
                       <ComboboxWithCreate
                         key="fornecedor-entrada"
                         options={fornecedores.map((f) => ({ value: f.id, label: f.nomeFantasia || f.razaoSocial }))}
@@ -1095,16 +1095,16 @@ export default function MovimentacoesPage() {
                     <Label>Itens</Label>
                     <button
                       type="button" onClick={addLinha}
-                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      className="flex items-center gap-1 text-xs text-info hover:text-info font-medium"
                     >
                       <Plus className="w-3.5 h-3.5" /> Adicionar item
                     </button>
                   </div>
 
-                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                  <div className="border border-border rounded-xl overflow-hidden">
                     {/* Column headers */}
                     <div className={cn(
-                      "grid gap-2 px-3 py-2 bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wide",
+                      "grid gap-2 px-3 py-2 bg-muted border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wide",
                       tipoMov === "ENTRADA"
                         ? "grid-cols-[1fr_70px_80px_90px_24px]"
                         : "grid-cols-[1fr_70px_90px_24px]"
@@ -1172,7 +1172,7 @@ export default function MovimentacoesPage() {
                               type="button"
                               onClick={() => linhas.length > 1 ? removeLinha(linha.key) : undefined}
                               disabled={linhas.length === 1}
-                              className="flex items-center justify-center text-gray-300 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                              className="flex items-center justify-center text-muted-foreground/60 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1187,20 +1187,20 @@ export default function MovimentacoesPage() {
                     </div>
 
                     {/* Footer: item count */}
-                    <div className="px-3 py-2 bg-gray-50 border-t border-gray-100 text-xs text-gray-400">
+                    <div className="px-3 py-2 bg-muted border-t border-border text-xs text-muted-foreground">
                       {linhas.filter((l) => l.itemId && parseFloat(l.quantidade) > 0).length} de {linhas.length} {linhas.length === 1 ? "item" : "itens"} preenchido{linhas.length === 1 ? "" : "s"}
                     </div>
                   </div>
                 </div>
 
                 {formError && (
-                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{formError}</p>
+                  <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{formError}</p>
                 )}
               </div>
 
               {/* Modal footer */}
-              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between shrink-0 bg-white">
-                <span className="text-xs text-gray-400">
+              <div className="px-6 py-4 border-t border-border flex items-center justify-between shrink-0 bg-card">
+                <span className="text-xs text-muted-foreground">
                   {linhas.filter((l) => l.itemId && parseFloat(l.quantidade) > 0).length} itens válidos
                 </span>
                 <div className="flex gap-2">

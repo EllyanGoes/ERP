@@ -64,12 +64,12 @@ const KANBAN_TRANSITIONS: Record<string, string[]> = {
 };
 
 const STATUS_COLS: { key: string; label: string; color: string; bg: string; border: string }[] = [
-  { key: "RASCUNHO",             label: "Rascunho",          color: "text-gray-500",   bg: "bg-gray-50",    border: "border-gray-200"   },
-  { key: "ENVIADO",              label: "Enviado",            color: "text-blue-600",   bg: "bg-blue-50",    border: "border-blue-200"   },
-  { key: "AGUARDANDO_PAGAMENTO", label: "Aguard. Pagamento", color: "text-yellow-700", bg: "bg-yellow-50",  border: "border-yellow-200" },
-  { key: "EM_TRANSITO",          label: "Em Trânsito",       color: "text-amber-600",  bg: "bg-amber-50",   border: "border-amber-200"  },
-  { key: "RECEBIDO",             label: "Recebido",          color: "text-emerald-700",bg: "bg-emerald-50", border: "border-emerald-200"},
-  { key: "CANCELADO",            label: "Cancelado",         color: "text-red-500",    bg: "bg-red-50",     border: "border-red-200"    },
+  { key: "RASCUNHO",             label: "Rascunho",          color: "text-muted-foreground",   bg: "bg-muted",    border: "border-border"   },
+  { key: "ENVIADO",              label: "Enviado",            color: "text-info",   bg: "bg-info/10",    border: "border-info/30"   },
+  { key: "AGUARDANDO_PAGAMENTO", label: "Aguard. Pagamento", color: "text-warning", bg: "bg-warning/10",  border: "border-yellow-200" },
+  { key: "EM_TRANSITO",          label: "Em Trânsito",       color: "text-warning",  bg: "bg-warning/10",   border: "border-warning/30"  },
+  { key: "RECEBIDO",             label: "Recebido",          color: "text-success",bg: "bg-success/10", border: "border-success/30"},
+  { key: "CANCELADO",            label: "Cancelado",         color: "text-red-500",    bg: "bg-danger/10",     border: "border-danger/30"    },
 ];
 
 const ALL_STATUSES = STATUS_COLS.map((s) => s.key);
@@ -84,33 +84,33 @@ const COLS: ColDef<Pedido>[] = [
   {
     id: "numero",
     label: "Número",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 font-mono text-xs font-medium text-gray-900",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 font-mono text-xs font-medium text-foreground",
     render: (p) => p.numero,
   },
   {
     id: "fornecedor",
     label: "Fornecedor",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-gray-700 max-w-[200px]",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-foreground max-w-[200px]",
     render: (p) => <span className="line-clamp-1">{p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial}</span>,
   },
   {
     id: "descricao",
     label: "Descrição",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell",
     tdClass: "px-4 py-3 hidden md:table-cell max-w-[220px]",
     render: (p) => {
       const texto = p.descricao ?? p.cotacao?.necessidade?.justificativa ?? null;
       return texto
-        ? <span className="line-clamp-2 text-xs text-gray-600">{texto}</span>
-        : <span className="text-gray-300 text-xs">—</span>;
+        ? <span className="line-clamp-2 text-xs text-muted-foreground">{texto}</span>
+        : <span className="text-muted-foreground/60 text-xs">—</span>;
     },
   },
   {
     id: "sc",
     label: "SC / Solicitante",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell",
     tdClass: "px-4 py-3 hidden md:table-cell",
     render: (p) => {
       const sc = p.cotacao?.necessidade;
@@ -121,26 +121,26 @@ const COLS: ColDef<Pedido>[] = [
           onClick={(e) => e.stopPropagation()}
           className="group flex flex-col gap-0.5"
         >
-          <span className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline">
+          <span className="flex items-center gap-1 text-xs font-medium text-info hover:text-info hover:underline">
             <ClipboardList className="w-3 h-3 flex-shrink-0" />
             {sc.numero}
             <ChevronRight className="w-3 h-3 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" />
           </span>
           {(sc.solicitante || setor) && (
-            <span className="text-xs text-gray-400 pl-4">
+            <span className="text-xs text-muted-foreground pl-4">
               {[setor, sc.solicitante].filter(Boolean).join(" · ")}
             </span>
           )}
         </Link>
       ) : (
-        <span className="text-xs text-gray-300">—</span>
+        <span className="text-xs text-muted-foreground/60">—</span>
       );
     },
   },
   {
     id: "cotacao",
     label: "Cotação",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell",
     tdClass: "px-4 py-3 hidden lg:table-cell",
     render: (p) =>
       p.cotacao ? (
@@ -154,13 +154,13 @@ const COLS: ColDef<Pedido>[] = [
           <ChevronRight className="w-3 h-3 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
         </Link>
       ) : (
-        <span className="text-xs text-gray-300">—</span>
+        <span className="text-xs text-muted-foreground/60">—</span>
       ),
   },
   {
     id: "status",
     label: "Status",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3",
     render: (p) => (
       <div className="flex flex-col items-start gap-1">
@@ -172,8 +172,8 @@ const COLS: ColDef<Pedido>[] = [
   {
     id: "valorTotal",
     label: "Valor Total",
-    thClass: "text-right px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-right font-medium text-gray-900",
+    thClass: "text-right px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-right font-medium text-foreground",
     render: (p) =>
       decimalToNumber(p.valorTotal) > 0
         ? formatBRL(decimalToNumber(p.valorTotal))
@@ -182,14 +182,14 @@ const COLS: ColDef<Pedido>[] = [
   {
     id: "entregaPrevista",
     label: "Entrega Prevista",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell",
-    tdClass: "px-4 py-3 text-gray-500 text-xs hidden lg:table-cell",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell",
+    tdClass: "px-4 py-3 text-muted-foreground text-xs hidden lg:table-cell",
     render: (p) => p.dataEntregaPrevista ? formatDate(p.dataEntregaPrevista) : "—",
   },
   {
     id: "docEntrada",
     label: "Doc. Entrada",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden xl:table-cell",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground hidden xl:table-cell",
     tdClass: "px-4 py-3 hidden xl:table-cell",
     render: (p) =>
       p.conferencia ? (
@@ -203,7 +203,7 @@ const COLS: ColDef<Pedido>[] = [
           <ChevronRight className="w-3 h-3 text-teal-400 opacity-0 group-hover:opacity-100 transition-opacity" />
         </Link>
       ) : (
-        <span className="text-xs text-gray-300">—</span>
+        <span className="text-xs text-muted-foreground/60">—</span>
       ),
   },
 ];
@@ -276,8 +276,8 @@ function StatusFilterChip({
       <div className={cn(
         "inline-flex items-center h-8 rounded-full border text-sm font-medium transition-colors cursor-pointer select-none",
         active
-          ? "border-blue-400 bg-blue-50 text-blue-700"
-          : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700"
+          ? "border-blue-400 bg-info/10 text-info"
+          : "border-border bg-card text-muted-foreground hover:border-border hover:text-foreground"
       )}>
         <button
           type="button"
@@ -288,7 +288,7 @@ function StatusFilterChip({
           }}
           className="pl-3 pr-1 h-full flex items-center gap-1.5 rounded-l-full"
         >
-          <span className={cn("text-xs font-semibold", active ? "text-blue-500" : "text-gray-400")}>Status</span>
+          <span className={cn("text-xs font-semibold", active ? "text-blue-500" : "text-muted-foreground")}>Status</span>
           {active && (
             <>
               <button
@@ -300,7 +300,7 @@ function StatusFilterChip({
                   if (r) setOpPos({ top: r.bottom + 4, left: r.left });
                   setShowOpMenu((p) => !p); setOpen(false);
                 }}
-                className="px-1 py-0.5 rounded hover:bg-blue-100 text-blue-600 text-xs font-medium"
+                className="px-1 py-0.5 rounded hover:bg-info/15 text-info text-xs font-medium"
               >
                 {opLabel}
               </button>
@@ -311,7 +311,7 @@ function StatusFilterChip({
               </span>
             </>
           )}
-          <ChevronDownIcon className={cn("w-3 h-3 ml-0.5 transition-transform", open && "rotate-180", active ? "text-blue-400" : "text-gray-400")} />
+          <ChevronDownIcon className={cn("w-3 h-3 ml-0.5 transition-transform", open && "rotate-180", active ? "text-blue-400" : "text-muted-foreground")} />
         </button>
         {active && (
           <button
@@ -326,10 +326,10 @@ function StatusFilterChip({
 
       {mounted && showOpMenu && opPos && createPortal(
         <div style={{ position: "fixed", top: opPos.top, left: opPos.left, zIndex: 9999 }}
-          className="bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[100px]">
+          className="bg-card border border-border rounded-xl shadow-lg py-1 min-w-[100px]">
           {(["is", "is_not"] as FilterOp[]).map((o) => (
             <button key={o} type="button" onClick={() => { onOpChange(o); setShowOpMenu(false); }}
-              className={cn("w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2", op === o && "text-blue-600 font-medium")}>
+              className={cn("w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2", op === o && "text-info font-medium")}>
               {op === o && <Check className="w-3.5 h-3.5 shrink-0" />}
               {o === "is" ? "É" : "Não é"}
             </button>
@@ -340,11 +340,11 @@ function StatusFilterChip({
 
       {mounted && open && pos && createPortal(
         <div ref={dropRef} style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
-          className="bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
-          <div className="flex border-b border-gray-100">
+          className="bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+          <div className="flex border-b border-border">
             {(["is", "is_not"] as FilterOp[]).map((o) => (
               <button key={o} type="button" onClick={() => onOpChange(o)}
-                className={cn("flex-1 py-2 text-xs font-semibold transition-colors", op === o ? "bg-blue-50 text-blue-600" : "text-gray-400 hover:bg-gray-50")}>
+                className={cn("flex-1 py-2 text-xs font-semibold transition-colors", op === o ? "bg-info/10 text-info" : "text-muted-foreground hover:bg-muted")}>
                 {o === "is" ? "É" : "Não é"}
               </button>
             ))}
@@ -354,8 +354,8 @@ function StatusFilterChip({
               const checked = selected.includes(opt.value);
               return (
                 <button key={opt.value} type="button" onClick={() => toggle(opt.value)}
-                  className={cn("w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left", checked && "bg-blue-50/60")}>
-                  <span className={cn("w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors", checked ? "bg-blue-600 border-blue-600" : "border-gray-300")}>
+                  className={cn("w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted transition-colors text-left", checked && "bg-info/10")}>
+                  <span className={cn("w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors", checked ? "bg-blue-600 border-blue-600" : "border-border")}>
                     {checked && <Check className="w-3 h-3 text-white" />}
                   </span>
                   <StatusBadge status={opt.value} />
@@ -364,9 +364,9 @@ function StatusFilterChip({
             })}
           </div>
           {selected.length > 0 && (
-            <div className="border-t border-gray-100 px-3 py-2">
+            <div className="border-t border-border px-3 py-2">
               <button type="button" onClick={() => { onClear(); setOpen(false); }}
-                className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors">
                 Limpar seleção
               </button>
             </div>
@@ -404,19 +404,19 @@ function KanbanCard({
       }}
       onDragEnd={onDragEnd}
       className={cn(
-        "bg-white border rounded-lg p-3 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 transition-all group select-none",
-        isDragging ? "opacity-40 border-blue-400 shadow-lg scale-95" : "border-gray-200"
+        "bg-card border rounded-lg p-3 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 transition-all group select-none",
+        isDragging ? "opacity-40 border-blue-400 shadow-lg scale-95" : "border-border"
       )}
       onClick={() => !isDragging && router.push(`/suprimentos/pedidos-compra/${p.id}`)}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="font-mono text-xs font-semibold text-gray-800">{p.numero}</span> <EmpresaTag empresaId={p.empresaId} />
+        <span className="font-mono text-xs font-semibold text-foreground">{p.numero}</span> <EmpresaTag empresaId={p.empresaId} />
         <div onClick={(e) => e.stopPropagation()}>
           <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} isAdmin={isAdmin} />
         </div>
       </div>
 
-      <p className="text-xs text-gray-700 font-medium mb-1 leading-snug line-clamp-2">
+      <p className="text-xs text-foreground font-medium mb-1 leading-snug line-clamp-2">
         {p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial}
       </p>
 
@@ -424,11 +424,11 @@ function KanbanCard({
         <Link
           href={`/compras/necessidades/${sc.id}`}
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline mb-0.5"
+          className="inline-flex items-center gap-1 text-xs text-info hover:text-info hover:underline mb-0.5"
         >
           <ClipboardList className="w-3 h-3" />
           {sc.numero}
-          {sc.solicitante && <span className="text-gray-400">· {sc.solicitante}</span>}
+          {sc.solicitante && <span className="text-muted-foreground">· {sc.solicitante}</span>}
         </Link>
       )}
       {p.cotacao && (
@@ -442,12 +442,12 @@ function KanbanCard({
         </Link>
       )}
 
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-        <span className="text-xs font-semibold text-gray-900">
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+        <span className="text-xs font-semibold text-foreground">
           {formatBRL(decimalToNumber(p.valorTotal))}
         </span>
         {p.dataEntregaPrevista && (
-          <span className="flex items-center gap-1 text-xs text-gray-400">
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <Calendar className="w-3 h-3" />
             {formatDate(p.dataEntregaPrevista)}
           </span>
@@ -775,7 +775,7 @@ export default function PedidosCompraPage() {
       <div className="px-8 pb-4 flex items-center gap-3 flex-wrap">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input
             className="pl-9 h-9 text-sm"
             placeholder="Buscar número, fornecedor, SC…"
@@ -784,7 +784,7 @@ export default function PedidosCompraPage() {
           />
           {filters.search && (
             <button
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
               onClick={() => updateFilters({ search: "" })}
             >
               <X className="w-3.5 h-3.5" />
@@ -805,14 +805,14 @@ export default function PedidosCompraPage() {
         {(filters.statuses.length > 0 || filters.search) && (
           <button
             onClick={() => updateFilters({ search: "", statuses: [], statusOp: "is" })}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap"
+            className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors whitespace-nowrap"
           >
             Limpar tudo
           </button>
         )}
 
         {/* Results count */}
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-muted-foreground">
           {loading ? "…" : `${filtered.length} pedido${filtered.length !== 1 ? "s" : ""}`}
         </span>
 
@@ -830,7 +830,7 @@ export default function PedidosCompraPage() {
         <button
           onClick={downloadPDF}
           disabled={loading || filtered.length === 0}
-          className="flex items-center gap-1.5 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700"
+          className="flex items-center gap-1.5 h-9 px-3 text-sm border border-border rounded-lg bg-card hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-foreground"
           title="Baixar PDF dos pedidos filtrados"
         >
           <Download className="w-3.5 h-3.5" />
@@ -838,10 +838,10 @@ export default function PedidosCompraPage() {
         </button>
 
         {/* View toggle */}
-        <div className="ml-auto flex items-center gap-1 border border-gray-200 rounded-lg p-0.5 bg-white">
+        <div className="ml-auto flex items-center gap-1 border border-border rounded-lg p-0.5 bg-card">
           <button
             className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
-              filters.view === "list" ? "bg-gray-100 text-gray-800" : "text-gray-500 hover:text-gray-700")}
+              filters.view === "list" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
             onClick={() => updateFilters({ view: "list" })}
           >
             <LayoutList className="w-3.5 h-3.5" />
@@ -849,7 +849,7 @@ export default function PedidosCompraPage() {
           </button>
           <button
             className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
-              filters.view === "kanban" ? "bg-gray-100 text-gray-800" : "text-gray-500 hover:text-gray-700")}
+              filters.view === "kanban" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
             onClick={() => updateFilters({ view: "kanban" })}
           >
             <Kanban className="w-3.5 h-3.5" />
@@ -860,22 +860,22 @@ export default function PedidosCompraPage() {
 
       {/* ── Content ───────────────────────────────────────────────────────── */}
       {loading ? (
-        <div className="flex items-center justify-center py-24 text-gray-400 gap-2">
+        <div className="flex items-center justify-center py-24 text-muted-foreground gap-2">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span className="text-sm">Carregando pedidos…</span>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-gray-400 gap-2">
-          <Building2 className="w-8 h-8 text-gray-300" />
+        <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-2">
+          <Building2 className="w-8 h-8 text-muted-foreground/60" />
           <p className="text-sm font-medium">Nenhum pedido encontrado</p>
           <p className="text-xs">Tente ajustar os filtros ou crie um novo pedido.</p>
         </div>
       ) : filters.view === "list" ? (
         // ── List view ──────────────────────────────────────────────────────
         <div className="px-8 pb-8">
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
@@ -883,20 +883,20 @@ export default function PedidosCompraPage() {
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {filters.groupBy !== "none" && groups
                   ? groups.map((g) => (
                       <Fragment key={g.key}>
-                        <tr className="bg-gray-50/80">
-                          <td colSpan={orderedCols.length + 1} className="px-4 py-2 border-y border-gray-200">
+                        <tr className="bg-muted/80">
+                          <td colSpan={orderedCols.length + 1} className="px-4 py-2 border-y border-border">
                             <div className="flex items-center justify-between">
-                              <span className="flex items-center gap-1.5 font-semibold text-gray-700 text-sm">
+                              <span className="flex items-center gap-1.5 font-semibold text-foreground text-sm">
                                 {filters.groupBy === "dia"
-                                  ? <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
-                                  : <Building2 className="w-3.5 h-3.5 text-gray-400" />}
+                                  ? <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" />
+                                  : <Building2 className="w-3.5 h-3.5 text-muted-foreground" />}
                                 {g.label}
                               </span>
-                              <span className="text-xs text-gray-400">
+                              <span className="text-xs text-muted-foreground">
                                 {g.items.length} pedido{g.items.length !== 1 ? "s" : ""} · {formatBRL(g.total)}
                               </span>
                             </div>
@@ -905,7 +905,7 @@ export default function PedidosCompraPage() {
                         {g.items.map((p) => (
                           <tr
                             key={p.id}
-                            className="hover:bg-gray-50 cursor-pointer transition-colors"
+                            className="hover:bg-muted cursor-pointer transition-colors"
                             onClick={() => router.push(`/suprimentos/pedidos-compra/${p.id}`)}
                           >
                             {orderedCols.map((col) => (
@@ -921,7 +921,7 @@ export default function PedidosCompraPage() {
                   : filtered.map((p) => (
                       <tr
                         key={p.id}
-                        className="hover:bg-gray-50 cursor-pointer transition-colors"
+                        className="hover:bg-muted cursor-pointer transition-colors"
                         onClick={() => router.push(`/suprimentos/pedidos-compra/${p.id}`)}
                       >
                         {orderedCols.map((col) => (
@@ -966,7 +966,7 @@ export default function PedidosCompraPage() {
                       </span>
                     </div>
                     {col.items.length > 0 && (
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-muted-foreground">
                         {formatBRL(col.items.reduce((s, p) => s + decimalToNumber(p.valorTotal), 0))}
                       </span>
                     )}
@@ -978,10 +978,10 @@ export default function PedidosCompraPage() {
                       "rounded-b-xl border min-h-[120px] p-2 space-y-2 transition-all duration-150",
                       col.border,
                       isOver && canDrop
-                        ? "bg-blue-50 border-blue-400 ring-2 ring-blue-300 ring-inset"
+                        ? "bg-info/10 border-blue-400 ring-2 ring-blue-300 ring-inset"
                         : isOver && !canDrop
-                        ? "bg-red-50 border-red-300"
-                        : "bg-gray-50/60"
+                        ? "bg-danger/10 border-red-300"
+                        : "bg-muted/60"
                     )}
                     onDragOver={(e) => {
                       e.preventDefault();
@@ -1008,7 +1008,7 @@ export default function PedidosCompraPage() {
                     {col.items.length === 0 ? (
                       <div className={cn(
                         "flex items-center justify-center py-8 text-xs",
-                        isOver && canDrop ? "text-blue-400" : "text-gray-300"
+                        isOver && canDrop ? "text-blue-400" : "text-muted-foreground/60"
                       )}>
                         {isOver && canDrop ? "Soltar aqui" : "Vazio"}
                       </div>
@@ -1069,14 +1069,14 @@ export default function PedidosCompraPage() {
       {confirmMove && (
         <div className="fixed inset-0 z-[9998] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmMove(null)} />
-          <div className="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
-            <h3 className="text-base font-semibold text-gray-900 mb-2">Cancelar pedido?</h3>
-            <p className="text-sm text-gray-500 mb-5">
+          <div className="relative bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-base font-semibold text-foreground mb-2">Cancelar pedido?</h3>
+            <p className="text-sm text-muted-foreground mb-5">
               Esta ação irá marcar o pedido como <strong>Cancelado</strong>. Deseja continuar?
             </p>
             <div className="flex gap-3 justify-end">
               <button
-                className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm text-muted-foreground border border-border rounded-lg hover:bg-muted transition-colors"
                 onClick={() => setConfirmMove(null)}
               >
                 Não, manter

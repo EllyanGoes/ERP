@@ -107,7 +107,7 @@ export default function NovaNecessidadePage() {
       />
       <form onSubmit={handleSubmit} className="px-8 pb-8 space-y-6 max-w-5xl">
         {serverError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">
             {serverError}
           </div>
         )}

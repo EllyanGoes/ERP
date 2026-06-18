@@ -31,7 +31,7 @@ export default function PedidosTable({ pedidos }: { pedidos: PedidoRow[] }) {
         <div>
           <p className="font-medium text-sm">{row.original.cliente.razaoSocial}</p>
           {row.original.cliente.nomeFantasia && (
-            <p className="text-xs text-gray-400">{row.original.cliente.nomeFantasia}</p>
+            <p className="text-xs text-muted-foreground">{row.original.cliente.nomeFantasia}</p>
           )}
         </div>
       ),
@@ -39,12 +39,12 @@ export default function PedidosTable({ pedidos }: { pedidos: PedidoRow[] }) {
     {
       accessorKey: "dataEmissao",
       header: "Emissão",
-      cell: ({ row }) => <span className="text-sm text-gray-500">{formatDate(row.original.dataEmissao)}</span>,
+      cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.dataEmissao)}</span>,
     },
     {
       accessorKey: "dataEntrega",
       header: "Conclusão",
-      cell: ({ row }) => <span className="text-sm text-gray-500">{row.original.dataEntrega ? formatDate(row.original.dataEntrega) : "—"}</span>,
+      cell: ({ row }) => <span className="text-sm text-muted-foreground">{row.original.dataEntrega ? formatDate(row.original.dataEntrega) : "—"}</span>,
     },
     {
       accessorKey: "status",

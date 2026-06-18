@@ -70,44 +70,44 @@ export default function ImprimirPedidoButton({ pedido }: { pedido: PedidoPrintDa
       <Button variant="outline" size="sm" onClick={() => setAberto((v) => !v)} disabled={imprimindo}>
         {imprimindo ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Printer className="w-4 h-4 mr-1.5" />}
         {imprimindo ? "Imprimindo..." : "Imprimir / Enviar"}
-        <ChevronDown className="w-3.5 h-3.5 ml-1 text-gray-400" />
+        <ChevronDown className="w-3.5 h-3.5 ml-1 text-muted-foreground" />
       </Button>
       {aberto && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-56 rounded-md border border-gray-200 bg-white shadow-lg py-1">
+        <div className="absolute right-0 top-full mt-1 z-50 w-56 rounded-md border border-border bg-card shadow-lg py-1">
           <button
             onClick={termica}
-            className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-left text-gray-700 hover:bg-gray-50"
+            className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-left text-foreground hover:bg-muted"
           >
-            <Receipt className="w-4 h-4 text-gray-400" />
+            <Receipt className="w-4 h-4 text-muted-foreground" />
             <span>
               Bobina térmica
-              <span className="block text-[11px] text-gray-400">cupom 80mm (WebUSB ou diálogo)</span>
+              <span className="block text-[11px] text-muted-foreground">cupom 80mm (WebUSB ou diálogo)</span>
             </span>
           </button>
           <button
             onClick={a4}
-            className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-left text-gray-700 hover:bg-gray-50"
+            className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-left text-foreground hover:bg-muted"
           >
-            <FileText className="w-4 h-4 text-gray-400" />
+            <FileText className="w-4 h-4 text-muted-foreground" />
             <span>
               Folha A4
-              <span className="block text-[11px] text-gray-400">Documento Auxiliar de Venda</span>
+              <span className="block text-[11px] text-muted-foreground">Documento Auxiliar de Venda</span>
             </span>
           </button>
-          <div className="my-1 border-t border-gray-100" />
+          <div className="my-1 border-t border-border" />
           <button
             onClick={whatsapp}
-            className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-left text-gray-700 hover:bg-gray-50"
+            className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-left text-foreground hover:bg-muted"
           >
             <MessageCircle className="w-4 h-4 text-emerald-500" />
             <span>
               Enviar por WhatsApp
-              <span className="block text-[11px] text-gray-400">orçamento em PDF para o cliente</span>
+              <span className="block text-[11px] text-muted-foreground">orçamento em PDF para o cliente</span>
             </span>
           </button>
         </div>
       )}
-      {erro && <p className="absolute right-0 top-full mt-10 text-xs text-red-600 whitespace-nowrap">{erro}</p>}
+      {erro && <p className="absolute right-0 top-full mt-10 text-xs text-danger whitespace-nowrap">{erro}</p>}
     </div>
   );
 }

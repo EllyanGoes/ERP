@@ -14,17 +14,17 @@ type ConnStatus = "idle" | "ok" | "error" | "unconfigured";
 function StatusPill({ status }: { status: ConnStatus }) {
   if (status === "idle") return null;
   if (status === "ok") return (
-    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700">
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-success/15 text-success">
       <Wifi className="w-2.5 h-2.5" /> Conectado
     </span>
   );
   if (status === "error") return (
-    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-700">
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-danger/15 text-danger">
       <WifiOff className="w-2.5 h-2.5" /> Erro
     </span>
   );
   return (
-    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-400">
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
       <HelpCircle className="w-2.5 h-2.5" /> Não configurado
     </span>
   );
@@ -82,7 +82,7 @@ export default function IntegracoesPage() {
   useEffect(() => { loadStatuses(); }, [loadStatuses]);
 
   if (loading) return (
-    <div className="px-8 pt-8 text-gray-400 flex items-center gap-2 text-sm">
+    <div className="px-8 pt-8 text-muted-foreground flex items-center gap-2 text-sm">
       <Loader2 className="w-4 h-4 animate-spin" /> Carregando integrações...
     </div>
   );
@@ -90,12 +90,12 @@ export default function IntegracoesPage() {
   const integrations = [
     {
       href:    "/configuracoes/integracoes/whatsapp",
-      icon:    <MessageCircle className="w-5 h-5 text-emerald-600" />,
-      bg:      "bg-emerald-50 border-emerald-100",
+      icon:    <MessageCircle className="w-5 h-5 text-success" />,
+      bg:      "bg-success/10 border-emerald-100",
       title:   "WhatsApp Business",
       desc:    "Mensagens e aprovações de Solicitações de Compra via WhatsApp",
       badge:   waProvider,
-      badgeCn: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      badgeCn: "bg-success/10 text-success border-success/30",
       status:  waStatus,
     },
     {
@@ -110,22 +110,22 @@ export default function IntegracoesPage() {
     },
     {
       href:    "/configuracoes/integracoes/db-engeman",
-      icon:    <Database className="w-5 h-5 text-blue-600" />,
-      bg:      "bg-blue-50 border-blue-100",
+      icon:    <Database className="w-5 h-5 text-info" />,
+      bg:      "bg-info/10 border-info/20",
       title:   "DB Engeman Slave",
       desc:    "Acesso somente leitura ao banco de dados do Engeman (manutenção)",
       badge:   "SQL Server",
-      badgeCn: "bg-blue-50 text-blue-600 border-blue-100",
+      badgeCn: "bg-info/10 text-info border-info/20",
       status:  dbStatus,
     },
     {
       href:    "/configuracoes/integracoes/pagamento",
-      icon:    <CreditCard className="w-5 h-5 text-emerald-600" />,
-      bg:      "bg-emerald-50 border-emerald-100",
+      icon:    <CreditCard className="w-5 h-5 text-success" />,
+      bg:      "bg-success/10 border-emerald-100",
       title:   "Maquininha / Pagamento",
       desc:    "Credenciais da adquirente por empresa para cobrança no Caixa",
       badge:   "Por empresa",
-      badgeCn: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      badgeCn: "bg-success/10 text-success border-success/30",
       status:  payStatus,
     },
   ];
@@ -151,7 +151,7 @@ export default function IntegracoesPage() {
           <Link
             key={item.href}
             href={item.href}
-            className="group block bg-white rounded-2xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all duration-150"
+            className="group block bg-card rounded-2xl border border-border hover:border-border hover:shadow-sm transition-all duration-150"
           >
             <div className="flex items-center gap-4 px-5 py-4">
               <div className={cn("w-10 h-10 rounded-xl border flex items-center justify-center shrink-0", item.bg)}>
@@ -160,17 +160,17 @@ export default function IntegracoesPage() {
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-semibold text-gray-900 text-sm">{item.title}</p>
+                  <p className="font-semibold text-foreground text-sm">{item.title}</p>
                   <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full border", item.badgeCn)}>
                     {item.badge}
                   </span>
                 </div>
-                <p className="text-xs text-gray-400 mt-0.5">{item.desc}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
                 <StatusPill status={item.status} />
-                <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
+                <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-muted-foreground transition-colors" />
               </div>
             </div>
           </Link>
@@ -178,21 +178,21 @@ export default function IntegracoesPage() {
 
         {/* Divider */}
         <div className="pt-2 pb-1">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Em breve</p>
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Em breve</p>
         </div>
 
         {/* Coming soon */}
         {comingSoon.map((item) => (
-          <div key={item.name} className="bg-white rounded-2xl border border-gray-200 border-dashed">
+          <div key={item.name} className="bg-card rounded-2xl border border-border border-dashed">
             <div className="flex items-center gap-4 px-5 py-4 opacity-50 cursor-not-allowed">
-              <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 text-lg">
+              <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0 text-lg">
                 {item.icon}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-700 text-sm">{item.name}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{item.desc}</p>
+                <p className="font-semibold text-foreground text-sm">{item.name}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
               </div>
-              <span className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-400 shrink-0">
+              <span className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-muted text-muted-foreground shrink-0">
                 Em breve
               </span>
             </div>

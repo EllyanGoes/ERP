@@ -15,12 +15,12 @@ type ConnStatus = "idle" | "ok" | "unconfigured";
 
 function StatusPill({ status }: { status: ConnStatus }) {
   if (status === "ok") return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-success/15 text-success">
       <Wifi className="w-3 h-3" /> Configurado
     </span>
   );
   if (status === "unconfigured") return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400">
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
       <HelpCircle className="w-3 h-3" /> Não configurado
     </span>
   );
@@ -33,8 +33,8 @@ function PlainField({ label, description, value, onChange, placeholder }: {
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-gray-600">{label}</Label>
-      {description && <p className="text-[11px] text-gray-400 leading-tight">{description}</p>}
+      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+      {description && <p className="text-[11px] text-muted-foreground leading-tight">{description}</p>}
       <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
         className="h-9 text-sm font-mono" />
     </div>
@@ -48,15 +48,15 @@ function SecretField({ label, description, value, onChange, placeholder }: {
   const [show, setShow] = useState(false);
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-gray-600">{label}</Label>
-      {description && <p className="text-[11px] text-gray-400 leading-tight">{description}</p>}
+      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+      {description && <p className="text-[11px] text-muted-foreground leading-tight">{description}</p>}
       <div className="relative">
         <Input type={show ? "text" : "password"} value={value}
           onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
           className="pr-10 h-9 text-sm font-mono" />
         {value && (
           <button type="button" onClick={() => setShow((p) => !p)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" tabIndex={-1}>
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground" tabIndex={-1}>
             {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
           </button>
         )}
@@ -122,7 +122,7 @@ export default function DbEngemanIntegracaoPage() {
   }
 
   if (loading) return (
-    <div className="px-8 pt-8 text-gray-400 flex items-center gap-2 text-sm">
+    <div className="px-8 pt-8 text-muted-foreground flex items-center gap-2 text-sm">
       <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
     </div>
   );
@@ -150,16 +150,16 @@ export default function DbEngemanIntegracaoPage() {
 
       <div className="px-8 pb-8 max-w-2xl space-y-6">
 
-        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700">
+        <div className="bg-info/10 border border-info/20 rounded-xl px-4 py-3 text-xs text-info">
           <p className="font-semibold mb-1">Acesso somente leitura</p>
-          <p className="text-blue-600 leading-relaxed">
+          <p className="text-info leading-relaxed">
             Esta integração conecta ao banco de dados SQL Server do Engeman (módulo de manutenção)
             em modo leitura. Nenhuma escrita é realizada pelo ERP.
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Conexão</p>
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Conexão</p>
           <div className="grid grid-cols-2 gap-3">
             <PlainField label="Host / IP"
               description="Endereço do servidor SQL Server"
@@ -169,8 +169,8 @@ export default function DbEngemanIntegracaoPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Autenticação</p>
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Autenticação</p>
           <div className="grid grid-cols-2 gap-3">
             <PlainField label="Usuário"
               value={user} onChange={(v) => { setUser(v); mark(); }} placeholder="sa" />
@@ -182,7 +182,7 @@ export default function DbEngemanIntegracaoPage() {
         {saveMsg && (
           <div className={cn(
             "flex items-center gap-2 px-4 py-3 rounded-xl text-sm border",
-            saveMsg.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"
+            saveMsg.type === "ok" ? "bg-success/10 border-success/30 text-success" : "bg-danger/10 border-danger/30 text-danger"
           )}>
             {saveMsg.type === "ok" ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
             <span>{saveMsg.text}</span>
@@ -190,7 +190,7 @@ export default function DbEngemanIntegracaoPage() {
         )}
 
         {dirty && !saveMsg && (
-          <p className="text-xs text-amber-600 font-medium flex items-center gap-1.5">
+          <p className="text-xs text-warning font-medium flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
             Alterações não salvas — clique em Salvar para confirmar
           </p>

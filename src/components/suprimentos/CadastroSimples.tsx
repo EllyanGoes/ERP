@@ -163,10 +163,10 @@ export default function CadastroSimples({
       {/* ── New Record Dialog ─────────────────────────────────────────── */}
       {showDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-900">Novo registro — {title}</h2>
-              <button onClick={() => setShowDialog(false)} className="text-gray-400 hover:text-gray-600">
+          <div className="bg-card rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
+              <h2 className="font-semibold text-foreground">Novo registro — {title}</h2>
+              <button onClick={() => setShowDialog(false)} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -189,12 +189,12 @@ export default function CadastroSimples({
               ))}
 
               {newError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
                   {newError}
                 </p>
               )}
 
-              <div className="flex gap-2 justify-end pt-2 border-t border-gray-100">
+              <div className="flex gap-2 justify-end pt-2 border-t border-border">
                 <Button type="button" variant="outline" size="sm" onClick={() => setShowDialog(false)} disabled={newSaving}>
                   Cancelar
                 </Button>
@@ -212,18 +212,18 @@ export default function CadastroSimples({
       <div>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-            {description && <p className="text-sm text-gray-500 mt-0.5">{description}</p>}
+            <h2 className="text-base font-semibold text-foreground">{title}</h2>
+            {description && <p className="text-sm text-muted-foreground mt-0.5">{description}</p>}
           </div>
           <Button size="sm" onClick={openNew}>
             <Plus className="w-4 h-4 mr-1" /> Novo
           </Button>
         </div>
 
-        <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm bg-white">
+        <div className="border border-border rounded-xl overflow-hidden shadow-sm bg-card">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-100 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide font-semibold">
+              <tr className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide font-semibold">
                 {campos.map((c) => (
                   <th key={c.key} className="text-left px-4 py-3 font-semibold" style={{ width: c.width }}>
                     {c.label}
@@ -233,16 +233,16 @@ export default function CadastroSimples({
                 <th className="px-4 py-3 w-20" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={campos.length + 2} className="py-10 text-center text-gray-400">
+                  <td colSpan={campos.length + 2} className="py-10 text-center text-muted-foreground">
                     <Loader2 className="w-5 h-5 animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={campos.length + 2} className="py-10 text-center text-gray-500 text-xs">
+                  <td colSpan={campos.length + 2} className="py-10 text-center text-muted-foreground text-xs">
                     {emptyText}
                   </td>
                 </tr>
@@ -252,7 +252,7 @@ export default function CadastroSimples({
                     key={row.id}
                     className={cn(
                       !row.ativo && "opacity-50",
-                      editingId === row.id ? "bg-blue-50/40" : "hover:bg-blue-50/40 transition-colors"
+                      editingId === row.id ? "bg-info/10" : "hover:bg-info/10 transition-colors"
                     )}
                   >
                     {campos.map((c) => (
@@ -274,32 +274,32 @@ export default function CadastroSimples({
                             }}
                           />
                         ) : (
-                          <span className="text-gray-900 font-medium">{row[c.key] as string}</span>
+                          <span className="text-foreground font-medium">{row[c.key] as string}</span>
                         )}
                       </td>
                     ))}
                     <td className="px-4 py-3 text-center">
-                      <button onClick={() => toggleAtivo(row)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                      <button onClick={() => toggleAtivo(row)} className="text-muted-foreground hover:text-muted-foreground transition-colors">
                         {row.ativo
                           ? <ToggleRight className="w-5 h-5 text-emerald-500" />
-                          : <ToggleLeft  className="w-5 h-5 text-gray-400" />}
+                          : <ToggleLeft  className="w-5 h-5 text-muted-foreground" />}
                       </button>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end">
                         {editingId === row.id ? (
                           <>
-                            <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:bg-green-50" onClick={save} disabled={saving}>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-success hover:bg-success/10" onClick={save} disabled={saving}>
                               {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                             </Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-500 hover:bg-gray-100" onClick={cancel}>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:bg-muted" onClick={cancel}>
                               <X className="w-3.5 h-3.5" />
                             </Button>
                           </>
                         ) : (
                           <Button
                             size="icon" variant="ghost"
-                            className="h-7 w-7 text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
                             onClick={() => startEdit(row)}
                             disabled={editingId !== null}
                           >
@@ -315,7 +315,7 @@ export default function CadastroSimples({
           </table>
 
           {error && (
-            <div className="px-4 py-2 bg-red-50 border-t border-red-100 text-sm text-red-600">
+            <div className="px-4 py-2 bg-danger/10 border-t border-danger/20 text-sm text-danger">
               {error}
             </div>
           )}

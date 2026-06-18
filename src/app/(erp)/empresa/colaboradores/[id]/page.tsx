@@ -51,8 +51,8 @@ type Colaborador = {
 function InfoField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400 mb-0.5">{label}</p>
-      <div className="text-sm text-gray-800">{children ?? <span className="text-gray-300">—</span>}</div>
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">{label}</p>
+      <div className="text-sm text-foreground">{children ?? <span className="text-muted-foreground/60">—</span>}</div>
     </div>
   );
 }
@@ -67,7 +67,7 @@ function Field({ label, required, hint, children }: {
         {required && <span className="text-red-500 ml-0.5">*</span>}
       </Label>
       {children}
-      {hint && <p className="text-xs text-gray-400">{hint}</p>}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -220,7 +220,7 @@ export default function ColaboradorDetailPage() {
   }
 
   if (loading) return (
-    <div className="px-8 pt-8 text-gray-400">
+    <div className="px-8 pt-8 text-muted-foreground">
       <Loader2 className="w-5 h-5 animate-spin inline mr-2" />Carregando...
     </div>
   );
@@ -244,7 +244,7 @@ export default function ColaboradorDetailPage() {
 
         <div className="px-8 pb-8 max-w-3xl space-y-5">
           {editError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+            <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">
               {editError}
             </div>
           )}
@@ -311,12 +311,12 @@ export default function ColaboradorDetailPage() {
                 </Field>
               </div>
               <Field label="Filial">
-                <div className="space-y-1.5 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                <div className="space-y-1.5 max-h-40 overflow-y-auto border border-border rounded-lg p-2">
                   {filiais.length === 0 && (
-                    <p className="text-xs text-gray-400 px-1">Nenhuma filial ativa</p>
+                    <p className="text-xs text-muted-foreground px-1">Nenhuma filial ativa</p>
                   )}
                   {filiais.map((f) => (
-                    <label key={f.id} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer hover:bg-gray-50 rounded">
+                    <label key={f.id} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer hover:bg-muted rounded">
                       <input
                         type="checkbox"
                         checked={eFilialIds.includes(f.id)}
@@ -397,7 +397,7 @@ export default function ColaboradorDetailPage() {
             </Button>
             <Button
               variant="outline"
-              className="border-red-200 text-red-600 hover:bg-red-50"
+              className="border-danger/30 text-danger hover:bg-danger/10"
               onClick={() => { setShowDelete(true); setDeleteError(""); }}
             >
               <Trash2 className="w-4 h-4" />
@@ -411,13 +411,13 @@ export default function ColaboradorDetailPage() {
         <div className="flex items-center gap-3">
           <span className={cn(
             "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium",
-            colaborador.ativo ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
+            colaborador.ativo ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
           )}>
             <UserCheck className="w-4 h-4" />
             {colaborador.ativo ? "Ativo" : "Inativo"}
           </span>
           {colaborador.usuario && (
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-700">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-info/15 text-info">
               Usuário: {colaborador.usuario.nome}
             </span>
           )}
@@ -469,7 +469,7 @@ export default function ColaboradorDetailPage() {
               {colaborador.usuario ? (
                 <Link
                   href={`/admin/usuarios`}
-                  className="text-blue-600 hover:underline"
+                  className="text-info hover:underline"
                 >
                   {colaborador.usuario.nome} ({colaborador.usuario.email})
                 </Link>
@@ -483,7 +483,7 @@ export default function ColaboradorDetailPage() {
           <Card>
             <CardHeader className="pb-3"><CardTitle className="text-base">Observações</CardTitle></CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{colaborador.observacoes}</p>
+              <p className="text-sm text-foreground whitespace-pre-wrap">{colaborador.observacoes}</p>
             </CardContent>
           </Card>
         )}
@@ -494,11 +494,11 @@ export default function ColaboradorDetailPage() {
             <CardHeader className="pb-3"><CardTitle className="text-base">Etapas de Aprovação</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               {(colaborador.etapasAprovacao ?? []).map((e) => (
-                <div key={e.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-4 py-3 text-sm">
-                  <span className="font-mono text-xs font-bold text-blue-600 w-6 text-center">{e.ordem}</span>
+                <div key={e.id} className="flex items-center gap-3 bg-muted rounded-lg px-4 py-3 text-sm">
+                  <span className="font-mono text-xs font-bold text-info w-6 text-center">{e.ordem}</span>
                   <div>
-                    <p className="font-medium text-gray-900">{e.nome ?? `Etapa ${e.ordem}`}</p>
-                    <p className="text-xs text-gray-500">Fluxo: {e.fluxo.nome}</p>
+                    <p className="font-medium text-foreground">{e.nome ?? `Etapa ${e.ordem}`}</p>
+                    <p className="text-xs text-muted-foreground">Fluxo: {e.fluxo.nome}</p>
                   </div>
                 </div>
               ))}
@@ -507,7 +507,7 @@ export default function ColaboradorDetailPage() {
         )}
 
         {/* Meta */}
-        <div className="text-xs text-gray-400 space-y-0.5">
+        <div className="text-xs text-muted-foreground space-y-0.5">
           <p>Criado em: {formatDate(colaborador.createdAt)}</p>
           <p>Atualizado em: {formatDate(colaborador.updatedAt)}</p>
         </div>
@@ -516,19 +516,19 @@ export default function ColaboradorDetailPage() {
       {/* Delete modal */}
       {showDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Excluir colaborador?</p>
-                <p className="text-sm text-gray-500 mt-0.5">{colaborador.nome}</p>
+                <p className="font-semibold text-foreground">Excluir colaborador?</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{colaborador.nome}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-4">Esta ação é permanente e não pode ser desfeita.</p>
+            <p className="text-sm text-muted-foreground mb-4">Esta ação é permanente e não pode ser desfeita.</p>
             {deleteError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
+              <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">
                 {deleteError}
               </p>
             )}

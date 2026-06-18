@@ -48,42 +48,42 @@ function defaultRange(): DateRange {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ABC_OPTIONS: FilterOption[] = [
-  { key: "todos", label: "Todas",    color: "bg-gray-100 text-gray-600" },
-  { key: "A",     label: "Classe A", color: "bg-rose-100 text-rose-700" },
-  { key: "B",     label: "Classe B", color: "bg-amber-100 text-amber-700" },
-  { key: "C",     label: "Classe C", color: "bg-gray-100 text-gray-600" },
+  { key: "todos", label: "Todas",    color: "bg-muted text-muted-foreground" },
+  { key: "A",     label: "Classe A", color: "bg-danger/15 text-danger" },
+  { key: "B",     label: "Classe B", color: "bg-warning/15 text-warning" },
+  { key: "C",     label: "Classe C", color: "bg-muted text-muted-foreground" },
 ];
 
 const ABC_STYLES = {
   A: {
-    badge:   "bg-rose-100 text-rose-700 border-rose-200",
-    row:     "bg-rose-50/30",
+    badge:   "bg-danger/15 text-danger border-rose-200",
+    row:     "bg-danger/10",
     bar:     "bg-rose-400",
-    card:    "border-rose-200 bg-rose-50",
-    title:   "text-rose-600",
+    card:    "border-rose-200 bg-danger/10",
+    title:   "text-danger",
     value:   "text-rose-800",
     sub:     "text-rose-500",
     barFull: "bg-rose-400",
   },
   B: {
-    badge:   "bg-amber-100 text-amber-700 border-amber-200",
+    badge:   "bg-warning/15 text-warning border-warning/30",
     row:     "",
     bar:     "bg-amber-400",
-    card:    "border-amber-200 bg-amber-50",
-    title:   "text-amber-600",
-    value:   "text-amber-800",
+    card:    "border-warning/30 bg-warning/10",
+    title:   "text-warning",
+    value:   "text-warning",
     sub:     "text-amber-500",
     barFull: "bg-amber-400",
   },
   C: {
-    badge:   "bg-gray-100 text-gray-600 border-gray-200",
+    badge:   "bg-muted text-muted-foreground border-border",
     row:     "",
-    bar:     "bg-gray-300",
-    card:    "border-gray-200 bg-gray-50",
-    title:   "text-gray-500",
-    value:   "text-gray-700",
-    sub:     "text-gray-400",
-    barFull: "bg-gray-300",
+    bar:     "bg-muted",
+    card:    "border-border bg-muted",
+    title:   "text-muted-foreground",
+    value:   "text-foreground",
+    sub:     "text-muted-foreground",
+    barFull: "bg-muted",
   },
 };
 
@@ -139,8 +139,8 @@ export default function CurvaAbcPage() {
   }, [fetchData, periodo.from, periodo.to]);
 
   const LOCAL_OPTIONS: FilterOption[] = [
-    { key: "",    label: "Todos os locais", color: "bg-gray-100 text-gray-600" },
-    ...locais.map((l) => ({ key: l.id, label: l.nome, color: "bg-blue-100 text-blue-700" })),
+    { key: "",    label: "Todos os locais", color: "bg-muted text-muted-foreground" },
+    ...locais.map((l) => ({ key: l.id, label: l.nome, color: "bg-info/15 text-info" })),
   ];
 
   const hasFilters = !!(search || abcFilter !== "todos" || localId);
@@ -184,32 +184,32 @@ export default function CurvaAbcPage() {
             Atualizar
           </button>
 
-          <div className="w-px h-6 bg-gray-200 mx-1" />
+          <div className="w-px h-6 bg-muted mx-1" />
 
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
               type="text" value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar produto..."
-              className="pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-52"
+              className="pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-52"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
           <FilterDropdown label="Classe" options={ABC_OPTIONS} value={abcFilter} onChange={setAbcFilter} allKey="todos" placeholder="Classe..." />
           {hasFilters && (
-            <button onClick={() => { setSearch(""); setAbcFilter("todos"); }} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600">
+            <button onClick={() => { setSearch(""); setAbcFilter("todos"); }} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-muted-foreground">
               <X className="w-3 h-3" /> Limpar
             </button>
           )}
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{error}</div>
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-xl text-sm">{error}</div>
         )}
 
         {/* ── KPI Cards ─────────────────────────────────────────────────────── */}
@@ -218,11 +218,11 @@ export default function CurvaAbcPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
 
               {/* Total */}
-              <div className="rounded-xl border border-gray-200 bg-white px-5 py-4">
-                <p className="text-xs text-gray-500 font-medium">Total de Itens</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{summary.totalItems}</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {formatBRL(summary.totalConsumoAnual)}<span className="text-gray-300"> /ano</span>
+              <div className="rounded-xl border border-border bg-card px-5 py-4">
+                <p className="text-xs text-muted-foreground font-medium">Total de Itens</p>
+                <p className="text-3xl font-bold text-foreground mt-1">{summary.totalItems}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formatBRL(summary.totalConsumoAnual)}<span className="text-muted-foreground/60"> /ano</span>
                 </p>
               </div>
 
@@ -247,17 +247,17 @@ export default function CurvaAbcPage() {
                     <p className={cn("text-xs mt-0.5 font-medium", s.sub)}>
                       {formatBRL(summary.totalConsumoAnual * (cl.pctValor / 100))}<span className="font-normal opacity-60"> /ano</span>
                     </p>
-                    <p className="text-[10px] text-gray-400 mt-1">{labels[cls]}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">{labels[cls]}</p>
                   </div>
                 );
               })}
             </div>
 
             {/* Distribution bar */}
-            <div className="rounded-xl border border-gray-200 bg-white px-5 py-4">
+            <div className="rounded-xl border border-border bg-card px-5 py-4">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold text-gray-500">Distribuição do Valor de Consumo Anual</p>
-                <p className="text-xs text-gray-400 font-medium">Total: {formatBRL(summary.totalConsumoAnual)} / ano</p>
+                <p className="text-xs font-semibold text-muted-foreground">Distribuição do Valor de Consumo Anual</p>
+                <p className="text-xs text-muted-foreground font-medium">Total: {formatBRL(summary.totalConsumoAnual)} / ano</p>
               </div>
 
               <div className="flex h-7 rounded-lg overflow-hidden gap-px">
@@ -283,7 +283,7 @@ export default function CurvaAbcPage() {
 
               <div className="flex flex-wrap items-center gap-4 mt-3">
                 {(["A", "B", "C"] as const).map((cls) => (
-                  <span key={cls} className="flex items-center gap-1.5 text-xs text-gray-500">
+                  <span key={cls} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span className={cn("w-3 h-3 rounded shrink-0", ABC_STYLES[cls].barFull)} />
                     Classe {cls} — {summary[`class${cls}` as "classA" | "classB" | "classC"].count} itens
                     ({summary[`class${cls}` as "classA" | "classB" | "classC"].pctValor}% do valor)
@@ -297,17 +297,17 @@ export default function CurvaAbcPage() {
 
         {/* ── Table ─────────────────────────────────────────────────────────── */}
         {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
             <Layers className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="font-medium">{hasFilters ? "Nenhum item encontrado" : "Nenhum item cadastrado"}</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-gray-200 overflow-hidden">
+          <div className="rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide">
+                <tr className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                   <th className="text-left px-4 py-3 font-medium w-8">#</th>
                   <th className="text-left px-4 py-3 font-medium">Código</th>
                   <th className="text-left px-4 py-3 font-medium">Descrição</th>
@@ -320,22 +320,22 @@ export default function CurvaAbcPage() {
                   <th className="text-right px-4 py-3 font-medium">Estoque Atual</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {filtered.map((row, idx) => {
                   const s = ABC_STYLES[row.curvaABC];
                   return (
-                    <tr key={row.itemId} className={cn("hover:bg-gray-50 transition-colors", row.curvaABC === "A" && idx < 5 && "bg-rose-50/20")}>
-                      <td className="px-4 py-3 text-xs text-gray-300 text-right tabular-nums">{idx + 1}</td>
+                    <tr key={row.itemId} className={cn("hover:bg-muted transition-colors", row.curvaABC === "A" && idx < 5 && "bg-danger/10")}>
+                      <td className="px-4 py-3 text-xs text-muted-foreground/60 text-right tabular-nums">{idx + 1}</td>
                       <td className="px-4 py-3">
-                        <Link href={`/suprimentos/produtos/${row.itemId}`} className="font-mono text-xs text-blue-600 hover:underline">
+                        <Link href={`/suprimentos/produtos/${row.itemId}`} className="font-mono text-xs text-info hover:underline">
                           {row.codigo}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-gray-800 font-medium">
+                      <td className="px-4 py-3 text-foreground font-medium">
                         {row.descricao}
-                        {row.tipoProduto && <span className="ml-2 text-xs text-gray-400 font-normal">{row.tipoProduto}</span>}
+                        {row.tipoProduto && <span className="ml-2 text-xs text-muted-foreground font-normal">{row.tipoProduto}</span>}
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs font-mono">{row.unidade}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs font-mono">{row.unidade}</td>
                       <td className="px-4 py-3 text-center"><AbcBadge cls={row.curvaABC} /></td>
 
                       {/* % do valor */}
@@ -348,13 +348,13 @@ export default function CurvaAbcPage() {
                       {/* % acumulado com barra */}
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
-                          <div className="w-24 bg-gray-100 rounded-full h-2 hidden sm:block overflow-hidden">
+                          <div className="w-24 bg-muted rounded-full h-2 hidden sm:block overflow-hidden">
                             <div
                               className={cn("h-2 rounded-full transition-all", s.barFull)}
                               style={{ width: `${Math.min(row.pctAcumulado, 100)}%` }}
                             />
                           </div>
-                          <span className="text-xs text-gray-600 tabular-nums w-12 text-right">
+                          <span className="text-xs text-muted-foreground tabular-nums w-12 text-right">
                             {row.pctAcumulado.toFixed(1)}%
                           </span>
                         </div>
@@ -362,23 +362,23 @@ export default function CurvaAbcPage() {
 
                       {/* Consumo anual */}
                       <td className="px-4 py-3 text-right">
-                        <span className={cn("text-sm tabular-nums font-semibold", row.valorConsumoAnual > 0 ? s.value : "text-gray-300")}>
+                        <span className={cn("text-sm tabular-nums font-semibold", row.valorConsumoAnual > 0 ? s.value : "text-muted-foreground/60")}>
                           {row.valorConsumoAnual > 0 ? formatBRL(row.valorConsumoAnual) : "—"}
                         </span>
                       </td>
 
                       {/* Custo unitário */}
-                      <td className="px-4 py-3 text-right text-xs text-gray-500 tabular-nums">
-                        {row.custo > 0 ? formatBRL(row.custo) : <span className="text-gray-300">—</span>}
+                      <td className="px-4 py-3 text-right text-xs text-muted-foreground tabular-nums">
+                        {row.custo > 0 ? formatBRL(row.custo) : <span className="text-muted-foreground/60">—</span>}
                       </td>
 
                       {/* Estoque */}
                       <td className="px-4 py-3 text-right">
-                        <span className={cn("text-sm tabular-nums font-medium", row.estoqueAtual <= 0 ? "text-gray-300" : "text-gray-800")}>
+                        <span className={cn("text-sm tabular-nums font-medium", row.estoqueAtual <= 0 ? "text-muted-foreground/60" : "text-foreground")}>
                           {row.estoqueAtual > 0
                             ? row.estoqueAtual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })
                             : "0"}
-                          <span className="text-xs font-normal text-gray-400 ml-1">{row.unidade}</span>
+                          <span className="text-xs font-normal text-muted-foreground ml-1">{row.unidade}</span>
                         </span>
                       </td>
                     </tr>
@@ -388,14 +388,14 @@ export default function CurvaAbcPage() {
 
               {filtered.length > 0 && (
                 <tfoot>
-                  <tr className="border-t-2 border-gray-200 bg-gray-50">
-                    <td colSpan={7} className="px-4 py-2.5 text-xs font-medium text-gray-500">
+                  <tr className="border-t-2 border-border bg-muted">
+                    <td colSpan={7} className="px-4 py-2.5 text-xs font-medium text-muted-foreground">
                       {filtered.length} {filtered.length === 1 ? "item" : "itens"}
                       {hasFilters && rows.length !== filtered.length && ` (de ${rows.length})`}
                     </td>
-                    <td className="px-4 py-2.5 text-right text-sm font-bold text-gray-900 tabular-nums">
+                    <td className="px-4 py-2.5 text-right text-sm font-bold text-foreground tabular-nums">
                       {formatBRL(filteredTotal)}
-                      <span className="text-xs font-normal text-gray-400 ml-1">/ano</span>
+                      <span className="text-xs font-normal text-muted-foreground ml-1">/ano</span>
                     </td>
                     <td colSpan={2} />
                   </tr>
@@ -406,15 +406,15 @@ export default function CurvaAbcPage() {
         )}
 
         {/* ── Metodologia ───────────────────────────────────────────────────── */}
-        <div className="rounded-xl border border-gray-100 bg-gray-50 px-5 py-4">
+        <div className="rounded-xl border border-border bg-muted px-5 py-4">
           <div className="flex items-start gap-2">
-            <Info className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-            <div className="space-y-1 text-xs text-gray-500 leading-relaxed">
-              <p className="font-semibold text-gray-700">Metodologia — Curva ABC (Princípio de Pareto)</p>
+            <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+            <div className="space-y-1 text-xs text-muted-foreground leading-relaxed">
+              <p className="font-semibold text-foreground">Metodologia — Curva ABC (Princípio de Pareto)</p>
               <p>
                 Os itens são ordenados pelo <strong>Valor de Consumo Anual</strong> (saídas × custo unitário no período selecionado, anualizado).
-                O percentual acumulado determina a classe: <strong className="text-rose-600">A</strong> até 80% do valor total,
-                <strong className="text-amber-600"> B</strong> de 80% a 95%, e <strong className="text-gray-600">C</strong> o restante.
+                O percentual acumulado determina a classe: <strong className="text-danger">A</strong> até 80% do valor total,
+                <strong className="text-warning"> B</strong> de 80% a 95%, e <strong className="text-muted-foreground">C</strong> o restante.
                 Itens sem saídas registradas recebem valor de consumo zero e são classificados como <strong>C</strong>.
               </p>
             </div>

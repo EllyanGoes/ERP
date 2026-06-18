@@ -4,10 +4,10 @@ import { useSession } from "@/lib/session-context";
 
 // Cores fixas por posição da empresa na sessão (estável entre telas)
 const CORES = [
-  "bg-blue-50 text-blue-700 border-blue-200",
+  "bg-info/10 text-info border-info/30",
   "bg-purple-50 text-purple-700 border-purple-200",
   "bg-teal-50 text-teal-700 border-teal-200",
-  "bg-amber-50 text-amber-700 border-amber-200",
+  "bg-warning/10 text-warning border-warning/30",
 ];
 
 /**

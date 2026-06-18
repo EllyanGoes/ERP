@@ -48,10 +48,10 @@ function calcValorTotal(doc: ConferenciaRow): number {
 
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_COLS: { key: string; label: string; color: string; bg: string; border: string }[] = [
-  { key: "PENDENTE",        label: "Pendente",        color: "text-yellow-700", bg: "bg-yellow-50",  border: "border-yellow-200" },
-  { key: "EM_CONFERENCIA",  label: "Em Conferência",  color: "text-blue-700",   bg: "bg-blue-50",    border: "border-blue-200"   },
-  { key: "CONCLUIDA",       label: "Concluída",       color: "text-green-700",  bg: "bg-green-50",   border: "border-green-200"  },
-  { key: "DIVERGENCIA",     label: "Divergência",     color: "text-red-600",    bg: "bg-red-50",     border: "border-red-200"    },
+  { key: "PENDENTE",        label: "Pendente",        color: "text-warning", bg: "bg-warning/10",  border: "border-yellow-200" },
+  { key: "EM_CONFERENCIA",  label: "Em Conferência",  color: "text-info",   bg: "bg-info/10",    border: "border-info/30"   },
+  { key: "CONCLUIDA",       label: "Concluída",       color: "text-success",  bg: "bg-success/10",   border: "border-success/30"  },
+  { key: "DIVERGENCIA",     label: "Divergência",     color: "text-danger",    bg: "bg-danger/10",     border: "border-danger/30"    },
 ];
 const ALL_STATUSES = STATUS_COLS.map((s) => s.key);
 
@@ -86,52 +86,52 @@ const COLS: ColDef<ConferenciaRow>[] = [
   {
     id: "numero",
     label: "Nº Doc",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 font-mono text-xs font-medium text-gray-900",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 font-mono text-xs font-medium text-foreground",
     render: (doc) => doc.numero,
   },
   {
     id: "numeroNF",
     label: "Nº NF",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 font-mono text-xs text-gray-600",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 font-mono text-xs text-muted-foreground",
     render: (doc) => doc.numeroNF || "—",
   },
   {
     id: "fornecedor",
     label: "Fornecedor",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-gray-700 max-w-[200px]",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-foreground max-w-[200px]",
     render: (doc) => <span className="line-clamp-1">{getFornecedorNome(doc)}</span>,
   },
   {
     id: "pedido",
     label: "Pedido",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3",
     render: (doc) => doc.pedido
-      ? <span className="font-mono text-xs text-blue-600">{doc.pedido.numero}</span>
-      : <span className="text-gray-300 text-xs">—</span>,
+      ? <span className="font-mono text-xs text-info">{doc.pedido.numero}</span>
+      : <span className="text-muted-foreground/60 text-xs">—</span>,
   },
   {
     id: "dtEmissao",
     label: "Data Emissão",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-gray-600 text-xs",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-muted-foreground text-xs",
     render: (doc) => doc.dtEmissao ? formatDate(doc.dtEmissao) : "—",
   },
   {
     id: "status",
     label: "Status",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3",
     render: (doc) => <StatusBadge status={doc.status} />,
   },
   {
     id: "valorTotal",
     label: "Valor Total",
-    thClass: "text-right px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-right text-gray-700",
+    thClass: "text-right px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-right text-foreground",
     render: (doc) => {
       const v = calcValorTotal(doc);
       return v > 0 ? formatBRL(v) : "—";
@@ -177,31 +177,31 @@ function RowActionsMenu({ doc, onDeleted }: { doc: ConferenciaRow; onDeleted: ()
     <div className="relative" ref={ref}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); setConfirmDelete(false); }}
-        className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+        className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-muted text-muted-foreground hover:text-muted-foreground transition-colors"
       >
         <MoreHorizontal className="w-4 h-4" />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-8 z-50 w-44 bg-white border border-gray-200 rounded-xl shadow-lg py-1 overflow-hidden">
+        <div className="absolute right-0 top-8 z-50 w-44 bg-card border border-border rounded-xl shadow-lg py-1 overflow-hidden">
           <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
             onClick={(e) => { e.stopPropagation(); setOpen(false); router.push(`/suprimentos/conferencias/${doc.id}`); }}
           >
-            <Eye className="w-3.5 h-3.5 text-gray-400" />
+            <Eye className="w-3.5 h-3.5 text-muted-foreground" />
             Abrir
           </button>
           <button
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
             onClick={(e) => { e.stopPropagation(); setOpen(false); router.push(`/suprimentos/conferencias/${doc.id}`); }}
           >
-            <Pencil className="w-3.5 h-3.5 text-gray-400" />
+            <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
             Editar
           </button>
-          <div className="border-t border-gray-100 mt-1 pt-1">
+          <div className="border-t border-border mt-1 pt-1">
             {!confirmDelete ? (
               <button
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-danger hover:bg-danger/10 transition-colors"
                 onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -209,7 +209,7 @@ function RowActionsMenu({ doc, onDeleted }: { doc: ConferenciaRow; onDeleted: ()
               </button>
             ) : (
               <div className="px-3 py-2">
-                <p className="text-xs text-gray-600 mb-1.5">Confirmar exclusão?</p>
+                <p className="text-xs text-muted-foreground mb-1.5">Confirmar exclusão?</p>
                 <div className="flex gap-1.5">
                   <button
                     onClick={handleDelete}
@@ -220,7 +220,7 @@ function RowActionsMenu({ doc, onDeleted }: { doc: ConferenciaRow; onDeleted: ()
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
-                    className="flex-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-200 rounded px-2 py-1"
+                    className="flex-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded px-2 py-1"
                   >
                     Não
                   </button>
@@ -241,25 +241,25 @@ function KanbanCard({ doc }: { doc: ConferenciaRow }) {
   const valor = calcValorTotal(doc);
   return (
     <div
-      className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm cursor-pointer hover:shadow-md hover:border-blue-300 transition-all"
+      className="bg-card border border-border rounded-lg p-3 shadow-sm cursor-pointer hover:shadow-md hover:border-blue-300 transition-all"
       onClick={() => router.push(`/suprimentos/conferencias/${doc.id}`)}
     >
-      <span className="font-mono text-xs font-semibold text-gray-800">{doc.numero}</span> <EmpresaTag empresaId={doc.empresaId} />
+      <span className="font-mono text-xs font-semibold text-foreground">{doc.numero}</span> <EmpresaTag empresaId={doc.empresaId} />
       {doc.pedido && (
-        <p className="text-xs text-blue-600 mt-0.5">{doc.pedido.numero}</p>
+        <p className="text-xs text-info mt-0.5">{doc.pedido.numero}</p>
       )}
-      <p className="text-xs text-gray-700 font-medium mt-1 line-clamp-1">{forn}</p>
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-        <span className="text-xs font-semibold text-gray-900">{valor > 0 ? formatBRL(valor) : "—"}</span>
+      <p className="text-xs text-foreground font-medium mt-1 line-clamp-1">{forn}</p>
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+        <span className="text-xs font-semibold text-foreground">{valor > 0 ? formatBRL(valor) : "—"}</span>
         {doc.dtEmissao && (
-          <span className="flex items-center gap-1 text-xs text-gray-400">
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <Calendar className="w-3 h-3" />
             {formatDate(doc.dtEmissao)}
           </span>
         )}
       </div>
       {doc.numeroNF && (
-        <p className="text-xs text-gray-400 mt-1">NF {doc.numeroNF}</p>
+        <p className="text-xs text-muted-foreground mt-1">NF {doc.numeroNF}</p>
       )}
     </div>
   );
@@ -381,7 +381,7 @@ export default function DocumentosEntradaPage() {
       <div className="px-8 pb-4 flex items-center gap-3 flex-wrap">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input
             className="pl-9 h-9 text-sm"
             placeholder="Buscar nº doc, NF, fornecedor, pedido…"
@@ -390,7 +390,7 @@ export default function DocumentosEntradaPage() {
           />
           {filters.search && (
             <button
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
               onClick={() => updateFilters({ search: "" })}
             >
               <X className="w-3.5 h-3.5" />
@@ -401,28 +401,28 @@ export default function DocumentosEntradaPage() {
         {/* Status filter */}
         <div className="relative">
           <button
-            className="flex items-center gap-2 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 h-9 px-3 text-sm border border-border rounded-lg bg-card hover:bg-muted transition-colors"
             onClick={() => setShowStatusMenu((v) => !v)}
           >
-            <span className="text-gray-700">{activeStatusLabel}</span>
-            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+            <span className="text-foreground">{activeStatusLabel}</span>
+            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
           </button>
 
           {showStatusMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowStatusMenu(false)} />
-              <div className="absolute left-0 top-10 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1.5 w-52">
+              <div className="absolute left-0 top-10 z-20 bg-card border border-border rounded-xl shadow-lg py-1.5 w-52">
                 <button
-                  className="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50 font-medium"
+                  className="w-full text-left px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted font-medium"
                   onClick={() => updateFilters({ statuses: filters.statuses.length === ALL_STATUSES.length ? [] : [...ALL_STATUSES] })}
                 >
                   {filters.statuses.length === ALL_STATUSES.length ? "Desmarcar todos" : "Selecionar todos"}
                 </button>
-                <div className="border-t border-gray-100 mt-1 pt-1">
+                <div className="border-t border-border mt-1 pt-1">
                   {STATUS_COLS.map((s) => (
                     <button
                       key={s.key}
-                      className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-gray-50"
+                      className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-muted"
                       onClick={() => {
                         const next = filters.statuses.includes(s.key)
                           ? filters.statuses.filter((x) => x !== s.key)
@@ -432,7 +432,7 @@ export default function DocumentosEntradaPage() {
                     >
                       <span className={cn(
                         "w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors",
-                        filters.statuses.includes(s.key) ? "bg-blue-600 border-blue-600" : "border-gray-300"
+                        filters.statuses.includes(s.key) ? "bg-blue-600 border-blue-600" : "border-border"
                       )}>
                         {filters.statuses.includes(s.key) && (
                           <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -440,7 +440,7 @@ export default function DocumentosEntradaPage() {
                           </svg>
                         )}
                       </span>
-                      <span className="text-gray-700">{s.label}</span>
+                      <span className="text-foreground">{s.label}</span>
                     </button>
                   ))}
                 </div>
@@ -450,7 +450,7 @@ export default function DocumentosEntradaPage() {
         </div>
 
         {/* Count */}
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-muted-foreground">
           {loading ? "…" : `${filtered.length} documento${filtered.length !== 1 ? "s" : ""}`}
         </span>
 
@@ -465,17 +465,17 @@ export default function DocumentosEntradaPage() {
         )}
 
         {/* View toggle */}
-        <div className="ml-auto flex items-center gap-1 border border-gray-200 rounded-lg p-0.5 bg-white">
+        <div className="ml-auto flex items-center gap-1 border border-border rounded-lg p-0.5 bg-card">
           <button
             className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
-              filters.view === "list" ? "bg-gray-100 text-gray-800" : "text-gray-500 hover:text-gray-700")}
+              filters.view === "list" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
             onClick={() => updateFilters({ view: "list" })}
           >
             <LayoutList className="w-3.5 h-3.5" /> Lista
           </button>
           <button
             className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
-              filters.view === "kanban" ? "bg-gray-100 text-gray-800" : "text-gray-500 hover:text-gray-700")}
+              filters.view === "kanban" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
             onClick={() => updateFilters({ view: "kanban" })}
           >
             <Kanban className="w-3.5 h-3.5" /> Kanban
@@ -487,18 +487,18 @@ export default function DocumentosEntradaPage() {
       <div className="px-8 pb-8 flex-1 overflow-auto">
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">
-            <FileText className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+          <div className="text-center py-16 text-muted-foreground">
+            <FileText className="w-10 h-10 mx-auto mb-3 text-muted-foreground/60" />
             <p className="text-lg font-medium">Nenhum documento encontrado</p>
           </div>
         ) : filters.view === "list" ? (
           /* ── List view ────────────────────────────────────────────────────── */
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
@@ -506,20 +506,20 @@ export default function DocumentosEntradaPage() {
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {filters.groupBy !== "none" && groups
                   ? groups.map((g) => (
                       <Fragment key={g.key}>
-                        <tr className="bg-gray-50/80">
-                          <td colSpan={orderedCols.length + 1} className="px-4 py-2 border-y border-gray-200">
+                        <tr className="bg-muted/80">
+                          <td colSpan={orderedCols.length + 1} className="px-4 py-2 border-y border-border">
                             <div className="flex items-center justify-between">
-                              <span className="flex items-center gap-1.5 font-semibold text-gray-700 text-sm">
+                              <span className="flex items-center gap-1.5 font-semibold text-foreground text-sm">
                                 {filters.groupBy === "dia"
-                                  ? <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
-                                  : <Building2 className="w-3.5 h-3.5 text-gray-400" />}
+                                  ? <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" />
+                                  : <Building2 className="w-3.5 h-3.5 text-muted-foreground" />}
                                 {g.label}
                               </span>
-                              <span className="text-xs text-gray-400">
+                              <span className="text-xs text-muted-foreground">
                                 {g.items.length} documento{g.items.length !== 1 ? "s" : ""} · {formatBRL(g.total)}
                               </span>
                             </div>
@@ -528,7 +528,7 @@ export default function DocumentosEntradaPage() {
                         {g.items.map((doc) => (
                           <tr
                             key={doc.id}
-                            className="hover:bg-gray-50 cursor-pointer transition-colors"
+                            className="hover:bg-muted cursor-pointer transition-colors"
                             onClick={() => router.push(`/suprimentos/conferencias/${doc.id}`)}
                           >
                             {orderedCols.map((col) => (
@@ -544,7 +544,7 @@ export default function DocumentosEntradaPage() {
                   : filtered.map((doc) => (
                       <tr
                         key={doc.id}
-                        className="hover:bg-gray-50 cursor-pointer transition-colors"
+                        className="hover:bg-muted cursor-pointer transition-colors"
                         onClick={() => router.push(`/suprimentos/conferencias/${doc.id}`)}
                       >
                         {orderedCols.map((col) => (

@@ -69,7 +69,7 @@ export default function RelatorioAnual() {
   }, [ano]);
 
   if (loading || !rel) {
-    return <div className="py-20 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-300" /></div>;
+    return <div className="py-20 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground/60" /></div>;
   }
 
   const r = rel.resumo;
@@ -84,20 +84,20 @@ export default function RelatorioAnual() {
     <div className="space-y-6">
       {/* Seletor de ano */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">Painel de acompanhamento anual</p>
-        <div className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
+        <p className="text-sm text-muted-foreground">Painel de acompanhamento anual</p>
+        <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-card p-1">
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAno((a) => a - 1)}><ChevronLeft className="w-4 h-4" /></Button>
-          <span className="px-2 text-sm font-semibold text-gray-700 tabular-nums">{ano}</span>
+          <span className="px-2 text-sm font-semibold text-foreground tabular-nums">{ano}</span>
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAno((a) => a + 1)}><ChevronRight className="w-4 h-4" /></Button>
         </div>
       </div>
 
       {/* Matriz DRE */}
-      <div className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-x-auto">
+      <div className="border border-border rounded-xl bg-card shadow-sm overflow-x-auto">
         <table className="w-full text-xs border-collapse min-w-[900px]">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50 text-gray-500">
-              <th className="text-left font-semibold px-4 py-3 sticky left-0 bg-gray-50 z-10 min-w-[220px]">Resultado</th>
+            <tr className="border-b border-border bg-muted text-muted-foreground">
+              <th className="text-left font-semibold px-4 py-3 sticky left-0 bg-muted z-10 min-w-[220px]">Resultado</th>
               {MESES.map((m) => <th key={m} className="text-right font-semibold px-3 py-3 whitespace-nowrap">{m}</th>)}
               <th className="text-right font-semibold px-4 py-3 whitespace-nowrap">Total</th>
             </tr>
@@ -118,8 +118,8 @@ export default function RelatorioAnual() {
       </div>
 
       {/* Gráfico */}
-      <div className="border border-gray-200 rounded-xl bg-white shadow-sm p-5">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4">Fluxo de Caixa — {ano}</h3>
+      <div className="border border-border rounded-xl bg-card shadow-sm p-5">
+        <h3 className="text-sm font-semibold text-foreground mb-4">Fluxo de Caixa — {ano}</h3>
         <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={chartData} margin={{ top: 5, right: 16, left: 8, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -147,36 +147,36 @@ export default function RelatorioAnual() {
             {loadingLancs ? (
               <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>
             ) : !lancs || lancs.length === 0 ? (
-              <p className="text-center text-sm text-gray-400 py-12">Nenhum lançamento no período.</p>
+              <p className="text-center text-sm text-muted-foreground py-12">Nenhum lançamento no período.</p>
             ) : (
               <>
-                <div className={cn("rounded-xl p-3 flex items-center justify-between", drill?.natureza.tipo === "ENTRADA" ? "bg-emerald-50" : "bg-rose-50")}>
-                  <span className={cn("text-xs font-medium", drill?.natureza.tipo === "ENTRADA" ? "text-emerald-700" : "text-rose-700")}>
+                <div className={cn("rounded-xl p-3 flex items-center justify-between", drill?.natureza.tipo === "ENTRADA" ? "bg-success/10" : "bg-danger/10")}>
+                  <span className={cn("text-xs font-medium", drill?.natureza.tipo === "ENTRADA" ? "text-success" : "text-danger")}>
                     Total ({lancs.length} {lancs.length === 1 ? "título" : "títulos"})
                   </span>
-                  <span className={cn("text-lg font-bold", drill?.natureza.tipo === "ENTRADA" ? "text-emerald-800" : "text-rose-800")}>
+                  <span className={cn("text-lg font-bold", drill?.natureza.tipo === "ENTRADA" ? "text-success" : "text-rose-800")}>
                     {formatBRL(soma(lancs.map((l) => l.valor)))}
                   </span>
                 </div>
                 <div className="border rounded-lg overflow-hidden divide-y">
                   {lancs.map((l) => (
-                    <div key={l.id} className="flex items-start justify-between p-3 gap-3 hover:bg-gray-50">
+                    <div key={l.id} className="flex items-start justify-between p-3 gap-3 hover:bg-muted">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-gray-400">{l.numero}</span>
+                          <span className="font-mono text-xs text-muted-foreground">{l.numero}</span>
                           <StatusBadge status={l.status} />
                         </div>
-                        <p className="text-sm font-medium text-gray-800 mt-0.5 truncate">{l.favorecido ?? l.descricao}</p>
-                        <p className="text-xs text-gray-400 truncate">
+                        <p className="text-sm font-medium text-foreground mt-0.5 truncate">{l.favorecido ?? l.descricao}</p>
+                        <p className="text-xs text-muted-foreground truncate">
                           {formatDate(l.dataVencimento)}{l.ref ? ` · ${l.ref}` : ""}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className={cn("text-sm font-semibold", drill?.natureza.tipo === "ENTRADA" ? "text-emerald-700" : "text-rose-700")}>
+                        <p className={cn("text-sm font-semibold", drill?.natureza.tipo === "ENTRADA" ? "text-success" : "text-danger")}>
                           {formatBRL(l.valor)}
                         </p>
                       </div>
-                      <Link href={l.href} className="text-blue-400 hover:text-blue-600 shrink-0 mt-0.5" onClick={() => setDrill(null)}>
+                      <Link href={l.href} className="text-blue-400 hover:text-info shrink-0 mt-0.5" onClick={() => setDrill(null)}>
                         <ExternalLink className="w-3.5 h-3.5" />
                       </Link>
                     </div>
@@ -195,8 +195,8 @@ function GrupoBloco({ grupo, onDrill }: { grupo: GrupoNode; onDrill: (n: NatNode
   const temNaturezas = grupo.subgrupos.some((s) => s.naturezas.length > 0);
   return (
     <>
-      <tr className="bg-gray-50/60 border-b border-gray-100">
-        <td className="px-4 py-2 font-semibold text-gray-600 uppercase text-[11px] tracking-wide sticky left-0 bg-gray-50/60 z-10">
+      <tr className="bg-muted/60 border-b border-border">
+        <td className="px-4 py-2 font-semibold text-muted-foreground uppercase text-[11px] tracking-wide sticky left-0 bg-muted/60 z-10">
           {GRUPO_LABEL[grupo.grupo] ?? grupo.grupo}
         </td>
         {grupo.meses.map((v, i) => <td key={i} className={cn("px-3 py-2 text-right tabular-nums font-medium", valorCor(v))}>{fmt(v)}</td>)}
@@ -206,7 +206,7 @@ function GrupoBloco({ grupo, onDrill }: { grupo: GrupoNode; onDrill: (n: NatNode
         <SubgrupoBloco key={sub.id ?? "sem"} sub={sub} onDrill={onDrill} mostrarTituloSub={!!sub.nome} />
       ))}
       {!temNaturezas && (
-        <tr className="border-b border-gray-50"><td colSpan={14} className="px-8 py-1.5 text-[11px] text-gray-300 sticky left-0 bg-white">sem lançamentos</td></tr>
+        <tr className="border-b border-gray-50"><td colSpan={14} className="px-8 py-1.5 text-[11px] text-muted-foreground/60 sticky left-0 bg-card">sem lançamentos</td></tr>
       )}
     </>
   );
@@ -217,21 +217,21 @@ function SubgrupoBloco({ sub, onDrill, mostrarTituloSub }: { sub: SubNode; onDri
     <>
       {mostrarTituloSub && sub.naturezas.length > 0 && (
         <tr className="border-b border-gray-50">
-          <td className="pl-8 pr-4 py-1.5 text-[11px] font-medium text-gray-400 sticky left-0 bg-white z-10">{sub.nome}</td>
+          <td className="pl-8 pr-4 py-1.5 text-[11px] font-medium text-muted-foreground sticky left-0 bg-card z-10">{sub.nome}</td>
           <td colSpan={13} />
         </tr>
       )}
       {sub.naturezas.map((n) => (
-        <tr key={n.id} className="border-b border-gray-50 hover:bg-blue-50/40 group">
-          <td className={cn("py-1.5 pr-4 sticky left-0 bg-white group-hover:bg-blue-50/40 z-10", mostrarTituloSub ? "pl-12" : "pl-8")}>
-            <button onClick={() => onDrill(n, null)} className="inline-flex items-center gap-1 text-gray-600 hover:text-blue-700 text-left">
-              <Caret className="w-3 h-3 text-gray-300 group-hover:text-blue-400" />
+        <tr key={n.id} className="border-b border-gray-50 hover:bg-info/10 group">
+          <td className={cn("py-1.5 pr-4 sticky left-0 bg-card group-hover:bg-info/10 z-10", mostrarTituloSub ? "pl-12" : "pl-8")}>
+            <button onClick={() => onDrill(n, null)} className="inline-flex items-center gap-1 text-muted-foreground hover:text-info text-left">
+              <Caret className="w-3 h-3 text-muted-foreground/60 group-hover:text-blue-400" />
               {n.nome}
             </button>
           </td>
           {n.meses.map((v, i) => (
             <td key={i} className="px-3 py-1.5 text-right tabular-nums">
-              {v === 0 ? <span className="text-gray-300">–</span> : (
+              {v === 0 ? <span className="text-muted-foreground/60">–</span> : (
                 <button onClick={() => onDrill(n, i)} className={cn("hover:underline", valorCor(v))}>{formatBRL(v)}</button>
               )}
             </td>
@@ -246,8 +246,8 @@ function SubgrupoBloco({ sub, onDrill, mostrarTituloSub }: { sub: SubNode; onDri
 function LinhaResumo({ label, valores, destaque, forte }: { label: string; valores: number[]; destaque?: boolean; forte?: boolean }) {
   const total = soma(valores);
   return (
-    <tr className={cn("border-b", forte ? "bg-gray-100 border-gray-200" : destaque ? "bg-slate-50 border-gray-100" : "border-gray-100")}>
-      <td className={cn("px-4 py-2 sticky left-0 z-10", forte ? "bg-gray-100 font-bold text-gray-800" : "bg-slate-50 font-semibold text-gray-700")}>
+    <tr className={cn("border-b", forte ? "bg-muted border-border" : destaque ? "bg-slate-50 border-border" : "border-border")}>
+      <td className={cn("px-4 py-2 sticky left-0 z-10", forte ? "bg-muted font-bold text-foreground" : "bg-slate-50 font-semibold text-foreground")}>
         = {label}
       </td>
       {valores.map((v, i) => <td key={i} className={cn("px-3 py-2 text-right tabular-nums font-medium", valorCor(v))}>{fmt(v)}</td>)}
@@ -257,7 +257,7 @@ function LinhaResumo({ label, valores, destaque, forte }: { label: string; valor
 }
 
 function valorCor(v: number) {
-  if (v > 0) return "text-emerald-600";
-  if (v < 0) return "text-rose-600";
-  return "text-gray-400";
+  if (v > 0) return "text-success";
+  if (v < 0) return "text-danger";
+  return "text-muted-foreground";
 }

@@ -449,28 +449,28 @@ export default function PedidoCompraCreateForm() {
 
       <div className={drawer ? "max-w-5xl space-y-6" : "px-8 pb-8 max-w-5xl space-y-6"}>
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{error}</div>
         )}
 
         {/* ── Anti-duplicidade: Cotações abertas compatíveis ───────────────── */}
         {!avulsoConfirmed && cotacaoMatchLoading && cotacaoMatches.length === 0 && (
-          <div className="text-xs text-gray-400 flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 border-2 border-border border-t-transparent rounded-full animate-spin" />
             Verificando Cotações compatíveis…
           </div>
         )}
 
         {!avulsoConfirmed && cotacaoMatches.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+          <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 space-y-3">
             <div className="flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-              <div className="text-sm text-amber-800">
+              <AlertTriangle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
+              <div className="text-sm text-warning">
                 <p className="font-medium">
                   {cotacaoMatches.length === 1
                     ? "Encontramos 1 Cotação aberta compatível com este pedido."
                     : `Encontramos ${cotacaoMatches.length} Cotações abertas compatíveis com este pedido.`}
                 </p>
-                <p className="text-xs text-amber-700 mt-0.5">
+                <p className="text-xs text-warning mt-0.5">
                   Mesmo fornecedor e itens em comum. Formalize a Cotação para gerar o Pedido a partir dela (com baixa na Solicitação), ou confirme que este é um pedido avulso.
                 </p>
               </div>
@@ -480,19 +480,19 @@ export default function PedidoCompraCreateForm() {
               {cotacaoMatches.map((m) => (
                 <div
                   key={m.id}
-                  className="flex items-center justify-between gap-3 bg-white border border-amber-100 rounded-lg px-3 py-2"
+                  className="flex items-center justify-between gap-3 bg-card border border-amber-100 rounded-lg px-3 py-2"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono font-semibold text-gray-800 text-sm">{m.numero}</span>
+                      <span className="font-mono font-semibold text-foreground text-sm">{m.numero}</span>
                       {m.necessidadeNumero && (
-                        <span className="text-xs text-gray-500">SC {m.necessidadeNumero}</span>
+                        <span className="text-xs text-muted-foreground">SC {m.necessidadeNumero}</span>
                       )}
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-warning/15 text-warning">
                         {m.matchCount} de {m.totalItens} {m.totalItens === 1 ? "item" : "itens"} em comum
                       </span>
                     </div>
-                    <p className="text-xs text-gray-400 truncate">
+                    <p className="text-xs text-muted-foreground truncate">
                       {m.nome || m.fornecedor.nomeFantasia || m.fornecedor.razaoSocial}
                     </p>
                   </div>
@@ -500,7 +500,7 @@ export default function PedidoCompraCreateForm() {
                     <Link
                       href={`/suprimentos/cotacoes/${m.id}`}
                       target="_blank"
-                      className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-0.5"
+                      className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5"
                     >
                       Abrir <ExternalLink className="w-3 h-3" />
                     </Link>
@@ -521,7 +521,7 @@ export default function PedidoCompraCreateForm() {
               <button
                 type="button"
                 onClick={() => setAvulsoConfirmed(true)}
-                className="text-xs text-amber-700 hover:text-amber-900 underline"
+                className="text-xs text-warning hover:text-amber-900 underline"
               >
                 Não, criar pedido avulso mesmo assim
               </button>
@@ -530,7 +530,7 @@ export default function PedidoCompraCreateForm() {
         )}
 
         {necessidadeId ? (
-          <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
+          <div className="flex items-center justify-between bg-info/10 border border-info/30 rounded-lg px-3 py-2 text-xs text-info">
             <span>Vinculado à Solicitação de Compras <span className="font-mono font-semibold">{necessidadeNumero}</span>.</span>
             <button
               type="button"
@@ -541,18 +541,18 @@ export default function PedidoCompraCreateForm() {
                 setChoiceOpen(true);
                 setChoiceStep("choose");
               }}
-              className="text-blue-500 hover:text-blue-700 underline"
+              className="text-blue-500 hover:text-info underline"
             >
               Revisar
             </button>
           </div>
         ) : (!choiceOpen && !cotacaoMatchLoading && (cotacaoMatches.length === 0 || avulsoConfirmed)) && (
-          <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-500">
+          <div className="flex items-center justify-between bg-muted border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground">
             <span>Pedido avulso — sem vínculo com SC.</span>
             <button
               type="button"
               onClick={() => { setChoiceOpen(true); setChoiceStep("choose"); }}
-              className="text-blue-600 hover:text-blue-800 underline font-medium"
+              className="text-info hover:text-info underline font-medium"
             >
               Vincular a uma SC/Cotação
             </button>
@@ -560,27 +560,27 @@ export default function PedidoCompraCreateForm() {
         )}
 
         {/* ── Seção Fornecedor ─────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-sm text-gray-800">Fornecedor</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Fornecedor</h2>
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Código fornecedor</Label>
-              <Input value={codigoForn || "—"} readOnly className="font-mono bg-gray-50" />
+              <Label className="text-xs text-muted-foreground">Código fornecedor</Label>
+              <Input value={codigoForn || "—"} readOnly className="font-mono bg-muted" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Loja</Label>
-              <Input value="01" readOnly className="bg-gray-50" />
+              <Label className="text-xs text-muted-foreground">Loja</Label>
+              <Input value="01" readOnly className="bg-muted" />
             </div>
             <div className="space-y-1 md:col-span-1">
-              <Label className="text-xs text-gray-500">Nome Fornecedor</Label>
-              <Input value={fornNome || "—"} readOnly className="bg-gray-50" />
+              <Label className="text-xs text-muted-foreground">Nome Fornecedor</Label>
+              <Input value={fornNome || "—"} readOnly className="bg-muted" />
             </div>
 
             {/* Fornecedor selector — spans full row */}
             <div className="space-y-1 md:col-span-3">
-              <Label className="text-xs text-gray-500">Fornecedor <span className="text-red-500">*</span></Label>
+              <Label className="text-xs text-muted-foreground">Fornecedor <span className="text-red-500">*</span></Label>
               <ComboboxWithCreate
                 options={fornecedores.map((f) => ({ value: f.id, label: f.nomeFantasia || f.razaoSocial }))}
                 value={fornecedorId}
@@ -594,7 +594,7 @@ export default function PedidoCompraCreateForm() {
             </div>
 
             <div className="space-y-1 md:col-span-3">
-              <Label className="text-xs text-gray-500">Descrição <span className="text-red-500">*</span></Label>
+              <Label className="text-xs text-muted-foreground">Descrição <span className="text-red-500">*</span></Label>
               <Input
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
@@ -603,39 +603,39 @@ export default function PedidoCompraCreateForm() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Contato</Label>
+              <Label className="text-xs text-muted-foreground">Contato</Label>
               <Input value={contato} onChange={(e) => setContato(e.target.value)} placeholder="Nome do contato" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">E-mail</Label>
+              <Label className="text-xs text-muted-foreground">E-mail</Label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@fornecedor.com" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Proposta</Label>
-              <Input value="PROPOSTA 01" readOnly className="bg-gray-50 font-mono" />
+              <Label className="text-xs text-muted-foreground">Proposta</Label>
+              <Input value="PROPOSTA 01" readOnly className="bg-muted font-mono" />
             </div>
           </div>
         </div>
 
         {/* ── Seção Financeiro ─────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-sm text-gray-800">Cotação</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Cotação</h2>
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Total itens</Label>
+              <Label className="text-xs text-muted-foreground">Total itens</Label>
               <Input
                 value={totalItensQtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                readOnly className="bg-gray-50 text-right"
+                readOnly className="bg-muted text-right"
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Total Cotação</Label>
-              <Input value={formatBRL(totalCotacao)} readOnly className="bg-gray-50 text-right font-semibold" />
+              <Label className="text-xs text-muted-foreground">Total Cotação</Label>
+              <Input value={formatBRL(totalCotacao)} readOnly className="bg-muted text-right font-semibold" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">% Desconto</Label>
+              <Label className="text-xs text-muted-foreground">% Desconto</Label>
               <Input
                 inputMode="decimal"
                 value={desconto}
@@ -644,11 +644,11 @@ export default function PedidoCompraCreateForm() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Vr Desconto</Label>
-              <Input value={formatBRL(vrDescontoCalc)} readOnly className="bg-gray-50 text-right" />
+              <Label className="text-xs text-muted-foreground">Vr Desconto</Label>
+              <Input value={formatBRL(vrDescontoCalc)} readOnly className="bg-muted text-right" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Frete</Label>
+              <Label className="text-xs text-muted-foreground">Frete</Label>
               <Input
                 inputMode="decimal"
                 value={frete} onChange={(e) => setFrete(e.target.value)}
@@ -656,7 +656,7 @@ export default function PedidoCompraCreateForm() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Tipo Frete</Label>
+              <Label className="text-xs text-muted-foreground">Tipo Frete</Label>
               <Select value={tipoFrete || "__none__"} onValueChange={(v) => setTipoFrete(v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
                 <SelectContent>
@@ -668,7 +668,7 @@ export default function PedidoCompraCreateForm() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Condição pagamento</Label>
+              <Label className="text-xs text-muted-foreground">Condição pagamento</Label>
               <Select
                 value={condicoesPagamento || "__none__"}
                 onValueChange={(v) => setCondicoesPagamento(v === "__none__" ? "" : v)}
@@ -685,7 +685,7 @@ export default function PedidoCompraCreateForm() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Despesas</Label>
+              <Label className="text-xs text-muted-foreground">Despesas</Label>
               <Input
                 inputMode="decimal"
                 value={despesas} onChange={(e) => setDespesas(e.target.value)}
@@ -693,7 +693,7 @@ export default function PedidoCompraCreateForm() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Seguro</Label>
+              <Label className="text-xs text-muted-foreground">Seguro</Label>
               <Input
                 inputMode="decimal"
                 value={seguro} onChange={(e) => setSeguro(e.target.value)}
@@ -701,34 +701,34 @@ export default function PedidoCompraCreateForm() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Entrega Prevista</Label>
+              <Label className="text-xs text-muted-foreground">Entrega Prevista</Label>
               <Input type="date" value={dataEntregaPrevista} onChange={(e) => setDataEntregaPrevista(e.target.value)} />
             </div>
           </div>
         </div>
 
         {/* ── Itens da cotação ─────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-            <h2 className="font-semibold text-sm text-gray-800">Itens da cotação</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
+            <h2 className="font-semibold text-sm text-foreground">Itens da cotação</h2>
             <Button type="button" size="sm" variant="outline" onClick={addRow}>
               <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Item
             </Button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
+              <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600 min-w-[320px]">Produto</th>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600">U.M.</th>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600 w-36">Situação</th>
-                  <th className="text-right px-4 py-2 font-medium text-gray-600 w-28">Quantidade</th>
-                  <th className="text-right px-4 py-2 font-medium text-gray-600 w-36">Preço Unitário</th>
-                  <th className="text-right px-4 py-2 font-medium text-gray-600 w-28">Total Item</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground min-w-[320px]">Produto</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">U.M.</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground w-36">Situação</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-28">Quantidade</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-36">Preço Unitário</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-28">Total Item</th>
                   <th className="w-10" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {itens.map((row, i) => {
                   const opt = itemOptions.find((o) => o.id === row.itemId);
                   const preco = parseDecimal(row.precoUnitario) || 0;
@@ -737,7 +737,7 @@ export default function PedidoCompraCreateForm() {
                   const isNao = row.situacao === "NAO_CONSIDERA";
 
                   return (
-                    <tr key={i} className={cn("hover:bg-gray-50", isNao && "opacity-50")}>
+                    <tr key={i} className={cn("hover:bg-muted", isNao && "opacity-50")}>
                       <td className="px-4 py-2 min-w-[320px]">
                         <ComboboxWithCreate
                           options={itemOptions.map((o) => ({ value: o.id, label: `[${o.codigo}] ${o.descricao}` }))}
@@ -750,7 +750,7 @@ export default function PedidoCompraCreateForm() {
                           createLabel="produto"
                         />
                       </td>
-                      <td className="px-4 py-2 text-gray-500 text-xs">{opt?.unidadeMedida ?? "—"}</td>
+                      <td className="px-4 py-2 text-muted-foreground text-xs">{opt?.unidadeMedida ?? "—"}</td>
                       <td className="px-4 py-2">
                         <Select
                           value={row.situacao}
@@ -783,7 +783,7 @@ export default function PedidoCompraCreateForm() {
                           className="text-right h-8"
                         />
                       </td>
-                      <td className="px-4 py-2 text-right font-medium text-gray-800">
+                      <td className="px-4 py-2 text-right font-medium text-foreground">
                         {isNao ? "—" : formatBRL(total)}
                       </td>
                       <td className="px-4 py-2 text-center">
@@ -791,7 +791,7 @@ export default function PedidoCompraCreateForm() {
                           <button
                             type="button"
                             onClick={() => removeRow(i)}
-                            className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                            className="p-1 text-muted-foreground/60 hover:text-red-500 hover:bg-danger/10 rounded transition-colors"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -801,13 +801,13 @@ export default function PedidoCompraCreateForm() {
                   );
                 })}
               </tbody>
-              <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+              <tfoot className="border-t-2 border-border bg-muted">
                 <tr>
-                  <td colSpan={4} className="px-4 py-2 text-right font-semibold text-gray-700 text-sm">
+                  <td colSpan={4} className="px-4 py-2 text-right font-semibold text-foreground text-sm">
                     Total da cotação
                   </td>
                   <td />
-                  <td className="px-4 py-2 text-right font-bold text-gray-900">{formatBRL(totalCotacao)}</td>
+                  <td className="px-4 py-2 text-right font-bold text-foreground">{formatBRL(totalCotacao)}</td>
                   <td />
                 </tr>
               </tfoot>
@@ -816,8 +816,8 @@ export default function PedidoCompraCreateForm() {
         </div>
 
         {/* Situação badge legend */}
-        <div className="flex items-center gap-2 text-xs text-gray-400">
-          <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1 text-success bg-success/10 border border-success/30 rounded px-2 py-0.5">
             <CheckCircle2 className="w-3 h-3" /> Considera
           </span>
           <span>— item incluído no total</span>
@@ -828,17 +828,17 @@ export default function PedidoCompraCreateForm() {
       {vinculoPopup && (
         <div className="fixed inset-0 z-[9200] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setVinculoPopup(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+          <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
             {/* Header */}
-            <div className="flex items-start gap-3 px-6 pt-6 pb-4 border-b border-gray-100">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50">
-                <LinkIcon className="w-5 h-5 text-blue-600" />
+            <div className="flex items-start gap-3 px-6 pt-6 pb-4 border-b border-border">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info/10">
+                <LinkIcon className="w-5 h-5 text-info" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-gray-900">Novo vínculo fornecedor × produto</p>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-sm font-semibold text-foreground">Novo vínculo fornecedor × produto</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   Ao criar este pedido, {vinculoPopup.novos.length === 1 ? "o produto abaixo será vinculado" : `os ${vinculoPopup.novos.length} produtos abaixo serão vinculados`} ao fornecedor{" "}
-                  <span className="font-medium text-gray-700">{vinculoPopup.fornecedorNome}</span> pela primeira vez.
+                  <span className="font-medium text-foreground">{vinculoPopup.fornecedorNome}</span> pela primeira vez.
                 </p>
               </div>
             </div>
@@ -846,13 +846,13 @@ export default function PedidoCompraCreateForm() {
             <ul className="divide-y divide-gray-50 max-h-52 overflow-y-auto">
               {vinculoPopup.novos.map((item) => (
                 <li key={item.id} className="flex items-center gap-3 px-6 py-2.5">
-                  <span className="font-mono text-[11px] text-gray-400 w-16 shrink-0">{item.codigo}</span>
-                  <span className="text-sm text-gray-800">{item.descricao}</span>
+                  <span className="font-mono text-[11px] text-muted-foreground w-16 shrink-0">{item.codigo}</span>
+                  <span className="text-sm text-foreground">{item.descricao}</span>
                 </li>
               ))}
             </ul>
             {/* Footer */}
-            <div className="flex justify-end gap-2 px-6 py-4 bg-gray-50 border-t border-gray-100">
+            <div className="flex justify-end gap-2 px-6 py-4 bg-muted border-t border-border">
               <Button variant="outline" size="sm" onClick={() => setVinculoPopup(null)}>
                 Cancelar
               </Button>
@@ -870,10 +870,10 @@ export default function PedidoCompraCreateForm() {
       {/* ── Popup de escolha (vincular a uma Cotação ou avulso) ───────────── */}
       {choiceOpen && (
         <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h2 className="text-base font-semibold text-gray-800">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <h2 className="text-base font-semibold text-foreground">
                 {choiceStep === "choose"
                   ? "Como deseja criar este pedido de compra?"
                   : selectedSc
@@ -887,7 +887,7 @@ export default function PedidoCompraCreateForm() {
                 <button
                   type="button"
                   onClick={closeCurrentTab}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-muted-foreground hover:text-muted-foreground"
                   aria-label="Fechar página"
                 >
                   <X className="w-4 h-4" />
@@ -899,7 +899,7 @@ export default function PedidoCompraCreateForm() {
                     if (selectedSc) setSelectedSc(null);
                     else { setChoiceStep("choose"); setScSearch(""); }
                   }}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-muted-foreground hover:text-muted-foreground"
                   aria-label="Voltar"
                 >
                   <X className="w-4 h-4" />
@@ -909,7 +909,7 @@ export default function PedidoCompraCreateForm() {
 
             {choiceStep === "choose" ? (
               <div className="p-5 space-y-3">
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                   O pedido nasce de uma Solicitação de Compras (SC). Escolha a SC — ela pode já ter uma cotação em andamento ou não.
                 </p>
 
@@ -917,14 +917,14 @@ export default function PedidoCompraCreateForm() {
                 <button
                   type="button"
                   onClick={() => setChoiceStep("vincular")}
-                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-left transition-colors"
+                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-info/30 bg-info/10 hover:bg-info/15 text-left transition-colors"
                 >
-                  <Link2 className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                  <Link2 className="w-5 h-5 text-info mt-0.5 shrink-0" />
                   <span>
-                    <span className="block text-sm font-semibold text-blue-800">
+                    <span className="block text-sm font-semibold text-info">
                       Vincular a uma Solicitação de Compras (SC)
                     </span>
-                    <span className="block text-xs text-blue-700 mt-0.5">
+                    <span className="block text-xs text-info mt-0.5">
                       Se a SC já tem cotação, você pode formalizá-la; se não, cria o pedido direto na SC ou inicia uma cotação.
                     </span>
                   </span>
@@ -934,14 +934,14 @@ export default function PedidoCompraCreateForm() {
                 <button
                   type="button"
                   onClick={closeChoice}
-                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-left transition-colors"
+                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-border bg-card hover:bg-muted text-left transition-colors"
                 >
-                  <FileText className="w-5 h-5 text-gray-500 mt-0.5 shrink-0" />
+                  <FileText className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
                   <span>
-                    <span className="block text-sm font-semibold text-gray-800">
+                    <span className="block text-sm font-semibold text-foreground">
                       Pedido avulso
                     </span>
-                    <span className="block text-xs text-gray-500 mt-0.5">
+                    <span className="block text-xs text-muted-foreground mt-0.5">
                       Pedido sem SC. Você preenche fornecedor e itens manualmente.
                     </span>
                   </span>
@@ -955,29 +955,29 @@ export default function PedidoCompraCreateForm() {
                 const desc = selectedSc.justificativa?.trim();
                 return (
                   <div className="p-5 space-y-3">
-                    <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2.5 text-sm space-y-2">
+                    <div className="rounded-lg bg-muted border border-border px-3 py-2.5 text-sm space-y-2">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono font-semibold text-gray-800">{selectedSc.numero}</span>
-                        <span className="text-gray-400">· {nItens} {nItens === 1 ? "item" : "itens"}</span>
+                        <span className="font-mono font-semibold text-foreground">{selectedSc.numero}</span>
+                        <span className="text-muted-foreground">· {nItens} {nItens === 1 ? "item" : "itens"}</span>
                         {cot ? (
                           <span className="inline-flex items-center gap-1 text-xs">
-                            <span className="text-gray-400">cotação</span>
-                            <span className="font-mono text-gray-600">{cot.numero}</span>
+                            <span className="text-muted-foreground">cotação</span>
+                            <span className="font-mono text-muted-foreground">{cot.numero}</span>
                             <StatusBadge status={cot.status} />
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-400">sem cotação</span>
+                          <span className="text-xs text-muted-foreground">sem cotação</span>
                         )}
                       </div>
                       {desc && (
-                        <p className="text-xs text-gray-600 whitespace-pre-wrap">{desc}</p>
+                        <p className="text-xs text-muted-foreground whitespace-pre-wrap">{desc}</p>
                       )}
-                      <ul className="divide-y divide-gray-100 border-t border-gray-100 max-h-40 overflow-y-auto">
+                      <ul className="divide-y divide-border border-t border-border max-h-40 overflow-y-auto">
                         {selectedSc.itens.map((it, i) => (
                           <li key={it.item?.id ?? i} className="flex items-center gap-2 py-1 text-xs">
-                            <span className="font-mono text-gray-400 shrink-0">{it.item?.codigo ?? "—"}</span>
-                            <span className="flex-1 min-w-0 truncate text-gray-700">{it.item?.descricao ?? "—"}</span>
-                            <span className="shrink-0 text-gray-500">
+                            <span className="font-mono text-muted-foreground shrink-0">{it.item?.codigo ?? "—"}</span>
+                            <span className="flex-1 min-w-0 truncate text-foreground">{it.item?.descricao ?? "—"}</span>
+                            <span className="shrink-0 text-muted-foreground">
                               {(Number(it.quantidade) || 0).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {unidadeItem(it)}
                             </span>
                           </li>
@@ -989,12 +989,12 @@ export default function PedidoCompraCreateForm() {
                       <button
                         type="button"
                         onClick={() => goToFormalizacao(cot.id)}
-                        className="w-full flex items-start gap-3 p-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-left transition-colors"
+                        className="w-full flex items-start gap-3 p-4 rounded-xl border border-info/30 bg-info/10 hover:bg-info/15 text-left transition-colors"
                       >
-                        <FileSpreadsheet className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                        <FileSpreadsheet className="w-5 h-5 text-info mt-0.5 shrink-0" />
                         <span>
-                          <span className="block text-sm font-semibold text-blue-800">Ir para a Formalização da cotação</span>
-                          <span className="block text-xs text-blue-700 mt-0.5">
+                          <span className="block text-sm font-semibold text-info">Ir para a Formalização da cotação</span>
+                          <span className="block text-xs text-info mt-0.5">
                             Gera o pedido a partir da proposta vencedora e dá baixa na SC.
                           </span>
                         </span>
@@ -1007,15 +1007,15 @@ export default function PedidoCompraCreateForm() {
                       onClick={() => criarDiretoNaSc(selectedSc)}
                       className={cn(
                         "w-full flex items-start gap-3 p-4 rounded-xl border text-left transition-colors",
-                        cot ? "border-gray-200 bg-white hover:bg-gray-50" : "border-blue-200 bg-blue-50 hover:bg-blue-100"
+                        cot ? "border-border bg-card hover:bg-muted" : "border-info/30 bg-info/10 hover:bg-info/15"
                       )}
                     >
-                      <FileText className={cn("w-5 h-5 mt-0.5 shrink-0", cot ? "text-gray-500" : "text-blue-600")} />
+                      <FileText className={cn("w-5 h-5 mt-0.5 shrink-0", cot ? "text-muted-foreground" : "text-info")} />
                       <span>
-                        <span className={cn("block text-sm font-semibold", cot ? "text-gray-800" : "text-blue-800")}>
+                        <span className={cn("block text-sm font-semibold", cot ? "text-foreground" : "text-info")}>
                           Criar pedido direto na SC
                         </span>
-                        <span className={cn("block text-xs mt-0.5", cot ? "text-gray-500" : "text-blue-700")}>
+                        <span className={cn("block text-xs mt-0.5", cot ? "text-muted-foreground" : "text-info")}>
                           Abre o formulário já vinculado à SC, com os itens pré-preenchidos.
                         </span>
                       </span>
@@ -1026,12 +1026,12 @@ export default function PedidoCompraCreateForm() {
                       <button
                         type="button"
                         onClick={() => iniciarCotacao(selectedSc)}
-                        className="w-full flex items-start gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-left transition-colors"
+                        className="w-full flex items-start gap-3 p-4 rounded-xl border border-border bg-card hover:bg-muted text-left transition-colors"
                       >
-                        <FileSpreadsheet className="w-5 h-5 text-gray-500 mt-0.5 shrink-0" />
+                        <FileSpreadsheet className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
                         <span>
-                          <span className="block text-sm font-semibold text-gray-800">Iniciar uma cotação</span>
-                          <span className="block text-xs text-gray-500 mt-0.5">
+                          <span className="block text-sm font-semibold text-foreground">Iniciar uma cotação</span>
+                          <span className="block text-xs text-muted-foreground mt-0.5">
                             Cria uma cotação a partir da SC; o pedido nasce ao formalizá-la.
                           </span>
                         </span>
@@ -1039,7 +1039,7 @@ export default function PedidoCompraCreateForm() {
                     )}
 
                     <div className="pt-1">
-                      <button type="button" onClick={() => setSelectedSc(null)} className="text-xs text-gray-500 hover:text-gray-700">
+                      <button type="button" onClick={() => setSelectedSc(null)} className="text-xs text-muted-foreground hover:text-foreground">
                         ← Escolher outra SC
                       </button>
                     </div>
@@ -1049,23 +1049,23 @@ export default function PedidoCompraCreateForm() {
             ) : (
               <div>
                 {/* Busca */}
-                <div className="p-4 border-b border-gray-100">
+                <div className="p-4 border-b border-border">
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                     <input
                       autoFocus
                       type="text"
                       value={scSearch}
                       onChange={(e) => setScSearch(e.target.value)}
                       placeholder="Buscar SC… (número)"
-                      className="w-full pl-8 pr-3 h-9 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full pl-8 pr-3 h-9 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
 
                 {/* Lista de SCs elegíveis */}
                 {scLoading && scOptions.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-gray-400 flex items-center justify-center gap-2">
+                  <div className="px-4 py-8 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" /> Carregando…
                   </div>
                 ) : (() => {
@@ -1073,7 +1073,7 @@ export default function PedidoCompraCreateForm() {
                   const lista = q ? scOptions.filter((sc) => sc.numero.toLowerCase().includes(q)) : scOptions;
                   if (lista.length === 0) {
                     return (
-                      <div className="px-4 py-8 text-center text-sm text-gray-400">
+                      <div className="px-4 py-8 text-center text-sm text-muted-foreground">
                         {q ? "Nenhuma SC encontrada." : "Nenhuma Solicitação de Compras elegível."}
                       </div>
                     );
@@ -1088,27 +1088,27 @@ export default function PedidoCompraCreateForm() {
                             <button
                               type="button"
                               onClick={() => setSelectedSc(sc)}
-                              className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-blue-50 transition-colors"
+                              className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-info/10 transition-colors"
                             >
-                              <FileText className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                              <FileText className="w-4 h-4 text-info shrink-0 mt-0.5" />
                               <span className="min-w-0 flex-1">
                                 <span className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-mono font-semibold text-sm text-gray-800">{sc.numero}</span>
-                                  <span className="text-xs text-gray-400">{sc.itens.length} {sc.itens.length === 1 ? "item" : "itens"}</span>
+                                  <span className="font-mono font-semibold text-sm text-foreground">{sc.numero}</span>
+                                  <span className="text-xs text-muted-foreground">{sc.itens.length} {sc.itens.length === 1 ? "item" : "itens"}</span>
                                   {cot ? (
                                     <span className="inline-flex items-center gap-1 text-xs">
-                                      <span className="font-mono text-gray-500">{cot.numero}</span>
+                                      <span className="font-mono text-muted-foreground">{cot.numero}</span>
                                       <StatusBadge status={cot.status} />
                                     </span>
                                   ) : (
-                                    <span className="text-xs text-gray-300">sem cotação</span>
+                                    <span className="text-xs text-muted-foreground/60">sem cotação</span>
                                   )}
                                 </span>
                                 {desc && (
-                                  <span className="block text-xs text-gray-500 mt-0.5 truncate">{desc}</span>
+                                  <span className="block text-xs text-muted-foreground mt-0.5 truncate">{desc}</span>
                                 )}
                               </span>
-                              <ExternalLink className="w-3.5 h-3.5 text-gray-300 shrink-0 mt-0.5" />
+                              <ExternalLink className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0 mt-0.5" />
                             </button>
                           </li>
                         );
@@ -1118,18 +1118,18 @@ export default function PedidoCompraCreateForm() {
                 })()}
 
                 {/* Footer */}
-                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
+                <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted">
                   <button
                     type="button"
                     onClick={() => { setChoiceStep("choose"); setScSearch(""); }}
-                    className="text-xs text-gray-500 hover:text-gray-700"
+                    className="text-xs text-muted-foreground hover:text-foreground"
                   >
                     ← Voltar
                   </button>
                   <button
                     type="button"
                     onClick={closeChoice}
-                    className="text-xs text-gray-500 hover:text-gray-700 underline"
+                    className="text-xs text-muted-foreground hover:text-foreground underline"
                   >
                     É um pedido avulso
                   </button>

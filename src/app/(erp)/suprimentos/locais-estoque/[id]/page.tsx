@@ -362,7 +362,7 @@ export default function LocalEstoqueDetailPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center py-24">
-      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
     </div>
   );
   if (!local) return <div className="px-8 pt-8 text-red-500">Local não encontrado</div>;
@@ -382,20 +382,20 @@ export default function LocalEstoqueDetailPage() {
   return (
     <div>
       {/* Breadcrumb */}
-      <div className="flex items-center gap-1.5 px-8 pt-6 pb-2 text-sm text-gray-500">
-        <Link href="/suprimentos/locais-estoque" className="hover:text-gray-800 transition-colors flex items-center gap-1">
+      <div className="flex items-center gap-1.5 px-8 pt-6 pb-2 text-sm text-muted-foreground">
+        <Link href="/suprimentos/locais-estoque" className="hover:text-foreground transition-colors flex items-center gap-1">
           <ArrowLeft className="w-3.5 h-3.5" />
           Locais de Estoque
         </Link>
-        <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-        <span className="text-gray-800 font-medium">{local.nome}</span>
+        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60" />
+        <span className="text-foreground font-medium">{local.nome}</span>
       </div>
 
       {/* Header */}
       <div className="px-8 py-4 flex items-start justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-            <MapPin className="w-5 h-5 text-emerald-600" />
+          <div className="w-10 h-10 rounded-xl bg-success/15 flex items-center justify-center shrink-0">
+            <MapPin className="w-5 h-5 text-success" />
           </div>
           {editMode ? (
             <div className="space-y-2 flex-1">
@@ -403,7 +403,7 @@ export default function LocalEstoqueDetailPage() {
               <Input value={form.descricao} onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))} placeholder="Descrição (opcional)" className="h-8 text-sm w-72" />
               {/* Filial select */}
               <div className="w-72">
-                <Label className="text-xs text-gray-500 mb-1 block">Filial <span className="text-red-500">*</span></Label>
+                <Label className="text-xs text-muted-foreground mb-1 block">Filial <span className="text-red-500">*</span></Label>
                 <ComboboxWithCreate
                   value={form.filialId}
                   onChange={(v) => setForm((p) => ({ ...p, filialId: v }))}
@@ -416,21 +416,21 @@ export default function LocalEstoqueDetailPage() {
                 <input type="checkbox" id="ativo" checked={form.ativo} onChange={(e) => setForm((p) => ({ ...p, ativo: e.target.checked }))} className="rounded" />
                 <Label htmlFor="ativo" className="text-sm cursor-pointer">Ativo</Label>
               </div>
-              {saveError && <p className="text-xs text-red-600">{saveError}</p>}
+              {saveError && <p className="text-xs text-danger">{saveError}</p>}
             </div>
           ) : (
             <div>
-              <h1 className="text-xl font-bold text-gray-900">{local.nome}</h1>
-              {local.descricao && <p className="text-sm text-gray-500 mt-0.5">{local.descricao}</p>}
+              <h1 className="text-xl font-bold text-foreground">{local.nome}</h1>
+              {local.descricao && <p className="text-sm text-muted-foreground mt-0.5">{local.descricao}</p>}
               {local.filial && (
-                <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400" />
                   {local.filial.nomeFantasia || local.filial.razaoSocial}
                 </p>
               )}
             </div>
           )}
-          <span className={`ml-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${local.ativo ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+          <span className={`ml-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${local.ativo ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"}`}>
             {local.ativo ? "Ativo" : "Inativo"}
           </span>
         </div>
@@ -451,7 +451,7 @@ export default function LocalEstoqueDetailPage() {
                 onClick={() => router.push(`/suprimentos/requisicoes-materiais/nova?localEstoqueId=${local.id}`)}>
                 <ClipboardList className="w-4 h-4 mr-1" />Req/Dev
               </Button>
-              <Button size="sm" variant="outline" className="text-emerald-700 hover:bg-emerald-50 border-emerald-200"
+              <Button size="sm" variant="outline" className="text-success hover:bg-success/10 border-success/30"
                 onClick={downloadConferencia} disabled={local.estoqueItens.length === 0}
                 title="Baixar folha de conferência para impressão">
                 <Printer className="w-4 h-4 mr-1" />Conferência
@@ -463,8 +463,8 @@ export default function LocalEstoqueDetailPage() {
               <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>
                 <Pencil className="w-4 h-4 mr-1" />Editar
               </Button>
-              <span className="w-px h-6 bg-gray-200 mx-1 self-center" />
-              <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => setShowDelete(true)}>
+              <span className="w-px h-6 bg-muted mx-1 self-center" />
+              <Button size="sm" variant="ghost" className="text-red-400 hover:text-danger hover:bg-danger/10" onClick={() => setShowDelete(true)}>
                 <Trash2 className="w-4 h-4 mr-1" />Excluir
               </Button>
             </>
@@ -474,38 +474,38 @@ export default function LocalEstoqueDetailPage() {
 
       <div className="px-8 pb-8 space-y-6">
         {/* Summary bar */}
-        <div className="inline-flex items-stretch rounded-xl border border-gray-200 bg-white shadow-sm divide-x divide-gray-200 overflow-hidden">
+        <div className="inline-flex items-stretch rounded-xl border border-border bg-card shadow-sm divide-x divide-border overflow-hidden">
           <div className="px-5 py-3">
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Produtos</p>
-            <p className="text-2xl font-bold text-blue-700 mt-0.5 tabular-nums">{local.estoqueItens.length}</p>
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Produtos</p>
+            <p className="text-2xl font-bold text-info mt-0.5 tabular-nums">{local.estoqueItens.length}</p>
           </div>
           <div className="px-5 py-3">
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Custo Total</p>
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Custo Total</p>
             <p className="text-xl font-bold text-violet-700 mt-0.5 tabular-nums leading-tight">
-              {custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-gray-300">—</span>}
+              {custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-muted-foreground/60">—</span>}
             </p>
           </div>
           {abaixoMinimo > 0 ? (
-            <div className="px-5 py-3 bg-red-50 flex items-center gap-2.5">
+            <div className="px-5 py-3 bg-danger/10 flex items-center gap-2.5">
               <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
               <div>
-                <p className="text-xs text-red-600 font-medium uppercase tracking-wide">Abaixo do mínimo</p>
-                <p className="text-2xl font-bold text-red-600 mt-0.5 tabular-nums">{abaixoMinimo} produto{abaixoMinimo > 1 ? "s" : ""}</p>
+                <p className="text-xs text-danger font-medium uppercase tracking-wide">Abaixo do mínimo</p>
+                <p className="text-2xl font-bold text-danger mt-0.5 tabular-nums">{abaixoMinimo} produto{abaixoMinimo > 1 ? "s" : ""}</p>
               </div>
             </div>
           ) : (
-            <div className="px-5 py-3 bg-emerald-50 flex items-center gap-2">
+            <div className="px-5 py-3 bg-success/10 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
               <div>
-                <p className="text-xs text-emerald-600 font-medium uppercase tracking-wide">Situação</p>
-                <p className="text-sm font-semibold text-emerald-700 mt-0.5">Tudo normal</p>
+                <p className="text-xs text-success font-medium uppercase tracking-wide">Situação</p>
+                <p className="text-sm font-semibold text-success mt-0.5">Tudo normal</p>
               </div>
             </div>
           )}
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200">
+        <div className="border-b border-border">
           <nav className="flex gap-1">
             {TABS.map((t) => (
               <button
@@ -514,8 +514,8 @@ export default function LocalEstoqueDetailPage() {
                 className={cn(
                   "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
                   activeTab === t.key
-                    ? "border-blue-600 text-blue-700"
-                    : "border-transparent text-gray-500 hover:text-gray-800"
+                    ? "border-blue-600 text-info"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
                 )}
               >
                 {t.label}
@@ -527,16 +527,16 @@ export default function LocalEstoqueDetailPage() {
         {/* ── Tab: Estoque ───────────────────────────────────────────────────── */}
         {activeTab === "estoque" && (
           local.estoqueItens.length === 0 ? (
-            <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+            <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
               <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="font-medium">Nenhum produto neste local</p>
               <p className="text-sm mt-1">O estoque é alimentado ao registrar movimentações de entrada.</p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="bg-card rounded-xl border border-border overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr className="text-xs text-gray-600 uppercase tracking-wider">
+                <thead className="bg-muted border-b border-border">
+                  <tr className="text-xs text-muted-foreground uppercase tracking-wider">
                     <th className="text-left px-4 py-3 font-semibold">Código</th>
                     <th className="text-left px-4 py-3 font-semibold">Descrição</th>
                     {hasEnderecos && <th className="text-left px-4 py-3 font-semibold">Endereço</th>}
@@ -547,7 +547,7 @@ export default function LocalEstoqueDetailPage() {
                     <th className="text-center px-4 py-3 font-semibold">Situação</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {local.estoqueItens.map((e) => {
                     const atual   = toNum(e.quantidadeAtual);
                     const min     = toNum(e.quantidadeMin);
@@ -557,27 +557,27 @@ export default function LocalEstoqueDetailPage() {
                     const unidade = e.item.unidade?.sigla || e.item.unidadeMedida;
                     const itemCusto = toNum(e.item.precoCusto) * atual;
                     return (
-                      <tr key={e.id} className={cn("hover:bg-gray-50 transition-colors", abaixo && "bg-red-50/50 hover:bg-red-50/70", !e.item.ativo && "opacity-50")}>
+                      <tr key={e.id} className={cn("hover:bg-muted transition-colors", abaixo && "bg-danger/10 hover:bg-danger/10", !e.item.ativo && "opacity-50")}>
                         <td className="px-4 py-3 align-middle">
-                          <Link href={`/suprimentos/produtos/${e.item.id}`} className="font-mono text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline">
+                          <Link href={`/suprimentos/produtos/${e.item.id}`} className="font-mono text-xs font-semibold text-info hover:text-info hover:underline">
                             {e.item.codigo}
                           </Link>
                         </td>
-                        <td className="px-4 py-3 font-semibold text-gray-800 align-middle">{e.item.descricao}</td>
+                        <td className="px-4 py-3 font-semibold text-foreground align-middle">{e.item.descricao}</td>
                         {hasEnderecos && (
                           <td className="px-4 py-3 align-middle">
                             {e.localizacao
-                              ? <span className="font-mono text-xs font-medium bg-gray-100 border border-gray-200 text-gray-700 px-1.5 py-0.5 rounded">{e.localizacao}</span>
-                              : <span className="text-gray-300">—</span>}
+                              ? <span className="font-mono text-xs font-medium bg-muted border border-border text-foreground px-1.5 py-0.5 rounded">{e.localizacao}</span>
+                              : <span className="text-muted-foreground/60">—</span>}
                           </td>
                         )}
                         <td className="px-4 py-3 text-right align-middle">
                           <div className="flex flex-col items-end gap-1">
                             <div>
-                              <span className={cn("font-bold text-base tabular-nums", abaixo ? "text-red-600" : "text-gray-900")}>
+                              <span className={cn("font-bold text-base tabular-nums", abaixo ? "text-danger" : "text-foreground")}>
                                 {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                               </span>
-                              <span className="text-xs font-medium text-gray-500 ml-1">{unidade}</span>
+                              <span className="text-xs font-medium text-muted-foreground ml-1">{unidade}</span>
                             </div>
                             {e.item.itemUnidades.filter((iu) => !iu.isPrincipal && iu.fatorConversao).map((iu) => (
                               <span key={iu.id} className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded tabular-nums">
@@ -589,30 +589,30 @@ export default function LocalEstoqueDetailPage() {
                         </td>
                         {hasMin && (
                           <td className="px-4 py-3 text-right align-middle">
-                            <span className={cn("font-medium text-sm tabular-nums", min > 0 ? "text-gray-700" : "text-gray-300")}>
+                            <span className={cn("font-medium text-sm tabular-nums", min > 0 ? "text-foreground" : "text-muted-foreground/60")}>
                               {min > 0 ? min.toLocaleString("pt-BR") : "—"}
                             </span>
                           </td>
                         )}
                         {hasMax && (
                           <td className="px-4 py-3 text-right align-middle">
-                            <span className={cn("font-medium text-sm tabular-nums", max !== null ? "text-gray-700" : "text-gray-300")}>
+                            <span className={cn("font-medium text-sm tabular-nums", max !== null ? "text-foreground" : "text-muted-foreground/60")}>
                               {max !== null ? max.toLocaleString("pt-BR") : "—"}
                             </span>
                           </td>
                         )}
                         <td className="px-4 py-3 text-right font-semibold text-violet-700 align-middle">
-                          {itemCusto > 0 ? formatBRL(itemCusto) : <span className="text-gray-300 font-normal">—</span>}
+                          {itemCusto > 0 ? formatBRL(itemCusto) : <span className="text-muted-foreground/60 font-normal">—</span>}
                         </td>
                         <td className="px-4 py-3 text-center align-middle">
                           {abaixo ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 border border-red-200 px-2 py-0.5 rounded-full">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-danger bg-danger/15 border border-danger/30 px-2 py-0.5 rounded-full">
                               <AlertTriangle className="w-3 h-3" />Baixo
                             </span>
                           ) : acima ? (
-                            <span className="text-xs font-semibold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">Acima máx.</span>
+                            <span className="text-xs font-semibold text-warning bg-warning/15 border border-warning/30 px-2 py-0.5 rounded-full">Acima máx.</span>
                           ) : (
-                            <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">Normal</span>
+                            <span className="text-xs font-semibold text-success bg-success/15 border border-success/30 px-2 py-0.5 rounded-full">Normal</span>
                           )}
                         </td>
                       </tr>
@@ -621,8 +621,8 @@ export default function LocalEstoqueDetailPage() {
                 </tbody>
                 {local.estoqueItens.length > 1 && (
                   <tfoot>
-                    <tr className="border-t border-gray-200 bg-gray-50">
-                      <td colSpan={2 + (hasEnderecos ? 1 : 0) + (hasMin ? 1 : 0) + (hasMax ? 1 : 0)} className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">Total</td>
+                    <tr className="border-t border-border bg-muted">
+                      <td colSpan={2 + (hasEnderecos ? 1 : 0) + (hasMin ? 1 : 0) + (hasMax ? 1 : 0)} className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total</td>
                       <td className="px-4 py-3 text-right font-bold text-violet-700 text-base">
                         {custoTotal > 0 ? formatBRL(custoTotal) : "—"}
                       </td>
@@ -640,7 +640,7 @@ export default function LocalEstoqueDetailPage() {
           <div className="space-y-4">
             {/* Header bar */}
             <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 Endereços físicos de armazenagem dentro deste local (ex: A-01-01, B-02-03).
               </p>
               {!showAddEnd && (
@@ -653,8 +653,8 @@ export default function LocalEstoqueDetailPage() {
 
             {/* Inline add form */}
             {showAddEnd && (
-              <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-3">
-                <p className="text-sm font-medium text-blue-800">Novo Endereço</p>
+              <div className="rounded-xl border border-info/30 bg-info/10 p-4 space-y-3">
+                <p className="text-sm font-medium text-info">Novo Endereço</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Código *</Label>
@@ -677,7 +677,7 @@ export default function LocalEstoqueDetailPage() {
                     />
                   </div>
                 </div>
-                {addError && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">{addError}</p>}
+                {addError && <p className="text-xs text-danger bg-danger/10 border border-danger/30 rounded px-2 py-1">{addError}</p>}
                 <div className="flex gap-2">
                   <Button size="sm" onClick={addEndereco} disabled={addSaving || !addForm.codigo.trim()}>
                     {addSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
@@ -693,28 +693,28 @@ export default function LocalEstoqueDetailPage() {
             {/* List */}
             {endLoading ? (
               <div className="flex justify-center py-10">
-                <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
             ) : enderecos.length === 0 ? (
-              <div className="text-center py-14 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+              <div className="text-center py-14 text-muted-foreground border border-dashed border-border rounded-xl">
                 <Hash className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="font-medium text-sm">Nenhum endereço cadastrado</p>
                 <p className="text-xs mt-1">Clique em &quot;Novo Endereço&quot; para começar.</p>
               </div>
             ) : (
-              <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+              <div className="rounded-xl border border-border overflow-hidden shadow-sm">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-100 border-b-2 border-gray-200">
-                    <tr className="text-xs text-gray-600 uppercase tracking-wider">
+                  <thead className="bg-muted border-b-2 border-border">
+                    <tr className="text-xs text-muted-foreground uppercase tracking-wider">
                       <th className="text-left px-4 py-3 font-semibold">Código</th>
                       <th className="text-left px-4 py-3 font-semibold">Descrição</th>
                       <th className="text-center px-4 py-3 font-semibold">Status</th>
                       <th className="w-24" />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-border">
                     {enderecos.map((end) => (
-                      <tr key={end.id} className={cn("hover:bg-gray-50 transition-colors", !end.ativo && "opacity-50")}>
+                      <tr key={end.id} className={cn("hover:bg-muted transition-colors", !end.ativo && "opacity-50")}>
                         {editEndId === end.id ? (
                           /* ── Inline edit row ── */
                           <>
@@ -742,11 +742,11 @@ export default function LocalEstoqueDetailPage() {
                                   onChange={(e) => setEditEndForm((p) => ({ ...p, ativo: e.target.checked }))}
                                   className="rounded"
                                 />
-                                <span className="text-xs text-gray-600">Ativo</span>
+                                <span className="text-xs text-muted-foreground">Ativo</span>
                               </label>
                             </td>
                             <td className="px-4 py-2">
-                              {editEndError && <p className="text-xs text-red-600 mb-1">{editEndError}</p>}
+                              {editEndError && <p className="text-xs text-danger mb-1">{editEndError}</p>}
                               <div className="flex items-center gap-1 justify-end">
                                 <Button size="sm" className="h-7 px-2 text-xs" onClick={saveEditEnd} disabled={editEndSaving || !editEndForm.codigo.trim()}>
                                   {editEndSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
@@ -761,17 +761,17 @@ export default function LocalEstoqueDetailPage() {
                           /* ── Normal row ── */
                           <>
                             <td className="px-4 py-3">
-                              <span className="font-mono text-sm font-semibold text-gray-800">{end.codigo}</span>
+                              <span className="font-mono text-sm font-semibold text-foreground">{end.codigo}</span>
                             </td>
-                            <td className="px-4 py-3 text-gray-500 text-sm">
-                              {end.descricao || <span className="text-gray-300">—</span>}
+                            <td className="px-4 py-3 text-muted-foreground text-sm">
+                              {end.descricao || <span className="text-muted-foreground/60">—</span>}
                             </td>
                             <td className="px-4 py-3 text-center">
                               {end.ativo
-                                ? <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                ? <span className="inline-flex items-center gap-1 text-xs font-medium text-success bg-success/15 px-2 py-0.5 rounded-full">
                                     <CheckCircle2 className="w-3 h-3" />Ativo
                                   </span>
-                                : <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                : <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                                     <Circle className="w-3 h-3" />Inativo
                                   </span>
                               }
@@ -780,14 +780,14 @@ export default function LocalEstoqueDetailPage() {
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   onClick={() => openEditEnd(end)}
-                                  className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
                                   title="Editar"
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => { setDeleteEndId(end.id); setDeleteEndError(""); }}
-                                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
                                   title="Excluir"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -800,7 +800,7 @@ export default function LocalEstoqueDetailPage() {
                     ))}
                   </tbody>
                 </table>
-                <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 text-xs text-gray-400">
+                <div className="px-4 py-2.5 bg-muted border-t border-border text-xs text-muted-foreground">
                   {enderecos.length} endereço{enderecos.length !== 1 ? "s" : ""} · {enderecos.filter(e => e.ativo).length} ativo{enderecos.filter(e => e.ativo).length !== 1 ? "s" : ""}
                 </div>
               </div>
@@ -812,23 +812,23 @@ export default function LocalEstoqueDetailPage() {
       {/* ── Delete local confirm ──────────────────────────────────────────────── */}
       {showDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Excluir local?</p>
-                <p className="text-sm text-gray-500 mt-0.5">{local.nome}</p>
+                <p className="font-semibold text-foreground">Excluir local?</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{local.nome}</p>
               </div>
             </div>
             {local.estoqueItens.length > 0 && (
-              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+              <p className="text-sm text-warning bg-warning/10 border border-warning/30 rounded-lg px-3 py-2 mb-3">
                 Este local possui {local.estoqueItens.length} produto(s) vinculado(s).
               </p>
             )}
-            <p className="text-sm text-gray-600 mb-4">Esta ação é permanente e não pode ser desfeita.</p>
-            {deleteError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{deleteError}</p>}
+            <p className="text-sm text-muted-foreground mb-4">Esta ação é permanente e não pode ser desfeita.</p>
+            {deleteError && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">{deleteError}</p>}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowDelete(false)} disabled={deleteLoading}>Cancelar</Button>
               <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleteLoading}>
@@ -843,20 +843,20 @@ export default function LocalEstoqueDetailPage() {
       {/* ── Delete endereço confirm ───────────────────────────────────────────── */}
       {deleteEndId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Excluir endereço?</p>
-                <p className="text-sm text-gray-500 mt-0.5 font-mono">
+                <p className="font-semibold text-foreground">Excluir endereço?</p>
+                <p className="text-sm text-muted-foreground mt-0.5 font-mono">
                   {enderecos.find(e => e.id === deleteEndId)?.codigo}
                 </p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-4">Esta ação é permanente e não pode ser desfeita.</p>
-            {deleteEndError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{deleteEndError}</p>}
+            <p className="text-sm text-muted-foreground mb-4">Esta ação é permanente e não pode ser desfeita.</p>
+            {deleteEndError && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">{deleteEndError}</p>}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setDeleteEndId(null)} disabled={deleteEndLoading}>Cancelar</Button>
               <Button variant="destructive" size="sm" onClick={confirmDeleteEnd} disabled={deleteEndLoading}>

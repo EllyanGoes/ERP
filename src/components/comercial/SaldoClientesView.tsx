@@ -59,10 +59,10 @@ const numberFmt = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 3 });
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
-    CONFIRMADO: { label: "Confirmado", cls: "bg-blue-50 text-blue-700" },
+    CONFIRMADO: { label: "Confirmado", cls: "bg-info/10 text-info" },
     EM_AGENDAMENTO: { label: "Em agendamento", cls: "bg-violet-50 text-violet-700" },
   };
-  const s = map[status] ?? { label: status, cls: "bg-gray-100 text-gray-600" };
+  const s = map[status] ?? { label: status, cls: "bg-muted text-muted-foreground" };
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${s.cls}`}>
       {s.label}
@@ -143,14 +143,14 @@ export default function SaldoClientesView({
       {/* Toolbar: alternância de visão + busca + contadores */}
       <div className="px-8 pb-4 flex flex-wrap items-center gap-3">
         {/* Alternar entre agrupar por Cliente ou por Material */}
-        <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden shrink-0">
+        <div className="inline-flex rounded-lg border border-border overflow-hidden shrink-0">
           <button
             type="button"
             onClick={() => setMode("cliente")}
             className={`px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5 ${
               mode === "cliente"
                 ? "bg-blue-600 text-white"
-                : "bg-white text-gray-600 hover:bg-gray-50"
+                : "bg-card text-muted-foreground hover:bg-muted"
             }`}
           >
             <Users className="w-4 h-4" /> Cliente
@@ -158,17 +158,17 @@ export default function SaldoClientesView({
           <button
             type="button"
             onClick={() => setMode("material")}
-            className={`px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5 border-l border-gray-300 ${
+            className={`px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5 border-l border-border ${
               mode === "material"
                 ? "bg-blue-600 text-white"
-                : "bg-white text-gray-600 hover:bg-gray-50"
+                : "bg-card text-muted-foreground hover:bg-muted"
             }`}
           >
             <Package className="w-4 h-4" /> Material
           </button>
         </div>
         <div className="relative flex-1 min-w-[240px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -177,21 +177,21 @@ export default function SaldoClientesView({
                 ? "Buscar cliente, pedido ou orçamento…"
                 : "Buscar material, pedido ou cliente…"
             }
-            className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full rounded-lg border border-border pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
         {mode === "cliente" && (
           <div className="flex items-center gap-2 text-xs">
-            <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-600 px-2.5 py-1 font-medium">
+            <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground px-2.5 py-1 font-medium">
               {totals.nClientes} {totals.nClientes === 1 ? "cliente" : "clientes"}
             </span>
-            <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-600 px-2.5 py-1 font-medium">
+            <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground px-2.5 py-1 font-medium">
               {totals.nPedidos} {totals.nPedidos === 1 ? "pedido" : "pedidos"}
             </span>
-            <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 px-2.5 py-1 font-medium">
+            <span className="inline-flex items-center rounded-full bg-info/10 text-info px-2.5 py-1 font-medium">
               {totals.nItens} {totals.nItens === 1 ? "item pendente" : "itens pendentes"}
             </span>
-            <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-1 font-semibold">
+            <span className="inline-flex items-center rounded-full bg-success/10 text-success px-2.5 py-1 font-semibold">
               {formatBRL(totals.valorTotal)} a entregar
             </span>
           </div>
@@ -214,11 +214,11 @@ export default function SaldoClientesView({
           <MateriaisGrid materiais={materiais} query={query} />
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-              <PackageSearch className="w-7 h-7 text-gray-300" />
+            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-3">
+              <PackageSearch className="w-7 h-7 text-muted-foreground/60" />
             </div>
-            <p className="text-sm font-medium text-gray-700">Nenhum saldo pendente</p>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-sm font-medium text-foreground">Nenhum saldo pendente</p>
+            <p className="text-xs text-muted-foreground mt-1">
               {query
                 ? "Nenhum cliente corresponde à busca."
                 : "Todos os pedidos confirmados já foram totalmente minutados."}
@@ -231,46 +231,46 @@ export default function SaldoClientesView({
             return (
               <div
                 key={cli.id}
-                className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden"
+                className="bg-card rounded-xl border border-border shadow-sm overflow-hidden"
               >
                 {/* Cabeçalho do cliente */}
                 <button
                   onClick={() => toggle(cli.id)}
-                  className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-muted transition-colors text-left"
                 >
                   {isCollapsed ? (
-                    <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
                   ) : (
-                    <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+                    <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
                   )}
-                  <span className="font-semibold text-gray-900 flex-1 truncate">{cli.nome}</span>
-                  <span className="text-sm font-semibold text-emerald-700">{formatBRL(clienteValor)}</span>
-                  <span className="text-xs text-gray-400">
+                  <span className="font-semibold text-foreground flex-1 truncate">{cli.nome}</span>
+                  <span className="text-sm font-semibold text-success">{formatBRL(clienteValor)}</span>
+                  <span className="text-xs text-muted-foreground">
                     {cli.pedidos.length} {cli.pedidos.length === 1 ? "pedido" : "pedidos"}
                   </span>
                 </button>
 
                 {!isCollapsed && (
-                  <div className="border-t border-gray-100 divide-y divide-gray-100">
+                  <div className="border-t border-border divide-y divide-border">
                     {cli.pedidos.map((p) => (
                       <div key={p.id} className="px-5 py-4">
                         {/* Cabeçalho do pedido + ação */}
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
-                          <span className="font-medium text-gray-900 text-sm">{p.numero}</span>
+                          <span className="font-medium text-foreground text-sm">{p.numero}</span>
                           {p.numeroOrcamento && (
-                            <span className="text-xs text-gray-400">Orç. {p.numeroOrcamento}</span>
+                            <span className="text-xs text-muted-foreground">Orç. {p.numeroOrcamento}</span>
                           )}
                           <StatusBadge status={p.status} />
                           {p.pago && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[11px] font-semibold">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-success/10 text-success px-2 py-0.5 text-[11px] font-semibold">
                               <BadgeDollarSign className="w-3.5 h-3.5" /> Pago
                             </span>
                           )}
-                          <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                             <Calendar className="w-3.5 h-3.5" /> Emissão {formatDate(p.dataEmissao)}
                           </span>
                           {p.dataEntrega && (
-                            <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                               <CalendarClock className="w-3.5 h-3.5" /> Entrega {formatDate(p.dataEntrega)}
                             </span>
                           )}
@@ -284,9 +284,9 @@ export default function SaldoClientesView({
                         </div>
 
                         {/* Itens pendentes */}
-                        <div className="rounded-lg border border-gray-200 overflow-hidden">
+                        <div className="rounded-lg border border-border overflow-hidden">
                           <table className="w-full text-sm">
-                            <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+                            <thead className="bg-muted text-xs text-muted-foreground uppercase tracking-wider">
                               <tr>
                                 <th className="text-left font-medium px-3 py-2">Produto</th>
                                 <th className="text-right font-medium px-3 py-2 w-24">Pedida</th>
@@ -295,37 +295,37 @@ export default function SaldoClientesView({
                                 <th className="text-right font-medium px-3 py-2 w-36">Valor a entregar</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
+                            <tbody className="divide-y divide-border">
                               {p.itens.map((it) => (
                                 <tr key={it.id}>
                                   <td className="px-3 py-2">
-                                    <span className="text-gray-400 mr-1.5">{it.codigo}</span>
-                                    <span className="text-gray-800">{it.descricao}</span>
+                                    <span className="text-muted-foreground mr-1.5">{it.codigo}</span>
+                                    <span className="text-foreground">{it.descricao}</span>
                                   </td>
-                                  <td className="px-3 py-2 text-right tabular-nums text-gray-600">
+                                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                                     {numberFmt.format(it.pedida)} {it.unidade}
                                   </td>
-                                  <td className="px-3 py-2 text-right tabular-nums text-gray-600">
+                                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                                     {numberFmt.format(it.minutado)} {it.unidade}
                                   </td>
-                                  <td className="px-3 py-2 text-right tabular-nums font-semibold text-blue-700">
+                                  <td className="px-3 py-2 text-right tabular-nums font-semibold text-info">
                                     {numberFmt.format(it.pendente)} {it.unidade}
                                   </td>
-                                  <td className="px-3 py-2 text-right tabular-nums font-semibold text-gray-900">
+                                  <td className="px-3 py-2 text-right tabular-nums font-semibold text-foreground">
                                     {formatBRL(it.valorPendente)}
                                   </td>
                                 </tr>
                               ))}
                             </tbody>
-                            <tfoot className="bg-gray-50 border-t border-gray-200">
+                            <tfoot className="bg-muted border-t border-border">
                               <tr>
                                 <td
-                                  className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-gray-500"
+                                  className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"
                                   colSpan={4}
                                 >
                                   Total a entregar
                                 </td>
-                                <td className="px-3 py-2 text-right tabular-nums font-bold text-emerald-700">
+                                <td className="px-3 py-2 text-right tabular-nums font-bold text-success">
                                   {formatBRL(p.valorPendente)}
                                 </td>
                               </tr>

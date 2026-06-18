@@ -327,7 +327,7 @@ export default function EditarPedidoCompraPage() {
   if (loadingPedido) {
     return (
       <div className="flex items-center justify-center py-24">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -357,30 +357,30 @@ export default function EditarPedidoCompraPage() {
 
       <div className="px-8 pb-8 max-w-5xl space-y-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{error}</div>
         )}
 
         {/* Seção Fornecedor */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-sm text-gray-800">Fornecedor</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Fornecedor</h2>
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Código fornecedor</Label>
-              <Input value={codigoForn || "—"} readOnly className="font-mono bg-gray-50" />
+              <Label className="text-xs text-muted-foreground">Código fornecedor</Label>
+              <Input value={codigoForn || "—"} readOnly className="font-mono bg-muted" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Loja</Label>
-              <Input value="01" readOnly className="bg-gray-50" />
+              <Label className="text-xs text-muted-foreground">Loja</Label>
+              <Input value="01" readOnly className="bg-muted" />
             </div>
             <div className="space-y-1 md:col-span-1">
-              <Label className="text-xs text-gray-500">Nome Fornecedor</Label>
-              <Input value={fornNome || "—"} readOnly className="bg-gray-50" />
+              <Label className="text-xs text-muted-foreground">Nome Fornecedor</Label>
+              <Input value={fornNome || "—"} readOnly className="bg-muted" />
             </div>
 
             <div className="space-y-1 md:col-span-3">
-              <Label className="text-xs text-gray-500">Fornecedor <span className="text-red-500">*</span></Label>
+              <Label className="text-xs text-muted-foreground">Fornecedor <span className="text-red-500">*</span></Label>
               <ComboboxWithCreate
                 options={fornecedores.map((f) => ({ value: f.id, label: f.nomeFantasia || f.razaoSocial }))}
                 value={fornecedorId}
@@ -394,39 +394,39 @@ export default function EditarPedidoCompraPage() {
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Contato</Label>
+              <Label className="text-xs text-muted-foreground">Contato</Label>
               <Input value={contato} onChange={(e) => setContato(e.target.value)} placeholder="Nome do contato" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">E-mail</Label>
+              <Label className="text-xs text-muted-foreground">E-mail</Label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@fornecedor.com" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Proposta</Label>
-              <Input value="PROPOSTA 01" readOnly className="bg-gray-50 font-mono" />
+              <Label className="text-xs text-muted-foreground">Proposta</Label>
+              <Input value="PROPOSTA 01" readOnly className="bg-muted font-mono" />
             </div>
           </div>
         </div>
 
         {/* Seção Financeiro */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-sm text-gray-800">Cotação</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Cotação</h2>
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Total itens</Label>
+              <Label className="text-xs text-muted-foreground">Total itens</Label>
               <Input
                 value={totalItensQtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                readOnly className="bg-gray-50 text-right"
+                readOnly className="bg-muted text-right"
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Total Cotação</Label>
-              <Input value={formatBRL(totalCotacao)} readOnly className="bg-gray-50 text-right font-semibold" />
+              <Label className="text-xs text-muted-foreground">Total Cotação</Label>
+              <Input value={formatBRL(totalCotacao)} readOnly className="bg-muted text-right font-semibold" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">% Desconto</Label>
+              <Label className="text-xs text-muted-foreground">% Desconto</Label>
               <Input
                 type="number" step="0.01" min="0" max="100"
                 value={desconto}
@@ -435,11 +435,11 @@ export default function EditarPedidoCompraPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Vr Desconto</Label>
-              <Input value={formatBRL(vrDescontoCalc)} readOnly className="bg-gray-50 text-right" />
+              <Label className="text-xs text-muted-foreground">Vr Desconto</Label>
+              <Input value={formatBRL(vrDescontoCalc)} readOnly className="bg-muted text-right" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Frete</Label>
+              <Label className="text-xs text-muted-foreground">Frete</Label>
               <Input
                 type="number" step="0.01" min="0"
                 value={frete} onChange={(e) => setFrete(e.target.value)}
@@ -447,7 +447,7 @@ export default function EditarPedidoCompraPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Tipo Frete</Label>
+              <Label className="text-xs text-muted-foreground">Tipo Frete</Label>
               <Select value={tipoFrete || "__none__"} onValueChange={(v) => setTipoFrete(v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
                 <SelectContent>
@@ -459,7 +459,7 @@ export default function EditarPedidoCompraPage() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Condição pagamento</Label>
+              <Label className="text-xs text-muted-foreground">Condição pagamento</Label>
               <Select
                 value={condicoesPagamento || "__none__"}
                 onValueChange={(v) => setCondicoesPagamento(v === "__none__" ? "" : v)}
@@ -476,7 +476,7 @@ export default function EditarPedidoCompraPage() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Despesas</Label>
+              <Label className="text-xs text-muted-foreground">Despesas</Label>
               <Input
                 type="number" step="0.01" min="0"
                 value={despesas} onChange={(e) => setDespesas(e.target.value)}
@@ -484,7 +484,7 @@ export default function EditarPedidoCompraPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Seguro</Label>
+              <Label className="text-xs text-muted-foreground">Seguro</Label>
               <Input
                 type="number" step="0.01" min="0"
                 value={seguro} onChange={(e) => setSeguro(e.target.value)}
@@ -492,36 +492,36 @@ export default function EditarPedidoCompraPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Entrega Prevista</Label>
+              <Label className="text-xs text-muted-foreground">Entrega Prevista</Label>
               <Input type="date" value={dataEntregaPrevista} onChange={(e) => setDataEntregaPrevista(e.target.value)} />
             </div>
           </div>
         </div>
 
         {/* Itens */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-            <h2 className="font-semibold text-sm text-gray-800">Itens da cotação</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
+            <h2 className="font-semibold text-sm text-foreground">Itens da cotação</h2>
             <Button type="button" size="sm" variant="outline" onClick={addRow}>
               <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Item
             </Button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
+              <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600">Produto</th>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600">Descrição</th>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600">U.M.</th>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600 w-36">Situação</th>
-                  <th className="text-right px-4 py-2 font-medium text-gray-600 w-28">Quantidade</th>
-                  <th className="text-right px-4 py-2 font-medium text-gray-600 w-36">Preço Unitário</th>
-                  <th className="text-right px-4 py-2 font-medium text-gray-600 w-24">% Desc.</th>
-                  <th className="text-right px-4 py-2 font-medium text-gray-600 w-28">Total Item</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Produto</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Descrição</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">U.M.</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground w-36">Situação</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-28">Quantidade</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-36">Preço Unitário</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-24">% Desc.</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-28">Total Item</th>
                   <th className="w-10" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {itens.map((row, i) => {
                   const opt    = itemOptions.find((o) => o.id === row.itemId);
                   const preco  = parseFloat(row.precoUnitario) || 0;
@@ -532,7 +532,7 @@ export default function EditarPedidoCompraPage() {
                   const isNao  = row.situacao === "NAO_CONSIDERA";
 
                   return (
-                    <tr key={i} className={cn("hover:bg-gray-50", isNao && "opacity-50")}>
+                    <tr key={i} className={cn("hover:bg-muted", isNao && "opacity-50")}>
                       <td className="px-4 py-2 w-44">
                         <ComboboxWithCreate
                           options={itemOptions.map((o) => ({ value: o.id, label: `[${o.codigo}] ${o.descricao}` }))}
@@ -545,8 +545,8 @@ export default function EditarPedidoCompraPage() {
                           createLabel="produto"
                         />
                       </td>
-                      <td className="px-4 py-2 text-gray-600 text-xs">{opt?.descricao ?? "—"}</td>
-                      <td className="px-4 py-2 text-gray-500 text-xs">{opt?.unidadeMedida ?? "—"}</td>
+                      <td className="px-4 py-2 text-muted-foreground text-xs">{opt?.descricao ?? "—"}</td>
+                      <td className="px-4 py-2 text-muted-foreground text-xs">{opt?.unidadeMedida ?? "—"}</td>
                       <td className="px-4 py-2">
                         <Select
                           value={row.situacao}
@@ -589,10 +589,10 @@ export default function EditarPedidoCompraPage() {
                             placeholder="0"
                             className="text-right h-8 pr-6"
                           />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
                         </div>
                       </td>
-                      <td className="px-4 py-2 text-right font-medium text-gray-800">
+                      <td className="px-4 py-2 text-right font-medium text-foreground">
                         {isNao ? "—" : formatBRL(total)}
                       </td>
                       <td className="px-4 py-2 text-center">
@@ -600,7 +600,7 @@ export default function EditarPedidoCompraPage() {
                           <button
                             type="button"
                             onClick={() => removeRow(i)}
-                            className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                            className="p-1 text-muted-foreground/60 hover:text-red-500 hover:bg-danger/10 rounded transition-colors"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -610,14 +610,14 @@ export default function EditarPedidoCompraPage() {
                   );
                 })}
               </tbody>
-              <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+              <tfoot className="border-t-2 border-border bg-muted">
                 {descontoTotalItens > 0 && (
                   <tr className="text-sm">
-                    <td colSpan={6} className="px-4 py-1.5 text-right text-gray-500">
+                    <td colSpan={6} className="px-4 py-1.5 text-right text-muted-foreground">
                       Desconto Total Itens
                     </td>
                     <td />
-                    <td className="px-4 py-1.5 text-right text-red-600 font-medium">
+                    <td className="px-4 py-1.5 text-right text-danger font-medium">
                       -{formatBRL(descontoTotalItens)}
                     </td>
                     <td />
@@ -625,22 +625,22 @@ export default function EditarPedidoCompraPage() {
                 )}
                 {vrDescontoCalc > 0 && (
                   <tr className="text-sm">
-                    <td colSpan={6} className="px-4 py-1.5 text-right text-gray-500">
+                    <td colSpan={6} className="px-4 py-1.5 text-right text-muted-foreground">
                       Desconto Global Total
                     </td>
                     <td />
-                    <td className="px-4 py-1.5 text-right text-red-600 font-medium">
+                    <td className="px-4 py-1.5 text-right text-danger font-medium">
                       -{formatBRL(vrDescontoCalc)}
                     </td>
                     <td />
                   </tr>
                 )}
                 <tr>
-                  <td colSpan={6} className="px-4 py-2 text-right font-semibold text-gray-700 text-sm">
+                  <td colSpan={6} className="px-4 py-2 text-right font-semibold text-foreground text-sm">
                     Total da cotação
                   </td>
                   <td />
-                  <td className="px-4 py-2 text-right font-bold text-gray-900">{formatBRL(totalCotacao)}</td>
+                  <td className="px-4 py-2 text-right font-bold text-foreground">{formatBRL(totalCotacao)}</td>
                   <td />
                 </tr>
               </tfoot>
@@ -649,9 +649,9 @@ export default function EditarPedidoCompraPage() {
         </div>
 
         {/* Observações */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-sm text-gray-800">Observações</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Observações</h2>
           </div>
           <div className="p-4">
             <textarea
@@ -659,14 +659,14 @@ export default function EditarPedidoCompraPage() {
               onChange={(e) => setObservacoes(e.target.value)}
               placeholder="Observações do pedido..."
               rows={3}
-              className="w-full text-sm rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full text-sm rounded-md border border-border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             />
           </div>
         </div>
 
         {/* Situação badge legend */}
-        <div className="flex items-center gap-2 text-xs text-gray-400">
-          <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1 text-success bg-success/10 border border-success/30 rounded px-2 py-0.5">
             <CheckCircle2 className="w-3 h-3" /> Considera
           </span>
           <span>— item incluído no total</span>

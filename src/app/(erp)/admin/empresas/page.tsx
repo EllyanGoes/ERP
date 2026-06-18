@@ -55,7 +55,7 @@ export default function EmpresasGrupoPage() {
 
   if (user && user.perfil !== "ADMIN") {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-gray-500 gap-2">
+      <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
         <ShieldAlert className="w-8 h-8" />
         <p className="text-sm">Cadastro de empresas do grupo é restrito a administradores.</p>
       </div>
@@ -117,25 +117,25 @@ export default function EmpresasGrupoPage() {
       />
 
       <div className="px-8 pb-12 max-w-4xl space-y-6">
-        <p className="text-xs text-gray-500 flex items-center gap-1.5">
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
           <Building2 className="w-3.5 h-3.5" />
           Razão social, nome fantasia e CNPJ são propagados para o Cliente e o Fornecedor
           vinculados de cada empresa (usados nas operações intragrupo).
         </p>
 
         {erro && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">{erro}</div>
+          <div className="bg-danger/10 border border-danger/30 text-danger text-sm px-4 py-3 rounded-xl">{erro}</div>
         )}
 
         {loading ? (
           <div className="flex items-center justify-center h-40">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+          <section className="bg-card border border-border rounded-2xl overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-gray-500 border-b border-gray-200 bg-gray-50">
+                <tr className="text-left text-xs text-muted-foreground border-b border-border bg-muted">
                   <th className="px-6 py-3 font-medium">Empresa</th>
                   <th className="px-6 py-3 font-medium">CNPJ</th>
                   <th className="px-6 py-3 font-medium">Status</th>
@@ -144,14 +144,14 @@ export default function EmpresasGrupoPage() {
               </thead>
               <tbody>
                 {empresas.map((e) => (
-                  <tr key={e.id} className="border-b border-gray-100">
+                  <tr key={e.id} className="border-b border-border">
                     <td className="px-6 py-3">
-                      <p className="font-medium text-gray-800">{e.nomeFantasia ?? e.razaoSocial}</p>
-                      <p className="text-xs text-gray-400">{e.razaoSocial}</p>
+                      <p className="font-medium text-foreground">{e.nomeFantasia ?? e.razaoSocial}</p>
+                      <p className="text-xs text-muted-foreground">{e.razaoSocial}</p>
                     </td>
-                    <td className="px-6 py-3 text-gray-600">{e.cnpj}</td>
+                    <td className="px-6 py-3 text-muted-foreground">{e.cnpj}</td>
                     <td className="px-6 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${e.ativo ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${e.ativo ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
                         {e.ativo ? "Ativa" : "Inativa"}
                       </span>
                     </td>
@@ -169,9 +169,9 @@ export default function EmpresasGrupoPage() {
         )}
 
         {editando && (
-          <section className="bg-white border border-blue-200 rounded-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 bg-blue-50/60 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-800">
+          <section className="bg-card border border-info/30 rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-border bg-info/10 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-foreground">
                 Editando: {editando.nomeFantasia ?? editando.razaoSocial}
               </h2>
               <div className="flex items-center gap-2">
@@ -206,7 +206,7 @@ export default function EmpresasGrupoPage() {
                     <SelectItem value="false">Inativa</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-gray-400">Inativa some do seletor e do consolidado.</p>
+                <p className="text-[11px] text-muted-foreground">Inativa some do seletor e do consolidado.</p>
               </div>
             </div>
           </section>

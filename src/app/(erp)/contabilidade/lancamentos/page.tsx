@@ -21,9 +21,9 @@ const ORIGEM_LABEL: Record<string, string> = {
   VENDA: "Venda", RECEBIMENTO: "Recebimento", COMPRA: "Compra", PAGAMENTO: "Pagamento", MANUAL: "Manual", ESTORNO: "Estorno",
 };
 const ORIGEM_COR: Record<string, string> = {
-  VENDA: "bg-emerald-100 text-emerald-700", RECEBIMENTO: "bg-blue-100 text-blue-700",
-  COMPRA: "bg-amber-100 text-amber-700", PAGAMENTO: "bg-rose-100 text-rose-700",
-  MANUAL: "bg-gray-100 text-gray-600", ESTORNO: "bg-gray-200 text-gray-600",
+  VENDA: "bg-success/15 text-success", RECEBIMENTO: "bg-info/15 text-info",
+  COMPRA: "bg-warning/15 text-warning", PAGAMENTO: "bg-danger/15 text-danger",
+  MANUAL: "bg-muted text-muted-foreground", ESTORNO: "bg-muted text-muted-foreground",
 };
 
 export default function LancamentosContabeisPage() {
@@ -70,13 +70,13 @@ export default function LancamentosContabeisPage() {
         }
       />
       <div className="px-8 pb-8 space-y-4">
-        {aviso && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">{aviso}</div>}
+        {aviso && <div className="rounded-lg border border-info/30 bg-info/10 px-4 py-2.5 text-sm text-info">{aviso}</div>}
 
         {loading ? (
-          <p className="text-sm text-gray-400 py-10 text-center">Carregando...</p>
+          <p className="text-sm text-muted-foreground py-10 text-center">Carregando...</p>
         ) : lancs.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
-            <BookText className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+          <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
+            <BookText className="w-8 h-8 text-muted-foreground/60 mx-auto mb-2" />
             <p className="font-medium">Nenhum lançamento contábil</p>
             <p className="text-xs mt-1">Use “Gerar retroativos” para lançar a partir dos títulos existentes.</p>
           </div>
@@ -85,17 +85,17 @@ export default function LancamentosContabeisPage() {
             {lancs.map((l) => {
               const totalD = l.partidas.filter((p) => p.tipo === "DEBITO").reduce((s, p) => s + decimalToNumber(p.valor), 0);
               return (
-                <div key={l.id} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-                  <div className="flex items-center gap-3 px-5 py-2.5 border-b border-gray-100 bg-gray-50">
-                    <span className="text-xs text-gray-500 w-20 shrink-0">{formatDate(l.data)}</span>
-                    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0", ORIGEM_COR[l.origemTipo] ?? "bg-gray-100 text-gray-600")}>
+                <div key={l.id} className="rounded-xl border border-border bg-card overflow-hidden">
+                  <div className="flex items-center gap-3 px-5 py-2.5 border-b border-border bg-muted">
+                    <span className="text-xs text-muted-foreground w-20 shrink-0">{formatDate(l.data)}</span>
+                    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0", ORIGEM_COR[l.origemTipo] ?? "bg-muted text-muted-foreground")}>
                       {ORIGEM_LABEL[l.origemTipo] ?? l.origemTipo}
                     </span>
-                    <span className="text-sm text-gray-700 truncate flex-1">
+                    <span className="text-sm text-foreground truncate flex-1">
                       {l.historico}
-                      {l.origemTipo === "MANUAL" && l.criadoPor && <span className="ml-2 text-[10px] text-gray-400">por {l.criadoPor}</span>}
+                      {l.origemTipo === "MANUAL" && l.criadoPor && <span className="ml-2 text-[10px] text-muted-foreground">por {l.criadoPor}</span>}
                     </span>
-                    <span className="text-sm font-semibold text-gray-900 shrink-0 tabular-nums">{formatBRL(totalD)}</span>
+                    <span className="text-sm font-semibold text-foreground shrink-0 tabular-nums">{formatBRL(totalD)}</span>
                   </div>
                   <table className="w-full text-sm">
                     <tbody>
@@ -103,13 +103,13 @@ export default function LancamentosContabeisPage() {
                         <tr key={p.id} className="border-b border-gray-50 last:border-0">
                           <td className="px-5 py-1.5 w-10 text-center">
                             <span className={cn("inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold",
-                              p.tipo === "DEBITO" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700")}>
+                              p.tipo === "DEBITO" ? "bg-info/15 text-info" : "bg-warning/15 text-warning")}>
                               {p.tipo === "DEBITO" ? "D" : "C"}
                             </span>
                           </td>
-                          <td className="px-2 py-1.5 font-mono text-xs text-gray-500 w-24">{p.conta.codigo}</td>
-                          <td className="px-2 py-1.5 text-gray-700">{p.conta.nome}</td>
-                          <td className={cn("px-5 py-1.5 text-right tabular-nums w-32", p.tipo === "DEBITO" ? "text-blue-700" : "text-amber-700")}>
+                          <td className="px-2 py-1.5 font-mono text-xs text-muted-foreground w-24">{p.conta.codigo}</td>
+                          <td className="px-2 py-1.5 text-foreground">{p.conta.nome}</td>
+                          <td className={cn("px-5 py-1.5 text-right tabular-nums w-32", p.tipo === "DEBITO" ? "text-info" : "text-warning")}>
                             {formatBRL(decimalToNumber(p.valor))}
                           </td>
                         </tr>
@@ -183,7 +183,7 @@ function NovoLancamentoDialog({ onDone }: { onDone: () => void }) {
           <div className="space-y-2">
             {linhas.map((l, i) => (
               <div key={i} className="flex items-center gap-2">
-                <select value={l.tipo} onChange={(e) => setLinha(i, { tipo: e.target.value as "DEBITO" | "CREDITO" })} className="h-9 rounded-lg border border-gray-300 px-2 text-sm bg-white w-24">
+                <select value={l.tipo} onChange={(e) => setLinha(i, { tipo: e.target.value as "DEBITO" | "CREDITO" })} className="h-9 rounded-lg border border-border px-2 text-sm bg-card w-24">
                   <option value="DEBITO">Débito</option>
                   <option value="CREDITO">Crédito</option>
                 </select>
@@ -192,16 +192,16 @@ function NovoLancamentoDialog({ onDone }: { onDone: () => void }) {
                     options={contas.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))} />
                 </div>
                 <Input value={l.valor} onChange={(e) => setLinha(i, { valor: e.target.value })} placeholder="0,00" className="w-32 text-right" inputMode="decimal" />
-                <button type="button" onClick={() => delLinha(i)} className="text-gray-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                <button type="button" onClick={() => delLinha(i)} className="text-muted-foreground/60 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
               </div>
             ))}
-            <button type="button" onClick={addLinha} className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700"><Plus className="w-4 h-4" /> Adicionar linha</button>
+            <button type="button" onClick={addLinha} className="inline-flex items-center gap-1.5 text-sm text-info hover:text-info"><Plus className="w-4 h-4" /> Adicionar linha</button>
           </div>
-          <div className={cn("flex items-center justify-between text-sm rounded-lg px-3 py-2", balanceado ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>
+          <div className={cn("flex items-center justify-between text-sm rounded-lg px-3 py-2", balanceado ? "bg-success/10 text-success" : "bg-warning/10 text-warning")}>
             <span>Débitos: <b className="tabular-nums">{formatBRL(totalD)}</b> · Créditos: <b className="tabular-nums">{formatBRL(totalC)}</b></span>
             <span>{balanceado ? "Balanceado" : "Débito ≠ Crédito"}</span>
           </div>
-          {erro && <p className="text-sm text-red-600">{erro}</p>}
+          {erro && <p className="text-sm text-danger">{erro}</p>}
         </div>
         <DialogFooter>
           <Button onClick={salvar} disabled={saving || !balanceado || !completo || !historico.trim()}>{saving ? "Salvando..." : "Lançar"}</Button>

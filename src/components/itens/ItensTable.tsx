@@ -28,7 +28,7 @@ export default function ItensTable({ itens }: { itens: ItemRow[] }) {
     { accessorKey: "codigo", header: "Código", cell: ({ row }) => <span className="font-mono text-xs font-medium">{row.original.codigo}</span> },
     { accessorKey: "descricao", header: "Descrição" },
     { accessorKey: "tipo", header: "Tipo", cell: ({ row }) => <span className="text-xs">{tipoLabels[row.original.tipo] ?? row.original.tipo}</span> },
-    { accessorKey: "unidadeMedida", header: "Un.", cell: ({ row }) => <span className="text-xs text-gray-500">{row.original.unidadeMedida}</span> },
+    { accessorKey: "unidadeMedida", header: "Un.", cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.original.unidadeMedida}</span> },
     {
       accessorKey: "precoVenda",
       header: "Preço Venda",
@@ -39,15 +39,15 @@ export default function ItensTable({ itens }: { itens: ItemRow[] }) {
       header: "Estoque",
       cell: ({ row }) => {
         const qtd = row.original.estoqueItems[0] ? decimalToNumber(row.original.estoqueItems[0]?.quantidadeAtual) : null;
-        if (qtd === null) return <span className="text-xs text-gray-400">—</span>;
-        return <span className={`font-medium ${qtd === 0 ? "text-red-600" : "text-gray-900"}`}>{qtd}</span>;
+        if (qtd === null) return <span className="text-xs text-muted-foreground">—</span>;
+        return <span className={`font-medium ${qtd === 0 ? "text-danger" : "text-foreground"}`}>{qtd}</span>;
       },
     },
     {
       id: "ativo",
       header: "Status",
       cell: ({ row }) => (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${row.original.ativo ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${row.original.ativo ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"}`}>
           {row.original.ativo ? "Ativo" : "Inativo"}
         </span>
       ),

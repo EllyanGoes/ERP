@@ -156,11 +156,11 @@ export default function ComodatoClient({
           <p className="text-sm font-medium opacity-75">Clientes com saldo</p>
           <p className="text-3xl font-bold mt-1">{totais.clientesComSaldo}</p>
         </div>
-        <div className="rounded-xl p-4 bg-amber-50 text-amber-700">
+        <div className="rounded-xl p-4 bg-warning/10 text-warning">
           <p className="text-sm font-medium opacity-75">Itens em poder dos clientes</p>
           <p className="text-3xl font-bold mt-1">{totais.totalQtd.toLocaleString("pt-BR")}</p>
         </div>
-        <div className="rounded-xl p-4 bg-emerald-50 text-emerald-700">
+        <div className="rounded-xl p-4 bg-success/10 text-success">
           <p className="text-sm font-medium opacity-75">Valor em aberto</p>
           <p className="text-3xl font-bold mt-1">{formatBRL(totais.totalValor)}</p>
         </div>
@@ -177,10 +177,10 @@ export default function ComodatoClient({
 
       {/* Formulário de lançamento manual (apenas administradores) */}
       {isAdmin && showForm && (
-        <form onSubmit={handleSubmit} className="rounded-xl border border-gray-200 bg-white p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="rounded-xl border border-border bg-card p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Cliente</label>
               <ComboboxWithCreate
                 value={clienteId}
                 onChange={setClienteId}
@@ -191,7 +191,7 @@ export default function ComodatoClient({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Item em Comodato</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Item em Comodato</label>
               <ComboboxWithCreate
                 value={itemId}
                 onChange={onItemChange}
@@ -201,7 +201,7 @@ export default function ComodatoClient({
                 options={itens.map((i) => ({ value: i.id, label: `${i.codigo} — ${i.descricao}` }))}
               />
               {itens.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">
+                <p className="text-xs text-warning mt-1">
                   Nenhum item marcado como comodato. Marque a opção &quot;Comodato&quot; no cadastro do item.
                 </p>
               )}
@@ -210,67 +210,67 @@ export default function ComodatoClient({
 
           <div className="grid grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Tipo</label>
               <select
                 value={tipo}
                 onChange={(e) => setTipo(e.target.value as "SAIDA" | "RETORNO")}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
               >
                 <option value="SAIDA">Saída (cliente levou)</option>
                 <option value="RETORNO">Retorno (cliente devolveu)</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Quantidade</label>
               <input
                 type="number"
                 step="0.001"
                 min="0"
                 value={quantidade}
                 onChange={(e) => setQuantidade(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Valor unitário (R$)</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Valor unitário (R$)</label>
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 value={valorUnitario}
                 onChange={(e) => setValorUnitario(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Data</label>
               <input
                 type="date"
                 value={data}
                 onChange={(e) => setData(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Documento (opcional)</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Documento (opcional)</label>
               <input
                 type="text"
                 value={documento}
                 onChange={(e) => setDocumento(e.target.value)}
                 placeholder="Ex: nota, pedido..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Observações (opcional)</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Observações (opcional)</label>
               <input
                 type="text"
                 value={observacoes}
                 onChange={(e) => setObservacoes(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -287,7 +287,7 @@ export default function ComodatoClient({
       )}
 
       {/* Abas */}
-      <div className="flex border-b border-gray-200 gap-1">
+      <div className="flex border-b border-border gap-1">
         {([
           { key: "saldos", label: "Saldos por cliente", count: saldos.length },
           { key: "lancamentos", label: "Últimos lançamentos", count: movimentos.length },
@@ -299,15 +299,15 @@ export default function ComodatoClient({
             className={cn(
               "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
               activeTab === t.key
-                ? "border-blue-600 text-blue-700"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                ? "border-blue-600 text-info"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
             )}
           >
             {t.label}
             <span
               className={cn(
                 "text-xs px-1.5 py-0.5 rounded-full font-semibold",
-                activeTab === t.key ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"
+                activeTab === t.key ? "bg-info/15 text-info" : "bg-muted text-muted-foreground"
               )}
             >
               {t.count}
@@ -318,13 +318,13 @@ export default function ComodatoClient({
 
       {/* Saldos por cliente */}
       {activeTab === "saldos" && (
-      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
         {saldos.length === 0 ? (
-          <p className="px-6 py-8 text-sm text-gray-400 text-center">Nenhum saldo de comodato em aberto.</p>
+          <p className="px-6 py-8 text-sm text-muted-foreground text-center">Nenhum saldo de comodato em aberto.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 border-b border-gray-100">
+              <tr className="text-left text-muted-foreground border-b border-border">
                 <th className="px-6 py-3 font-medium">Cliente</th>
                 <th className="px-6 py-3 font-medium">Item em Comodato</th>
                 <th className="px-6 py-3 font-medium text-right">Saldo (qtd)</th>
@@ -334,8 +334,8 @@ export default function ComodatoClient({
             <tbody>
               {saldos.map((s) => (
                 <tr key={`${s.clienteId}|${s.itemId}`} className="border-b border-gray-50">
-                  <td className="px-6 py-3 font-medium text-gray-900">{s.clienteNome}</td>
-                  <td className="px-6 py-3 text-gray-600">{s.itemNome}</td>
+                  <td className="px-6 py-3 font-medium text-foreground">{s.clienteNome}</td>
+                  <td className="px-6 py-3 text-muted-foreground">{s.itemNome}</td>
                   <td className="px-6 py-3 text-right font-semibold tabular-nums">
                     {s.qtd.toLocaleString("pt-BR")}
                   </td>
@@ -350,13 +350,13 @@ export default function ComodatoClient({
 
       {/* Últimos lançamentos */}
       {activeTab === "lancamentos" && (
-      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
         {movimentos.length === 0 ? (
-          <p className="px-6 py-8 text-sm text-gray-400 text-center">Nenhum lançamento ainda.</p>
+          <p className="px-6 py-8 text-sm text-muted-foreground text-center">Nenhum lançamento ainda.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 border-b border-gray-100">
+              <tr className="text-left text-muted-foreground border-b border-border">
                 <th className="px-6 py-3 font-medium">Data</th>
                 <th className="px-6 py-3 font-medium">Cliente</th>
                 <th className="px-6 py-3 font-medium">Item em Comodato</th>
@@ -369,23 +369,23 @@ export default function ComodatoClient({
             <tbody>
               {movimentos.slice(0, 30).map((m) => (
                 <tr key={m.id} className="border-b border-gray-50">
-                  <td className="px-6 py-3 text-gray-600">{formatDate(m.data)}</td>
-                  <td className="px-6 py-3 text-gray-900">{m.cliente.nomeFantasia || m.cliente.razaoSocial}</td>
-                  <td className="px-6 py-3 text-gray-600">{m.item.codigo} — {m.item.descricao}</td>
+                  <td className="px-6 py-3 text-muted-foreground">{formatDate(m.data)}</td>
+                  <td className="px-6 py-3 text-foreground">{m.cliente.nomeFantasia || m.cliente.razaoSocial}</td>
+                  <td className="px-6 py-3 text-muted-foreground">{m.item.codigo} — {m.item.descricao}</td>
                   <td className="px-6 py-3">
                     {m.tipo === "SAIDA" ? (
-                      <span className="inline-flex items-center gap-1 text-amber-700">
+                      <span className="inline-flex items-center gap-1 text-warning">
                         <ArrowUpRight className="w-3.5 h-3.5" /> Saída
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-emerald-700">
+                      <span className="inline-flex items-center gap-1 text-success">
                         <ArrowDownLeft className="w-3.5 h-3.5" /> Retorno
                       </span>
                     )}
                   </td>
                   <td className="px-6 py-3 text-right tabular-nums">{m.quantidade.toLocaleString("pt-BR")}</td>
                   <td className="px-6 py-3 text-right tabular-nums">{formatBRL(m.quantidade * m.valorUnitario)}</td>
-                  <td className="px-6 py-3 text-gray-400 text-xs">{m.origem === "MANUAL" ? "Manual" : "Automático"}</td>
+                  <td className="px-6 py-3 text-muted-foreground text-xs">{m.origem === "MANUAL" ? "Manual" : "Automático"}</td>
                 </tr>
               ))}
             </tbody>

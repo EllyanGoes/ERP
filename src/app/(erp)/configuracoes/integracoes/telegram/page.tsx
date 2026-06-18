@@ -19,22 +19,22 @@ type ConnStatus = "idle" | "checking" | "ok" | "error" | "unconfigured";
 
 function StatusPill({ status, msg }: { status: ConnStatus; msg?: string }) {
   if (status === "checking") return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
       <Loader2 className="w-3 h-3 animate-spin" /> Verificando...
     </span>
   );
   if (status === "ok") return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700" title={msg}>
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-success/15 text-success" title={msg}>
       <Wifi className="w-3 h-3" /> Conectado
     </span>
   );
   if (status === "error") return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700" title={msg}>
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-danger/15 text-danger" title={msg}>
       <WifiOff className="w-3 h-3" /> Erro
     </span>
   );
   if (status === "unconfigured") return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400">
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
       <HelpCircle className="w-3 h-3" /> Não configurado
     </span>
   );
@@ -50,8 +50,8 @@ function SecretField({
   const [show, setShow] = useState(false);
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-gray-600">{label}</Label>
-      {description && <p className="text-[11px] text-gray-400 leading-tight">{description}</p>}
+      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+      {description && <p className="text-[11px] text-muted-foreground leading-tight">{description}</p>}
       <div className="relative">
         <Input
           type={show ? "text" : "password"}
@@ -62,7 +62,7 @@ function SecretField({
         />
         {value && (
           <button type="button" onClick={() => setShow((p) => !p)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" tabIndex={-1}>
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground" tabIndex={-1}>
             {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
           </button>
         )}
@@ -114,22 +114,22 @@ function ChatRow({
               }}
               onBlur={commitLabel}
               autoFocus
-              className="text-xs font-medium text-gray-700 border-b border-blue-400 outline-none bg-transparent w-40"
+              className="text-xs font-medium text-foreground border-b border-blue-400 outline-none bg-transparent w-40"
             />
-            <button type="button" onClick={commitLabel} className="text-emerald-500 hover:text-emerald-600">
+            <button type="button" onClick={commitLabel} className="text-emerald-500 hover:text-success">
               <Check className="w-3.5 h-3.5" />
             </button>
-            <button type="button" onClick={() => { setDraft(label); setEditingLabel(false); }} className="text-gray-400 hover:text-gray-600">
+            <button type="button" onClick={() => { setDraft(label); setEditingLabel(false); }} className="text-muted-foreground hover:text-muted-foreground">
               <X className="w-3.5 h-3.5" />
             </button>
           </>
         ) : (
           <>
-            <span className="text-xs font-medium text-gray-600">{label}</span>
+            <span className="text-xs font-medium text-muted-foreground">{label}</span>
             <button
               type="button"
               onClick={() => { setDraft(label); setEditingLabel(true); }}
-              className="text-gray-300 hover:text-gray-500 transition-colors"
+              className="text-muted-foreground/60 hover:text-muted-foreground transition-colors"
               title="Renomear"
             >
               <Pencil className="w-3 h-3" />
@@ -152,7 +152,7 @@ function ChatRow({
         </Button>
       </div>
 
-      {description && <p className="text-[11px] text-gray-400 leading-tight">{description}</p>}
+      {description && <p className="text-[11px] text-muted-foreground leading-tight">{description}</p>}
       <Input
         value={value}
         onChange={(e) => onValueChange(e.target.value)}
@@ -296,7 +296,7 @@ export default function TelegramIntegracaoPage() {
   }
 
   if (loading) return (
-    <div className="px-8 pt-8 text-gray-400 flex items-center gap-2 text-sm">
+    <div className="px-8 pt-8 text-muted-foreground flex items-center gap-2 text-sm">
       <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
     </div>
   );
@@ -341,8 +341,8 @@ export default function TelegramIntegracaoPage() {
         </div>
 
         {/* Credentials */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Credenciais</p>
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-5">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Credenciais</p>
 
           <SecretField
             label="Bot Token"
@@ -354,8 +354,8 @@ export default function TelegramIntegracaoPage() {
         </div>
 
         {/* Canais */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Canais</p>
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-5">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Canais</p>
 
           <ChatRow
             label={tgChatIdLabel}
@@ -372,14 +372,14 @@ export default function TelegramIntegracaoPage() {
           {testMsg?.key === "tg_chat_id" && (
             <div className={cn(
               "flex items-center gap-2 px-3 py-2 rounded-lg text-xs border",
-              testMsg.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"
+              testMsg.type === "ok" ? "bg-success/10 border-success/30 text-success" : "bg-danger/10 border-danger/30 text-danger"
             )}>
               {testMsg.type === "ok" ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
               <span>{testMsg.text}</span>
             </div>
           )}
 
-          <div className="border-t border-gray-100 pt-4">
+          <div className="border-t border-border pt-4">
             <ChatRow
               label={tgChatEstoqueLabel}
               onLabelChange={(v) => { setTgChatEstoqueLabel(v); mark(); }}
@@ -395,7 +395,7 @@ export default function TelegramIntegracaoPage() {
             {testMsg?.key === "tg_chat_estoque" && (
               <div className={cn(
                 "flex items-center gap-2 px-3 py-2 rounded-lg text-xs border mt-3",
-                testMsg.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"
+                testMsg.type === "ok" ? "bg-success/10 border-success/30 text-success" : "bg-danger/10 border-danger/30 text-danger"
               )}>
                 {testMsg.type === "ok" ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
                 <span>{testMsg.text}</span>
@@ -403,7 +403,7 @@ export default function TelegramIntegracaoPage() {
             )}
           </div>
 
-          <div className="border-t border-gray-100 pt-4">
+          <div className="border-t border-border pt-4">
             <ChatRow
               label={tgChatPedidosLabel}
               onLabelChange={(v) => { setTgChatPedidosLabel(v); mark(); }}
@@ -419,7 +419,7 @@ export default function TelegramIntegracaoPage() {
             {testMsg?.key === "tg_chat_pedidos" && (
               <div className={cn(
                 "flex items-center gap-2 px-3 py-2 rounded-lg text-xs border mt-3",
-                testMsg.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"
+                testMsg.type === "ok" ? "bg-success/10 border-success/30 text-success" : "bg-danger/10 border-danger/30 text-danger"
               )}>
                 {testMsg.type === "ok" ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
                 <span>{testMsg.text}</span>
@@ -432,7 +432,7 @@ export default function TelegramIntegracaoPage() {
         {saveMsg && (
           <div className={cn(
             "flex items-center gap-2 px-4 py-3 rounded-xl text-sm border",
-            saveMsg.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"
+            saveMsg.type === "ok" ? "bg-success/10 border-success/30 text-success" : "bg-danger/10 border-danger/30 text-danger"
           )}>
             {saveMsg.type === "ok" ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
             <span>{saveMsg.text}</span>
@@ -440,17 +440,17 @@ export default function TelegramIntegracaoPage() {
         )}
 
         {dirty && !saveMsg && (
-          <p className="text-xs text-amber-600 font-medium flex items-center gap-1.5">
+          <p className="text-xs text-warning font-medium flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
             Alterações não salvas — clique em Salvar para confirmar
           </p>
         )}
 
         {/* Webhook */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Webhook para Aprovações</p>
-            <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Webhook para Aprovações</p>
+            <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
               Registre o webhook para que o bot receba as respostas dos botões ✅/❌ enviados ao aprovador via DM.
             </p>
           </div>
@@ -465,7 +465,7 @@ export default function TelegramIntegracaoPage() {
           {webhookMsg && (
             <div className={cn(
               "flex items-center gap-2 px-3 py-2 rounded-lg text-xs border",
-              webhookMsg.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"
+              webhookMsg.type === "ok" ? "bg-success/10 border-success/30 text-success" : "bg-danger/10 border-danger/30 text-danger"
             )}>
               {webhookMsg.type === "ok" ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
               <span>{webhookMsg.text}</span>

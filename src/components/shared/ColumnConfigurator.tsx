@@ -102,8 +102,8 @@ export default function ColumnConfigurator({
         className={cn(
           "flex items-center gap-1.5 h-9 px-3 text-sm border rounded-lg transition-colors",
           open
-            ? "bg-blue-50 border-blue-300 text-blue-700"
-            : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50",
+            ? "bg-info/10 border-blue-300 text-info"
+            : "bg-card border-border text-muted-foreground hover:bg-muted",
         )}
       >
         <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -120,17 +120,17 @@ export default function ColumnConfigurator({
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
 
-          <div className="absolute right-0 top-10 z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-64 overflow-hidden">
+          <div className="absolute right-0 top-10 z-50 bg-card border border-border rounded-xl shadow-xl w-64 overflow-hidden">
 
             {/* Header */}
-            <div className="px-3 py-2.5 border-b border-gray-100 flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            <div className="px-3 py-2.5 border-b border-border flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Colunas
               </span>
               <button
                 onClick={resetToDefault}
                 title="Restaurar padrão"
-                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-muted-foreground transition-colors"
               >
                 <RotateCcw className="w-3 h-3" />
                 Padrão
@@ -140,13 +140,13 @@ export default function ColumnConfigurator({
             {/* ── Visible section ────────────────────────────────────────── */}
             <div className="max-h-80 overflow-y-auto">
               <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
                   Mostradas na tabela
                 </span>
                 {onVisibilityChange && visible.length > 1 && (
                   <button
                     onClick={() => visible.forEach((c) => onVisibilityChange(c.id, false))}
-                    className="text-[10px] text-blue-500 hover:text-blue-700 font-medium"
+                    className="text-[10px] text-blue-500 hover:text-info font-medium"
                   >
                     Ocultar tudo
                   </button>
@@ -167,17 +167,17 @@ export default function ColumnConfigurator({
                     dragIdx === idx
                       ? "opacity-40"
                       : dragOverIdx === idx
-                      ? "bg-blue-50 text-blue-700"
-                      : "hover:bg-gray-50 text-gray-700",
+                      ? "bg-info/10 text-info"
+                      : "hover:bg-muted text-foreground",
                   )}
                 >
-                  <GripVertical className="w-3.5 h-3.5 text-gray-300 shrink-0 cursor-grab active:cursor-grabbing" />
+                  <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0 cursor-grab active:cursor-grabbing" />
                   <span className="flex-1 truncate text-sm">{col.label}</span>
                   {onVisibilityChange && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onVisibilityChange(col.id, false); }}
                       title="Ocultar coluna"
-                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-700 transition-opacity"
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
                     >
                       <Eye className="w-3.5 h-3.5" />
                     </button>
@@ -186,7 +186,7 @@ export default function ColumnConfigurator({
               ))}
 
               {visible.length === 0 && (
-                <p className="px-3 py-2 text-xs text-gray-400 italic">
+                <p className="px-3 py-2 text-xs text-muted-foreground italic">
                   Nenhuma coluna visível
                 </p>
               )}
@@ -194,14 +194,14 @@ export default function ColumnConfigurator({
               {/* ── Hidden section ─────────────────────────────────────── */}
               {hidden.length > 0 && (
                 <>
-                  <div className="flex items-center justify-between px-3 pt-3 pb-1 border-t border-gray-100 mt-1">
-                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+                  <div className="flex items-center justify-between px-3 pt-3 pb-1 border-t border-border mt-1">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
                       Ocultas na tabela
                     </span>
                     {onShowAll && (
                       <button
                         onClick={onShowAll}
-                        className="text-[10px] text-blue-500 hover:text-blue-700 font-medium"
+                        className="text-[10px] text-blue-500 hover:text-info font-medium"
                       >
                         Mostrar tudo
                       </button>
@@ -211,7 +211,7 @@ export default function ColumnConfigurator({
                   {hidden.map((col) => (
                     <div
                       key={col.id}
-                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-400 group hover:bg-gray-50 transition-colors"
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground group hover:bg-muted transition-colors"
                     >
                       <GripVertical className="w-3.5 h-3.5 text-gray-200 shrink-0" />
                       <span className="flex-1 truncate">{col.label}</span>
@@ -219,7 +219,7 @@ export default function ColumnConfigurator({
                         <button
                           onClick={() => onVisibilityChange(col.id, true)}
                           title="Mostrar coluna"
-                          className="text-gray-300 hover:text-gray-600 transition-colors"
+                          className="text-muted-foreground/60 hover:text-muted-foreground transition-colors"
                         >
                           <EyeOff className="w-3.5 h-3.5" />
                         </button>
@@ -231,8 +231,8 @@ export default function ColumnConfigurator({
             </div>
 
             {/* Footer */}
-            <div className="px-3 py-2 border-t border-gray-100 bg-gray-50">
-              <p className="text-[11px] text-gray-400">Arraste para reordenar · clique no olho para ocultar</p>
+            <div className="px-3 py-2 border-t border-border bg-muted">
+              <p className="text-[11px] text-muted-foreground">Arraste para reordenar · clique no olho para ocultar</p>
             </div>
           </div>
         </>

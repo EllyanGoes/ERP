@@ -11,7 +11,7 @@ import type { FluxoEditorData } from "@/components/pcp/editor/FluxoEditor";
 const FluxoEditor = dynamic(() => import("@/components/pcp/editor/FluxoEditor"), {
   ssr: false,
   loading: () => (
-    <div className="flex items-center justify-center h-full text-gray-400 gap-2 text-sm">
+    <div className="flex items-center justify-center h-full text-muted-foreground gap-2 text-sm">
       <RefreshCw className="w-4 h-4 animate-spin" /> Carregando editor…
     </div>
   ),
@@ -39,13 +39,13 @@ export default function EditorPage() {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center gap-2">
         <AlertTriangle className="w-7 h-7 text-amber-400" />
-        <p className="text-sm text-gray-600">{erro}</p>
+        <p className="text-sm text-muted-foreground">{erro}</p>
       </div>
     );
   }
   if (!fluxo) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-400 gap-2 text-sm">
+      <div className="flex items-center justify-center h-full text-muted-foreground gap-2 text-sm">
         <RefreshCw className="w-4 h-4 animate-spin" /> Carregando…
       </div>
     );

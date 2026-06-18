@@ -44,9 +44,9 @@ function fmt(n: number, decimals = 2): string {
 }
 
 const STATUS_META = {
-  ok:      { label: "OK",       icon: CheckCircle2,  cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  alerta:  { label: "Alerta",   icon: AlertCircle,   cls: "bg-amber-100  text-amber-700  border-amber-200"   },
-  critico: { label: "Crítico",  icon: AlertTriangle, cls: "bg-red-100    text-red-700    border-red-200"     },
+  ok:      { label: "OK",       icon: CheckCircle2,  cls: "bg-success/15 text-success border-success/30" },
+  alerta:  { label: "Alerta",   icon: AlertCircle,   cls: "bg-warning/15  text-warning  border-warning/30"   },
+  critico: { label: "Crítico",  icon: AlertTriangle, cls: "bg-danger/15    text-danger    border-danger/30"     },
 } as const;
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ export default function RelatorioConsumoPage() {
             <button
               onClick={fetchData}
               disabled={loading}
-              className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50"
             >
               <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
               Atualizar
@@ -121,30 +121,30 @@ export default function RelatorioConsumoPage() {
             icon={<Star className="h-5 w-5 text-amber-500" />}
             label="Produtos Favoritados"
             value={String(data.total)}
-            bg="bg-amber-50"
-            border="border-amber-200"
+            bg="bg-warning/10"
+            border="border-warning/30"
           />
           <SummaryCard
-            icon={<AlertCircle className="h-5 w-5 text-amber-600" />}
+            icon={<AlertCircle className="h-5 w-5 text-warning" />}
             label="Em Alerta"
             value={String(data.alertas)}
-            bg="bg-amber-50"
-            border="border-amber-200"
+            bg="bg-warning/10"
+            border="border-warning/30"
           />
           <SummaryCard
-            icon={<AlertTriangle className="h-5 w-5 text-red-600" />}
+            icon={<AlertTriangle className="h-5 w-5 text-danger" />}
             label="Críticos"
             value={String(data.criticos)}
-            bg="bg-red-50"
-            border="border-red-200"
+            bg="bg-danger/10"
+            border="border-danger/30"
           />
         </div>
       )}
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         {loading ? (
-          <div className="flex items-center justify-center py-24 text-gray-400">
+          <div className="flex items-center justify-center py-24 text-muted-foreground">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         ) : !data || data.total === 0 ? (
@@ -153,7 +153,7 @@ export default function RelatorioConsumoPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <tr className="border-b border-border bg-muted text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <th className="px-4 py-3 text-left">Produto</th>
                   <th className="px-4 py-3 text-left">Descrição</th>
                   <th className="px-4 py-3 text-right">Saldo Atual</th>
@@ -165,45 +165,45 @@ export default function RelatorioConsumoPage() {
                   <th className="px-4 py-3 text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {data.rows.map((row) => {
                   const meta = STATUS_META[row.status];
                   const StatusIcon = meta.icon;
                   return (
-                    <tr key={row.id} className="hover:bg-gray-50/60 transition-colors">
+                    <tr key={row.id} className="hover:bg-muted/60 transition-colors">
                       <td className="px-4 py-3">
                         <Link
                           href={`/suprimentos/produtos/${row.id}`}
-                          className="font-mono text-xs text-blue-600 hover:underline"
+                          className="font-mono text-xs text-info hover:underline"
                         >
                           {row.codigo}
                         </Link>
                       </td>
-                      <td className="max-w-xs px-4 py-3 text-gray-700">{row.descricao}</td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-800">
-                        {fmt(row.saldoAtual)} <span className="text-xs text-gray-400">{row.sigla}</span>
+                      <td className="max-w-xs px-4 py-3 text-foreground">{row.descricao}</td>
+                      <td className="px-4 py-3 text-right font-medium text-foreground">
+                        {fmt(row.saldoAtual)} <span className="text-xs text-muted-foreground">{row.sigla}</span>
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-700">
-                        {fmt(row.consumoDiario, 3)} <span className="text-xs text-gray-400">{row.sigla}</span>
+                      <td className="px-4 py-3 text-right text-foreground">
+                        {fmt(row.consumoDiario, 3)} <span className="text-xs text-muted-foreground">{row.sigla}</span>
                       </td>
-                      <td className="px-4 py-3 text-right text-amber-700">
+                      <td className="px-4 py-3 text-right text-warning">
                         {fmt(row.pontoReposicao)} <span className="text-xs text-amber-400">{row.sigla}</span>
                       </td>
-                      <td className="px-4 py-3 text-right text-red-700">
+                      <td className="px-4 py-3 text-right text-danger">
                         {fmt(row.estoqueMinimo)} <span className="text-xs text-red-300">{row.sigla}</span>
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-500">
+                      <td className="px-4 py-3 text-right text-muted-foreground">
                         {row.estoqueMaximo != null
-                          ? <>{fmt(row.estoqueMaximo)} <span className="text-xs text-gray-300">{row.sigla}</span></>
-                          : <span className="text-gray-300">—</span>
+                          ? <>{fmt(row.estoqueMaximo)} <span className="text-xs text-muted-foreground/60">{row.sigla}</span></>
+                          : <span className="text-muted-foreground/60">—</span>
                         }
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={cn(
                           "inline-block rounded px-2 py-0.5 text-xs font-semibold",
-                          row.status === "critico" ? "text-red-700"
-                            : row.status === "alerta" ? "text-amber-700"
-                            : "text-gray-700"
+                          row.status === "critico" ? "text-danger"
+                            : row.status === "alerta" ? "text-warning"
+                            : "text-foreground"
                         )}>
                           {row.previsaoRuptura}
                         </span>
@@ -232,12 +232,12 @@ function SummaryCard({
 }: { icon: React.ReactNode; label: string; value: string; bg: string; border: string }) {
   return (
     <div className={cn("flex items-center gap-3 rounded-xl border p-4", bg, border)}>
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm">
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-card shadow-sm">
         {icon}
       </div>
       <div>
-        <p className="text-xs text-gray-500">{label}</p>
-        <p className="text-2xl font-bold text-gray-800">{value}</p>
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-2xl font-bold text-foreground">{value}</p>
       </div>
     </div>
   );
@@ -245,10 +245,10 @@ function SummaryCard({
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-24 text-center text-gray-400">
+    <div className="flex flex-col items-center justify-center gap-3 py-24 text-center text-muted-foreground">
       <Package className="h-10 w-10 opacity-40" />
       <p className="font-medium">Nenhum produto favoritado</p>
-      <p className="max-w-xs text-xs text-gray-400">
+      <p className="max-w-xs text-xs text-muted-foreground">
         Acesse a ficha de um produto e clique na estrela para incluí-lo neste relatório.
       </p>
       <Link

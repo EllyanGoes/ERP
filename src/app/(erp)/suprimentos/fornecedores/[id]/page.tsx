@@ -121,12 +121,12 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  RASCUNHO:    "bg-gray-100 text-gray-600",
-  ENVIADO:     "bg-blue-100 text-blue-700",
+  RASCUNHO:    "bg-muted text-muted-foreground",
+  ENVIADO:     "bg-info/15 text-info",
   CONFIRMADO:  "bg-indigo-100 text-indigo-700",
-  EM_TRANSITO: "bg-amber-100 text-amber-700",
-  RECEBIDO:    "bg-emerald-100 text-emerald-700",
-  CANCELADO:   "bg-red-100 text-red-700",
+  EM_TRANSITO: "bg-warning/15 text-warning",
+  RECEBIDO:    "bg-success/15 text-success",
+  CANCELADO:   "bg-danger/15 text-danger",
 };
 
 // Documentos de Entrada (conferências de compra)
@@ -138,10 +138,10 @@ const DOC_STATUS_LABELS: Record<string, string> = {
 };
 
 const DOC_STATUS_COLOR: Record<string, string> = {
-  PENDENTE:       "bg-yellow-100 text-yellow-700",
-  EM_CONFERENCIA: "bg-blue-100 text-blue-700",
-  CONCLUIDA:      "bg-emerald-100 text-emerald-700",
-  DIVERGENCIA:    "bg-red-100 text-red-700",
+  PENDENTE:       "bg-warning/15 text-warning",
+  EM_CONFERENCIA: "bg-info/15 text-info",
+  CONCLUIDA:      "bg-success/15 text-success",
+  DIVERGENCIA:    "bg-danger/15 text-danger",
 };
 
 function calcDocTotal(doc: { vrTotal: unknown; itens: Array<{ vlrTotal: unknown }> }): number {
@@ -160,11 +160,11 @@ const CONTA_STATUS_LABELS: Record<string, string> = {
 };
 
 const CONTA_STATUS_COLOR: Record<string, string> = {
-  ABERTA:    "bg-blue-100 text-blue-700",
-  PAGA:      "bg-emerald-100 text-emerald-700",
-  VENCIDA:   "bg-red-100 text-red-700",
-  CANCELADA: "bg-gray-100 text-gray-500",
-  PARCIAL:   "bg-amber-100 text-amber-700",
+  ABERTA:    "bg-info/15 text-info",
+  PAGA:      "bg-success/15 text-success",
+  VENCIDA:   "bg-danger/15 text-danger",
+  CANCELADA: "bg-muted text-muted-foreground",
+  PARCIAL:   "bg-warning/15 text-warning",
 };
 
 type PageTab = "dados" | "produtos" | "pedidos" | "contatos" | "documentos" | "contas";
@@ -414,7 +414,7 @@ export default function FornecedorDetailPage() {
 
   useTabTitle(fornecedor ? (fornecedor.nomeFantasia || fornecedor.razaoSocial) : null);
 
-  if (loading) return <div className="px-8 pt-8 text-gray-400">Carregando...</div>;
+  if (loading) return <div className="px-8 pt-8 text-muted-foreground">Carregando...</div>;
   if (!fornecedor) return <div className="px-8 pt-8 text-red-500">{error || "Fornecedor não encontrado"}</div>;
 
   const pageTabs: { key: PageTab; label: string; count?: number }[] = [
@@ -447,7 +447,7 @@ export default function FornecedorDetailPage() {
             <span
               className={cn(
                 "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                fornecedor.ativo ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                fornecedor.ativo ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
               )}
             >
               {fornecedor.ativo ? "Ativo" : "Inativo"}
@@ -473,7 +473,7 @@ export default function FornecedorDetailPage() {
                   size="sm"
                   variant="outline"
                   onClick={() => { setDeleteConfirm(true); setDeleteError(""); }}
-                  className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                  className="text-danger border-danger/30 hover:bg-danger/10 hover:border-red-300"
                 >
                   <Trash2 className="w-4 h-4 mr-1" />
                   Apagar
@@ -486,11 +486,11 @@ export default function FornecedorDetailPage() {
 
       <div className="px-8 pb-8">
         {error && (
-          <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
+          <div className="mb-4 bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{error}</div>
         )}
 
         {/* ── Tab bar ──────────────────────────────────────────────────── */}
-        <div className="flex border-b border-gray-200 mb-6 gap-1">
+        <div className="flex border-b border-border mb-6 gap-1">
           {pageTabs.map((t) => (
             <button
               key={t.key}
@@ -499,8 +499,8 @@ export default function FornecedorDetailPage() {
               className={cn(
                 "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
                 activeTab === t.key
-                  ? "border-blue-600 text-blue-700"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  ? "border-blue-600 text-info"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
               )}
             >
               {t.label}
@@ -509,8 +509,8 @@ export default function FornecedorDetailPage() {
                   className={cn(
                     "text-xs px-1.5 py-0.5 rounded-full font-semibold",
                     activeTab === t.key
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-gray-100 text-gray-500"
+                      ? "bg-info/15 text-info"
+                      : "bg-muted text-muted-foreground"
                   )}
                 >
                   {t.count}
@@ -699,7 +699,7 @@ export default function FornecedorDetailPage() {
                   <CardTitle className="text-base">Observações</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{fornecedor.observacoes}</p>
+                  <p className="text-sm text-foreground whitespace-pre-wrap">{fornecedor.observacoes}</p>
                 </CardContent>
               </Card>
             ) : null}
@@ -721,15 +721,15 @@ export default function FornecedorDetailPage() {
             {/* Add contato modal */}
             {showAddContato && typeof window !== "undefined" && createPortal(
               <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-                <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg space-y-5">
+                <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-lg space-y-5">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-gray-900 text-base">Adicionar Contato</h3>
-                    <button type="button" onClick={() => setShowAddContato(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                    <h3 className="font-semibold text-foreground text-base">Adicionar Contato</h3>
+                    <button type="button" onClick={() => setShowAddContato(false)} className="text-muted-foreground hover:text-muted-foreground transition-colors">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                   {addContatoError && (
-                    <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{addContatoError}</p>
+                    <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{addContatoError}</p>
                   )}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2 space-y-1.5">
@@ -758,9 +758,9 @@ export default function FornecedorDetailPage() {
                         id="add-principal"
                         checked={addContato.principal}
                         onChange={(e) => setAddContato((p) => ({ ...p, principal: e.target.checked }))}
-                        className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                        className="w-4 h-4 rounded border-border text-info"
                       />
-                      <label htmlFor="add-principal" className="text-sm text-gray-700">Contato principal</label>
+                      <label htmlFor="add-principal" className="text-sm text-foreground">Contato principal</label>
                     </div>
                   </div>
                   <div className="flex gap-2 justify-end pt-1">
@@ -778,28 +778,28 @@ export default function FornecedorDetailPage() {
             <Card>
               <CardContent className="p-0">
                 {!fornecedor.contatos?.length ? (
-                  <div className="text-center py-16 text-gray-400 text-sm">
+                  <div className="text-center py-16 text-muted-foreground text-sm">
                     Nenhum contato cadastrado para este fornecedor
                   </div>
                 ) : (
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200">
+                    <thead className="bg-muted border-b border-border">
                       <tr>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Nome</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Cargo</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Telefone</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Ramal</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">E-mail</th>
-                        <th className="text-center px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Principal</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Nome</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Cargo</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Telefone</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Ramal</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">E-mail</th>
+                        <th className="text-center px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Principal</th>
                         <th className="w-16" />
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-border">
                       {fornecedor.contatos.map((c) => {
                         const isEditing = editingContatoId === c.id;
                         if (isEditing) {
                           return (
-                            <tr key={c.id} className="bg-blue-50">
+                            <tr key={c.id} className="bg-info/10">
                               <td className="px-4 py-2">
                                 <Input
                                   className="h-7 text-sm"
@@ -840,7 +840,7 @@ export default function FornecedorDetailPage() {
                                   type="checkbox"
                                   checked={editContatoForm.principal ?? false}
                                   onChange={(e) => setEditContatoForm((p) => ({ ...p, principal: e.target.checked }))}
-                                  className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                                  className="w-4 h-4 rounded border-border text-info"
                                 />
                               </td>
                               <td className="px-4 py-2 flex items-center gap-1">
@@ -848,14 +848,14 @@ export default function FornecedorDetailPage() {
                                   type="button"
                                   onClick={() => saveEditContato(c.id)}
                                   disabled={editContatoSaving}
-                                  className="text-green-600 hover:text-green-700 transition-colors"
+                                  className="text-success hover:text-success transition-colors"
                                 >
                                   {editContatoSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setEditingContatoId(null)}
-                                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                                  className="text-muted-foreground hover:text-muted-foreground transition-colors"
                                 >
                                   <X className="w-3.5 h-3.5" />
                                 </button>
@@ -864,22 +864,22 @@ export default function FornecedorDetailPage() {
                           );
                         }
                         return (
-                          <tr key={c.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 font-medium text-gray-800">{c.nome}</td>
-                            <td className="px-4 py-3 text-gray-500">{c.cargo || "—"}</td>
-                            <td className="px-4 py-3 text-gray-600">{c.telefone || "—"}</td>
-                            <td className="px-4 py-3 text-gray-600">{c.ramal || "—"}</td>
-                            <td className="px-4 py-3 text-gray-600">{c.email || "—"}</td>
+                          <tr key={c.id} className="hover:bg-muted">
+                            <td className="px-4 py-3 font-medium text-foreground">{c.nome}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{c.cargo || "—"}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{c.telefone || "—"}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{c.ramal || "—"}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{c.email || "—"}</td>
                             <td className="px-4 py-3 text-center">
                               {c.principal ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-warning/15 text-warning">
                                   <Star className="w-3 h-3" />Principal
                                 </span>
                               ) : (
                                 <button
                                   type="button"
                                   onClick={() => setPrincipal(c.id)}
-                                  className="text-xs text-gray-300 hover:text-amber-500 transition-colors"
+                                  className="text-xs text-muted-foreground/60 hover:text-amber-500 transition-colors"
                                   title="Definir como principal"
                                 >
                                   <Star className="w-3.5 h-3.5" />
@@ -890,14 +890,14 @@ export default function FornecedorDetailPage() {
                               <button
                                 type="button"
                                 onClick={() => startEditContato(c)}
-                                className="text-gray-300 hover:text-blue-500 transition-colors"
+                                className="text-muted-foreground/60 hover:text-blue-500 transition-colors"
                               >
                                 <Pencil className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => deleteContato(c.id)}
-                                className="text-gray-300 hover:text-red-500 transition-colors"
+                                className="text-muted-foreground/60 hover:text-red-500 transition-colors"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -925,15 +925,15 @@ export default function FornecedorDetailPage() {
             {/* Product link dialog */}
             {showAddProd && typeof window !== "undefined" && createPortal(
               <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-                <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-xl space-y-5 max-h-[90vh] overflow-y-auto">
+                <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-xl space-y-5 max-h-[90vh] overflow-y-auto">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-gray-900 text-base">Vincular Produto</h3>
-                    <button type="button" onClick={() => setShowAddProd(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                    <h3 className="font-semibold text-foreground text-base">Vincular Produto</h3>
+                    <button type="button" onClick={() => setShowAddProd(false)} className="text-muted-foreground hover:text-muted-foreground transition-colors">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                   {addProdError && (
-                    <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{addProdError}</p>
+                    <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{addProdError}</p>
                   )}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2 space-y-1.5">
@@ -1025,70 +1025,70 @@ export default function FornecedorDetailPage() {
             <Card>
               <CardContent className="p-0 overflow-x-auto">
                 {!fornecedor.produtos?.length ? (
-                  <div className="text-center py-16 text-gray-400 text-sm">
+                  <div className="text-center py-16 text-muted-foreground text-sm">
                     Nenhum produto vinculado a este fornecedor
                   </div>
                 ) : (
                   <table className="w-full text-sm min-w-[1100px]">
-                    <thead className="bg-gray-50 border-b border-gray-200">
+                    <thead className="bg-muted border-b border-border">
                       <tr>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Material</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Especificação</th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Tempo Ressup.</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Classificação</th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">%</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Última Compra</th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Valor Últ. Compra</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Índice Fin.</th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Qtde Últ. Compra</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Unidade</th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Qtde Dev.</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide whitespace-nowrap">Material</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide whitespace-nowrap">Especificação</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide whitespace-nowrap">Tempo Ressup.</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide whitespace-nowrap">Classificação</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide whitespace-nowrap">%</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide whitespace-nowrap">Última Compra</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide whitespace-nowrap">Valor Últ. Compra</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide whitespace-nowrap">Índice Fin.</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide whitespace-nowrap">Qtde Últ. Compra</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide whitespace-nowrap">Unidade</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide whitespace-nowrap">Qtde Dev.</th>
                         <th className="w-12" />
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-border">
                       {fornecedor.produtos.map((p) => (
-                        <tr key={p.id} className="hover:bg-gray-50">
+                        <tr key={p.id} className="hover:bg-muted">
                           <td className="px-4 py-3">
-                            <div className="font-mono text-xs text-blue-600">{p.item.codigo}</div>
-                            <div className="text-gray-800 max-w-[200px] truncate" title={p.item.descricao}>{p.item.descricao}</div>
+                            <div className="font-mono text-xs text-info">{p.item.codigo}</div>
+                            <div className="text-foreground max-w-[200px] truncate" title={p.item.descricao}>{p.item.descricao}</div>
                           </td>
-                          <td className="px-4 py-3 text-gray-500 max-w-[120px]">
+                          <td className="px-4 py-3 text-muted-foreground max-w-[120px]">
                             <span className="block truncate" title={p.especificacao ?? ""}>{p.especificacao || "—"}</span>
                           </td>
-                          <td className="px-4 py-3 text-right text-gray-600">
-                            {p.tempoResuprimento != null ? `${p.tempoResuprimento} d` : <span className="text-gray-300">—</span>}
+                          <td className="px-4 py-3 text-right text-muted-foreground">
+                            {p.tempoResuprimento != null ? `${p.tempoResuprimento} d` : <span className="text-muted-foreground/60">—</span>}
                           </td>
-                          <td className="px-4 py-3 text-gray-500">{p.classificacao || "—"}</td>
-                          <td className="px-4 py-3 text-right text-gray-600">
-                            {p.percentual != null ? `${decimalToNumber(p.percentual).toFixed(2)}%` : <span className="text-gray-300">—</span>}
+                          <td className="px-4 py-3 text-muted-foreground">{p.classificacao || "—"}</td>
+                          <td className="px-4 py-3 text-right text-muted-foreground">
+                            {p.percentual != null ? `${decimalToNumber(p.percentual).toFixed(2)}%` : <span className="text-muted-foreground/60">—</span>}
                           </td>
-                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                            {p.dataUltimaCompra ? formatDate(p.dataUltimaCompra) : <span className="text-gray-300">—</span>}
+                          <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                            {p.dataUltimaCompra ? formatDate(p.dataUltimaCompra) : <span className="text-muted-foreground/60">—</span>}
                           </td>
                           <td className="px-4 py-3 text-right font-medium whitespace-nowrap">
-                            {p.precoUltimo != null ? formatBRL(decimalToNumber(p.precoUltimo)) : <span className="text-gray-300">—</span>}
+                            {p.precoUltimo != null ? formatBRL(decimalToNumber(p.precoUltimo)) : <span className="text-muted-foreground/60">—</span>}
                           </td>
-                          <td className="px-4 py-3 text-gray-500">{p.indiceFinanceiro || "—"}</td>
-                          <td className="px-4 py-3 text-right text-gray-600">
-                            {p.qtdeUltimaCompra != null ? decimalToNumber(p.qtdeUltimaCompra).toLocaleString("pt-BR") : <span className="text-gray-300">—</span>}
+                          <td className="px-4 py-3 text-muted-foreground">{p.indiceFinanceiro || "—"}</td>
+                          <td className="px-4 py-3 text-right text-muted-foreground">
+                            {p.qtdeUltimaCompra != null ? decimalToNumber(p.qtdeUltimaCompra).toLocaleString("pt-BR") : <span className="text-muted-foreground/60">—</span>}
                           </td>
-                          <td className="px-4 py-3 text-gray-500">{p.unidade || "—"}</td>
-                          <td className="px-4 py-3 text-right text-gray-600">
-                            {p.ultimaQtdeDev != null ? decimalToNumber(p.ultimaQtdeDev).toLocaleString("pt-BR") : <span className="text-gray-300">—</span>}
+                          <td className="px-4 py-3 text-muted-foreground">{p.unidade || "—"}</td>
+                          <td className="px-4 py-3 text-right text-muted-foreground">
+                            {p.ultimaQtdeDev != null ? decimalToNumber(p.ultimaQtdeDev).toLocaleString("pt-BR") : <span className="text-muted-foreground/60">—</span>}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-center gap-1">
                               <Link
                                 href={`/suprimentos/produtos/${p.item.id}`}
-                                className="text-gray-300 hover:text-blue-500 transition-colors"
+                                className="text-muted-foreground/60 hover:text-blue-500 transition-colors"
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
                               </Link>
                               <button
                                 type="button"
                                 onClick={() => removeProduto(p.id)}
-                                className="text-gray-300 hover:text-red-500 transition-colors"
+                                className="text-muted-foreground/60 hover:text-red-500 transition-colors"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -1110,40 +1110,40 @@ export default function FornecedorDetailPage() {
             <Card>
               <CardContent className="p-0">
                 {!fornecedor.pedidosCompra?.length ? (
-                  <div className="text-center py-16 text-gray-400 text-sm">
+                  <div className="text-center py-16 text-muted-foreground text-sm">
                     Nenhum pedido de compra para este fornecedor
                   </div>
                 ) : (
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200">
+                    <thead className="bg-muted border-b border-border">
                       <tr>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Número</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Status</th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Valor Total</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Data</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Número</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Status</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Valor Total</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Data</th>
                         <th className="w-10" />
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-border">
                       {fornecedor.pedidosCompra.map((p) => (
-                        <tr key={p.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">{p.numero}</td>
+                        <tr key={p.id} className="hover:bg-muted">
+                          <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">{p.numero}</td>
                           <td className="px-4 py-3">
                             <span className={cn(
                               "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
-                              STATUS_COLOR[p.status] ?? "bg-gray-100 text-gray-600"
+                              STATUS_COLOR[p.status] ?? "bg-muted text-muted-foreground"
                             )}>
                               {STATUS_LABELS[p.status] ?? p.status}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-right font-medium text-gray-800">
+                          <td className="px-4 py-3 text-right font-medium text-foreground">
                             {formatBRL(decimalToNumber(p.valorTotal))}
                           </td>
-                          <td className="px-4 py-3 text-gray-500">{formatDate(p.createdAt)}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{formatDate(p.createdAt)}</td>
                           <td className="px-4 py-3">
                             <Link
                               href={`/suprimentos/pedidos-compra/${p.id}`}
-                              className="text-gray-300 hover:text-blue-500 transition-colors flex justify-center"
+                              className="text-muted-foreground/60 hover:text-blue-500 transition-colors flex justify-center"
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
                             </Link>
@@ -1164,46 +1164,46 @@ export default function FornecedorDetailPage() {
             <Card>
               <CardContent className="p-0">
                 {!fornecedor.documentosEntrada?.length ? (
-                  <div className="text-center py-16 text-gray-400 text-sm">
+                  <div className="text-center py-16 text-muted-foreground text-sm">
                     Nenhum documento de entrada para este fornecedor
                   </div>
                 ) : (
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200">
+                    <thead className="bg-muted border-b border-border">
                       <tr>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Nº Doc</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Nº NF</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Pedido</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Status</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Emissão</th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Valor Total</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Nº Doc</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Nº NF</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Pedido</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Status</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Emissão</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Valor Total</th>
                         <th className="w-10" />
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-border">
                       {fornecedor.documentosEntrada.map((d) => (
-                        <tr key={d.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">{d.numero}</td>
-                          <td className="px-4 py-3 font-mono text-xs text-gray-600">{d.numeroNF || "—"}</td>
-                          <td className="px-4 py-3 font-mono text-xs text-gray-500">{d.pedido?.numero || "—"}</td>
+                        <tr key={d.id} className="hover:bg-muted">
+                          <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">{d.numero}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{d.numeroNF || "—"}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{d.pedido?.numero || "—"}</td>
                           <td className="px-4 py-3">
                             <span className={cn(
                               "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
-                              DOC_STATUS_COLOR[d.status] ?? "bg-gray-100 text-gray-600"
+                              DOC_STATUS_COLOR[d.status] ?? "bg-muted text-muted-foreground"
                             )}>
                               {DOC_STATUS_LABELS[d.status] ?? d.status}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-gray-500">
-                            {d.dtEmissao ? formatDate(d.dtEmissao) : <span className="text-gray-300">—</span>}
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {d.dtEmissao ? formatDate(d.dtEmissao) : <span className="text-muted-foreground/60">—</span>}
                           </td>
-                          <td className="px-4 py-3 text-right font-medium text-gray-800">
-                            {calcDocTotal(d) > 0 ? formatBRL(calcDocTotal(d)) : <span className="text-gray-300">—</span>}
+                          <td className="px-4 py-3 text-right font-medium text-foreground">
+                            {calcDocTotal(d) > 0 ? formatBRL(calcDocTotal(d)) : <span className="text-muted-foreground/60">—</span>}
                           </td>
                           <td className="px-4 py-3">
                             <Link
                               href={`/suprimentos/conferencias/${d.id}`}
-                              className="text-gray-300 hover:text-blue-500 transition-colors flex justify-center"
+                              className="text-muted-foreground/60 hover:text-blue-500 transition-colors flex justify-center"
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
                             </Link>
@@ -1224,39 +1224,39 @@ export default function FornecedorDetailPage() {
             <Card>
               <CardContent className="p-0">
                 {!fornecedor.contasPagar?.length ? (
-                  <div className="text-center py-16 text-gray-400 text-sm">
+                  <div className="text-center py-16 text-muted-foreground text-sm">
                     Nenhuma conta a pagar para este fornecedor
                   </div>
                 ) : (
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200">
+                    <thead className="bg-muted border-b border-border">
                       <tr>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Número</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Descrição</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Vencimento</th>
-                        <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Status</th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Valor</th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">Pago</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Número</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Descrição</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Vencimento</th>
+                        <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Status</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Valor</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Pago</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-border">
                       {fornecedor.contasPagar.map((c) => (
-                        <tr key={c.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">{c.numero}</td>
-                          <td className="px-4 py-3 text-gray-700 max-w-[240px] truncate" title={c.descricao}>{c.descricao}</td>
-                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                            {c.dataVencimento ? formatDate(c.dataVencimento) : <span className="text-gray-300">—</span>}
+                        <tr key={c.id} className="hover:bg-muted">
+                          <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">{c.numero}</td>
+                          <td className="px-4 py-3 text-foreground max-w-[240px] truncate" title={c.descricao}>{c.descricao}</td>
+                          <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                            {c.dataVencimento ? formatDate(c.dataVencimento) : <span className="text-muted-foreground/60">—</span>}
                           </td>
                           <td className="px-4 py-3">
                             <span className={cn(
                               "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
-                              CONTA_STATUS_COLOR[c.status] ?? "bg-gray-100 text-gray-600"
+                              CONTA_STATUS_COLOR[c.status] ?? "bg-muted text-muted-foreground"
                             )}>
                               {CONTA_STATUS_LABELS[c.status] ?? c.status}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-right font-medium text-gray-800">{formatBRL(decimalToNumber(c.valorOriginal))}</td>
-                          <td className="px-4 py-3 text-right text-emerald-600 font-medium">{formatBRL(decimalToNumber(c.valorPago))}</td>
+                          <td className="px-4 py-3 text-right font-medium text-foreground">{formatBRL(decimalToNumber(c.valorOriginal))}</td>
+                          <td className="px-4 py-3 text-right text-success font-medium">{formatBRL(decimalToNumber(c.valorPago))}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1271,19 +1271,19 @@ export default function FornecedorDetailPage() {
       {/* ── Delete confirmation modal ─────────────────────────────────────── */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md mx-4 p-6">
+          <div className="bg-card rounded-2xl shadow-xl border border-border w-full max-w-md mx-4 p-6">
             <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-danger" />
               </div>
               <div className="flex-1">
-                <h3 className="text-base font-semibold text-gray-900">Excluir fornecedor</h3>
-                <p className="mt-1 text-sm text-gray-500">
+                <h3 className="text-base font-semibold text-foreground">Excluir fornecedor</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
                   Tem certeza que deseja excluir <strong>{fornecedor.nomeFantasia || fornecedor.razaoSocial}</strong>?
                   Esta ação não pode ser desfeita.
                 </p>
                 {deleteError && (
-                  <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <p className="mt-3 text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
                     {deleteError}
                   </p>
                 )}
@@ -1326,8 +1326,8 @@ function InfoRow({
 }) {
   return (
     <div>
-      <p className="text-xs text-gray-500 mb-0.5">{label}</p>
-      <p className={cn("text-sm text-gray-900", mono && "font-mono")}>{value || "—"}</p>
+      <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+      <p className={cn("text-sm text-foreground", mono && "font-mono")}>{value || "—"}</p>
     </div>
   );
 }

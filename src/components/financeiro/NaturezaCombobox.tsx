@@ -187,7 +187,7 @@ export default function NaturezaCombobox({
                         key={n.id} type="button" onClick={() => selecionar(n.id)}
                         className={cn(
                           "w-full flex items-start gap-2 px-3 py-2 text-sm text-left transition-colors",
-                          value === n.id ? "bg-info/10/70 text-info" : "hover:bg-muted text-foreground",
+                          value === n.id ? "bg-info/10 text-info" : "hover:bg-muted text-foreground",
                         )}
                       >
                         <span className="mt-0.5 shrink-0"><Seta tipo={n.tipo} /></span>

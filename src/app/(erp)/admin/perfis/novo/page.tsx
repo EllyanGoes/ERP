@@ -75,13 +75,13 @@ export default function NovoPerfisPage() {
 
       <div className="px-8 pb-12 max-w-3xl space-y-8">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">{error}</div>
+          <div className="bg-danger/10 border border-danger/30 text-danger text-sm px-4 py-3 rounded-xl">{error}</div>
         )}
 
         {/* Dados do perfil */}
-        <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-            <h2 className="text-sm font-semibold text-gray-800">Dados do Perfil</h2>
+        <section className="bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-border bg-muted">
+            <h2 className="text-sm font-semibold text-foreground">Dados do Perfil</h2>
           </div>
           <div className="px-6 py-6 space-y-5">
             <div className="space-y-1.5">
@@ -94,7 +94,7 @@ export default function NovoPerfisPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Descrição <span className="text-gray-400 font-normal text-xs">(opcional)</span></Label>
+              <Label>Descrição <span className="text-muted-foreground font-normal text-xs">(opcional)</span></Label>
               <Textarea
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
@@ -106,16 +106,16 @@ export default function NovoPerfisPage() {
         </section>
 
         {/* Permissões */}
-        <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+        <section className="bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-border bg-muted flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-gray-800">Permissões de Acesso</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Defina quais recursos este perfil pode acessar</p>
+              <h2 className="text-sm font-semibold text-foreground">Permissões de Acesso</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Defina quais recursos este perfil pode acessar</p>
             </div>
             <button
               type="button"
               onClick={() => setPermissoes(permissoes.length === allPerms.length ? [] : [...allPerms])}
-              className="text-xs text-blue-600 hover:underline shrink-0"
+              className="text-xs text-info hover:underline shrink-0"
             >
               {permissoes.length === allPerms.length ? "Desmarcar todos" : "Marcar todos"}
             </button>

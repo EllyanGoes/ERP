@@ -207,16 +207,16 @@ export default function UnidadesPage() {
         <div className="flex gap-4 h-[calc(100vh-180px)] min-h-[500px]">
 
           {/* ── Left panel: unit list ─────────────────────────────────────── */}
-          <div className="w-72 shrink-0 flex flex-col rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <div className="w-72 shrink-0 flex flex-col rounded-xl border border-border bg-card overflow-hidden">
             {/* Search + add */}
-            <div className="p-3 border-b border-gray-100 space-y-2">
+            <div className="p-3 border-b border-border space-y-2">
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Buscar..."
-                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg bg-muted focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <Button size="sm" className="w-full" onClick={() => { setShowCreate(true); setCreateForm({ sigla: "", nome: "" }); setCreateError(""); }}>
@@ -227,9 +227,9 @@ export default function UnidadesPage() {
             {/* List */}
             <div className="flex-1 overflow-y-auto">
               {loading ? (
-                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
+                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
               ) : filteredUnidades.length === 0 ? (
-                <div className="text-center py-10 text-gray-400 text-sm">
+                <div className="text-center py-10 text-muted-foreground text-sm">
                   {search ? "Nenhuma unidade encontrada" : "Nenhuma unidade cadastrada"}
                 </div>
               ) : (
@@ -240,26 +240,26 @@ export default function UnidadesPage() {
                     className={cn(
                       "group flex items-center justify-between px-3 py-2.5 cursor-pointer border-b border-gray-50 transition-colors",
                       selected?.id === u.id
-                        ? "bg-blue-50 border-l-2 border-l-blue-500"
-                        : "hover:bg-gray-50"
+                        ? "bg-info/10 border-l-2 border-l-blue-500"
+                        : "hover:bg-muted"
                     )}
                   >
                     <div className="min-w-0">
-                      <p className={cn("text-sm font-semibold font-mono", selected?.id === u.id ? "text-blue-700" : "text-gray-800")}>
+                      <p className={cn("text-sm font-semibold font-mono", selected?.id === u.id ? "text-info" : "text-foreground")}>
                         {u.sigla}
                       </p>
-                      <p className="text-xs text-gray-500 truncate">{u.nome}</p>
+                      <p className="text-xs text-muted-foreground truncate">{u.nome}</p>
                     </div>
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditUnit(u); setEditForm({ sigla: u.sigla, nome: u.nome }); setEditError(""); }}
-                        className="p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                        className="p-1 rounded text-muted-foreground hover:text-info hover:bg-info/10"
                       >
                         <Pencil className="w-3 h-3" />
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); setDeleteUnit(u); setDeleteError(""); }}
-                        className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                        className="p-1 rounded text-muted-foreground hover:text-danger hover:bg-danger/10"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
@@ -270,15 +270,15 @@ export default function UnidadesPage() {
             </div>
 
             {/* Footer count */}
-            <div className="px-3 py-2 border-t border-gray-100 text-xs text-gray-400">
+            <div className="px-3 py-2 border-t border-border text-xs text-muted-foreground">
               {unidades.length} unidade{unidades.length !== 1 ? "s" : ""}
             </div>
           </div>
 
           {/* ── Right panel: conversions ──────────────────────────────────── */}
-          <div className="flex-1 flex flex-col rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <div className="flex-1 flex flex-col rounded-xl border border-border bg-card overflow-hidden">
             {!selected ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-2">
+              <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
                 <ArrowRight className="w-8 h-8 opacity-20" />
                 <p className="text-sm font-medium">Selecione uma unidade</p>
                 <p className="text-xs">As conversões aparecerão aqui</p>
@@ -286,14 +286,14 @@ export default function UnidadesPage() {
             ) : (
               <>
                 {/* Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                      <span className="font-bold text-blue-700 text-sm font-mono">{selected.sigla}</span>
+                    <div className="w-10 h-10 rounded-xl bg-info/10 flex items-center justify-center">
+                      <span className="font-bold text-info text-sm font-mono">{selected.sigla}</span>
                     </div>
                     <div>
-                      <h2 className="font-semibold text-gray-900">{selected.nome}</h2>
-                      <p className="text-xs text-gray-400">Conversões de <span className="font-mono font-semibold">{selected.sigla}</span></p>
+                      <h2 className="font-semibold text-foreground">{selected.nome}</h2>
+                      <p className="text-xs text-muted-foreground">Conversões de <span className="font-mono font-semibold">{selected.sigla}</span></p>
                     </div>
                   </div>
                   {!showAddConv && (
@@ -305,10 +305,10 @@ export default function UnidadesPage() {
 
                 {/* Add conversion inline form */}
                 {showAddConv && (
-                  <div className="px-5 py-3 bg-blue-50/50 border-b border-blue-100">
-                    <p className="text-xs font-medium text-blue-800 mb-2">Nova conversão</p>
+                  <div className="px-5 py-3 bg-info/10 border-b border-info/20">
+                    <p className="text-xs font-medium text-info mb-2">Nova conversão</p>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-mono font-semibold text-gray-700 shrink-0">1 {selected.sigla} =</span>
+                      <span className="text-sm font-mono font-semibold text-foreground shrink-0">1 {selected.sigla} =</span>
                       <div className="w-28">
                         <Input
                           type="number"
@@ -339,35 +339,35 @@ export default function UnidadesPage() {
                         <X className="w-3.5 h-3.5" />
                       </Button>
                     </div>
-                    {addConvError && <p className="text-xs text-red-600 mt-1">{addConvError}</p>}
+                    {addConvError && <p className="text-xs text-danger mt-1">{addConvError}</p>}
                   </div>
                 )}
 
                 {/* Conversions list */}
                 <div className="flex-1 overflow-y-auto">
                   {convLoading ? (
-                    <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
+                    <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
                   ) : conversoes.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+                    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
                       <p className="text-sm font-medium">Nenhuma conversão cadastrada</p>
                       <p className="text-xs">Clique em &quot;Adicionar&quot; para definir equivalências.</p>
                     </div>
                   ) : (
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
-                        <tr className="text-xs text-gray-400 uppercase tracking-wide">
+                      <thead className="bg-muted border-b border-border sticky top-0">
+                        <tr className="text-xs text-muted-foreground uppercase tracking-wide">
                           <th className="text-left px-5 py-2.5 font-medium">Origem</th>
                           <th className="text-center px-4 py-2.5 font-medium">Fator</th>
                           <th className="text-left px-4 py-2.5 font-medium">Destino</th>
                           <th className="w-20" />
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
+                      <tbody className="divide-y divide-border">
                         {conversoes.map((c) => (
-                          <tr key={c.id} className="group/row hover:bg-gray-50 transition-colors">
+                          <tr key={c.id} className="group/row hover:bg-muted transition-colors">
                             <td className="px-5 py-3">
-                              <span className="font-mono text-sm font-semibold text-gray-800">1 {selected.sigla}</span>
-                              <span className="text-xs text-gray-400 ml-1">({selected.nome})</span>
+                              <span className="font-mono text-sm font-semibold text-foreground">1 {selected.sigla}</span>
+                              <span className="text-xs text-muted-foreground ml-1">({selected.nome})</span>
                             </td>
                             <td className="px-4 py-3 text-center">
                               {editConvId === c.id ? (
@@ -381,17 +381,17 @@ export default function UnidadesPage() {
                                     autoFocus
                                     onKeyDown={(e) => { if (e.key === "Enter") saveEditConv(); if (e.key === "Escape") setEditConvId(null); }}
                                   />
-                                  <button onClick={saveEditConv} disabled={editConvSaving} className="p-1 rounded text-emerald-600 hover:bg-emerald-50">
+                                  <button onClick={saveEditConv} disabled={editConvSaving} className="p-1 rounded text-success hover:bg-success/10">
                                     {editConvSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                                   </button>
-                                  <button onClick={() => setEditConvId(null)} className="p-1 rounded text-gray-400 hover:bg-gray-100">
+                                  <button onClick={() => setEditConvId(null)} className="p-1 rounded text-muted-foreground hover:bg-muted">
                                     <X className="w-3.5 h-3.5" />
                                   </button>
-                                  {editConvError && <span className="text-xs text-red-600 ml-1">{editConvError}</span>}
+                                  {editConvError && <span className="text-xs text-danger ml-1">{editConvError}</span>}
                                 </div>
                               ) : (
                                 <span
-                                  className="inline-block bg-blue-100 text-blue-800 font-bold text-sm px-3 py-0.5 rounded-full font-mono cursor-pointer hover:bg-blue-200 transition-colors"
+                                  className="inline-block bg-info/15 text-info font-bold text-sm px-3 py-0.5 rounded-full font-mono cursor-pointer hover:bg-blue-200 transition-colors"
                                   onClick={() => { setEditConvId(c.id); setEditConvFator(String(toNum(c.fator))); setEditConvError(""); }}
                                   title="Clique para editar"
                                 >
@@ -400,21 +400,21 @@ export default function UnidadesPage() {
                               )}
                             </td>
                             <td className="px-4 py-3">
-                              <span className="font-mono text-sm font-semibold text-gray-800">{c.unidadeDestino.sigla}</span>
-                              <span className="text-xs text-gray-400 ml-1">({c.unidadeDestino.nome})</span>
+                              <span className="font-mono text-sm font-semibold text-foreground">{c.unidadeDestino.sigla}</span>
+                              <span className="text-xs text-muted-foreground ml-1">({c.unidadeDestino.nome})</span>
                             </td>
                             <td className="px-3 py-3">
                               <div className="flex items-center justify-end gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
                                 <button
                                   onClick={() => { setEditConvId(c.id); setEditConvFator(String(toNum(c.fator))); setEditConvError(""); }}
-                                  className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-info hover:bg-info/10"
                                   title="Editar fator"
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => { setDeleteConvId(c.id); setDeleteConvError(""); }}
-                                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-danger hover:bg-danger/10"
                                   title="Excluir"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -430,7 +430,7 @@ export default function UnidadesPage() {
 
                 {/* Footer */}
                 {conversoes.length > 0 && (
-                  <div className="px-5 py-2.5 border-t border-gray-100 text-xs text-gray-400">
+                  <div className="px-5 py-2.5 border-t border-border text-xs text-muted-foreground">
                     {conversoes.length} conversão{conversoes.length !== 1 ? "ões" : ""} cadastrada{conversoes.length !== 1 ? "s" : ""}
                   </div>
                 )}
@@ -443,10 +443,10 @@ export default function UnidadesPage() {
       {/* ── Modal: Create unit ───────────────────────────────────────────────── */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Nova Unidade de Medida</h3>
-              <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              <h3 className="font-semibold text-foreground">Nova Unidade de Medida</h3>
+              <button onClick={() => setShowCreate(false)} className="text-muted-foreground hover:text-muted-foreground"><X className="w-4 h-4" /></button>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
@@ -471,7 +471,7 @@ export default function UnidadesPage() {
                 />
               </div>
             </div>
-            {createError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{createError}</p>}
+            {createError && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{createError}</p>}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowCreate(false)} disabled={createSaving}>Cancelar</Button>
               <Button size="sm" onClick={createUnit} disabled={createSaving || !createForm.sigla.trim() || !createForm.nome.trim()}>
@@ -486,10 +486,10 @@ export default function UnidadesPage() {
       {/* ── Modal: Edit unit ────────────────────────────────────────────────── */}
       {editUnit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Editar Unidade</h3>
-              <button onClick={() => setEditUnit(null)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              <h3 className="font-semibold text-foreground">Editar Unidade</h3>
+              <button onClick={() => setEditUnit(null)} className="text-muted-foreground hover:text-muted-foreground"><X className="w-4 h-4" /></button>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
@@ -510,7 +510,7 @@ export default function UnidadesPage() {
                 />
               </div>
             </div>
-            {editError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>}
+            {editError && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{editError}</p>}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setEditUnit(null)} disabled={editSaving}>Cancelar</Button>
               <Button size="sm" onClick={saveEditUnit} disabled={editSaving || !editForm.sigla.trim() || !editForm.nome.trim()}>
@@ -525,18 +525,18 @@ export default function UnidadesPage() {
       {/* ── Modal: Delete unit ──────────────────────────────────────────────── */}
       {deleteUnit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Excluir unidade?</p>
-                <p className="text-sm text-gray-500 font-mono mt-0.5">{deleteUnit.sigla} — {deleteUnit.nome}</p>
+                <p className="font-semibold text-foreground">Excluir unidade?</p>
+                <p className="text-sm text-muted-foreground font-mono mt-0.5">{deleteUnit.sigla} — {deleteUnit.nome}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-4">Esta ação é permanente. Conversões vinculadas também serão removidas.</p>
-            {deleteError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{deleteError}</p>}
+            <p className="text-sm text-muted-foreground mb-4">Esta ação é permanente. Conversões vinculadas também serão removidas.</p>
+            {deleteError && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">{deleteError}</p>}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setDeleteUnit(null)} disabled={deleteLoading}>Cancelar</Button>
               <Button variant="destructive" size="sm" onClick={confirmDeleteUnit} disabled={deleteLoading}>
@@ -551,14 +551,14 @@ export default function UnidadesPage() {
       {/* ── Modal: Delete conversion ────────────────────────────────────────── */}
       {deleteConvId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Remover conversão?</p>
-                <p className="text-sm text-gray-500 mt-0.5">
+                <p className="font-semibold text-foreground">Remover conversão?</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
                   {(() => {
                     const c = conversoes.find(x => x.id === deleteConvId);
                     return c ? `1 ${selected?.sigla} = ${toNum(c.fator)} ${c.unidadeDestino.sigla}` : "";
@@ -566,8 +566,8 @@ export default function UnidadesPage() {
                 </p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-4">Esta ação é permanente e não pode ser desfeita.</p>
-            {deleteConvError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{deleteConvError}</p>}
+            <p className="text-sm text-muted-foreground mb-4">Esta ação é permanente e não pode ser desfeita.</p>
+            {deleteConvError && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">{deleteConvError}</p>}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setDeleteConvId(null)} disabled={deleteConvLoading}>Cancelar</Button>
               <Button variant="destructive" size="sm" onClick={confirmDeleteConv} disabled={deleteConvLoading}>

@@ -299,13 +299,13 @@ export default function EditarMinutaPage() {
   if (loading) {
     return (
       <div className="px-8 pb-8">
-        <div className="h-20 animate-pulse bg-gray-100 rounded-xl" />
+        <div className="h-20 animate-pulse bg-muted rounded-xl" />
       </div>
     );
   }
 
   if (!minuta) {
-    return <div className="px-8 pb-8 text-gray-500">Minuta não encontrada.</div>;
+    return <div className="px-8 pb-8 text-muted-foreground">Minuta não encontrada.</div>;
   }
 
   const cliente = minuta.pedidoVenda.cliente.nomeFantasia || minuta.pedidoVenda.cliente.razaoSocial;
@@ -321,55 +321,55 @@ export default function EditarMinutaPage() {
         <div className="col-span-2 space-y-6">
 
           {/* Pedido de Venda */}
-          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-200 bg-gray-100">
-              <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Pedido de Venda</h2>
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-border bg-muted">
+              <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Pedido de Venda</h2>
             </div>
             <div className="p-5">
               <div className="flex items-center gap-3">
-                <span className="font-mono font-semibold text-gray-800">{minuta.pedidoVenda.numero}</span>
-                <span className="text-gray-500">·</span>
-                <span className="text-gray-700">{cliente}</span>
+                <span className="font-mono font-semibold text-foreground">{minuta.pedidoVenda.numero}</span>
+                <span className="text-muted-foreground">·</span>
+                <span className="text-foreground">{cliente}</span>
               </div>
             </div>
           </div>
 
           {/* Itens */}
-          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-200 bg-gray-100">
-              <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Itens a {tipo === "RETIRADA" ? "Retirar" : "Entregar"}</h2>
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-border bg-muted">
+              <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Itens a {tipo === "RETIRADA" ? "Retirar" : "Entregar"}</h2>
             </div>
             {rows.length === 0 ? (
-              <div className="p-8 text-center text-gray-400 text-sm">
+              <div className="p-8 text-center text-muted-foreground text-sm">
                 Esta minuta não tem itens.
               </div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500">Produto</th>
-                    <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-32">Saldo</th>
-                    <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-40">Qtd. {tipo === "RETIRADA" ? "Retirada" : "Entrega"}</th>
-                    <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500 w-32">Unidade</th>
+                  <tr className="bg-muted border-b border-border">
+                    <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-muted-foreground">Produto</th>
+                    <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-muted-foreground w-32">Saldo</th>
+                    <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-muted-foreground w-40">Qtd. {tipo === "RETIRADA" ? "Retirada" : "Entrega"}</th>
+                    <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-muted-foreground w-32">Unidade</th>
                     <th className="px-2 py-3 w-10"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {rows.map((r, idx) => (
-                    <tr key={r.pvItemId} className="hover:bg-gray-50">
+                    <tr key={r.pvItemId} className="hover:bg-muted">
                       <td className="px-4 py-3 align-middle">
-                        <div className="font-medium text-gray-800">{r.descricao}</div>
-                        <div className="text-xs text-gray-400">{r.codigo}</div>
+                        <div className="font-medium text-foreground">{r.descricao}</div>
+                        <div className="text-xs text-muted-foreground">{r.codigo}</div>
                       </td>
-                      <td className="px-4 py-3 text-right align-middle text-gray-600 tabular-nums">
-                        {fmtQty(r.saldoDisponivel)} <span className="text-gray-400 text-xs">{r.unidadeBase}</span>
+                      <td className="px-4 py-3 text-right align-middle text-muted-foreground tabular-nums">
+                        {fmtQty(r.saldoDisponivel)} <span className="text-muted-foreground text-xs">{r.unidadeBase}</span>
                       </td>
                       <td className="px-4 py-3 align-middle">
                         <Input
                           inputMode="decimal"
                           value={r.quantidade}
                           onChange={e => updateRow(idx, "quantidade", e.target.value)}
-                          className="h-8 w-full text-right text-sm font-semibold border-blue-400 bg-blue-50 text-blue-900 focus-visible:border-blue-500 focus-visible:ring-blue-500"
+                          className="h-8 w-full text-right text-sm font-semibold border-blue-400 bg-info/10 text-blue-900 focus-visible:border-blue-500 focus-visible:ring-blue-500"
                         />
                       </td>
                       <td className="px-4 py-3 align-middle">
@@ -378,7 +378,7 @@ export default function EditarMinutaPage() {
                             value={r.unidadeId}
                             onValueChange={(v) => updateRow(idx, "unidadeId", v)}
                           >
-                            <SelectTrigger className="h-8 border-gray-300 text-sm">
+                            <SelectTrigger className="h-8 border-border text-sm">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -395,14 +395,14 @@ export default function EditarMinutaPage() {
                             </SelectContent>
                           </Select>
                         ) : (
-                          <span className="text-gray-500 text-sm px-1">{r.unidadeBase}</span>
+                          <span className="text-muted-foreground text-sm px-1">{r.unidadeBase}</span>
                         )}
                       </td>
                       <td className="px-2 py-3 align-middle text-center">
                         <button
                           type="button"
                           onClick={() => removeRow(idx)}
-                          className="text-gray-300 hover:text-red-500 transition-colors"
+                          className="text-muted-foreground/60 hover:text-red-500 transition-colors"
                           title="Remover item da minuta"
                         >
                           <X className="w-4 h-4" />
@@ -414,9 +414,9 @@ export default function EditarMinutaPage() {
               </table>
             )}
             {itensAdicionaveis.length > 0 && (
-              <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+              <div className="px-4 py-3 border-t border-border bg-muted">
                 <Select value="" onValueChange={addItem}>
-                  <SelectTrigger className="h-9 w-auto gap-2 border-dashed border-gray-300 text-sm text-gray-600">
+                  <SelectTrigger className="h-9 w-auto gap-2 border-dashed border-border text-sm text-muted-foreground">
                     <Plus className="w-4 h-4" />
                     <SelectValue placeholder="Adicionar item do pedido..." />
                   </SelectTrigger>
@@ -424,7 +424,7 @@ export default function EditarMinutaPage() {
                     {itensAdicionaveis.map(pv => (
                       <SelectItem key={pv.id} value={pv.id}>
                         {pv.item.descricao}
-                        <span className="text-gray-400">
+                        <span className="text-muted-foreground">
                           {" "}— saldo {fmtQty(calcSaldo(pv))} {pv.item.unidade?.sigla ?? "UN"}
                         </span>
                       </SelectItem>
@@ -440,15 +440,15 @@ export default function EditarMinutaPage() {
         <div className="col-span-1 space-y-4">
 
           {/* Logística */}
-          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-200 bg-gray-100">
-              <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Logística</h2>
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-border bg-muted">
+              <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Logística</h2>
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Status</label>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Status</label>
                 <Select value={status} onValueChange={(v) => setStatus(v as StatusMinuta)}>
-                  <SelectTrigger className="h-10 border-gray-300">
+                  <SelectTrigger className="h-10 border-border">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -458,23 +458,23 @@ export default function EditarMinutaPage() {
                     <SelectItem value="CANCELADA">{statusMinutaLabel("CANCELADA", tipo)}</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-muted-foreground">
                   O estoque é ajustado automaticamente conforme o status.
                 </p>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Nº da Minuta Física</label>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Nº da Minuta Física</label>
                 <Input
                   value={numeroFisico}
                   onChange={e => setNumeroFisico(e.target.value)}
-                  className="h-10 border-gray-300"
+                  className="h-10 border-border"
                   placeholder="Número do bloco físico"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Tipo</label>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Tipo</label>
                 <Select value={tipo} onValueChange={(v) => setTipo(v as "ENTREGA" | "RETIRADA")}>
-                  <SelectTrigger className="h-10 border-gray-300">
+                  <SelectTrigger className="h-10 border-border">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -484,14 +484,14 @@ export default function EditarMinutaPage() {
                 </Select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Local de Estoque {precisaLocal && <span className="text-red-500">*</span>}</label>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Local de Estoque {precisaLocal && <span className="text-red-500">*</span>}</label>
                 <Select value={localEstoqueId} onValueChange={setLocalEstoqueId}>
-                  <SelectTrigger className="h-10 border-gray-300">
+                  <SelectTrigger className="h-10 border-border">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
                     {locais.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-gray-400 italic">Nenhum local cadastrado</div>
+                      <div className="px-3 py-2 text-xs text-muted-foreground italic">Nenhum local cadastrado</div>
                     ) : locais.map(l => (
                       <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
                     ))}
@@ -499,23 +499,23 @@ export default function EditarMinutaPage() {
                 </Select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Data de {tipo === "RETIRADA" ? "Retirada" : "Entrega"}</label>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Data de {tipo === "RETIRADA" ? "Retirada" : "Entrega"}</label>
                 <Input
                   type="date"
                   value={dataEntrega}
                   onChange={e => setDataEntrega(e.target.value)}
-                  className="h-10 border-gray-300"
+                  className="h-10 border-border"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Motorista</label>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Motorista</label>
                 <Select value={motoristaId} onValueChange={setMotoristaId}>
-                  <SelectTrigger className="h-10 border-gray-300">
+                  <SelectTrigger className="h-10 border-border">
                     <SelectValue placeholder="Selecione o motorista..." />
                   </SelectTrigger>
                   <SelectContent>
                     {motoristas.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-gray-400 italic">Nenhum motorista cadastrado</div>
+                      <div className="px-3 py-2 text-xs text-muted-foreground italic">Nenhum motorista cadastrado</div>
                     ) : motoristas.map(m => (
                       <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
                     ))}
@@ -523,11 +523,11 @@ export default function EditarMinutaPage() {
                 </Select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Placa</label>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Placa</label>
                 <Input
                   value={placa}
                   onChange={e => setPlaca(e.target.value)}
-                  className="h-10 border-gray-300"
+                  className="h-10 border-border"
                   placeholder="AAA-0000"
                 />
               </div>
@@ -535,9 +535,9 @@ export default function EditarMinutaPage() {
           </div>
 
           {/* Observações */}
-          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-200 bg-gray-100">
-              <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Observações</h2>
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-border bg-muted">
+              <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Observações</h2>
             </div>
             <div className="p-5">
               <Textarea
@@ -545,7 +545,7 @@ export default function EditarMinutaPage() {
                 onChange={e => setObservacoes(e.target.value)}
                 rows={4}
                 placeholder={`Observações sobre a ${tipo === "RETIRADA" ? "retirada" : "entrega"}...`}
-                className="resize-none border-gray-300"
+                className="resize-none border-border"
               />
             </div>
           </div>
@@ -555,7 +555,7 @@ export default function EditarMinutaPage() {
       {/* Error */}
       {error && (
         <div className={cn(
-          "flex items-center gap-2 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"
+          "flex items-center gap-2 px-4 py-3 rounded-lg bg-danger/10 border border-danger/30 text-danger text-sm"
         )}>
           <AlertCircle className="w-4 h-4 shrink-0" />
           {error}
@@ -567,7 +567,7 @@ export default function EditarMinutaPage() {
         <Button onClick={handleSave} disabled={saving || (precisaLocal && !localEstoqueId)} className="font-semibold">
           {saving ? "Salvando..." : "Salvar Alterações"}
         </Button>
-        <Button variant="outline" onClick={() => router.back()} className="border-gray-300 text-gray-600">
+        <Button variant="outline" onClick={() => router.back()} className="border-border text-muted-foreground">
           Cancelar
         </Button>
       </div>

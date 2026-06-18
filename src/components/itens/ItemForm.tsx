@@ -191,12 +191,12 @@ export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
                     type="checkbox"
                     checked={!!field.value}
                     onChange={(e) => field.onChange(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300"
+                    className="h-4 w-4 rounded border-border"
                   />
                 </FormControl>
                 <div>
                   <FormLabel className="!mt-0">Item de comodato (vasilhame retornável)</FormLabel>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     Pallets, engradados e outros itens emprestados ao cliente que devem retornar. Itens marcados aqui aparecem na tela de Comodato.
                   </p>
                 </div>
@@ -210,7 +210,7 @@ export default function ItemForm({ item }: { item?: ItemWithEstoque }) {
         )} />
 
         {serverError && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
             {serverError}
           </div>
         )}

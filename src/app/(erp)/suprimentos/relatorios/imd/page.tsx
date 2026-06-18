@@ -47,48 +47,48 @@ function defaultRange(): DateRange {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const IMD_OPTIONS: FilterOption[] = [
-  { key: "todos",     label: "Todas",                color: "bg-gray-100 text-gray-600" },
-  { key: "ESTOCAVEL", label: "Estocável  (IMD > 5)", color: "bg-emerald-100 text-emerald-700" },
-  { key: "MTO",       label: "MTO  (IMD 2 a 5)",     color: "bg-blue-100 text-blue-700" },
-  { key: "OBSOLETO",  label: "Obsoleto  (IMD < 2)",  color: "bg-red-100 text-red-700" },
+  { key: "todos",     label: "Todas",                color: "bg-muted text-muted-foreground" },
+  { key: "ESTOCAVEL", label: "Estocável  (IMD > 5)", color: "bg-success/15 text-success" },
+  { key: "MTO",       label: "MTO  (IMD 2 a 5)",     color: "bg-info/15 text-info" },
+  { key: "OBSOLETO",  label: "Obsoleto  (IMD < 2)",  color: "bg-danger/15 text-danger" },
 ];
 
 const CAT_STYLES = {
   ESTOCAVEL: {
-    badge:   "bg-emerald-100 text-emerald-700",
-    card:    "border-emerald-200 bg-emerald-50",
-    title:   "text-emerald-700",
-    value:   "text-emerald-800",
-    sub:     "text-emerald-600",
-    imd:     "text-emerald-700 font-bold",
-    icon:    <Package className="w-5 h-5 text-emerald-600" />,
-    iconBg:  "bg-emerald-100",
+    badge:   "bg-success/15 text-success",
+    card:    "border-success/30 bg-success/10",
+    title:   "text-success",
+    value:   "text-success",
+    sub:     "text-success",
+    imd:     "text-success font-bold",
+    icon:    <Package className="w-5 h-5 text-success" />,
+    iconBg:  "bg-success/15",
     label:   "Estocável",
     range:   "IMD > 5",
     hint:    "Alta frequência — deve permanecer em estoque.",
   },
   MTO: {
-    badge:   "bg-blue-100 text-blue-700",
-    card:    "border-blue-200 bg-blue-50",
-    title:   "text-blue-700",
-    value:   "text-blue-800",
-    sub:     "text-blue-600",
-    imd:     "text-blue-700 font-bold",
-    icon:    <Truck className="w-5 h-5 text-blue-600" />,
-    iconBg:  "bg-blue-100",
+    badge:   "bg-info/15 text-info",
+    card:    "border-info/30 bg-info/10",
+    title:   "text-info",
+    value:   "text-info",
+    sub:     "text-info",
+    imd:     "text-info font-bold",
+    icon:    <Truck className="w-5 h-5 text-info" />,
+    iconBg:  "bg-info/15",
     label:   "MTO — Make to Order",
     range:   "IMD entre 2 e 5",
     hint:    "Demanda irregular — comprar conforme necessidade.",
   },
   OBSOLETO: {
-    badge:   "bg-red-100 text-red-700",
-    card:    "border-red-200 bg-red-50",
-    title:   "text-red-700",
-    value:   "text-red-800",
-    sub:     "text-red-600",
-    imd:     "text-red-600 font-bold",
-    icon:    <AlertTriangle className="w-5 h-5 text-red-600" />,
-    iconBg:  "bg-red-100",
+    badge:   "bg-danger/15 text-danger",
+    card:    "border-danger/30 bg-danger/10",
+    title:   "text-danger",
+    value:   "text-danger",
+    sub:     "text-danger",
+    imd:     "text-danger font-bold",
+    icon:    <AlertTriangle className="w-5 h-5 text-danger" />,
+    iconBg:  "bg-danger/15",
     label:   "Obsoleto",
     range:   "IMD < 2",
     hint:    "Baixíssima demanda — reavaliar necessidade de estoque.",
@@ -159,8 +159,8 @@ export default function ImdPage() {
   }, [fetchData, periodo.from, periodo.to]);
 
   const LOCAL_OPTIONS: FilterOption[] = [
-    { key: "",    label: "Todos os locais", color: "bg-gray-100 text-gray-600" },
-    ...locais.map((l) => ({ key: l.id, label: l.nome, color: "bg-blue-100 text-blue-700" })),
+    { key: "",    label: "Todos os locais", color: "bg-muted text-muted-foreground" },
+    ...locais.map((l) => ({ key: l.id, label: l.nome, color: "bg-info/15 text-info" })),
   ];
 
   const hasFilters = !!(search || imdFilter !== "todos" || localId);
@@ -215,32 +215,32 @@ export default function ImdPage() {
             Atualizar
           </button>
 
-          <div className="w-px h-6 bg-gray-200 mx-1" />
+          <div className="w-px h-6 bg-muted mx-1" />
 
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
               type="text" value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar produto..."
-              className="pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-52"
+              className="pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-52"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
           <FilterDropdown label="Categoria" options={IMD_OPTIONS} value={imdFilter} onChange={setImdFilter} allKey="todos" placeholder="Categoria..." />
           {hasFilters && (
-            <button onClick={() => { setSearch(""); setImdFilter("todos"); }} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600">
+            <button onClick={() => { setSearch(""); setImdFilter("todos"); }} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-muted-foreground">
               <X className="w-3 h-3" /> Limpar
             </button>
           )}
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{error}</div>
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-xl text-sm">{error}</div>
         )}
 
         {/* ── KPI Cards ─────────────────────────────────────────────────────── */}
@@ -249,9 +249,9 @@ export default function ImdPage() {
 
             {/* Alert: obsoletos com estoque */}
             {obsoletosComEstoque > 0 && (
-              <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                <p className="text-sm text-amber-700">
+              <div className="flex items-center gap-3 bg-warning/10 border border-warning/30 rounded-xl px-4 py-3">
+                <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+                <p className="text-sm text-warning">
                   <strong>{obsoletosComEstoque} {obsoletosComEstoque === 1 ? "item obsoleto" : "itens obsoletos"}</strong> com estoque imobilizado.
                   Avalie a possibilidade de devolução, descarte ou transferência.
                 </p>
@@ -276,8 +276,8 @@ export default function ImdPage() {
                     </div>
                     <div className="mt-3 space-y-1">
                       <p className={cn("text-xs font-medium", s.sub)}>{s.range}</p>
-                      <p className="text-xs text-gray-400">{pct}% do total de itens</p>
-                      <p className="text-[11px] text-gray-400 leading-snug">{s.hint}</p>
+                      <p className="text-xs text-muted-foreground">{pct}% do total de itens</p>
+                      <p className="text-[11px] text-muted-foreground leading-snug">{s.hint}</p>
                     </div>
                   </div>
                 );
@@ -290,8 +290,8 @@ export default function ImdPage() {
               const m = Math.round((summary.mto       / summary.totalItems) * 100);
               const o = Math.round((summary.obsoleto  / summary.totalItems) * 100);
               return (
-                <div className="rounded-xl border border-gray-200 bg-white px-5 py-4">
-                  <p className="text-xs font-semibold text-gray-500 mb-3">Distribuição dos Itens por Categoria IMD</p>
+                <div className="rounded-xl border border-border bg-card px-5 py-4">
+                  <p className="text-xs font-semibold text-muted-foreground mb-3">Distribuição dos Itens por Categoria IMD</p>
                   <div className="flex h-6 rounded-lg overflow-hidden gap-px">
                     {e > 0 && (
                       <div className="bg-emerald-400 flex items-center justify-center text-white text-[10px] font-bold" style={{ width: `${e}%` }}>
@@ -314,7 +314,7 @@ export default function ImdPage() {
                       const s = CAT_STYLES[cat];
                       const barColor = cat === "ESTOCAVEL" ? "bg-emerald-400" : cat === "MTO" ? "bg-blue-400" : "bg-red-400";
                       return (
-                        <span key={cat} className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <span key={cat} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <span className={cn("w-3 h-3 rounded shrink-0", barColor)} />
                           {s.label}
                         </span>
@@ -330,17 +330,17 @@ export default function ImdPage() {
 
         {/* ── Table ─────────────────────────────────────────────────────────── */}
         {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         ) : sorted.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
             <Layers className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="font-medium">{hasFilters ? "Nenhum item encontrado" : "Nenhum item cadastrado"}</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-gray-200 overflow-hidden">
+          <div className="rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide">
+                <tr className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                   <th className="text-left px-4 py-3 font-medium">Código</th>
                   <th className="text-left px-4 py-3 font-medium">Descrição</th>
                   <th className="text-left px-4 py-3 font-medium">Und.</th>
@@ -351,7 +351,7 @@ export default function ImdPage() {
                   <th className="text-right px-4 py-3 font-medium">Estoque Atual</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {sorted.map((row) => {
                   const s   = CAT_STYLES[row.categoriaIMD];
                   const bar = imdBar(row.imd);
@@ -361,35 +361,35 @@ export default function ImdPage() {
                     <tr
                       key={row.itemId}
                       className={cn(
-                        "hover:bg-gray-50 transition-colors",
-                        obsoleteWithStock && "bg-red-50/30"
+                        "hover:bg-muted transition-colors",
+                        obsoleteWithStock && "bg-danger/10"
                       )}
                     >
                       <td className="px-4 py-3">
-                        <Link href={`/suprimentos/produtos/${row.itemId}`} className="font-mono text-xs text-blue-600 hover:underline">
+                        <Link href={`/suprimentos/produtos/${row.itemId}`} className="font-mono text-xs text-info hover:underline">
                           {row.codigo}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-gray-800 font-medium">
+                      <td className="px-4 py-3 text-foreground font-medium">
                         {row.descricao}
-                        {row.tipoProduto && <span className="ml-2 text-xs text-gray-400 font-normal">{row.tipoProduto}</span>}
+                        {row.tipoProduto && <span className="ml-2 text-xs text-muted-foreground font-normal">{row.tipoProduto}</span>}
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs font-mono">{row.unidade}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs font-mono">{row.unidade}</td>
 
                       {/* Meses com consumo */}
                       <td className="px-4 py-3 text-right">
-                        <span className={cn("text-sm tabular-nums font-semibold", row.mesesComConsumo > 0 ? "text-emerald-700" : "text-gray-300")}>
+                        <span className={cn("text-sm tabular-nums font-semibold", row.mesesComConsumo > 0 ? "text-success" : "text-muted-foreground/60")}>
                           {row.mesesComConsumo}
                         </span>
-                        <span className="text-xs text-gray-400 ml-1">/{periodMonths}</span>
+                        <span className="text-xs text-muted-foreground ml-1">/{periodMonths}</span>
                       </td>
 
                       {/* Meses sem consumo */}
                       <td className="px-4 py-3 text-right">
-                        <span className={cn("text-sm tabular-nums font-semibold", row.mesesSemConsumo === 36 ? "text-red-600" : "text-gray-600")}>
+                        <span className={cn("text-sm tabular-nums font-semibold", row.mesesSemConsumo === 36 ? "text-danger" : "text-muted-foreground")}>
                           {row.mesesSemConsumo}
                         </span>
-                        <span className="text-xs text-gray-400 ml-1">/{periodMonths}</span>
+                        <span className="text-xs text-muted-foreground ml-1">/{periodMonths}</span>
                       </td>
 
                       {/* IMD com barra visual */}
@@ -398,7 +398,7 @@ export default function ImdPage() {
                           <span className={cn("text-sm tabular-nums w-8 text-right shrink-0", s.imd)}>
                             {imdDisplay}
                           </span>
-                          <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden min-w-[60px]">
+                          <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden min-w-[60px]">
                             <div
                               className={cn("h-2 rounded-full transition-all", bar.color)}
                               style={{ width: `${bar.pct}%` }}
@@ -422,11 +422,11 @@ export default function ImdPage() {
 
                       {/* Estoque */}
                       <td className="px-4 py-3 text-right">
-                        <span className={cn("text-sm tabular-nums font-medium", row.estoqueAtual <= 0 ? "text-gray-300" : "text-gray-800")}>
+                        <span className={cn("text-sm tabular-nums font-medium", row.estoqueAtual <= 0 ? "text-muted-foreground/60" : "text-foreground")}>
                           {row.estoqueAtual > 0
                             ? row.estoqueAtual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })
                             : "0"}
-                          <span className="text-xs font-normal text-gray-400 ml-1">{row.unidade}</span>
+                          <span className="text-xs font-normal text-muted-foreground ml-1">{row.unidade}</span>
                         </span>
                       </td>
                     </tr>
@@ -435,8 +435,8 @@ export default function ImdPage() {
               </tbody>
 
               <tfoot>
-                <tr className="border-t-2 border-gray-200 bg-gray-50">
-                  <td colSpan={8} className="px-4 py-2.5 text-xs font-medium text-gray-500">
+                <tr className="border-t-2 border-border bg-muted">
+                  <td colSpan={8} className="px-4 py-2.5 text-xs font-medium text-muted-foreground">
                     {sorted.length} {sorted.length === 1 ? "item" : "itens"}
                     {hasFilters && rows.length !== sorted.length && ` (de ${rows.length})`}
                   </td>
@@ -447,14 +447,14 @@ export default function ImdPage() {
         )}
 
         {/* ── Metodologia ───────────────────────────────────────────────────── */}
-        <div className="rounded-xl border border-gray-100 bg-gray-50 px-5 py-4">
+        <div className="rounded-xl border border-border bg-muted px-5 py-4">
           <div className="flex items-start gap-2">
-            <Info className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-            <div className="space-y-3 text-xs text-gray-500 leading-relaxed">
-              <p className="font-semibold text-gray-700">Metodologia — IMD (Intervalo Médio entre Demandas)</p>
+            <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+            <div className="space-y-3 text-xs text-muted-foreground leading-relaxed">
+              <p className="font-semibold text-foreground">Metodologia — IMD (Intervalo Médio entre Demandas)</p>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
-                  <p className="font-medium text-gray-600 mb-1">Fórmula</p>
+                  <p className="font-medium text-muted-foreground mb-1">Fórmula</p>
                   <p>
                     <strong>IMD = Meses com Consumo ÷ Meses sem Consumo</strong>{" "}
                     (período de análise: {periodMonths} meses).
@@ -464,11 +464,11 @@ export default function ImdPage() {
                   </p>
                 </div>
                 <div>
-                  <p className="font-medium text-gray-600 mb-1">Classificação</p>
+                  <p className="font-medium text-muted-foreground mb-1">Classificação</p>
                   <ul className="space-y-1">
-                    <li><strong className="text-emerald-700">Estocável (IMD &gt; 5)</strong> — alta frequência; manter em estoque.</li>
-                    <li><strong className="text-blue-700">MTO (IMD 2–5)</strong> — demanda irregular; comprar por necessidade.</li>
-                    <li><strong className="text-red-600">Obsoleto (IMD &lt; 2)</strong> — baixíssima demanda; avaliar descarte ou devolução.</li>
+                    <li><strong className="text-success">Estocável (IMD &gt; 5)</strong> — alta frequência; manter em estoque.</li>
+                    <li><strong className="text-info">MTO (IMD 2–5)</strong> — demanda irregular; comprar por necessidade.</li>
+                    <li><strong className="text-danger">Obsoleto (IMD &lt; 2)</strong> — baixíssima demanda; avaliar descarte ou devolução.</li>
                   </ul>
                 </div>
               </div>

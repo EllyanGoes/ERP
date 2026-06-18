@@ -183,7 +183,7 @@ export default function ComboboxWithCreate({
         onClick={() => setOpen((p) => !p)}
         className={cn(
           "w-full flex items-center justify-between gap-2 h-9 px-3 rounded-md border border-input bg-background text-sm transition-colors",
-          "hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0",
+          "hover:border-border focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0",
           disabled && "opacity-50 cursor-not-allowed",
           triggerClassName
         )}
@@ -193,7 +193,7 @@ export default function ComboboxWithCreate({
             ? selected.render
               ? selected.render()
               : selected.code
-                ? <><span className="font-bold text-gray-900">[{selected.code}]</span><span>{selected.label.replace(`[${selected.code}] `, "")}</span></>
+                ? <><span className="font-bold text-foreground">[{selected.code}]</span><span>{selected.label.replace(`[${selected.code}] `, "")}</span></>
                 : selected.label
             : placeholder}
         </span>
@@ -212,21 +212,21 @@ export default function ComboboxWithCreate({
             width:    dropdownPos.width,
             zIndex:   9999,
           }}
-          className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden flex flex-col"
+          className="bg-card rounded-xl border border-border shadow-lg overflow-hidden flex flex-col"
         >
           {/* Search */}
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
-            <Search className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+            <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
             <input
               ref={inputRef}
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar..."
-              className="flex-1 text-sm outline-none bg-transparent placeholder:text-gray-400"
+              className="flex-1 text-sm outline-none bg-transparent placeholder:text-muted-foreground"
             />
             {search && (
-              <button type="button" onClick={() => setSearch("")} className="text-gray-300 hover:text-gray-500">
+              <button type="button" onClick={() => setSearch("")} className="text-muted-foreground/60 hover:text-muted-foreground">
                 <X className="w-3 h-3" />
               </button>
             )}
@@ -239,17 +239,17 @@ export default function ComboboxWithCreate({
                 type="button"
                 onClick={() => select("")}
                 className={cn(
-                  "w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left",
-                  value === "" && "bg-blue-50/60 text-blue-700"
+                  "w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted transition-colors text-left",
+                  value === "" && "bg-info/10 text-info"
                 )}
               >
-                <span className="text-gray-500 italic">{noneLabel}</span>
-                {value === "" && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                <span className="text-muted-foreground italic">{noneLabel}</span>
+                {value === "" && <Check className="w-3.5 h-3.5 text-info" />}
               </button>
             )}
 
             {filtered.length === 0 && !showCreate && (
-              <p className="px-3 py-4 text-xs text-gray-400 text-center">
+              <p className="px-3 py-4 text-xs text-muted-foreground text-center">
                 {search ? "Nenhum resultado" : "Nenhuma opção disponível"}
               </p>
             )}
@@ -271,10 +271,10 @@ export default function ComboboxWithCreate({
                     className={cn(
                       "w-full flex items-center justify-between px-3 py-2 text-sm transition-colors text-left",
                       isDisabled
-                        ? "cursor-not-allowed bg-emerald-50/50 text-gray-400"
+                        ? "cursor-not-allowed bg-success/10 text-muted-foreground"
                         : isSelected
-                        ? "bg-blue-50/60 text-blue-700 hover:bg-blue-50"
-                        : "hover:bg-gray-50"
+                        ? "bg-info/10 text-info hover:bg-info/10"
+                        : "hover:bg-muted"
                     )}
                   >
                     {/* Label — custom render, or bold code + blue saldo */}
@@ -283,10 +283,10 @@ export default function ComboboxWithCreate({
                         opt.render()
                       ) : opt.code ? (
                         <span className="flex items-baseline gap-1.5">
-                          <span className="font-bold text-gray-900 shrink-0">[{opt.code}]</span>
+                          <span className="font-bold text-foreground shrink-0">[{opt.code}]</span>
                           <span className="truncate">{opt.label.replace(`[${opt.code}] `, "")}</span>
                           {opt.saldo !== undefined && opt.saldo !== null && (
-                            <span className="ml-1 text-xs font-semibold text-blue-600 shrink-0">
+                            <span className="ml-1 text-xs font-semibold text-info shrink-0">
                               {opt.saldo.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                             </span>
                           )}
@@ -296,12 +296,12 @@ export default function ComboboxWithCreate({
                       )}
                     </span>
                     {isDisabled && (
-                      <span className="flex items-center gap-1 shrink-0 text-emerald-600">
+                      <span className="flex items-center gap-1 shrink-0 text-success">
                         <Check className="w-3.5 h-3.5" />
                         <span className="text-[10px] font-semibold leading-none">vinculado</span>
                       </span>
                     )}
-                    {!isDisabled && isSelected && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                    {!isDisabled && isSelected && <Check className="w-3.5 h-3.5 text-info shrink-0" />}
                   </button>
                 );
               };
@@ -311,9 +311,9 @@ export default function ComboboxWithCreate({
                   {disabledOpts.map(renderOpt)}
                   {showSeparator && (
                     <div className="flex items-center gap-2 px-3 py-1.5">
-                      <div className="flex-1 h-px bg-gray-100" />
-                      <span className="text-[10px] font-semibold text-gray-300 uppercase tracking-wider">Disponíveis</span>
-                      <div className="flex-1 h-px bg-gray-100" />
+                      <div className="flex-1 h-px bg-muted" />
+                      <span className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">Disponíveis</span>
+                      <div className="flex-1 h-px bg-muted" />
                     </div>
                   )}
                   {availableOpts.map(renderOpt)}
@@ -324,19 +324,19 @@ export default function ComboboxWithCreate({
 
           {/* Create option */}
           {showCreate && (
-            <div className="border-t border-gray-100 py-1">
+            <div className="border-t border-border py-1">
               <button
                 type="button"
                 onClick={handleCreate}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors text-left"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-info hover:bg-info/10 transition-colors text-left"
               >
                 <Plus className="w-3.5 h-3.5 shrink-0" />
                 <span>Criar</span>
-                <span className="font-medium bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded text-xs truncate max-w-[160px]">
+                <span className="font-medium bg-muted text-foreground px-1.5 py-0.5 rounded text-xs truncate max-w-[160px]">
                   {search.trim()}
                 </span>
                 {createLabel && (
-                  <span className="text-gray-400 text-xs ml-auto shrink-0">{createLabel}</span>
+                  <span className="text-muted-foreground text-xs ml-auto shrink-0">{createLabel}</span>
                 )}
               </button>
             </div>

@@ -75,10 +75,10 @@ export default function DashboardCharts({ data }: DashboardChartsProps) {
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload?.length) {
       return (
-        <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm text-xs">
-          <p className="font-semibold text-gray-700 mb-1">{MESES_FULL[label] ?? label}</p>
-          <p className="text-blue-600 font-bold">{formatBRL(Number(payload[0].value))}</p>
-          <p className="text-gray-400 mt-0.5">Clique para detalhes</p>
+        <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-sm text-xs">
+          <p className="font-semibold text-foreground mb-1">{MESES_FULL[label] ?? label}</p>
+          <p className="text-info font-bold">{formatBRL(Number(payload[0].value))}</p>
+          <p className="text-muted-foreground mt-0.5">Clique para detalhes</p>
         </div>
       );
     }
@@ -87,11 +87,11 @@ export default function DashboardCharts({ data }: DashboardChartsProps) {
 
   return (
     <>
-      <Card className="border-gray-100">
+      <Card className="border-border">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold text-gray-700">
+          <CardTitle className="text-sm font-semibold text-foreground">
             Receita dos Últimos 12 Meses
-            <span className="ml-2 text-xs font-normal text-gray-400">— clique em uma barra para detalhar</span>
+            <span className="ml-2 text-xs font-normal text-muted-foreground">— clique em uma barra para detalhar</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -139,7 +139,7 @@ export default function DashboardCharts({ data }: DashboardChartsProps) {
         <SheetContent side="right" className="w-full max-w-xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-blue-600" />
+              <TrendingUp className="w-4 h-4 text-info" />
               Receita — {selected ? `${MESES_FULL[selected.mes] ?? selected.mes} ${selected.key.split("-")[0]}` : ""}
             </SheetTitle>
             <SheetDescription>
@@ -151,27 +151,27 @@ export default function DashboardCharts({ data }: DashboardChartsProps) {
             {loading && (
               <div className="flex items-center justify-center py-16">
                 <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                <span className="ml-2 text-sm text-gray-500">Carregando...</span>
+                <span className="ml-2 text-sm text-muted-foreground">Carregando...</span>
               </div>
             )}
 
             {!loading && detail && (
               <>
                 {/* Summary */}
-                <div className="bg-blue-50 rounded-xl px-4 py-3 mb-5 flex items-center justify-between">
-                  <span className="text-sm text-blue-700 font-medium">Total recebido no mês</span>
-                  <span className="text-xl font-bold text-blue-800">{formatBRL(detail.total)}</span>
+                <div className="bg-info/10 rounded-xl px-4 py-3 mb-5 flex items-center justify-between">
+                  <span className="text-sm text-info font-medium">Total recebido no mês</span>
+                  <span className="text-xl font-bold text-info">{formatBRL(detail.total)}</span>
                 </div>
 
                 {detail.contas.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400 text-sm">
+                  <div className="text-center py-12 text-muted-foreground text-sm">
                     Nenhum recebimento registrado neste mês.
                   </div>
                 ) : (
                   <div className="space-y-0 border rounded-lg overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="bg-gray-50 text-xs text-gray-400 uppercase border-b">
+                        <tr className="bg-muted text-xs text-muted-foreground uppercase border-b">
                           <th className="text-left px-4 py-2.5">Nº / Cliente</th>
                           <th className="text-left px-4 py-2.5">Descrição</th>
                           <th className="text-right px-4 py-2.5">Recebido</th>
@@ -181,26 +181,26 @@ export default function DashboardCharts({ data }: DashboardChartsProps) {
                       </thead>
                       <tbody>
                         {detail.contas.map((c) => (
-                          <tr key={c.id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
+                          <tr key={c.id} className="border-b last:border-0 hover:bg-muted transition-colors">
                             <td className="px-4 py-3">
-                              <p className="font-mono text-xs text-gray-500">{c.numero}</p>
-                              <p className="font-medium text-gray-800 text-xs mt-0.5 truncate max-w-[140px]">
+                              <p className="font-mono text-xs text-muted-foreground">{c.numero}</p>
+                              <p className="font-medium text-foreground text-xs mt-0.5 truncate max-w-[140px]">
                                 {c.cliente?.nomeFantasia || c.cliente?.razaoSocial}
                               </p>
                             </td>
-                            <td className="px-4 py-3 text-xs text-gray-600 max-w-[160px]">
+                            <td className="px-4 py-3 text-xs text-muted-foreground max-w-[160px]">
                               <p className="truncate">{c.descricao || "—"}</p>
                             </td>
-                            <td className="px-4 py-3 text-right font-semibold text-green-700 text-sm">
+                            <td className="px-4 py-3 text-right font-semibold text-success text-sm">
                               {formatBRL(Number(c.valorPago))}
                             </td>
-                            <td className="px-4 py-3 text-right text-xs text-gray-500">
+                            <td className="px-4 py-3 text-right text-xs text-muted-foreground">
                               {c.dataPagamento ? formatDate(c.dataPagamento) : "—"}
                             </td>
                             <td className="px-2 py-3 text-right">
                               <Link
                                 href={`/contas-receber/${c.id}`}
-                                className="text-blue-500 hover:text-blue-700 transition-colors"
+                                className="text-blue-500 hover:text-info transition-colors"
                                 onClick={() => setOpen(false)}
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
@@ -224,7 +224,7 @@ export default function DashboardCharts({ data }: DashboardChartsProps) {
 
                   return (
                     <div className="mt-6">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
                         Por cliente
                       </p>
                       <div className="space-y-2">
@@ -233,12 +233,12 @@ export default function DashboardCharts({ data }: DashboardChartsProps) {
                           return (
                             <div key={name}>
                               <div className="flex items-center justify-between text-xs mb-0.5">
-                                <span className="text-gray-700 font-medium truncate max-w-[200px]">{name}</span>
-                                <span className="text-gray-500 ml-2 shrink-0">
-                                  {formatBRL(val)} <span className="text-gray-300">·</span> {pct.toFixed(0)}%
+                                <span className="text-foreground font-medium truncate max-w-[200px]">{name}</span>
+                                <span className="text-muted-foreground ml-2 shrink-0">
+                                  {formatBRL(val)} <span className="text-muted-foreground/60">·</span> {pct.toFixed(0)}%
                                 </span>
                               </div>
-                              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                                 <div
                                   className="h-full bg-blue-500 rounded-full transition-all"
                                   style={{ width: `${pct}%` }}

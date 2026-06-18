@@ -197,26 +197,26 @@ export default function CommandPalette() {
       {open && (
         <div className="fixed inset-0 z-[9001] flex items-start justify-center pt-[14vh] px-4 pointer-events-none">
           <div
-            className="w-full max-w-[600px] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden pointer-events-auto"
+            className="w-full max-w-[600px] bg-card rounded-2xl shadow-2xl border border-border overflow-hidden pointer-events-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* ── Search bar ─────────────────────────────────────────────── */}
-            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-100">
-              <Search className="h-4 w-4 shrink-0 text-gray-400" />
+            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border">
+              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
               <input
                 ref={inputRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onInputKey}
                 placeholder="Pesquise telas, produtos, clientes, pedidos…"
-                className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none"
+                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
               />
               {query ? (
-                <button onClick={() => setQuery("")} className="rounded p-0.5 text-gray-400 hover:text-gray-600">
+                <button onClick={() => setQuery("")} className="rounded p-0.5 text-muted-foreground hover:text-muted-foreground">
                   <X className="h-3.5 w-3.5" />
                 </button>
               ) : (
-                <kbd className="hidden sm:flex items-center rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[10px] text-gray-400 font-mono">
+                <kbd className="hidden sm:flex items-center rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-mono">
                   ESC
                 </kbd>
               )}
@@ -225,16 +225,16 @@ export default function CommandPalette() {
             {/* ── Results ────────────────────────────────────────────────── */}
             <div ref={listRef} className="max-h-[440px] overflow-y-auto py-1.5">
               {flatList.length === 0 && !recordsLoading ? (
-                <p className="py-12 text-center text-sm text-gray-400">Nenhum resultado encontrado.</p>
+                <p className="py-12 text-center text-sm text-muted-foreground">Nenhum resultado encontrado.</p>
               ) : sections ? (
                 // Grouped no-query view
                 Array.from(sections.entries()).map(([group, items]) => (
                   <div key={group}>
                     <div className="flex items-center gap-2 px-4 pt-3 pb-1">
                       {group === "__recents__"
-                        ? <Clock className="h-3 w-3 text-gray-400" />
+                        ? <Clock className="h-3 w-3 text-muted-foreground" />
                         : null}
-                      <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                         {group === "__recents__" ? "Recentes" : group}
                       </p>
                     </div>
@@ -261,7 +261,7 @@ export default function CommandPalette() {
                 <>
                   {filteredResults.length > 0 && (
                     <>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                         Telas
                       </p>
                       {filteredResults.map((route, idx) => (
@@ -282,9 +282,9 @@ export default function CommandPalette() {
 
                   {(records.length > 0 || recordsLoading) && (
                     <>
-                      <p className="flex items-center gap-2 px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                      <p className="flex items-center gap-2 px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                         Registros
-                        {recordsLoading && <span className="normal-case font-normal tracking-normal text-gray-300">carregando…</span>}
+                        {recordsLoading && <span className="normal-case font-normal tracking-normal text-muted-foreground/60">carregando…</span>}
                       </p>
                       {records.map((rec, i) => {
                         const idx = filteredResults.length + i;
@@ -307,7 +307,7 @@ export default function CommandPalette() {
             </div>
 
             {/* ── Footer ─────────────────────────────────────────────────── */}
-            <div className="flex items-center gap-4 border-t border-gray-100 px-4 py-2 text-[10px] text-gray-400">
+            <div className="flex items-center gap-4 border-t border-border px-4 py-2 text-[10px] text-muted-foreground">
               <span className="flex items-center gap-1">
                 <KbdKey>↑</KbdKey><KbdKey>↓</KbdKey> navegar
               </span>
@@ -352,7 +352,7 @@ function RouteItem({
       onMouseEnter={onHover}
       className={cn(
         "group flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors",
-        selected ? "bg-gray-50" : "hover:bg-gray-50"
+        selected ? "bg-muted" : "hover:bg-muted"
       )}
     >
       {/* Icon */}
@@ -367,12 +367,12 @@ function RouteItem({
       <span className="flex-1 min-w-0" onClick={onClick}>
         <span className={cn(
           "block truncate text-sm font-medium",
-          selected ? "text-gray-900" : "text-gray-800"
+          selected ? "text-foreground" : "text-foreground"
         )}>
           {route.label}
         </span>
         {subtitle && (
-          <span className="block truncate text-[11px] text-gray-400">{subtitle}</span>
+          <span className="block truncate text-[11px] text-muted-foreground">{subtitle}</span>
         )}
       </span>
 
@@ -414,7 +414,7 @@ function RecordItem({
       onMouseEnter={onHover}
       className={cn(
         "group flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors",
-        selected ? "bg-gray-50" : "hover:bg-gray-50"
+        selected ? "bg-muted" : "hover:bg-muted"
       )}
     >
       {/* Icon */}
@@ -429,13 +429,13 @@ function RecordItem({
       <span className="flex-1 min-w-0" onClick={onClick}>
         <span className={cn(
           "block truncate text-sm font-medium",
-          selected ? "text-gray-900" : "text-gray-800"
+          selected ? "text-foreground" : "text-foreground"
         )}>
-          {record.codigo && <span className="mr-1.5 font-mono text-gray-400">{record.codigo}</span>}
+          {record.codigo && <span className="mr-1.5 font-mono text-muted-foreground">{record.codigo}</span>}
           {record.titulo}
         </span>
         {subtitle && (
-          <span className="block truncate text-[11px] text-gray-400">{subtitle}</span>
+          <span className="block truncate text-[11px] text-muted-foreground">{subtitle}</span>
         )}
       </span>
 
@@ -460,7 +460,7 @@ function ActionBtn({ children, onClick, title }: { children: React.ReactNode; on
     <button
       title={title}
       onClick={onClick}
-      className="flex items-center justify-center rounded-md border border-gray-200 bg-white px-1.5 py-1 text-gray-500 shadow-sm hover:bg-gray-50 hover:text-gray-700"
+      className="flex items-center justify-center rounded-md border border-border bg-card px-1.5 py-1 text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground"
     >
       {children}
     </button>
@@ -469,6 +469,6 @@ function ActionBtn({ children, onClick, title }: { children: React.ReactNode; on
 
 function KbdKey({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="font-mono text-[10px] text-gray-500">{children}</kbd>
+    <kbd className="font-mono text-[10px] text-muted-foreground">{children}</kbd>
   );
 }

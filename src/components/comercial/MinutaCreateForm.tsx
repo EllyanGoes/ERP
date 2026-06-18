@@ -300,25 +300,25 @@ export default function MinutaCreateForm() {
         <div className={cn("space-y-6", !drawer && "col-span-2")}>
 
           {/* Pedido de Venda */}
-          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-200 bg-gray-100">
-              <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Pedido de Venda</h2>
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-border bg-muted">
+              <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Pedido de Venda</h2>
             </div>
             <div className="p-5">
               {pedidoVendaIdParam ? (
                 pedido ? (
                   <div className="flex items-center gap-3">
-                    <span className="font-mono font-semibold text-gray-800">{pedido.numero}</span>
-                    <span className="text-gray-500">·</span>
-                    <span className="text-gray-700">{pedido.cliente.nomeFantasia || pedido.cliente.razaoSocial}</span>
+                    <span className="font-mono font-semibold text-foreground">{pedido.numero}</span>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="text-foreground">{pedido.cliente.nomeFantasia || pedido.cliente.razaoSocial}</span>
                   </div>
                 ) : (
-                  <span className="text-gray-400 text-sm">Carregando...</span>
+                  <span className="text-muted-foreground text-sm">Carregando...</span>
                 )
               ) : (
                 <ComboboxWithCreate
                   className="max-w-md"
-                  triggerClassName="h-10 border-gray-300"
+                  triggerClassName="h-10 border-border"
                   allowNone={false}
                   value={pedidoVendaId}
                   onChange={setPedidoVendaId}
@@ -332,11 +332,11 @@ export default function MinutaCreateForm() {
                       label: `${p.numero} — ${cliente}${orc ? `  ·  Orç. ${orc}` : ""}`,
                       render: () => (
                         <span className="flex items-baseline gap-1.5 truncate">
-                          <span className="font-bold text-gray-900 shrink-0">{p.numero}</span>
-                          <span className="text-gray-400 shrink-0">—</span>
+                          <span className="font-bold text-foreground shrink-0">{p.numero}</span>
+                          <span className="text-muted-foreground shrink-0">—</span>
                           <span className="truncate">{cliente}</span>
                           {orc && (
-                            <span className="ml-1 font-medium text-blue-600 shrink-0">Orç. {orc}</span>
+                            <span className="ml-1 font-medium text-info shrink-0">Orç. {orc}</span>
                           )}
                         </span>
                       ),
@@ -349,42 +349,42 @@ export default function MinutaCreateForm() {
 
           {/* Itens */}
           {pedido && (
-            <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-200 bg-gray-100">
-                <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Itens a {tipo === "RETIRADA" ? "Retirar" : "Entregar"}</h2>
+            <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-border bg-muted">
+                <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Itens a {tipo === "RETIRADA" ? "Retirar" : "Entregar"}</h2>
               </div>
               {loading ? (
-                <div className="p-8 text-center text-gray-400 text-sm">Carregando itens...</div>
+                <div className="p-8 text-center text-muted-foreground text-sm">Carregando itens...</div>
               ) : rows.length === 0 ? (
-                <div className="p-8 text-center text-gray-400 text-sm">
+                <div className="p-8 text-center text-muted-foreground text-sm">
                   Nenhum item com saldo disponível neste pedido.
                 </div>
               ) : (
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500">Produto</th>
-                      <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-32">Saldo</th>
-                      <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-40">Qtd. {tipo === "RETIRADA" ? "Retirada" : "Entrega"}</th>
-                      <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500 w-32">Unidade</th>
+                    <tr className="bg-muted border-b border-border">
+                      <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-muted-foreground">Produto</th>
+                      <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-muted-foreground w-32">Saldo</th>
+                      <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-muted-foreground w-40">Qtd. {tipo === "RETIRADA" ? "Retirada" : "Entrega"}</th>
+                      <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-muted-foreground w-32">Unidade</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-border">
                     {rows.map((r, idx) => (
-                      <tr key={r.pvItemId} className="hover:bg-gray-50">
+                      <tr key={r.pvItemId} className="hover:bg-muted">
                         <td className="px-4 py-3 align-middle">
-                          <div className="font-medium text-gray-800">{r.descricao}</div>
-                          <div className="text-xs text-gray-400">{r.codigo}</div>
+                          <div className="font-medium text-foreground">{r.descricao}</div>
+                          <div className="text-xs text-muted-foreground">{r.codigo}</div>
                         </td>
-                        <td className="px-4 py-3 text-right align-middle text-gray-600 tabular-nums">
-                          {fmtQty(r.saldoDisponivel)} <span className="text-gray-400 text-xs">{r.unidadeBase}</span>
+                        <td className="px-4 py-3 text-right align-middle text-muted-foreground tabular-nums">
+                          {fmtQty(r.saldoDisponivel)} <span className="text-muted-foreground text-xs">{r.unidadeBase}</span>
                         </td>
                         <td className="px-4 py-3 align-middle">
                           <Input
                             inputMode="decimal"
                             value={r.quantidade}
                             onChange={e => updateRow(idx, "quantidade", e.target.value)}
-                            className="h-8 w-full text-right text-sm font-semibold border-blue-400 bg-blue-50 text-blue-900 focus-visible:border-blue-500 focus-visible:ring-blue-500"
+                            className="h-8 w-full text-right text-sm font-semibold border-blue-400 bg-info/10 text-blue-900 focus-visible:border-blue-500 focus-visible:ring-blue-500"
                           />
                         </td>
                         <td className="px-4 py-3 align-middle">
@@ -393,7 +393,7 @@ export default function MinutaCreateForm() {
                               value={r.unidadeId}
                               onValueChange={(v) => updateRow(idx, "unidadeId", v)}
                             >
-                              <SelectTrigger className="h-8 border-gray-300 text-sm">
+                              <SelectTrigger className="h-8 border-border text-sm">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -410,7 +410,7 @@ export default function MinutaCreateForm() {
                               </SelectContent>
                             </Select>
                           ) : (
-                            <span className="text-gray-500 text-sm px-1">{r.unidadeBase}</span>
+                            <span className="text-muted-foreground text-sm px-1">{r.unidadeBase}</span>
                           )}
                         </td>
                       </tr>
@@ -426,24 +426,24 @@ export default function MinutaCreateForm() {
         <div className="col-span-1 space-y-4">
 
           {/* Logística */}
-          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-200 bg-gray-100">
-              <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Logística</h2>
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-border bg-muted">
+              <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Logística</h2>
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Nº da Minuta Física</label>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Nº da Minuta Física</label>
                 <Input
                   value={numeroFisico}
                   onChange={e => setNumeroFisico(e.target.value)}
-                  className="h-10 border-gray-300"
+                  className="h-10 border-border"
                   placeholder="Número do bloco físico"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Tipo</label>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Tipo</label>
                 <Select value={tipo} onValueChange={(v) => setTipo(v as "ENTREGA" | "RETIRADA")}>
-                  <SelectTrigger className="h-10 border-gray-300">
+                  <SelectTrigger className="h-10 border-border">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -453,7 +453,7 @@ export default function MinutaCreateForm() {
                 </Select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Local de Estoque <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Local de Estoque <span className="text-red-500">*</span></label>
                 {(() => {
                   const itemIds = new Set(rows.map(r => r.itemId));
                   const locaisFiltrados = pedido && itemIds.size > 0
@@ -461,12 +461,12 @@ export default function MinutaCreateForm() {
                     : locais;
                   return (
                     <Select value={localEstoqueId} onValueChange={setLocalEstoqueId}>
-                      <SelectTrigger className="h-10 border-gray-300">
+                      <SelectTrigger className="h-10 border-border">
                         <SelectValue placeholder="Selecione..." />
                       </SelectTrigger>
                       <SelectContent>
                         {locaisFiltrados.length === 0 ? (
-                          <div className="px-3 py-2 text-xs text-gray-400 italic">Nenhum local com estoque</div>
+                          <div className="px-3 py-2 text-xs text-muted-foreground italic">Nenhum local com estoque</div>
                         ) : locaisFiltrados.map(l => (
                           <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
                         ))}
@@ -476,23 +476,23 @@ export default function MinutaCreateForm() {
                 })()}
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Data de {tipo === "RETIRADA" ? "Retirada" : "Entrega"}</label>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Data de {tipo === "RETIRADA" ? "Retirada" : "Entrega"}</label>
                 <Input
                   type="date"
                   value={dataEntrega}
                   onChange={e => setDataEntrega(e.target.value)}
-                  className="h-10 border-gray-300"
+                  className="h-10 border-border"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Motorista</label>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Motorista</label>
                 <Select value={motoristaId} onValueChange={setMotoristaId}>
-                  <SelectTrigger className="h-10 border-gray-300">
+                  <SelectTrigger className="h-10 border-border">
                     <SelectValue placeholder="Selecione o motorista..." />
                   </SelectTrigger>
                   <SelectContent>
                     {motoristas.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-gray-400 italic">Nenhum motorista cadastrado</div>
+                      <div className="px-3 py-2 text-xs text-muted-foreground italic">Nenhum motorista cadastrado</div>
                     ) : motoristas.map(m => (
                       <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
                     ))}
@@ -500,11 +500,11 @@ export default function MinutaCreateForm() {
                 </Select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Placa</label>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Placa</label>
                 <Input
                   value={placa}
                   onChange={e => setPlaca(e.target.value)}
-                  className="h-10 border-gray-300"
+                  className="h-10 border-border"
                   placeholder="AAA-0000"
                 />
               </div>
@@ -512,9 +512,9 @@ export default function MinutaCreateForm() {
           </div>
 
           {/* Observações */}
-          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-200 bg-gray-100">
-              <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Observações</h2>
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-border bg-muted">
+              <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Observações</h2>
             </div>
             <div className="p-5">
               <Textarea
@@ -522,7 +522,7 @@ export default function MinutaCreateForm() {
                 onChange={e => setObservacoes(e.target.value)}
                 rows={4}
                 placeholder={`Observações sobre a ${tipo === "RETIRADA" ? "retirada" : "entrega"}...`}
-                className="resize-none border-gray-300"
+                className="resize-none border-border"
               />
             </div>
           </div>
@@ -532,7 +532,7 @@ export default function MinutaCreateForm() {
       {/* Error */}
       {error && (
         <div className={cn(
-          "flex items-center gap-2 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"
+          "flex items-center gap-2 px-4 py-3 rounded-lg bg-danger/10 border border-danger/30 text-danger text-sm"
         )}>
           <AlertCircle className="w-4 h-4 shrink-0" />
           {error}
@@ -544,7 +544,7 @@ export default function MinutaCreateForm() {
         <Button onClick={handleSave} disabled={saving || !pedidoVendaId || !localEstoqueId} className="font-semibold">
           {saving ? "Criando..." : "Criar Minuta"}
         </Button>
-        <Button variant="outline" onClick={voltar} className="border-gray-300 text-gray-600">
+        <Button variant="outline" onClick={voltar} className="border-border text-muted-foreground">
           Cancelar
         </Button>
       </div>

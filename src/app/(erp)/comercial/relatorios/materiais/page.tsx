@@ -122,20 +122,20 @@ export default function MateriaisReportPage() {
         <div className="flex items-center gap-3 flex-wrap">
           <DateRangePicker value={range} onChange={setRange} />
           <div className="relative flex-1 min-w-[220px] max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
               type="text"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar material por nome ou código..."
-              className="w-full h-10 pl-9 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+              className="w-full h-10 pl-9 pr-3 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
             />
           </div>
           <button
             type="button"
             onClick={exportCsv}
             disabled={filtradas.length === 0}
-            className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg border border-gray-300 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" /> Exportar CSV
           </button>
@@ -151,29 +151,29 @@ export default function MateriaisReportPage() {
         </div>
 
         {/* Tabela */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-              <Package className="w-4 h-4 text-gray-400" /> Materiais
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-5 py-3 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Package className="w-4 h-4 text-muted-foreground" /> Materiais
             </p>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-muted-foreground">
               {filtradas.length} material{filtradas.length !== 1 ? "is" : ""} · preço médio = valor vendido ÷ quantidade vendida
             </span>
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-gray-400 gap-2">
+            <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
               <Loader2 className="w-5 h-5 animate-spin" /> <span className="text-sm">Carregando…</span>
             </div>
           ) : filtradas.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
-              <Package className="w-8 h-8 text-gray-300" />
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+              <Package className="w-8 h-8 text-muted-foreground/60" />
               <p className="text-sm font-medium">Nenhuma movimentação ou venda no período</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+                <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                   <tr>
                     <Th label="Material" sortKey="descricao" sort={sort} onSort={toggleSort} align="left" />
                     <th className="text-left px-4 py-3 font-semibold">Un</th>
@@ -186,26 +186,26 @@ export default function MateriaisReportPage() {
                     <Th label="Total Vendido" sortKey="valorVendido" sort={sort} onSort={toggleSort} align="right" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {filtradas.map((r) => (
-                    <tr key={r.itemId} className="hover:bg-gray-50 transition-colors">
+                    <tr key={r.itemId} className="hover:bg-muted transition-colors">
                       <td className="px-4 py-3">
-                        <div className="font-mono text-xs text-blue-600">{r.codigo}</div>
-                        <div className="text-gray-800 max-w-[260px] truncate" title={r.descricao}>{r.descricao}</div>
+                        <div className="font-mono text-xs text-info">{r.codigo}</div>
+                        <div className="text-foreground max-w-[260px] truncate" title={r.descricao}>{r.descricao}</div>
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{r.unidade}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-emerald-700">{r.entrouQtd ? fmtNum(r.entrouQtd) : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-rose-700">{r.saiuQtd ? fmtNum(r.saiuQtd) : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-violet-700">{r.vendaOrdemQtd ? fmtNum(r.vendaOrdemQtd) : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.qtdVendida ? fmtNum(r.qtdVendida) : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{r.precoMedioPeriodo ? formatBRL(r.precoMedioPeriodo) : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-500">{r.precoMedioGeral ? formatBRL(r.precoMedioGeral) : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-900">{r.valorVendido ? formatBRL(r.valorVendido) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{r.unidade}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-success">{r.entrouQtd ? fmtNum(r.entrouQtd) : <span className="text-muted-foreground/60">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-danger">{r.saiuQtd ? fmtNum(r.saiuQtd) : <span className="text-muted-foreground/60">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-violet-700">{r.vendaOrdemQtd ? fmtNum(r.vendaOrdemQtd) : <span className="text-muted-foreground/60">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-foreground">{r.qtdVendida ? fmtNum(r.qtdVendida) : <span className="text-muted-foreground/60">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-medium text-foreground">{r.precoMedioPeriodo ? formatBRL(r.precoMedioPeriodo) : <span className="text-muted-foreground/60">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{r.precoMedioGeral ? formatBRL(r.precoMedioGeral) : <span className="text-muted-foreground/60">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-foreground">{r.valorVendido ? formatBRL(r.valorVendido) : <span className="text-muted-foreground/60">—</span>}</td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="border-t-2 border-gray-200 bg-gray-50">
-                  <tr className="font-semibold text-gray-800">
+                <tfoot className="border-t-2 border-border bg-muted">
+                  <tr className="font-semibold text-foreground">
                     <td className="px-4 py-3" colSpan={2}>Total ({filtradas.length})</td>
                     <td className="px-4 py-3 text-right tabular-nums">{fmtNum(filtradas.reduce((s, r) => s + r.entrouQtd, 0))}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{fmtNum(filtradas.reduce((s, r) => s + r.saiuQtd, 0))}</td>
@@ -233,7 +233,7 @@ function Th({ label, sortKey, sort, onSort, align }: {
       <button
         type="button"
         onClick={() => onSort(sortKey)}
-        className={cn("inline-flex items-center gap-1 hover:text-gray-700 transition-colors", align === "right" && "flex-row-reverse", active && "text-blue-600")}
+        className={cn("inline-flex items-center gap-1 hover:text-foreground transition-colors", align === "right" && "flex-row-reverse", active && "text-info")}
       >
         {label}
         {active && <span className="text-[10px]">{sort.dir === "asc" ? "▲" : "▼"}</span>}
@@ -244,11 +244,11 @@ function Th({ label, sortKey, sort, onSort, align }: {
 
 function KpiCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
-      <div className="flex items-center gap-2 text-gray-400 text-xs font-medium uppercase tracking-wide">
+    <div className="bg-card rounded-xl border border-border p-4">
+      <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium uppercase tracking-wide">
         {icon}{label}
       </div>
-      <div className="mt-1.5 text-xl font-bold text-gray-900 tabular-nums">{value}</div>
+      <div className="mt-1.5 text-xl font-bold text-foreground tabular-nums">{value}</div>
     </div>
   );
 }

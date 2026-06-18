@@ -840,13 +840,13 @@ export default function PedidoForm({
       {/* ── Dados do Pedido — constrained width ─────────────────────────── */}
       <div className="max-w-5xl space-y-6">
       {submitError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{submitError}</div>
+        <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{submitError}</div>
       )}
 
       {/* ── Dados do Pedido ─────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-300 overflow-hidden shadow-sm">
-        <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-100">
-          <h2 className="font-bold text-sm text-gray-800 tracking-wide uppercase">Dados do Pedido</h2>
+      <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+        <div className="px-5 py-3.5 border-b border-border bg-muted">
+          <h2 className="font-bold text-sm text-foreground tracking-wide uppercase">Dados do Pedido</h2>
         </div>
         <div className="p-5 space-y-5">
 
@@ -854,7 +854,7 @@ export default function PedidoForm({
           <div className="grid grid-cols-2 gap-4 items-start">
           {mostrarEmpresa && (
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Empresa</Label>
+              <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Empresa</Label>
               <ComboboxWithCreate
                 value={empresaId || usuarioSessao?.activeEmpresaId || ""}
                 onChange={(v) => setEmpresaId(v)}
@@ -862,19 +862,19 @@ export default function PedidoForm({
                 triggerClassName="h-10 rounded-lg"
                 options={empresasGrupo.map((e) => ({ value: e.id, label: e.nome }))}
               />
-              <p className="text-xs text-gray-400">Para qual empresa do grupo é esta venda — minutas e numeração seguirão nela.</p>
+              <p className="text-xs text-muted-foreground">Para qual empresa do grupo é esta venda — minutas e numeração seguirão nela.</p>
             </div>
           )}
 
           {/* Cliente */}
           <div className={cn("space-y-1.5", !mostrarEmpresa && "col-span-2")}>
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Cliente *</Label>
+              <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Cliente *</Label>
               {clientes.some((c) => c.id === CONSUMIDOR_FINAL_ID) && clienteId !== CONSUMIDOR_FINAL_ID && (
                 <button
                   type="button"
                   onClick={() => { setClienteId(CONSUMIDOR_FINAL_ID); setClienteOpen(false); }}
-                  className="text-[11px] text-blue-600 hover:underline"
+                  className="text-[11px] text-info hover:underline"
                 >
                   Consumidor final (sem cadastro)
                 </button>
@@ -886,8 +886,8 @@ export default function PedidoForm({
                 onClick={() => { setClienteOpen((v) => !v); setClienteSearch(""); }}
                 className={cn(
                   "w-full flex items-center justify-between h-10 px-3 rounded-lg border text-sm text-left transition-colors",
-                  clienteOpen ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-300 hover:border-gray-400",
-                  clienteSelecionado ? "text-gray-900" : "text-gray-400"
+                  clienteOpen ? "border-blue-500 ring-2 ring-blue-100" : "border-border hover:border-border",
+                  clienteSelecionado ? "text-foreground" : "text-muted-foreground"
                 )}
               >
                 <span className="truncate">
@@ -895,14 +895,14 @@ export default function PedidoForm({
                     ? clienteSelecionado.razaoSocial + (clienteSelecionado.nomeFantasia ? ` (${clienteSelecionado.nomeFantasia})` : "")
                     : "Selecione o cliente..."}
                 </span>
-                <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               {clienteOpen && (
-                <div className="absolute z-50 w-full mt-1 bg-white rounded-xl border border-gray-200 shadow-xl">
-                  <div className="relative border-b border-gray-100">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                <div className="absolute z-50 w-full mt-1 bg-card rounded-xl border border-border shadow-xl">
+                  <div className="relative border-b border-border">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                     <input
                       autoFocus type="text"
                       value={clienteSearch}
@@ -913,16 +913,16 @@ export default function PedidoForm({
                   </div>
                   <div className="max-h-52 overflow-y-auto">
                     {clientesFiltrados.length === 0 ? (
-                      <p className="px-4 py-3 text-sm text-gray-400 italic text-center">Nenhum cliente encontrado</p>
+                      <p className="px-4 py-3 text-sm text-muted-foreground italic text-center">Nenhum cliente encontrado</p>
                     ) : clientesFiltrados.map((c) => (
                       <button
                         key={c.id} type="button"
                         onMouseDown={() => { setClienteId(c.id); setClienteOpen(false); }}
-                        className={cn("w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 border-b border-gray-50 last:border-0", clienteId === c.id && "bg-blue-50 text-blue-700")}
+                        className={cn("w-full text-left px-4 py-2.5 text-sm hover:bg-info/10 border-b border-gray-50 last:border-0", clienteId === c.id && "bg-info/10 text-info")}
                       >
                         <span className="font-medium">{c.razaoSocial}</span>
-                        {c.nomeFantasia && <span className="text-gray-500 text-xs ml-1.5">({c.nomeFantasia})</span>}
-                        {c.cpfCnpj && <span className="block text-gray-400 text-xs">{c.cpfCnpj}</span>}
+                        {c.nomeFantasia && <span className="text-muted-foreground text-xs ml-1.5">({c.nomeFantasia})</span>}
+                        {c.cpfCnpj && <span className="block text-muted-foreground text-xs">{c.cpfCnpj}</span>}
                       </button>
                     ))}
                   </div>
@@ -936,7 +936,7 @@ export default function PedidoForm({
               Disponível para qualquer pedido (retirada ou entrega) e também na
               edição (um pedido normal pode virar à ordem). */}
           {mostrarVendaOrdem && (
-            <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+            <div className="space-y-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input
                   type="checkbox"
@@ -946,11 +946,11 @@ export default function PedidoForm({
                     setVendaOrdemAtiva(on);
                     if (!on) { setEstoqueOrigemId(""); setPrecoTransferencia(""); }
                   }}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-400"
+                  className="mt-0.5 h-4 w-4 rounded border-border text-warning focus:ring-amber-400"
                 />
                 <span>
-                  <span className="block text-xs font-semibold text-gray-700 uppercase tracking-wide">Venda à ordem — estoque de outra empresa</span>
-                  <span className="block text-xs text-gray-500 mt-0.5">
+                  <span className="block text-xs font-semibold text-foreground uppercase tracking-wide">Venda à ordem — estoque de outra empresa</span>
+                  <span className="block text-xs text-muted-foreground mt-0.5">
                     Marque só se o estoque sai de OUTRA empresa do grupo. A venda fica nesta empresa; na entrega o
                     sistema gera os movimentos virtuais (saída na origem + entrada/saída nesta empresa) e o financeiro
                     intragrupo automaticamente.
@@ -961,7 +961,7 @@ export default function PedidoForm({
               {vendaOrdemAtiva && (
                 <div className="space-y-2 pl-7">
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Empresa que entrega / fornece o estoque</Label>
+                    <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Empresa que entrega / fornece o estoque</Label>
                     <ComboboxWithCreate
                       value={estoqueOrigemId}
                       onChange={(v) => setEstoqueOrigemId(v)}
@@ -974,15 +974,15 @@ export default function PedidoForm({
                   </div>
                   {estoqueOrigemId && (
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Preço de transferência (total)</Label>
+                      <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Preço de transferência (total)</Label>
                       <Input
                         inputMode="decimal"
                         value={precoTransferencia}
                         onChange={(e) => setPrecoTransferencia(e.target.value.replace(/[^0-9.,]/g, ""))}
                         placeholder="Valor interno cobrado pela empresa que entrega"
-                        className="h-10 border-gray-300"
+                        className="h-10 border-border"
                       />
-                      <p className="text-xs text-gray-400">Valor que a empresa de origem cobra internamente. Aparece no pedido de entrega; não gera financeiro por ora.</p>
+                      <p className="text-xs text-muted-foreground">Valor que a empresa de origem cobra internamente. Aparece no pedido de entrega; não gera financeiro por ora.</p>
                     </div>
                   )}
                 </div>
@@ -994,7 +994,7 @@ export default function PedidoForm({
           <div className="grid grid-cols-2 gap-4">
           {/* Vendedor */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Vendedor</Label>
+            <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Vendedor</Label>
             <ComboboxWithCreate
               value={vendedorId}
               onChange={(v) => setVendedorId(v)}
@@ -1006,13 +1006,13 @@ export default function PedidoForm({
 
           {/* Nº do Orçamento (controle de pedido físico) */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Nº do Orçamento</Label>
+            <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Nº do Orçamento</Label>
             <Input
               type="text"
               value={numeroOrcamento}
               onChange={(e) => setNumeroOrcamento(e.target.value)}
               placeholder="Número no controle físico"
-              className="h-10 border-gray-300"
+              className="h-10 border-border"
             />
           </div>
           </div>
@@ -1020,46 +1020,46 @@ export default function PedidoForm({
           <div className="grid grid-cols-2 gap-4">
             {/* Data Emissão */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data de Emissão</Label>
-              <Input type="date" value={dataEmissao} onChange={(e) => setDataEmissao(e.target.value)} className="h-10 border-gray-300" />
+              <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data de Emissão</Label>
+              <Input type="date" value={dataEmissao} onChange={(e) => setDataEmissao(e.target.value)} className="h-10 border-border" />
             </div>
 
             {/* Previsão de Entrega */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Previsão de Entrega</Label>
-              <Input type="date" value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} className="h-10 border-gray-300" />
+              <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Previsão de Entrega</Label>
+              <Input type="date" value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} className="h-10 border-border" />
             </div>
           </div>
 
           {/* Necessidades do pedido: pagamento e entrega (substituem balcão/agendada) */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Pagamento</Label>
+              <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Pagamento</Label>
               <select
                 value={necessidadePagamento}
                 onChange={(e) => setNecessidadePagamento(e.target.value as "A_VISTA" | "A_PRAZO")}
-                className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                className="h-10 w-full rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
               >
                 <option value="A_VISTA">À vista — recebe agora (caixa)</option>
                 <option value="A_PRAZO">A prazo — conta a receber</option>
               </select>
-              <p className="text-[11px] text-gray-400">
+              <p className="text-[11px] text-muted-foreground">
                 {necessidadePagamento === "A_VISTA"
                   ? "O recebimento é feito na hora; a conta a receber nasce paga."
                   : "Gera uma conta a receber para o futuro."}
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Entrega</Label>
+              <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Entrega</Label>
               <select
                 value={necessidadeEntrega}
                 onChange={(e) => setNecessidadeEntrega(e.target.value as "RETIRADA" | "ENTREGA")}
-                className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                className="h-10 w-full rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
               >
                 <option value="RETIRADA">Retirada — cliente retira na loja</option>
                 <option value="ENTREGA">Entrega — levamos ao cliente</option>
               </select>
-              <p className="text-[11px] text-gray-400">
+              <p className="text-[11px] text-muted-foreground">
                 {necessidadeEntrega === "RETIRADA"
                   ? "Saída por minuta(s) de retirada — pode ser parcial."
                   : "Entrega por minuta(s) — pode ser parcial."}
@@ -1069,7 +1069,7 @@ export default function PedidoForm({
 
           {/* Tabela de Preço */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-1">
+            <Label className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1">
               <Tag className="w-3 h-3" /> Tabela de Preço
             </Label>
             <ComboboxWithCreate
@@ -1094,7 +1094,7 @@ export default function PedidoForm({
                 }))}
             />
             {tabelaSelecionada && (
-              <p className="text-xs text-blue-600 mt-0.5">
+              <p className="text-xs text-info mt-0.5">
                 Preços e descontos serão preenchidos automaticamente ao selecionar produtos
               </p>
             )}
@@ -1105,15 +1105,15 @@ export default function PedidoForm({
       </div>{/* end max-w-5xl */}
 
       {/* ── Abas: Itens | Comodato ─────────────────────────────────────── */}
-      <div className="flex items-center border-b border-gray-200">
+      <div className="flex items-center border-b border-border">
           <button
             type="button"
             onClick={() => setActiveTab("itens")}
             className={cn(
               "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
               activeTab === "itens"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-blue-600 text-info"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
             Itens do Pedido{linhas.length > 0 ? ` (${linhas.length})` : ""}
@@ -1124,8 +1124,8 @@ export default function PedidoForm({
             className={cn(
               "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5",
               activeTab === "comodato"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-blue-600 text-info"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
             <Package className="w-3.5 h-3.5" />
@@ -1135,23 +1135,23 @@ export default function PedidoForm({
 
       {/* ── Itens do Pedido — full width ────────────────────────────────── */}
       {activeTab === "itens" && (
-      <div className="bg-white rounded-xl border border-gray-300 overflow-hidden shadow-sm">
-        <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-100 flex items-center justify-between">
-          <h2 className="font-bold text-sm text-gray-800 tracking-wide uppercase">Itens do Pedido</h2>
-          <Button type="button" size="sm" variant="outline" onClick={addLinha} className="border-gray-300 text-gray-700 hover:bg-gray-200">
+      <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+        <div className="px-5 py-3.5 border-b border-border bg-muted flex items-center justify-between">
+          <h2 className="font-bold text-sm text-foreground tracking-wide uppercase">Itens do Pedido</h2>
+          <Button type="button" size="sm" variant="outline" onClick={addLinha} className="border-border text-foreground hover:bg-muted">
             <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Item
           </Button>
         </div>
 
         {linhas.length === 0 ? (
           <div className="py-14 text-center">
-            <p className="text-sm text-gray-500 font-medium">Nenhum item adicionado.</p>
-            <p className="text-xs text-gray-400 mt-1">Clique em &quot;Adicionar Item&quot; para começar.</p>
+            <p className="text-sm text-muted-foreground font-medium">Nenhum item adicionado.</p>
+            <p className="text-xs text-muted-foreground mt-1">Clique em &quot;Adicionar Item&quot; para começar.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[860px]">
-              <thead className="bg-gray-100 border-b border-gray-300 text-xs text-gray-700 uppercase tracking-wide">
+              <thead className="bg-muted border-b border-border text-xs text-foreground uppercase tracking-wide">
                 <tr>
                   <th className="text-center px-3 py-3 font-bold w-12">Item</th>
                   <th className="text-left px-3 py-3 font-bold">Produto</th>
@@ -1169,13 +1169,13 @@ export default function PedidoForm({
                   <th className="w-10 px-2 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-border">
                 {linhas.map((linha, idx) => (
-                  <tr key={linha._key} className="hover:bg-blue-50/30 group transition-colors">
+                  <tr key={linha._key} className="hover:bg-info/10 group transition-colors">
 
                     {/* # */}
                     <td className="px-3 py-2.5 text-center">
-                      <span className="text-xs font-bold font-mono text-gray-600 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">
+                      <span className="text-xs font-bold font-mono text-muted-foreground bg-muted border border-border px-2 py-0.5 rounded">
                         {idx + 1}
                       </span>
                     </td>
@@ -1189,18 +1189,18 @@ export default function PedidoForm({
                         className={cn(
                           "w-full h-9 px-2.5 rounded-lg border text-left text-xs transition-colors",
                           linha.itemId
-                            ? "border-gray-300 bg-white text-gray-800 hover:border-blue-400"
-                            : "border-dashed border-gray-400 text-gray-500 hover:border-blue-400 hover:text-blue-500",
+                            ? "border-border bg-card text-foreground hover:border-blue-400"
+                            : "border-dashed border-border text-muted-foreground hover:border-blue-400 hover:text-blue-500",
                           itemSearchRow === linha._key && "border-blue-500 ring-2 ring-blue-100"
                         )}
                       >
                         {linha.itemId ? (
                           <span>
-                            <span className="font-mono text-gray-500 mr-1.5">{linha.codigo}</span>
-                            <span className="font-medium text-gray-900">{linha.descricao}</span>
+                            <span className="font-mono text-muted-foreground mr-1.5">{linha.codigo}</span>
+                            <span className="font-medium text-foreground">{linha.descricao}</span>
                           </span>
                         ) : (
-                          <span className="flex items-center gap-1.5 text-gray-500"><Search className="w-3 h-3" /> Buscar produto...</span>
+                          <span className="flex items-center gap-1.5 text-muted-foreground"><Search className="w-3 h-3" /> Buscar produto...</span>
                         )}
                       </button>
                     </td>
@@ -1219,7 +1219,7 @@ export default function PedidoForm({
                           }))}
                         />
                       ) : (
-                        <span className="text-xs font-semibold text-gray-700 font-mono bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">
+                        <span className="text-xs font-semibold text-foreground font-mono bg-muted border border-border px-2 py-0.5 rounded">
                           {linha.unidade || "—"}
                         </span>
                       )}
@@ -1231,7 +1231,7 @@ export default function PedidoForm({
                         inputMode="decimal"
                         value={linha.quantidade}
                         onChange={(e) => updateLinha(linha._key, "quantidade", e.target.value)}
-                        className="h-9 text-xs text-right border-gray-300 font-medium"
+                        className="h-9 text-xs text-right border-border font-medium"
                       />
                     </td>
 
@@ -1243,12 +1243,12 @@ export default function PedidoForm({
                             inputMode="decimal"
                             value={linha.quantidadeUnitaria}
                             onChange={(e) => updateLinha(linha._key, "quantidadeUnitaria", e.target.value)}
-                            className="h-9 text-xs text-right border-blue-300 bg-blue-50 font-semibold text-blue-700 focus:ring-blue-400"
+                            className="h-9 text-xs text-right border-blue-300 bg-info/10 font-semibold text-info focus:ring-blue-400"
                             title={`${linha.quantidade} ${linha.unidade} × ${linha.fatorConversao} = ${linha.quantidadeUnitaria} un`}
                           />
                         </div>
                       ) : (
-                        <span className="block text-xs text-right text-gray-400 pr-1 font-medium">
+                        <span className="block text-xs text-right text-muted-foreground pr-1 font-medium">
                           {parseDecimal(linha.quantidadeUnitaria) || "—"}
                         </span>
                       )}
@@ -1260,7 +1260,7 @@ export default function PedidoForm({
                         inputMode="decimal"
                         value={linha.precoUnitario}
                         onChange={(e) => updateLinha(linha._key, "precoUnitario", e.target.value)}
-                        className="h-9 text-xs text-right border-gray-300 font-medium"
+                        className="h-9 text-xs text-right border-border font-medium"
                       />
                       {estoqueOrigemId && (
                         <Input
@@ -1281,9 +1281,9 @@ export default function PedidoForm({
                           inputMode="decimal"
                           value={linha.descontoPct}
                           onChange={(e) => updateLinha(linha._key, "descontoPct", e.target.value)}
-                          className="h-9 text-xs text-right pr-7 border-gray-300 font-medium"
+                          className="h-9 text-xs text-right pr-7 border-border font-medium"
                         />
-                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-500">%</span>
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">%</span>
                       </div>
                     </td>
 
@@ -1293,13 +1293,13 @@ export default function PedidoForm({
                         inputMode="decimal"
                         value={linha.valorDesconto}
                         onChange={(e) => updateLinha(linha._key, "valorDesconto", e.target.value)}
-                        className="h-9 text-xs text-right border-gray-300 font-medium"
+                        className="h-9 text-xs text-right border-border font-medium"
                       />
                     </td>
 
                     {/* Valor Total */}
                     <td className="px-3 py-2.5 text-right">
-                      <span className="text-sm font-bold text-gray-900">
+                      <span className="text-sm font-bold text-foreground">
                         {formatBRL(parseDecimal(linha.valorTotal) || 0)}
                       </span>
                     </td>
@@ -1309,7 +1309,7 @@ export default function PedidoForm({
                       <button
                         type="button"
                         onClick={() => removeLinha(linha._key)}
-                        className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors border border-transparent hover:border-red-200"
+                        className="p-1.5 rounded hover:bg-danger/10 text-muted-foreground hover:text-red-500 transition-colors border border-transparent hover:border-danger/30"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1326,17 +1326,17 @@ export default function PedidoForm({
 
       {/* ── Comodato (saída) ───────────────────────────────────────────── */}
       {activeTab === "comodato" && (
-      <div className="bg-white rounded-xl border border-gray-300 overflow-hidden shadow-sm">
-        <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-100 flex items-center justify-between">
+      <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+        <div className="px-5 py-3.5 border-b border-border bg-muted flex items-center justify-between">
           <div>
-            <h2 className="font-bold text-sm text-gray-800 tracking-wide uppercase">Comodato — Saída</h2>
-            <p className="text-xs text-gray-500 mt-0.5 normal-case font-normal">Itens (vasilhames/pallets) que o cliente está levando em comodato. Entram no total do pedido.</p>
+            <h2 className="font-bold text-sm text-foreground tracking-wide uppercase">Comodato — Saída</h2>
+            <p className="text-xs text-muted-foreground mt-0.5 normal-case font-normal">Itens (vasilhames/pallets) que o cliente está levando em comodato. Entram no total do pedido.</p>
           </div>
           <Button
             type="button" size="sm" variant="outline"
             onClick={addComodatoLinha}
             disabled={itensComodato.length === 0}
-            className="border-gray-300 text-gray-700 hover:bg-gray-200"
+            className="border-border text-foreground hover:bg-muted"
           >
             <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Item em Comodato
           </Button>
@@ -1344,18 +1344,18 @@ export default function PedidoForm({
 
         {itensComodato.length === 0 ? (
           <div className="py-14 text-center">
-            <p className="text-sm text-gray-500 font-medium">Nenhum item marcado como comodato.</p>
-            <p className="text-xs text-gray-400 mt-1">Marque a opção &quot;Comodato&quot; no cadastro do item.</p>
+            <p className="text-sm text-muted-foreground font-medium">Nenhum item marcado como comodato.</p>
+            <p className="text-xs text-muted-foreground mt-1">Marque a opção &quot;Comodato&quot; no cadastro do item.</p>
           </div>
         ) : comodatoLinhas.length === 0 ? (
           <div className="py-14 text-center">
-            <p className="text-sm text-gray-500 font-medium">Nenhum comodato adicionado.</p>
-            <p className="text-xs text-gray-400 mt-1">Clique em &quot;Adicionar Item em Comodato&quot; para começar.</p>
+            <p className="text-sm text-muted-foreground font-medium">Nenhum comodato adicionado.</p>
+            <p className="text-xs text-muted-foreground mt-1">Clique em &quot;Adicionar Item em Comodato&quot; para começar.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[720px]">
-              <thead className="bg-gray-100 border-b border-gray-300 text-xs text-gray-700 uppercase tracking-wide">
+              <thead className="bg-muted border-b border-border text-xs text-foreground uppercase tracking-wide">
                 <tr>
                   <th className="text-center px-3 py-3 font-bold w-12">Item</th>
                   <th className="text-left px-3 py-3 font-bold">Item em Comodato</th>
@@ -1366,14 +1366,14 @@ export default function PedidoForm({
                   <th className="w-10 px-2 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-border">
                 {comodatoLinhas.map((linha, idx) => {
                   const total = (parseDecimal(linha.quantidade) || 0) * (parseDecimal(linha.valorUnitario) || 0);
                   return (
-                    <tr key={linha._key} className="hover:bg-blue-50/30 transition-colors">
+                    <tr key={linha._key} className="hover:bg-info/10 transition-colors">
                       {/* # */}
                       <td className="px-3 py-2.5 text-center">
-                        <span className="text-xs font-bold font-mono text-gray-600 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">{idx + 1}</span>
+                        <span className="text-xs font-bold font-mono text-muted-foreground bg-muted border border-border px-2 py-0.5 rounded">{idx + 1}</span>
                       </td>
                       {/* Item em Comodato */}
                       <td className="px-3 py-2.5 min-w-[220px]">
@@ -1392,7 +1392,7 @@ export default function PedidoForm({
                           inputMode="decimal"
                           value={linha.quantidade}
                           onChange={(e) => updateComodatoLinha(linha._key, "quantidade", e.target.value)}
-                          className="h-9 text-xs text-right border-gray-300 font-medium"
+                          className="h-9 text-xs text-right border-border font-medium"
                         />
                       </td>
                       {/* Valor Un. */}
@@ -1401,7 +1401,7 @@ export default function PedidoForm({
                           inputMode="decimal"
                           value={linha.valorUnitario}
                           onChange={(e) => updateComodatoLinha(linha._key, "valorUnitario", e.target.value)}
-                          className="h-9 text-xs text-right border-gray-300 font-medium"
+                          className="h-9 text-xs text-right border-border font-medium"
                         />
                       </td>
                       {/* Documento (opcional) */}
@@ -1411,19 +1411,19 @@ export default function PedidoForm({
                           value={linha.documento}
                           onChange={(e) => updateComodatoLinha(linha._key, "documento", e.target.value)}
                           placeholder="Opcional"
-                          className="h-9 text-xs border-gray-300"
+                          className="h-9 text-xs border-border"
                         />
                       </td>
                       {/* Total */}
                       <td className="px-3 py-2.5 text-right">
-                        <span className="text-sm font-bold text-gray-900">{formatBRL(total)}</span>
+                        <span className="text-sm font-bold text-foreground">{formatBRL(total)}</span>
                       </td>
                       {/* Remove */}
                       <td className="px-2 py-2.5">
                         <button
                           type="button"
                           onClick={() => removeComodatoLinha(linha._key)}
-                          className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors border border-transparent hover:border-red-200"
+                          className="p-1.5 rounded hover:bg-danger/10 text-muted-foreground hover:text-red-500 transition-colors border border-transparent hover:border-danger/30"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1433,12 +1433,12 @@ export default function PedidoForm({
                 })}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-gray-800">
+                <tr className="border-t-2 border-border bg-muted font-semibold text-foreground">
                   <td className="px-3 py-3 text-right text-xs uppercase tracking-wide" colSpan={2}>Total</td>
                   <td className="px-3 py-3 text-right tabular-nums">{comodatoTotalQtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}</td>
                   <td></td>
                   <td></td>
-                  <td className="px-3 py-3 text-right text-blue-700">{formatBRL(comodatoTotalValor)}</td>
+                  <td className="px-3 py-3 text-right text-info">{formatBRL(comodatoTotalValor)}</td>
                   <td></td>
                 </tr>
               </tfoot>
@@ -1449,10 +1449,10 @@ export default function PedidoForm({
       )}
 
       {/* ── Rodapé sempre visível: pagamento + condição (após os itens) + totais ──── */}
-      <div className="bg-white rounded-xl border border-gray-300 shadow-sm p-5 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+      <div className="bg-card rounded-xl border border-border shadow-sm p-5 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Forma de Pagamento</Label>
+            <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Forma de Pagamento</Label>
             <PagamentosInput
               linhas={pagamentos}
               setLinhas={setPagamentos}
@@ -1463,21 +1463,21 @@ export default function PedidoForm({
             />
             {pago && (
               <>
-                <p className="text-[11px] text-gray-400">Pedido já pago — você pode corrigir a conta de destino e a data do recebimento (o lançamento no caixa é movido junto).</p>
+                <p className="text-[11px] text-muted-foreground">Pedido já pago — você pode corrigir a conta de destino e a data do recebimento (o lançamento no caixa é movido junto).</p>
                 <div className="space-y-1 max-w-[12rem]">
-                  <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data do Recebimento</Label>
+                  <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data do Recebimento</Label>
                   <input
                     type="date"
                     value={pagamentoData}
                     onChange={(e) => setPagamentoData(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </>
             )}
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Natureza Financeira{!pedido && " *"}</Label>
+            <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Natureza Financeira{!pedido && " *"}</Label>
             <NaturezaCombobox
               value={naturezaFinanceiraId}
               onChange={setNaturezaFinanceiraId}
@@ -1487,7 +1487,7 @@ export default function PedidoForm({
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Condição de Pagamento{!pedido && " *"}</Label>
+            <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Condição de Pagamento{!pedido && " *"}</Label>
             <div ref={condicaoRef}>
               <button
                 data-condicao-dd
@@ -1508,43 +1508,43 @@ export default function PedidoForm({
                 disabled={condicoesLoading}
                 className={cn(
                   "w-full flex items-center justify-between h-10 px-3 rounded-lg border text-sm text-left transition-colors",
-                  condicaoOpen ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-300 hover:border-gray-400",
-                  condicaoPagamento ? "text-gray-900" : "text-gray-400",
+                  condicaoOpen ? "border-blue-500 ring-2 ring-blue-100" : "border-border hover:border-border",
+                  condicaoPagamento ? "text-foreground" : "text-muted-foreground",
                   condicoesLoading && "opacity-50 cursor-not-allowed"
                 )}
               >
                 <span className="truncate">{condicaoPagamento || "— Selecionar condição —"}</span>
-                <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
             </div>
           </div>
         </div>
-        <div className="space-y-2.5 text-sm md:border-l md:border-gray-200 md:pl-6">
-          <div className="flex justify-between text-gray-700 font-medium">
+        <div className="space-y-2.5 text-sm md:border-l md:border-border md:pl-6">
+          <div className="flex justify-between text-foreground font-medium">
             <span>Subtotal</span>
             <span className="font-semibold">{formatBRL(subtotal)}</span>
           </div>
-          <div className="flex justify-between items-center text-gray-700 font-medium">
+          <div className="flex justify-between items-center text-foreground font-medium">
             <span>Frete (R$)</span>
             <Input
               inputMode="decimal"
               value={valorFrete}
               onChange={(e) => setValorFrete(e.target.value)}
-              className="h-8 w-28 text-xs text-right border-gray-300"
+              className="h-8 w-28 text-xs text-right border-border"
             />
           </div>
           {comodatoTotalValor > 0 && (
-            <div className="flex justify-between text-gray-700 font-medium">
+            <div className="flex justify-between text-foreground font-medium">
               <span>Comodato</span>
               <span className="font-semibold">{formatBRL(comodatoTotalValor)}</span>
             </div>
           )}
-          <Separator className="bg-gray-300" />
-          <div className="flex justify-between font-bold text-lg text-gray-900">
+          <Separator className="bg-muted" />
+          <div className="flex justify-between font-bold text-lg text-foreground">
             <span>Total</span>
-            <span className="text-blue-700">{formatBRL(totalGeral)}</span>
+            <span className="text-info">{formatBRL(totalGeral)}</span>
           </div>
         </div>
       </div>
@@ -1553,12 +1553,12 @@ export default function PedidoForm({
       {portalMounted && itemSearchRow && itemDropPos && createPortal(
         <div
           data-item-search
-          className="fixed z-[9999] bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden"
+          className="fixed z-[9999] bg-card rounded-xl border border-border shadow-xl overflow-hidden"
           style={{ top: itemDropPos.top, left: itemDropPos.left, width: itemDropPos.width }}
         >
           {/* Search input */}
-          <div className="relative border-b border-gray-100">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+          <div className="relative border-b border-border">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
             <input
               ref={itemInputRef}
               data-item-search
@@ -1572,11 +1572,11 @@ export default function PedidoForm({
           {/* Results */}
           <div className="max-h-56 overflow-y-auto">
             {itemSearching ? (
-              <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-gray-400">
+              <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-muted-foreground">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando...
               </div>
             ) : itemResults.length === 0 ? (
-              <p className="px-4 py-3 text-xs text-gray-400 italic text-center">
+              <p className="px-4 py-3 text-xs text-muted-foreground italic text-center">
                 {catalogItens.length === 0
                   ? "Nenhum produto marcado como vendável. Ative o check nos produtos."
                   : "Nenhum produto encontrado"}
@@ -1590,11 +1590,11 @@ export default function PedidoForm({
                   selectItem(itemSearchRow, p);
                   closeItemSearch();
                 }}
-                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-blue-50 text-left border-b border-gray-50 last:border-0"
+                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-info/10 text-left border-b border-gray-50 last:border-0"
               >
-                <span className="font-mono text-xs text-gray-500 shrink-0 w-20">{p.codigo}</span>
-                <span className="text-sm text-gray-800 truncate flex-1">{p.descricao}</span>
-                <span className="text-xs text-gray-500 shrink-0">{p.unidadeMedida}</span>
+                <span className="font-mono text-xs text-muted-foreground shrink-0 w-20">{p.codigo}</span>
+                <span className="text-sm text-foreground truncate flex-1">{p.descricao}</span>
+                <span className="text-xs text-muted-foreground shrink-0">{p.unidadeMedida}</span>
               </button>
             ))}
           </div>
@@ -1606,12 +1606,12 @@ export default function PedidoForm({
       {portalMounted && condicaoOpen && condicaoDropPos && createPortal(
         <div
           ref={condicaoPortalRef}
-          className="fixed z-[9999] bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden"
+          className="fixed z-[9999] bg-card rounded-xl border border-border shadow-xl overflow-hidden"
           style={{ top: condicaoDropPos.top, left: condicaoDropPos.left, width: condicaoDropPos.width }}
         >
           {/* Search */}
-          <div className="relative border-b border-gray-100">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+          <div className="relative border-b border-border">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
             <input
               autoFocus type="text"
               value={condicaoSearch}
@@ -1628,22 +1628,22 @@ export default function PedidoForm({
                 <button
                   key={c.id} type="button"
                   onMouseDown={() => { setCondicaoPagamento(c.nome); setCondicaoOpen(false); setCondicaoSearch(""); }}
-                  className={cn("w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 border-b border-gray-50 last:border-0", condicaoPagamento === c.nome && "bg-blue-50 text-blue-700 font-semibold")}
+                  className={cn("w-full text-left px-4 py-2.5 text-sm hover:bg-info/10 border-b border-gray-50 last:border-0", condicaoPagamento === c.nome && "bg-info/10 text-info font-semibold")}
                 >
                   {c.nome}
                 </button>
               ))}
             {condicoes.filter((c) => !condicaoSearch.trim() || c.nome.toLowerCase().includes(condicaoSearch.toLowerCase())).length === 0 && (
-              <p className="px-4 py-3 text-xs text-gray-400 italic text-center">Nenhuma condição encontrada</p>
+              <p className="px-4 py-3 text-xs text-muted-foreground italic text-center">Nenhuma condição encontrada</p>
             )}
           </div>
           {/* Footer — add new */}
-          <div className="border-t border-gray-100">
+          <div className="border-t border-border">
             {!showNewCondicao ? (
               <button
                 type="button"
                 onClick={() => { setShowNewCondicao(true); setNewCondicaoName(condicaoSearch.trim()); }}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 font-medium transition-colors"
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-info hover:bg-info/10 font-medium transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" /> Adicionar nova condição
               </button>
@@ -1656,7 +1656,7 @@ export default function PedidoForm({
                   onChange={(e) => setNewCondicaoName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") saveNovaCondicao(); if (e.key === "Escape") { setShowNewCondicao(false); setNewCondicaoName(""); } }}
                   placeholder="Nome da condição..."
-                  className="flex-1 h-8 px-2.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="flex-1 h-8 px-2.5 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
                 />
                 <button
                   type="button"
@@ -1669,7 +1669,7 @@ export default function PedidoForm({
                 <button
                   type="button"
                   onMouseDown={(e) => { e.preventDefault(); setShowNewCondicao(false); setNewCondicaoName(""); }}
-                  className="h-8 px-2 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                  className="h-8 px-2 text-xs text-muted-foreground hover:text-muted-foreground transition-colors"
                 >
                   ✕
                 </button>
@@ -1684,13 +1684,13 @@ export default function PedidoForm({
       <div className="max-w-5xl space-y-6">
         {/* Observações */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Observações</Label>
+          <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Observações</Label>
           <Textarea
             value={observacoes}
             onChange={(e) => setObservacoes(e.target.value)}
             rows={3}
             placeholder="Observações do pedido..."
-            className="border-gray-300 text-gray-800 placeholder:text-gray-400 resize-none"
+            className="border-border text-foreground placeholder:text-muted-foreground resize-none"
           />
         </div>
 
@@ -1711,7 +1711,7 @@ export default function PedidoForm({
                 type="button" variant="outline"
                 onClick={() => handleSubmit("ORCAMENTO")}
                 disabled={!!submitting}
-                className="border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold"
+                className="border-border text-foreground hover:bg-muted font-semibold"
               >
                 {submitting === "orcamento" ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Salvando...</> : "Salvar como Orçamento"}
               </Button>
@@ -1725,7 +1725,7 @@ export default function PedidoForm({
               </Button>
             </>
           )}
-          <Button type="button" variant="ghost" onClick={pedido ? () => router.back() : voltarLista} disabled={!!submitting} className="text-gray-500 hover:text-gray-700">
+          <Button type="button" variant="ghost" onClick={pedido ? () => router.back() : voltarLista} disabled={!!submitting} className="text-muted-foreground hover:text-foreground">
             Cancelar
           </Button>
         </div>

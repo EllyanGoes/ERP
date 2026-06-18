@@ -93,7 +93,7 @@ export default function ConfigTiposPage() {
       />
 
       <div className="flex-1 overflow-y-auto px-8 pb-8 max-w-2xl">
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info">
           <Info className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
             Os tipos marcados <strong>contam como parada não planejada</strong> (corretivas);
@@ -105,23 +105,23 @@ export default function ConfigTiposPage() {
         </div>
 
         {erro && (
-          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="mb-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
             {erro}
           </div>
         )}
         {okMsg && (
-          <div className="mb-3 flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          <div className="mb-3 flex items-center gap-1.5 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
             <Check className="w-4 h-4" /> {okMsg}
           </div>
         )}
 
         {loading ? (
-          <div className="flex items-center gap-2 text-sm text-gray-400 py-10">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground py-10">
             <RefreshCw className="w-4 h-4 animate-spin" /> Carregando tipos…
           </div>
         ) : tipos.length === 0 ? (
           <div className="flex flex-col items-start gap-3 py-6">
-            <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <AlertTriangle className="w-4 h-4 text-amber-400" /> Nenhum tipo carregado.
             </div>
             <button
@@ -134,20 +134,20 @@ export default function ConfigTiposPage() {
           </div>
         ) : (
           <>
-            <div className="rounded-xl border border-gray-300 bg-white divide-y divide-gray-100 overflow-hidden">
+            <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
               {tipos.map((t) => (
                 <label
                   key={t.codTipMan}
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer"
+                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted cursor-pointer"
                 >
                   <input
                     type="checkbox"
                     checked={sel.has(t.codTipMan)}
                     onChange={() => toggle(t.codTipMan)}
-                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded border-border text-info focus:ring-blue-500"
                   />
-                  <span className="flex-1 text-sm text-gray-800">{t.descricao}</span>
-                  <span className="text-[11px] text-gray-400 font-mono">#{t.codTipMan}</span>
+                  <span className="flex-1 text-sm text-foreground">{t.descricao}</span>
+                  <span className="text-[11px] text-muted-foreground font-mono">#{t.codTipMan}</span>
                 </label>
               ))}
             </div>
@@ -161,7 +161,7 @@ export default function ConfigTiposPage() {
               >
                 {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar
               </button>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-muted-foreground">
                 {sel.size} de {tipos.length} contam como falha
               </span>
             </div>

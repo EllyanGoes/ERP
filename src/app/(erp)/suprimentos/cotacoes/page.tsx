@@ -60,9 +60,9 @@ type CotacaoItem = {
 type FilterOp = "is" | "is_not";
 
 const KANBAN_COLS = [
-  { status: "PENDENTE",   label: "Pendente",   dot: "bg-amber-400",  color: "bg-amber-50 border-amber-200" },
-  { status: "EM_ANALISE", label: "Em Análise", dot: "bg-blue-400",   color: "bg-blue-50 border-blue-200" },
-  { status: "CONCLUIDA",  label: "Concluída",  dot: "bg-green-400",  color: "bg-green-50 border-green-200" },
+  { status: "PENDENTE",   label: "Pendente",   dot: "bg-amber-400",  color: "bg-warning/10 border-warning/30" },
+  { status: "EM_ANALISE", label: "Em Análise", dot: "bg-blue-400",   color: "bg-info/10 border-info/30" },
+  { status: "CONCLUIDA",  label: "Concluída",  dot: "bg-green-400",  color: "bg-success/10 border-success/30" },
 ];
 
 const STATUS_OPTIONS = [
@@ -72,9 +72,9 @@ const STATUS_OPTIONS = [
 ];
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  PENDENTE:   { label: "Pendente",   cls: "bg-amber-100 text-amber-700" },
-  EM_ANALISE: { label: "Em Análise", cls: "bg-blue-100 text-blue-700" },
-  CONCLUIDA:  { label: "Concluída",  cls: "bg-green-100 text-green-700" },
+  PENDENTE:   { label: "Pendente",   cls: "bg-warning/15 text-warning" },
+  EM_ANALISE: { label: "Em Análise", cls: "bg-info/15 text-info" },
+  CONCLUIDA:  { label: "Concluída",  cls: "bg-success/15 text-success" },
 };
 
 const SORT_OPTIONS = [
@@ -97,10 +97,10 @@ function makeCotacoesCols(
     {
       id: "status",
       label: "Status",
-      thClass: "text-left px-4 py-3 font-medium text-gray-600",
+      thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
       tdClass: "px-4 py-3",
       render: (c) => {
-        const badge = STATUS_BADGE[c.status] ?? { label: c.status, cls: "bg-gray-100 text-gray-700" };
+        const badge = STATUS_BADGE[c.status] ?? { label: c.status, cls: "bg-muted text-foreground" };
         return (
           <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium", badge.cls)}>
             {badge.label}
@@ -111,66 +111,66 @@ function makeCotacoesCols(
     {
       id: "numero",
       label: "Num. Cotação",
-      thClass: "text-left px-4 py-3 font-medium text-gray-600",
-      tdClass: "px-4 py-3 font-mono text-xs font-medium text-gray-900",
+      thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+      tdClass: "px-4 py-3 font-mono text-xs font-medium text-foreground",
       render: (c) => c.numero,
     },
     {
       id: "solicitacao",
       label: "Solicitação",
-      thClass: "text-left px-4 py-3 font-medium text-gray-600",
+      thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
       tdClass: "px-4 py-3",
       render: (c) => c.necessidade ? (
         <Link
           href={`/compras/necessidades/${c.necessidade.id}`}
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-blue-700 hover:text-blue-900 hover:underline"
+          className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-info hover:text-blue-900 hover:underline"
         >
           {c.necessidade.numero}
         </Link>
-      ) : <span className="text-gray-400 text-xs">—</span>,
+      ) : <span className="text-muted-foreground text-xs">—</span>,
     },
     {
       id: "apelido",
       label: "Apelido",
-      thClass: "text-left px-4 py-3 font-medium text-gray-600",
-      tdClass: "px-4 py-3 text-gray-600",
+      thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+      tdClass: "px-4 py-3 text-muted-foreground",
       render: (c) => c.nome || "—",
     },
     {
       id: "data",
       label: "Data",
-      thClass: "text-left px-4 py-3 font-medium text-gray-600",
-      tdClass: "px-4 py-3 text-gray-600 text-xs",
+      thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+      tdClass: "px-4 py-3 text-muted-foreground text-xs",
       render: (c) => formatDate(c.createdAt),
     },
     {
       id: "produtos",
       label: "Produtos",
-      thClass: "text-center px-4 py-3 font-medium text-gray-600",
-      tdClass: "px-4 py-3 text-center text-gray-600",
+      thClass: "text-center px-4 py-3 font-medium text-muted-foreground",
+      tdClass: "px-4 py-3 text-center text-muted-foreground",
       render: (c) => getQtdProdutos(c),
     },
     {
       id: "fornecedores",
       label: "Fornecedores",
-      thClass: "text-center px-4 py-3 font-medium text-gray-600",
-      tdClass: "px-4 py-3 text-center text-gray-600",
+      thClass: "text-center px-4 py-3 font-medium text-muted-foreground",
+      tdClass: "px-4 py-3 text-center text-muted-foreground",
       render: (c) => c._count.fornecedores,
     },
     {
       id: "respondidas",
       label: "Respondidas",
-      thClass: "text-center px-4 py-3 font-medium text-gray-600",
+      thClass: "text-center px-4 py-3 font-medium text-muted-foreground",
       tdClass: "px-4 py-3 text-center",
-      render: (c) => <span className="text-green-700 font-medium">{getRespondidas(c)}</span>,
+      render: (c) => <span className="text-success font-medium">{getRespondidas(c)}</span>,
     },
     {
       id: "descartadas",
       label: "Descartadas",
-      thClass: "text-center px-4 py-3 font-medium text-gray-600",
+      thClass: "text-center px-4 py-3 font-medium text-muted-foreground",
       tdClass: "px-4 py-3 text-center",
-      render: (c) => <span className="text-red-600 font-medium">{getDescartadas(c)}</span>,
+      render: (c) => <span className="text-danger font-medium">{getDescartadas(c)}</span>,
     },
   ];
 }
@@ -228,22 +228,22 @@ function StatusFilterChip({
       <div className={cn(
         "inline-flex items-center h-8 rounded-full border text-sm font-medium transition-colors cursor-pointer select-none",
         active
-          ? "border-blue-400 bg-blue-50 text-blue-700"
-          : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700"
+          ? "border-blue-400 bg-info/10 text-info"
+          : "border-border bg-card text-muted-foreground hover:border-border hover:text-foreground"
       )}>
         <button
           type="button"
           onClick={() => { calcPos(); setOpen((p) => !p); setShowOpMenu(false); }}
           className="pl-3 pr-1 h-full flex items-center gap-1.5 rounded-l-full"
         >
-          <span className={cn("text-xs font-semibold", active ? "text-blue-500" : "text-gray-400")}>Status</span>
+          <span className={cn("text-xs font-semibold", active ? "text-blue-500" : "text-muted-foreground")}>Status</span>
           {active && (
             <>
               <button
                 ref={opRef}
                 type="button"
                 onClick={(e) => { e.stopPropagation(); calcOpPos(); setShowOpMenu((p) => !p); setOpen(false); }}
-                className="px-1 py-0.5 rounded hover:bg-blue-100 text-blue-600 text-xs font-medium"
+                className="px-1 py-0.5 rounded hover:bg-info/15 text-info text-xs font-medium"
               >
                 {opLabel}
               </button>
@@ -254,7 +254,7 @@ function StatusFilterChip({
               </span>
             </>
           )}
-          <ChevronDown className={cn("w-3 h-3 ml-0.5 transition-transform", open && "rotate-180", active ? "text-blue-400" : "text-gray-400")} />
+          <ChevronDown className={cn("w-3 h-3 ml-0.5 transition-transform", open && "rotate-180", active ? "text-blue-400" : "text-muted-foreground")} />
         </button>
         {active && (
           <button
@@ -269,10 +269,10 @@ function StatusFilterChip({
 
       {mounted && showOpMenu && opPos && createPortal(
         <div style={{ position: "fixed", top: opPos.top, left: opPos.left, zIndex: 9999 }}
-          className="bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[100px]">
+          className="bg-card border border-border rounded-xl shadow-lg py-1 min-w-[100px]">
           {(["is", "is_not"] as FilterOp[]).map((o) => (
             <button key={o} type="button" onClick={() => { onOpChange(o); setShowOpMenu(false); }}
-              className={cn("w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2", op === o && "text-blue-600 font-medium")}>
+              className={cn("w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2", op === o && "text-info font-medium")}>
               {op === o && <Check className="w-3.5 h-3.5 shrink-0" />}
               {o === "is" ? "É" : "Não é"}
             </button>
@@ -283,11 +283,11 @@ function StatusFilterChip({
 
       {mounted && open && pos && createPortal(
         <div ref={dropRef} style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
-          className="bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
-          <div className="flex border-b border-gray-100">
+          className="bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+          <div className="flex border-b border-border">
             {(["is", "is_not"] as FilterOp[]).map((o) => (
               <button key={o} type="button" onClick={() => onOpChange(o)}
-                className={cn("flex-1 py-2 text-xs font-semibold transition-colors", op === o ? "bg-blue-50 text-blue-600" : "text-gray-400 hover:bg-gray-50")}>
+                className={cn("flex-1 py-2 text-xs font-semibold transition-colors", op === o ? "bg-info/10 text-info" : "text-muted-foreground hover:bg-muted")}>
                 {o === "is" ? "É" : "Não é"}
               </button>
             ))}
@@ -298,8 +298,8 @@ function StatusFilterChip({
               const badge = STATUS_BADGE[opt.value];
               return (
                 <button key={opt.value} type="button" onClick={() => toggle(opt.value)}
-                  className={cn("w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left", checked && "bg-blue-50/60")}>
-                  <span className={cn("w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors", checked ? "bg-blue-600 border-blue-600" : "border-gray-300")}>
+                  className={cn("w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted transition-colors text-left", checked && "bg-info/10")}>
+                  <span className={cn("w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors", checked ? "bg-blue-600 border-blue-600" : "border-border")}>
                     {checked && <Check className="w-3 h-3 text-white" />}
                   </span>
                   <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium", badge.cls)}>{badge.label}</span>
@@ -308,9 +308,9 @@ function StatusFilterChip({
             })}
           </div>
           {selected.length > 0 && (
-            <div className="border-t border-gray-100 px-3 py-2">
+            <div className="border-t border-border px-3 py-2">
               <button type="button" onClick={() => { onClear(); setOpen(false); }}
-                className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors">
                 Limpar seleção
               </button>
             </div>
@@ -344,23 +344,23 @@ function KanbanCard({ c, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
       onDragEnd={onDragEnd}
       onClick={onClick}
       className={cn(
-        "bg-white border border-gray-200 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-grab active:cursor-grabbing group",
+        "bg-card border border-border rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-info/30 transition-all cursor-grab active:cursor-grabbing group",
         isDragging && "opacity-40 scale-95 rotate-1"
       )}
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div>
-          <span className="font-mono text-xs font-bold text-gray-500">{c.numero}</span> <EmpresaTag empresaId={c.empresaId} />
+          <span className="font-mono text-xs font-bold text-muted-foreground">{c.numero}</span> <EmpresaTag empresaId={c.empresaId} />
           {c.nome && (
-            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[180px]">{c.nome}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[180px]">{c.nome}</p>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
           {canDelete && (
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
-              className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"
+              className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-muted-foreground/60 hover:text-red-500 hover:bg-danger/10 transition-all"
               title="Excluir"
             >
               <Trash2 className="w-3 h-3" />
@@ -386,21 +386,21 @@ function KanbanCard({ c, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
 
       {/* Meta */}
       <div className="space-y-1 mb-2.5">
-        <div className="flex items-center gap-2 text-xs text-gray-500">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>{c._count.fornecedores} fornecedor{c._count.fornecedores !== 1 ? "es" : ""}</span>
           {qtdProdutos > 0 && <span>· {qtdProdutos} produto{qtdProdutos !== 1 ? "s" : ""}</span>}
         </div>
         {(resp > 0 || desc > 0) && (
           <div className="flex items-center gap-2 text-xs">
-            {resp > 0 && <span className="text-emerald-600 font-medium">{resp} respondida{resp !== 1 ? "s" : ""}</span>}
+            {resp > 0 && <span className="text-success font-medium">{resp} respondida{resp !== 1 ? "s" : ""}</span>}
             {desc > 0 && <span className="text-red-500 font-medium">{desc} descartada{desc !== 1 ? "s" : ""}</span>}
           </div>
         )}
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-2.5 border-t border-gray-100">
-        <span className="text-xs text-gray-300">{formatDate(c.createdAt)}</span>
+      <div className="flex items-center justify-between pt-2.5 border-t border-border">
+        <span className="text-xs text-muted-foreground/60">{formatDate(c.createdAt)}</span>
       </div>
     </div>
   );
@@ -547,7 +547,7 @@ export default function CotacoesPage() {
         <div className="flex flex-wrap gap-2 items-center">
           {/* Search */}
           <div className="relative flex-1 min-w-[220px] max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -555,7 +555,7 @@ export default function CotacoesPage() {
               className="pl-9 pr-8 h-9 text-sm"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
@@ -573,11 +573,11 @@ export default function CotacoesPage() {
           {/* Sort — hidden in kanban */}
           {view === "list" && (
             <div className="flex items-center gap-1.5">
-              <ArrowUpDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
               <select
                 value={sortKey}
                 onChange={(e) => setSortKey(e.target.value)}
-                className="h-9 px-3 pr-8 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                className="h-9 px-3 pr-8 text-sm border border-border rounded-md bg-card focus:outline-none focus:ring-1 focus:ring-blue-400"
               >
                 {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
@@ -588,7 +588,7 @@ export default function CotacoesPage() {
           {hasFilters && (
             <button
               onClick={() => { setSearch(""); setFilterStatuses([]); setFilterStatusOp("is"); }}
-              className="h-8 px-3 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-full hover:bg-gray-50 flex items-center gap-1 transition-colors"
+              className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-muted flex items-center gap-1 transition-colors"
             >
               <X className="w-3 h-3" /> Limpar tudo
             </button>
@@ -600,13 +600,13 @@ export default function CotacoesPage() {
           )}
 
           {/* View toggle */}
-          <div className="ml-auto flex items-center gap-0.5 p-0.5 bg-gray-100 rounded-lg border border-gray-200">
+          <div className="ml-auto flex items-center gap-0.5 p-0.5 bg-muted rounded-lg border border-border">
             <button
               type="button"
               onClick={() => setView("list")}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-                view === "list" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                view === "list" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               )}
             >
               <LayoutList className="w-4 h-4" /> Lista
@@ -616,7 +616,7 @@ export default function CotacoesPage() {
               onClick={() => setView("kanban")}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-                view === "kanban" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                view === "kanban" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               )}
             >
               <Kanban className="w-4 h-4" /> Kanban
@@ -626,7 +626,7 @@ export default function CotacoesPage() {
 
         {/* Results count */}
         {!loading && hasFilters && (
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-muted-foreground">
             {filtered.length} resultado{filtered.length !== 1 ? "s" : ""} encontrado{filtered.length !== 1 ? "s" : ""}
           </p>
         )}
@@ -634,10 +634,10 @@ export default function CotacoesPage() {
         {/* ── Content ── */}
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
             <p className="text-lg font-medium">{hasFilters ? "Nenhum resultado encontrado" : "Nenhuma cotação registrada"}</p>
             <p className="text-sm mt-1">{hasFilters ? "Tente ajustar os filtros." : "Clique em \"Nova Cotação\" para começar."}</p>
           </div>
@@ -675,20 +675,20 @@ export default function CotacoesPage() {
                   )}>
                     <div className="flex items-center gap-2">
                       <div className={cn("w-2 h-2 rounded-full shrink-0", col.dot)} />
-                      <span className="text-sm font-semibold text-gray-700">{col.label}</span>
+                      <span className="text-sm font-semibold text-foreground">{col.label}</span>
                     </div>
-                    <span className="text-xs font-bold text-gray-500 bg-white/70 px-2 py-0.5 rounded-full">
+                    <span className="text-xs font-bold text-muted-foreground bg-card/70 px-2 py-0.5 rounded-full">
                       {colItems.length}
                     </span>
                   </div>
                   {/* Cards */}
                   <div className={cn(
                     "flex flex-col gap-2.5 flex-1 rounded-xl p-1 -m-1 transition-all",
-                    isOver && canReceive && "bg-blue-50/50 outline outline-2 outline-dashed outline-blue-300"
+                    isOver && canReceive && "bg-info/10 outline outline-2 outline-dashed outline-blue-300"
                   )}>
                     {colItems.length === 0 && !isOver ? (
                       <div className="flex-1 flex items-start justify-center pt-8">
-                        <p className="text-xs text-gray-300 italic">Nenhuma cotação</p>
+                        <p className="text-xs text-muted-foreground/60 italic">Nenhuma cotação</p>
                       </div>
                     ) : colItems.length === 0 && isOver ? (
                       <div className="flex-1 flex items-center justify-center py-8">
@@ -723,9 +723,9 @@ export default function CotacoesPage() {
         ) : (
 
           /* ── LIST VIEW ── */
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
@@ -733,11 +733,11 @@ export default function CotacoesPage() {
                   <th className="px-4 py-3 w-12" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {filtered.map((c) => (
                   <tr
                     key={c.id}
-                    className="hover:bg-blue-50/40 transition-colors cursor-pointer"
+                    className="hover:bg-info/10 transition-colors cursor-pointer"
                     onClick={() => router.push(`/suprimentos/cotacoes/${c.id}`)}
                   >
                     {orderedCols.map((col) => (
@@ -759,7 +759,7 @@ export default function CotacoesPage() {
                           </DropdownMenuItem>
                           {canDelete(c) && (
                             <DropdownMenuItem
-                              className="text-red-600 focus:text-red-600"
+                              className="text-danger focus:text-danger"
                               onClick={() => setDeleteTarget({ id: c.id, numero: c.numero })}
                             >
                               <Trash2 className="h-4 w-4 mr-2" /> Excluir
@@ -779,17 +779,17 @@ export default function CotacoesPage() {
       {/* ── Delete modal ── */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Excluir cotação?</p>
-                <p className="text-sm text-gray-500 mt-0.5 font-mono">{deleteTarget.numero}</p>
+                <p className="font-semibold text-foreground">Excluir cotação?</p>
+                <p className="text-sm text-muted-foreground mt-0.5 font-mono">{deleteTarget.numero}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-4">Esta ação é permanente e não pode ser desfeita.</p>
+            <p className="text-sm text-muted-foreground mb-4">Esta ação é permanente e não pode ser desfeita.</p>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancelar</Button>
               <Button variant="destructive" size="sm" onClick={confirmDelete} disabled={deleting}>

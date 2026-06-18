@@ -43,10 +43,10 @@ type ColaboradorOpt = { id: string; nome: string };
 function toNum(v: unknown) { return v == null ? 0 : parseFloat(String(v)); }
 
 const STATUS_COLOR: Record<string, string> = {
-  RASCUNHO:    "bg-gray-100 text-gray-600",
-  EM_ANDAMENTO: "bg-blue-100 text-blue-700",
-  CONCLUIDO:   "bg-emerald-100 text-emerald-700",
-  CANCELADO:   "bg-red-100 text-red-600",
+  RASCUNHO:    "bg-muted text-muted-foreground",
+  EM_ANDAMENTO: "bg-info/15 text-info",
+  CONCLUIDO:   "bg-success/15 text-success",
+  CANCELADO:   "bg-danger/15 text-danger",
 };
 const STATUS_LABEL: Record<string, string> = {
   RASCUNHO: "Rascunho", EM_ANDAMENTO: "Em Andamento", CONCLUIDO: "Concluído", CANCELADO: "Cancelado",
@@ -174,33 +174,33 @@ export default function InventarioDetailPage() {
 
   useTabTitle(inv ? `INV ${inv.numero}` : null);
 
-  if (loading) return <div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
   if (!inv) return <div className="px-8 pt-8 text-red-500">Inventário não encontrado</div>;
 
   const canEdit = inv.status === "RASCUNHO" || inv.status === "EM_ANDAMENTO";
 
   return (
     <div>
-      <div className="flex items-center gap-1.5 px-8 pt-6 pb-2 text-sm text-gray-500">
-        <Link href="/suprimentos/inventarios-materiais" className="hover:text-gray-800 transition-colors flex items-center gap-1">
+      <div className="flex items-center gap-1.5 px-8 pt-6 pb-2 text-sm text-muted-foreground">
+        <Link href="/suprimentos/inventarios-materiais" className="hover:text-foreground transition-colors flex items-center gap-1">
           <ArrowLeft className="w-3.5 h-3.5" />Inventário de Materiais
         </Link>
-        <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-        <span className="text-gray-800 font-medium">{inv.numero}</span>
+        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60" />
+        <span className="text-foreground font-medium">{inv.numero}</span>
       </div>
 
       <div className="px-8 py-4 flex items-start justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-gray-900">{inv.numero}</h1>
-            <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium", STATUS_COLOR[inv.status] ?? "bg-gray-100 text-gray-500")}>
+            <h1 className="text-xl font-bold text-foreground">{inv.numero}</h1>
+            <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium", STATUS_COLOR[inv.status] ?? "bg-muted text-muted-foreground")}>
               {STATUS_LABEL[inv.status] ?? inv.status}
             </span>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
               {TIPO_LABEL[inv.tipo] ?? inv.tipo}
             </span>
           </div>
-          <p className="text-sm text-gray-500">{inv.localEstoque?.nome} · {new Date(inv.data).toLocaleDateString("pt-BR")}</p>
+          <p className="text-sm text-muted-foreground">{inv.localEstoque?.nome} · {new Date(inv.data).toLocaleDateString("pt-BR")}</p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -230,23 +230,23 @@ export default function InventarioDetailPage() {
             </>
           )}
           {inv.status === "RASCUNHO" && !editMode && (
-            <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50 border-red-200" onClick={() => setShowDelete(true)}>
+            <Button size="sm" variant="outline" className="text-danger hover:bg-danger/10 border-danger/30" onClick={() => setShowDelete(true)}>
               <Trash2 className="w-4 h-4 mr-1" />Excluir
             </Button>
           )}
           {inv.status === "EM_ANDAMENTO" && !editMode && (
-            <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50 border-red-200" onClick={() => updateStatus("CANCELADO")}>
+            <Button size="sm" variant="outline" className="text-danger hover:bg-danger/10 border-danger/30" onClick={() => updateStatus("CANCELADO")}>
               <XCircle className="w-4 h-4 mr-1" />Cancelar
             </Button>
           )}
         </div>
       </div>
 
-      {saveError && <p className="px-8 pb-2 text-sm text-red-600">{saveError}</p>}
+      {saveError && <p className="px-8 pb-2 text-sm text-danger">{saveError}</p>}
 
       <div className="px-8 pb-8 space-y-6 max-w-5xl">
         {/* Info */}
-        <div className="rounded-xl border border-gray-200 p-5">
+        <div className="rounded-xl border border-border p-5">
           {editMode ? (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
@@ -262,32 +262,32 @@ export default function InventarioDetailPage() {
               <div className="col-span-full">
                 <Label className="text-xs mb-1 block">Observações</Label>
                 <textarea value={editObs} onChange={(e) => setEditObs(e.target.value)} rows={2}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-white resize-none" />
+                  className="w-full px-3 py-2 text-sm border border-border rounded-md bg-card resize-none" />
               </div>
             </div>
           ) : (
             <dl className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3 text-sm">
-              <div><dt className="text-xs text-gray-400 font-medium">Almoxarifado</dt><dd className="text-gray-800 mt-0.5">{inv.localEstoque?.nome ?? "—"}</dd></div>
-              <div><dt className="text-xs text-gray-400 font-medium">Funcionário</dt><dd className="text-gray-800 mt-0.5">{inv.colaborador?.nome ?? "—"}</dd></div>
-              <div><dt className="text-xs text-gray-400 font-medium">Data</dt><dd className="text-gray-800 mt-0.5">{new Date(inv.data).toLocaleDateString("pt-BR")}</dd></div>
-              <div><dt className="text-xs text-gray-400 font-medium">Tipo</dt><dd className="text-gray-800 mt-0.5">{TIPO_LABEL[inv.tipo] ?? inv.tipo}</dd></div>
-              {inv.observacoes && <div className="col-span-full"><dt className="text-xs text-gray-400 font-medium">Observações</dt><dd className="text-gray-700 mt-0.5">{inv.observacoes}</dd></div>}
+              <div><dt className="text-xs text-muted-foreground font-medium">Almoxarifado</dt><dd className="text-foreground mt-0.5">{inv.localEstoque?.nome ?? "—"}</dd></div>
+              <div><dt className="text-xs text-muted-foreground font-medium">Funcionário</dt><dd className="text-foreground mt-0.5">{inv.colaborador?.nome ?? "—"}</dd></div>
+              <div><dt className="text-xs text-muted-foreground font-medium">Data</dt><dd className="text-foreground mt-0.5">{new Date(inv.data).toLocaleDateString("pt-BR")}</dd></div>
+              <div><dt className="text-xs text-muted-foreground font-medium">Tipo</dt><dd className="text-foreground mt-0.5">{TIPO_LABEL[inv.tipo] ?? inv.tipo}</dd></div>
+              {inv.observacoes && <div className="col-span-full"><dt className="text-xs text-muted-foreground font-medium">Observações</dt><dd className="text-foreground mt-0.5">{inv.observacoes}</dd></div>}
             </dl>
           )}
         </div>
 
         {/* Amostragem */}
-        <div className="rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700">Amostragem do Inventário</h3>
+        <div className="rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 bg-muted border-b border-border">
+            <h3 className="text-sm font-semibold text-foreground">Amostragem do Inventário</h3>
           </div>
           {(editMode ? editRows : inv.itens).length === 0 ? (
-            <div className="text-center py-12 text-gray-400 text-sm">Nenhum material na amostragem</div>
+            <div className="text-center py-12 text-muted-foreground text-sm">Nenhum material na amostragem</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr className="text-xs text-gray-400 uppercase tracking-wide">
+                <thead className="bg-muted border-b border-border">
+                  <tr className="text-xs text-muted-foreground uppercase tracking-wide">
                     <th className="text-left px-4 py-2.5 font-medium">Material</th>
                     <th className="text-left px-4 py-2.5 font-medium">Unidade</th>
                     <th className="text-left px-4 py-2.5 font-medium">Fornecedor</th>
@@ -298,24 +298,24 @@ export default function InventarioDetailPage() {
                     <th className="text-right px-4 py-2.5 font-medium">Diferença</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {(editMode ? editRows : inv.itens).map((it, idx) => {
                     const sf    = toNum(it.saldoFisico);
                     const ss    = toNum(it.saldoSistema);
                     const diff  = it.saldoFisico != null ? sf - ss : null;
-                    const diffCls = diff == null ? "" : diff < 0 ? "text-red-600 font-semibold" : diff > 0 ? "text-amber-600 font-semibold" : "text-emerald-600";
+                    const diffCls = diff == null ? "" : diff < 0 ? "text-danger font-semibold" : diff > 0 ? "text-warning font-semibold" : "text-success";
                     const fornNome = it.fornecedor ? (it.fornecedor.nomeFantasia ?? it.fornecedor.razaoSocial) : "—";
 
                     return (
-                      <tr key={it.id || idx} className="hover:bg-gray-50">
+                      <tr key={it.id || idx} className="hover:bg-muted">
                         <td className="px-4 py-2.5">
-                          <div className="text-gray-800">{it.item?.descricao ?? "—"}</div>
-                          <div className="text-xs text-gray-400 font-mono">{it.item?.codigo}</div>
+                          <div className="text-foreground">{it.item?.descricao ?? "—"}</div>
+                          <div className="text-xs text-muted-foreground font-mono">{it.item?.codigo}</div>
                         </td>
-                        <td className="px-4 py-2.5 text-gray-500 text-xs">
+                        <td className="px-4 py-2.5 text-muted-foreground text-xs">
                           {it.item?.unidade?.sigla ?? it.item?.unidadeMedida ?? "—"}
                         </td>
-                        <td className="px-4 py-2.5 text-gray-700 text-xs min-w-[160px]">
+                        <td className="px-4 py-2.5 text-foreground text-xs min-w-[160px]">
                           {editMode ? (
                             <ComboboxWithCreate
                               value={it.fornecedorId ?? ""}
@@ -326,7 +326,7 @@ export default function InventarioDetailPage() {
                             />
                           ) : fornNome}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-mono text-gray-700 text-xs">
+                        <td className="px-4 py-2.5 text-right font-mono text-foreground text-xs">
                           {editMode ? (
                             <Input
                               type="number" step="0.01"
@@ -338,15 +338,15 @@ export default function InventarioDetailPage() {
                           ) : (
                             it.custoUnitario != null
                               ? toNum(it.custoUnitario).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-                              : <span className="text-gray-300">—</span>
+                              : <span className="text-muted-foreground/60">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-2.5 text-gray-500 text-xs">
+                        <td className="px-4 py-2.5 text-muted-foreground text-xs">
                           {editMode ? (
                             <Input value={String(it.localizacao ?? "")} onChange={(e) => updateEditRow(idx, "localizacao", e.target.value)} className="h-7 text-xs w-24" />
                           ) : (it.localizacao ?? "—")}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-mono text-gray-700">{toNum(it.saldoSistema).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })}</td>
+                        <td className="px-4 py-2.5 text-right font-mono text-foreground">{toNum(it.saldoSistema).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })}</td>
                         <td className="px-4 py-2.5 text-right font-mono">
                           {editMode ? (
                             <Input
@@ -357,11 +357,11 @@ export default function InventarioDetailPage() {
                               placeholder="—"
                             />
                           ) : (
-                            it.saldoFisico != null ? toNum(it.saldoFisico).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 }) : <span className="text-gray-300">—</span>
+                            it.saldoFisico != null ? toNum(it.saldoFisico).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 }) : <span className="text-muted-foreground/60">—</span>
                           )}
                         </td>
                         <td className={cn("px-4 py-2.5 text-right font-mono", diffCls)}>
-                          {diff != null ? (diff > 0 ? "+" : "") + diff.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 }) : <span className="text-gray-300">—</span>}
+                          {diff != null ? (diff > 0 ? "+" : "") + diff.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 }) : <span className="text-muted-foreground/60">—</span>}
                         </td>
                       </tr>
                     );
@@ -375,9 +375,9 @@ export default function InventarioDetailPage() {
 
       {showDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 space-y-4">
-            <h3 className="text-base font-semibold text-gray-900">Excluir inventário?</h3>
-            <p className="text-sm text-gray-500">Esta ação não pode ser desfeita.</p>
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-80 space-y-4">
+            <h3 className="text-base font-semibold text-foreground">Excluir inventário?</h3>
+            <p className="text-sm text-muted-foreground">Esta ação não pode ser desfeita.</p>
             <div className="flex gap-3">
               <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={handleDelete} disabled={deleteLoading}>
                 {deleteLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Excluir"}

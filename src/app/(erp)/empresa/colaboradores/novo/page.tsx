@@ -30,7 +30,7 @@ function Field({ label, required, hint, children }: {
         {required && <span className="text-red-500 ml-0.5">*</span>}
       </Label>
       {children}
-      {hint && <p className="text-xs text-gray-400">{hint}</p>}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -129,7 +129,7 @@ export default function NovoColaboradorPage() {
 
       <div className="px-8 pb-8 max-w-3xl space-y-5">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">
             {error}
           </div>
         )}
@@ -223,12 +223,12 @@ export default function NovoColaboradorPage() {
                 />
               </Field>
               <Field label="Filial">
-                <div className="space-y-1.5 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                <div className="space-y-1.5 max-h-40 overflow-y-auto border border-border rounded-lg p-2">
                   {filiais.length === 0 && (
-                    <p className="text-xs text-gray-400 px-1">Nenhuma filial ativa</p>
+                    <p className="text-xs text-muted-foreground px-1">Nenhuma filial ativa</p>
                   )}
                   {filiais.map((f) => (
-                    <label key={f.id} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer hover:bg-gray-50 rounded">
+                    <label key={f.id} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer hover:bg-muted rounded">
                       <input
                         type="checkbox"
                         checked={filialIds.includes(f.id)}

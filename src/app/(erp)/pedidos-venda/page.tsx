@@ -54,11 +54,11 @@ type ItemPendente = {
 const FILTER_KEY = "erp:pedidos-venda:filters:v2";
 
 const STATUS_COLS: { key: string; label: string; color: string; bg: string; border: string; dot: string }[] = [
-  { key: "ORCAMENTO",   label: "Orçamento",   color: "text-gray-500",    bg: "bg-gray-50",    border: "border-gray-200",   dot: "bg-gray-400"   },
-  { key: "CONFIRMADO",  label: "Confirmado",  color: "text-blue-600",    bg: "bg-blue-50",    border: "border-blue-200",   dot: "bg-blue-500"   },
+  { key: "ORCAMENTO",   label: "Orçamento",   color: "text-muted-foreground",    bg: "bg-muted",    border: "border-border",   dot: "bg-gray-400"   },
+  { key: "CONFIRMADO",  label: "Confirmado",  color: "text-info",    bg: "bg-info/10",    border: "border-info/30",   dot: "bg-blue-500"   },
   { key: "EM_AGENDAMENTO", label: "Em Agendamento", color: "text-violet-700", bg: "bg-violet-50", border: "border-violet-200", dot: "bg-violet-500" },
-  { key: "CONCLUIDO",   label: "Concluído",   color: "text-emerald-800", bg: "bg-emerald-50", border: "border-emerald-200",dot: "bg-emerald-600"},
-  { key: "CANCELADO",   label: "Cancelado",   color: "text-red-500",     bg: "bg-red-50",     border: "border-red-200",    dot: "bg-red-400"    },
+  { key: "CONCLUIDO",   label: "Concluído",   color: "text-success", bg: "bg-success/10", border: "border-success/30",dot: "bg-emerald-600"},
+  { key: "CANCELADO",   label: "Cancelado",   color: "text-red-500",     bg: "bg-danger/10",     border: "border-danger/30",    dot: "bg-red-400"    },
 ];
 
 const STATUS_OPTIONS = STATUS_COLS.map((s) => ({ value: s.key, label: s.label }));
@@ -119,23 +119,23 @@ const COLS: ColDef<PedidoRow>[] = [
   {
     id: "numero",
     label: "Número",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 font-mono text-xs font-semibold text-gray-900",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 font-mono text-xs font-semibold text-foreground",
     render: (p) => p.numero,
   },
   {
     id: "cliente",
     label: "Cliente",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3 max-w-[220px]",
     render: (p) => (
       <div>
-        <div className="font-medium text-gray-800 text-sm">{p.cliente.razaoSocial}</div>
+        <div className="font-medium text-foreground text-sm">{p.cliente.razaoSocial}</div>
         {p.cliente.nomeFantasia && (
-          <div className="text-xs text-gray-400">{p.cliente.nomeFantasia}</div>
+          <div className="text-xs text-muted-foreground">{p.cliente.nomeFantasia}</div>
         )}
         {p.vendedor && (
-          <div className="text-[11px] text-gray-400">Vendedor: {p.vendedor.nome}</div>
+          <div className="text-[11px] text-muted-foreground">Vendedor: {p.vendedor.nome}</div>
         )}
       </div>
     ),
@@ -143,14 +143,14 @@ const COLS: ColDef<PedidoRow>[] = [
   {
     id: "numeroOrcamento",
     label: "Nº Orçamento",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-gray-500 text-sm",
-    render: (p) => p.numeroOrcamento || <span className="text-gray-300">—</span>,
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-muted-foreground text-sm",
+    render: (p) => p.numeroOrcamento || <span className="text-muted-foreground/60">—</span>,
   },
   {
     id: "status",
     label: "Status",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3",
     render: (p) => (
       <div className="flex flex-col items-start gap-1">
@@ -162,7 +162,7 @@ const COLS: ColDef<PedidoRow>[] = [
   {
     id: "tipoVenda",
     label: "Tipo",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3",
     render: (p) => p.estoqueOrigemEmpresaId ? (
       <span className="inline-flex flex-col items-start gap-0.5">
@@ -170,7 +170,7 @@ const COLS: ColDef<PedidoRow>[] = [
           <Shuffle className="w-3 h-3" /> À ordem
         </span>
         {p.estoqueOrigemEmpresa && (
-          <span className="text-[11px] text-gray-400">
+          <span className="text-[11px] text-muted-foreground">
             de {p.estoqueOrigemEmpresa.nomeFantasia || p.estoqueOrigemEmpresa.razaoSocial}
           </span>
         )}
@@ -181,46 +181,46 @@ const COLS: ColDef<PedidoRow>[] = [
           <Truck className="w-3 h-3" /> Entrega à ordem
         </span>
         {p.pedidoVendaOrigem?.empresa && (
-          <span className="text-[11px] text-gray-400">
+          <span className="text-[11px] text-muted-foreground">
             de {p.pedidoVendaOrigem.empresa.nomeFantasia || p.pedidoVendaOrigem.empresa.razaoSocial}
           </span>
         )}
       </span>
     ) : (
-      <span className="text-xs text-gray-300">Normal</span>
+      <span className="text-xs text-muted-foreground/60">Normal</span>
     ),
   },
   {
     id: "dataEmissao",
     label: "Emissão",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-gray-500 text-sm",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-muted-foreground text-sm",
     render: (p) => formatDate(p.dataEmissao),
   },
   {
     id: "dataEntrega",
     label: "Conclusão",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell",
-    tdClass: "px-4 py-3 text-gray-500 text-sm hidden lg:table-cell",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell",
+    tdClass: "px-4 py-3 text-muted-foreground text-sm hidden lg:table-cell",
     render: (p) => p.dataEntrega ? formatDate(p.dataEntrega) : "—",
   },
   {
     id: "condicaoPagamento",
     label: "Cond. Pagamento",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden xl:table-cell",
-    tdClass: "px-4 py-3 text-gray-500 text-sm hidden xl:table-cell",
-    render: (p) => p.condicaoPagamento ?? <span className="text-gray-300">—</span>,
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground hidden xl:table-cell",
+    tdClass: "px-4 py-3 text-muted-foreground text-sm hidden xl:table-cell",
+    render: (p) => p.condicaoPagamento ?? <span className="text-muted-foreground/60">—</span>,
   },
   {
     id: "minutas",
     label: "Minutas",
-    thClass: "text-center px-4 py-3 font-medium text-gray-600",
+    thClass: "text-center px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3 text-center",
     render: (p) => {
       const n = p._count?.minutas ?? 0;
-      if (n === 0) return <span className="text-gray-300 text-xs">—</span>;
+      if (n === 0) return <span className="text-muted-foreground/60 text-xs">—</span>;
       return (
-        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
+        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-info/15 text-info text-xs font-semibold">
           {n}
         </span>
       );
@@ -229,8 +229,8 @@ const COLS: ColDef<PedidoRow>[] = [
   {
     id: "valorTotal",
     label: "Total",
-    thClass: "text-right px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-right font-semibold text-gray-900",
+    thClass: "text-right px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-right font-semibold text-foreground",
     render: (p) => formatBRL(decimalToNumber(p.valorTotal)),
   },
 ];
@@ -278,8 +278,8 @@ function StatusFilterChip({
       <div className={cn(
         "inline-flex items-center h-8 rounded-full border text-sm font-medium transition-colors cursor-pointer select-none",
         active
-          ? "border-blue-400 bg-blue-50 text-blue-700"
-          : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700"
+          ? "border-blue-400 bg-info/10 text-info"
+          : "border-border bg-card text-muted-foreground hover:border-border hover:text-foreground"
       )}>
         <button
           type="button"
@@ -290,7 +290,7 @@ function StatusFilterChip({
           }}
           className="pl-3 pr-1 h-full flex items-center gap-1.5 rounded-l-full"
         >
-          <span className={cn("text-xs font-semibold", active ? "text-blue-500" : "text-gray-400")}>Status</span>
+          <span className={cn("text-xs font-semibold", active ? "text-blue-500" : "text-muted-foreground")}>Status</span>
           {active && (
             <>
               <button
@@ -302,7 +302,7 @@ function StatusFilterChip({
                   if (r) setOpPos({ top: r.bottom + 4, left: r.left });
                   setShowOpMenu((p) => !p); setOpen(false);
                 }}
-                className="px-1 py-0.5 rounded hover:bg-blue-100 text-blue-600 text-xs font-medium"
+                className="px-1 py-0.5 rounded hover:bg-info/15 text-info text-xs font-medium"
               >
                 {opLabel}
               </button>
@@ -313,7 +313,7 @@ function StatusFilterChip({
               </span>
             </>
           )}
-          <ChevronDownIcon className={cn("w-3 h-3 ml-0.5 transition-transform", open && "rotate-180", active ? "text-blue-400" : "text-gray-400")} />
+          <ChevronDownIcon className={cn("w-3 h-3 ml-0.5 transition-transform", open && "rotate-180", active ? "text-blue-400" : "text-muted-foreground")} />
         </button>
         {active && (
           <button
@@ -328,10 +328,10 @@ function StatusFilterChip({
 
       {mounted && showOpMenu && opPos && createPortal(
         <div style={{ position: "fixed", top: opPos.top, left: opPos.left, zIndex: 9999 }}
-          className="bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[100px]">
+          className="bg-card border border-border rounded-xl shadow-lg py-1 min-w-[100px]">
           {(["is", "is_not"] as FilterOp[]).map((o) => (
             <button key={o} type="button" onClick={() => { onOpChange(o); setShowOpMenu(false); }}
-              className={cn("w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2", op === o && "text-blue-600 font-medium")}>
+              className={cn("w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2", op === o && "text-info font-medium")}>
               {op === o && <Check className="w-3.5 h-3.5 shrink-0" />}
               {o === "is" ? "É" : "Não é"}
             </button>
@@ -342,11 +342,11 @@ function StatusFilterChip({
 
       {mounted && open && pos && createPortal(
         <div ref={dropRef} style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
-          className="bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
-          <div className="flex border-b border-gray-100">
+          className="bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+          <div className="flex border-b border-border">
             {(["is", "is_not"] as FilterOp[]).map((o) => (
               <button key={o} type="button" onClick={() => onOpChange(o)}
-                className={cn("flex-1 py-2 text-xs font-semibold transition-colors", op === o ? "bg-blue-50 text-blue-600" : "text-gray-400 hover:bg-gray-50")}>
+                className={cn("flex-1 py-2 text-xs font-semibold transition-colors", op === o ? "bg-info/10 text-info" : "text-muted-foreground hover:bg-muted")}>
                 {o === "is" ? "É" : "Não é"}
               </button>
             ))}
@@ -356,8 +356,8 @@ function StatusFilterChip({
               const checked = selected.includes(opt.value);
               return (
                 <button key={opt.value} type="button" onClick={() => toggle(opt.value)}
-                  className={cn("w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left", checked && "bg-blue-50/60")}>
-                  <span className={cn("w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors", checked ? "bg-blue-600 border-blue-600" : "border-gray-300")}>
+                  className={cn("w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted transition-colors text-left", checked && "bg-info/10")}>
+                  <span className={cn("w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors", checked ? "bg-blue-600 border-blue-600" : "border-border")}>
                     {checked && <Check className="w-3 h-3 text-white" />}
                   </span>
                   <StatusBadge status={opt.value} />
@@ -366,9 +366,9 @@ function StatusFilterChip({
             })}
           </div>
           {selected.length > 0 && (
-            <div className="border-t border-gray-100 px-3 py-2">
+            <div className="border-t border-border px-3 py-2">
               <button type="button" onClick={() => { onClear(); setOpen(false); }}
-                className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors">
                 Limpar seleção
               </button>
             </div>
@@ -397,17 +397,17 @@ function KanbanCard({
       onDragEnd={onDragEnd}
       onClick={onClick}
       className={cn(
-        "bg-white border border-gray-200 rounded-lg p-3 shadow-sm transition-all cursor-grab active:cursor-grabbing group",
+        "bg-card border border-border rounded-lg p-3 shadow-sm transition-all cursor-grab active:cursor-grabbing group",
         isDragging
           ? "opacity-40 scale-95 shadow-none"
           : "hover:shadow-md hover:border-blue-300"
       )}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="font-mono text-xs font-semibold text-gray-800">{p.numero}</span> <EmpresaTag empresaId={p.empresaId} />
+        <span className="font-mono text-xs font-semibold text-foreground">{p.numero}</span> <EmpresaTag empresaId={p.empresaId} />
         <StatusBadge status={p.status} />
       </div>
-      <p className="text-xs text-gray-700 font-medium mb-1 leading-snug line-clamp-2">
+      <p className="text-xs text-foreground font-medium mb-1 leading-snug line-clamp-2">
         {p.cliente.nomeFantasia || p.cliente.razaoSocial}
       </p>
       {p.estoqueOrigemEmpresaId && (
@@ -421,13 +421,13 @@ function KanbanCard({
         </span>
       )}
       {p.condicaoPagamento && (
-        <p className="text-xs text-gray-400 mb-1">{p.condicaoPagamento}</p>
+        <p className="text-xs text-muted-foreground mb-1">{p.condicaoPagamento}</p>
       )}
       <StatusDimBadges entrega={p.statusEntrega} financeiro={p.statusFinanceiro} className="mb-1" />
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-        <span className="text-xs font-semibold text-gray-900">{formatBRL(decimalToNumber(p.valorTotal))}</span>
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+        <span className="text-xs font-semibold text-foreground">{formatBRL(decimalToNumber(p.valorTotal))}</span>
         {p.dataEntrega && (
-          <span className="flex items-center gap-1 text-xs text-gray-400">
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <CalendarDays className="w-3 h-3" />
             {formatDate(p.dataEntrega)}
           </span>
@@ -730,7 +730,7 @@ export default function PedidosVendaPage() {
       <div className="px-8 pb-4 flex items-center gap-3 flex-wrap">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input
             className="pl-9 h-9 text-sm"
             placeholder="Número, orçamento, físico, cliente..."
@@ -739,7 +739,7 @@ export default function PedidosVendaPage() {
           />
           {filters.search && (
             <button
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
               onClick={() => updateFilters({ search: "" })}
             >
               <X className="w-3.5 h-3.5" />
@@ -758,20 +758,20 @@ export default function PedidosVendaPage() {
 
         {/* Date range */}
         <div className="flex items-center gap-1.5">
-          <CalendarDays className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          <CalendarDays className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           <Input
             type="date"
             value={filters.dateFrom}
             onChange={(e) => updateFilters({ dateFrom: e.target.value })}
-            className="h-8 w-36 border-gray-200 text-sm"
+            className="h-8 w-36 border-border text-sm"
             title="De"
           />
-          <span className="text-gray-300 text-sm">—</span>
+          <span className="text-muted-foreground/60 text-sm">—</span>
           <Input
             type="date"
             value={filters.dateTo}
             onChange={(e) => updateFilters({ dateTo: e.target.value })}
-            className="h-8 w-36 border-gray-200 text-sm"
+            className="h-8 w-36 border-border text-sm"
             title="Até"
           />
         </div>
@@ -782,8 +782,8 @@ export default function PedidosVendaPage() {
           className={cn(
             "flex items-center gap-1.5 h-8 px-2.5 text-xs border rounded-md transition-colors whitespace-nowrap",
             filters.semOrcamento
-              ? "border-amber-300 bg-amber-50 text-amber-700"
-              : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+              ? "border-amber-300 bg-warning/10 text-warning"
+              : "border-border bg-card text-muted-foreground hover:bg-muted"
           )}
           title="Mostrar só pedidos sem Nº de Orçamento"
         >
@@ -797,7 +797,7 @@ export default function PedidosVendaPage() {
             "flex items-center gap-1.5 h-8 px-2.5 text-xs border rounded-md transition-colors whitespace-nowrap",
             filters.aOrdem
               ? "border-violet-300 bg-violet-50 text-violet-700"
-              : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+              : "border-border bg-card text-muted-foreground hover:bg-muted"
           )}
           title="Mostrar só pedidos de venda à ordem (a venda na origem e a entrega na matriz)"
         >
@@ -809,14 +809,14 @@ export default function PedidosVendaPage() {
         {hasActive && (
           <button
             onClick={() => updateFilters({ search: "", statuses: [], statusOp: "is", dateFrom: "", dateTo: "", semOrcamento: false, aOrdem: false })}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap"
+            className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors whitespace-nowrap"
           >
             Limpar tudo
           </button>
         )}
 
         {/* Results count */}
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-muted-foreground">
           {loading ? "…" : `${filtered.length} pedido${filtered.length !== 1 ? "s" : ""}`}
         </span>
 
@@ -826,7 +826,7 @@ export default function PedidosVendaPage() {
             <select
               value={filters.sortKey}
               onChange={(e) => updateFilters({ sortKey: e.target.value })}
-              className="h-8 px-2.5 pr-7 text-xs border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-gray-600"
+              className="h-8 px-2.5 pr-7 text-xs border border-border rounded-md bg-card focus:outline-none focus:ring-1 focus:ring-blue-400 text-muted-foreground"
             >
               {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -841,8 +841,8 @@ export default function PedidosVendaPage() {
             className={cn(
               "h-8 px-2.5 pr-7 text-xs border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400",
               filters.groupBy !== "none"
-                ? "border-blue-300 bg-blue-50 text-blue-700"
-                : "border-gray-200 bg-white text-gray-600"
+                ? "border-blue-300 bg-info/10 text-info"
+                : "border-border bg-card text-muted-foreground"
             )}
             title="Agrupar pedidos"
           >
@@ -868,7 +868,7 @@ export default function PedidosVendaPage() {
         <button
           onClick={downloadPDF}
           disabled={loading || filtered.length === 0}
-          className="flex items-center gap-1.5 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700"
+          className="flex items-center gap-1.5 h-9 px-3 text-sm border border-border rounded-lg bg-card hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-foreground"
           title="Baixar PDF dos pedidos filtrados"
         >
           <Download className="w-3.5 h-3.5" />
@@ -876,10 +876,10 @@ export default function PedidosVendaPage() {
         </button>
 
         {/* View toggle */}
-        <div className="ml-auto flex items-center gap-1 border border-gray-200 rounded-lg p-0.5 bg-white">
+        <div className="ml-auto flex items-center gap-1 border border-border rounded-lg p-0.5 bg-card">
           <button
             className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
-              filters.view === "list" ? "bg-gray-100 text-gray-800" : "text-gray-500 hover:text-gray-700")}
+              filters.view === "list" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
             onClick={() => updateFilters({ view: "list" })}
           >
             <LayoutList className="w-3.5 h-3.5" />
@@ -887,7 +887,7 @@ export default function PedidosVendaPage() {
           </button>
           <button
             className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
-              filters.view === "kanban" ? "bg-gray-100 text-gray-800" : "text-gray-500 hover:text-gray-700")}
+              filters.view === "kanban" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
             onClick={() => updateFilters({ view: "kanban" })}
           >
             <Kanban className="w-3.5 h-3.5" />
@@ -898,22 +898,22 @@ export default function PedidosVendaPage() {
 
       {/* ── Content ───────────────────────────────────────────────────────── */}
       {loading ? (
-        <div className="flex items-center justify-center py-24 text-gray-400 gap-2">
+        <div className="flex items-center justify-center py-24 text-muted-foreground gap-2">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span className="text-sm">Carregando pedidos…</span>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-gray-400 gap-2">
-          <ShoppingCart className="w-8 h-8 text-gray-300" />
+        <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-2">
+          <ShoppingCart className="w-8 h-8 text-muted-foreground/60" />
           <p className="text-sm font-medium">Nenhum pedido encontrado</p>
           <p className="text-xs">Tente ajustar os filtros ou crie um novo pedido.</p>
         </div>
       ) : filters.view === "list" ? (
         // ── List view ──────────────────────────────────────────────────────
         <div className="px-8 pb-8">
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
@@ -921,22 +921,22 @@ export default function PedidosVendaPage() {
                   {isAdmin && <th className="px-4 py-3 w-12" aria-label="Ações" />}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {filters.groupBy !== "none"
                   ? listGroups.map((g) => (
                       <Fragment key={g.key}>
-                        <tr className="bg-gray-50/80">
-                          <td colSpan={orderedCols.length + (isAdmin ? 1 : 0)} className="px-4 py-2 border-y border-gray-200">
+                        <tr className="bg-muted/80">
+                          <td colSpan={orderedCols.length + (isAdmin ? 1 : 0)} className="px-4 py-2 border-y border-border">
                             <div className="flex items-center justify-between">
-                              <span className="flex items-center gap-1.5 font-semibold text-gray-700 text-sm">
+                              <span className="flex items-center gap-1.5 font-semibold text-foreground text-sm">
                                 {filters.groupBy === "status" ? (
-                                  <span className={cn("w-2 h-2 rounded-full shrink-0", STATUS_COLS.find((c) => c.key === g.key)?.dot ?? "bg-gray-300")} />
+                                  <span className={cn("w-2 h-2 rounded-full shrink-0", STATUS_COLS.find((c) => c.key === g.key)?.dot ?? "bg-muted")} />
                                 ) : (
-                                  <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
+                                  <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" />
                                 )}
                                 {g.label}
                               </span>
-                              <span className="text-xs text-gray-400">
+                              <span className="text-xs text-muted-foreground">
                                 {g.items.length} pedido{g.items.length !== 1 ? "s" : ""} · {formatBRL(g.total)}
                               </span>
                             </div>
@@ -945,7 +945,7 @@ export default function PedidosVendaPage() {
                         {g.items.map((p) => (
                           <tr
                             key={p.id}
-                            className="hover:bg-gray-50 cursor-pointer transition-colors"
+                            className="hover:bg-muted cursor-pointer transition-colors"
                             onClick={() => router.push(`/pedidos-venda/${p.id}`)}
                           >
                             {orderedCols.map((col) => (
@@ -956,7 +956,7 @@ export default function PedidosVendaPage() {
                                 <button
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); setDelError(null); setDelTarget(p); }}
-                                  className="text-gray-300 hover:text-red-600 transition-colors p-1 rounded hover:bg-red-50"
+                                  className="text-muted-foreground/60 hover:text-danger transition-colors p-1 rounded hover:bg-danger/10"
                                   title="Excluir pedido"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -970,7 +970,7 @@ export default function PedidosVendaPage() {
                   : filtered.map((p) => (
                       <tr
                         key={p.id}
-                        className="hover:bg-gray-50 cursor-pointer transition-colors"
+                        className="hover:bg-muted cursor-pointer transition-colors"
                         onClick={() => router.push(`/pedidos-venda/${p.id}`)}
                       >
                         {orderedCols.map((col) => (
@@ -981,7 +981,7 @@ export default function PedidosVendaPage() {
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); setDelError(null); setDelTarget(p); }}
-                              className="text-gray-300 hover:text-red-600 transition-colors p-1 rounded hover:bg-red-50"
+                              className="text-muted-foreground/60 hover:text-danger transition-colors p-1 rounded hover:bg-danger/10"
                               title="Excluir pedido"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1017,7 +1017,7 @@ export default function PedidosVendaPage() {
                       </span>
                     </div>
                     {col.items.length > 0 && (
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-muted-foreground">
                         {formatBRL(col.items.reduce((s, p) => s + decimalToNumber(p.valorTotal), 0))}
                       </span>
                     )}
@@ -1030,12 +1030,12 @@ export default function PedidosVendaPage() {
                       "rounded-b-xl border min-h-[120px] p-2 space-y-2 transition-colors",
                       col.border,
                       isOver && canDrop
-                        ? "bg-blue-50/80 border-blue-300 border-dashed"
-                        : "bg-gray-50/60"
+                        ? "bg-info/10 border-blue-300 border-dashed"
+                        : "bg-muted/60"
                     )}
                   >
                     {col.items.length === 0 && !isOver ? (
-                      <div className="flex items-center justify-center py-8 text-xs text-gray-300">
+                      <div className="flex items-center justify-center py-8 text-xs text-muted-foreground/60">
                         {draggingId ? "Soltar aqui" : "Vazio"}
                       </div>
                     ) : isOver && canDrop && col.items.length === 0 ? (
@@ -1073,37 +1073,37 @@ export default function PedidosVendaPage() {
           onClick={() => setBlockModal(null)}
         >
           <div
-            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4"
+            className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-md w-full space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              <div className="w-9 h-9 rounded-full bg-warning/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-warning" />
               </div>
               <div>
-                <h3 className="font-bold text-gray-800">Não é possível concluir o pedido</h3>
-                <p className="text-sm text-gray-600 mt-0.5">{blockModal.msg}</p>
+                <h3 className="font-bold text-foreground">Não é possível concluir o pedido</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">{blockModal.msg}</p>
               </div>
             </div>
             {blockModal.pendentes.length > 0 && (
-              <div className="rounded-lg border border-gray-200 overflow-hidden">
+              <div className="rounded-lg border border-border overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                    <tr className="bg-muted text-xs text-muted-foreground uppercase tracking-wide">
                       <th className="text-left px-3 py-2 font-semibold">Item</th>
                       <th className="text-right px-3 py-2 font-semibold">Falta entregar</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-border">
                     {blockModal.pendentes.map((p) => (
                       <tr key={p.codigo}>
                         <td className="px-3 py-2">
-                          <div className="font-medium text-gray-800">{p.descricao}</div>
-                          <div className="text-xs text-gray-400">{p.codigo}</div>
+                          <div className="font-medium text-foreground">{p.descricao}</div>
+                          <div className="text-xs text-muted-foreground">{p.codigo}</div>
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-amber-700">
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-warning">
                           {p.pendente.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}{" "}
-                          <span className="text-gray-400 text-xs font-normal">{p.unidade}</span>
+                          <span className="text-muted-foreground text-xs font-normal">{p.unidade}</span>
                         </td>
                       </tr>
                     ))}
@@ -1125,24 +1125,24 @@ export default function PedidosVendaPage() {
           onClick={() => { if (!deleting) setDelTarget(null); }}
         >
           <div
-            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4"
+            className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-md w-full space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <Trash2 className="w-5 h-5 text-red-600" />
+              <div className="w-9 h-9 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <h3 className="font-bold text-gray-800">Excluir o pedido {delTarget.numero}?</h3>
-                <p className="text-sm text-gray-600 mt-0.5">
+                <h3 className="font-bold text-foreground">Excluir o pedido {delTarget.numero}?</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
                   {delTarget.cliente.nomeFantasia || delTarget.cliente.razaoSocial} · {formatBRL(decimalToNumber(delTarget.valorTotal))}
                 </p>
-                <p className="text-sm text-gray-500 mt-2">
-                  Esta ação é <span className="font-semibold text-gray-700">permanente</span> e exclui o pedido{" "}
-                  <span className="font-medium text-gray-700">em cadeia</span>: remove também as minutas, estorna os
+                <p className="text-sm text-muted-foreground mt-2">
+                  Esta ação é <span className="font-semibold text-foreground">permanente</span> e exclui o pedido{" "}
+                  <span className="font-medium text-foreground">em cadeia</span>: remove também as minutas, estorna os
                   movimentos de estoque (o saldo volta) e apaga as contas a receber e lançamentos vinculados.
                   {delTarget.estoqueOrigemEmpresaId && (
-                    <> Como é uma <span className="font-medium text-gray-700">venda à ordem</span>, remove ainda o
+                    <> Como é uma <span className="font-medium text-foreground">venda à ordem</span>, remove ainda o
                     pedido de entrega e o financeiro intragrupo na empresa de origem
                     {delTarget.estoqueOrigemEmpresa && (
                       <> ({delTarget.estoqueOrigemEmpresa.nomeFantasia || delTarget.estoqueOrigemEmpresa.razaoSocial})</>
@@ -1153,7 +1153,7 @@ export default function PedidosVendaPage() {
               </div>
             </div>
             {delError && (
-              <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+              <div className="rounded-lg bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
                 {delError}
               </div>
             )}

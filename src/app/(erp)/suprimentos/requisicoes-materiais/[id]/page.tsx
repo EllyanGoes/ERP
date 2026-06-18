@@ -54,10 +54,10 @@ type CentroCustoOpt = { id: string; codigo: string; nome: string };
 type ItemOpt        = { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null };
 
 const STATUS_COLOR: Record<string, string> = {
-  RASCUNHO:  "bg-gray-100 text-gray-600",
-  ABERTA:    "bg-blue-100 text-blue-700",
-  ATENDIDA:  "bg-emerald-100 text-emerald-700",
-  CANCELADA: "bg-red-100 text-red-600",
+  RASCUNHO:  "bg-muted text-muted-foreground",
+  ABERTA:    "bg-info/15 text-info",
+  ATENDIDA:  "bg-success/15 text-success",
+  CANCELADA: "bg-danger/15 text-danger",
 };
 const STATUS_LABEL: Record<string, string> = {
   RASCUNHO: "Rascunho", ABERTA: "Aberta", ATENDIDA: "Atendida", CANCELADA: "Cancelada",
@@ -229,7 +229,7 @@ export default function RequisicaoDetailPage() {
 
   useTabTitle(req ? `${req.tipo === "REQUISICAO" ? "RM" : "DV"} ${req.numero}` : null);
 
-  if (loading) return <div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
   if (!req) return <div className="px-8 pt-8 text-red-500">Requisição não encontrada</div>;
 
   const canEdit = req.status === "RASCUNHO" || req.status === "ABERTA";
@@ -237,29 +237,29 @@ export default function RequisicaoDetailPage() {
   return (
     <div>
       {/* Breadcrumb */}
-      <div className="flex items-center gap-1.5 px-8 pt-6 pb-2 text-sm text-gray-500">
-        <Link href="/suprimentos/requisicoes-materiais" className="hover:text-gray-800 transition-colors flex items-center gap-1">
+      <div className="flex items-center gap-1.5 px-8 pt-6 pb-2 text-sm text-muted-foreground">
+        <Link href="/suprimentos/requisicoes-materiais" className="hover:text-foreground transition-colors flex items-center gap-1">
           <ArrowLeft className="w-3.5 h-3.5" />Req/Dev de Materiais
         </Link>
-        <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-        <span className="text-gray-800 font-medium">{req.numero}</span>
+        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60" />
+        <span className="text-foreground font-medium">{req.numero}</span>
       </div>
 
       {/* Header */}
       <div className="px-8 py-4 flex items-start justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-gray-900">{req.numero}</h1>
-            <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium", STATUS_COLOR[req.status] ?? "bg-gray-100 text-gray-500")}>
+            <h1 className="text-xl font-bold text-foreground">{req.numero}</h1>
+            <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium", STATUS_COLOR[req.status] ?? "bg-muted text-muted-foreground")}>
               {STATUS_LABEL[req.status] ?? req.status}
             </span>
             <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium",
-              req.tipo === "REQUISICAO" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
+              req.tipo === "REQUISICAO" ? "bg-info/10 text-info" : "bg-warning/10 text-warning"
             )}>
               {req.tipo === "REQUISICAO" ? "Requisição de Materiais" : "Devolução de Materiais"}
             </span>
           </div>
-          <p className="text-sm text-gray-500">{req.localEstoque?.nome} · {formatDate(req.data)}</p>
+          <p className="text-sm text-muted-foreground">{req.localEstoque?.nome} · {formatDate(req.data)}</p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -289,23 +289,23 @@ export default function RequisicaoDetailPage() {
             </>
           )}
           {req.status === "RASCUNHO" && (
-            <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50 border-red-200" onClick={() => setShowDelete(true)}>
+            <Button size="sm" variant="outline" className="text-danger hover:bg-danger/10 border-danger/30" onClick={() => setShowDelete(true)}>
               <Trash2 className="w-4 h-4 mr-1" />Excluir
             </Button>
           )}
           {req.status === "ABERTA" && (
-            <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50 border-red-200" onClick={() => updateStatus("CANCELADA")}>
+            <Button size="sm" variant="outline" className="text-danger hover:bg-danger/10 border-danger/30" onClick={() => updateStatus("CANCELADA")}>
               <XCircle className="w-4 h-4 mr-1" />Cancelar
             </Button>
           )}
         </div>
       </div>
 
-      {saveError && <p className="px-8 pb-2 text-sm text-red-600">{saveError}</p>}
+      {saveError && <p className="px-8 pb-2 text-sm text-danger">{saveError}</p>}
 
       <div className="px-8 pb-8 space-y-6 max-w-5xl">
         {/* Info card */}
-        <div className="rounded-xl border border-gray-200 p-5">
+        <div className="rounded-xl border border-border p-5">
           {editMode ? (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
@@ -349,30 +349,30 @@ export default function RequisicaoDetailPage() {
               <div className="col-span-full">
                 <Label className="text-xs mb-1 block">Observações</Label>
                 <textarea value={editForm.observacoes} onChange={(e) => setEditForm(p => ({ ...p, observacoes: e.target.value }))}
-                  rows={2} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-white resize-none" />
+                  rows={2} className="w-full px-3 py-2 text-sm border border-border rounded-md bg-card resize-none" />
               </div>
             </div>
           ) : (
             <dl className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3 text-sm">
-              <div><dt className="text-xs text-gray-400 font-medium">Almoxarifado</dt><dd className="text-gray-800 mt-0.5">{req.localEstoque?.nome ?? "—"}</dd></div>
-              <div><dt className="text-xs text-gray-400 font-medium">Funcionário</dt><dd className="text-gray-800 mt-0.5">{req.colaborador?.nome ?? "—"}</dd></div>
-              <div><dt className="text-xs text-gray-400 font-medium">Setor</dt><dd className="text-gray-800 mt-0.5">{req.setor?.nome ?? "—"}</dd></div>
-              <div><dt className="text-xs text-gray-400 font-medium">Almoxarife</dt><dd className="text-gray-800 mt-0.5">{req.almoxarife?.nome ?? "—"}</dd></div>
-              <div><dt className="text-xs text-gray-400 font-medium">Data</dt><dd className="text-gray-800 mt-0.5">{formatDate(req.data)}</dd></div>
+              <div><dt className="text-xs text-muted-foreground font-medium">Almoxarifado</dt><dd className="text-foreground mt-0.5">{req.localEstoque?.nome ?? "—"}</dd></div>
+              <div><dt className="text-xs text-muted-foreground font-medium">Funcionário</dt><dd className="text-foreground mt-0.5">{req.colaborador?.nome ?? "—"}</dd></div>
+              <div><dt className="text-xs text-muted-foreground font-medium">Setor</dt><dd className="text-foreground mt-0.5">{req.setor?.nome ?? "—"}</dd></div>
+              <div><dt className="text-xs text-muted-foreground font-medium">Almoxarife</dt><dd className="text-foreground mt-0.5">{req.almoxarife?.nome ?? "—"}</dd></div>
+              <div><dt className="text-xs text-muted-foreground font-medium">Data</dt><dd className="text-foreground mt-0.5">{formatDate(req.data)}</dd></div>
               {req.tipo === "REQUISICAO" && <>
-                <div><dt className="text-xs text-gray-400 font-medium">O.S.</dt><dd className="text-gray-800 mt-0.5">{req.os ?? "—"}</dd></div>
-                <div><dt className="text-xs text-gray-400 font-medium">Centro de Custo</dt><dd className="text-gray-800 mt-0.5">{req.centroCusto ? `${req.centroCusto.codigo} — ${req.centroCusto.nome}` : "—"}</dd></div>
-                <div><dt className="text-xs text-gray-400 font-medium">Conta Contábil</dt><dd className="text-gray-800 mt-0.5">{req.contaContabil ?? "—"}</dd></div>
+                <div><dt className="text-xs text-muted-foreground font-medium">O.S.</dt><dd className="text-foreground mt-0.5">{req.os ?? "—"}</dd></div>
+                <div><dt className="text-xs text-muted-foreground font-medium">Centro de Custo</dt><dd className="text-foreground mt-0.5">{req.centroCusto ? `${req.centroCusto.codigo} — ${req.centroCusto.nome}` : "—"}</dd></div>
+                <div><dt className="text-xs text-muted-foreground font-medium">Conta Contábil</dt><dd className="text-foreground mt-0.5">{req.contaContabil ?? "—"}</dd></div>
               </>}
-              {req.observacoes && <div className="col-span-full"><dt className="text-xs text-gray-400 font-medium">Observações</dt><dd className="text-gray-700 mt-0.5">{req.observacoes}</dd></div>}
+              {req.observacoes && <div className="col-span-full"><dt className="text-xs text-muted-foreground font-medium">Observações</dt><dd className="text-foreground mt-0.5">{req.observacoes}</dd></div>}
             </dl>
           )}
         </div>
 
         {/* Items */}
-        <div className="rounded-xl border border-gray-200 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h3 className="text-sm font-semibold text-gray-700">Materiais ({editMode ? editRows.length : req.itens.length})</h3>
+        <div className="rounded-xl border border-border overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted">
+            <h3 className="text-sm font-semibold text-foreground">Materiais ({editMode ? editRows.length : req.itens.length})</h3>
             {editMode && (
               <Button size="sm" variant="outline" onClick={() => setEditRows((p) => [...p, emptyEditRow()])}>
                 <Plus className="w-3.5 h-3.5 mr-1" />Adicionar
@@ -383,8 +383,8 @@ export default function RequisicaoDetailPage() {
           {editMode ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr className="text-xs text-gray-400 uppercase tracking-wide">
+                <thead className="bg-muted border-b border-border">
+                  <tr className="text-xs text-muted-foreground uppercase tracking-wide">
                     <th className="text-left px-3 py-2 font-medium w-64">Material</th>
                     <th className="text-left px-3 py-2 font-medium w-16">Un.</th>
                     <th className="text-left px-3 py-2 font-medium w-24">Qtde</th>
@@ -397,7 +397,7 @@ export default function RequisicaoDetailPage() {
                     <th className="w-10" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {editRows.map((row, idx) => {
                     const rowKey = String(idx);
                     return (
@@ -418,12 +418,12 @@ export default function RequisicaoDetailPage() {
                               className="h-7 text-xs"
                             />
                             {!row.itemId && (itemSearch[rowKey] ?? "").length > 0 && (
-                              <div className="absolute top-full left-0 z-50 w-80 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto mt-0.5">
+                              <div className="absolute top-full left-0 z-50 w-80 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto mt-0.5">
                                 {filteredItems(rowKey).map((it) => (
                                   <button key={it.id} onClick={() => { handleEditItemSelect(idx, it.id); setItemSearch(p => ({ ...p, [rowKey]: "" })); }}
-                                    className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2">
-                                    <span className="font-mono text-gray-400 shrink-0">{it.codigo}</span>
-                                    <span className="text-gray-700 truncate">{it.descricao}</span>
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-muted flex items-center gap-2">
+                                    <span className="font-mono text-muted-foreground shrink-0">{it.codigo}</span>
+                                    <span className="text-foreground truncate">{it.descricao}</span>
                                   </button>
                                 ))}
                               </div>
@@ -453,7 +453,7 @@ export default function RequisicaoDetailPage() {
                           <Input value={row.localizacao} onChange={(e) => updateEditRow(idx, "localizacao", e.target.value)} className="h-7 text-xs" />
                         </td>
                         <td className="px-3 py-2 text-center">
-                          <button onClick={() => setEditRows(p => p.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600">
+                          <button onClick={() => setEditRows(p => p.filter((_, i) => i !== idx))} className="text-red-400 hover:text-danger">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </td>
@@ -464,14 +464,14 @@ export default function RequisicaoDetailPage() {
               </table>
             </div>
           ) : req.itens.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
+            <div className="text-center py-12 text-muted-foreground">
               <Package className="w-8 h-8 mx-auto mb-2 opacity-40" />
               <p className="text-sm">Nenhum material adicionado</p>
             </div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr className="text-xs text-gray-400 uppercase tracking-wide">
+              <thead className="bg-muted border-b border-border">
+                <tr className="text-xs text-muted-foreground uppercase tracking-wide">
                   <th className="text-left px-4 py-2.5 font-medium">Código</th>
                   <th className="text-left px-4 py-2.5 font-medium">Material</th>
                   <th className="text-right px-4 py-2.5 font-medium">Qtde</th>
@@ -484,19 +484,19 @@ export default function RequisicaoDetailPage() {
                   <th className="text-left px-4 py-2.5 font-medium">Localização</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {req.itens.map((it) => (
-                  <tr key={it.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{it.item?.codigo ?? "—"}</td>
-                    <td className="px-4 py-2.5 text-gray-800">{it.item?.descricao ?? "—"}</td>
+                  <tr key={it.id} className="hover:bg-muted">
+                    <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">{it.item?.codigo ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-foreground">{it.item?.descricao ?? "—"}</td>
                     <td className="px-4 py-2.5 text-right font-mono">{parseFloat(String(it.quantidade)).toLocaleString("pt-BR")}</td>
-                    <td className="px-4 py-2.5 text-gray-500">{it.unidade || it.item?.unidade?.sigla || it.item?.unidadeMedida || "—"}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground">{it.unidade || it.item?.unidade?.sigla || it.item?.unidadeMedida || "—"}</td>
                     {req.tipo === "REQUISICAO" && <>
-                      <td className="px-4 py-2.5 text-gray-600 text-xs">{it.centroCusto ? `${it.centroCusto.codigo}` : "—"}</td>
-                      <td className="px-4 py-2.5 text-gray-600 text-xs">{it.contaContabil ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-gray-600 text-xs">{it.os ?? "—"}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.centroCusto ? `${it.centroCusto.codigo}` : "—"}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.contaContabil ?? "—"}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.os ?? "—"}</td>
                     </>}
-                    <td className="px-4 py-2.5 text-gray-500 text-xs">{it.localizacao ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.localizacao ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -508,9 +508,9 @@ export default function RequisicaoDetailPage() {
       {/* Delete confirm */}
       {showDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 space-y-4">
-            <h3 className="text-base font-semibold text-gray-900">Excluir requisição?</h3>
-            <p className="text-sm text-gray-500">Esta ação não pode ser desfeita.</p>
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-80 space-y-4">
+            <h3 className="text-base font-semibold text-foreground">Excluir requisição?</h3>
+            <p className="text-sm text-muted-foreground">Esta ação não pode ser desfeita.</p>
             <div className="flex gap-3">
               <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={handleDelete} disabled={deleteLoading}>
                 {deleteLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Excluir"}
@@ -524,20 +524,20 @@ export default function RequisicaoDetailPage() {
       {/* Aviso de saldo negativo ao Atender */}
       {negConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4">
-            <h3 className="text-base font-semibold text-gray-900">Estoque ficará negativo</h3>
-            <p className="text-sm text-gray-600">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4">
+            <h3 className="text-base font-semibold text-foreground">Estoque ficará negativo</h3>
+            <p className="text-sm text-muted-foreground">
               Atender esta requisição deixará o saldo dos itens abaixo <span className="font-semibold">negativo</span>.
               Verifique o estoque antes de confirmar.
             </p>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 divide-y divide-amber-100 text-sm">
+            <div className="rounded-lg border border-warning/30 bg-warning/10 divide-y divide-amber-100 text-sm">
               {negConfirm.itens.map((it) => (
                 <div key={it.itemId} className="flex items-center justify-between px-3 py-2">
-                  <span className="text-gray-800">{it.descricao ?? it.itemId}</span>
+                  <span className="text-foreground">{it.descricao ?? it.itemId}</span>
                   <span className="font-mono text-xs">
-                    <span className="text-gray-500">{it.saldoAtual.toLocaleString("pt-BR")}</span>
-                    <span className="mx-1 text-gray-400">→</span>
-                    <span className="font-semibold text-red-600">{it.saldoDepois.toLocaleString("pt-BR")}</span>
+                    <span className="text-muted-foreground">{it.saldoAtual.toLocaleString("pt-BR")}</span>
+                    <span className="mx-1 text-muted-foreground">→</span>
+                    <span className="font-semibold text-danger">{it.saldoDepois.toLocaleString("pt-BR")}</span>
                   </span>
                 </div>
               ))}

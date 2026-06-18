@@ -24,15 +24,15 @@ interface OrdemRow {
 interface FluxoOpt { id: string; nome: string; versaoAtivaId: string | null; }
 
 export const STATUS_OP: Record<string, { label: string; cls: string }> = {
-  RASCUNHO: { label: "Rascunho", cls: "bg-gray-100 text-gray-500" },
-  LIBERADA: { label: "Liberada", cls: "bg-blue-50 text-blue-700" },
-  EM_PRODUCAO: { label: "Em produção", cls: "bg-amber-50 text-amber-700" },
-  CONCLUIDA: { label: "Concluída", cls: "bg-emerald-50 text-emerald-700" },
-  CANCELADA: { label: "Cancelada", cls: "bg-red-50 text-red-600" },
+  RASCUNHO: { label: "Rascunho", cls: "bg-muted text-muted-foreground" },
+  LIBERADA: { label: "Liberada", cls: "bg-info/10 text-info" },
+  EM_PRODUCAO: { label: "Em produção", cls: "bg-warning/10 text-warning" },
+  CONCLUIDA: { label: "Concluída", cls: "bg-success/10 text-success" },
+  CANCELADA: { label: "Cancelada", cls: "bg-danger/10 text-danger" },
 };
 const ESTADO_LABEL: Record<string, string> = { UMIDO: "úmido", SECO: "seco", QUEIMADO: "queimado", ACABADO: "acabado" };
 
-const inputCls = "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500";
+const inputCls = "w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500";
 
 export default function OrdensPage() {
   useTabTitle("Ordens de Produção");
@@ -102,18 +102,18 @@ export default function OrdensPage() {
       />
 
       <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8">
-        {erro && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</div>}
+        {erro && <div className="mb-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</div>}
 
         {form && (
           <div className="mb-4 rounded-xl border border-cyan-200 bg-cyan-50/40 p-4">
             {fluxos.length === 0 ? (
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 Nenhum fluxo <strong>publicado</strong> ainda. Publique um fluxo em <strong>Fluxos de Produção</strong> para criar ordens.
               </p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Fluxo publicado *</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Fluxo publicado *</label>
                   <ComboboxWithCreate
                     value={form.fluxoId}
                     onChange={(v) => setForm({ ...form, fluxoId: v })}
@@ -123,17 +123,17 @@ export default function OrdensPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Quantidade *</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade *</label>
                   <input className={inputCls} inputMode="decimal" value={form.quantidade} onChange={(e) => setForm({ ...form, quantidade: e.target.value })} placeholder="ex.: 200" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Unidade</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Unidade</label>
                   <input className={inputCls} value={form.unidade} onChange={(e) => setForm({ ...form, unidade: e.target.value })} placeholder="milheiro" />
                 </div>
               </div>
             )}
             <div className="mt-3 flex items-center justify-end gap-2">
-              <button onClick={() => setForm(null)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">
+              <button onClick={() => setForm(null)} className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
                 <X className="w-4 h-4" /> Cancelar
               </button>
               {fluxos.length > 0 && (
@@ -146,7 +146,7 @@ export default function OrdensPage() {
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 gap-2 text-sm">
+          <div className="flex items-center justify-center py-16 text-muted-foreground gap-2 text-sm">
             <RefreshCw className="w-4 h-4 animate-spin" /> Carregando…
           </div>
         ) : ordens.length === 0 ? (
@@ -154,13 +154,13 @@ export default function OrdensPage() {
             <div className="w-14 h-14 rounded-full bg-cyan-50 flex items-center justify-center mb-3">
               <Factory className="w-7 h-7 text-cyan-400" />
             </div>
-            <p className="text-sm font-medium text-gray-700">Nenhuma ordem de produção</p>
-            <p className="text-xs text-gray-400 mt-1">Crie uma ordem a partir de um fluxo publicado.</p>
+            <p className="text-sm font-medium text-foreground">Nenhuma ordem de produção</p>
+            <p className="text-xs text-muted-foreground mt-1">Crie uma ordem a partir de um fluxo publicado.</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+              <thead className="bg-muted text-xs text-muted-foreground uppercase tracking-wider">
                 <tr>
                   <th className="text-left font-medium px-4 py-2.5">Ordem</th>
                   <th className="text-left font-medium px-4 py-2.5">Fluxo / Produto</th>
@@ -170,25 +170,25 @@ export default function OrdensPage() {
                   <th className="text-center font-medium px-4 py-2.5">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {ordens.map((o) => {
-                  const st = STATUS_OP[o.status] ?? { label: o.status, cls: "bg-gray-100 text-gray-500" };
+                  const st = STATUS_OP[o.status] ?? { label: o.status, cls: "bg-muted text-muted-foreground" };
                   const pct = o.totalEtapas ? Math.round((o.etapasConcluidas / o.totalEtapas) * 100) : 0;
                   return (
                     <tr key={o.id} onClick={() => router.push(`/pcp/ordens/${o.id}`)} className="hover:bg-cyan-50/40 cursor-pointer">
-                      <td className="px-4 py-2.5 font-mono font-medium text-gray-800">{o.numero}</td>
-                      <td className="px-4 py-2.5 text-gray-600">
+                      <td className="px-4 py-2.5 font-mono font-medium text-foreground">{o.numero}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">
                         {o.fluxoNome ?? "—"}
-                        {o.item && <span className="text-gray-400"> · {o.item.descricao}</span>}
+                        {o.item && <span className="text-muted-foreground"> · {o.item.descricao}</span>}
                       </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">{Number(o.quantidadePlanejada)} {o.unidade}</td>
-                      <td className="px-4 py-2.5 text-center text-gray-500">{ESTADO_LABEL[o.estadoAtual] ?? o.estadoAtual}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-foreground">{Number(o.quantidadePlanejada)} {o.unidade}</td>
+                      <td className="px-4 py-2.5 text-center text-muted-foreground">{ESTADO_LABEL[o.estadoAtual] ?? o.estadoAtual}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden min-w-[60px]">
+                          <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden min-w-[60px]">
                             <div className="h-full bg-cyan-500" style={{ width: `${pct}%` }} />
                           </div>
-                          <span className="text-[11px] text-gray-400 tabular-nums">{o.etapasConcluidas}/{o.totalEtapas}</span>
+                          <span className="text-[11px] text-muted-foreground tabular-nums">{o.etapasConcluidas}/{o.totalEtapas}</span>
                         </div>
                       </td>
                       <td className="px-4 py-2.5 text-center">

@@ -27,8 +27,8 @@ type Usuario = {
 
 const PERFIL_LABEL = { ADMIN: "Admin", USUARIO: "Usuário" };
 const PERFIL_COLOR = {
-  ADMIN:   "bg-blue-100 text-blue-700",
-  USUARIO: "bg-gray-100 text-gray-600",
+  ADMIN:   "bg-info/15 text-info",
+  USUARIO: "bg-muted text-muted-foreground",
 };
 
 type TabView = "lista" | "por-perfil";
@@ -47,7 +47,7 @@ function Avatar({ u }: { u: Usuario }) {
   return (
     <div className={cn(
       "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
-      u.perfil === "ADMIN" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"
+      u.perfil === "ADMIN" ? "bg-info/15 text-info" : "bg-muted text-muted-foreground"
     )}>
       {initials}
     </div>
@@ -66,8 +66,8 @@ function makeUsuariosCols(toggleAtivo: (u: Usuario) => void): ColDef<Usuario>[] 
         <div className="flex items-center gap-3">
           <Avatar u={u} />
           <div>
-            <p className="font-medium text-gray-900">{u.nome}</p>
-            <p className="text-xs text-gray-400">{u.email}</p>
+            <p className="font-medium text-foreground">{u.nome}</p>
+            <p className="text-xs text-muted-foreground">{u.email}</p>
           </div>
         </div>
       ),
@@ -88,12 +88,12 @@ function makeUsuariosCols(toggleAtivo: (u: Usuario) => void): ColDef<Usuario>[] 
       id: "modulos",
       label: "Módulos",
       thClass: "text-left px-4 py-3 font-medium",
-      tdClass: "px-4 py-3 text-gray-500 text-xs max-w-[200px]",
+      tdClass: "px-4 py-3 text-muted-foreground text-xs max-w-[200px]",
       render: (u) =>
         u.perfil === "ADMIN"
-          ? <span className="text-blue-600 font-medium">Todos</span>
+          ? <span className="text-info font-medium">Todos</span>
           : u.permissoes.length === 0
-          ? <span className="text-gray-400">Nenhum</span>
+          ? <span className="text-muted-foreground">Nenhum</span>
           : <span className="truncate block">{getModulesLabel(u)}</span>,
     },
     {
@@ -106,7 +106,7 @@ function makeUsuariosCols(toggleAtivo: (u: Usuario) => void): ColDef<Usuario>[] 
           onClick={(e) => { e.stopPropagation(); toggleAtivo(u); }}
           className={cn(
             "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80",
-            u.ativo ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"
+            u.ativo ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
           )}
         >
           {u.ativo ? "Ativo" : "Inativo"}
@@ -185,18 +185,18 @@ export default function UsuariosPage() {
       {/* ── Delete modal ──────────────────────────────────────────────────── */}
       {deleteId && typeof window !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm text-center space-y-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm text-center space-y-4">
             <div className="flex justify-center">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
+              <div className="w-12 h-12 rounded-full bg-danger/15 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-danger" />
               </div>
             </div>
-            <h3 className="font-semibold text-gray-900">Excluir usuário?</h3>
-            <p className="text-sm text-gray-500">
-              <strong className="text-gray-700">{deleteTarget?.nome}</strong> será removido permanentemente.
+            <h3 className="font-semibold text-foreground">Excluir usuário?</h3>
+            <p className="text-sm text-muted-foreground">
+              <strong className="text-foreground">{deleteTarget?.nome}</strong> será removido permanentemente.
             </p>
             {deleteError && (
-              <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{deleteError}</p>
+              <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{deleteError}</p>
             )}
             <div className="flex gap-2">
               <Button
@@ -228,7 +228,7 @@ export default function UsuariosPage() {
       <div className="px-8 pb-8 space-y-4 max-w-5xl">
         {/* ── Tab + Search ─────────────────────────────────────────── */}
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
             {(["lista", "por-perfil"] as TabView[]).map((t) => (
               <button
                 key={t}
@@ -236,8 +236,8 @@ export default function UsuariosPage() {
                 className={cn(
                   "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
                   tabView === t
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 {t === "lista" ? "Lista" : "Por Perfil"}
@@ -247,13 +247,13 @@ export default function UsuariosPage() {
 
           {tabView === "lista" && (
             <div className="relative max-w-sm flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar usuário..."
-                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           )}
@@ -264,9 +264,9 @@ export default function UsuariosPage() {
 
         {/* ── Lista View ──────────────────────────────────────────── */}
         {tabView === "lista" && (
-          <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+          <div className="rounded-xl border border-border overflow-hidden bg-card">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b text-xs text-gray-500 uppercase tracking-wide">
+              <thead className="bg-muted border-b text-xs text-muted-foreground uppercase tracking-wide">
                 <tr>
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
@@ -274,15 +274,15 @@ export default function UsuariosPage() {
                   <th className="w-24" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {loading ? (
-                  <tr><td colSpan={orderedCols.length + 1} className="px-4 py-12 text-center text-gray-400 text-sm">Carregando...</td></tr>
+                  <tr><td colSpan={orderedCols.length + 1} className="px-4 py-12 text-center text-muted-foreground text-sm">Carregando...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={orderedCols.length + 1} className="px-4 py-12 text-center text-gray-400 text-sm">Nenhum usuário encontrado</td></tr>
+                  <tr><td colSpan={orderedCols.length + 1} className="px-4 py-12 text-center text-muted-foreground text-sm">Nenhum usuário encontrado</td></tr>
                 ) : filtered.map((u) => (
                   <tr
                     key={u.id}
-                    className="hover:bg-gray-50 cursor-pointer"
+                    className="hover:bg-muted cursor-pointer"
                     onClick={() => router.push(`/admin/usuarios/${u.id}`)}
                   >
                     {orderedCols.map((col) => (
@@ -297,7 +297,7 @@ export default function UsuariosPage() {
                           <Edit className="w-3.5 h-3.5" />
                         </Button>
                         <Button
-                          variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-300 hover:text-red-500"
+                          variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground/60 hover:text-red-500"
                           onClick={() => { setDeleteError(""); setDeleteId(u.id); }}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -315,45 +315,45 @@ export default function UsuariosPage() {
         {tabView === "por-perfil" && (
           <div className="space-y-6">
             {loading ? (
-              <p className="text-gray-400 text-sm">Carregando...</p>
+              <p className="text-muted-foreground text-sm">Carregando...</p>
             ) : perfilOrder.map((perfil) => {
               const group = usersByPerfil[perfil] ?? [];
               return (
-                <div key={perfil} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                  <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 bg-gray-50">
+                <div key={perfil} className="bg-card border border-border rounded-xl overflow-hidden">
+                  <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-muted">
                     <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold", PERFIL_COLOR[perfil])}>
                       {perfil === "ADMIN" ? <ShieldCheck className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
                       {PERFIL_LABEL[perfil]}
                     </span>
-                    <span className="text-sm text-gray-500">
+                    <span className="text-sm text-muted-foreground">
                       {group.length} {group.length === 1 ? "usuário" : "usuários"}
                     </span>
                   </div>
 
                   {group.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400">
+                    <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
                       <Users className="w-8 h-8 text-gray-200" />
                       <p className="text-sm">Nenhum usuário neste perfil</p>
                     </div>
                   ) : (
-                    <div className="divide-y divide-gray-100">
+                    <div className="divide-y divide-border">
                       {group.map((u) => (
                         <div
                           key={u.id}
-                          className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors cursor-pointer"
+                          className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted transition-colors cursor-pointer"
                           onClick={() => router.push(`/admin/usuarios/${u.id}`)}
                         >
                           <Avatar u={u} />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900">{u.nome}</p>
-                            <p className="text-xs text-gray-400">{u.email}</p>
+                            <p className="text-sm font-medium text-foreground">{u.nome}</p>
+                            <p className="text-xs text-muted-foreground">{u.email}</p>
                           </div>
-                          <div className="text-xs text-gray-400 hidden sm:block max-w-[180px] truncate">
+                          <div className="text-xs text-muted-foreground hidden sm:block max-w-[180px] truncate">
                             {getModulesLabel(u)}
                           </div>
                           <span className={cn(
                             "text-xs font-medium px-2 py-0.5 rounded-full",
-                            u.ativo ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"
+                            u.ativo ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
                           )}>
                             {u.ativo ? "Ativo" : "Inativo"}
                           </span>

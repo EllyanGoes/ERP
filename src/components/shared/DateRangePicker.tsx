@@ -264,15 +264,15 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
         className={cn(
           "flex items-center gap-2 h-9 px-3 rounded-lg border text-sm transition-colors select-none",
           open
-            ? "border-blue-500 ring-2 ring-blue-100 bg-white"
-            : "border-gray-200 bg-white hover:border-gray-300",
-          hasValue ? "text-gray-800" : "text-gray-400"
+            ? "border-blue-500 ring-2 ring-blue-100 bg-card"
+            : "border-border bg-card hover:border-border",
+          hasValue ? "text-foreground" : "text-muted-foreground"
         )}
       >
-        <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+        <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
         <span className="whitespace-nowrap">{triggerLabel}</span>
         {hasValue && (
-          <span role="button" onClick={clear} className="text-gray-300 hover:text-gray-500 ml-0.5 cursor-pointer">
+          <span role="button" onClick={clear} className="text-muted-foreground/60 hover:text-muted-foreground ml-0.5 cursor-pointer">
             <X className="w-3 h-3" />
           </span>
         )}
@@ -283,7 +283,7 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
         <div
           ref={popoverRef}
           style={{ position: "fixed", top: popStyle.top, right: popStyle.right, zIndex: 9999 }}
-          className="bg-white rounded-2xl border border-gray-200 shadow-xl p-4 w-[308px]"
+          className="bg-card rounded-2xl border border-border shadow-xl p-4 w-[308px]"
         >
 
           {/* ── Editable date inputs ─────────────────────────────────────── */}
@@ -301,12 +301,12 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
               className={cn(
                 "min-w-0 w-0 flex-1 text-xs px-2 py-1.5 rounded-lg border text-center outline-none transition-colors",
                 picking === "from"
-                  ? "border-blue-500 ring-1 ring-blue-100 bg-white text-gray-800"
-                  : "border-gray-200 bg-gray-50 text-gray-600"
+                  ? "border-blue-500 ring-1 ring-blue-100 bg-card text-foreground"
+                  : "border-border bg-muted text-muted-foreground"
               )}
             />
 
-            <span className="text-gray-300 text-xs shrink-0">→</span>
+            <span className="text-muted-foreground/60 text-xs shrink-0">→</span>
 
             <input
               ref={toRef}
@@ -320,30 +320,30 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
               className={cn(
                 "min-w-0 w-0 flex-1 text-xs px-2 py-1.5 rounded-lg border text-center outline-none transition-colors",
                 picking === "to"
-                  ? "border-blue-500 ring-1 ring-blue-100 bg-white text-gray-800"
-                  : "border-gray-200 bg-gray-50 text-gray-600"
+                  ? "border-blue-500 ring-1 ring-blue-100 bg-card text-foreground"
+                  : "border-border bg-muted text-muted-foreground"
               )}
             />
           </div>
 
           {/* Month header */}
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold text-gray-800">
+            <span className="text-sm font-semibold text-foreground">
               {capitalize(MESES[viewMonth])} de {viewYear}
             </span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => { onChange({ from: today, to: today }); setOpen(false); }}
-                className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-0.5 rounded-md hover:bg-blue-50 transition-colors"
+                className="text-xs text-info hover:text-info font-medium px-2 py-0.5 rounded-md hover:bg-info/10 transition-colors"
               >
                 Hoje
               </button>
-              <button type="button" onClick={prevMonth} className="p-1 rounded-md hover:bg-gray-100 transition-colors">
-                <ChevronLeft className="w-4 h-4 text-gray-500" />
+              <button type="button" onClick={prevMonth} className="p-1 rounded-md hover:bg-muted transition-colors">
+                <ChevronLeft className="w-4 h-4 text-muted-foreground" />
               </button>
-              <button type="button" onClick={nextMonth} className="p-1 rounded-md hover:bg-gray-100 transition-colors">
-                <ChevronRight className="w-4 h-4 text-gray-500" />
+              <button type="button" onClick={nextMonth} className="p-1 rounded-md hover:bg-muted transition-colors">
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
           </div>
@@ -351,7 +351,7 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
           {/* Day-of-week headers */}
           <div className="grid grid-cols-7 mb-1">
             {DIAS_SEMANA.map((d) => (
-              <div key={d} className="text-center text-[10px] font-semibold text-gray-400 pb-1">{d}</div>
+              <div key={d} className="text-center text-[10px] font-semibold text-muted-foreground pb-1">{d}</div>
             ))}
           </div>
 
@@ -369,20 +369,20 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
                   onClick={() => handleDay(iso)}
                   className={cn(
                     "relative h-8 text-[13px] text-center transition-colors select-none",
-                    !current && "text-gray-300",
-                    current && state === "none" && "hover:bg-blue-50 hover:text-blue-700 rounded-lg",
-                    state === "range" && "bg-blue-50 text-blue-800",
+                    !current && "text-muted-foreground/60",
+                    current && state === "none" && "hover:bg-info/10 hover:text-info rounded-lg",
+                    state === "range" && "bg-info/10 text-info",
                     state === "start" && "text-white",
                     state === "end"   && "text-white",
-                    isToday && state === "none" && "font-bold text-blue-600",
+                    isToday && state === "none" && "font-bold text-info",
                   )}
                 >
-                  {state === "range" && <span className="absolute inset-y-0 inset-x-0 bg-blue-50" />}
+                  {state === "range" && <span className="absolute inset-y-0 inset-x-0 bg-info/10" />}
                   {state === "start" && value.to && value.to !== value.from && (
-                    <span className="absolute inset-y-0 right-0 w-1/2 bg-blue-50" />
+                    <span className="absolute inset-y-0 right-0 w-1/2 bg-info/10" />
                   )}
                   {state === "end" && value.from && value.to !== value.from && (
-                    <span className="absolute inset-y-0 left-0 w-1/2 bg-blue-50" />
+                    <span className="absolute inset-y-0 left-0 w-1/2 bg-info/10" />
                   )}
                   {(state === "start" || state === "end") && (
                     <span className={cn(
@@ -397,7 +397,7 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
           </div>
 
           {/* Footer hint */}
-          <p className="text-[10px] text-gray-400 text-center mt-3">
+          <p className="text-[10px] text-muted-foreground text-center mt-3">
             {picking === "from"
               ? "Clique no calendário ou digite a data inicial"
               : "Clique no calendário ou digite a data final"}

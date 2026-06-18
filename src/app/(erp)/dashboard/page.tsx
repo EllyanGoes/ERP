@@ -112,32 +112,32 @@ export default async function DashboardPage() {
       title: "Receita do Mês",
       value: formatBRL(receitaMesValue),
       icon: TrendingUp,
-      color: "text-green-600",
-      bg: "bg-green-50",
+      color: "text-success",
+      bg: "bg-success/10",
       sub: "Recebimentos no mês atual",
     },
     {
       title: "Pedidos em Aberto",
       value: pedidosAbertos.toString(),
       icon: ShoppingCart,
-      color: "text-blue-600",
-      bg: "bg-blue-50",
+      color: "text-info",
+      bg: "bg-info/10",
       sub: "Aguardando entrega",
     },
     {
       title: "CR Vencidas",
       value: contasVencidas.toString(),
       icon: TrendingDown,
-      color: contasVencidas > 0 ? "text-red-600" : "text-gray-500",
-      bg: contasVencidas > 0 ? "bg-red-50" : "bg-gray-50",
+      color: contasVencidas > 0 ? "text-danger" : "text-muted-foreground",
+      bg: contasVencidas > 0 ? "bg-danger/10" : "bg-muted",
       sub: "Contas a receber em atraso",
     },
     {
       title: "CP Pendentes",
       value: contasPagarHoje.toString(),
       icon: AlertTriangle,
-      color: contasPagarHoje > 0 ? "text-amber-600" : "text-gray-500",
-      bg: contasPagarHoje > 0 ? "bg-amber-50" : "bg-gray-50",
+      color: contasPagarHoje > 0 ? "text-warning" : "text-muted-foreground",
+      bg: contasPagarHoje > 0 ? "bg-warning/10" : "bg-muted",
       sub: "Contas a pagar vencendo",
     },
   ];
@@ -152,15 +152,15 @@ export default async function DashboardPage() {
         {/* KPI Cards */}
         <div className="grid grid-cols-4 gap-4">
           {kpis.map((kpi) => (
-            <Card key={kpi.title} className="border-gray-100">
+            <Card key={kpi.title} className="border-border">
               <CardContent className="pt-5 pb-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                       {kpi.title}
                     </p>
                     <p className={`text-2xl font-bold mt-1 ${kpi.color}`}>{kpi.value}</p>
-                    <p className="text-xs text-gray-400 mt-1">{kpi.sub}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{kpi.sub}</p>
                   </div>
                   <div className={`p-2 rounded-lg ${kpi.bg}`}>
                     <kpi.icon className={`w-5 h-5 ${kpi.color}`} />
@@ -177,17 +177,17 @@ export default async function DashboardPage() {
         {/* Bottom row */}
         <div className="grid grid-cols-3 gap-6">
           {/* Recent orders */}
-          <Card className="col-span-2 border-gray-100">
+          <Card className="col-span-2 border-border">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-sm font-semibold text-gray-700">Pedidos Recentes</CardTitle>
+              <CardTitle className="text-sm font-semibold text-foreground">Pedidos Recentes</CardTitle>
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/pedidos-venda" className="text-xs text-blue-600">Ver todos</Link>
+                <Link href="/pedidos-venda" className="text-xs text-info">Ver todos</Link>
               </Button>
             </CardHeader>
             <CardContent className="pt-0">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-xs text-gray-400 uppercase">
+                  <tr className="border-b text-xs text-muted-foreground uppercase">
                     <th className="text-left pb-2">Nº</th>
                     <th className="text-left pb-2">Cliente</th>
                     <th className="text-left pb-2">Status</th>
@@ -197,7 +197,7 @@ export default async function DashboardPage() {
                 </thead>
                 <tbody>
                   {pedidosRecentes.map((p) => (
-                    <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
+                    <tr key={p.id} className="border-b border-gray-50 hover:bg-muted">
                       <td className="py-2.5 font-mono text-xs">{p.numero}</td>
                       <td className="py-2.5 truncate max-w-[140px]">{p.cliente.razaoSocial}</td>
                       <td className="py-2.5"><StatusBadge status={p.status} /></td>
@@ -210,7 +210,7 @@ export default async function DashboardPage() {
                     </tr>
                   ))}
                   {pedidosRecentes.length === 0 && (
-                    <tr><td colSpan={5} className="py-8 text-center text-gray-400 text-xs">Nenhum pedido cadastrado</td></tr>
+                    <tr><td colSpan={5} className="py-8 text-center text-muted-foreground text-xs">Nenhum pedido cadastrado</td></tr>
                   )}
                 </tbody>
               </table>
@@ -218,33 +218,33 @@ export default async function DashboardPage() {
           </Card>
 
           {/* Low stock alerts */}
-          <Card className="border-gray-100">
+          <Card className="border-border">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-sm font-semibold text-gray-700">
+              <CardTitle className="text-sm font-semibold text-foreground">
                 Estoque Crítico
                 {itensCriticos.length > 0 && (
-                  <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-red-100 text-red-600">
+                  <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-danger/15 text-danger">
                     {itensCriticos.length}
                   </span>
                 )}
               </CardTitle>
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/estoque" className="text-xs text-blue-600">Ver estoque</Link>
+                <Link href="/estoque" className="text-xs text-info">Ver estoque</Link>
               </Button>
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
               {itensCriticos.length === 0 ? (
-                <p className="text-xs text-gray-400 py-4 text-center">Estoque normalizado ✓</p>
+                <p className="text-xs text-muted-foreground py-4 text-center">Estoque normalizado ✓</p>
               ) : (
                 itensCriticos.slice(0, 8).map((e) => (
                   <div key={e.id} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
                     <div className="min-w-0">
                       <p className="text-xs font-medium truncate">{e.item.descricao}</p>
-                      <p className="text-xs text-gray-400 font-mono">{e.item.codigo}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{e.item.codigo}</p>
                     </div>
                     <div className="text-right ml-2 shrink-0">
-                      <p className="text-xs font-bold text-red-600">{decimalToNumber(e.quantidadeAtual)}</p>
-                      <p className="text-xs text-gray-400">min: {decimalToNumber(e.quantidadeMin)}</p>
+                      <p className="text-xs font-bold text-danger">{decimalToNumber(e.quantidadeAtual)}</p>
+                      <p className="text-xs text-muted-foreground">min: {decimalToNumber(e.quantidadeMin)}</p>
                     </div>
                   </div>
                 ))

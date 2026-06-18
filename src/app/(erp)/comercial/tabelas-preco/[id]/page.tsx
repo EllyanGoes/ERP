@@ -378,7 +378,7 @@ export default function TabelaPrecoDetailPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center py-24">
-      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
     </div>
   );
   if (!tabela) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
@@ -397,7 +397,7 @@ export default function TabelaPrecoDetailPage() {
             {editing ? (
               <>
                 {dirty && (
-                  <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">
+                  <span className="text-xs text-warning bg-warning/10 border border-warning/30 px-2 py-1 rounded-md">
                     Alterações não salvas
                   </span>
                 )}
@@ -425,22 +425,22 @@ export default function TabelaPrecoDetailPage() {
 
       <div className="px-8 pb-8 max-w-6xl space-y-6">
         {saveSuccess && (
-          <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm font-medium">
-            <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+          <div className="flex items-center gap-2 bg-success/10 border border-success/30 text-success px-4 py-3 rounded-lg text-sm font-medium">
+            <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
             Alterações salvas com sucesso!
           </div>
         )}
         {saveError && (
-          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          <div className="flex items-center gap-2 bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">
             <XCircle className="w-4 h-4 shrink-0" />
             {saveError}
           </div>
         )}
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-            <h2 className="font-semibold text-sm text-gray-800">Dados da Tabela</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
+            <h2 className="font-semibold text-sm text-foreground">Dados da Tabela</h2>
             <div className="flex items-center gap-4">
               {editing ? (
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -449,15 +449,15 @@ export default function TabelaPrecoDetailPage() {
                     onChange={(e) => { setForm((f) => ({ ...f, ativa: e.target.checked })); setDirty(true); }}
                     className="w-4 h-4 accent-blue-600"
                   />
-                  <span className="text-sm text-gray-700 flex items-center gap-1">
-                    {form.ativa ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <XCircle className="w-3.5 h-3.5 text-gray-300" />}
+                  <span className="text-sm text-foreground flex items-center gap-1">
+                    {form.ativa ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <XCircle className="w-3.5 h-3.5 text-muted-foreground/60" />}
                     Tab. Ativa
                   </span>
                 </label>
               ) : (
                 <span className={cn(
                   "flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-full",
-                  form.ativa ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                  form.ativa ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
                 )}>
                   {form.ativa ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
                   {form.ativa ? "Ativa" : "Inativa"}
@@ -467,11 +467,11 @@ export default function TabelaPrecoDetailPage() {
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Cód. Tabela</Label>
-              <Input value={tabela.codigo} readOnly className="bg-gray-50 font-mono font-semibold" />
+              <Label className="text-xs text-muted-foreground">Cód. Tabela</Label>
+              <Input value={tabela.codigo} readOnly className="bg-muted font-mono font-semibold" />
             </div>
             <div className="col-span-3 space-y-1">
-              <Label className="text-xs text-gray-500">Descrição</Label>
+              <Label className="text-xs text-muted-foreground">Descrição</Label>
               {editing ? (
                 <Input
                   value={form.descricao}
@@ -479,31 +479,31 @@ export default function TabelaPrecoDetailPage() {
                   placeholder="Descrição da tabela"
                 />
               ) : (
-                <p className="text-sm font-medium text-gray-900 py-1">{form.descricao || "—"}</p>
+                <p className="text-sm font-medium text-foreground py-1">{form.descricao || "—"}</p>
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Data Inicial</Label>
+              <Label className="text-xs text-muted-foreground">Data Inicial</Label>
               {editing ? (
                 <Input
                   type="date" value={form.dataInicial}
                   onChange={(e) => { setForm((f) => ({ ...f, dataInicial: e.target.value })); setDirty(true); }}
                 />
               ) : (
-                <p className="text-sm text-gray-800 py-1">
+                <p className="text-sm text-foreground py-1">
                   {form.dataInicial ? new Date(form.dataInicial + "T12:00:00").toLocaleDateString("pt-BR") : "—"}
                 </p>
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Data Final</Label>
+              <Label className="text-xs text-muted-foreground">Data Final</Label>
               {editing ? (
                 <Input
                   type="date" value={form.dataFinal}
                   onChange={(e) => { setForm((f) => ({ ...f, dataFinal: e.target.value })); setDirty(true); }}
                 />
               ) : (
-                <p className="text-sm text-gray-800 py-1">
+                <p className="text-sm text-foreground py-1">
                   {form.dataFinal ? new Date(form.dataFinal + "T12:00:00").toLocaleDateString("pt-BR") : "—"}
                 </p>
               )}
@@ -512,19 +512,19 @@ export default function TabelaPrecoDetailPage() {
         </div>
 
         {/* ── Items grid ─────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-semibold text-sm text-gray-800">Itens da Tabela</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-semibold text-sm text-foreground">Itens da Tabela</h2>
             {editing ? (
               <div className="flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   Markup padrão (%)
                   <input
                     type="text"
                     value={form.markupPadrao}
                     onChange={(e) => { setForm((f) => ({ ...f, markupPadrao: e.target.value.replace(",", ".") })); setDirty(true); }}
                     placeholder="ex: 30"
-                    className="h-7 w-20 rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    className="h-7 w-20 rounded-md border border-border px-2 text-xs text-right font-mono bg-card focus:outline-none focus:ring-1 focus:ring-blue-400"
                   />
                 </label>
                 <Button
@@ -546,13 +546,13 @@ export default function TabelaPrecoDetailPage() {
               </div>
             ) : (
               form.markupPadrao !== "" && (
-                <span className="text-xs text-gray-500">Markup padrão: <span className="font-semibold text-gray-700">{formatPct(form.markupPadrao)}%</span></span>
+                <span className="text-xs text-muted-foreground">Markup padrão: <span className="font-semibold text-foreground">{formatPct(form.markupPadrao)}%</span></span>
               )
             )}
           </div>
 
           {itens.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-14 text-gray-400 gap-3">
+            <div className="flex flex-col items-center justify-center py-14 text-muted-foreground gap-3">
               <Tag className="w-10 h-10 opacity-25" />
               <p className="text-sm">Nenhum item na tabela</p>
               {editing && (
@@ -564,7 +564,7 @@ export default function TabelaPrecoDetailPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[1080px]">
-                <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide">
+                <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                   <tr>
                     <th className="text-center px-3 py-2.5 font-semibold w-12">#</th>
                     <th className="text-left px-3 py-2.5 font-semibold w-28">Cód. Produto</th>
@@ -577,11 +577,11 @@ export default function TabelaPrecoDetailPage() {
                     {editing && <th className="w-10 px-2 py-2.5" />}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {itens.map((row, idx) => (
-                    <tr key={row._key} className="hover:bg-gray-50/60 group">
+                    <tr key={row._key} className="hover:bg-muted/60 group">
                       {/* # */}
-                      <td className="px-3 py-2 text-center text-xs font-mono text-gray-400">
+                      <td className="px-3 py-2 text-center text-xs font-mono text-muted-foreground">
                         {String(idx + 1).padStart(4, "0")}
                       </td>
 
@@ -595,33 +595,33 @@ export default function TabelaPrecoDetailPage() {
                             className={cn(
                               "w-full h-7 px-2 rounded border text-left text-xs font-mono transition-colors",
                               row.codigo
-                                ? "border-gray-200 bg-white text-gray-800 hover:border-blue-400"
-                                : "border-dashed border-gray-300 text-gray-400 hover:border-blue-400",
+                                ? "border-border bg-card text-foreground hover:border-blue-400"
+                                : "border-dashed border-border text-muted-foreground hover:border-blue-400",
                               searchRow === row._key && "border-blue-400 ring-1 ring-blue-200"
                             )}
                           >
                             {row.codigo || <span className="flex items-center gap-1"><Search className="w-3 h-3" />Buscar</span>}
                           </button>
                         ) : (
-                          <span className="text-xs font-mono font-semibold text-gray-700">{row.codigo || "—"}</span>
+                          <span className="text-xs font-mono font-semibold text-foreground">{row.codigo || "—"}</span>
                         )}
                       </td>
 
                       {/* Descrição — sempre read-only */}
                       <td className="px-3 py-2">
-                        <span className="text-xs text-gray-800">{row.descricao || "—"}</span>
+                        <span className="text-xs text-foreground">{row.descricao || "—"}</span>
                       </td>
 
                       {/* U.M. — sempre read-only */}
                       <td className="px-3 py-2 text-center">
-                        <span className="text-xs font-semibold font-mono text-gray-600 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">
+                        <span className="text-xs font-semibold font-mono text-muted-foreground bg-muted border border-border px-2 py-0.5 rounded">
                           {row.unidadeMedida || "—"}
                         </span>
                       </td>
 
                       {/* Custo (CMPM da empresa da tabela) — sempre read-only */}
                       <td className="px-3 py-2 text-right">
-                        <span className="text-xs font-mono text-gray-500 tabular-nums" title="Custo médio (CMPM) atual da empresa da tabela">
+                        <span className="text-xs font-mono text-muted-foreground tabular-nums" title="Custo médio (CMPM) atual da empresa da tabela">
                           {row.custo != null && row.custo > 0 ? formatPrice4(row.custo) : "—"}
                         </span>
                       </td>
@@ -642,10 +642,10 @@ export default function TabelaPrecoDetailPage() {
                               aplicarMarkupLinha(row._key, raw);
                               e.target.value = raw === "" || isNaN(parseFloat(raw)) ? "" : formatPct(raw);
                             }}
-                            className="h-7 w-full rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 disabled:bg-gray-50 disabled:text-gray-300"
+                            className="h-7 w-full rounded-md border border-border px-2 text-xs text-right font-mono bg-card focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 disabled:bg-muted disabled:text-muted-foreground/60"
                           />
                         ) : (
-                          <span className="text-xs font-mono text-gray-600 tabular-nums">
+                          <span className="text-xs font-mono text-muted-foreground tabular-nums">
                             {row.markupPct !== "" ? `${formatPct(row.markupPct)}%` : "manual"}
                           </span>
                         )}
@@ -667,10 +667,10 @@ export default function TabelaPrecoDetailPage() {
                               }
                               e.target.value = formatPrice4(raw);
                             }}
-                            className="h-7 w-full rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                            className="h-7 w-full rounded-md border border-border px-2 text-xs text-right font-mono bg-card focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
                           />
                         ) : (
-                          <span className="text-xs font-mono font-medium text-gray-800 tabular-nums">{formatPrice4(row.precoVenda)}</span>
+                          <span className="text-xs font-mono font-medium text-foreground tabular-nums">{formatPrice4(row.precoVenda)}</span>
                         )}
                       </td>
 
@@ -687,10 +687,10 @@ export default function TabelaPrecoDetailPage() {
                               updateItem(row._key, "vlrDesconto", raw);
                               e.target.value = formatPrice4(raw);
                             }}
-                            className="h-7 w-full rounded-md border border-gray-200 px-2 text-xs text-right font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                            className="h-7 w-full rounded-md border border-border px-2 text-xs text-right font-mono bg-card focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
                           />
                         ) : (
-                          <span className="text-xs font-mono text-gray-600 tabular-nums">{formatPrice4(row.vlrDesconto)}</span>
+                          <span className="text-xs font-mono text-muted-foreground tabular-nums">{formatPrice4(row.vlrDesconto)}</span>
                         )}
                       </td>
 
@@ -700,7 +700,7 @@ export default function TabelaPrecoDetailPage() {
                           <button
                             type="button"
                             onClick={() => removeRow(row._key)}
-                            className="p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
+                            className="p-1 rounded hover:bg-danger/10 text-muted-foreground/60 hover:text-red-500 transition-colors"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -709,9 +709,9 @@ export default function TabelaPrecoDetailPage() {
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+                <tfoot className="border-t-2 border-border bg-muted">
                   <tr>
-                    <td colSpan={editing ? 9 : 8} className="px-4 py-2 text-xs text-gray-400">
+                    <td colSpan={editing ? 9 : 8} className="px-4 py-2 text-xs text-muted-foreground">
                       {itens.length} {itens.length === 1 ? "item" : "itens"}
                     </td>
                   </tr>
@@ -722,9 +722,9 @@ export default function TabelaPrecoDetailPage() {
         </div>
 
         {/* ── Observações ─────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-sm text-gray-800">Observações</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Observações</h2>
           </div>
           <div className="p-4">
             {editing ? (
@@ -733,11 +733,11 @@ export default function TabelaPrecoDetailPage() {
                 onChange={(e) => { setForm((f) => ({ ...f, observacoes: e.target.value })); setDirty(true); }}
                 rows={3}
                 placeholder="Observações adicionais..."
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full text-sm border border-border rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             ) : (
-              <p className="text-sm text-gray-600 whitespace-pre-wrap min-h-[48px]">
-                {form.observacoes || <span className="text-gray-400 italic">Sem observações</span>}
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap min-h-[48px]">
+                {form.observacoes || <span className="text-muted-foreground italic">Sem observações</span>}
               </p>
             )}
           </div>
@@ -747,11 +747,11 @@ export default function TabelaPrecoDetailPage() {
         {portalMounted && searchRow && searchDropPos && createPortal(
           <div
             data-prod-search
-            className="fixed z-[9999] bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden"
+            className="fixed z-[9999] bg-card rounded-xl border border-border shadow-xl overflow-hidden"
             style={{ top: searchDropPos.top, left: searchDropPos.left, width: searchDropPos.width }}
           >
-            <div className="relative border-b border-gray-100">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            <div className="relative border-b border-border">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
               <input
                 ref={searchInputRef}
                 data-prod-search
@@ -770,12 +770,12 @@ export default function TabelaPrecoDetailPage() {
                 );
                 const available = searchResults.filter((p) => !usedIds.has(p.id));
                 if (searching) return (
-                  <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-gray-400">
+                  <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-muted-foreground">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando...
                   </div>
                 );
                 if (available.length === 0) return (
-                  <p className="px-4 py-3 text-xs text-gray-400 italic text-center">
+                  <p className="px-4 py-3 text-xs text-muted-foreground italic text-center">
                     {searchResults.length > 0 ? "Todos os produtos já foram adicionados" : "Nenhum produto encontrado"}
                   </p>
                 );
@@ -785,12 +785,12 @@ export default function TabelaPrecoDetailPage() {
                     data-prod-search
                     type="button"
                     onMouseDown={() => selectProduct(searchRow, p)}
-                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-blue-50 text-left border-b border-gray-50 last:border-0"
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-info/10 text-left border-b border-gray-50 last:border-0"
                   >
-                    <span className="font-mono text-xs text-gray-500 shrink-0 w-20">{p.codigo}</span>
-                    <span className="text-sm text-gray-800 truncate flex-1">{p.descricao}</span>
-                    <span className="text-xs text-gray-400 shrink-0">{p.unidadeMedida}</span>
-                    <span className="text-xs font-medium text-blue-600 shrink-0">{formatBRL(decimalToNumber(p.precoVenda))}</span>
+                    <span className="font-mono text-xs text-muted-foreground shrink-0 w-20">{p.codigo}</span>
+                    <span className="text-sm text-foreground truncate flex-1">{p.descricao}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">{p.unidadeMedida}</span>
+                    <span className="text-xs font-medium text-info shrink-0">{formatBRL(decimalToNumber(p.precoVenda))}</span>
                   </button>
                 ));
               })()}
@@ -805,7 +805,7 @@ export default function TabelaPrecoDetailPage() {
             <button
               type="button"
               onClick={handleDelete}
-              className="text-xs text-red-400 hover:text-red-600 transition-colors"
+              className="text-xs text-red-400 hover:text-danger transition-colors"
             >
               Excluir tabela
             </button>

@@ -72,14 +72,14 @@ export default function HelpPanel() {
 
       {/* Panel — slides in from the right */}
       <div
-        className={`fixed top-0 right-0 z-[9101] h-full w-[420px] bg-white shadow-2xl border-l border-gray-200 flex flex-col transition-transform duration-300 ease-in-out ${open ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed top-0 right-0 z-[9101] h-full w-[420px] bg-card shadow-2xl border-l border-border flex flex-col transition-transform duration-300 ease-in-out ${open ? "translate-x-0" : "translate-x-full"}`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 shrink-0">
-          <h2 className="text-base font-semibold text-gray-900">Ajuda & Suporte</h2>
+        <div className="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
+          <h2 className="text-base font-semibold text-foreground">Ajuda & Suporte</h2>
           <button
             onClick={closeShortcuts}
-            className="flex items-center justify-center h-8 w-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            className="flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:text-muted-foreground hover:bg-muted transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -89,25 +89,25 @@ export default function HelpPanel() {
         <div className="flex-1 overflow-y-auto">
 
           {/* ── Suporte ─────────────────────────────────────────────────── */}
-          <div className="px-6 py-5 border-b border-gray-100">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 mb-4">
+          <div className="px-6 py-5 border-b border-border">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4">
               Suporte
             </p>
 
             <div className="space-y-3">
               <SupportCard
-                icon={<MessageCircle className="h-4 w-4 text-blue-600" />}
+                icon={<MessageCircle className="h-4 w-4 text-info" />}
                 title="Abrir chamado"
                 description="Reporte um problema ou solicite uma funcionalidade"
                 href="/suporte"
-                bg="bg-blue-50"
+                bg="bg-info/10"
               />
               <SupportCard
-                icon={<Mail className="h-4 w-4 text-emerald-600" />}
+                icon={<Mail className="h-4 w-4 text-success" />}
                 title="Falar por e-mail"
                 description="suporte@erpsigma.com.br"
                 href="mailto:suporte@erpsigma.com.br"
-                bg="bg-emerald-50"
+                bg="bg-success/10"
               />
               <SupportCard
                 icon={<BookOpen className="h-4 w-4 text-violet-600" />}
@@ -122,8 +122,8 @@ export default function HelpPanel() {
           {/* ── Atalhos ──────────────────────────────────────────────────── */}
           <div className="px-6 py-5">
             <div className="flex items-center gap-2 mb-4">
-              <Keyboard className="h-3.5 w-3.5 text-gray-400" />
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+              <Keyboard className="h-3.5 w-3.5 text-muted-foreground" />
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
                 Atalhos do teclado
               </p>
             </div>
@@ -131,18 +131,18 @@ export default function HelpPanel() {
             <div className="space-y-6">
               {SHORTCUT_SECTIONS.map((section) => (
                 <div key={section.title}>
-                  <p className="text-xs font-medium text-gray-500 mb-2">{section.title}</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">{section.title}</p>
                   <div className="space-y-1">
                     {section.items.map((item, i) => (
                       <div
                         key={i}
-                        className="flex items-center justify-between gap-4 rounded-lg px-3 py-2.5 hover:bg-gray-50 transition-colors"
+                        className="flex items-center justify-between gap-4 rounded-lg px-3 py-2.5 hover:bg-muted transition-colors"
                       >
-                        <span className="text-sm text-gray-700">{item.description}</span>
+                        <span className="text-sm text-foreground">{item.description}</span>
                         <div className="flex items-center gap-1 shrink-0">
                           {item.keys.map((k, ki) => (
                             <span key={ki} className="flex items-center gap-1">
-                              {ki > 0 && <span className="text-[10px] text-gray-300">+</span>}
+                              {ki > 0 && <span className="text-[10px] text-muted-foreground/60">+</span>}
                               <Kbd>{k}</Kbd>
                             </span>
                           ))}
@@ -157,8 +157,8 @@ export default function HelpPanel() {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 shrink-0">
-          <p className="text-[11px] text-gray-400 text-center">
+        <div className="px-6 py-4 border-t border-border bg-muted shrink-0">
+          <p className="text-[11px] text-muted-foreground text-center">
             Pressione <Kbd>?</Kbd> a qualquer momento para abrir este painel
           </p>
         </div>
@@ -176,15 +176,15 @@ function SupportCard({ icon, title, description, href, bg }: {
   href: string;
   bg: string;
 }) {
-  const cls = "flex items-center gap-3 p-3.5 rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all group";
+  const cls = "flex items-center gap-3 p-3.5 rounded-xl border border-border hover:border-border hover:shadow-sm transition-all group";
   const content = (
     <>
       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${bg}`}>
         {icon}
       </span>
       <div className="min-w-0">
-        <p className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors">{title}</p>
-        <p className="text-xs text-gray-400 truncate">{description}</p>
+        <p className="text-sm font-medium text-foreground group-hover:text-info transition-colors">{title}</p>
+        <p className="text-xs text-muted-foreground truncate">{description}</p>
       </div>
     </>
   );
@@ -201,7 +201,7 @@ function SupportCard({ icon, title, description, href, bg }: {
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-1.5 py-0.5 font-mono text-[11px] text-gray-600 shadow-sm min-w-[22px]">
+    <kbd className="inline-flex items-center justify-center rounded-md border border-border bg-card px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground shadow-sm min-w-[22px]">
       {children}
     </kbd>
   );

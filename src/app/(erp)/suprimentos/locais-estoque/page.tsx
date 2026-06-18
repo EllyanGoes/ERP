@@ -43,23 +43,23 @@ function CategoriasPicker({
   }
   return (
     <div className="space-y-1.5">
-      <div className="space-y-1.5 rounded-lg border border-gray-200 p-2.5 max-h-52 overflow-auto">
+      <div className="space-y-1.5 rounded-lg border border-border p-2.5 max-h-52 overflow-auto">
         {CATEGORIA_ESTOQUE_VALUES.map((cat) => (
           <label key={cat} className="flex items-start gap-2 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={value.includes(cat)}
               onChange={() => toggle(cat)}
-              className="mt-0.5 rounded border-gray-300"
+              className="mt-0.5 rounded border-border"
             />
             <span className="leading-tight">
-              <span className="text-sm font-medium text-gray-800">{CATEGORIA_ESTOQUE_LABELS[cat]}</span>
-              <span className="block text-[11px] text-gray-400">{CATEGORIA_ESTOQUE_DESCRICOES[cat]}</span>
+              <span className="text-sm font-medium text-foreground">{CATEGORIA_ESTOQUE_LABELS[cat]}</span>
+              <span className="block text-[11px] text-muted-foreground">{CATEGORIA_ESTOQUE_DESCRICOES[cat]}</span>
             </span>
           </label>
         ))}
       </div>
-      <p className="text-[11px] text-gray-400">
+      <p className="text-[11px] text-muted-foreground">
         {value.length === 0
           ? "Nenhuma marcada → o local aceita qualquer produto."
           : "Só produtos das categorias marcadas poderão entrar neste local."}
@@ -218,9 +218,9 @@ export default function LocaisEstoquePage() {
       <div className="px-8 pb-8 space-y-6">
         {/* Filial filter banner */}
         {filialFiltro && (
-          <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm">
+          <div className="flex items-center gap-3 px-4 py-3 bg-info/10 border border-info/30 rounded-xl text-sm">
             <GitBranch className="w-4 h-4 text-blue-500 shrink-0" />
-            <span className="text-blue-800 font-medium">
+            <span className="text-info font-medium">
               Filtrando por filial:{" "}
               <span className="font-semibold">
                 {filialAtiva ? (filialAtiva.nomeFantasia || filialAtiva.razaoSocial) : filialFiltro}
@@ -228,7 +228,7 @@ export default function LocaisEstoquePage() {
             </span>
             <Link
               href="/suprimentos/locais-estoque"
-              className="ml-auto text-blue-500 hover:text-blue-700 underline text-xs"
+              className="ml-auto text-blue-500 hover:text-info underline text-xs"
             >
               Ver todos
             </Link>
@@ -236,38 +236,38 @@ export default function LocaisEstoquePage() {
         )}
 
         {/* Summary */}
-        <div className="inline-flex items-stretch rounded-xl border border-gray-200 bg-white shadow-sm divide-x divide-gray-200 overflow-hidden">
+        <div className="inline-flex items-stretch rounded-xl border border-border bg-card shadow-sm divide-x divide-border overflow-hidden">
           <div className="px-5 py-3">
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Locais</p>
-            <p className="text-2xl font-bold text-emerald-700 mt-0.5 tabular-nums">{locais.length}</p>
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Locais</p>
+            <p className="text-2xl font-bold text-success mt-0.5 tabular-nums">{locais.length}</p>
           </div>
           <div className="px-5 py-3">
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Produtos alocados</p>
-            <p className="text-2xl font-bold text-blue-700 mt-0.5 tabular-nums">{totalProdutos}</p>
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Produtos alocados</p>
+            <p className="text-2xl font-bold text-info mt-0.5 tabular-nums">{totalProdutos}</p>
           </div>
           <div className="px-5 py-3">
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Custo Total Estoque</p>
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Custo Total Estoque</p>
             <p className="text-lg font-bold text-violet-700 mt-0.5 tabular-nums leading-tight">
-              {custoTotalGeral > 0 ? formatBRL(custoTotalGeral) : <span className="text-gray-300">—</span>}
+              {custoTotalGeral > 0 ? formatBRL(custoTotalGeral) : <span className="text-muted-foreground/60">—</span>}
             </p>
           </div>
         </div>
 
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : locais.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
             <MapPin className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="font-medium">Nenhum local cadastrado</p>
             <p className="text-sm mt-1">Clique em &quot;Novo Local&quot; para começar.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr className="text-xs text-gray-600 uppercase tracking-wider">
+              <thead className="bg-muted border-b border-border">
+                <tr className="text-xs text-muted-foreground uppercase tracking-wider">
                   <th className="text-left px-4 py-3 font-semibold">Local</th>
                   <th className="text-left px-4 py-3 font-semibold">Filial</th>
                   <th className="text-left px-4 py-3 font-semibold">Descrição</th>
@@ -277,7 +277,7 @@ export default function LocaisEstoquePage() {
                   <th className="text-center px-4 py-3 font-semibold w-20">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {locais.map((local) => {
                   const custoTotal = local.estoqueItens.reduce((s, e) => {
                     const custo = e.item?.precoCusto ? toNum(e.item.precoCusto) : 0;
@@ -286,13 +286,13 @@ export default function LocaisEstoquePage() {
                   return (
                     <tr
                       key={local.id}
-                      className="hover:bg-gray-50 transition-colors cursor-pointer"
+                      className="hover:bg-muted transition-colors cursor-pointer"
                       onClick={() => router.push(`/suprimentos/locais-estoque/${local.id}`)}
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span className="font-medium text-gray-900">{local.nome}</span>
+                          <span className="font-medium text-foreground">{local.nome}</span>
                         </div>
                         {local.categoriasAceitas?.length > 0 && (
                           <div className="mt-1 flex flex-wrap gap-1 pl-6">
@@ -308,24 +308,24 @@ export default function LocaisEstoquePage() {
                         {local.filial ? (
                           <div className="flex items-center gap-1.5">
                             <Building2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                            <span className="text-gray-700 text-xs">{local.filial.razaoSocial}</span>
+                            <span className="text-foreground text-xs">{local.filial.razaoSocial}</span>
                           </div>
                         ) : (
-                          <span className="text-gray-300 text-xs">—</span>
+                          <span className="text-muted-foreground/60 text-xs">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{local.descricao || "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{local.descricao || "—"}</td>
                       <td className="px-4 py-3 text-center">
-                        <span className="inline-flex items-center gap-1 text-gray-700">
-                          <Package className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="inline-flex items-center gap-1 text-foreground">
+                          <Package className="w-3.5 h-3.5 text-muted-foreground" />
                           {local._count.estoqueItens}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right font-semibold text-violet-700">
-                        {custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-gray-300 font-normal">—</span>}
+                        {custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-muted-foreground/60 font-normal">—</span>}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${local.ativo ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${local.ativo ? "bg-success/15 text-success border-success/30" : "bg-muted text-muted-foreground border-border"}`}>
                           {local.ativo ? "Ativo" : "Inativo"}
                         </span>
                       </td>
@@ -333,14 +333,14 @@ export default function LocaisEstoquePage() {
                         <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={(e) => openEdit(local, e)}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
                             title="Editar"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={(e) => openDelete(local, e)}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
                             title="Excluir"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -359,15 +359,15 @@ export default function LocaisEstoquePage() {
       {/* ── Create Modal ───────────────────────────────────────────────── */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                  <MapPin className="w-4 h-4 text-emerald-600" />
+                <div className="w-8 h-8 rounded-lg bg-success/15 flex items-center justify-center">
+                  <MapPin className="w-4 h-4 text-success" />
                 </div>
-                <h3 className="font-semibold text-gray-900">Novo Local de Estoque</h3>
+                <h3 className="font-semibold text-foreground">Novo Local de Estoque</h3>
               </div>
-              <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setShowCreate(false)} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -413,7 +413,7 @@ export default function LocaisEstoquePage() {
               </div>
             </div>
             {createError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{createError}</p>
+              <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{createError}</p>
             )}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowCreate(false)} disabled={createSaving}>Cancelar</Button>
@@ -429,10 +429,10 @@ export default function LocaisEstoquePage() {
       {/* ── Edit Modal ─────────────────────────────────────────────────── */}
       {editItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Editar Local de Estoque</h3>
-              <button onClick={() => setEditItem(null)} className="text-gray-400 hover:text-gray-600">
+              <h3 className="font-semibold text-foreground">Editar Local de Estoque</h3>
+              <button onClick={() => setEditItem(null)} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -485,7 +485,7 @@ export default function LocaisEstoquePage() {
               </div>
             </div>
             {editError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>
+              <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{editError}</p>
             )}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setEditItem(null)} disabled={editSaving}>Cancelar</Button>
@@ -501,24 +501,24 @@ export default function LocaisEstoquePage() {
       {/* ── Delete Modal ───────────────────────────────────────────────── */}
       {deleteItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Excluir local?</p>
-                <p className="text-sm text-gray-500 mt-0.5">{deleteItem.nome}</p>
+                <p className="font-semibold text-foreground">Excluir local?</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{deleteItem.nome}</p>
               </div>
             </div>
             {deleteItem._count.estoqueItens > 0 && (
-              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+              <p className="text-sm text-warning bg-warning/10 border border-warning/30 rounded-lg px-3 py-2 mb-3">
                 Este local possui {deleteItem._count.estoqueItens} produto(s) em estoque.
               </p>
             )}
-            <p className="text-sm text-gray-600 mb-4">Esta ação é permanente e não pode ser desfeita.</p>
+            <p className="text-sm text-muted-foreground mb-4">Esta ação é permanente e não pode ser desfeita.</p>
             {deleteError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{deleteError}</p>
+              <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">{deleteError}</p>
             )}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setDeleteItem(null)} disabled={deleteLoading}>Cancelar</Button>

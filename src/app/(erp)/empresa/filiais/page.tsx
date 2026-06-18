@@ -57,13 +57,13 @@ const COLS: ColDef<Filial>[] = [
   {
     id: "razaoSocial",
     label: "Razão Social",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 font-medium text-gray-900",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 font-medium text-foreground",
     render: (f) => (
       <span className="inline-flex items-center gap-2">
         {f.razaoSocial}
         {f.matriz && (
-          <span className="px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-700 text-[10px] font-medium" title="Espelho automático do cadastro da empresa — edite em Configurações → Empresas do Grupo">
+          <span className="px-1.5 py-0.5 rounded border border-info/30 bg-info/10 text-info text-[10px] font-medium" title="Espelho automático do cadastro da empresa — edite em Configurações → Empresas do Grupo">
             Matriz
           </span>
         )}
@@ -73,63 +73,63 @@ const COLS: ColDef<Filial>[] = [
   {
     id: "nomeFantasia",
     label: "Nome Fantasia",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-gray-500",
-    render: (f) => f.nomeFantasia || <span className="text-gray-300">—</span>,
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-muted-foreground",
+    render: (f) => f.nomeFantasia || <span className="text-muted-foreground/60">—</span>,
   },
   {
     id: "cnpj",
     label: "CNPJ",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-36",
-    tdClass: "px-4 py-3 font-mono text-xs text-gray-600",
-    render: (f) => f.cnpj || <span className="text-gray-300">—</span>,
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-36",
+    tdClass: "px-4 py-3 font-mono text-xs text-muted-foreground",
+    render: (f) => f.cnpj || <span className="text-muted-foreground/60">—</span>,
   },
   {
     id: "endereco",
     label: "Endereço",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-28",
-    tdClass: "px-4 py-3 text-gray-500",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-28",
+    tdClass: "px-4 py-3 text-muted-foreground",
     render: (f) =>
       f.cidade || f.estado
         ? <span>{f.cidade}{f.cidade && f.estado ? " / " : ""}{f.estado}</span>
-        : <span className="text-gray-300">—</span>,
+        : <span className="text-muted-foreground/60">—</span>,
   },
   {
     id: "telefone",
     label: "Telefone",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-32",
-    tdClass: "px-4 py-3 text-gray-500",
-    render: (f) => f.telefone || <span className="text-gray-300">—</span>,
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-32",
+    tdClass: "px-4 py-3 text-muted-foreground",
+    render: (f) => f.telefone || <span className="text-muted-foreground/60">—</span>,
   },
   {
     id: "locais",
     label: "Locais",
-    thClass: "text-center px-4 py-3 font-medium text-gray-600 w-20",
+    thClass: "text-center px-4 py-3 font-medium text-muted-foreground w-20",
     tdClass: "px-4 py-3 text-center",
     render: (f) =>
       f._count.locaisEstoque > 0 ? (
         <Link
           href={`/suprimentos/locais-estoque?filialId=${f.id}`}
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline text-xs font-medium"
+          className="inline-flex items-center gap-1 text-info hover:text-info hover:underline text-xs font-medium"
           title="Ver locais de estoque desta filial"
         >
           <MapPin className="w-3.5 h-3.5" />
           {f._count.locaisEstoque}
         </Link>
       ) : (
-        <span className="text-gray-300 text-xs">0</span>
+        <span className="text-muted-foreground/60 text-xs">0</span>
       ),
   },
   {
     id: "ativo",
     label: "Ativo",
-    thClass: "text-center px-4 py-3 font-medium text-gray-600 w-20",
+    thClass: "text-center px-4 py-3 font-medium text-muted-foreground w-20",
     tdClass: "px-4 py-3 text-center",
     render: (f) => (
       <span className={cn(
         "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-        f.ativo ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
+        f.ativo ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
       )}>
         {f.ativo ? "Ativo" : "Inativo"}
       </span>
@@ -167,16 +167,16 @@ function FilialModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh]">
+      <div className="bg-card rounded-2xl shadow-xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-              <GitBranch className="w-4 h-4 text-blue-600" />
+            <div className="w-8 h-8 rounded-lg bg-info/15 flex items-center justify-center">
+              <GitBranch className="w-4 h-4 text-info" />
             </div>
-            <h3 className="font-semibold text-gray-900">{title}</h3>
+            <h3 className="font-semibold text-foreground">{title}</h3>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-muted-foreground hover:text-muted-foreground">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -185,7 +185,7 @@ function FilialModal({
         <div className="overflow-y-auto px-6 py-5 space-y-5">
           {/* Dados principais */}
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Dados da Filial</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Dados da Filial</p>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <Field label="Razão Social" required>
@@ -215,7 +215,7 @@ function FilialModal({
 
           {/* Endereço */}
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Endereço</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Endereço</p>
             <div className="grid grid-cols-6 gap-3">
               <div className="col-span-2">
                 <Field label="CEP">
@@ -270,9 +270,9 @@ function FilialModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 shrink-0">
+        <div className="px-6 py-4 border-t border-border shrink-0">
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{error}</p>
+            <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-3">{error}</p>
           )}
           <div className="flex gap-2 justify-end">
             <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancelar</Button>
@@ -400,16 +400,16 @@ export default function FiliaisPage() {
       <div className="px-8 pb-8 space-y-5">
         {/* Summary */}
         <div className="flex items-center gap-4">
-          <div className="rounded-xl px-5 py-3 bg-blue-50 text-blue-700 flex items-center gap-3">
+          <div className="rounded-xl px-5 py-3 bg-info/10 text-info flex items-center gap-3">
             <GitBranch className="w-5 h-5 opacity-60" />
             <div><p className="text-xs font-medium opacity-70">Total</p><p className="text-2xl font-bold leading-none mt-0.5">{filiais.length}</p></div>
           </div>
-          <div className="rounded-xl px-5 py-3 bg-emerald-50 text-emerald-700 flex items-center gap-3">
+          <div className="rounded-xl px-5 py-3 bg-success/10 text-success flex items-center gap-3">
             <div className="w-2 h-2 rounded-full bg-emerald-400" />
             <div><p className="text-xs font-medium opacity-70">Ativas</p><p className="text-2xl font-bold leading-none mt-0.5">{ativos}</p></div>
           </div>
           {inativos > 0 && (
-            <div className="rounded-xl px-5 py-3 bg-gray-50 text-gray-500 flex items-center gap-3">
+            <div className="rounded-xl px-5 py-3 bg-muted text-muted-foreground flex items-center gap-3">
               <div className="w-2 h-2 rounded-full bg-gray-400" />
               <div><p className="text-xs font-medium opacity-70">Inativas</p><p className="text-2xl font-bold leading-none mt-0.5">{inativos}</p></div>
             </div>
@@ -419,19 +419,19 @@ export default function FiliaisPage() {
         {/* Filters */}
         <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Razão social, nome fantasia, CNPJ..."
-              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
           </div>
           <select
             value={filtroAtivo}
             onChange={(e) => setFiltroAtivo(e.target.value as "" | "true" | "false")}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-gray-700"
+            className="px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400 text-foreground"
           >
             <option value="">Todas</option>
             <option value="true">Ativas</option>
@@ -442,39 +442,39 @@ export default function FiliaisPage() {
 
         {/* Table */}
         {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         ) : filiais.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
             <GitBranch className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="font-medium">Nenhuma filial encontrada</p>
             <p className="text-sm mt-1">Clique em &quot;Nova Filial&quot; para começar.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
                   ))}
-                  <th className="text-center px-4 py-3 font-medium text-gray-600 w-20">Ações</th>
+                  <th className="text-center px-4 py-3 font-medium text-muted-foreground w-20">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {filiais.map((f) => (
-                  <tr key={f.id} className="hover:bg-gray-50/60 transition-colors">
+                  <tr key={f.id} className="hover:bg-muted/60 transition-colors">
                     {orderedCols.map((col) => (
                       <td key={col.id} className={col.tdClass}>{col.render(f)}</td>
                     ))}
                     <td className="px-4 py-3 text-center">
                       {f.matriz ? (
-                        <span className="text-[11px] text-gray-400" title="A matriz é editada em Configurações → Empresas do Grupo">via Empresa</span>
+                        <span className="text-[11px] text-muted-foreground" title="A matriz é editada em Configurações → Empresas do Grupo">via Empresa</span>
                       ) : (
                         <div className="flex items-center justify-center gap-1">
-                          <button onClick={(e) => openEdit(f, e)} className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Editar">
+                          <button onClick={(e) => openEdit(f, e)} className="p-1.5 rounded-lg text-muted-foreground hover:text-info hover:bg-info/10 transition-colors" title="Editar">
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
-                          <button onClick={(e) => openDelete(f, e)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Excluir">
+                          <button onClick={(e) => openDelete(f, e)} className="p-1.5 rounded-lg text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors" title="Excluir">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -510,24 +510,24 @@ export default function FiliaisPage() {
 
       {deleteItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Excluir filial?</p>
-                <p className="text-sm text-gray-500 mt-0.5">{deleteItem.razaoSocial}</p>
+                <p className="font-semibold text-foreground">Excluir filial?</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{deleteItem.razaoSocial}</p>
               </div>
             </div>
             {deleteItem._count.locaisEstoque > 0 && (
-              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+              <p className="text-sm text-warning bg-warning/10 border border-warning/30 rounded-lg px-3 py-2 mb-3">
                 Esta filial possui {deleteItem._count.locaisEstoque} local(is) de estoque vinculado(s).
               </p>
             )}
-            <p className="text-sm text-gray-600 mb-4">Esta ação é permanente e não pode ser desfeita.</p>
+            <p className="text-sm text-muted-foreground mb-4">Esta ação é permanente e não pode ser desfeita.</p>
             {deleteError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{deleteError}</p>
+              <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">{deleteError}</p>
             )}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setDeleteItem(null)} disabled={deleteLoading}>Cancelar</Button>

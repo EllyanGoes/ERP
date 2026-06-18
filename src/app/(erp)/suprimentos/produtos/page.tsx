@@ -43,39 +43,39 @@ const COLS: ColDef<Produto>[] = [
   {
     id: "codigo",
     label: "Código",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 font-mono text-xs text-gray-700",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 font-mono text-xs text-foreground",
     render: (item) => _prodSearch ? <Highlight text={item.codigo} query={_prodSearch} /> : item.codigo,
   },
   {
     id: "descricao",
     label: "Descrição",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 font-medium text-gray-900",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 font-medium text-foreground",
     render: (item) => _prodSearch ? <Highlight text={item.descricao} query={_prodSearch} /> : item.descricao,
   },
   {
     id: "tipoProduto",
     label: "Tipo de Produto",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-gray-600",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-muted-foreground",
     render: (item) =>
       item.tipoProduto
-        ? <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-md">{item.tipoProduto.nome}</span>
-        : <span className="text-gray-400">—</span>,
+        ? <span className="px-2 py-0.5 bg-info/10 text-info text-xs font-medium rounded-md">{item.tipoProduto.nome}</span>
+        : <span className="text-muted-foreground">—</span>,
   },
   {
     id: "unidade",
     label: "Unidade",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-gray-600",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-muted-foreground",
     render: (item) => item.unidade?.sigla || item.unidadeMedida,
   },
   {
     id: "estoque",
     label: "Estoque",
-    thClass: "text-right px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-right text-gray-700",
+    thClass: "text-right px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-right text-foreground",
     render: (item) => {
       const estoqueTotal = item.estoqueItems.reduce(
         (s, e) => s + decimalToNumber(e.quantidadeAtual), 0
@@ -88,36 +88,36 @@ const COLS: ColDef<Produto>[] = [
   {
     id: "custoMedio",
     label: "Custo Médio",
-    thClass: "text-right px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-right text-gray-700",
+    thClass: "text-right px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-right text-foreground",
     render: (item) =>
       item.precoCusto
         ? <span title="Custo Médio Ponderado Móvel (atualizado a cada entrada)">{formatBRL(decimalToNumber(item.precoCusto))}</span>
-        : <span className="text-gray-400 text-xs">Sem entradas</span>,
+        : <span className="text-muted-foreground text-xs">Sem entradas</span>,
   },
   {
     id: "custoTotal",
     label: "Custo Total",
-    thClass: "text-right px-4 py-3 font-medium text-gray-600",
+    thClass: "text-right px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3 text-right",
     render: (item) => {
       const estoqueTotal = item.estoqueItems.reduce(
         (s, e) => s + decimalToNumber(e.quantidadeAtual), 0
       );
       return item.precoCusto && estoqueTotal > 0
-        ? <span className="font-semibold text-blue-700">{formatBRL(decimalToNumber(item.precoCusto) * estoqueTotal)}</span>
-        : <span className="text-gray-300">—</span>;
+        ? <span className="font-semibold text-info">{formatBRL(decimalToNumber(item.precoCusto) * estoqueTotal)}</span>
+        : <span className="text-muted-foreground/60">—</span>;
     },
   },
   {
     id: "status",
     label: "Status",
-    thClass: "text-center px-4 py-3 font-medium text-gray-600",
+    thClass: "text-center px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3 text-center",
     render: (item) => (
       <span className={cn(
         "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-        item.ativo ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+        item.ativo ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
       )}>
         {item.ativo ? "Ativo" : "Inativo"}
       </span>
@@ -126,9 +126,9 @@ const COLS: ColDef<Produto>[] = [
 ];
 
 const ATIVO_OPTIONS: FilterOption[] = [
-  { key: "todos",    label: "Todos",    color: "bg-gray-100 text-gray-600" },
-  { key: "ativos",   label: "Ativos",   color: "bg-green-100 text-green-700" },
-  { key: "inativos", label: "Inativos", color: "bg-red-100 text-red-700" },
+  { key: "todos",    label: "Todos",    color: "bg-muted text-muted-foreground" },
+  { key: "ativos",   label: "Ativos",   color: "bg-success/15 text-success" },
+  { key: "inativos", label: "Inativos", color: "bg-danger/15 text-danger" },
 ];
 
 export default function ProdutosPage() {
@@ -204,8 +204,8 @@ export default function ProdutosPage() {
 
   // Build tipo produto filter options dynamically
   const tipoProdutoOptions: FilterOption[] = [
-    { key: "todos", label: "Todos", color: "bg-gray-100 text-gray-600" },
-    ...tiposProduto.map((tp) => ({ key: tp.id, label: tp.nome, color: "bg-blue-100 text-blue-700" })),
+    { key: "todos", label: "Todos", color: "bg-muted text-muted-foreground" },
+    ...tiposProduto.map((tp) => ({ key: tp.id, label: tp.nome, color: "bg-info/15 text-info" })),
   ];
 
   async function handleDelete() {
@@ -245,23 +245,23 @@ export default function ProdutosPage() {
         {/* Delete confirmation dialog */}
         {deleteId && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
+            <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-danger" />
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900">Excluir produto?</p>
-                  <p className="text-sm text-gray-500 mt-0.5 font-medium text-gray-800">
+                  <p className="font-semibold text-foreground">Excluir produto?</p>
+                  <p className="text-sm text-muted-foreground mt-0.5 font-medium text-foreground">
                     {deletingItem?.codigo} — {deletingItem?.descricao}
                   </p>
                 </div>
               </div>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 Esta ação é permanente e não pode ser desfeita.
               </p>
               {deleteError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
+                <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">
                   {deleteError}
                 </p>
               )}
@@ -281,16 +281,16 @@ export default function ProdutosPage() {
         {/* Search + filter bar */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
               type="text"
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
               placeholder="Buscar por código ou descrição..."
-              className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {search && (
-              <button onClick={() => handleSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button onClick={() => handleSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
@@ -319,7 +319,7 @@ export default function ProdutosPage() {
           />
 
           {hasFilters && (
-            <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            <button onClick={clearFilters} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-muted-foreground transition-colors">
               <X className="w-3 h-3" />
               Limpar filtros
             </button>
@@ -331,10 +331,10 @@ export default function ProdutosPage() {
         {/* Table */}
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : items.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
             <p className="font-medium">
               {hasFilters ? "Nenhum produto encontrado com esses filtros" : "Nenhum produto cadastrado"}
             </p>
@@ -345,21 +345,21 @@ export default function ProdutosPage() {
             )}
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
                   ))}
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Ações</th>
+                  <th className="text-center px-4 py-3 font-medium text-muted-foreground">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {items.map((item) => (
                   <tr
                     key={item.id}
-                    className="hover:bg-blue-50/40 transition-colors cursor-pointer"
+                    className="hover:bg-info/10 transition-colors cursor-pointer"
                     onClick={(e) => {
                       if ((e.target as HTMLElement).closest("button, a")) return;
                       router.push(`/suprimentos/produtos/${item.id}`);
@@ -373,7 +373,7 @@ export default function ProdutosPage() {
                         <DropdownMenuTrigger asChild>
                           <Button
                             variant="ghost" size="sm"
-                            className="h-8 w-8 p-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <MoreHorizontal className="w-4 h-4" />
@@ -381,7 +381,7 @@ export default function ProdutosPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
-                            className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                            className="text-danger focus:text-danger focus:bg-danger/10"
                             onClick={(e) => { e.stopPropagation(); setDeleteId(item.id); setDeleteError(null); }}
                           >
                             <Trash2 className="w-4 h-4 mr-2" />
@@ -394,7 +394,7 @@ export default function ProdutosPage() {
                 ))}
               </tbody>
             </table>
-            <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50 text-xs text-gray-400">
+            <div className="px-4 py-2.5 border-t border-border bg-muted text-xs text-muted-foreground">
               {items.length} {items.length === 1 ? "produto" : "produtos"} encontrado{items.length === 1 ? "" : "s"}
             </div>
           </div>
@@ -411,7 +411,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
   return (
     <>
       {text.slice(0, idx)}
-      <mark className="bg-yellow-100 text-yellow-900 rounded-sm px-0.5">
+      <mark className="bg-warning/15 text-yellow-900 rounded-sm px-0.5">
         {text.slice(idx, idx + query.length)}
       </mark>
       {text.slice(idx + query.length)}

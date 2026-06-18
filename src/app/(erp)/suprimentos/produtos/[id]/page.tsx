@@ -125,9 +125,9 @@ const TIPO_LABEL: Record<string, string> = {
 };
 
 const TIPO_MOV_COLOR: Record<string, string> = {
-  ENTRADA: "text-emerald-600 bg-emerald-50",
-  SAIDA: "text-red-600 bg-red-50",
-  AJUSTE: "text-blue-600 bg-blue-50",
+  ENTRADA: "text-success bg-success/10",
+  SAIDA: "text-danger bg-danger/10",
+  AJUSTE: "text-info bg-info/10",
   TRANSFERENCIA: "text-purple-600 bg-purple-50",
 };
 
@@ -869,7 +869,7 @@ export default function ProdutoDetailPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center py-24">
-      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
     </div>
   );
   if (!item) return <div className="px-8 pt-8 text-red-500">{error || "Produto não encontrado"}</div>;
@@ -916,7 +916,7 @@ export default function ProdutoDetailPage() {
   );
 
   const filtroEmpresaEstoque = empresasEstoque.length > 1 ? (
-    <label className="flex items-center gap-1.5 text-xs text-gray-500">
+    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
       Empresa
       <ComboboxWithCreate
         value={empresaEstoqueId}
@@ -950,29 +950,29 @@ export default function ProdutoDetailPage() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Breadcrumb */}
-      <div className="px-8 pt-6 flex items-center gap-1.5 text-sm text-gray-500">
+      <div className="px-8 pt-6 flex items-center gap-1.5 text-sm text-muted-foreground">
         <span>Suprimentos</span>
         <ChevronRight className="w-3.5 h-3.5" />
-        <Link href="/suprimentos/produtos" className="hover:text-gray-800 transition-colors">Produtos</Link>
+        <Link href="/suprimentos/produtos" className="hover:text-foreground transition-colors">Produtos</Link>
         <ChevronRight className="w-3.5 h-3.5" />
-        <span className="text-gray-700 font-medium">{item.codigo}</span>
+        <span className="text-foreground font-medium">{item.codigo}</span>
       </div>
 
       {/* Header */}
       <div className="px-8 pt-2 pb-0 flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-            <Package className="w-5 h-5 text-blue-600" />
+          <div className="w-10 h-10 rounded-xl bg-info/15 flex items-center justify-center shrink-0">
+            <Package className="w-5 h-5 text-info" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 leading-tight">{item.descricao}</h1>
+            <h1 className="text-2xl font-bold text-foreground leading-tight">{item.descricao}</h1>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="font-mono text-xs text-gray-400">{item.codigo}</span>
-              <span className="text-gray-300">·</span>
-              <span className="text-xs text-gray-500">{TIPO_LABEL[item.tipo] ?? item.tipo}</span>
-              <span className="text-gray-300">·</span>
+              <span className="font-mono text-xs text-muted-foreground">{item.codigo}</span>
+              <span className="text-muted-foreground/60">·</span>
+              <span className="text-xs text-muted-foreground">{TIPO_LABEL[item.tipo] ?? item.tipo}</span>
+              <span className="text-muted-foreground/60">·</span>
               <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium",
-                item.ativo ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                item.ativo ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
               )}>
                 {item.ativo ? "Ativo" : "Inativo"}
               </span>
@@ -996,7 +996,7 @@ export default function ProdutoDetailPage() {
                 size="sm"
                 variant="outline"
                 onClick={() => { setShowNecessidade(true); setNecForm({ quantidade: "", dataNecessidade: "", observacao: "", solicitante: "" }); setNecError(""); }}
-                className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                className="border-amber-300 text-warning hover:bg-warning/10"
               >
                 <ClipboardList className="w-4 h-4 mr-1" />
                 Nova Necessidade
@@ -1007,7 +1007,7 @@ export default function ProdutoDetailPage() {
                 onClick={toggleFavorito}
                 disabled={favoritoSaving}
                 title={item.favorito ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-                className={item.favorito ? "border-yellow-400 text-yellow-600 hover:bg-yellow-50" : ""}
+                className={item.favorito ? "border-yellow-400 text-yellow-600 hover:bg-warning/10" : ""}
               >
                 <Star className={cn("w-4 h-4", item.favorito ? "fill-yellow-400 text-yellow-500" : "")} />
               </Button>
@@ -1020,11 +1020,11 @@ export default function ProdutoDetailPage() {
       </div>
 
       {error && (
-        <div className="mx-8 mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{error}</div>
+        <div className="mx-8 mt-3 bg-danger/10 border border-danger/30 text-danger px-4 py-2 rounded-lg text-sm">{error}</div>
       )}
 
       {/* Tabs */}
-      <div className="px-8 mt-5 border-b border-gray-200">
+      <div className="px-8 mt-5 border-b border-border">
         <div className="flex gap-0">
           {TABS.map((t) => (
             <button
@@ -1037,8 +1037,8 @@ export default function ProdutoDetailPage() {
               className={cn(
                 "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
                 tab === t.key
-                  ? "border-blue-600 text-blue-700"
-                  : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
+                  ? "border-blue-600 text-info"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
               )}
             >
               {t.label}
@@ -1059,9 +1059,9 @@ export default function ProdutoDetailPage() {
                 {editMode ? (
                   <>
                     <Field label="Código">
-                      <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-gray-200 bg-gray-50 cursor-not-allowed">
-                        <span className="font-mono text-sm text-gray-700">{item.codigo}</span>
-                        <span className="ml-auto text-[10px] font-semibold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">auto</span>
+                      <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-muted cursor-not-allowed">
+                        <span className="font-mono text-sm text-foreground">{item.codigo}</span>
+                        <span className="ml-auto text-[10px] font-semibold text-blue-500 bg-info/10 px-1.5 py-0.5 rounded">auto</span>
                       </div>
                     </Field>
                     <Field label="Tipo de Produto">
@@ -1090,7 +1090,7 @@ export default function ProdutoDetailPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-[11px] text-gray-400 mt-1">Define em quais locais de estoque o produto pode entrar.</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">Define em quais locais de estoque o produto pode entrar.</p>
                     </Field>
                     <Field label="Descrição" colSpan>
                       <Input value={(form.descricao as string) ?? ""} onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))} />
@@ -1107,7 +1107,7 @@ export default function ProdutoDetailPage() {
                         createLabel="unidade de medida"
                         renderCreateModal={(args) => <UnidadeQuickCreate {...args} />}
                       />
-                      <p className="text-[11px] text-gray-400 mt-1">Usada para gestão do estoque · configure conversões na aba Unidades</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">Usada para gestão do estoque · configure conversões na aba Unidades</p>
                     </Field>
                     <Field label="NCM">
                       <Input value={(form.ncm as string) ?? ""} onChange={(e) => setForm((p) => ({ ...p, ncm: e.target.value }))} placeholder="Ex: 8471.60.52" />
@@ -1132,7 +1132,7 @@ export default function ProdutoDetailPage() {
                             onChange={(e) => setForm((p) => ({ ...p, vendavel: e.target.checked }))}
                             className="sr-only peer"
                           />
-                          <div className="w-5 h-5 rounded border-2 border-gray-300 bg-white peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-colors group-hover:border-blue-400 flex items-center justify-center">
+                          <div className="w-5 h-5 rounded border-2 border-border bg-card peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-colors group-hover:border-blue-400 flex items-center justify-center">
                             {Boolean(form.vendavel) && (
                               <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -1141,8 +1141,8 @@ export default function ProdutoDetailPage() {
                           </div>
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-800">Este produto é vendável</p>
-                          <p className="text-xs text-gray-500 mt-0.5">Pode ser incluído em Pedidos de Venda.</p>
+                          <p className="text-sm font-medium text-foreground">Este produto é vendável</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Pode ser incluído em Pedidos de Venda.</p>
                         </div>
                       </label>
                     </div>
@@ -1157,7 +1157,7 @@ export default function ProdutoDetailPage() {
                             onChange={(e) => setForm((p) => ({ ...p, comodato: e.target.checked }))}
                             className="sr-only peer"
                           />
-                          <div className="w-5 h-5 rounded border-2 border-gray-300 bg-white peer-checked:bg-orange-500 peer-checked:border-orange-500 transition-colors group-hover:border-orange-400 flex items-center justify-center">
+                          <div className="w-5 h-5 rounded border-2 border-border bg-card peer-checked:bg-orange-500 peer-checked:border-orange-500 transition-colors group-hover:border-orange-400 flex items-center justify-center">
                             {Boolean(form.comodato) && (
                               <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -1166,8 +1166,8 @@ export default function ProdutoDetailPage() {
                           </div>
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-800">Item de comodato (vasilhame retornável)</p>
-                          <p className="text-xs text-gray-500 mt-0.5">Pallets, engradados e outros itens emprestados ao cliente. Aparece na tela de Comodato.</p>
+                          <p className="text-sm font-medium text-foreground">Item de comodato (vasilhame retornável)</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Pallets, engradados e outros itens emprestados ao cliente. Aparece na tela de Comodato.</p>
                         </div>
                       </label>
                     </div>
@@ -1181,16 +1181,16 @@ export default function ProdutoDetailPage() {
 
                     {/* Unidade de Estoque — campo rico com referência às conversões */}
                     <div className="space-y-1.5">
-                      <p className="text-xs font-medium text-gray-500">Unidade de Estoque</p>
+                      <p className="text-xs font-medium text-muted-foreground">Unidade de Estoque</p>
                       {item.unidade ? (
-                        <div className="flex items-start justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2.5">
+                        <div className="flex items-start justify-between gap-3 rounded-lg border border-info/20 bg-info/10 px-3 py-2.5">
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="font-mono text-sm font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded shrink-0">
+                            <span className="font-mono text-sm font-bold text-info bg-info/15 px-2 py-0.5 rounded shrink-0">
                               {item.unidade.sigla}
                             </span>
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-gray-800 leading-tight">{item.unidade.nome}</p>
-                              <p className="text-[11px] text-gray-400 mt-0.5">
+                              <p className="text-sm font-semibold text-foreground leading-tight">{item.unidade.nome}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">
                                 Unidade base · gestão de estoque e movimentações
                               </p>
                             </div>
@@ -1202,14 +1202,14 @@ export default function ProdutoDetailPage() {
                           )}
                         </div>
                       ) : (
-                        <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-gray-200 px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-border px-3 py-2.5">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded">UN</span>
-                            <p className="text-xs text-gray-400">Padrão (sem unidade definida)</p>
+                            <span className="font-mono text-xs font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">UN</span>
+                            <p className="text-xs text-muted-foreground">Padrão (sem unidade definida)</p>
                           </div>
                           <button
                             onClick={() => setEditMode(true)}
-                            className="text-[11px] text-blue-500 hover:text-blue-700 underline underline-offset-2 transition-colors whitespace-nowrap"
+                            className="text-[11px] text-blue-500 hover:text-info underline underline-offset-2 transition-colors whitespace-nowrap"
                           >
                             Definir →
                           </button>
@@ -1221,10 +1221,10 @@ export default function ProdutoDetailPage() {
                             .filter((iu) => iu.unidade.id !== item.unidade?.id)
                             .slice(0, 4)
                             .map((iu) => (
-                              <span key={iu.id} className="inline-flex items-center gap-1 text-[11px] font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                              <span key={iu.id} className="inline-flex items-center gap-1 text-[11px] font-medium bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
                                 <span className="font-mono">{iu.unidade.sigla}</span>
                                 {iu.fatorConversao && (
-                                  <span className="text-gray-400">
+                                  <span className="text-muted-foreground">
                                     = {Number(iu.fatorConversao).toLocaleString("pt-BR", { maximumFractionDigits: 4 })}{" "}
                                     {iu.baseUnidade?.sigla ?? item.unidade?.sigla}
                                   </span>
@@ -1232,7 +1232,7 @@ export default function ProdutoDetailPage() {
                               </span>
                             ))}
                           {itemUnidades.filter((iu) => iu.unidade.id !== item.unidade?.id).length > 4 && (
-                            <span className="text-[11px] text-gray-400">
+                            <span className="text-[11px] text-muted-foreground">
                               +{itemUnidades.filter((iu) => iu.unidade.id !== item.unidade?.id).length - 4} mais
                             </span>
                           )}
@@ -1243,12 +1243,12 @@ export default function ProdutoDetailPage() {
                     <Info label="NCM" value={item.ncm} />
                     {/* Vendável — view */}
                     <div className="space-y-1">
-                      <p className="text-xs font-medium text-gray-500">Vendável</p>
+                      <p className="text-xs font-medium text-muted-foreground">Vendável</p>
                       <span className={cn(
                         "inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full",
                         item.vendavel
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-gray-100 text-gray-500"
+                          ? "bg-success/15 text-success"
+                          : "bg-muted text-muted-foreground"
                       )}>
                         {item.vendavel ? (
                           <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Sim — disponível para venda</>
@@ -1259,12 +1259,12 @@ export default function ProdutoDetailPage() {
                     </div>
                     {/* Comodato — view */}
                     <div className="space-y-1">
-                      <p className="text-xs font-medium text-gray-500">Comodato</p>
+                      <p className="text-xs font-medium text-muted-foreground">Comodato</p>
                       <span className={cn(
                         "inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full",
                         item.comodato
-                          ? "bg-orange-100 text-orange-700"
-                          : "bg-gray-100 text-gray-500"
+                          ? "bg-warning/15 text-warning"
+                          : "bg-muted text-muted-foreground"
                       )}>
                         {item.comodato ? (
                           <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Sim — vasilhame retornável</>
@@ -1285,14 +1285,14 @@ export default function ProdutoDetailPage() {
                 <div className="grid grid-cols-2 gap-x-8 gap-y-4">
                   {/* Custo Médio — read-only, maintained by entries */}
                   <div className="space-y-1">
-                    <p className="text-xs font-medium text-gray-500">Custo Médio</p>
-                    <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-gray-200 bg-gray-50 cursor-not-allowed">
-                      <span className="text-sm text-gray-700">
+                    <p className="text-xs font-medium text-muted-foreground">Custo Médio</p>
+                    <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-muted cursor-not-allowed">
+                      <span className="text-sm text-foreground">
                         {custoUnit > 0 ? formatBRL(custoUnit) : "—"}
                       </span>
-                      <span className="ml-auto text-[10px] text-gray-400 whitespace-nowrap">auto · entradas</span>
+                      <span className="ml-auto text-[10px] text-muted-foreground whitespace-nowrap">auto · entradas</span>
                     </div>
-                    <p className="text-[10px] text-gray-400 leading-tight">
+                    <p className="text-[10px] text-muted-foreground leading-tight">
                       Calculado automaticamente via CMPM. Informe o custo ao registrar entradas.
                     </p>
                   </div>
@@ -1311,19 +1311,19 @@ export default function ProdutoDetailPage() {
                     <div className="col-span-2 sm:col-span-4 flex justify-end -mb-2">{filtroEmpresaEstoque}</div>
                   )}
                   {/* Custo Médio (acabado: preço médio de venda) */}
-                  <div className="rounded-xl bg-gray-50 px-4 py-3">
-                    <p className="text-xs text-gray-500 font-medium mb-1">{ehAcabado ? "Preço méd. de venda" : "Custo Médio"}</p>
-                    <p className="text-xl font-bold text-gray-800">
+                  <div className="rounded-xl bg-muted px-4 py-3">
+                    <p className="text-xs text-muted-foreground font-medium mb-1">{ehAcabado ? "Preço méd. de venda" : "Custo Médio"}</p>
+                    <p className="text-xl font-bold text-foreground">
                       {ehAcabado ? (precoVendaMedioNum > 0 ? formatBRL(precoVendaMedioNum) : "—") : (custoUnit > 0 ? formatBRL(custoUnit) : "—")}
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {ehAcabado ? "custo de produção: a definir (PCP)" : (custoUnit > 0 ? "CMPM por entradas" : "")}
                     </p>
                   </div>
                   {/* Valor Total em Estoque */}
-                  <div className="rounded-xl bg-blue-50 px-4 py-3">
-                    <p className="text-xs text-blue-600 font-medium mb-1">{ehAcabado ? "Valor em Estoque (venda)" : "Custo Total em Estoque"}</p>
-                    <p className="text-xl font-bold text-blue-800">
+                  <div className="rounded-xl bg-info/10 px-4 py-3">
+                    <p className="text-xs text-info font-medium mb-1">{ehAcabado ? "Valor em Estoque (venda)" : "Custo Total em Estoque"}</p>
+                    <p className="text-xl font-bold text-info">
                       {custoTotal > 0 ? formatBRL(custoTotal) : "—"}
                     </p>
                     {custoTotal > 0 && (
@@ -1343,9 +1343,9 @@ export default function ProdutoDetailPage() {
                     )}
                   </div>
                   {/* Custo Médio */}
-                  <div className="rounded-xl bg-emerald-50 px-4 py-3">
-                    <p className="text-xs text-emerald-600 font-medium mb-1">Custo Médio</p>
-                    <p className="text-xl font-bold text-emerald-800">
+                  <div className="rounded-xl bg-success/10 px-4 py-3">
+                    <p className="text-xs text-success font-medium mb-1">Custo Médio</p>
+                    <p className="text-xl font-bold text-success">
                       {formatBRL(decimalToNumber(item.precoVenda))}
                     </p>
                     {custoUnit > 0 && decimalToNumber(item.precoVenda) > 0 && (
@@ -1383,16 +1383,16 @@ export default function ProdutoDetailPage() {
             {/* ── Fornecedor dialog ──────────────────────────────────────────── */}
             {showAddForn && typeof window !== "undefined" && createPortal(
               <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-                <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-5">
+                <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-md space-y-5">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-gray-900 text-base">Vincular Fornecedor</h3>
-                    <button type="button" onClick={() => setShowAddForn(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                    <h3 className="font-semibold text-foreground text-base">Vincular Fornecedor</h3>
+                    <button type="button" onClick={() => setShowAddForn(false)} className="text-muted-foreground hover:text-muted-foreground transition-colors">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                   <div className="space-y-4">
                     {addFornError && (
-                      <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{addFornError}</p>
+                      <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{addFornError}</p>
                     )}
                     <div className="space-y-1.5">
                       <Label>Fornecedor <span className="text-red-500">*</span></Label>
@@ -1425,13 +1425,13 @@ export default function ProdutoDetailPage() {
             )}
 
             {!item.fornecedores?.length ? (
-              <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+              <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
                 <p className="text-sm">Nenhum fornecedor vinculado a este produto</p>
               </div>
             ) : (
-              <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <div className="rounded-xl border border-border overflow-hidden">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
+                  <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                     <tr>
                       <th className="text-left px-4 py-3 font-semibold">Fornecedor</th>
                       <th className="text-left px-4 py-3 font-semibold">Cód. Fornecedor</th>
@@ -1440,19 +1440,19 @@ export default function ProdutoDetailPage() {
                       <th className="w-10" />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-border">
                     {item.fornecedores.map((pf) => (
-                      <tr key={pf.id} className="hover:bg-blue-50/40">
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          <Link href={`/suprimentos/fornecedores/${pf.fornecedor.id}`} className="hover:text-blue-600 hover:underline">
+                      <tr key={pf.id} className="hover:bg-info/10">
+                        <td className="px-4 py-3 font-medium text-foreground">
+                          <Link href={`/suprimentos/fornecedores/${pf.fornecedor.id}`} className="hover:text-info hover:underline">
                             {pf.fornecedor.nomeFantasia || pf.fornecedor.razaoSocial}
                           </Link>
                         </td>
-                        <td className="px-4 py-3 text-gray-600 font-mono text-xs">{pf.codigoFornecedor || "—"}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-gray-800">{pf.precoUltimo ? formatBRL(decimalToNumber(pf.precoUltimo)) : <span className="text-gray-400">—</span>}</td>
-                        <td className="px-4 py-3 text-right text-gray-700 font-semibold">{pf.prazoEntregaDias ?? <span className="text-gray-400">—</span>}</td>
+                        <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{pf.codigoFornecedor || "—"}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-foreground">{pf.precoUltimo ? formatBRL(decimalToNumber(pf.precoUltimo)) : <span className="text-muted-foreground">—</span>}</td>
+                        <td className="px-4 py-3 text-right text-foreground font-semibold">{pf.prazoEntregaDias ?? <span className="text-muted-foreground">—</span>}</td>
                         <td className="px-4 py-3 text-right">
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-300 hover:text-red-500" onClick={() => removeFornecedor(pf.id)}>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground/60 hover:text-red-500" onClick={() => removeFornecedor(pf.id)}>
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </td>
@@ -1469,22 +1469,22 @@ export default function ProdutoDetailPage() {
         {tab === "estoques" && (
           <div className="space-y-4">
             {item.tipo === "SERVICO" ? (
-              <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+              <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
                 <p className="text-sm">Serviços não possuem controle de estoque</p>
               </div>
             ) : (
               <>
                 {/* Header bar */}
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-muted-foreground">
                     Saldo por local de estoque ·{" "}
-                    <span className="font-semibold text-gray-700">
+                    <span className="font-semibold text-foreground">
                       {estoqueTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {item.unidade?.sigla || item.unidadeMedida}
                     </span>
                     {itemUnidades.filter((iu) => !iu.isPrincipal && iu.fatorConversao).map((iu) => (
-                      <span key={iu.id} className="text-gray-400">
+                      <span key={iu.id} className="text-muted-foreground">
                         {" · "}
-                        <span className="font-semibold text-gray-600">
+                        <span className="font-semibold text-muted-foreground">
                           {(estoqueTotal / Number(iu.fatorConversao)).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {iu.unidade.sigla}
                         </span>
                       </span>
@@ -1492,7 +1492,7 @@ export default function ProdutoDetailPage() {
                     total
                     {custoUnit > 0 && (
                       <> · custo total{" "}
-                        <span className="font-semibold text-blue-700">{formatBRL(custoTotal)}</span>
+                        <span className="font-semibold text-info">{formatBRL(custoTotal)}</span>
                       </>
                     )}
                   </p>
@@ -1505,7 +1505,7 @@ export default function ProdutoDetailPage() {
                 </div>
 
                 {estoqueComLocal.length === 0 ? (
-                  <div className="text-center py-20 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+                  <div className="text-center py-20 text-muted-foreground border border-dashed border-border rounded-xl">
                     <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
                     <p className="text-sm font-medium">Nenhum saldo registrado em local definido</p>
                     <p className="text-xs mt-1">Use &quot;Inserir Saldo&quot; para itens já em estoque</p>
@@ -1514,10 +1514,10 @@ export default function ProdutoDetailPage() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                  <div className="rounded-xl border border-border overflow-hidden shadow-sm">
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-100 border-b-2 border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
+                        <thead className="bg-muted border-b-2 border-border text-xs text-muted-foreground uppercase tracking-wide">
                           <tr>
                             <th className="text-left px-4 py-3 font-semibold whitespace-nowrap">Filial</th>
                             <th className="text-left px-4 py-3 font-semibold whitespace-nowrap">Local de Estoque</th>
@@ -1530,7 +1530,7 @@ export default function ProdutoDetailPage() {
                             {isAdmin && <th className="w-20 px-4 py-3" />}
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200">
+                        <tbody className="divide-y divide-border">
                           {estoqueComLocal.map((e) => {
                             const atual = decimalToNumber(e.quantidadeAtual);
                             const min = decimalToNumber(e.quantidadeMin);
@@ -1542,8 +1542,8 @@ export default function ProdutoDetailPage() {
                               : "—";
                             const isEditingRow = editingEstoqueId === e.id;
                             return (
-                              <tr key={e.id} className={cn("hover:bg-indigo-50/40 transition-colors", abaixo && "bg-red-50/30", isEditingRow && "bg-amber-50/60 hover:bg-amber-50/80")}>
-                                <td className="px-4 py-3.5 text-gray-700 text-xs font-semibold">
+                              <tr key={e.id} className={cn("hover:bg-indigo-50/40 transition-colors", abaixo && "bg-danger/10", isEditingRow && "bg-warning/10 hover:bg-warning/10")}>
+                                <td className="px-4 py-3.5 text-foreground text-xs font-semibold">
                                   {empresasEstoque.length > 1 && (
                                     <span className="block text-[10px] font-semibold text-indigo-600 uppercase tracking-wide">
                                       {e.empresa.nomeFantasia || e.empresa.razaoSocial}
@@ -1551,8 +1551,8 @@ export default function ProdutoDetailPage() {
                                   )}
                                   {filialNome}
                                 </td>
-                                <td className="px-4 py-3.5 font-medium text-gray-900">
-                                  <Link href={`/suprimentos/locais-estoque/${e.localEstoque!.id}`} className="hover:text-blue-600 hover:underline">
+                                <td className="px-4 py-3.5 font-medium text-foreground">
+                                  <Link href={`/suprimentos/locais-estoque/${e.localEstoque!.id}`} className="hover:text-info hover:underline">
                                     {e.localEstoque!.nome}
                                   </Link>
                                 </td>
@@ -1572,13 +1572,13 @@ export default function ProdutoDetailPage() {
                                   ) : (
                                     <div className="flex flex-col items-end gap-0.5">
                                       <div>
-                                        <span className={cn("font-bold", abaixo ? "text-red-600" : "text-gray-900")}>
+                                        <span className={cn("font-bold", abaixo ? "text-danger" : "text-foreground")}>
                                           {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                                         </span>
-                                        <span className="text-xs text-gray-500 font-medium ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                        <span className="text-xs text-muted-foreground font-medium ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
                                       </div>
                                       {itemUnidades.filter((iu) => !iu.isPrincipal && iu.fatorConversao).map((iu) => (
-                                        <div key={iu.id} className="text-xs text-gray-500 font-medium">
+                                        <div key={iu.id} className="text-xs text-muted-foreground font-medium">
                                           {(atual / Number(iu.fatorConversao)).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                                           <span className="ml-1">{iu.unidade.sigla}</span>
                                         </div>
@@ -1590,33 +1590,33 @@ export default function ProdutoDetailPage() {
                                 <td className="px-4 py-3.5 text-right">
                                   <div className="flex flex-col items-end gap-0.5">
                                     <div>
-                                      <span className="font-semibold text-gray-800">
+                                      <span className="font-semibold text-foreground">
                                         {atual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                                       </span>
-                                      <span className="text-xs text-gray-500 font-medium ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                      <span className="text-xs text-muted-foreground font-medium ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
                                     </div>
                                     {itemUnidades.filter((iu) => !iu.isPrincipal && iu.fatorConversao).map((iu) => (
-                                      <div key={iu.id} className="text-xs text-gray-500 font-medium">
+                                      <div key={iu.id} className="text-xs text-muted-foreground font-medium">
                                         {(atual / Number(iu.fatorConversao)).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                                         <span className="ml-1">{iu.unidade.sigla}</span>
                                       </div>
                                     ))}
                                   </div>
                                 </td>
-                                <td className="px-4 py-3.5 text-right font-semibold text-gray-700">
-                                  {custoLinha > 0 ? formatBRL(custoLinha) : <span className="text-gray-400">—</span>}
+                                <td className="px-4 py-3.5 text-right font-semibold text-foreground">
+                                  {custoLinha > 0 ? formatBRL(custoLinha) : <span className="text-muted-foreground">—</span>}
                                 </td>
-                                <td className="px-4 py-3.5 text-right text-gray-500 text-xs">
+                                <td className="px-4 py-3.5 text-right text-muted-foreground text-xs">
                                   {custoLinha > 0 ? (
                                     <span className="font-mono bg-violet-100 text-violet-800 border border-violet-200 px-1.5 py-0.5 rounded">{formatBRL(custoLinha)}</span>
-                                  ) : <span className="text-gray-400">—</span>}
+                                  ) : <span className="text-muted-foreground">—</span>}
                                 </td>
-                                <td className="px-4 py-3.5 text-right font-semibold text-blue-700">
-                                  {custoTotalLinha > 0 ? formatBRL(custoTotalLinha) : <span className="text-gray-400 font-normal">—</span>}
+                                <td className="px-4 py-3.5 text-right font-semibold text-info">
+                                  {custoTotalLinha > 0 ? formatBRL(custoTotalLinha) : <span className="text-muted-foreground font-normal">—</span>}
                                 </td>
 
                                 {/* Endereço */}
-                                <td className="px-4 py-3.5 text-gray-600 text-xs">
+                                <td className="px-4 py-3.5 text-muted-foreground text-xs">
                                   {isEditingRow ? (
                                     <Input
                                       className="h-7 w-28 text-xs font-mono"
@@ -1625,7 +1625,7 @@ export default function ProdutoDetailPage() {
                                       onChange={(ev) => setEstoqueEditForm((f) => ({ ...f, localizacao: ev.target.value }))}
                                     />
                                   ) : e.localizacao ? (
-                                    <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{e.localizacao}</span>
+                                    <span className="font-mono bg-muted px-1.5 py-0.5 rounded">{e.localizacao}</span>
                                   ) : "—"}
                                 </td>
 
@@ -1646,7 +1646,7 @@ export default function ProdutoDetailPage() {
                                         </button>
                                         <button
                                           onClick={() => { setEditingEstoqueId(null); setEstoqueEditError(""); }}
-                                          className="p-1 rounded-md hover:bg-gray-100 text-gray-500 transition-colors"
+                                          className="p-1 rounded-md hover:bg-muted text-muted-foreground transition-colors"
                                           title="Cancelar"
                                         >
                                           <X className="w-3.5 h-3.5" />
@@ -1655,7 +1655,7 @@ export default function ProdutoDetailPage() {
                                     ) : (
                                       <button
                                         onClick={() => openEstoqueEdit(e)}
-                                        className="p-1 rounded-md hover:bg-gray-100 text-gray-400 hover:text-indigo-600 transition-colors"
+                                        className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-indigo-600 transition-colors"
                                         title="Editar registro"
                                       >
                                         <Pencil className="w-3.5 h-3.5" />
@@ -1669,19 +1669,19 @@ export default function ProdutoDetailPage() {
                         </tbody>
                         {estoqueComLocal.length > 1 && (
                           <tfoot>
-                            <tr className="border-t-2 border-gray-200 bg-gray-50">
-                              <td colSpan={2} className="px-4 py-2.5 text-xs font-semibold text-gray-600 uppercase">Total</td>
-                              <td className="px-4 py-2.5 text-right font-bold text-gray-900">
+                            <tr className="border-t-2 border-border bg-muted">
+                              <td colSpan={2} className="px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase">Total</td>
+                              <td className="px-4 py-2.5 text-right font-bold text-foreground">
                                 {estoqueTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                                <span className="text-xs font-normal text-gray-500 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                <span className="text-xs font-normal text-muted-foreground ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
                               </td>
-                              <td className="px-4 py-2.5 text-right font-bold text-gray-800">
+                              <td className="px-4 py-2.5 text-right font-bold text-foreground">
                                 {estoqueTotal.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                                <span className="text-xs font-normal text-gray-500 ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
+                                <span className="text-xs font-normal text-muted-foreground ml-1">{item.unidade?.sigla || item.unidadeMedida}</span>
                               </td>
                               <td colSpan={2} />
-                              <td className="px-4 py-2.5 text-right font-bold text-blue-800">
-                                {custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-gray-400">—</span>}
+                              <td className="px-4 py-2.5 text-right font-bold text-info">
+                                {custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-muted-foreground">—</span>}
                               </td>
                               <td colSpan={isAdmin ? 2 : 1} />
                             </tr>
@@ -1690,7 +1690,7 @@ export default function ProdutoDetailPage() {
                         {estoqueEditError && (
                           <tfoot>
                             <tr>
-                              <td colSpan={isAdmin ? 9 : 8} className="px-4 py-2 text-xs text-red-600 bg-red-50">
+                              <td colSpan={isAdmin ? 9 : 8} className="px-4 py-2 text-xs text-danger bg-danger/10">
                                 {estoqueEditError}
                               </td>
                             </tr>
@@ -1705,9 +1705,9 @@ export default function ProdutoDetailPage() {
 
             {/* Parâmetros de Reposição */}
             {item.tipo !== "SERVICO" && (
-              <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 mt-2">
+              <div className="rounded-xl border border-border bg-muted/60 p-4 mt-2">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-gray-700">Parâmetros de Reposição</h3>
+                  <h3 className="text-sm font-semibold text-foreground">Parâmetros de Reposição</h3>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {([
@@ -1724,8 +1724,8 @@ export default function ProdutoDetailPage() {
                       : null;
                     const isEditing = paramEdit === field;
                     return (
-                      <div key={field} className="bg-white rounded-lg border border-gray-200 px-3 py-2.5">
-                        <p className="text-xs text-gray-600 font-medium mb-1">{label}</p>
+                      <div key={field} className="bg-card rounded-lg border border-border px-3 py-2.5">
+                        <p className="text-xs text-muted-foreground font-medium mb-1">{label}</p>
                         {isEditing ? (
                           <div className="flex items-center gap-1">
                             <Input
@@ -1740,17 +1740,17 @@ export default function ProdutoDetailPage() {
                             <button
                               onClick={() => saveParam(field, paramValue)}
                               disabled={paramSaving}
-                              className="p-1 rounded hover:bg-green-50 text-green-600 disabled:opacity-50"
+                              className="p-1 rounded hover:bg-success/10 text-success disabled:opacity-50"
                             >
                               {paramSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                             </button>
-                            <button onClick={() => setParamEdit(null)} className="p-1 rounded hover:bg-gray-100 text-gray-400">
+                            <button onClick={() => setParamEdit(null)} className="p-1 rounded hover:bg-muted text-muted-foreground">
                               <X className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         ) : (
                           <div className="flex items-center justify-between gap-1">
-                            <span className={cn("text-sm font-semibold", displayVal ? "text-gray-900" : "text-gray-400 font-normal italic")}>
+                            <span className={cn("text-sm font-semibold", displayVal ? "text-foreground" : "text-muted-foreground font-normal italic")}>
                               {displayVal ?? "Não definido"}
                             </span>
                             <button
@@ -1759,7 +1759,7 @@ export default function ProdutoDetailPage() {
                                 const v = rawVal != null ? (field === "leadTimeDias" ? String(rawVal) : decimalToNumber(rawVal).toString()) : "";
                                 setParamValue(v);
                               }}
-                              className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-muted-foreground"
                               title="Editar"
                             >
                               <Pencil className="w-3 h-3" />
@@ -1801,14 +1801,14 @@ export default function ProdutoDetailPage() {
           return (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-500">Histórico de movimentações deste produto</p>
+              <p className="text-sm text-muted-foreground">Histórico de movimentações deste produto</p>
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => downloadMovimentacoes(movsVisiveis, movPeriodo)}
                   disabled={movsVisiveis.length === 0}
-                  className="text-blue-700 hover:bg-blue-50 border-blue-200"
+                  className="text-info hover:bg-info/10 border-info/30"
                 >
                   <Printer className="w-4 h-4 mr-1.5" />
                   Baixar PDF
@@ -1830,7 +1830,7 @@ export default function ProdutoDetailPage() {
               <select
                 value={movLocalFilter}
                 onChange={(e) => setMovLocalFilter(e.target.value)}
-                className="h-9 rounded-lg border border-gray-300 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-9 rounded-lg border border-border px-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Todos os locais</option>
                 {locaisMov.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
@@ -1838,7 +1838,7 @@ export default function ProdutoDetailPage() {
               <select
                 value={movTipoFilter}
                 onChange={(e) => setMovTipoFilter(e.target.value as "" | "ENTRADA" | "SAIDA")}
-                className="h-9 rounded-lg border border-gray-300 px-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-9 rounded-lg border border-border px-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Entradas e saídas</option>
                 <option value="ENTRADA">Só entradas</option>
@@ -1848,11 +1848,11 @@ export default function ProdutoDetailPage() {
                 <>
                   <button
                     onClick={() => { setMovPeriodo({ from: "", to: "" }); setMovLocalFilter(""); setMovTipoFilter(""); }}
-                    className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                    className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors"
                   >
                     Limpar
                   </button>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-muted-foreground">
                     {movsVisiveis.length} de {item.movimentacoes.length} movimentaç{movsVisiveis.length !== 1 ? "ões" : "ão"}
                   </span>
                 </>
@@ -1867,29 +1867,29 @@ export default function ProdutoDetailPage() {
               const totalSaida = saidas.reduce((s, m) => s + decimalToNumber(m.quantidade), 0);
               return (
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="rounded-xl bg-emerald-50 px-4 py-3 flex items-center gap-3">
+                  <div className="rounded-xl bg-success/10 px-4 py-3 flex items-center gap-3">
                     <TrendingUp className="w-5 h-5 text-emerald-500 shrink-0" />
                     <div>
-                      <p className="text-xs text-emerald-600 font-medium">Total Entradas</p>
-                      <p className="text-xl font-bold text-emerald-800">
+                      <p className="text-xs text-success font-medium">Total Entradas</p>
+                      <p className="text-xl font-bold text-success">
                         {totalEntrada.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                       </p>
                     </div>
                   </div>
-                  <div className="rounded-xl bg-red-50 px-4 py-3 flex items-center gap-3">
+                  <div className="rounded-xl bg-danger/10 px-4 py-3 flex items-center gap-3">
                     <TrendingDown className="w-5 h-5 text-red-500 shrink-0" />
                     <div>
-                      <p className="text-xs text-red-600 font-medium">Total Saídas</p>
-                      <p className="text-xl font-bold text-red-800">
+                      <p className="text-xs text-danger font-medium">Total Saídas</p>
+                      <p className="text-xl font-bold text-danger">
                         {totalSaida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                       </p>
                     </div>
                   </div>
-                  <div className="rounded-xl bg-blue-50 px-4 py-3 flex items-center gap-3">
+                  <div className="rounded-xl bg-info/10 px-4 py-3 flex items-center gap-3">
                     <ArrowUpDown className="w-5 h-5 text-blue-500 shrink-0" />
                     <div>
-                      <p className="text-xs text-blue-600 font-medium">Movimentações</p>
-                      <p className="text-xl font-bold text-blue-800">{movsVisiveis.length}</p>
+                      <p className="text-xs text-info font-medium">Movimentações</p>
+                      <p className="text-xl font-bold text-info">{movsVisiveis.length}</p>
                     </div>
                   </div>
                 </div>
@@ -1897,7 +1897,7 @@ export default function ProdutoDetailPage() {
             })()}
 
             {movsVisiveis.length === 0 ? (
-              <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+              <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
                 <ArrowUpDown className="w-10 h-10 mx-auto mb-3 opacity-30" />
                 <p className="font-medium">
                   {temFiltro ? "Nenhuma movimentação no período selecionado" : "Nenhuma movimentação registrada"}
@@ -1907,9 +1907,9 @@ export default function ProdutoDetailPage() {
                 </p>
               </div>
             ) : (
-              <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <div className="rounded-xl border border-border overflow-hidden">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
+                  <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                     <tr>
                       <th className="text-left px-4 py-3 font-semibold">Data</th>
                       <th className="text-center px-4 py-3 font-semibold">Tipo</th>
@@ -1924,16 +1924,16 @@ export default function ProdutoDetailPage() {
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-border">
                     {movsVisiveis.map((m) => (
-                      <tr key={m.id} className="hover:bg-blue-50/40 group/row">
-                        <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">
+                      <tr key={m.id} className="hover:bg-info/10 group/row">
+                        <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
                           {formatDateTime(m.lote?.dataMovimentacao ?? m.createdAt)}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={cn(
                             "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
-                            TIPO_MOV_COLOR[m.tipo] ?? "text-gray-600 bg-gray-100"
+                            TIPO_MOV_COLOR[m.tipo] ?? "text-muted-foreground bg-muted"
                           )}>
                             {m.tipo === "ENTRADA" && <TrendingUp className="w-3 h-3 mr-1" />}
                             {m.tipo === "SAIDA" && <TrendingDown className="w-3 h-3 mr-1" />}
@@ -1941,20 +1941,20 @@ export default function ProdutoDetailPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right font-semibold">
-                          <span className={m.tipo === "SAIDA" ? "text-red-600" : "text-emerald-600"}>
+                          <span className={m.tipo === "SAIDA" ? "text-danger" : "text-success"}>
                             {m.tipo === "SAIDA" ? "−" : "+"}{decimalToNumber(m.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                           </span>
                         </td>
                         <td className="px-4 py-3">
                           {m.unidade
-                            ? <span className="font-mono text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">{m.unidade.sigla}</span>
-                            : <span className="font-mono text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{item.unidade?.sigla || item.unidadeMedida}</span>
+                            ? <span className="font-mono text-xs bg-info/10 text-info px-1.5 py-0.5 rounded">{m.unidade.sigla}</span>
+                            : <span className="font-mono text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{item.unidade?.sigla || item.unidadeMedida}</span>
                           }
                         </td>
-                        <td className="px-4 py-3 text-right text-gray-500">
+                        <td className="px-4 py-3 text-right text-muted-foreground">
                           {decimalToNumber(m.saldoAntes).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                         </td>
-                        <td className="px-4 py-3 text-right font-medium text-gray-800">
+                        <td className="px-4 py-3 text-right font-medium text-foreground">
                           {decimalToNumber(m.saldoDepois).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                         </td>
                         <td className="px-4 py-3">
@@ -1963,18 +1963,18 @@ export default function ProdutoDetailPage() {
                               <RefreshCw className="w-3 h-3" />Automática
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                            <span className="inline-flex items-center gap-1 text-xs font-medium bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
                               Manual
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-gray-600 font-mono text-xs">
+                        <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
                           {m.documento || "—"}
                         </td>
-                        <td className="px-4 py-3 text-gray-700 font-mono text-xs">
+                        <td className="px-4 py-3 text-foreground font-mono text-xs">
                           {m.minutaFisica || "—"}
                         </td>
-                        <td className="px-4 py-3 text-gray-500 text-xs max-w-[140px] truncate">
+                        <td className="px-4 py-3 text-muted-foreground text-xs max-w-[140px] truncate">
                           {m.observacoes || "—"}
                         </td>
                         <td className="px-4 py-3">
@@ -2008,14 +2008,14 @@ export default function ProdutoDetailPage() {
                                   })()
                                 }
                               }}
-                              className="p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                              className="p-1 rounded text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
                               title="Editar"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => setDeleteMovConfirm(m)}
-                              className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              className="p-1 rounded text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
                               title="Excluir"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -2035,32 +2035,32 @@ export default function ProdutoDetailPage() {
         {tab === "compras" && (
           <div className="space-y-6">
             {comprasLoading ? (
-              <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-300" /></div>
+              <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground/60" /></div>
             ) : !compras ? null : (
               <>
                 {/* ── Necessidades ── */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                       <ClipboardList className="w-4 h-4 text-amber-500" />
                       Necessidades de Compra
-                      <span className="text-xs font-normal text-gray-400">({compras.necessidades.length})</span>
+                      <span className="text-xs font-normal text-muted-foreground">({compras.necessidades.length})</span>
                     </h3>
                     <Button size="sm" variant="outline"
-                      className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                      className="border-amber-300 text-warning hover:bg-warning/10"
                       onClick={() => { setShowNecessidade(true); setNecForm({ quantidade: "", dataNecessidade: "", observacao: "", solicitante: "" }); setNecError(""); }}
                     >
                       <Plus className="w-3.5 h-3.5 mr-1" /> Nova Necessidade
                     </Button>
                   </div>
                   {compras.necessidades.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400 border border-dashed border-gray-200 rounded-xl text-sm">
+                    <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-xl text-sm">
                       Nenhuma necessidade de compra registrada para este produto
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="rounded-xl border border-border overflow-hidden">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
+                        <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                           <tr>
                             <th className="text-left px-4 py-2.5 font-semibold">Número</th>
                             <th className="text-left px-4 py-2.5 font-semibold">Status</th>
@@ -2071,33 +2071,33 @@ export default function ProdutoDetailPage() {
                             <th className="w-10" />
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200">
+                        <tbody className="divide-y divide-border">
                           {compras.necessidades.map((n) => (
-                            <tr key={n.id} className="hover:bg-blue-50/40">
-                              <td className="px-4 py-3 font-mono text-xs font-bold text-blue-700">{n.numero}</td>
+                            <tr key={n.id} className="hover:bg-info/10">
+                              <td className="px-4 py-3 font-mono text-xs font-bold text-info">{n.numero}</td>
                               <td className="px-4 py-3">
                                 <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", {
-                                  "bg-gray-100 text-gray-600":   n.status === "RASCUNHO",
-                                  "bg-amber-100 text-amber-700": n.status === "PENDENTE",
-                                  "bg-blue-100 text-blue-700":   n.status === "APROVADO",
-                                  "bg-green-100 text-green-700": n.status === "CONCLUIDO",
-                                  "bg-red-100 text-red-700":     n.status === "REPROVADO" || n.status === "CANCELADO",
+                                  "bg-muted text-muted-foreground":   n.status === "RASCUNHO",
+                                  "bg-warning/15 text-warning": n.status === "PENDENTE",
+                                  "bg-info/15 text-info":   n.status === "APROVADO",
+                                  "bg-success/15 text-success": n.status === "CONCLUIDO",
+                                  "bg-danger/15 text-danger":     n.status === "REPROVADO" || n.status === "CANCELADO",
                                 })}>
                                   {n.status}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-right font-medium text-gray-800">
+                              <td className="px-4 py-3 text-right font-medium text-foreground">
                                 {decimalToNumber(n.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                               </td>
-                              <td className="px-4 py-3 text-gray-700 text-xs">{n.solicitante || <span className="text-gray-400">—</span>}</td>
-                              <td className="px-4 py-3 text-gray-600 text-xs">
-                                {n.dataNecessidade ? new Date(n.dataNecessidade).toLocaleDateString("pt-BR") : <span className="text-gray-400">—</span>}
+                              <td className="px-4 py-3 text-foreground text-xs">{n.solicitante || <span className="text-muted-foreground">—</span>}</td>
+                              <td className="px-4 py-3 text-muted-foreground text-xs">
+                                {n.dataNecessidade ? new Date(n.dataNecessidade).toLocaleDateString("pt-BR") : <span className="text-muted-foreground">—</span>}
                               </td>
-                              <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">
+                              <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
                                 {new Date(n.createdAt).toLocaleDateString("pt-BR")}
                               </td>
                               <td className="px-3 py-3">
-                                <Link href={`/compras/necessidades/${n.id}`} className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 inline-flex">
+                                <Link href={`/compras/necessidades/${n.id}`} className="p-1 rounded hover:bg-info/10 text-muted-foreground hover:text-info inline-flex">
                                   <ExternalLink className="w-3.5 h-3.5" />
                                 </Link>
                               </td>
@@ -2111,19 +2111,19 @@ export default function ProdutoDetailPage() {
 
                 {/* ── Pedidos de Compra ── */}
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                     <FileText className="w-4 h-4 text-blue-500" />
                     Pedidos de Compra
-                    <span className="text-xs font-normal text-gray-400">({compras.pedidos.length})</span>
+                    <span className="text-xs font-normal text-muted-foreground">({compras.pedidos.length})</span>
                   </h3>
                   {compras.pedidos.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400 border border-dashed border-gray-200 rounded-xl text-sm">
+                    <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-xl text-sm">
                       Nenhum pedido de compra para este produto
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="rounded-xl border border-border overflow-hidden">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
+                        <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                           <tr>
                             <th className="text-left px-4 py-2.5 font-semibold">Número</th>
                             <th className="text-left px-4 py-2.5 font-semibold">Status</th>
@@ -2134,35 +2134,35 @@ export default function ProdutoDetailPage() {
                             <th className="w-10" />
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200">
+                        <tbody className="divide-y divide-border">
                           {compras.pedidos.map((p) => (
-                            <tr key={p.id} className="hover:bg-blue-50/40">
-                              <td className="px-4 py-3 font-mono text-xs font-bold text-blue-700">{p.numero}</td>
+                            <tr key={p.id} className="hover:bg-info/10">
+                              <td className="px-4 py-3 font-mono text-xs font-bold text-info">{p.numero}</td>
                               <td className="px-4 py-3">
                                 <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", {
-                                  "bg-gray-100 text-gray-600":   p.status === "RASCUNHO",
-                                  "bg-amber-100 text-amber-700": p.status === "ENVIADO",
-                                  "bg-blue-100 text-blue-700":   p.status === "CONFIRMADO",
-                                  "bg-green-100 text-green-700": p.status === "ENTREGUE",
-                                  "bg-red-100 text-red-700":     p.status === "CANCELADO",
+                                  "bg-muted text-muted-foreground":   p.status === "RASCUNHO",
+                                  "bg-warning/15 text-warning": p.status === "ENVIADO",
+                                  "bg-info/15 text-info":   p.status === "CONFIRMADO",
+                                  "bg-success/15 text-success": p.status === "ENTREGUE",
+                                  "bg-danger/15 text-danger":     p.status === "CANCELADO",
                                 })}>
                                   {p.status}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-gray-700 text-xs font-medium">
+                              <td className="px-4 py-3 text-foreground text-xs font-medium">
                                 {p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial}
                               </td>
-                              <td className="px-4 py-3 text-right font-semibold text-gray-800">
+                              <td className="px-4 py-3 text-right font-semibold text-foreground">
                                 {decimalToNumber(p.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                               </td>
-                              <td className="px-4 py-3 text-right text-gray-700 font-semibold">
+                              <td className="px-4 py-3 text-right text-foreground font-semibold">
                                 {formatBRL(decimalToNumber(p.precoUnitario))}
                               </td>
-                              <td className="px-4 py-3 text-gray-600 text-xs">
-                                {p.dataEntregaPrevista ? new Date(p.dataEntregaPrevista).toLocaleDateString("pt-BR") : <span className="text-gray-400">—</span>}
+                              <td className="px-4 py-3 text-muted-foreground text-xs">
+                                {p.dataEntregaPrevista ? new Date(p.dataEntregaPrevista).toLocaleDateString("pt-BR") : <span className="text-muted-foreground">—</span>}
                               </td>
                               <td className="px-3 py-3">
-                                <Link href={`/suprimentos/pedidos-compra/${p.id}`} className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 inline-flex">
+                                <Link href={`/suprimentos/pedidos-compra/${p.id}`} className="p-1 rounded hover:bg-info/10 text-muted-foreground hover:text-info inline-flex">
                                   <ExternalLink className="w-3.5 h-3.5" />
                                 </Link>
                               </td>
@@ -2176,19 +2176,19 @@ export default function ProdutoDetailPage() {
 
                 {/* ── Conferências ── */}
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                     <PackageCheck className="w-4 h-4 text-emerald-500" />
                     Conferências de Recebimento
-                    <span className="text-xs font-normal text-gray-400">({compras.conferencias.length})</span>
+                    <span className="text-xs font-normal text-muted-foreground">({compras.conferencias.length})</span>
                   </h3>
                   {compras.conferencias.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400 border border-dashed border-gray-200 rounded-xl text-sm">
+                    <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-xl text-sm">
                       Nenhuma conferência de recebimento para este produto
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="rounded-xl border border-border overflow-hidden">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
+                        <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                           <tr>
                             <th className="text-left px-4 py-2.5 font-semibold">Número</th>
                             <th className="text-left px-4 py-2.5 font-semibold">Status</th>
@@ -2200,42 +2200,42 @@ export default function ProdutoDetailPage() {
                             <th className="w-10" />
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200">
+                        <tbody className="divide-y divide-border">
                           {compras.conferencias.map((c) => (
-                            <tr key={c.id} className="hover:bg-blue-50/40">
-                              <td className="px-4 py-3 font-mono text-xs font-bold text-blue-700">{c.numero}</td>
+                            <tr key={c.id} className="hover:bg-info/10">
+                              <td className="px-4 py-3 font-mono text-xs font-bold text-info">{c.numero}</td>
                               <td className="px-4 py-3">
                                 <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", {
-                                  "bg-amber-100 text-amber-700": c.status === "PENDENTE",
-                                  "bg-blue-100 text-blue-700":   c.status === "EM_ANDAMENTO",
-                                  "bg-green-100 text-green-700": c.status === "CONCLUIDA",
-                                  "bg-red-100 text-red-700":     c.status === "CANCELADA",
+                                  "bg-warning/15 text-warning": c.status === "PENDENTE",
+                                  "bg-info/15 text-info":   c.status === "EM_ANDAMENTO",
+                                  "bg-success/15 text-success": c.status === "CONCLUIDA",
+                                  "bg-danger/15 text-danger":     c.status === "CANCELADA",
                                 })}>
                                   {c.status}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">
-                                {c.pedido ? c.pedido.numero : <span className="text-gray-400">—</span>}
+                              <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">
+                                {c.pedido ? c.pedido.numero : <span className="text-muted-foreground">—</span>}
                               </td>
-                              <td className="px-4 py-3 text-gray-700 text-xs font-medium">
+                              <td className="px-4 py-3 text-foreground text-xs font-medium">
                                 {c.pedido
                                   ? (c.pedido.fornecedor.nomeFantasia || c.pedido.fornecedor.razaoSocial)
-                                  : <span className="text-gray-400">—</span>}
+                                  : <span className="text-muted-foreground">—</span>}
                               </td>
-                              <td className="px-4 py-3 text-right font-semibold text-gray-800">
+                              <td className="px-4 py-3 text-right font-semibold text-foreground">
                                 {decimalToNumber(c.quantidadePedida).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                               </td>
-                              <td className="px-4 py-3 text-right font-semibold text-emerald-700">
+                              <td className="px-4 py-3 text-right font-semibold text-success">
                                 {decimalToNumber(c.quantidadeRecebida).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                               </td>
                               <td className="px-4 py-3 text-center">
                                 {c.divergencia
-                                  ? <span className="text-xs text-red-700 font-semibold bg-red-100 border border-red-200 px-2.5 py-1 rounded-full">Sim</span>
-                                  : <span className="text-xs text-emerald-700 font-semibold bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full">OK</span>
+                                  ? <span className="text-xs text-danger font-semibold bg-danger/15 border border-danger/30 px-2.5 py-1 rounded-full">Sim</span>
+                                  : <span className="text-xs text-success font-semibold bg-success/15 border border-success/30 px-2.5 py-1 rounded-full">OK</span>
                                 }
                               </td>
                               <td className="px-3 py-3">
-                                <Link href={`/suprimentos/conferencias/${c.id}`} className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 inline-flex">
+                                <Link href={`/suprimentos/conferencias/${c.id}`} className="p-1 rounded hover:bg-info/10 text-muted-foreground hover:text-info inline-flex">
                                   <ExternalLink className="w-3.5 h-3.5" />
                                 </Link>
                               </td>
@@ -2299,7 +2299,7 @@ export default function ProdutoDetailPage() {
             <div className="space-y-6">
               {/* Period selector */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 font-medium">Período de análise:</span>
+                <span className="text-xs text-muted-foreground font-medium">Período de análise:</span>
                 {([30, 90, 180, 365] as const).map((d) => (
                   <button
                     key={d}
@@ -2308,19 +2308,19 @@ export default function ProdutoDetailPage() {
                       "px-3 py-1 text-xs font-medium rounded-full border transition-colors",
                       periodoDias === d
                         ? "bg-blue-600 text-white border-blue-600"
-                        : "border-gray-200 text-gray-500 hover:border-gray-400"
+                        : "border-border text-muted-foreground hover:border-border"
                     )}
                   >
                     {d === 365 ? "1 ano" : `${d} dias`}
                   </button>
                 ))}
-                <span className="text-xs text-gray-400 ml-2">
+                <span className="text-xs text-muted-foreground ml-2">
                   ({saidasPer.length} saídas · {entradasPer.length} entradas no período)
                 </span>
               </div>
 
               {semDados && (
-                <div className="text-center py-12 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+                <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl">
                   <BarChart2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
                   <p className="text-sm">Sem movimentações para calcular indicadores</p>
                 </div>
@@ -2411,19 +2411,19 @@ export default function ProdutoDetailPage() {
                     />
 
                     {/* Resumo período */}
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4 space-y-2">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Resumo do Período</p>
+                    <div className="rounded-xl border border-border bg-muted px-5 py-4 space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Resumo do Período</p>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Entradas</span>
-                        <span className="font-semibold text-emerald-700">+{totalEntradaPer.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {sigla}</span>
+                        <span className="text-muted-foreground">Entradas</span>
+                        <span className="font-semibold text-success">+{totalEntradaPer.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {sigla}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Saídas</span>
-                        <span className="font-semibold text-red-700">−{totalSaidaPer.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {sigla}</span>
+                        <span className="text-muted-foreground">Saídas</span>
+                        <span className="font-semibold text-danger">−{totalSaidaPer.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {sigla}</span>
                       </div>
-                      <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
-                        <span className="text-gray-500">Estoque Atual</span>
-                        <span className="font-bold text-gray-900">{estoqueTotalTodas.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {sigla}</span>
+                      <div className="flex justify-between text-sm border-t border-border pt-2">
+                        <span className="text-muted-foreground">Estoque Atual</span>
+                        <span className="font-bold text-foreground">{estoqueTotalTodas.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {sigla}</span>
                       </div>
                     </div>
                   </div>
@@ -2451,8 +2451,8 @@ export default function ProdutoDetailPage() {
                     const hasAny = meses.some((m) => m.saida > 0 || m.entrada > 0);
                     if (!hasAny) return null;
                     return (
-                      <div className="rounded-xl border border-gray-200 bg-white px-5 py-4">
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Movimentação Mensal — últimos 12 meses</p>
+                      <div className="rounded-xl border border-border bg-card px-5 py-4">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4">Movimentação Mensal — últimos 12 meses</p>
                         <div className="flex items-end gap-1 h-28">
                           {meses.map((m, idx) => (
                             <div key={idx} className="flex-1 flex flex-col items-center gap-0.5 group">
@@ -2468,11 +2468,11 @@ export default function ProdutoDetailPage() {
                                   title={`Saída: ${m.saida.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`}
                                 />
                               </div>
-                              <span className="text-[9px] text-gray-400 rotate-45 origin-left mt-1 whitespace-nowrap">{m.label}</span>
+                              <span className="text-[9px] text-muted-foreground rotate-45 origin-left mt-1 whitespace-nowrap">{m.label}</span>
                             </div>
                           ))}
                         </div>
-                        <div className="flex gap-4 mt-4 text-xs text-gray-500">
+                        <div className="flex gap-4 mt-4 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-200 inline-block" />Entradas</span>
                           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-200 inline-block" />Saídas</span>
                         </div>
@@ -2487,30 +2487,30 @@ export default function ProdutoDetailPage() {
                     const emax = item.estoqueMaximo  != null ? decimalToNumber(item.estoqueMaximo)  : null;
 
                     let previsaoText  = "—";
-                    let previsaoCls   = "bg-gray-100 text-gray-600";
+                    let previsaoCls   = "bg-muted text-muted-foreground";
                     if (consumoDiario > 0) {
                       if (estoqueTotalTodas <= eds) {
                         previsaoText = "CRÍTICO";
-                        previsaoCls  = "bg-red-100 text-red-700";
+                        previsaoCls  = "bg-danger/15 text-danger";
                       } else {
                         const dias  = Math.floor(estoqueTotalTodas / consumoDiario);
                         const lead  = item.leadTimeDias ?? 7;
                         const dtStr = new Date(Date.now() + dias * 86400000)
                           .toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "America/Sao_Paulo" });
                         previsaoText = `${dias}d (${dtStr})`;
-                        previsaoCls  = dias <= lead ? "bg-red-100 text-red-700"
-                          : dias <= lead * 2 ? "bg-amber-100 text-amber-700"
-                          : "bg-emerald-100 text-emerald-700";
+                        previsaoCls  = dias <= lead ? "bg-danger/15 text-danger"
+                          : dias <= lead * 2 ? "bg-warning/15 text-warning"
+                          : "bg-success/15 text-success";
                       }
                     }
 
                     return (
-                      <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 space-y-4">
+                      <div className="rounded-xl border border-border bg-card px-5 py-4 space-y-4">
                         {/* Header */}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Activity className="w-4 h-4 text-blue-600" />
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            <Activity className="w-4 h-4 text-info" />
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                               Evolução do Saldo — Últimos 90 dias + Projeção 14 dias
                             </p>
                           </div>
@@ -2550,8 +2550,8 @@ export default function ProdutoDetailPage() {
               {/* Header row */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-800">Unidades de Medida</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <h3 className="text-sm font-semibold text-foreground">Unidades de Medida</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Unidades aceitas para movimentações e conversão automática para a unidade base.
                   </p>
                 </div>
@@ -2564,11 +2564,11 @@ export default function ProdutoDetailPage() {
               </div>
 
               {!unidadesLoaded ? (
-                <div className="flex items-center justify-center py-16 text-gray-400 gap-2 text-sm">
+                <div className="flex items-center justify-center py-16 text-muted-foreground gap-2 text-sm">
                   <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
                 </div>
               ) : itemUnidades.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 border border-dashed border-gray-200 rounded-xl text-gray-400 gap-3">
+                <div className="flex flex-col items-center justify-center py-16 border border-dashed border-border rounded-xl text-muted-foreground gap-3">
                   <Ruler className="w-8 h-8 opacity-40" />
                   <p className="text-sm font-medium">Nenhuma unidade configurada</p>
                   <p className="text-xs text-center max-w-xs">
@@ -2582,9 +2582,9 @@ export default function ProdutoDetailPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="bg-card rounded-xl border border-border overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-600 uppercase tracking-wide">
+                    <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                       <tr>
                         <th className="text-left px-4 py-3 font-semibold">Unidade</th>
                         <th className="text-left px-4 py-3 font-semibold">Nome</th>
@@ -2593,49 +2593,49 @@ export default function ProdutoDetailPage() {
                         <th className="w-12 px-3 py-3" />
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-border">
                       {itemUnidades.map((iu) => (
                         <tr
                           key={iu.id}
-                          className="hover:bg-gray-50/60 group transition-colors cursor-pointer"
+                          className="hover:bg-muted/60 group transition-colors cursor-pointer"
                           onClick={() => openEditUnidadeModal(iu)}
                         >
                           {/* Sigla */}
                           <td className="px-4 py-3">
-                            <span className="font-mono text-sm font-bold text-gray-800 bg-gray-100 px-2 py-0.5 rounded">
+                            <span className="font-mono text-sm font-bold text-foreground bg-muted px-2 py-0.5 rounded">
                               {iu.unidade.sigla}
                             </span>
                           </td>
                           {/* Nome */}
-                          <td className="px-4 py-3 text-gray-700">{iu.unidade.nome}</td>
+                          <td className="px-4 py-3 text-foreground">{iu.unidade.nome}</td>
                           {/* Conversão */}
                           <td className="px-4 py-3">
                             {iu.isPrincipal ? (
-                              <span className="text-gray-400 text-xs italic">— unidade base, sem conversão</span>
+                              <span className="text-muted-foreground text-xs italic">— unidade base, sem conversão</span>
                             ) : iu.fatorConversao ? (
-                              <span className="flex items-center gap-1.5 text-sm text-gray-700">
-                                <span className="font-mono font-semibold text-blue-700">
+                              <span className="flex items-center gap-1.5 text-sm text-foreground">
+                                <span className="font-mono font-semibold text-info">
                                   1 {iu.unidade.sigla}
                                 </span>
-                                <span className="text-gray-400">=</span>
-                                <span className="font-mono font-semibold text-emerald-700">
+                                <span className="text-muted-foreground">=</span>
+                                <span className="font-mono font-semibold text-success">
                                   {Number(iu.fatorConversao).toLocaleString("pt-BR", { maximumFractionDigits: 6 })} {iu.baseUnidade?.sigla ?? principalSigla}
                                 </span>
                               </span>
                             ) : (
-                              <span className="text-amber-600 text-xs">Fator não definido</span>
+                              <span className="text-warning text-xs">Fator não definido</span>
                             )}
                           </td>
                           {/* Tipo */}
                           <td className="px-4 py-3 text-center">
                             {iu.isPrincipal ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-info/15 text-info">
                                 Base
                               </span>
                             ) : (
                               <button
                                 onClick={(e) => { e.stopPropagation(); setConfirmPrincipal({ itemUnidadeId: iu.id, unidadeId: iu.unidade.id, sigla: iu.unidade.sigla, nome: iu.unidade.nome }); }}
-                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors border border-transparent hover:border-blue-200"
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground hover:bg-info/10 hover:text-info transition-colors border border-transparent hover:border-info/30"
                                 title="Definir como unidade base"
                               >
                                 Secundária
@@ -2647,7 +2647,7 @@ export default function ProdutoDetailPage() {
                             {!iu.isPrincipal && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); removeItemUnidade(iu.id); }}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 border border-transparent hover:border-red-200"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-danger/10 text-muted-foreground hover:text-red-500 border border-transparent hover:border-danger/30"
                                 title="Remover unidade"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -2658,9 +2658,9 @@ export default function ProdutoDetailPage() {
                       ))}
                     </tbody>
                   </table>
-                  <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50 text-xs text-gray-400">
+                  <div className="px-4 py-2.5 border-t border-border bg-muted text-xs text-muted-foreground">
                     {itemUnidades.length} unidade{itemUnidades.length !== 1 ? "s" : ""} cadastrada{itemUnidades.length !== 1 ? "s" : ""}
-                    {" · "}Unidade base: <span className="font-mono font-semibold text-gray-600">{principalSigla}</span>
+                    {" · "}Unidade base: <span className="font-mono font-semibold text-muted-foreground">{principalSigla}</span>
                   </div>
                 </div>
               )}
@@ -2674,14 +2674,14 @@ export default function ProdutoDetailPage() {
       {/* ── Edit movimentação dialog ─────────────────────────────────────── */}
       {editMov && typeof window !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-5">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-md space-y-5">
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-gray-900">Editar Movimentação</h3>
-                <p className="text-xs text-gray-400 mt-0.5 font-mono">{item.codigo} — {item.descricao}</p>
+                <h3 className="font-semibold text-foreground">Editar Movimentação</h3>
+                <p className="text-xs text-muted-foreground mt-0.5 font-mono">{item.codigo} — {item.descricao}</p>
               </div>
-              <button type="button" onClick={() => setEditMov(null)} className="text-gray-400 hover:text-gray-600">
+              <button type="button" onClick={() => setEditMov(null)} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -2695,9 +2695,9 @@ export default function ProdutoDetailPage() {
                     "flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 text-sm font-medium",
                     editMov.tipo === t
                       ? t === "ENTRADA"
-                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                        : "border-red-500 bg-red-50 text-red-700"
-                      : "border-gray-100 text-gray-300 bg-gray-50"
+                        ? "border-emerald-500 bg-success/10 text-success"
+                        : "border-red-500 bg-danger/10 text-danger"
+                      : "border-border text-muted-foreground/60 bg-muted"
                   )}
                 >
                   {t === "ENTRADA" ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
@@ -2711,7 +2711,7 @@ export default function ProdutoDetailPage() {
               {editMov.localEstoqueNome && (
                 <div className="space-y-1.5">
                   <Label>Local de Estoque</Label>
-                  <div className="h-9 px-3 flex items-center text-sm bg-gray-50 border border-gray-200 rounded-md text-gray-500">
+                  <div className="h-9 px-3 flex items-center text-sm bg-muted border border-border rounded-md text-muted-foreground">
                     {editMov.localEstoqueNome}
                   </div>
                 </div>
@@ -2739,29 +2739,29 @@ export default function ProdutoDetailPage() {
                               className={cn(
                                 "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors",
                                 editMov.unidadeId === iu.unidade.id
-                                  ? "border-blue-500 bg-blue-50 text-blue-700"
-                                  : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                                  ? "border-blue-500 bg-info/10 text-info"
+                                  : "border-border text-muted-foreground hover:border-border hover:bg-muted"
                               )}
                             >
                               <span className="font-mono font-semibold">{iu.unidade.sigla}</span>
-                              {iu.isPrincipal && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded font-medium">padrão</span>}
+                              {iu.isPrincipal && <span className="text-[10px] bg-success/15 text-success px-1 rounded font-medium">padrão</span>}
                               {!iu.isPrincipal && iu.fatorConversao && (
-                                <span className="text-[10px] text-gray-400">= {Number(iu.fatorConversao).toLocaleString("pt-BR", { maximumFractionDigits: 6 })} {principalSigla}</span>
+                                <span className="text-[10px] text-muted-foreground">= {Number(iu.fatorConversao).toLocaleString("pt-BR", { maximumFractionDigits: 6 })} {principalSigla}</span>
                               )}
                             </button>
                           ))}
                         </div>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 text-sm font-mono font-semibold">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 bg-success/10 text-success text-sm font-mono font-semibold">
                           {principalSigla}
-                          <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded font-medium">padrão</span>
+                          <span className="text-[10px] bg-success/15 text-success px-1 rounded font-medium">padrão</span>
                         </span>
                       )}
                     </div>
                     <div className="space-y-1.5">
                       <Label>
                         Quantidade *
-                        <span className="ml-1 text-xs font-normal text-gray-500">em {selectedIU?.unidade.sigla ?? principalSigla}</span>
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">em {selectedIU?.unidade.sigla ?? principalSigla}</span>
                       </Label>
                       <Input
                         type="number" step="0.001" min="0.001"
@@ -2770,11 +2770,11 @@ export default function ProdutoDetailPage() {
                         placeholder="0"
                       />
                       {isSecondary && qtd > 0 && (
-                        <div className="flex items-center gap-1.5 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-amber-800">
+                        <div className="flex items-center gap-1.5 text-xs bg-warning/10 border border-warning/30 rounded-lg px-3 py-2 text-warning">
                           <span className="font-mono font-semibold">{qtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {selectedIU!.unidade.sigla}</span>
                           <span className="text-amber-500">→</span>
-                          <span className="font-mono font-bold text-emerald-700">{qtdConvertida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {principalSigla}</span>
-                          <span className="text-amber-600 ml-1">(unidade padrão)</span>
+                          <span className="font-mono font-bold text-success">{qtdConvertida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {principalSigla}</span>
+                          <span className="text-warning ml-1">(unidade padrão)</span>
                         </div>
                       )}
                     </div>
@@ -2825,13 +2825,13 @@ export default function ProdutoDetailPage() {
                 </div>
               </div>
 
-              {editMovError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editMovError}</p>}
+              {editMovError && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{editMovError}</p>}
             </div>
 
             <div className="flex items-center justify-between pt-1">
               <Button
                 size="sm" variant="ghost"
-                className="text-red-500 hover:text-red-700 hover:bg-red-50 px-2"
+                className="text-red-500 hover:text-danger hover:bg-danger/10 px-2"
                 onClick={() => {
                   const mov = item?.movimentacoes.find((m) => m.id === editMov?.id);
                   if (mov) { setEditMov(null); setDeleteMovConfirm(mov); }
@@ -2858,17 +2858,17 @@ export default function ProdutoDetailPage() {
       {/* ── Delete movimentação confirm dialog ───────────────────────────────── */}
       {deleteMovConfirm && typeof window !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
-                <Trash2 className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0 mt-0.5">
+                <Trash2 className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Excluir movimentação?</p>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="font-semibold text-foreground">Excluir movimentação?</p>
+                <p className="text-sm text-muted-foreground mt-1">
                   <span className={cn(
                     "font-semibold",
-                    deleteMovConfirm.tipo === "ENTRADA" ? "text-emerald-600" : "text-red-600"
+                    deleteMovConfirm.tipo === "ENTRADA" ? "text-success" : "text-danger"
                   )}>
                     {deleteMovConfirm.tipo === "ENTRADA" ? "+" : "−"}{decimalToNumber(deleteMovConfirm.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                     {deleteMovConfirm.unidade ? ` ${deleteMovConfirm.unidade.sigla}` : ""}
@@ -2876,7 +2876,7 @@ export default function ProdutoDetailPage() {
                   {deleteMovConfirm.documento ? ` · ${deleteMovConfirm.documento}` : ""}
                   {" · "}{formatDateTime(deleteMovConfirm.createdAt)}
                 </p>
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+                <p className="text-xs text-warning bg-warning/10 border border-warning/30 rounded-lg px-3 py-2 mt-2">
                   O saldo do estoque será revertido automaticamente.
                 </p>
               </div>
@@ -2903,21 +2903,21 @@ export default function ProdutoDetailPage() {
       {/* ── Modal: Inserir Saldo Inicial ──────────────────────────────── */}
       {showSaldoDialog && typeof window !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg space-y-5">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-lg space-y-5">
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-gray-900 text-base">
+                <h3 className="font-semibold text-foreground text-base">
                   {saldoForm.editMovId ? "Editar Saldo" : "Inserir Saldo"}
                 </h3>
-                <p className="text-xs text-gray-400 mt-0.5 font-mono">{item.codigo} — {item.descricao}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 font-mono">{item.codigo} — {item.descricao}</p>
               </div>
-              <button onClick={() => setShowSaldoDialog(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <button onClick={() => setShowSaldoDialog(false)} className="text-muted-foreground hover:text-muted-foreground transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            <p className="text-xs text-info bg-info/10 border border-info/30 rounded-lg px-3 py-2">
               {saldoForm.editMovId
                 ? "Editando um registro de saldo. O estoque será ajustado automaticamente com a diferença."
                 : "Use este formulário para registrar estoque de itens que já estão físicamente no almoxarifado e não entraram pelo fluxo de compras."}
@@ -2925,7 +2925,7 @@ export default function ProdutoDetailPage() {
 
             <div className="space-y-4">
               {saldoError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{saldoError}</p>
+                <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{saldoError}</p>
               )}
 
               {/* Filial (para filtrar locais) */}
@@ -2959,7 +2959,7 @@ export default function ProdutoDetailPage() {
                     .map((l) => ({ value: l.id, label: l.nome }))}
                 />
                 {saldoForm.editMovId && (
-                  <p className="text-[11px] text-gray-400">O local de estoque não pode ser alterado na edição.</p>
+                  <p className="text-[11px] text-muted-foreground">O local de estoque não pode ser alterado na edição.</p>
                 )}
               </div>
 
@@ -3016,16 +3016,16 @@ export default function ProdutoDetailPage() {
                           onChange={(e) => setSaldoForm((p) => ({ ...p, saldo: e.target.value }))}
                           placeholder="0"
                         />
-                        <span className="text-xs text-gray-500 font-mono shrink-0">{entradaSigla}</span>
+                        <span className="text-xs text-muted-foreground font-mono shrink-0">{entradaSigla}</span>
                       </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label>Saldo em {principalSigla}</Label>
-                      <div className={`flex items-center gap-2 h-9 px-3 rounded-md border ${isConverted ? "border-blue-200 bg-blue-50" : "border-gray-100 bg-gray-50"}`}>
-                        <span className={`text-sm font-semibold ${isConverted ? "text-blue-700" : "text-gray-600"}`}>
+                      <div className={`flex items-center gap-2 h-9 px-3 rounded-md border ${isConverted ? "border-info/30 bg-info/10" : "border-border bg-muted"}`}>
+                        <span className={`text-sm font-semibold ${isConverted ? "text-info" : "text-muted-foreground"}`}>
                           {qtdBase != null ? qtdBase.toLocaleString("pt-BR", { maximumFractionDigits: 3 }) : "—"}
                         </span>
-                        <span className={`text-xs ml-1 ${isConverted ? "text-blue-500" : "text-gray-400"}`}>{principalSigla}</span>
+                        <span className={`text-xs ml-1 ${isConverted ? "text-blue-500" : "text-muted-foreground"}`}>{principalSigla}</span>
                         {isConverted && <span className="ml-auto text-[10px] text-blue-400">×{fator}</span>}
                       </div>
                     </div>
@@ -3046,7 +3046,7 @@ export default function ProdutoDetailPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Custo Médio</Label>
-                  <div className="flex items-center h-9 px-3 rounded-md border border-gray-100 bg-violet-50">
+                  <div className="flex items-center h-9 px-3 rounded-md border border-border bg-violet-50">
                     <span className="text-sm text-violet-700 font-semibold">
                       {saldoForm.custo ? formatBRL(parseFloat(saldoForm.custo)) : (custoUnit > 0 ? formatBRL(custoUnit) : "—")}
                     </span>
@@ -3054,8 +3054,8 @@ export default function ProdutoDetailPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Custo Total</Label>
-                  <div className="flex items-center h-9 px-3 rounded-md border border-gray-100 bg-blue-50">
-                    <span className="text-sm text-blue-700 font-semibold">
+                  <div className="flex items-center h-9 px-3 rounded-md border border-border bg-info/10">
+                    <span className="text-sm text-info font-semibold">
                       {(() => {
                         if (!saldoForm.custo || !saldoForm.saldo) return "—";
                         const selectedIU = itemUnidades.find((iu) => iu.unidade.id === saldoForm.unidadeEntradaId);
@@ -3075,7 +3075,7 @@ export default function ProdutoDetailPage() {
                   onChange={(e) => setSaldoForm((p) => ({ ...p, endereco: e.target.value }))}
                   placeholder="Ex: Prateleira A3, Corredor 2..."
                 />
-                <p className="text-[11px] text-gray-400">Localização física dentro do almoxarifado</p>
+                <p className="text-[11px] text-muted-foreground">Localização física dentro do almoxarifado</p>
               </div>
             </div>
 
@@ -3096,13 +3096,13 @@ export default function ProdutoDetailPage() {
       {/* ── Modal: Nova Necessidade de Compra ──────────────────────── */}
       {showNecessidade && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-gray-900">Nova Necessidade de Compra</h3>
-                <p className="text-xs text-gray-400 mt-0.5 font-mono">{item.codigo} — {item.descricao}</p>
+                <h3 className="font-semibold text-foreground">Nova Necessidade de Compra</h3>
+                <p className="text-xs text-muted-foreground mt-0.5 font-mono">{item.codigo} — {item.descricao}</p>
               </div>
-              <button onClick={() => setShowNecessidade(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setShowNecessidade(false)} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -3119,7 +3119,7 @@ export default function ProdutoDetailPage() {
                     autoFocus
                     className="flex-1"
                   />
-                  <span className="text-sm text-gray-500 font-mono shrink-0">
+                  <span className="text-sm text-muted-foreground font-mono shrink-0">
                     {item.unidade?.sigla || item.unidadeMedida}
                   </span>
                 </div>
@@ -3154,7 +3154,7 @@ export default function ProdutoDetailPage() {
               </div>
 
               {necError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{necError}</p>
+                <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{necError}</p>
               )}
             </div>
 
@@ -3183,15 +3183,15 @@ export default function ProdutoDetailPage() {
           <div className="fixed inset-0 z-[9200] bg-black/40 backdrop-blur-sm" onClick={() => setUnidadeModal(null)} />
           <div className="fixed inset-0 z-[9201] flex items-center justify-center p-4 pointer-events-none">
             <div
-              className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden pointer-events-auto"
+              className="w-full max-w-sm bg-card rounded-2xl shadow-2xl border border-border overflow-hidden pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <h2 className="text-sm font-semibold text-gray-900">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+                <h2 className="text-sm font-semibold text-foreground">
                   {unidadeModal.mode === "add" ? "Adicionar Unidade" : `Editar ${unidadeModal.sigla} — ${unidadeModal.nome}`}
                 </h2>
-                <button onClick={() => setUnidadeModal(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <button onClick={() => setUnidadeModal(null)} className="text-muted-foreground hover:text-muted-foreground transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -3199,7 +3199,7 @@ export default function ProdutoDetailPage() {
               {/* Body */}
               <div className="px-5 py-5 space-y-4">
                 {unidadeModalError && (
-                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{unidadeModalError}</p>
+                  <p className="text-xs text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{unidadeModalError}</p>
                 )}
 
                 {/* Unidade selector — only for add */}
@@ -3232,7 +3232,7 @@ export default function ProdutoDetailPage() {
                           onChange={(e) => setUnidadeModal((m) => m ? { ...m, fatorConversao: e.target.value } : m)}
                           placeholder="Ex: 325"
                         />
-                        <p className="text-[11px] text-gray-400">
+                        <p className="text-[11px] text-muted-foreground">
                           1 {unidadeModal.unidadeId ? selectedSigla : "?"} = ? {principalSigla}
                         </p>
                       </div>
@@ -3245,8 +3245,8 @@ export default function ProdutoDetailPage() {
                   const principalIU    = itemUnidades.find((iu) => iu.isPrincipal);
                   const principalSigla = principalIU?.unidade.sigla ?? item?.unidade?.sigla ?? "UN";
                   return unidadeModal.isPrincipal ? (
-                    <p className="text-sm text-gray-500">
-                      Esta é a <span className="font-semibold text-blue-600">unidade base</span> do produto — ela não possui fator de conversão.
+                    <p className="text-sm text-muted-foreground">
+                      Esta é a <span className="font-semibold text-info">unidade base</span> do produto — ela não possui fator de conversão.
                     </p>
                   ) : (
                     <div className="space-y-1.5">
@@ -3258,7 +3258,7 @@ export default function ProdutoDetailPage() {
                         placeholder="Ex: 325"
                         autoFocus
                       />
-                      <p className="text-[11px] text-gray-400">
+                      <p className="text-[11px] text-muted-foreground">
                         1 {unidadeModal.sigla} = ? {principalSigla}
                       </p>
                     </div>
@@ -3294,17 +3294,17 @@ export default function ProdutoDetailPage() {
           <div className="fixed inset-0 z-[9300] bg-black/40 backdrop-blur-sm" onClick={() => setConfirmPrincipal(null)} />
           <div className="fixed inset-0 z-[9301] flex items-center justify-center p-4 pointer-events-none">
             <div
-              className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden pointer-events-auto"
+              className="w-full max-w-sm bg-card rounded-2xl shadow-2xl border border-border overflow-hidden pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-5 py-5">
-                <h2 className="text-sm font-semibold text-gray-900 mb-1">Alterar unidade base?</h2>
-                <p className="text-sm text-gray-500">
+                <h2 className="text-sm font-semibold text-foreground mb-1">Alterar unidade base?</h2>
+                <p className="text-sm text-muted-foreground">
                   A unidade{" "}
-                  <span className="font-semibold text-gray-800">
+                  <span className="font-semibold text-foreground">
                     {confirmPrincipal.sigla} — {confirmPrincipal.nome}
                   </span>{" "}
-                  passará a ser a <span className="font-semibold text-blue-600">unidade base</span> do produto.
+                  passará a ser a <span className="font-semibold text-info">unidade base</span> do produto.
                   Todos os estoques e conversões são referenciados pela unidade base.
                 </p>
               </div>
@@ -3331,14 +3331,14 @@ export default function ProdutoDetailPage() {
 
       {showMovDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-5">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-md space-y-5">
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-gray-900">Nova Movimentação</h3>
-                <p className="text-xs text-gray-400 mt-0.5 font-mono">{item.codigo} — {item.descricao}</p>
+                <h3 className="font-semibold text-foreground">Nova Movimentação</h3>
+                <p className="text-xs text-muted-foreground mt-0.5 font-mono">{item.codigo} — {item.descricao}</p>
               </div>
-              <button onClick={() => setShowMovDialog(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setShowMovDialog(false)} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -3353,9 +3353,9 @@ export default function ProdutoDetailPage() {
                     "flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 text-sm font-medium transition-colors",
                     movForm.tipo === t
                       ? t === "ENTRADA"
-                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                        : "border-red-500 bg-red-50 text-red-700"
-                      : "border-gray-200 text-gray-500 hover:border-gray-300"
+                        ? "border-emerald-500 bg-success/10 text-success"
+                        : "border-red-500 bg-danger/10 text-danger"
+                      : "border-border text-muted-foreground hover:border-border"
                   )}
                 >
                   {t === "ENTRADA" ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
@@ -3381,7 +3381,7 @@ export default function ProdutoDetailPage() {
                   <div className="space-y-1.5">
                     <Label>Local de Estoque *</Label>
                     {movForm.tipo === "SAIDA" && locaisComSaldo.length === 0 ? (
-                      <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                      <div className="flex items-center gap-2 text-sm text-warning bg-warning/10 border border-warning/30 rounded-lg px-3 py-2.5">
                         <AlertTriangle className="w-4 h-4 shrink-0" />
                         Nenhum local com saldo disponível para este produto.
                       </div>
@@ -3435,16 +3435,16 @@ export default function ProdutoDetailPage() {
                               className={cn(
                                 "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors",
                                 movForm.unidadeId === iu.unidade.id
-                                  ? "border-blue-500 bg-blue-50 text-blue-700"
-                                  : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                                  ? "border-blue-500 bg-info/10 text-info"
+                                  : "border-border text-muted-foreground hover:border-border hover:bg-muted"
                               )}
                             >
                               <span className="font-mono font-semibold">{iu.unidade.sigla}</span>
                               {iu.isPrincipal && (
-                                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded font-medium">padrão</span>
+                                <span className="text-[10px] bg-success/15 text-success px-1 rounded font-medium">padrão</span>
                               )}
                               {!iu.isPrincipal && iu.fatorConversao && (
-                                <span className="text-[10px] text-gray-400">
+                                <span className="text-[10px] text-muted-foreground">
                                   = {Number(iu.fatorConversao).toLocaleString("pt-BR", { maximumFractionDigits: 6 })} {principalSigla}
                                 </span>
                               )}
@@ -3454,11 +3454,11 @@ export default function ProdutoDetailPage() {
                       ) : (
                         // No itemUnidades defined — show item's base unit as read-only badge
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 text-sm font-mono font-semibold">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 bg-success/10 text-success text-sm font-mono font-semibold">
                             {principalSigla}
-                            <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded font-medium">padrão</span>
+                            <span className="text-[10px] bg-success/15 text-success px-1 rounded font-medium">padrão</span>
                           </span>
-                          <span className="text-xs text-gray-400">Cadastre unidades na aba Unidades para mais opções</span>
+                          <span className="text-xs text-muted-foreground">Cadastre unidades na aba Unidades para mais opções</span>
                         </div>
                       )}
                     </div>
@@ -3467,7 +3467,7 @@ export default function ProdutoDetailPage() {
                     <div className="space-y-1.5">
                       <Label>
                         Quantidade *
-                        <span className="ml-1 text-xs font-normal text-gray-500">
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">
                           em {selectedIU?.unidade.sigla ?? principalSigla}
                         </span>
                       </Label>
@@ -3479,15 +3479,15 @@ export default function ProdutoDetailPage() {
                       />
                       {/* Conversion preview */}
                       {isSecondary && qtd > 0 && (
-                        <div className="flex items-center gap-1.5 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-amber-800">
+                        <div className="flex items-center gap-1.5 text-xs bg-warning/10 border border-warning/30 rounded-lg px-3 py-2 text-warning">
                           <span className="font-mono font-semibold">
                             {qtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {selectedIU!.unidade.sigla}
                           </span>
                           <span className="text-amber-500">→</span>
-                          <span className="font-mono font-bold text-emerald-700">
+                          <span className="font-mono font-bold text-success">
                             {qtdConvertida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {principalSigla}
                           </span>
-                          <span className="text-amber-600 ml-1">(unidade padrão)</span>
+                          <span className="text-warning ml-1">(unidade padrão)</span>
                         </div>
                       )}
                     </div>
@@ -3539,7 +3539,7 @@ export default function ProdutoDetailPage() {
               </div>
 
               {movError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{movError}</p>
+                <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{movError}</p>
               )}
             </div>
 
@@ -3567,9 +3567,9 @@ export default function ProdutoDetailPage() {
 // ── Sub-components ─────────────────────────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{title}</p>
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="px-5 py-3 border-b border-border bg-muted">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{title}</p>
       </div>
       <div className="px-5 py-4">{children}</div>
     </div>
@@ -3583,9 +3583,9 @@ function Field({ label, children, colSpan, addHref, addLabel }: {
   return (
     <div className={cn("space-y-1", colSpan && "col-span-2")}>
       <div className="flex items-center justify-between">
-        <Label className="text-xs font-medium text-gray-500">{label}</Label>
+        <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
         {addHref && (
-          <Link href={addHref} className="inline-flex items-center gap-0.5 text-xs font-medium text-blue-500 hover:text-blue-700">
+          <Link href={addHref} className="inline-flex items-center gap-0.5 text-xs font-medium text-blue-500 hover:text-info">
             <Plus className="w-3 h-3" />
             {addLabel ?? "Novo"}
           </Link>
@@ -3599,19 +3599,19 @@ function Field({ label, children, colSpan, addHref, addLabel }: {
 function Info({ label, value, mono, colSpan }: { label: string; value?: string | null; mono?: boolean; colSpan?: boolean }) {
   return (
     <div className={cn(colSpan && "col-span-2")}>
-      <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-      <p className={cn("text-sm text-gray-900", mono && "font-mono")}>{value || "—"}</p>
+      <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+      <p className={cn("text-sm text-foreground", mono && "font-mono")}>{value || "—"}</p>
     </div>
   );
 }
 
 const KPI_COLORS: Record<string, { bg: string; icon: string; value: string; border: string }> = {
-  blue:    { bg: "bg-blue-50",    icon: "text-blue-500",    value: "text-blue-900",    border: "border-blue-100" },
-  emerald: { bg: "bg-emerald-50", icon: "text-emerald-500", value: "text-emerald-900", border: "border-emerald-100" },
-  amber:   { bg: "bg-amber-50",   icon: "text-amber-500",   value: "text-amber-900",   border: "border-amber-100" },
-  red:     { bg: "bg-red-50",     icon: "text-red-500",     value: "text-red-900",     border: "border-red-100" },
+  blue:    { bg: "bg-info/10",    icon: "text-blue-500",    value: "text-blue-900",    border: "border-info/20" },
+  emerald: { bg: "bg-success/10", icon: "text-emerald-500", value: "text-emerald-900", border: "border-emerald-100" },
+  amber:   { bg: "bg-warning/10",   icon: "text-amber-500",   value: "text-amber-900",   border: "border-amber-100" },
+  red:     { bg: "bg-danger/10",     icon: "text-red-500",     value: "text-red-900",     border: "border-danger/20" },
   violet:  { bg: "bg-violet-50",  icon: "text-violet-500",  value: "text-violet-900",  border: "border-violet-100" },
-  gray:    { bg: "bg-gray-50",    icon: "text-gray-400",    value: "text-gray-700",    border: "border-gray-200" },
+  gray:    { bg: "bg-muted",    icon: "text-muted-foreground",    value: "text-foreground",    border: "border-border" },
 };
 
 function KpiCard({
@@ -3633,24 +3633,24 @@ function KpiCard({
         </div>
         {hint && (
           <div className="group relative">
-            <button className="text-gray-400 hover:text-gray-600 transition-colors p-0.5 rounded">
+            <button className="text-muted-foreground hover:text-muted-foreground transition-colors p-0.5 rounded">
               <InfoIcon className="w-3.5 h-3.5" />
             </button>
             {/* Tooltip */}
-            <div className="absolute right-0 top-6 z-50 w-64 bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-left
+            <div className="absolute right-0 top-6 z-50 w-64 bg-card border border-border rounded-xl shadow-lg p-3 text-left
                             invisible opacity-0 group-hover:visible group-hover:opacity-100
                             transition-all duration-150 pointer-events-none">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Cálculo</p>
-              <p className="text-xs text-gray-700 leading-relaxed mb-2.5">{hint.formula}</p>
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Interpretação</p>
-              <p className="text-xs text-gray-700 leading-relaxed">{hint.interpretation}</p>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Cálculo</p>
+              <p className="text-xs text-foreground leading-relaxed mb-2.5">{hint.formula}</p>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Interpretação</p>
+              <p className="text-xs text-foreground leading-relaxed">{hint.interpretation}</p>
             </div>
           </div>
         )}
       </div>
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide leading-none">{title}</p>
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide leading-none">{title}</p>
       <p className={cn("text-2xl font-bold leading-tight", c.value)}>{value}</p>
-      {sub && <p className="text-xs text-gray-500">{sub}</p>}
+      {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
     </div>
   );
 }
@@ -3663,17 +3663,17 @@ function ConsumoChart({ itemId }: { itemId: string }) {
   return (
     <div className="relative">
       {status === "loading" && (
-        <div className="flex items-center justify-center h-40 text-gray-400">
+        <div className="flex items-center justify-center h-40 text-muted-foreground">
           <Loader2 className="w-5 h-5 animate-spin mr-2" />
           <span className="text-sm">Carregando gráfico…</span>
         </div>
       )}
       {status === "error" && (
-        <div className="flex flex-col items-center justify-center h-32 text-gray-400 gap-2">
+        <div className="flex flex-col items-center justify-center h-32 text-muted-foreground gap-2">
           <p className="text-sm">Não foi possível carregar o gráfico.</p>
           <button
             onClick={() => { setStatus("loading"); setKey((k) => k + 1); }}
-            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+            className="text-xs text-info hover:underline flex items-center gap-1"
           >
             <RefreshCw className="w-3 h-3" /> Tentar novamente
           </button>
@@ -3697,9 +3697,9 @@ function ParamBadge({
   label, value, color,
 }: { label: string; value: string; color: "amber" | "red" | "gray" }) {
   const cls = {
-    amber: "bg-amber-50 border-amber-200 text-amber-800",
-    red:   "bg-red-50   border-red-200   text-red-800",
-    gray:  "bg-gray-50  border-gray-200  text-gray-700",
+    amber: "bg-warning/10 border-warning/30 text-warning",
+    red:   "bg-danger/10   border-danger/30   text-danger",
+    gray:  "bg-muted  border-border  text-foreground",
   }[color];
   return (
     <div className={cn("flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs", cls)}>

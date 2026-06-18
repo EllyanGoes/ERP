@@ -51,10 +51,10 @@ type Minuta = {
 };
 
 const STATUS_COLOR: Record<StatusMinuta, string> = {
-  PENDENTE:          "bg-amber-100 text-amber-700 border border-amber-200",
-  SAIU_PARA_ENTREGA: "bg-blue-100 text-blue-700 border border-blue-200",
-  ENTREGUE:          "bg-emerald-100 text-emerald-700 border border-emerald-200",
-  CANCELADA:         "bg-gray-100 text-gray-500 border border-gray-200",
+  PENDENTE:          "bg-warning/15 text-warning border border-warning/30",
+  SAIU_PARA_ENTREGA: "bg-info/15 text-info border border-info/30",
+  ENTREGUE:          "bg-success/15 text-success border border-success/30",
+  CANCELADA:         "bg-muted text-muted-foreground border border-border",
 };
 
 function fmtDate(iso: string | null) {
@@ -141,13 +141,13 @@ export default function MinutaDetailPage() {
   if (loading) {
     return (
       <div className="px-8 pb-8">
-        <div className="h-20 animate-pulse bg-gray-100 rounded-xl" />
+        <div className="h-20 animate-pulse bg-muted rounded-xl" />
       </div>
     );
   }
 
   if (!minuta) {
-    return <div className="px-8 pb-8 text-gray-500">Minuta não encontrada.</div>;
+    return <div className="px-8 pb-8 text-muted-foreground">Minuta não encontrada.</div>;
   }
 
   return (
@@ -160,7 +160,7 @@ export default function MinutaDetailPage() {
         ]}
         action={
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-muted text-muted-foreground border border-border">
               {TIPO_MINUTA_LABEL[minuta.tipo] ?? "Entrega"}
             </span>
             <span className={cn("inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold", STATUS_COLOR[minuta.status])}>
@@ -199,7 +199,7 @@ export default function MinutaDetailPage() {
           variant="outline"
           onClick={() => router.push(`/comercial/minutas/${params.id}/editar`)}
           disabled={transitioning}
-          className="gap-2 border-gray-300 text-gray-700"
+          className="gap-2 border-border text-foreground"
         >
           <Pencil className="w-4 h-4" />
           Editar
@@ -208,7 +208,7 @@ export default function MinutaDetailPage() {
           variant="outline"
           onClick={handlePrint}
           disabled={printing || transitioning}
-          className="gap-2 border-gray-300 text-gray-700"
+          className="gap-2 border-border text-foreground"
           title="Imprime direto via USB (Chrome/Edge); sem impressora USB autorizada, abre o diálogo de impressão"
         >
           <Printer className="w-4 h-4" />
@@ -216,12 +216,12 @@ export default function MinutaDetailPage() {
         </Button>
         {minuta.status === "PENDENTE" && (
           <>
-            <span className="w-px h-6 bg-gray-200" />
+            <span className="w-px h-6 bg-muted" />
             <Button
               variant="ghost"
               onClick={() => changeStatus("CANCELADA")}
               disabled={transitioning}
-              className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+              className="gap-2 text-danger hover:text-danger hover:bg-danger/10"
             >
               <XCircle className="w-4 h-4" />
               Cancelar Minuta
@@ -233,13 +233,13 @@ export default function MinutaDetailPage() {
       {/* SAIDA modal — choose local if not set */}
       {showSaidaModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-sm w-full space-y-4">
-            <h3 className="font-bold text-gray-800">Selecionar Local de Estoque</h3>
-            <p className="text-sm text-gray-600">
+          <div className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-sm w-full space-y-4">
+            <h3 className="font-bold text-foreground">Selecionar Local de Estoque</h3>
+            <p className="text-sm text-muted-foreground">
               Escolha o local de onde os itens sairão para registrar o movimento de estoque.
             </p>
             <Select value={saindoLocalId} onValueChange={setSaindoLocalId}>
-              <SelectTrigger className="h-10 border-gray-300">
+              <SelectTrigger className="h-10 border-border">
                 <SelectValue placeholder="Selecione o local..." />
               </SelectTrigger>
               <SelectContent>
@@ -249,7 +249,7 @@ export default function MinutaDetailPage() {
               </SelectContent>
             </Select>
             {error && (
-              <div className="flex items-center gap-2 text-red-600 text-sm">
+              <div className="flex items-center gap-2 text-danger text-sm">
                 <AlertCircle className="w-4 h-4" />
                 {error}
               </div>
@@ -265,7 +265,7 @@ export default function MinutaDetailPage() {
               >
                 {transitioning ? "Processando..." : "Confirmar Saída"}
               </Button>
-              <Button variant="outline" onClick={() => setShowSaidaModal(false)} className="border-gray-300">
+              <Button variant="outline" onClick={() => setShowSaidaModal(false)} className="border-border">
                 Cancelar
               </Button>
             </div>
@@ -275,7 +275,7 @@ export default function MinutaDetailPage() {
 
       {/* Error */}
       {error && !showSaidaModal && (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+        <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-danger/10 border border-danger/30 text-danger text-sm">
           <AlertCircle className="w-4 h-4 shrink-0" />
           {error}
         </div>
@@ -287,95 +287,95 @@ export default function MinutaDetailPage() {
         <div className="col-span-2 space-y-4">
 
           {/* Info card */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-200 bg-gray-50">
-              <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Dados da Minuta</h2>
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-border bg-muted">
+              <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Dados da Minuta</h2>
             </div>
             <div className="p-5 grid grid-cols-2 gap-4 text-sm">
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Pedido de Venda</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Pedido de Venda</div>
                 <button
                   onClick={() => router.push(`/pedidos-venda/${minuta.pedidoVenda.id}`)}
-                  className="font-mono font-semibold text-blue-600 hover:underline"
+                  className="font-mono font-semibold text-info hover:underline"
                 >
                   {minuta.pedidoVenda.numero}
                 </button>
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
                   {minuta.pedidoVenda.clienteFinal ? "Adquirente" : "Cliente"}
                 </div>
-                <div className="text-gray-800 font-medium">
+                <div className="text-foreground font-medium">
                   {minuta.pedidoVenda.cliente.nomeFantasia || minuta.pedidoVenda.cliente.razaoSocial}
                 </div>
               </div>
               {minuta.pedidoVenda.clienteFinal && (
                 <div>
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Destinatário</div>
-                  <div className="text-gray-800 font-medium">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Destinatário</div>
+                  <div className="text-foreground font-medium">
                     {minuta.pedidoVenda.clienteFinal.nomeFantasia || minuta.pedidoVenda.clienteFinal.razaoSocial}
                   </div>
                 </div>
               )}
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Local de Estoque</div>
-                <div className="text-gray-800">{minuta.localEstoque?.nome ?? "—"}</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Local de Estoque</div>
+                <div className="text-foreground">{minuta.localEstoque?.nome ?? "—"}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Data de Emissão</div>
-                <div className="text-gray-800">{fmtDate(minuta.dataEmissao)}</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Data de Emissão</div>
+                <div className="text-foreground">{fmtDate(minuta.dataEmissao)}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Data de {minuta.tipo === "RETIRADA" ? "Retirada" : "Entrega"}</div>
-                <div className="text-gray-800">{fmtDate(minuta.dataEntrega)}</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Data de {minuta.tipo === "RETIRADA" ? "Retirada" : "Entrega"}</div>
+                <div className="text-foreground">{fmtDate(minuta.dataEntrega)}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Motorista</div>
-                <div className="text-gray-800">{minuta.motorista?.nome ?? "—"}</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Motorista</div>
+                <div className="text-foreground">{minuta.motorista?.nome ?? "—"}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Placa</div>
-                <div className="text-gray-800">{minuta.placa ?? "—"}</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Placa</div>
+                <div className="text-foreground">{minuta.placa ?? "—"}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Nº da Minuta Física</div>
-                <div className="text-gray-800">{minuta.numeroFisico ?? "—"}</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Nº da Minuta Física</div>
+                <div className="text-foreground">{minuta.numeroFisico ?? "—"}</div>
               </div>
             </div>
           </div>
 
           {/* Items table */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-            <div className="px-5 py-3 border-b border-gray-200 bg-gray-50">
-              <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Itens</h2>
+          <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+            <div className="px-5 py-3 border-b border-border bg-muted">
+              <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Itens</h2>
             </div>
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500">Produto</th>
-                  <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-gray-500 w-36">Quantidade</th>
-                  <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-gray-500 w-24">Unidade</th>
+                <tr className="bg-muted border-b border-border">
+                  <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-muted-foreground">Produto</th>
+                  <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-muted-foreground w-36">Quantidade</th>
+                  <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-muted-foreground w-24">Unidade</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {minuta.itens.map(item => (
-                  <tr key={item.id} className="hover:bg-gray-50">
+                  <tr key={item.id} className="hover:bg-muted">
                     <td className="px-4 py-3 align-middle">
-                      <div className="font-medium text-gray-800">{item.item.descricao}</div>
-                      <div className="text-xs text-gray-400">{item.item.codigo}</div>
+                      <div className="font-medium text-foreground">{item.item.descricao}</div>
+                      <div className="text-xs text-muted-foreground">{item.item.codigo}</div>
                     </td>
-                    <td className="px-4 py-3 text-right align-middle tabular-nums text-gray-800">
+                    <td className="px-4 py-3 text-right align-middle tabular-nums text-foreground">
                       {item.quantidadeConvertida && item.unidade ? (
                         <div>
                           <span className="font-semibold">{fmtQty(item.quantidadeConvertida)}</span>
-                          <span className="text-gray-400 ml-1 text-xs">{item.unidade.sigla}</span>
-                          <div className="text-xs text-gray-400">= {fmtQty(item.quantidade)} UN</div>
+                          <span className="text-muted-foreground ml-1 text-xs">{item.unidade.sigla}</span>
+                          <div className="text-xs text-muted-foreground">= {fmtQty(item.quantidade)} UN</div>
                         </div>
                       ) : (
                         <span className="font-semibold">{fmtQty(item.quantidade)}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 align-middle text-gray-500">
+                    <td className="px-4 py-3 align-middle text-muted-foreground">
                       {item.unidade?.sigla ?? "UN"}
                     </td>
                   </tr>
@@ -387,15 +387,15 @@ export default function MinutaDetailPage() {
 
         {/* RIGHT — observações */}
         <div className="col-span-1">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-200 bg-gray-50">
-              <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Observações</h2>
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-border bg-muted">
+              <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Observações</h2>
             </div>
             <div className="p-5">
               {minuta.observacoes ? (
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{minuta.observacoes}</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{minuta.observacoes}</p>
               ) : (
-                <p className="text-sm text-gray-400 italic">Sem observações.</p>
+                <p className="text-sm text-muted-foreground italic">Sem observações.</p>
               )}
             </div>
           </div>

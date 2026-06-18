@@ -22,22 +22,22 @@ const PROVIDERS: { id: Provider; label: string; sub: string }[] = [
 
 function StatusPill({ status, msg }: { status: ConnStatus; msg?: string }) {
   if (status === "checking") return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
       <Loader2 className="w-3 h-3 animate-spin" /> Verificando...
     </span>
   );
   if (status === "ok") return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700" title={msg}>
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-success/15 text-success" title={msg}>
       <Wifi className="w-3 h-3" /> Conectado
     </span>
   );
   if (status === "error") return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700" title={msg}>
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-danger/15 text-danger" title={msg}>
       <WifiOff className="w-3 h-3" /> Erro de conexão
     </span>
   );
   if (status === "unconfigured") return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400">
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
       <HelpCircle className="w-3 h-3" /> Não configurado
     </span>
   );
@@ -51,15 +51,15 @@ function SecretField({ label, description, value, onChange, placeholder }: {
   const [show, setShow] = useState(false);
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-gray-600">{label}</Label>
-      {description && <p className="text-[11px] text-gray-400 leading-tight">{description}</p>}
+      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+      {description && <p className="text-[11px] text-muted-foreground leading-tight">{description}</p>}
       <div className="relative">
         <Input type={show ? "text" : "password"} value={value}
           onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
           className="pr-10 h-9 text-sm font-mono" />
         {value && (
           <button type="button" onClick={() => setShow((p) => !p)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" tabIndex={-1}>
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground" tabIndex={-1}>
             {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
           </button>
         )}
@@ -74,8 +74,8 @@ function PlainField({ label, description, value, onChange, placeholder }: {
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-gray-600">{label}</Label>
-      {description && <p className="text-[11px] text-gray-400 leading-tight">{description}</p>}
+      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+      {description && <p className="text-[11px] text-muted-foreground leading-tight">{description}</p>}
       <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
         className="h-9 text-sm font-mono" />
     </div>
@@ -195,7 +195,7 @@ export default function WhatsAppIntegracaoPage() {
   const providerLabel = PROVIDERS.find((p) => p.id === provider)?.label ?? provider;
 
   if (loading) return (
-    <div className="px-8 pt-8 text-gray-400 flex items-center gap-2 text-sm">
+    <div className="px-8 pt-8 text-muted-foreground flex items-center gap-2 text-sm">
       <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
     </div>
   );
@@ -213,8 +213,8 @@ export default function WhatsAppIntegracaoPage() {
           <div className="flex items-center gap-2">
             <span className={cn(
               "text-[10px] font-medium px-2 py-0.5 rounded-full border",
-              provider === "evolution" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-              provider === "meta"      ? "bg-blue-50 text-blue-600 border-blue-100" :
+              provider === "evolution" ? "bg-success/10 text-success border-success/30" :
+              provider === "meta"      ? "bg-info/10 text-info border-info/20" :
                                         "bg-purple-50 text-purple-600 border-purple-100"
             )}>
               {providerLabel}
@@ -237,29 +237,29 @@ export default function WhatsAppIntegracaoPage() {
       <div className="px-8 pb-8 max-w-2xl space-y-6">
 
         {/* Provider selector */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Provedor</p>
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Provedor</p>
           <div className="grid grid-cols-3 gap-2">
             {PROVIDERS.map((p) => (
               <button key={p.id} type="button"
                 onClick={() => { setProvider(p.id); mark(); }}
                 className={cn(
                   "flex flex-col items-start gap-0.5 px-4 py-3 rounded-xl border-2 text-left transition-colors",
-                  provider === p.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300 bg-white"
+                  provider === p.id ? "border-blue-500 bg-info/10" : "border-border hover:border-border bg-card"
                 )}
               >
-                <span className={cn("text-sm font-semibold", provider === p.id ? "text-blue-700" : "text-gray-700")}>
+                <span className={cn("text-sm font-semibold", provider === p.id ? "text-info" : "text-foreground")}>
                   {p.label}
                 </span>
-                <span className="text-[11px] text-gray-400">{p.sub}</span>
+                <span className="text-[11px] text-muted-foreground">{p.sub}</span>
               </button>
             ))}
           </div>
         </div>
 
         {/* Credentials */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Credenciais</p>
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Credenciais</p>
 
           {provider === "evolution" && (
             <div className="space-y-3">
@@ -274,19 +274,19 @@ export default function WhatsAppIntegracaoPage() {
                 value={evoApiKey} onChange={(v) => { setEvoApiKey(v); mark(); }} placeholder="sua-api-key" />
 
               {evoUrl && evoInstance && (
-                <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 space-y-2">
-                  <p className="text-xs font-semibold text-emerald-700">Configurar Webhook na Evolution API</p>
-                  <p className="text-[11px] text-emerald-600">
+                <div className="bg-success/10 border border-emerald-100 rounded-xl px-4 py-3 space-y-2">
+                  <p className="text-xs font-semibold text-success">Configurar Webhook na Evolution API</p>
+                  <p className="text-[11px] text-success">
                     Em <strong>Instâncias → {evoInstance} → Webhook</strong>, configure:
                   </p>
-                  <p className="text-[11px] text-emerald-600 font-medium">URL:</p>
-                  <p className="text-xs text-emerald-700 font-mono break-all bg-white/60 px-3 py-1.5 rounded-lg border border-emerald-200 select-all">
+                  <p className="text-[11px] text-success font-medium">URL:</p>
+                  <p className="text-xs text-success font-mono break-all bg-card/60 px-3 py-1.5 rounded-lg border border-success/30 select-all">
                     {webhookUrl}
                   </p>
-                  <p className="text-[11px] text-emerald-600">
+                  <p className="text-[11px] text-success">
                     Troque <strong>SEU_WA_WEBHOOK_SECRET</strong> pelo valor da variável <strong>WA_WEBHOOK_SECRET</strong> (Vercel).
                   </p>
-                  <p className="text-[11px] text-emerald-600">Evento: <strong>MESSAGES_UPSERT</strong></p>
+                  <p className="text-[11px] text-success">Evento: <strong>MESSAGES_UPSERT</strong></p>
                 </div>
               )}
             </div>
@@ -304,9 +304,9 @@ export default function WhatsAppIntegracaoPage() {
                 description="Token de verificação configurado no webhook do Meta"
                 value={metaWebhook} onChange={(v) => { setMetaWebhook(v); mark(); }} placeholder="meu_token_secreto" />
               {metaPhoneId && (
-                <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 space-y-1.5">
-                  <p className="text-xs font-semibold text-blue-700">URL do Webhook</p>
-                  <p className="text-xs text-blue-600 font-mono break-all select-all">{webhookUrl}</p>
+                <div className="bg-info/10 border border-info/20 rounded-xl px-4 py-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-info">URL do Webhook</p>
+                  <p className="text-xs text-info font-mono break-all select-all">{webhookUrl}</p>
                   <p className="text-[11px] text-blue-500">
                     Troque <strong>SEU_WA_WEBHOOK_SECRET</strong> pelo valor da variável <strong>WA_WEBHOOK_SECRET</strong> (Vercel).
                   </p>
@@ -335,7 +335,7 @@ export default function WhatsAppIntegracaoPage() {
         {(status === "ok" || status === "error") && !dirty && (
           <div className={cn(
             "flex items-start gap-2 px-4 py-3 rounded-xl text-sm border",
-            status === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"
+            status === "ok" ? "bg-success/10 border-success/30 text-success" : "bg-danger/10 border-danger/30 text-danger"
           )}>
             {status === "ok" ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />}
             <span>{status === "ok" ? `Conexão estabelecida. ${statusMsg}` : statusMsg}</span>
@@ -345,7 +345,7 @@ export default function WhatsAppIntegracaoPage() {
         {saveMsg && (
           <div className={cn(
             "flex items-center gap-2 px-4 py-3 rounded-xl text-sm border",
-            saveMsg.type === "ok" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"
+            saveMsg.type === "ok" ? "bg-success/10 border-success/30 text-success" : "bg-danger/10 border-danger/30 text-danger"
           )}>
             {saveMsg.type === "ok" ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
             <span>{saveMsg.text}</span>
@@ -353,7 +353,7 @@ export default function WhatsAppIntegracaoPage() {
         )}
 
         {dirty && !saveMsg && (
-          <p className="text-xs text-amber-600 font-medium flex items-center gap-1.5">
+          <p className="text-xs text-warning font-medium flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
             Alterações não salvas — clique em Salvar para confirmar
           </p>

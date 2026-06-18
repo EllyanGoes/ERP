@@ -29,12 +29,12 @@ export default function PlanosPage() {
       />
 
       <div className="px-8 pb-3 flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-1.5 text-sm text-gray-600">
+        <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
           Período
           <select
             value={meses}
             onChange={(e) => setMeses(Number(e.target.value))}
-            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-lg border border-border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value={3}>Últimos 3 meses</option>
             <option value={6}>Últimos 6 meses</option>
@@ -44,7 +44,7 @@ export default function PlanosPage() {
         </label>
         <button
           onClick={recarregar}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
         >
           <RefreshCw className={cn("w-4 h-4", (loading || refreshing) && "animate-spin")} />
           {refreshing ? "Atualizando…" : "Atualizar"}
@@ -53,33 +53,33 @@ export default function PlanosPage() {
 
       <div className="flex-1 overflow-y-auto px-8 pb-8 space-y-4">
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-gray-400 gap-2 text-sm">
+          <div className="flex items-center justify-center py-20 text-muted-foreground gap-2 text-sm">
             <RefreshCw className="w-4 h-4 animate-spin" /> Carregando dados do Engeman…
           </div>
         ) : erro ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <AlertTriangle className="w-8 h-8 text-amber-400 mb-2" />
-            <p className="text-sm text-gray-600">{erro}</p>
+            <p className="text-sm text-muted-foreground">{erro}</p>
           </div>
         ) : data && (
           <>
             {/* KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-              <Kpi label="Planos com O.S." valor={String(t!.planosComOs)} cls="text-gray-800" />
-              <Kpi label="O.S. geradas" valor={String(t!.geradas)} cls="text-blue-700" />
-              <Kpi label="Concluídas" valor={String(t!.concluidas)} cls="text-green-700" />
-              <Kpi label="Em aberto" valor={String(t!.abertas)} cls="text-amber-600" />
+              <Kpi label="Planos com O.S." valor={String(t!.planosComOs)} cls="text-foreground" />
+              <Kpi label="O.S. geradas" valor={String(t!.geradas)} cls="text-info" />
+              <Kpi label="Concluídas" valor={String(t!.concluidas)} cls="text-success" />
+              <Kpi label="Em aberto" valor={String(t!.abertas)} cls="text-warning" />
               <Kpi
                 label="% execução"
                 valor={t!.pctExecucao !== null ? `${t!.pctExecucao.toLocaleString("pt-BR")}%` : "—"}
-                cls={t!.pctExecucao !== null && t!.pctExecucao >= 90 ? "text-green-700" : "text-amber-600"}
+                cls={t!.pctExecucao !== null && t!.pctExecucao >= 90 ? "text-success" : "text-warning"}
                 rodape={t!.atrasadas > 0 ? `${t!.atrasadas} atrasada(s)` : undefined}
               />
             </div>
 
             {/* Gráfico geradas × concluídas */}
-            <div className="bg-white rounded-xl border border-gray-300 shadow-sm p-4">
-              <p className="text-sm font-medium text-gray-700 mb-3">O.S. de plano por mês — geradas × concluídas</p>
+            <div className="bg-card rounded-xl border border-border shadow-sm p-4">
+              <p className="text-sm font-medium text-foreground mb-3">O.S. de plano por mês — geradas × concluídas</p>
               <div style={{ width: "100%", height: 260 }}>
                 <ResponsiveContainer>
                   <BarChart data={data.serie} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
@@ -96,9 +96,9 @@ export default function PlanosPage() {
             </div>
 
             {/* Tabela por plano */}
-            <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-x-auto">
+            <div className="bg-card rounded-xl border border-border shadow-sm overflow-x-auto">
               <table className="w-full min-w-[920px] text-sm">
-                <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+                <thead className="bg-muted text-xs text-muted-foreground uppercase tracking-wider">
                   <tr>
                     <th className="text-left font-medium px-3 py-2">Plano</th>
                     <th className="text-right font-medium px-2 py-2 w-20">Geradas</th>
@@ -110,46 +110,46 @@ export default function PlanosPage() {
                     <th className="text-right font-medium px-3 py-2 w-32">Próx. programada</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {planos.length === 0 && (
-                    <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Nenhuma O.S. gerada por plano no período.</td></tr>
+                    <tr><td colSpan={8} className="px-3 py-10 text-center text-muted-foreground">Nenhuma O.S. gerada por plano no período.</td></tr>
                   )}
                   {planos.map((p) => (
-                    <tr key={p.codPla} className={cn(p.atrasadas > 0 && "bg-red-50/40")}>
+                    <tr key={p.codPla} className={cn(p.atrasadas > 0 && "bg-danger/10")}>
                       <td className="px-3 py-2">
-                        <div className="text-gray-800">{p.descricao}</div>
-                        <div className="text-[11px] text-gray-400 font-mono">Plano {p.tag}</div>
+                        <div className="text-foreground">{p.descricao}</div>
+                        <div className="text-[11px] text-muted-foreground font-mono">Plano {p.tag}</div>
                       </td>
-                      <td className="px-2 py-2 text-right tabular-nums text-gray-700">{p.geradas}</td>
-                      <td className="px-2 py-2 text-right tabular-nums text-green-700">
+                      <td className="px-2 py-2 text-right tabular-nums text-foreground">{p.geradas}</td>
+                      <td className="px-2 py-2 text-right tabular-nums text-success">
                         {p.concluidas}
                         {p.concluidasComAtraso > 0 && (
-                          <div className="text-[11px] text-amber-600 font-normal">{p.concluidasComAtraso} fora do prazo</div>
+                          <div className="text-[11px] text-warning font-normal">{p.concluidasComAtraso} fora do prazo</div>
                         )}
                       </td>
-                      <td className="px-2 py-2 text-right tabular-nums text-gray-700">{p.abertas}</td>
-                      <td className={cn("px-2 py-2 text-right tabular-nums font-semibold", p.atrasadas > 0 ? "text-red-600" : "text-gray-400")}>
+                      <td className="px-2 py-2 text-right tabular-nums text-foreground">{p.abertas}</td>
+                      <td className={cn("px-2 py-2 text-right tabular-nums font-semibold", p.atrasadas > 0 ? "text-danger" : "text-muted-foreground")}>
                         {p.atrasadas}
                       </td>
                       <td className="px-3 py-2">
                         {p.pctExecucao === null ? (
-                          <span className="text-gray-300">—</span>
+                          <span className="text-muted-foreground/60">—</span>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
+                            <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                               <div
                                 className={cn("h-full rounded-full", p.pctExecucao >= 90 ? "bg-green-500" : p.pctExecucao >= 60 ? "bg-amber-400" : "bg-red-400")}
                                 style={{ width: `${Math.min(p.pctExecucao, 100)}%` }}
                               />
                             </div>
-                            <span className="text-xs tabular-nums text-gray-600 w-12 text-right">{p.pctExecucao.toLocaleString("pt-BR")}%</span>
+                            <span className="text-xs tabular-nums text-muted-foreground w-12 text-right">{p.pctExecucao.toLocaleString("pt-BR")}%</span>
                           </div>
                         )}
                       </td>
-                      <td className="px-2 py-2 text-right text-xs text-gray-500">{p.ultimaConclusao ? formatDate(p.ultimaConclusao) : "—"}</td>
+                      <td className="px-2 py-2 text-right text-xs text-muted-foreground">{p.ultimaConclusao ? formatDate(p.ultimaConclusao) : "—"}</td>
                       <td className="px-3 py-2 text-right text-xs">
                         {p.proximaProgramada ? (
-                          <span className={cn("inline-flex items-center gap-1", new Date(p.proximaProgramada).getTime() < Date.now() ? "text-red-600 font-medium" : "text-gray-500")}>
+                          <span className={cn("inline-flex items-center gap-1", new Date(p.proximaProgramada).getTime() < Date.now() ? "text-danger font-medium" : "text-muted-foreground")}>
                             <CalendarClock className="w-3 h-3" />
                             {formatDate(p.proximaProgramada)}
                           </span>
@@ -169,8 +169,8 @@ export default function PlanosPage() {
 
 function Kpi({ label, valor, cls, rodape }: { label: string; valor: string; cls: string; rodape?: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-300 shadow-sm px-4 py-3">
-      <p className="text-[11px] uppercase tracking-wide text-gray-400">{label}</p>
+    <div className="bg-card rounded-xl border border-border shadow-sm px-4 py-3">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className={cn("text-xl font-bold", cls)}>{valor}</p>
       {rodape && <p className="text-[11px] text-red-500">{rodape}</p>}
     </div>

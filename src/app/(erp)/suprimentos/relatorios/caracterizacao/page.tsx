@@ -39,25 +39,25 @@ type Summary = {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ABC_OPTIONS: FilterOption[] = [
-  { key: "todos", label: "Todas",   color: "bg-gray-100 text-gray-600" },
-  { key: "A",     label: "Classe A", color: "bg-rose-100 text-rose-700" },
-  { key: "B",     label: "Classe B", color: "bg-amber-100 text-amber-700" },
-  { key: "C",     label: "Classe C", color: "bg-gray-100 text-gray-600" },
+  { key: "todos", label: "Todas",   color: "bg-muted text-muted-foreground" },
+  { key: "A",     label: "Classe A", color: "bg-danger/15 text-danger" },
+  { key: "B",     label: "Classe B", color: "bg-warning/15 text-warning" },
+  { key: "C",     label: "Classe C", color: "bg-muted text-muted-foreground" },
 ];
 
 const IMD_OPTIONS: FilterOption[] = [
-  { key: "todos",     label: "Todas",      color: "bg-gray-100 text-gray-600" },
-  { key: "ESTOCAVEL", label: "Estocável",  color: "bg-emerald-100 text-emerald-700" },
-  { key: "MTO",       label: "MTO",        color: "bg-blue-100 text-blue-700" },
-  { key: "OBSOLETO",  label: "Obsoleto",   color: "bg-red-100 text-red-700" },
+  { key: "todos",     label: "Todas",      color: "bg-muted text-muted-foreground" },
+  { key: "ESTOCAVEL", label: "Estocável",  color: "bg-success/15 text-success" },
+  { key: "MTO",       label: "MTO",        color: "bg-info/15 text-info" },
+  { key: "OBSOLETO",  label: "Obsoleto",   color: "bg-danger/15 text-danger" },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function AbcBadge({ cls }: { cls: "A" | "B" | "C" }) {
   const styles = {
-    A: "bg-rose-100 text-rose-700 border-rose-200",
-    B: "bg-amber-100 text-amber-700 border-amber-200",
-    C: "bg-gray-100 text-gray-600 border-gray-200",
+    A: "bg-danger/15 text-danger border-rose-200",
+    B: "bg-warning/15 text-warning border-warning/30",
+    C: "bg-muted text-muted-foreground border-border",
   };
   return (
     <span className={cn(
@@ -71,9 +71,9 @@ function AbcBadge({ cls }: { cls: "A" | "B" | "C" }) {
 
 function ImdBadge({ cat }: { cat: "ESTOCAVEL" | "MTO" | "OBSOLETO" }) {
   const map = {
-    ESTOCAVEL: { label: "Estocável", cls: "bg-emerald-100 text-emerald-700", icon: <Package className="w-3 h-3" /> },
-    MTO:       { label: "MTO",       cls: "bg-blue-100 text-blue-700",       icon: <Truck className="w-3 h-3" /> },
-    OBSOLETO:  { label: "Obsoleto",  cls: "bg-red-100 text-red-700",         icon: <AlertTriangle className="w-3 h-3" /> },
+    ESTOCAVEL: { label: "Estocável", cls: "bg-success/15 text-success", icon: <Package className="w-3 h-3" /> },
+    MTO:       { label: "MTO",       cls: "bg-info/15 text-info",       icon: <Truck className="w-3 h-3" /> },
+    OBSOLETO:  { label: "Obsoleto",  cls: "bg-danger/15 text-danger",         icon: <AlertTriangle className="w-3 h-3" /> },
   };
   const m = map[cat];
   return (
@@ -84,9 +84,9 @@ function ImdBadge({ cat }: { cat: "ESTOCAVEL" | "MTO" | "OBSOLETO" }) {
 }
 
 function imdColor(imd: number) {
-  if (imd > 5)  return "text-emerald-700 font-semibold";
-  if (imd > 2)  return "text-blue-700 font-semibold";
-  return "text-red-600 font-semibold";
+  if (imd > 5)  return "text-success font-semibold";
+  if (imd > 2)  return "text-info font-semibold";
+  return "text-danger font-semibold";
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -133,7 +133,7 @@ export default function CaracterizacaoPage() {
       <div className="px-8 pb-8 space-y-6">
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{error}</div>
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-xl text-sm">{error}</div>
         )}
 
         {/* ── KPI Cards ─────────────────────────────────────────────────────── */}
@@ -141,18 +141,18 @@ export default function CaracterizacaoPage() {
           <div className="space-y-4">
             {/* ABC row */}
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Curva ABC — por Valor de Consumo Anual</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Curva ABC — por Valor de Consumo Anual</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {/* Total */}
-                <div className="rounded-xl border border-gray-200 bg-white px-5 py-4">
-                  <p className="text-xs text-gray-500 font-medium">Total de Itens</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-1">{summary.totalItems}</p>
-                  <p className="text-xs text-gray-400 mt-1">analisados</p>
+                <div className="rounded-xl border border-border bg-card px-5 py-4">
+                  <p className="text-xs text-muted-foreground font-medium">Total de Itens</p>
+                  <p className="text-3xl font-bold text-foreground mt-1">{summary.totalItems}</p>
+                  <p className="text-xs text-muted-foreground mt-1">analisados</p>
                 </div>
                 {/* Classe A */}
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4">
+                <div className="rounded-xl border border-rose-200 bg-danger/10 px-5 py-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-rose-600 font-semibold">Classe A</p>
+                    <p className="text-xs text-danger font-semibold">Classe A</p>
                     <AbcBadge cls="A" />
                   </div>
                   <p className="text-3xl font-bold text-rose-800 mt-1">{summary.classA.count}</p>
@@ -162,63 +162,63 @@ export default function CaracterizacaoPage() {
                   <p className="text-xs text-rose-400 mt-0.5">{formatBRL(summary.totalConsumoAnual * (summary.classA.pctValor / 100))} / ano</p>
                 </div>
                 {/* Classe B */}
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+                <div className="rounded-xl border border-warning/30 bg-warning/10 px-5 py-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-amber-600 font-semibold">Classe B</p>
+                    <p className="text-xs text-warning font-semibold">Classe B</p>
                     <AbcBadge cls="B" />
                   </div>
-                  <p className="text-3xl font-bold text-amber-800 mt-1">{summary.classB.count}</p>
+                  <p className="text-3xl font-bold text-warning mt-1">{summary.classB.count}</p>
                   <p className="text-xs text-amber-500 mt-1">
                     {summary.classB.pctItems}% dos itens · ~{summary.classB.pctValor}% do valor
                   </p>
                   <p className="text-xs text-amber-400 mt-0.5">{formatBRL(summary.totalConsumoAnual * (summary.classB.pctValor / 100))} / ano</p>
                 </div>
                 {/* Classe C */}
-                <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-4">
+                <div className="rounded-xl border border-border bg-muted px-5 py-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-gray-500 font-semibold">Classe C</p>
+                    <p className="text-xs text-muted-foreground font-semibold">Classe C</p>
                     <AbcBadge cls="C" />
                   </div>
-                  <p className="text-3xl font-bold text-gray-700 mt-1">{summary.classC.count}</p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-3xl font-bold text-foreground mt-1">{summary.classC.count}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
                     {summary.classC.pctItems}% dos itens · ~{summary.classC.pctValor}% do valor
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">{formatBRL(summary.totalConsumoAnual * (summary.classC.pctValor / 100))} / ano</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{formatBRL(summary.totalConsumoAnual * (summary.classC.pctValor / 100))} / ano</p>
                 </div>
               </div>
             </div>
 
             {/* IMD row */}
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Categorização IMD — Intervalo Médio entre Demandas (36 meses)</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Categorização IMD — Intervalo Médio entre Demandas (36 meses)</p>
               <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                    <Package className="w-5 h-5 text-emerald-600" />
+                <div className="rounded-xl border border-success/30 bg-success/10 px-5 py-4 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-success/15 flex items-center justify-center shrink-0">
+                    <Package className="w-5 h-5 text-success" />
                   </div>
                   <div>
-                    <p className="text-xs text-emerald-600 font-semibold">Estocáveis</p>
-                    <p className="text-3xl font-bold text-emerald-800">{summary.estocavel}</p>
+                    <p className="text-xs text-success font-semibold">Estocáveis</p>
+                    <p className="text-3xl font-bold text-success">{summary.estocavel}</p>
                     <p className="text-xs text-emerald-500 mt-0.5">IMD &gt; 5</p>
                   </div>
                 </div>
-                <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                    <Truck className="w-5 h-5 text-blue-600" />
+                <div className="rounded-xl border border-info/30 bg-info/10 px-5 py-4 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-info/15 flex items-center justify-center shrink-0">
+                    <Truck className="w-5 h-5 text-info" />
                   </div>
                   <div>
-                    <p className="text-xs text-blue-600 font-semibold">MTO — Make to Order</p>
-                    <p className="text-3xl font-bold text-blue-800">{summary.mto}</p>
+                    <p className="text-xs text-info font-semibold">MTO — Make to Order</p>
+                    <p className="text-3xl font-bold text-info">{summary.mto}</p>
                     <p className="text-xs text-blue-500 mt-0.5">IMD entre 2 e 5</p>
                   </div>
                 </div>
-                <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                <div className="rounded-xl border border-danger/30 bg-danger/10 px-5 py-4 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-danger/15 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5 text-danger" />
                   </div>
                   <div>
-                    <p className="text-xs text-red-600 font-semibold">Obsoletos</p>
-                    <p className="text-3xl font-bold text-red-800">{summary.obsoleto}</p>
+                    <p className="text-xs text-danger font-semibold">Obsoletos</p>
+                    <p className="text-3xl font-bold text-danger">{summary.obsoleto}</p>
                     <p className="text-xs text-red-500 mt-0.5">IMD &lt; 2</p>
                   </div>
                 </div>
@@ -227,8 +227,8 @@ export default function CaracterizacaoPage() {
 
             {/* ABC bar chart visual */}
             {summary.totalItems > 0 && (
-              <div className="rounded-xl border border-gray-200 bg-white px-5 py-4">
-                <p className="text-xs font-medium text-gray-500 mb-3">Distribuição do Valor de Consumo Anual</p>
+              <div className="rounded-xl border border-border bg-card px-5 py-4">
+                <p className="text-xs font-medium text-muted-foreground mb-3">Distribuição do Valor de Consumo Anual</p>
                 <div className="flex h-6 rounded-full overflow-hidden gap-0.5">
                   {summary.classA.pctValor > 0 && (
                     <div
@@ -248,7 +248,7 @@ export default function CaracterizacaoPage() {
                   )}
                   {summary.classC.pctValor > 0 && (
                     <div
-                      className="bg-gray-300 flex items-center justify-center text-gray-600 text-[10px] font-bold transition-all"
+                      className="bg-muted flex items-center justify-center text-muted-foreground text-[10px] font-bold transition-all"
                       style={{ width: `${summary.classC.pctValor}%` }}
                     >
                       {summary.classC.pctValor >= 6 ? `C ${summary.classC.pctValor}%` : ""}
@@ -256,16 +256,16 @@ export default function CaracterizacaoPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-4 mt-2">
-                  <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span className="w-3 h-3 rounded bg-rose-400 shrink-0" /> A — Alta criticidade
                   </span>
-                  <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span className="w-3 h-3 rounded bg-amber-400 shrink-0" /> B — Média criticidade
                   </span>
-                  <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <span className="w-3 h-3 rounded bg-gray-300 shrink-0" /> C — Baixa criticidade
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="w-3 h-3 rounded bg-muted shrink-0" /> C — Baixa criticidade
                   </span>
-                  <span className="ml-auto text-xs text-gray-400 font-medium">
+                  <span className="ml-auto text-xs text-muted-foreground font-medium">
                     Total anual: {formatBRL(summary.totalConsumoAnual)}
                   </span>
                 </div>
@@ -277,15 +277,15 @@ export default function CaracterizacaoPage() {
         {/* ── Filters ───────────────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
               type="text" value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar por código ou descrição..."
-              className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
@@ -310,7 +310,7 @@ export default function CaracterizacaoPage() {
           {hasFilters && (
             <button
               onClick={() => { setSearch(""); setAbcFilter("todos"); setImdFilter("todos"); }}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-muted-foreground"
             >
               <X className="w-3 h-3" /> Limpar
             </button>
@@ -320,20 +320,20 @@ export default function CaracterizacaoPage() {
         {/* ── Table ─────────────────────────────────────────────────────────── */}
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
             <Layers className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="font-medium">
               {hasFilters ? "Nenhum item encontrado com os filtros aplicados" : "Nenhum item cadastrado"}
             </p>
           </div>
         ) : (
-          <div className="rounded-xl border border-gray-200 overflow-hidden">
+          <div className="rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide">
+                <tr className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                   <th className="text-left px-4 py-3 font-medium">Código</th>
                   <th className="text-left px-4 py-3 font-medium">Descrição</th>
                   <th className="text-left px-4 py-3 font-medium">Und.</th>
@@ -346,63 +346,63 @@ export default function CaracterizacaoPage() {
                   <th className="text-right px-4 py-3 font-medium">Estoque Atual</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {filtered.map((row, idx) => (
                   <tr key={row.itemId} className={cn(
-                    "hover:bg-gray-50 transition-colors",
-                    row.categoriaIMD === "OBSOLETO" && row.estoqueAtual > 0 && "bg-red-50/30",
+                    "hover:bg-muted transition-colors",
+                    row.categoriaIMD === "OBSOLETO" && row.estoqueAtual > 0 && "bg-danger/10",
                   )}>
                     {/* Ranking */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-300 w-5 text-right shrink-0">{idx + 1}</span>
+                        <span className="text-xs text-muted-foreground/60 w-5 text-right shrink-0">{idx + 1}</span>
                         <Link
                           href={`/suprimentos/produtos/${row.itemId}`}
-                          className="font-mono text-xs text-blue-600 hover:underline"
+                          className="font-mono text-xs text-info hover:underline"
                         >
                           {row.codigo}
                         </Link>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-800">
+                    <td className="px-4 py-3 text-foreground">
                       <div>
                         <span className="font-medium">{row.descricao}</span>
                         {row.tipoProduto && (
-                          <span className="ml-2 text-xs text-gray-400">{row.tipoProduto}</span>
+                          <span className="ml-2 text-xs text-muted-foreground">{row.tipoProduto}</span>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs font-mono">{row.unidade}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs font-mono">{row.unidade}</td>
                     <td className="px-4 py-3 text-center">
                       <AbcBadge cls={row.curvaABC} />
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <div className="w-20 bg-gray-100 rounded-full h-1.5 hidden sm:block">
+                        <div className="w-20 bg-muted rounded-full h-1.5 hidden sm:block">
                           <div
                             className={cn(
                               "h-1.5 rounded-full",
                               row.curvaABC === "A" ? "bg-rose-400" :
-                              row.curvaABC === "B" ? "bg-amber-400" : "bg-gray-300"
+                              row.curvaABC === "B" ? "bg-amber-400" : "bg-muted"
                             )}
                             style={{ width: `${Math.min(row.pctAcumulado, 100)}%` }}
                           />
                         </div>
-                        <span className="text-xs text-gray-500 tabular-nums">{row.pctAcumulado.toFixed(1)}%</span>
+                        <span className="text-xs text-muted-foreground tabular-nums">{row.pctAcumulado.toFixed(1)}%</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <span className={cn(
                         "text-sm tabular-nums",
-                        row.valorConsumoAnual > 0 ? "text-gray-800 font-medium" : "text-gray-300"
+                        row.valorConsumoAnual > 0 ? "text-foreground font-medium" : "text-muted-foreground/60"
                       )}>
                         {row.valorConsumoAnual > 0 ? formatBRL(row.valorConsumoAnual) : "—"}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className="text-sm tabular-nums text-gray-600">
+                      <span className="text-sm tabular-nums text-muted-foreground">
                         {row.mesesComConsumo}
-                        <span className="text-xs text-gray-400">/36</span>
+                        <span className="text-xs text-muted-foreground">/36</span>
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -419,12 +419,12 @@ export default function CaracterizacaoPage() {
                     <td className="px-4 py-3 text-right">
                       <span className={cn(
                         "text-sm tabular-nums font-medium",
-                        row.estoqueAtual <= 0 ? "text-gray-300" : "text-gray-800"
+                        row.estoqueAtual <= 0 ? "text-muted-foreground/60" : "text-foreground"
                       )}>
                         {row.estoqueAtual > 0
                           ? row.estoqueAtual.toLocaleString("pt-BR", { maximumFractionDigits: 3 })
                           : "0"}
-                        <span className="text-xs font-normal text-gray-400 ml-1">{row.unidade}</span>
+                        <span className="text-xs font-normal text-muted-foreground ml-1">{row.unidade}</span>
       </span>
                     </td>
                   </tr>
@@ -434,14 +434,14 @@ export default function CaracterizacaoPage() {
               {/* Footer totals */}
               {filtered.length > 0 && (
                 <tfoot>
-                  <tr className="border-t-2 border-gray-200 bg-gray-50">
-                    <td colSpan={5} className="px-4 py-2.5 text-xs font-medium text-gray-500">
+                  <tr className="border-t-2 border-border bg-muted">
+                    <td colSpan={5} className="px-4 py-2.5 text-xs font-medium text-muted-foreground">
                       {filtered.length} {filtered.length === 1 ? "item" : "itens"}
                       {hasFilters && rows.length !== filtered.length && ` (de ${rows.length})`}
                     </td>
-                    <td className="px-4 py-2.5 text-right text-sm font-bold text-gray-800 tabular-nums">
+                    <td className="px-4 py-2.5 text-right text-sm font-bold text-foreground tabular-nums">
                       {formatBRL(filtered.reduce((s, r) => s + r.valorConsumoAnual, 0))}
-                      <span className="text-xs font-normal text-gray-400 ml-1">/ano</span>
+                      <span className="text-xs font-normal text-muted-foreground ml-1">/ano</span>
                     </td>
                     <td colSpan={4} />
                   </tr>
@@ -452,11 +452,11 @@ export default function CaracterizacaoPage() {
         )}
 
         {/* ── Metodologia ───────────────────────────────────────────────────── */}
-        <div className="rounded-xl border border-gray-100 bg-gray-50 px-5 py-4 space-y-3">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Metodologia</p>
-          <div className="grid sm:grid-cols-2 gap-4 text-xs text-gray-500 leading-relaxed">
+        <div className="rounded-xl border border-border bg-muted px-5 py-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Metodologia</p>
+          <div className="grid sm:grid-cols-2 gap-4 text-xs text-muted-foreground leading-relaxed">
             <div>
-              <p className="font-semibold text-gray-700 mb-1">Curva ABC (Princípio de Pareto)</p>
+              <p className="font-semibold text-foreground mb-1">Curva ABC (Princípio de Pareto)</p>
               <p>
                 Hierarquiza os itens pelo <strong>Valor de Consumo Anual</strong> (saídas × custo, anualizado dos últimos 36 meses).
                 Classe <strong>A</strong> acumula ~80% do valor (alta criticidade),
@@ -464,12 +464,12 @@ export default function CaracterizacaoPage() {
               </p>
             </div>
             <div>
-              <p className="font-semibold text-gray-700 mb-1">IMD — Intervalo Médio entre Demandas</p>
+              <p className="font-semibold text-foreground mb-1">IMD — Intervalo Médio entre Demandas</p>
               <p>
                 <strong>IMD = 36 ÷ Meses sem Consumo</strong> (últimos 36 meses).
-                IMD &gt; 5 → <strong className="text-emerald-700">Estocável</strong> (alta frequência de consumo);
-                2 a 5 → <strong className="text-blue-700">MTO</strong> (comprar sob demanda);
-                &lt; 2 → <strong className="text-red-600">Obsoleto</strong> (baixíssima demanda).
+                IMD &gt; 5 → <strong className="text-success">Estocável</strong> (alta frequência de consumo);
+                2 a 5 → <strong className="text-info">MTO</strong> (comprar sob demanda);
+                &lt; 2 → <strong className="text-danger">Obsoleto</strong> (baixíssima demanda).
               </p>
             </div>
           </div>

@@ -127,10 +127,10 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  PENDENTE:          "bg-amber-100 text-amber-700 border border-amber-200",
-  SAIU_PARA_ENTREGA: "bg-blue-100 text-blue-700 border border-blue-200",
-  ENTREGUE:          "bg-emerald-100 text-emerald-700 border border-emerald-200",
-  CANCELADA:         "bg-gray-100 text-gray-500 border border-gray-200",
+  PENDENTE:          "bg-warning/15 text-warning border border-warning/30",
+  SAIU_PARA_ENTREGA: "bg-info/15 text-info border border-info/30",
+  ENTREGUE:          "bg-success/15 text-success border border-success/30",
+  CANCELADA:         "bg-muted text-muted-foreground border border-border",
 };
 
 function fmtQty(v: unknown) {
@@ -604,7 +604,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
     <div className="space-y-6">
       {/* Venda à ordem (triangular) — banners de origem/entrega */}
       {origemEmpresaNome && (
-        <div className="flex items-start gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-800">
+        <div className="flex items-start gap-2 p-3 rounded-xl border border-warning/30 bg-warning/10 text-sm text-warning">
           <Truck className="w-4 h-4 mt-0.5 shrink-0" />
           <div>
             <span className="font-semibold">Venda à ordem.</span>{" "}
@@ -615,7 +615,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
         </div>
       )}
       {vendaOrigemNome && (
-        <div className="flex items-start gap-2 p-3 rounded-xl border border-blue-200 bg-blue-50 text-sm text-blue-800">
+        <div className="flex items-start gap-2 p-3 rounded-xl border border-info/30 bg-info/10 text-sm text-info">
           <Package className="w-4 h-4 mt-0.5 shrink-0" />
           <div>
             <span className="font-semibold">Pedido de entrega (venda à ordem).</span>{" "}
@@ -626,8 +626,8 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
 
       {/* Actions bar */}
       {(actions.length > 0 || canEdit || isAdmin || pedido.status === "CONCLUIDO" || (pedido.status === "EM_AGENDAMENTO" && pedido.contasReceber.length === 0)) && (
-        <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-xl border border-gray-100">
-          <span className="text-sm text-gray-500 mr-2">Ações:</span>
+        <div className="flex items-center gap-2 p-4 bg-muted rounded-xl border border-border">
+          <span className="text-sm text-muted-foreground mr-2">Ações:</span>
           {canEdit && (
             <Button variant="outline" size="sm" onClick={() => replaceCurrentTab(`/pedidos-venda/${pedido.id}/editar`)} disabled={loading} className="gap-1.5">
               <Pencil className="w-3.5 h-3.5" />
@@ -646,7 +646,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           {/* Receber agora, entregar depois: paga sem baixar estoque, segue p/ minutas */}
           {pedido.status !== "CONCLUIDO" && pedido.status !== "CANCELADO" &&
             !pedido.intragrupo && pedido.contasReceber.length === 0 && (
-            <Button variant="outline" size="sm" onClick={abrirReceber} disabled={loading} className="gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+            <Button variant="outline" size="sm" onClick={abrirReceber} disabled={loading} className="gap-1.5 border-success/30 text-success hover:bg-success/10">
               <Package className="w-3.5 h-3.5" />
               Registrar Recebimento
             </Button>
@@ -711,7 +711,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               variant="outline" size="sm"
               onClick={() => { setExcluirErro(""); setExcluirOpen(true); }}
               disabled={loading}
-              className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+              className="gap-1.5 border-danger/30 text-danger hover:bg-danger/10 hover:text-danger"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Excluir
@@ -721,12 +721,12 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
       )}
 
       {/* Abas principais: Informações | Minutas | Pagamento */}
-      <div className="flex items-center gap-1 border-b border-gray-200">
+      <div className="flex items-center gap-1 border-b border-border">
         <button
           onClick={() => setMainTab("informacoes")}
           className={cn(
             "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
-            mainTab === "informacoes" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700",
+            mainTab === "informacoes" ? "border-blue-600 text-info" : "border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
           Informações
@@ -735,7 +735,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           onClick={() => setMainTab("minutas")}
           className={cn(
             "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2",
-            mainTab === "minutas" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700",
+            mainTab === "minutas" ? "border-blue-600 text-info" : "border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
           <span>Minutas{minutas.length > 0 ? ` (${minutas.length})` : ""}</span>
@@ -745,7 +745,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           onClick={() => setMainTab("pagamento")}
           className={cn(
             "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2",
-            mainTab === "pagamento" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700",
+            mainTab === "pagamento" ? "border-blue-600 text-info" : "border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
           <span>Pagamento{pedido.contasReceber.length > 0 ? ` (${pedido.contasReceber.length})` : ""}</span>
@@ -761,47 +761,47 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           <CardHeader><CardTitle className="text-base">Informações</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex justify-between items-center gap-2">
-              <span className="text-gray-500">Situação</span>
+              <span className="text-muted-foreground">Situação</span>
               <StatusDimBadges entrega={pedido.statusEntrega} financeiro={pedido.statusFinanceiro} className="justify-end" />
             </div>
-            <div className="flex justify-between"><span className="text-gray-500">{pedido.clienteFinal ? "Adquirente" : "Cliente"}</span><Link href={`/clientes/${pedido.cliente.id}`} className="font-medium text-blue-600 hover:underline">{pedido.cliente.razaoSocial}</Link></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{pedido.clienteFinal ? "Adquirente" : "Cliente"}</span><Link href={`/clientes/${pedido.cliente.id}`} className="font-medium text-info hover:underline">{pedido.cliente.razaoSocial}</Link></div>
             {pedido.clienteFinal && (
-              <div className="flex justify-between"><span className="text-gray-500">Destinatário</span><Link href={`/clientes/${pedido.clienteFinal.id}`} className="font-medium text-blue-600 hover:underline">{pedido.clienteFinal.razaoSocial}</Link></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Destinatário</span><Link href={`/clientes/${pedido.clienteFinal.id}`} className="font-medium text-info hover:underline">{pedido.clienteFinal.razaoSocial}</Link></div>
             )}
             <div className="flex justify-between items-center">
-              <span className="text-gray-500">Pagamento</span>
+              <span className="text-muted-foreground">Pagamento</span>
               <span className={cn(
                 "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold",
-                pedido.necessidadePagamento === "A_VISTA" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
+                pedido.necessidadePagamento === "A_VISTA" ? "bg-success/15 text-success" : "bg-warning/15 text-warning",
               )}>
                 {pedido.necessidadePagamento === "A_VISTA" ? "À vista" : "A prazo"}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-gray-500">Entrega</span>
+              <span className="text-muted-foreground">Entrega</span>
               <span className={cn(
                 "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold",
-                pedido.necessidadeEntrega === "RETIRADA" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700",
+                pedido.necessidadeEntrega === "RETIRADA" ? "bg-success/15 text-success" : "bg-info/15 text-info",
               )}>
                 {pedido.necessidadeEntrega === "RETIRADA" ? "Retirada" : "Entrega agendada"}
               </span>
             </div>
-            <div className="flex justify-between"><span className="text-gray-500">Vendedor</span><span>{pedido.vendedor?.nome || "—"}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Nº Orçamento</span><span>{pedido.numeroOrcamento || "—"}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Emissão</span><span>{formatDate(pedido.dataEmissao)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Conclusão</span><span>{pedido.dataConclusao ? formatDate(pedido.dataConclusao) : "—"}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Vendedor</span><span>{pedido.vendedor?.nome || "—"}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Nº Orçamento</span><span>{pedido.numeroOrcamento || "—"}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Emissão</span><span>{formatDate(pedido.dataEmissao)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Conclusão</span><span>{pedido.dataConclusao ? formatDate(pedido.dataConclusao) : "—"}</span></div>
             {pedido.pagamentos && pedido.pagamentos.length > 0 ? (
               <div>
-                <span className="text-gray-500">Forma Pagamento</span>
+                <span className="text-muted-foreground">Forma Pagamento</span>
                 <div className="mt-1 space-y-0.5">
                   {pedido.pagamentos.map((pg) => (
                     <div key={pg.id} className="flex justify-between pl-2 gap-2">
-                      <span className="text-gray-600 min-w-0 truncate">
+                      <span className="text-muted-foreground min-w-0 truncate">
                         {pg.forma}
                         {pg.contaBancaria && (
                           <>
                             {" → "}
-                            <Link href={`/financeiro/contas/${pg.contaBancaria.id}`} className="text-blue-600 hover:underline">
+                            <Link href={`/financeiro/contas/${pg.contaBancaria.id}`} className="text-info hover:underline">
                               {pg.contaBancaria.nome}
                             </Link>
                           </>
@@ -813,10 +813,10 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                 </div>
               </div>
             ) : (
-              <div className="flex justify-between"><span className="text-gray-500">Forma Pagamento</span><span>{pedido.formaPagamento || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Forma Pagamento</span><span>{pedido.formaPagamento || "—"}</span></div>
             )}
-            <div className="flex justify-between"><span className="text-gray-500">Cond. Pagamento</span><span>{pedido.condicaoPagamento || "—"}</span></div>
-            {pedido.observacoes && <div className="pt-2 border-t"><p className="text-gray-400 text-xs mb-1">Observações</p><p>{pedido.observacoes}</p></div>}
+            <div className="flex justify-between"><span className="text-muted-foreground">Cond. Pagamento</span><span>{pedido.condicaoPagamento || "—"}</span></div>
+            {pedido.observacoes && <div className="pt-2 border-t"><p className="text-muted-foreground text-xs mb-1">Observações</p><p>{pedido.observacoes}</p></div>}
           </CardContent>
         </Card>
 
@@ -824,11 +824,11 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
         <Card>
           <CardHeader><CardTitle className="text-base">Totais</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <div className="flex justify-between"><span className="text-gray-500">Subtotal Produtos</span><span>{formatBRL(subtotalBruto)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Desconto</span><span className="text-red-500">- {formatBRL(descontoTotal)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Frete</span><span>{formatBRL(decimalToNumber(pedido.valorFrete))}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Subtotal Produtos</span><span>{formatBRL(subtotalBruto)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Desconto</span><span className="text-red-500">- {formatBRL(descontoTotal)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Frete</span><span>{formatBRL(decimalToNumber(pedido.valorFrete))}</span></div>
             {Math.abs(comodatoNoTotal) > 0.005 && (
-              <div className="flex justify-between"><span className="text-gray-500">Comodato</span><span>{formatBRL(comodatoNoTotal)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Comodato</span><span>{formatBRL(comodatoNoTotal)}</span></div>
             )}
             <Separator />
             <div className="flex justify-between font-semibold text-base"><span>Total</span><span>{formatBRL(decimalToNumber(pedido.valorTotal))}</span></div>
@@ -849,7 +849,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-500 border-b border-gray-100">
+                  <tr className="text-left text-muted-foreground border-b border-border">
                     <th className="py-2 font-medium">Título</th>
                     <th className="py-2 font-medium">Parcela</th>
                     <th className="py-2 font-medium">Vencimento</th>
@@ -865,16 +865,16 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                     const podeReceber = c.status !== "PAGA" && c.status !== "CANCELADA";
                     return (
                       <tr key={c.id} className="border-b border-gray-50">
-                        <td className="py-2.5 font-mono text-xs text-gray-700">{c.numero}</td>
-                        <td className="py-2.5 text-gray-500">{c.parcelaTotal && c.parcelaTotal > 1 ? `${c.parcelaNumero}/${c.parcelaTotal}` : "—"}</td>
-                        <td className="py-2.5 text-gray-600">{c.dataVencimento ? formatDate(c.dataVencimento) : <span className="text-gray-400 italic">sem previsão</span>}</td>
+                        <td className="py-2.5 font-mono text-xs text-foreground">{c.numero}</td>
+                        <td className="py-2.5 text-muted-foreground">{c.parcelaTotal && c.parcelaTotal > 1 ? `${c.parcelaNumero}/${c.parcelaTotal}` : "—"}</td>
+                        <td className="py-2.5 text-muted-foreground">{c.dataVencimento ? formatDate(c.dataVencimento) : <span className="text-muted-foreground italic">sem previsão</span>}</td>
                         <td className="py-2.5 text-right tabular-nums">{formatBRL(decimalToNumber(c.valorOriginal))}</td>
-                        <td className="py-2.5 text-right tabular-nums text-gray-600">{formatBRL(decimalToNumber(c.valorPago))}</td>
+                        <td className="py-2.5 text-right tabular-nums text-muted-foreground">{formatBRL(decimalToNumber(c.valorPago))}</td>
                         <td className="py-2.5"><StatusBadge status={c.status} /></td>
                         <td className="py-2.5 text-right">
                           {podeReceber && (
                             <Button size="sm" variant="outline" onClick={() => abrirReceberTitulo(c)} disabled={loading}
-                              className="h-7 gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                              className="h-7 gap-1 border-success/30 text-success hover:bg-success/10">
                               Receber{saldo > 0 ? ` ${formatBRL(saldo)}` : ""}
                             </Button>
                           )}
@@ -888,21 +888,21 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           </CardContent>
         </Card>
         ) : (
-          <p className="text-sm text-gray-400 text-center py-10">Nenhum título a receber gerado para este pedido ainda.</p>
+          <p className="text-sm text-muted-foreground text-center py-10">Nenhum título a receber gerado para este pedido ainda.</p>
         )
       )}
 
       {/* ── INFORMAÇÕES (cont.): sub-abas Itens | Comodato ── */}
       {mainTab === "informacoes" && (
       <div className="pt-6">
-        <div className="flex items-center border-b border-gray-200 mb-0">
+        <div className="flex items-center border-b border-border mb-0">
           <button
             onClick={() => setActiveTab("itens")}
             className={cn(
               "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
               activeTab === "itens"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-blue-600 text-info"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
             Itens ({pedido.itens.length})
@@ -912,8 +912,8 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             className={cn(
               "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5",
               activeTab === "comodato"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-blue-600 text-info"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
             <Package className="w-3.5 h-3.5" />
@@ -927,7 +927,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             <CardContent className="pt-4">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-xs text-gray-400 uppercase">
+                  <tr className="border-b text-xs text-muted-foreground uppercase">
                     <th className="text-left pb-2">Código</th>
                     <th className="text-left pb-2">Descrição</th>
                     <th className="text-center pb-2">Un.</th>
@@ -943,14 +943,14 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                     const entregue = getEntregue(item);
                     const saldo = getSaldo(item);
                     return (
-                      <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <tr key={item.id} className="border-b border-gray-50 hover:bg-muted">
                         <td className="py-2.5 font-mono text-xs">{item.item.codigo}</td>
                         <td className="py-2.5">{item.item.descricao}</td>
-                        <td className="py-2.5 text-center text-gray-400 text-xs">{item.item.unidade?.sigla ?? item.item.unidadeMedida}</td>
+                        <td className="py-2.5 text-center text-muted-foreground text-xs">{item.item.unidade?.sigla ?? item.item.unidadeMedida}</td>
                         <td className="py-2.5 text-right tabular-nums">{fmtQty(item.quantidade)}</td>
-                        <td className="py-2.5 text-right tabular-nums text-emerald-600">{fmtQty(entregue)}</td>
+                        <td className="py-2.5 text-right tabular-nums text-success">{fmtQty(entregue)}</td>
                         <td className="py-2.5 text-right tabular-nums font-semibold">
-                          <span className={saldo === 0 ? "text-gray-400" : "text-gray-800"}>
+                          <span className={saldo === 0 ? "text-muted-foreground" : "text-foreground"}>
                             {fmtQty(saldo)}
                           </span>
                         </td>
@@ -970,11 +970,11 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           <Card style={{ borderTopLeftRadius: 0 }}>
             <CardContent className="pt-4 space-y-5">
               {/* Formulário de saída — liberado a qualquer usuário, pois fica amarrado ao pedido */}
-              <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 space-y-4">
-                <p className="text-sm font-medium text-gray-700">Registrar saída de comodato (cliente levando)</p>
+              <div className="rounded-xl border border-border bg-muted/60 p-4 space-y-4">
+                <p className="text-sm font-medium text-foreground">Registrar saída de comodato (cliente levando)</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Item em Comodato</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Item em Comodato</label>
                     <ComboboxWithCreate
                       value={comodatoItemId}
                       onChange={(v) => onComodatoItemChange(v)}
@@ -984,59 +984,59 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                       options={itensComodato.map((i) => ({ value: i.id, label: `${i.codigo} — ${i.descricao}` }))}
                     />
                     {itensComodato.length === 0 && (
-                      <p className="text-xs text-amber-600 mt-1">
+                      <p className="text-xs text-warning mt-1">
                         Nenhum item marcado como comodato. Marque a opção &quot;Comodato&quot; no cadastro do item.
                       </p>
                     )}
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Qtd</label>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Qtd</label>
                       <input
                         inputMode="decimal"
                         value={comodatoQtd}
                         onChange={(e) => setComodatoQtd(e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        className="w-full rounded-lg border border-border px-3 py-2 text-sm"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Valor un. (R$)</label>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Valor un. (R$)</label>
                       <input
                         inputMode="decimal"
                         value={comodatoValor}
                         onChange={(e) => setComodatoValor(e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        className="w-full rounded-lg border border-border px-3 py-2 text-sm"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Data</label>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Data</label>
                       <input
                         type="date"
                         value={comodatoData}
                         onChange={(e) => setComodatoData(e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        className="w-full rounded-lg border border-border px-3 py-2 text-sm"
                       />
                     </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Documento (opcional)</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Documento (opcional)</label>
                     <input
                       type="text"
                       value={comodatoDoc}
                       onChange={(e) => setComodatoDoc(e.target.value)}
                       placeholder="Ex: nota, romaneio..."
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      className="w-full rounded-lg border border-border px-3 py-2 text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Observações (opcional)</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Observações (opcional)</label>
                     <input
                       type="text"
                       value={comodatoObs}
                       onChange={(e) => setComodatoObs(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      className="w-full rounded-lg border border-border px-3 py-2 text-sm"
                     />
                   </div>
                 </div>
@@ -1050,11 +1050,11 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
 
               {/* Lançamentos deste pedido */}
               {movimentacoesComodato.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-6">Nenhum comodato lançado para este pedido.</p>
+                <p className="text-sm text-muted-foreground text-center py-6">Nenhum comodato lançado para este pedido.</p>
               ) : (
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-xs text-gray-400 uppercase">
+                    <tr className="border-b text-xs text-muted-foreground uppercase">
                       <th className="text-left pb-2">Data</th>
                       <th className="text-left pb-2">Item em Comodato</th>
                       <th className="text-right pb-2">Qtd</th>
@@ -1065,8 +1065,8 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                   </thead>
                   <tbody>
                     {movimentacoesComodato.map((m) => (
-                      <tr key={m.id} className="border-b border-gray-50 hover:bg-gray-50">
-                        <td className="py-2.5 text-gray-600">{fmtDate(m.data)}</td>
+                      <tr key={m.id} className="border-b border-gray-50 hover:bg-muted">
+                        <td className="py-2.5 text-muted-foreground">{fmtDate(m.data)}</td>
                         <td className="py-2.5">{m.item.codigo} — {m.item.descricao}</td>
                         <td className="py-2.5 text-right tabular-nums">{fmtNum(m.quantidade)}</td>
                         <td className="py-2.5 text-right">{formatBRL(m.valorUnitario)}</td>
@@ -1076,7 +1076,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                             variant="ghost" size="icon"
                             onClick={() => removerComodato(m.id)}
                             disabled={loading}
-                            className="h-7 w-7 text-gray-400 hover:text-red-600"
+                            className="h-7 w-7 text-muted-foreground hover:text-danger"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -1085,7 +1085,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="border-t-2 border-gray-200 font-semibold">
+                    <tr className="border-t-2 border-border font-semibold">
                       <td className="py-2.5" colSpan={2}>Total</td>
                       <td className="py-2.5 text-right tabular-nums">{fmtNum(comodatoTotalQtd)}</td>
                       <td></td>
@@ -1106,7 +1106,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
         <Card className="mt-6">
           <CardContent className="pt-4 space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 {minutas.length === 0
                   ? "Nenhuma minuta criada para este pedido."
                   : `${minutas.length} minuta${minutas.length !== 1 ? "s" : ""}`
@@ -1125,7 +1125,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             {minutas.length > 0 && (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-xs text-gray-400 uppercase">
+                  <tr className="border-b text-xs text-muted-foreground uppercase">
                     <th className="text-left pb-2">Número</th>
                     <th className="text-left pb-2">Nº Físico</th>
                     <th className="text-left pb-2">Status</th>
@@ -1141,21 +1141,21 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                   {minutas.map((m) => (
                     <tr
                       key={m.id}
-                      className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
+                      className="border-b border-gray-50 hover:bg-muted cursor-pointer"
                       onClick={() => router.push(`/comercial/minutas/${m.id}`)}
                     >
-                      <td className="py-2.5 font-mono font-semibold text-blue-600 hover:underline">{m.numero}</td>
-                      <td className="py-2.5 font-mono text-gray-600">{m.numeroFisico || "—"}</td>
+                      <td className="py-2.5 font-mono font-semibold text-info hover:underline">{m.numero}</td>
+                      <td className="py-2.5 font-mono text-muted-foreground">{m.numeroFisico || "—"}</td>
                       <td className="py-2.5">
                         <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold", STATUS_COLOR[m.status])}>
                           {STATUS_LABEL[m.status]}
                         </span>
                       </td>
-                      <td className="py-2.5 text-gray-600">{fmtDate(m.dataEmissao)}</td>
-                      <td className="py-2.5 text-gray-600">{fmtDate(m.dataEntrega)}</td>
-                      <td className="py-2.5 text-gray-600">{m.motorista?.nome ?? "—"}</td>
-                      <td className="py-2.5 text-gray-600">{m.localEstoque?.nome ?? "—"}</td>
-                      <td className="py-2.5 text-right text-gray-600">{m.itens.length}</td>
+                      <td className="py-2.5 text-muted-foreground">{fmtDate(m.dataEmissao)}</td>
+                      <td className="py-2.5 text-muted-foreground">{fmtDate(m.dataEntrega)}</td>
+                      <td className="py-2.5 text-muted-foreground">{m.motorista?.nome ?? "—"}</td>
+                      <td className="py-2.5 text-muted-foreground">{m.localEstoque?.nome ?? "—"}</td>
+                      <td className="py-2.5 text-right text-muted-foreground">{m.itens.length}</td>
                       <td className="py-2.5 text-right">
                         <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
                           <MinutaActionsMenu id={m.id} numero={m.numero} status={m.status} />
@@ -1169,11 +1169,11 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
 
             {/* Saldo per item summary */}
             {pedido.itens.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Saldo por Item</p>
+              <div className="mt-4 pt-4 border-t border-border">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Saldo por Item</p>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-xs text-gray-400 uppercase border-b">
+                    <tr className="text-xs text-muted-foreground uppercase border-b">
                       <th className="text-left pb-1.5">Produto</th>
                       <th className="text-right pb-1.5">Pedido</th>
                       <th className="text-right pb-1.5">Minutado</th>
@@ -1189,12 +1189,12 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                       const saldo = Math.max(total - minutado, 0);
                       return (
                         <tr key={pvItem.id} className="border-b border-gray-50">
-                          <td className="py-2 text-gray-700">{pvItem.item.descricao}</td>
-                          <td className="py-2 text-right tabular-nums text-gray-600">{fmtQty(total)}</td>
-                          <td className="py-2 text-right tabular-nums text-blue-600">{fmtQty(minutado)}</td>
-                          <td className="py-2 text-right tabular-nums text-emerald-600">{fmtQty(entregue)}</td>
+                          <td className="py-2 text-foreground">{pvItem.item.descricao}</td>
+                          <td className="py-2 text-right tabular-nums text-muted-foreground">{fmtQty(total)}</td>
+                          <td className="py-2 text-right tabular-nums text-info">{fmtQty(minutado)}</td>
+                          <td className="py-2 text-right tabular-nums text-success">{fmtQty(entregue)}</td>
                           <td className="py-2 text-right tabular-nums font-semibold">
-                            <span className={saldo === 0 ? "text-gray-400" : "text-gray-800"}>{fmtQty(saldo)}</span>
+                            <span className={saldo === 0 ? "text-muted-foreground" : "text-foreground"}>{fmtQty(saldo)}</span>
                           </td>
                         </tr>
                       );
@@ -1214,20 +1214,20 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           onClick={() => !loading && setBalcaoOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto"
+            className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div>
-              <h3 className="font-bold text-gray-800">Venda Balcão — receber e concluir</h3>
-              <p className="text-sm text-gray-600 mt-0.5">
+              <h3 className="font-bold text-foreground">Venda Balcão — receber e concluir</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">
                 Baixa o estoque agora (retirada na loja), registra o recebimento de{" "}
                 <span className="font-semibold">{formatBRL(decimalToNumber(pedido.valorTotal))}</span> e conclui o pedido.
               </p>
             </div>
-            {balcaoErro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{balcaoErro}</p>}
+            {balcaoErro && <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{balcaoErro}</p>}
             <div className="space-y-3">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Local de Estoque <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Local de Estoque <span className="text-red-500">*</span></label>
                 <ComboboxWithCreate
                   value={balcaoLocalId}
                   onChange={(v) => setBalcaoLocalId(v)}
@@ -1237,14 +1237,14 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data do Recebimento <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data do Recebimento <span className="text-red-500">*</span></label>
                 <input
                   type="date"
                   value={balcaoData}
                   onChange={(e) => setBalcaoData(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <p className="text-[11px] text-gray-400">Vale para a baixa de estoque, o recebimento no caixa e a conclusão do pedido.</p>
+                <p className="text-[11px] text-muted-foreground">Vale para a baixa de estoque, o recebimento no caixa e a conclusão do pedido.</p>
               </div>
             </div>
             {/* Formas de pagamento (misto: PIX + dinheiro etc.) */}
@@ -1265,24 +1265,24 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           onClick={() => !loading && setRecebOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto"
+            className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div>
-              <h3 className="font-bold text-gray-800">Registrar recebimento</h3>
-              <p className="text-sm text-gray-600 mt-0.5">
+              <h3 className="font-bold text-foreground">Registrar recebimento</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">
                 Registra o pagamento de <span className="font-semibold">{formatBRL(decimalToNumber(pedido.valorTotal))}</span> no
                 caixa <span className="font-semibold">sem baixar o estoque</span> — a entrega será agendada depois (minutas).
               </p>
             </div>
-            {recebErro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{recebErro}</p>}
+            {recebErro && <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{recebErro}</p>}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data do Recebimento <span className="text-red-500">*</span></label>
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data do Recebimento <span className="text-red-500">*</span></label>
               <input
                 type="date"
                 value={recebData}
                 onChange={(e) => setRecebData(e.target.value)}
-                className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <PagamentosInput linhas={recebPagamentos} setLinhas={setRecebPagamentos} formas={balcaoFormas} contas={balcaoContas} total={balcaoTotal} />
@@ -1302,12 +1302,12 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           onClick={() => !loading && setSaidaOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto"
+            className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div>
-              <h3 className="font-bold text-gray-800">Confirmar saída do material</h3>
-              <p className="text-sm text-gray-600 mt-0.5">
+              <h3 className="font-bold text-foreground">Confirmar saída do material</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">
                 {pedido.necessidadeEntrega === "RETIRADA"
                   ? "O cliente está retirando a mercadoria agora. Baixa o estoque (minuta de retirada)"
                   : "Saída total do material ao cliente agora. Baixa o estoque (minuta de entrega)"}
@@ -1315,11 +1315,11 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                 {pedido.contasReceber.length > 0 ? " (o recebimento já foi lançado)." : " (registre o recebimento à parte, se ainda não foi)."}
               </p>
             </div>
-            {saidaErro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{saidaErro}</p>}
+            {saidaErro && <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{saidaErro}</p>}
 
             {/* Pergunta: vai sair tudo ou parcial? */}
             <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-700">Vai sair todo o material do pedido?</p>
+              <p className="text-sm font-medium text-foreground">Vai sair todo o material do pedido?</p>
               <div className="flex gap-2">
                 <Button size="sm" variant={saidaTudo === "tudo" ? "default" : "outline"}
                   onClick={() => { setSaidaErro(""); setSaidaTudo("tudo"); }}
@@ -1334,8 +1334,8 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             </div>
 
             {saidaTudo === "parcial" && (
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 space-y-2">
-                <p className="text-sm text-blue-800">
+              <div className="rounded-xl border border-info/30 bg-info/10 p-3 space-y-2">
+                <p className="text-sm text-info">
                   Para saída parcial, controle por <span className="font-semibold">minuta</span>: escolha os itens e
                   as quantidades que vão sair agora. O restante continua como saldo a entregar.
                 </p>
@@ -1348,7 +1348,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             {saidaTudo === "tudo" && (
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Local de Estoque <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Local de Estoque <span className="text-red-500">*</span></label>
                   <ComboboxWithCreate
                     value={saidaLocalId}
                     onChange={(v) => setSaidaLocalId(v)}
@@ -1358,12 +1358,12 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data da Saída <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data da Saída <span className="text-red-500">*</span></label>
                   <input
                     type="date"
                     value={saidaData}
                     onChange={(e) => setSaidaData(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -1380,26 +1380,26 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
 
       {crAlvo && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" onClick={() => !loading && setCrAlvo(null)}>
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-md w-full space-y-4" onClick={(e) => e.stopPropagation()}>
             <div>
-              <h3 className="font-bold text-gray-800">Receber título {crAlvo.numero}</h3>
-              <p className="text-sm text-gray-600 mt-0.5">Registra o recebimento (parcial ou total) e lança no caixa.</p>
+              <h3 className="font-bold text-foreground">Receber título {crAlvo.numero}</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">Registra o recebimento (parcial ou total) e lança no caixa.</p>
             </div>
-            {crErro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{crErro}</p>}
+            {crErro && <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{crErro}</p>}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Valor recebido <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Valor recebido <span className="text-red-500">*</span></label>
                 <input value={crValor} onChange={(e) => setCrValor(e.target.value)} placeholder="0,00"
-                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm text-right font-mono bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full h-10 rounded-lg border border-border px-3 text-sm text-right font-mono bg-card focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data <span className="text-red-500">*</span></label>
                 <input type="date" value={crData} onChange={(e) => setCrData(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Forma de pagamento</label>
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Forma de pagamento</label>
               <ComboboxWithCreate value={crForma} onChange={setCrForma} placeholder="— Selecionar —" noneLabel="Selecionar" triggerClassName="h-10 rounded-lg"
                 options={[
                   ...(crForma && !balcaoFormas.some((f) => f.nome === crForma) ? [{ value: crForma, label: crForma }] : []),
@@ -1407,7 +1407,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                 ]} />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Conta de destino</label>
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Conta de destino</label>
               <ComboboxWithCreate value={crContaId} onChange={setCrContaId} placeholder="Selecione" noneLabel="Selecione" triggerClassName="h-10 rounded-lg"
                 options={balcaoContas.filter((c) => c.ativo !== false).map((c) => ({ value: c.id, label: c.nome }))} />
             </div>
@@ -1427,28 +1427,28 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           onClick={() => !loading && setConcluirOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4"
+            className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-md w-full space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div>
-              <h3 className="font-bold text-gray-800">Concluir pedido</h3>
-              <p className="text-sm text-gray-600 mt-0.5">
+              <h3 className="font-bold text-foreground">Concluir pedido</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">
                 Informe a data de conclusão. Por padrão é hoje; ajuste para registrar um lançamento passado.
               </p>
             </div>
-            {concluirErro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{concluirErro}</p>}
+            {concluirErro && <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{concluirErro}</p>}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Data de Conclusão <span className="text-red-500">*</span></label>
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data de Conclusão <span className="text-red-500">*</span></label>
               <input
                 type="date"
                 value={concluirData}
                 onChange={(e) => setConcluirData(e.target.value)}
-                className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             {temSaldoPendente && (
-              <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                <p className="text-sm font-medium text-amber-800">
+              <div className="space-y-3 rounded-xl border border-warning/30 bg-warning/10 p-3">
+                <p className="text-sm font-medium text-warning">
                   Este pedido tem <span className="font-semibold">saldo a entregar</span>. Os materiais já foram retirados pelo cliente?
                 </p>
                 <div className="flex gap-2">
@@ -1470,7 +1470,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                 </div>
                 {concluirRetirado === "sim" && (
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Local de Estoque <span className="text-red-500">*</span></label>
+                    <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Local de Estoque <span className="text-red-500">*</span></label>
                     <ComboboxWithCreate
                       value={concluirLocalId}
                       onChange={(v) => setConcluirLocalId(v)}
@@ -1478,11 +1478,11 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                       triggerClassName="h-10 rounded-lg"
                       options={balcaoLocais.map((l) => ({ value: l.id, label: l.nome }))}
                     />
-                    <p className="text-[11px] text-amber-700">A saída do saldo pendente baixa o estoque e a conclusão fica registrada.</p>
+                    <p className="text-[11px] text-warning">A saída do saldo pendente baixa o estoque e a conclusão fica registrada.</p>
                   </div>
                 )}
                 {concluirRetirado === "nao" && (
-                  <p className="text-[11px] text-amber-700">Para concluir, registre as entregas (minutas marcadas como Entregue) antes — ou confirme a retirada acima.</p>
+                  <p className="text-[11px] text-warning">Para concluir, registre as entregas (minutas marcadas como Entregue) antes — ou confirme a retirada acima.</p>
                 )}
               </div>
             )}
@@ -1502,22 +1502,22 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           onClick={() => !loading && setExcluirOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4"
+            className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-md w-full space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <Trash2 className="w-5 h-5 text-red-600" />
+              <div className="w-9 h-9 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <h3 className="font-bold text-gray-800">Excluir pedido {pedido.numero}?</h3>
-                <p className="text-sm text-gray-600 mt-0.5">
+                <h3 className="font-bold text-foreground">Excluir pedido {pedido.numero}?</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
                   Esta ação é permanente e remove o pedido e seus itens. Não é possível
                   excluir pedidos com minutas ou contas a receber — nesse caso, cancele o pedido.
                 </p>
               </div>
             </div>
-            {excluirErro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{excluirErro}</p>}
+            {excluirErro && <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{excluirErro}</p>}
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setExcluirOpen(false)} disabled={loading}>Cancelar</Button>
               <Button onClick={excluirPedido} disabled={loading} className="bg-red-600 hover:bg-red-700 font-semibold">
@@ -1534,36 +1534,36 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           onClick={() => setBlockModal(null)}
         >
           <div
-            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-6 max-w-md w-full space-y-4"
+            className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-md w-full space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              <div className="w-9 h-9 rounded-full bg-warning/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-warning" />
               </div>
               <div>
-                <h3 className="font-bold text-gray-800">Não é possível concluir o pedido</h3>
-                <p className="text-sm text-gray-600 mt-0.5">{blockModal.msg}</p>
+                <h3 className="font-bold text-foreground">Não é possível concluir o pedido</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">{blockModal.msg}</p>
               </div>
             </div>
             {blockModal.pendentes.length > 0 && (
-              <div className="rounded-lg border border-gray-200 overflow-hidden">
+              <div className="rounded-lg border border-border overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                    <tr className="bg-muted text-xs text-muted-foreground uppercase tracking-wide">
                       <th className="text-left px-3 py-2 font-semibold">Item</th>
                       <th className="text-right px-3 py-2 font-semibold">Falta entregar</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-border">
                     {blockModal.pendentes.map((p) => (
                       <tr key={p.codigo}>
                         <td className="px-3 py-2">
-                          <div className="font-medium text-gray-800">{p.descricao}</div>
-                          <div className="text-xs text-gray-400">{p.codigo}</div>
+                          <div className="font-medium text-foreground">{p.descricao}</div>
+                          <div className="text-xs text-muted-foreground">{p.codigo}</div>
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-amber-700">
-                          {fmtNum(p.pendente)} <span className="text-gray-400 text-xs font-normal">{p.unidade}</span>
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-warning">
+                          {fmtNum(p.pendente)} <span className="text-muted-foreground text-xs font-normal">{p.unidade}</span>
                         </td>
                       </tr>
                     ))}

@@ -20,20 +20,20 @@ interface DashData {
 }
 
 const ESTADO = [
-  { k: "UMIDO", l: "Úmido", c: "bg-blue-50 text-blue-700" },
-  { k: "SECO", l: "Seco", c: "bg-amber-50 text-amber-700" },
-  { k: "QUEIMADO", l: "Queimado", c: "bg-rose-50 text-rose-700" },
-  { k: "ACABADO", l: "Acabado", c: "bg-emerald-50 text-emerald-700" },
+  { k: "UMIDO", l: "Úmido", c: "bg-info/10 text-info" },
+  { k: "SECO", l: "Seco", c: "bg-warning/10 text-warning" },
+  { k: "QUEIMADO", l: "Queimado", c: "bg-danger/10 text-danger" },
+  { k: "ACABADO", l: "Acabado", c: "bg-success/10 text-success" },
 ];
 function Kpi({ label, value, sub, icon: Icon, color }: { label: string; value: string; sub?: string; icon: typeof Factory; color: string }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
+    <div className="rounded-xl border border-border bg-card p-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-400">{label}</p>
+        <p className="text-xs text-muted-foreground">{label}</p>
         <span className={cn("flex w-7 h-7 items-center justify-center rounded-lg", color)}><Icon className="w-4 h-4" /></span>
       </div>
-      <p className="text-2xl font-semibold text-gray-900 mt-1">{value}</p>
-      {sub && <p className="text-[11px] text-gray-400 mt-0.5">{sub}</p>}
+      <p className="text-2xl font-semibold text-foreground mt-1">{value}</p>
+      {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -68,8 +68,8 @@ export default function PcpDashboardPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) return <div className="flex items-center justify-center h-full text-gray-400 gap-2 text-sm"><RefreshCw className="w-4 h-4 animate-spin" /> Carregando…</div>;
-  if (erro || !d) return <div className="flex flex-col items-center justify-center h-full gap-2"><AlertTriangle className="w-7 h-7 text-amber-400" /><p className="text-sm text-gray-600">{erro ?? "Sem dados"}</p></div>;
+  if (loading) return <div className="flex items-center justify-center h-full text-muted-foreground gap-2 text-sm"><RefreshCw className="w-4 h-4 animate-spin" /> Carregando…</div>;
+  if (erro || !d) return <div className="flex flex-col items-center justify-center h-full gap-2"><AlertTriangle className="w-7 h-7 text-amber-400" /><p className="text-sm text-muted-foreground">{erro ?? "Sem dados"}</p></div>;
 
   const opAbertas = (d.ordens.LIBERADA ?? 0) + (d.ordens.EM_PRODUCAO ?? 0);
   const totalPerda = d.perdasPorEtapa.reduce((a, p) => a + p.perda, 0);
@@ -93,25 +93,25 @@ export default function PcpDashboardPage() {
         title="Dashboard do PCP"
         subtitle="Indicadores de produção: perdas, biomassa, WIP por estágio, necessidades e capacidade do forno."
         breadcrumbs={[{ label: "PCP" }, { label: "Dashboard" }]}
-        action={<button onClick={load} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Atualizar</button>}
+        action={<button onClick={load} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted"><RefreshCw className="w-4 h-4" /> Atualizar</button>}
       />
 
       <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8 space-y-4">
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Kpi label="Ordens abertas" value={String(opAbertas)} sub={`${d.ordens.CONCLUIDA ?? 0} concluídas`} icon={Factory} color="bg-cyan-50 text-cyan-600" />
-          <Kpi label="Perda total" value={String(Math.round(totalPerda))} sub="soma das etapas" icon={AlertTriangle} color="bg-rose-50 text-rose-600" />
-          <Kpi label="Biomassa/milheiro" value={d.biomassa.porMilheiro != null ? `${d.biomassa.porMilheiro} kg` : "—"} sub={`${Math.round(d.biomassa.kg)} kg total`} icon={Flame} color="bg-amber-50 text-amber-600" />
-          <Kpi label="A comprar (MRP)" value={String(Math.round(d.mrp.totalAComprar))} sub={`${d.mrp.porCategoria.length} categoria(s)`} icon={ShoppingCart} color="bg-blue-50 text-blue-600" />
+          <Kpi label="Perda total" value={String(Math.round(totalPerda))} sub="soma das etapas" icon={AlertTriangle} color="bg-danger/10 text-danger" />
+          <Kpi label="Biomassa/milheiro" value={d.biomassa.porMilheiro != null ? `${d.biomassa.porMilheiro} kg` : "—"} sub={`${Math.round(d.biomassa.kg)} kg total`} icon={Flame} color="bg-warning/10 text-warning" />
+          <Kpi label="A comprar (MRP)" value={String(Math.round(d.mrp.totalAComprar))} sub={`${d.mrp.porCategoria.length} categoria(s)`} icon={ShoppingCart} color="bg-info/10 text-info" />
           <Kpi label="Demanda planejada" value={`${d.demandaTotalMilheiros}`} sub="milheiros (MPS)" icon={Layers} color="bg-violet-50 text-violet-600" />
         </div>
 
         {/* Produção por estágio */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {ESTADO.map((e) => (
-            <div key={e.k} className="rounded-xl border border-gray-200 bg-white p-3">
-              <p className="text-xs text-gray-400">Produzido — {e.l}</p>
-              <p className="text-xl font-semibold text-gray-800 mt-0.5">{Math.round(d.producaoPorEstado[e.k] ?? 0)}</p>
+            <div key={e.k} className="rounded-xl border border-border bg-card p-3">
+              <p className="text-xs text-muted-foreground">Produzido — {e.l}</p>
+              <p className="text-xl font-semibold text-foreground mt-0.5">{Math.round(d.producaoPorEstado[e.k] ?? 0)}</p>
               <span className={cn("inline-block mt-1 rounded px-1.5 py-0.5 text-[10px] font-medium", e.c)}>{e.l}</span>
             </div>
           ))}
@@ -119,10 +119,10 @@ export default function PcpDashboardPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {/* Perdas por etapa */}
-          <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Perdas por etapa</h3>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <h3 className="text-sm font-semibold text-foreground mb-2">Perdas por etapa</h3>
             {d.perdasPorEtapa.length === 0 ? (
-              <p className="text-xs text-gray-400 py-8 text-center">Sem perdas registradas ainda.</p>
+              <p className="text-xs text-muted-foreground py-8 text-center">Sem perdas registradas ainda.</p>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={d.perdasPorEtapa} margin={{ left: -10 }}>
@@ -137,15 +137,15 @@ export default function PcpDashboardPage() {
           </div>
 
           {/* Simulação de capacidade do forno (gargalo) */}
-          <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5"><Gauge className="w-4 h-4 text-cyan-500" /> Simulação de capacidade do forno</h3>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5"><Gauge className="w-4 h-4 text-cyan-500" /> Simulação de capacidade do forno</h3>
             {d.fornos.length === 0 ? (
-              <p className="text-xs text-gray-400 py-4">Cadastre um centro de trabalho do tipo <strong>Forno</strong> (com capacidade/ciclo) para simular.</p>
+              <p className="text-xs text-muted-foreground py-4">Cadastre um centro de trabalho do tipo <strong>Forno</strong> (com capacidade/ciclo) para simular.</p>
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   <div>
-                    <label className="block text-[11px] text-gray-500 mb-0.5">Forno</label>
+                    <label className="block text-[11px] text-muted-foreground mb-0.5">Forno</label>
                     <ComboboxWithCreate
                       value={fornoId}
                       onChange={(v) => setFornoId(v)}
@@ -155,21 +155,21 @@ export default function PcpDashboardPage() {
                     />
                   </div>
                   <div className="grid grid-cols-3 gap-1.5">
-                    <div><label className="block text-[11px] text-gray-500 mb-0.5">Ciclo (h)</label><input className="w-full rounded border border-gray-200 px-2 py-1 text-sm text-right" inputMode="decimal" value={cicloH} onChange={(e) => setCicloH(e.target.value)} /></div>
-                    <div><label className="block text-[11px] text-gray-500 mb-0.5">h/dia</label><input className="w-full rounded border border-gray-200 px-2 py-1 text-sm text-right" inputMode="decimal" value={horasDia} onChange={(e) => setHorasDia(e.target.value)} /></div>
-                    <div><label className="block text-[11px] text-gray-500 mb-0.5">Dias</label><input className="w-full rounded border border-gray-200 px-2 py-1 text-sm text-right" inputMode="decimal" value={horizonte} onChange={(e) => setHorizonte(e.target.value)} /></div>
+                    <div><label className="block text-[11px] text-muted-foreground mb-0.5">Ciclo (h)</label><input className="w-full rounded border border-border px-2 py-1 text-sm text-right" inputMode="decimal" value={cicloH} onChange={(e) => setCicloH(e.target.value)} /></div>
+                    <div><label className="block text-[11px] text-muted-foreground mb-0.5">h/dia</label><input className="w-full rounded border border-border px-2 py-1 text-sm text-right" inputMode="decimal" value={horasDia} onChange={(e) => setHorasDia(e.target.value)} /></div>
+                    <div><label className="block text-[11px] text-muted-foreground mb-0.5">Dias</label><input className="w-full rounded border border-border px-2 py-1 text-sm text-right" inputMode="decimal" value={horizonte} onChange={(e) => setHorizonte(e.target.value)} /></div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded-lg bg-gray-50 p-2"><p className="text-[11px] text-gray-400">Demanda</p><p className="font-semibold text-gray-800">{d.demandaTotalMilheiros} milheiros</p></div>
-                  <div className="rounded-lg bg-gray-50 p-2"><p className="text-[11px] text-gray-400">Ciclos de forno</p><p className="font-semibold text-gray-800">{ciclos}</p></div>
-                  <div className="rounded-lg bg-gray-50 p-2"><p className="text-[11px] text-gray-400">Horas de forno</p><p className="font-semibold text-gray-800">{fornoHoras} h (~{diasForno.toFixed(1)} dias)</p></div>
-                  <div className={cn("rounded-lg p-2", cabe ? "bg-emerald-50" : "bg-rose-50")}>
-                    <p className="text-[11px] text-gray-400">Ocupação no horizonte</p>
-                    <p className={cn("font-semibold", cabe ? "text-emerald-700" : "text-rose-700")}>{ocupacao.toFixed(0)}% {cabe ? "✓ cabe" : "✗ não cabe"}</p>
+                  <div className="rounded-lg bg-muted p-2"><p className="text-[11px] text-muted-foreground">Demanda</p><p className="font-semibold text-foreground">{d.demandaTotalMilheiros} milheiros</p></div>
+                  <div className="rounded-lg bg-muted p-2"><p className="text-[11px] text-muted-foreground">Ciclos de forno</p><p className="font-semibold text-foreground">{ciclos}</p></div>
+                  <div className="rounded-lg bg-muted p-2"><p className="text-[11px] text-muted-foreground">Horas de forno</p><p className="font-semibold text-foreground">{fornoHoras} h (~{diasForno.toFixed(1)} dias)</p></div>
+                  <div className={cn("rounded-lg p-2", cabe ? "bg-success/10" : "bg-danger/10")}>
+                    <p className="text-[11px] text-muted-foreground">Ocupação no horizonte</p>
+                    <p className={cn("font-semibold", cabe ? "text-success" : "text-danger")}>{ocupacao.toFixed(0)}% {cabe ? "✓ cabe" : "✗ não cabe"}</p>
                   </div>
                 </div>
-                <p className="text-[11px] text-gray-400 mt-2">Estimativa de capacidade (RCCP) no gargalo: ciclos = demanda ÷ capacidade; ocupação = horas de forno ÷ (dias × h/dia).</p>
+                <p className="text-[11px] text-muted-foreground mt-2">Estimativa de capacidade (RCCP) no gargalo: ciclos = demanda ÷ capacidade; ocupação = horas de forno ÷ (dias × h/dia).</p>
               </>
             )}
           </div>
@@ -177,11 +177,11 @@ export default function PcpDashboardPage() {
 
         {/* Fila por centro */}
         {d.filaPorCentro.length > 0 && (
-          <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Fila por centro de trabalho</h3>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <h3 className="text-sm font-semibold text-foreground mb-2">Fila por centro de trabalho</h3>
             <div className="flex flex-wrap gap-2">
               {d.filaPorCentro.map((f) => (
-                <span key={f.centro} className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-700">
+                <span key={f.centro} className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-sm text-foreground">
                   {f.centro} <span className="font-semibold text-cyan-700">{f.count}</span>
                 </span>
               ))}

@@ -71,7 +71,7 @@ export default function AjudaPcpPage() {
         {/* Intro */}
         <div className="rounded-xl border border-cyan-200 bg-cyan-50/50 p-4 flex items-start gap-3">
           <BookOpen className="w-5 h-5 text-cyan-600 mt-0.5 shrink-0" />
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-foreground">
             O <strong>PCP</strong> organiza a produção da matéria-prima ao produto acabado, com o
             <strong> forno como o ponto central</strong>. Você desenha o processo, define a receita de
             cada produto, planeja a demanda, abre ordens, aponta no chão e acompanha os números — com
@@ -81,13 +81,13 @@ export default function AjudaPcpPage() {
 
         {/* Primeiros passos */}
         <section>
-          <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wide mb-3">Primeiros passos (configure uma vez, nesta ordem)</h2>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wide mb-3">Primeiros passos (configure uma vez, nesta ordem)</h2>
           <div className="space-y-1.5">
             {PASSOS.map((p) => (
-              <Link key={p.n} href={p.href ?? "#"} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 hover:border-cyan-300 group">
+              <Link key={p.n} href={p.href ?? "#"} className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 hover:border-cyan-300 group">
                 <span className="flex w-6 h-6 items-center justify-center rounded-full bg-cyan-600 text-white text-xs font-bold shrink-0">{p.n}</span>
-                <span className="text-sm text-gray-700 flex-1">{p.t}</span>
-                <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-cyan-500" />
+                <span className="text-sm text-foreground flex-1">{p.t}</span>
+                <ArrowRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-cyan-500" />
               </Link>
             ))}
           </div>
@@ -95,12 +95,12 @@ export default function AjudaPcpPage() {
 
         {/* Glossário */}
         <section>
-          <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wide mb-3">Conceitos-chave</h2>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wide mb-3">Conceitos-chave</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {GLOSSARIO.map((g) => (
-              <div key={g.t} className="rounded-lg border border-gray-200 bg-white p-3">
-                <p className="text-sm font-semibold text-gray-800">{g.t}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{g.d}</p>
+              <div key={g.t} className="rounded-lg border border-border bg-card p-3">
+                <p className="text-sm font-semibold text-foreground">{g.t}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{g.d}</p>
               </div>
             ))}
           </div>
@@ -108,14 +108,14 @@ export default function AjudaPcpPage() {
 
         {/* Tela a tela */}
         <section>
-          <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wide mb-3">Tela a tela</h2>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wide mb-3">Tela a tela</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {TELAS.map((t) => (
-              <Link key={t.href} href={t.href} className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-3 hover:border-cyan-300 group">
+              <Link key={t.href} href={t.href} className="flex items-start gap-3 rounded-lg border border-border bg-card p-3 hover:border-cyan-300 group">
                 <span className="flex w-8 h-8 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600 shrink-0"><t.icon className="w-4 h-4" /></span>
                 <span className="min-w-0">
-                  <span className="text-sm font-semibold text-gray-800 group-hover:text-cyan-700 flex items-center gap-1">{t.t}<ArrowRight className="w-3 h-3 text-gray-300 group-hover:text-cyan-500" /></span>
-                  <span className="block text-xs text-gray-500 mt-0.5">{t.d}</span>
+                  <span className="text-sm font-semibold text-foreground group-hover:text-cyan-700 flex items-center gap-1">{t.t}<ArrowRight className="w-3 h-3 text-muted-foreground/60 group-hover:text-cyan-500" /></span>
+                  <span className="block text-xs text-muted-foreground mt-0.5">{t.d}</span>
                 </span>
               </Link>
             ))}
@@ -124,12 +124,12 @@ export default function AjudaPcpPage() {
 
         {/* Caminho completo */}
         <section>
-          <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wide mb-3">O caminho completo (exemplo)</h2>
-          <ol className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100">
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wide mb-3">O caminho completo (exemplo)</h2>
+          <ol className="rounded-xl border border-border bg-card divide-y divide-border">
             {CAMINHO.map((c, i) => (
               <li key={i} className="flex items-start gap-3 px-4 py-2.5">
-                <span className="flex w-5 h-5 items-center justify-center rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold shrink-0 mt-0.5">{i + 1}</span>
-                <span className="text-sm text-gray-700">{c}</span>
+                <span className="flex w-5 h-5 items-center justify-center rounded-full bg-muted text-muted-foreground text-[11px] font-semibold shrink-0 mt-0.5">{i + 1}</span>
+                <span className="text-sm text-foreground">{c}</span>
               </li>
             ))}
           </ol>
@@ -137,18 +137,18 @@ export default function AjudaPcpPage() {
 
         {/* FAQ */}
         <section>
-          <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wide mb-3">Dúvidas frequentes</h2>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wide mb-3">Dúvidas frequentes</h2>
           <div className="space-y-2">
             {FAQ.map((f) => (
-              <div key={f.q} className="rounded-lg border border-gray-200 bg-white p-3">
-                <p className="text-sm font-medium text-gray-800 flex items-start gap-1.5"><Lightbulb className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" /> {f.q}</p>
-                <p className="text-xs text-gray-500 mt-1 ml-5">{f.a}</p>
+              <div key={f.q} className="rounded-lg border border-border bg-card p-3">
+                <p className="text-sm font-medium text-foreground flex items-start gap-1.5"><Lightbulb className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" /> {f.q}</p>
+                <p className="text-xs text-muted-foreground mt-1 ml-5">{f.a}</p>
               </div>
             ))}
           </div>
         </section>
 
-        <p className="text-[11px] text-gray-400">Guia completo também disponível no repositório em <code>docs/pcp/GUIA.md</code>.</p>
+        <p className="text-[11px] text-muted-foreground">Guia completo também disponível no repositório em <code>docs/pcp/GUIA.md</code>.</p>
       </div>
     </div>
   );

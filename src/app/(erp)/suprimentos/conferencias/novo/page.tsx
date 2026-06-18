@@ -85,9 +85,9 @@ type ItemRow = {
 };
 
 function getItemStatus(pedida: number, recebida: number): { label: string; cls: string } {
-  if (recebida === 0) return { label: "Faltante", cls: "bg-red-100 text-red-700" };
-  if (Math.abs(pedida - recebida) > 0.001) return { label: "Divergência", cls: "bg-amber-100 text-amber-700" };
-  return { label: "OK", cls: "bg-green-100 text-green-700" };
+  if (recebida === 0) return { label: "Faltante", cls: "bg-danger/15 text-danger" };
+  if (Math.abs(pedida - recebida) > 0.001) return { label: "Divergência", cls: "bg-warning/15 text-warning" };
+  return { label: "OK", cls: "bg-success/15 text-success" };
 }
 
 function makeKey() {
@@ -153,11 +153,11 @@ function ProdSearchCell({
   const dropdown = open && mounted && pos
     ? createPortal(
         <div
-          className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+          className="fixed z-[9999] bg-card border border-border rounded-xl shadow-lg overflow-hidden"
           style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: 220, overflowY: "auto" }}
         >
           {filtered.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-gray-400 italic">Nenhum resultado.</p>
+            <p className="px-3 py-2 text-xs text-muted-foreground italic">Nenhum resultado.</p>
           ) : filtered.map((p) => (
             <button
               key={p.id}
@@ -167,10 +167,10 @@ function ProdSearchCell({
                 setQuery(p.descricao);
                 setOpen(false);
               }}
-              className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-0"
+              className="w-full text-left px-3 py-2 text-xs hover:bg-muted border-b border-gray-50 last:border-0"
             >
-              <span className="font-mono text-gray-500 mr-2">{p.codigo}</span>
-              <span className="font-medium text-gray-900">{p.descricao}</span>
+              <span className="font-mono text-muted-foreground mr-2">{p.codigo}</span>
+              <span className="font-medium text-foreground">{p.descricao}</span>
             </button>
           ))}
         </div>,
@@ -202,7 +202,7 @@ function ProdSearchCell({
         }}
         onFocus={openDrop}
         placeholder="Buscar produto..."
-        className="w-full h-8 px-2 text-xs border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full h-8 px-2 text-xs border border-border rounded-md bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       {dropdown}
     </>
@@ -698,7 +698,7 @@ export default function NovoDocumentoEntradaPage() {
                   // Vinculado: azul sólido (vínculo ativo)
                   ? "border-blue-600 bg-blue-600 text-white hover:bg-blue-700 hover:text-white"
                   // Sem vínculo: azul claro (clicável, mas nada vinculado ainda)
-                  : "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                  : "border-blue-300 bg-info/10 text-info hover:bg-info/15 hover:text-info"
               )}
             >
               <Link2 className="w-3.5 h-3.5" />
@@ -715,18 +715,18 @@ export default function NovoDocumentoEntradaPage() {
             </Button>
 
             {pcPopoverOpen && (
-              <div className="absolute right-0 top-full mt-2 z-50 w-96 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
+              <div className="absolute right-0 top-full mt-2 z-50 w-96 bg-card rounded-xl border border-border shadow-xl overflow-hidden">
                 {/* Search */}
-                <div className="p-3 border-b border-gray-100">
+                <div className="p-3 border-b border-border">
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                     <input
                       autoFocus
                       type="text"
                       value={pedidoSearch}
                       onChange={(e) => setPedidoSearch(e.target.value)}
                       placeholder="Buscar PC… (ou escolha um abaixo)"
-                      className="w-full pl-8 pr-3 h-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full pl-8 pr-3 h-8 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
@@ -745,14 +745,14 @@ export default function NovoDocumentoEntradaPage() {
 
                 {/* Linked summary */}
                 {vinculadoPedido && (
-                  <div className="px-4 py-2.5 bg-blue-50 border-t border-blue-100 flex items-center justify-between">
-                    <span className="text-xs font-medium text-blue-700 flex items-center gap-1">
+                  <div className="px-4 py-2.5 bg-info/10 border-t border-info/20 flex items-center justify-between">
+                    <span className="text-xs font-medium text-info flex items-center gap-1">
                       <Link2 className="w-3 h-3" /> {vinculadoPedido.numero}
                     </span>
                     <Link
                       href={`/suprimentos/pedidos-compra/${vinculadoPedido.id}`}
                       target="_blank"
-                      className="text-xs text-blue-600 hover:underline flex items-center gap-0.5"
+                      className="text-xs text-info hover:underline flex items-center gap-0.5"
                     >
                       Abrir <ExternalLink className="w-3 h-3" />
                     </Link>
@@ -766,30 +766,30 @@ export default function NovoDocumentoEntradaPage() {
 
       <div className="px-8 pb-8 max-w-6xl space-y-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">
             {error}
           </div>
         )}
 
         {/* ── Anti-duplicidade: PCs compatíveis ────────────────────────────── */}
         {!vinculadoPedido && !avulsoConfirmed && pcMatchLoading && pcMatches.length === 0 && (
-          <div className="text-xs text-gray-400 flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 border-2 border-border border-t-transparent rounded-full animate-spin" />
             Verificando Pedidos de Compra compatíveis…
           </div>
         )}
 
         {!vinculadoPedido && !avulsoConfirmed && pcMatches.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+          <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 space-y-3">
             <div className="flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-              <div className="text-sm text-amber-800">
+              <AlertTriangle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
+              <div className="text-sm text-warning">
                 <p className="font-medium">
                   {pcMatches.length === 1
                     ? "Encontramos 1 Pedido de Compra compatível com este documento."
                     : `Encontramos ${pcMatches.length} Pedidos de Compra compatíveis com este documento.`}
                 </p>
-                <p className="text-xs text-amber-700 mt-0.5">
+                <p className="text-xs text-warning mt-0.5">
                   Mesmo fornecedor e itens em comum. Vincule um deles para dar baixa automática na Solicitação e no Pedido, ou confirme que este é um documento avulso.
                 </p>
               </div>
@@ -799,19 +799,19 @@ export default function NovoDocumentoEntradaPage() {
               {pcMatches.map((m) => (
                 <div
                   key={m.id}
-                  className="flex items-center justify-between gap-3 bg-white border border-amber-100 rounded-lg px-3 py-2"
+                  className="flex items-center justify-between gap-3 bg-card border border-amber-100 rounded-lg px-3 py-2"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono font-semibold text-gray-800 text-sm">{m.numero}</span>
+                      <span className="font-mono font-semibold text-foreground text-sm">{m.numero}</span>
                       {m.necessidadeNumero && (
-                        <span className="text-xs text-gray-500">SC {m.necessidadeNumero}</span>
+                        <span className="text-xs text-muted-foreground">SC {m.necessidadeNumero}</span>
                       )}
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-warning/15 text-warning">
                         {m.matchCount} de {m.totalItens} {m.totalItens === 1 ? "item" : "itens"} em comum
                       </span>
                     </div>
-                    <p className="text-xs text-gray-400 truncate">
+                    <p className="text-xs text-muted-foreground truncate">
                       {m.fornecedor.nomeFantasia || m.fornecedor.razaoSocial}
                     </p>
                   </div>
@@ -819,7 +819,7 @@ export default function NovoDocumentoEntradaPage() {
                     <Link
                       href={`/suprimentos/pedidos-compra/${m.id}`}
                       target="_blank"
-                      className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-0.5"
+                      className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5"
                     >
                       Abrir <ExternalLink className="w-3 h-3" />
                     </Link>
@@ -847,7 +847,7 @@ export default function NovoDocumentoEntradaPage() {
               <button
                 type="button"
                 onClick={() => setAvulsoConfirmed(true)}
-                className="text-xs text-amber-700 hover:text-amber-900 underline"
+                className="text-xs text-warning hover:text-amber-900 underline"
               >
                 Não, este é um documento avulso
               </button>
@@ -856,12 +856,12 @@ export default function NovoDocumentoEntradaPage() {
         )}
 
         {!vinculadoPedido && avulsoConfirmed && (
-          <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-500">
+          <div className="flex items-center justify-between bg-muted border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground">
             <span>Documento avulso — sem vínculo com Pedido de Compra.</span>
             <button
               type="button"
               onClick={() => setAvulsoConfirmed(false)}
-              className="text-gray-400 hover:text-gray-600 underline"
+              className="text-muted-foreground hover:text-muted-foreground underline"
             >
               Revisar
             </button>
@@ -877,11 +877,11 @@ export default function NovoDocumentoEntradaPage() {
 
             {/* Tipo de Documento */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Tipo de Documento</Label>
+              <Label className="text-xs text-muted-foreground">Tipo de Documento</Label>
               <select
                 value={tipoDocumento}
                 onChange={(e) => setTipoDocumento(e.target.value as "NF" | "SN")}
-                className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-9 px-3 border border-border rounded-md text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="NF">NF — Nota Fiscal</option>
                 <option value="SN">SN — Sem Nota</option>
@@ -890,7 +890,7 @@ export default function NovoDocumentoEntradaPage() {
 
             {/* Número NF */}
             <div className="space-y-1.5">
-              <Label className={cn("text-xs", isSN ? "text-gray-300" : "text-gray-500")}>
+              <Label className={cn("text-xs", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
                 Número NF
                 {isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
               </Label>
@@ -899,13 +899,13 @@ export default function NovoDocumentoEntradaPage() {
                 onChange={(e) => setNumeroNF(e.target.value)}
                 placeholder={isSN ? "—" : "000000"}
                 disabled={isSN}
-                className={isSN ? "bg-gray-50 text-gray-300 cursor-not-allowed" : ""}
+                className={isSN ? "bg-muted text-muted-foreground/60 cursor-not-allowed" : ""}
               />
             </div>
 
             {/* Série */}
             <div className="space-y-1.5">
-              <Label className={cn("text-xs", isSN ? "text-gray-300" : "text-gray-500")}>
+              <Label className={cn("text-xs", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
                 Série
                 {isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
               </Label>
@@ -914,13 +914,13 @@ export default function NovoDocumentoEntradaPage() {
                 onChange={(e) => setSerie(e.target.value)}
                 placeholder={isSN ? "—" : "1"}
                 disabled={isSN}
-                className={isSN ? "bg-gray-50 text-gray-300 cursor-not-allowed" : ""}
+                className={isSN ? "bg-muted text-muted-foreground/60 cursor-not-allowed" : ""}
               />
             </div>
 
             {/* DT Emissão */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">DT Emissão</Label>
+              <Label className="text-xs text-muted-foreground">DT Emissão</Label>
               <Input
                 type="date"
                 value={dtEmissao}
@@ -930,7 +930,7 @@ export default function NovoDocumentoEntradaPage() {
 
             {/* Espécie de Documento */}
             <div className="space-y-1.5">
-              <Label className={cn("text-xs", isSN ? "text-gray-300" : "text-gray-500")}>
+              <Label className={cn("text-xs", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
                 Espécie de Documento
                 {isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
               </Label>
@@ -939,13 +939,13 @@ export default function NovoDocumentoEntradaPage() {
                 onChange={(e) => setEspDocumento(e.target.value)}
                 placeholder={isSN ? "—" : "SPED"}
                 disabled={isSN}
-                className={isSN ? "bg-gray-50 text-gray-300 cursor-not-allowed" : ""}
+                className={isSN ? "bg-muted text-muted-foreground/60 cursor-not-allowed" : ""}
               />
             </div>
 
             {/* UF Origem */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">UF Origem</Label>
+              <Label className="text-xs text-muted-foreground">UF Origem</Label>
               <ComboboxWithCreate
                 value={ufOrigem}
                 onChange={(v) => setUfOrigem(v)}
@@ -958,8 +958,8 @@ export default function NovoDocumentoEntradaPage() {
 
             {/* Loja (read-only) */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Loja</Label>
-              <Input value="01" readOnly className="bg-gray-50" />
+              <Label className="text-xs text-muted-foreground">Loja</Label>
+              <Input value="01" readOnly className="bg-muted" />
             </div>
           </CardContent>
         </Card>
@@ -972,7 +972,7 @@ export default function NovoDocumentoEntradaPage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1.5 md:col-span-2">
-                <Label className="text-xs text-gray-500">
+                <Label className="text-xs text-muted-foreground">
                   Fornecedor <span className="text-red-500">*</span>
                 </Label>
                 <ComboboxWithCreate
@@ -992,11 +992,11 @@ export default function NovoDocumentoEntradaPage() {
 
               {selectedFornecedor && (
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">CNPJ / CPF</Label>
+                  <Label className="text-xs text-muted-foreground">CNPJ / CPF</Label>
                   <Input
                     value={selectedFornecedor.cpfCnpj ?? "—"}
                     readOnly
-                    className="bg-gray-50 font-mono"
+                    className="bg-muted font-mono"
                   />
                 </div>
               )}
@@ -1013,16 +1013,16 @@ export default function NovoDocumentoEntradaPage() {
             <div className="flex flex-wrap items-start gap-6">
               {/* Toggle */}
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">Modo de entrada</Label>
-                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+                <Label className="text-xs text-muted-foreground">Modo de entrada</Label>
+                <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
                   <button
                     type="button"
                     onClick={() => handleModoChange("GLOBAL")}
                     className={cn(
                       "px-3 py-1.5 rounded-md text-xs font-medium transition-all",
                       modoLocalEstoque === "GLOBAL"
-                        ? "bg-white text-gray-900 shadow-sm"
-                        : "text-gray-500 hover:text-gray-700"
+                        ? "bg-card text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
                   >
                     Global
@@ -1033,8 +1033,8 @@ export default function NovoDocumentoEntradaPage() {
                     className={cn(
                       "px-3 py-1.5 rounded-md text-xs font-medium transition-all",
                       modoLocalEstoque === "POR_ITEM"
-                        ? "bg-white text-gray-900 shadow-sm"
-                        : "text-gray-500 hover:text-gray-700"
+                        ? "bg-card text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
                   >
                     Por Item
@@ -1045,7 +1045,7 @@ export default function NovoDocumentoEntradaPage() {
               {/* Global selector */}
               {modoLocalEstoque === "GLOBAL" && (
                 <div className="space-y-1.5 flex-1 max-w-xs">
-                  <Label className="text-xs text-gray-500">
+                  <Label className="text-xs text-muted-foreground">
                     Local de Estoque <span className="text-red-500">*</span>
                   </Label>
                   <ComboboxWithCreate
@@ -1060,7 +1060,7 @@ export default function NovoDocumentoEntradaPage() {
               )}
 
               {modoLocalEstoque === "POR_ITEM" && (
-                <p className="text-xs text-gray-400 self-end pb-1.5">
+                <p className="text-xs text-muted-foreground self-end pb-1.5">
                   O local de estoque será definido individualmente para cada item na tabela abaixo.
                 </p>
               )}
@@ -1079,29 +1079,29 @@ export default function NovoDocumentoEntradaPage() {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-muted border-b border-border">
                   <tr>
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-8">#NF</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Produto</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs min-w-[180px]">Descrição</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs w-8">#NF</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Produto</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs min-w-[180px]">Descrição</th>
                     {modoLocalEstoque === "POR_ITEM" && (
-                      <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs min-w-[130px]">
+                      <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs min-w-[130px]">
                         Local Estoque <span className="text-red-500">*</span>
                       </th>
                     )}
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs w-14">U.M.</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Qtd. Pedida</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Qtd. Recebida</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Vlr. Unit.</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-20">% Desc.</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Vlr. Total</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Vlr. IPI</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs w-24">Vlr. ICMS</th>
-                    <th className="text-center px-3 py-2.5 font-medium text-gray-600 text-xs w-20">Status</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs w-14">U.M.</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Qtd. Pedida</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Qtd. Recebida</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Vlr. Unit.</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-20">% Desc.</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Vlr. Total</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Vlr. IPI</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Vlr. ICMS</th>
+                    <th className="text-center px-3 py-2.5 font-medium text-muted-foreground text-xs w-20">Status</th>
                     <th className="w-8" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {itens.map((row, idx) => {
                     const prodSearch = prodSearchMap[row._key] ?? row.descricao ?? "";
                     const qtdPedida   = parseFloat(row.quantidadePedida) || 0;
@@ -1109,11 +1109,11 @@ export default function NovoDocumentoEntradaPage() {
                     const itemStatus  = getItemStatus(qtdPedida, qtdRecebida);
 
                     return (
-                      <tr key={row._key} className="hover:bg-gray-50">
-                        <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
+                      <tr key={row._key} className="hover:bg-muted">
+                        <td className="px-3 py-2 text-xs text-muted-foreground">{idx + 1}</td>
 
                         {/* Produto — código */}
-                        <td className="px-3 py-2 font-mono text-xs text-gray-500">
+                        <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
                           {row.codigo || "—"}
                         </td>
 
@@ -1140,7 +1140,7 @@ export default function NovoDocumentoEntradaPage() {
                               value={row.localEstoqueId}
                               onChange={(v) => updateItem(row._key, "localEstoqueId", v)}
                               noneLabel="—"
-                              triggerClassName={cn("h-7 rounded text-xs", !row.localEstoqueId && "border-red-400 bg-red-50 text-red-700")}
+                              triggerClassName={cn("h-7 rounded text-xs", !row.localEstoqueId && "border-red-400 bg-danger/10 text-danger")}
                               options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
                             />
                           </td>
@@ -1148,7 +1148,7 @@ export default function NovoDocumentoEntradaPage() {
 
                         {/* U.M. */}
                         <td className="px-3 py-2">
-                          <span className="text-xs text-gray-500">{row.unidadeMedida || "—"}</span>
+                          <span className="text-xs text-muted-foreground">{row.unidadeMedida || "—"}</span>
                         </td>
 
                         {/* Qtd. Pedida */}
@@ -1199,7 +1199,7 @@ export default function NovoDocumentoEntradaPage() {
                               onChange={(e) => updateItemAndCalc(row._key, "desconto", e.target.value)}
                               className="w-20 text-right h-7 text-xs pr-5"
                             />
-                            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
                           </div>
                         </td>
 
@@ -1252,7 +1252,7 @@ export default function NovoDocumentoEntradaPage() {
                             <button
                               type="button"
                               onClick={() => removeRow(row._key)}
-                              className="text-gray-400 hover:text-red-500 transition-colors"
+                              className="text-muted-foreground hover:text-red-500 transition-colors"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -1275,28 +1275,28 @@ export default function NovoDocumentoEntradaPage() {
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">Vlr. Mercadoria</Label>
-                <Input value={formatBRL(vlrMercadoria)} readOnly className="bg-gray-50 text-right font-medium" />
+                <Label className="text-xs text-muted-foreground">Vlr. Mercadoria</Label>
+                <Input value={formatBRL(vlrMercadoria)} readOnly className="bg-muted text-right font-medium" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">Frete</Label>
+                <Label className="text-xs text-muted-foreground">Frete</Label>
                 <Input type="number" step="0.01" min="0" value={frete} onChange={(e) => setFrete(e.target.value)} placeholder="0,00" className="text-right" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">Seguro</Label>
+                <Label className="text-xs text-muted-foreground">Seguro</Label>
                 <Input type="number" step="0.01" min="0" value={seguro} onChange={(e) => setSeguro(e.target.value)} placeholder="0,00" className="text-right" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">Despesas</Label>
+                <Label className="text-xs text-muted-foreground">Despesas</Label>
                 <Input type="number" step="0.01" min="0" value={despesas} onChange={(e) => setDespesas(e.target.value)} placeholder="0,00" className="text-right" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">Desconto</Label>
+                <Label className="text-xs text-muted-foreground">Desconto</Label>
                 <Input type="number" step="0.01" min="0" value={desconto} onChange={(e) => setDesconto(e.target.value)} placeholder="0,00" className="text-right" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">Vlr. Bruto</Label>
-                <Input value={formatBRL(vlrBruto)} readOnly className="bg-blue-50 text-right font-bold text-blue-900 border-blue-200" />
+                <Label className="text-xs text-muted-foreground">Vlr. Bruto</Label>
+                <Input value={formatBRL(vlrBruto)} readOnly className="bg-info/10 text-right font-bold text-blue-900 border-info/30" />
               </div>
             </div>
           </CardContent>
@@ -1338,10 +1338,10 @@ export default function NovoDocumentoEntradaPage() {
       {/* ── Popup de escolha (vincular PC ou avulso) ──────────────────────── */}
       {choiceOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h2 className="text-base font-semibold text-gray-800">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <h2 className="text-base font-semibold text-foreground">
                 {choiceStep === "choose"
                   ? "Como deseja criar este documento?"
                   : "Vincular a um Pedido de Compra"}
@@ -1355,7 +1355,7 @@ export default function NovoDocumentoEntradaPage() {
                 <button
                   type="button"
                   onClick={closeCurrentTab}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-muted-foreground hover:text-muted-foreground"
                   aria-label="Fechar página"
                 >
                   <X className="w-4 h-4" />
@@ -1364,7 +1364,7 @@ export default function NovoDocumentoEntradaPage() {
                 <button
                   type="button"
                   onClick={() => { setChoiceStep("choose"); setPedidoSearch(""); }}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-muted-foreground hover:text-muted-foreground"
                   aria-label="Voltar"
                 >
                   <X className="w-4 h-4" />
@@ -1374,7 +1374,7 @@ export default function NovoDocumentoEntradaPage() {
 
             {choiceStep === "choose" ? (
               <div className="p-5 space-y-3">
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                   Para evitar registros duplicados, informe se esta entrada vem de um Pedido de Compra.
                 </p>
 
@@ -1382,14 +1382,14 @@ export default function NovoDocumentoEntradaPage() {
                 <button
                   type="button"
                   onClick={() => setChoiceStep("vincular")}
-                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-left transition-colors"
+                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-info/30 bg-info/10 hover:bg-info/15 text-left transition-colors"
                 >
-                  <Link2 className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                  <Link2 className="w-5 h-5 text-info mt-0.5 shrink-0" />
                   <span>
-                    <span className="block text-sm font-semibold text-blue-800">
+                    <span className="block text-sm font-semibold text-info">
                       Vincular a um Pedido de Compra
                     </span>
-                    <span className="block text-xs text-blue-700 mt-0.5">
+                    <span className="block text-xs text-info mt-0.5">
                       Puxa fornecedor e itens do PC e dá baixa automática na Solicitação e no Pedido ao concluir.
                     </span>
                   </span>
@@ -1399,14 +1399,14 @@ export default function NovoDocumentoEntradaPage() {
                 <button
                   type="button"
                   onClick={() => { setAvulsoConfirmed(true); closeChoice(); }}
-                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-left transition-colors"
+                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-border bg-card hover:bg-muted text-left transition-colors"
                 >
-                  <FileText className="w-5 h-5 text-gray-500 mt-0.5 shrink-0" />
+                  <FileText className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
                   <span>
-                    <span className="block text-sm font-semibold text-gray-800">
+                    <span className="block text-sm font-semibold text-foreground">
                       Não, é um documento avulso
                     </span>
-                    <span className="block text-xs text-gray-500 mt-0.5">
+                    <span className="block text-xs text-muted-foreground mt-0.5">
                       Entrada sem Pedido de Compra. Você preenche fornecedor e itens manualmente.
                     </span>
                   </span>
@@ -1415,16 +1415,16 @@ export default function NovoDocumentoEntradaPage() {
             ) : (
               <div>
                 {/* Search */}
-                <div className="p-4 border-b border-gray-100">
+                <div className="p-4 border-b border-border">
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                     <input
                       autoFocus
                       type="text"
                       value={pedidoSearch}
                       onChange={(e) => setPedidoSearch(e.target.value)}
                       placeholder="Buscar PC… (ou escolha um abaixo)"
-                      className="w-full pl-8 pr-3 h-9 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full pl-8 pr-3 h-9 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
@@ -1442,18 +1442,18 @@ export default function NovoDocumentoEntradaPage() {
                 />
 
                 {/* Footer */}
-                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
+                <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted">
                   <button
                     type="button"
                     onClick={() => { setChoiceStep("choose"); setPedidoSearch(""); }}
-                    className="text-xs text-gray-500 hover:text-gray-700"
+                    className="text-xs text-muted-foreground hover:text-foreground"
                   >
                     ← Voltar
                   </button>
                   <button
                     type="button"
                     onClick={() => { setAvulsoConfirmed(true); closeChoice(); }}
-                    className="text-xs text-gray-500 hover:text-gray-700 underline"
+                    className="text-xs text-muted-foreground hover:text-foreground underline"
                   >
                     É um documento avulso
                   </button>
@@ -1494,15 +1494,15 @@ function PcLinkList({
   return (
     <div className={cn(maxHeightClass, "overflow-y-auto")}>
       {loading && pedidoOptions.length === 0 ? (
-        <p className="px-4 py-4 text-xs text-gray-400 italic text-center">Carregando…</p>
+        <p className="px-4 py-4 text-xs text-muted-foreground italic text-center">Carregando…</p>
       ) : pedidoOptions.length === 0 ? (
-        <p className="px-4 py-4 text-xs text-gray-400 italic text-center">
+        <p className="px-4 py-4 text-xs text-muted-foreground italic text-center">
           {searchActive ? "Nenhum resultado." : "Nenhum Pedido de Compra em aberto para vincular."}
         </p>
       ) : pedidoGroups.map((g) => (
         <div key={g.nome}>
-          <div className="px-4 py-1.5 bg-gray-50 border-b border-gray-100">
-            <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+          <div className="px-4 py-1.5 bg-muted border-b border-border">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
               {g.nome}
             </span>
           </div>
@@ -1514,14 +1514,14 @@ function PcLinkList({
                   <button
                     type="button"
                     onClick={() => onSelect(p)}
-                    className="flex-1 flex items-center justify-between px-4 py-2.5 text-sm hover:bg-blue-50 text-left transition-colors"
+                    className="flex-1 flex items-center justify-between px-4 py-2.5 text-sm hover:bg-info/10 text-left transition-colors"
                   >
-                    <span className="font-mono font-semibold text-gray-800">{p.numero}</span>
+                    <span className="font-mono font-semibold text-foreground">{p.numero}</span>
                     <span className="flex items-center gap-2 text-xs">
-                      <span className="text-gray-400">
+                      <span className="text-muted-foreground">
                         {p.itens.length} {p.itens.length === 1 ? "item" : "itens"}
                       </span>
-                      <span className="font-semibold text-gray-700">
+                      <span className="font-semibold text-foreground">
                         {p.valorTotal != null ? formatBRL(decimalToNumber(p.valorTotal)) : "—"}
                       </span>
                     </span>
@@ -1529,20 +1529,20 @@ function PcLinkList({
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onToggleExpand(p.id); }}
-                    className="px-3 text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                    className="px-3 text-muted-foreground hover:text-muted-foreground hover:bg-muted"
                     aria-label={expanded ? "Ocultar itens" : "Ver itens"}
                   >
                     <ChevronRight className={cn("w-4 h-4 transition-transform", expanded && "rotate-90")} />
                   </button>
                 </div>
                 {expanded && (
-                  <ul className="px-4 pb-2.5 pt-0.5 bg-gray-50/60 space-y-1">
+                  <ul className="px-4 pb-2.5 pt-0.5 bg-muted/60 space-y-1">
                     {p.itens.map((it) => (
-                      <li key={it.id} className="flex items-baseline gap-2 text-xs text-gray-600">
-                        <span className="font-mono text-gray-400 shrink-0 w-24 text-right">
+                      <li key={it.id} className="flex items-baseline gap-2 text-xs text-muted-foreground">
+                        <span className="font-mono text-muted-foreground shrink-0 w-24 text-right">
                           {decimalToNumber(it.quantidade)} {it.item.unidadeMedida}
                         </span>
-                        <span className="font-mono text-gray-500 shrink-0">{it.item.codigo}</span>
+                        <span className="font-mono text-muted-foreground shrink-0">{it.item.codigo}</span>
                         <span className="truncate">{it.item.descricao}</span>
                       </li>
                     ))}

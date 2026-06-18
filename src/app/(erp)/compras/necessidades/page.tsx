@@ -66,15 +66,15 @@ const STATUS_OPTIONS = [
 
 // Column config: which statuses show in kanban and their accent colors
 const KANBAN_COLUMNS: { status: string; label: string; color: string; dot: string }[] = [
-  { status: "RASCUNHO",              label: "Rascunho",              color: "bg-gray-100 border-gray-200",      dot: "bg-gray-400" },
-  { status: "AGUARDANDO_APROVACAO",  label: "Aguard. Aprovação",     color: "bg-amber-50 border-amber-200",     dot: "bg-amber-400" },
-  { status: "APROVADA",              label: "Aprovada",              color: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-500" },
-  { status: "REJEITADA",             label: "Rejeitada",             color: "bg-red-50 border-red-200",         dot: "bg-red-500" },
-  { status: "EM_COTACAO",            label: "Em Cotação",            color: "bg-blue-50 border-blue-200",       dot: "bg-blue-500" },
+  { status: "RASCUNHO",              label: "Rascunho",              color: "bg-muted border-border",      dot: "bg-gray-400" },
+  { status: "AGUARDANDO_APROVACAO",  label: "Aguard. Aprovação",     color: "bg-warning/10 border-warning/30",     dot: "bg-amber-400" },
+  { status: "APROVADA",              label: "Aprovada",              color: "bg-success/10 border-success/30", dot: "bg-emerald-500" },
+  { status: "REJEITADA",             label: "Rejeitada",             color: "bg-danger/10 border-danger/30",         dot: "bg-red-500" },
+  { status: "EM_COTACAO",            label: "Em Cotação",            color: "bg-info/10 border-info/30",       dot: "bg-blue-500" },
   { status: "EM_PEDIDO",             label: "Em Pedido",             color: "bg-indigo-50 border-indigo-200",   dot: "bg-indigo-500" },
-  { status: "TOTALMENTE_ATENDIDA",   label: "Totalmente Atendida",   color: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-600" },
-  { status: "PARCIALMENTE_ATENDIDA", label: "Parcialmente Atendida", color: "bg-orange-50 border-orange-200",   dot: "bg-orange-500" },
-  { status: "CANCELADA",             label: "Cancelada",             color: "bg-gray-100 border-gray-300",      dot: "bg-gray-500" },
+  { status: "TOTALMENTE_ATENDIDA",   label: "Totalmente Atendida",   color: "bg-success/10 border-success/30", dot: "bg-emerald-600" },
+  { status: "PARCIALMENTE_ATENDIDA", label: "Parcialmente Atendida", color: "bg-warning/10 border-orange-200",   dot: "bg-orange-500" },
+  { status: "CANCELADA",             label: "Cancelada",             color: "bg-muted border-border",      dot: "bg-gray-500" },
 ];
 
 const SORT_OPTIONS = [
@@ -101,11 +101,11 @@ const GROUP_ICON: Record<string, typeof Building2> = {
 };
 
 const PRIORIDADE_LABEL: Record<number, { label: string; color: string }> = {
-  1: { label: "Muito Baixa", color: "text-gray-400" },
+  1: { label: "Muito Baixa", color: "text-muted-foreground" },
   2: { label: "Baixa",       color: "text-blue-400" },
   3: { label: "Média",       color: "text-amber-500" },
   4: { label: "Alta",        color: "text-orange-500" },
-  5: { label: "Crítica",     color: "text-red-600" },
+  5: { label: "Crítica",     color: "text-danger" },
 };
 
 // ── RecordChips ─────────────────────────────────────────────────────────────
@@ -126,14 +126,14 @@ function RecordChips({
   const [showAll, setShowAll] = useState(false);
   const sec = secondary ?? [];
   if (primary.length === 0 && sec.length === 0) {
-    return <span className="text-gray-300 text-xs">—</span>;
+    return <span className="text-muted-foreground/60 text-xs">—</span>;
   }
   const hasPrimary = primary.length > 0;
   const expanded   = showAll || !hasPrimary;
   const visiveis   = expanded ? [...primary, ...sec] : primary;
   const dimIds     = new Set(sec.map((s) => s.id));
   const chipClass  =
-    "inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 transition-colors";
+    "inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted hover:bg-info/10 border border-border hover:border-info/30 transition-colors";
   return (
     <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
       {visiveis.map((it) => (
@@ -142,7 +142,7 @@ function RecordChips({
           href={`${hrefBase}/${it.id}`}
           className={cn(chipClass, dimIds.has(it.id) && "opacity-50")}
         >
-          <span className="font-mono text-[10px] font-medium text-gray-600 hover:text-blue-700">{it.numero}</span>
+          <span className="font-mono text-[10px] font-medium text-muted-foreground hover:text-info">{it.numero}</span>
           <StatusBadge status={it.status} />
         </Link>
       ))}
@@ -150,7 +150,7 @@ function RecordChips({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setShowAll((s) => !s); }}
-          className="inline-flex items-center px-1.5 py-0.5 rounded border border-dashed border-gray-300 text-[10px] font-medium text-gray-400 hover:text-gray-600 hover:border-gray-400 transition-colors"
+          className="inline-flex items-center px-1.5 py-0.5 rounded border border-dashed border-border text-[10px] font-medium text-muted-foreground hover:text-muted-foreground hover:border-border transition-colors"
           title={`${sec.length} cancelado(s)/substituído(s)`}
         >
           {showAll ? "recolher" : `+${sec.length}`}
@@ -169,52 +169,52 @@ const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
   {
     id: "numero",
     label: "Número",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-28",
-    tdClass: "px-4 py-3 font-mono text-xs font-medium text-gray-900",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-28",
+    tdClass: "px-4 py-3 font-mono text-xs font-medium text-foreground",
     render: (n) => (
       <span className="flex items-center gap-1">
         {n.numero}
-        <ChevronRight className="w-3 h-3 text-gray-300" />
+        <ChevronRight className="w-3 h-3 text-muted-foreground/60" />
       </span>
     ),
   },
   {
     id: "descricao",
     label: "Descrição",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3",
     render: (n) => (
       <>
-        <p className="text-gray-800 truncate max-w-xs">{n.justificativa || <span className="text-gray-300 italic">Sem descrição</span>}</p>
-        {n.tipoCompra && <p className="text-xs text-gray-400 mt-0.5">{n.tipoCompra}</p>}
+        <p className="text-foreground truncate max-w-xs">{n.justificativa || <span className="text-muted-foreground/60 italic">Sem descrição</span>}</p>
+        {n.tipoCompra && <p className="text-xs text-muted-foreground mt-0.5">{n.tipoCompra}</p>}
       </>
     ),
   },
   {
     id: "solicitante",
     label: "Solicitante",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-32",
-    tdClass: "px-4 py-3 text-gray-600 truncate",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-32",
+    tdClass: "px-4 py-3 text-muted-foreground truncate",
     render: (n) => n.solicitante || "—",
   },
   {
     id: "setor",
     label: "Setor Solicitante",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-36",
-    tdClass: "px-4 py-3 text-gray-600 truncate text-sm",
-    render: (n) => n.setor?.nome ?? <span className="text-gray-300">—</span>,
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-36",
+    tdClass: "px-4 py-3 text-muted-foreground truncate text-sm",
+    render: (n) => n.setor?.nome ?? <span className="text-muted-foreground/60">—</span>,
   },
   {
     id: "status",
     label: "Status",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-36",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-36",
     tdClass: "px-4 py-3",
     render: (n) => <StatusBadge status={n.status} />,
   },
   {
     id: "prioridade",
     label: "Prioridade",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-28",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-28",
     tdClass: "px-4 py-3",
     render: (n) => {
       const prio = PRIORIDADE_LABEL[n.prioridade];
@@ -224,34 +224,34 @@ const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
   {
     id: "data",
     label: "Data",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-32",
-    tdClass: "px-4 py-3 text-gray-500 text-xs",
-    render: (n) => n.dataNecessidade ? formatDate(n.dataNecessidade) : <span className="text-gray-300">—</span>,
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-32",
+    tdClass: "px-4 py-3 text-muted-foreground text-xs",
+    render: (n) => n.dataNecessidade ? formatDate(n.dataNecessidade) : <span className="text-muted-foreground/60">—</span>,
   },
   {
     id: "itens",
     label: "Itens",
-    thClass: "text-center px-4 py-3 font-medium text-gray-600 w-14",
-    tdClass: "px-4 py-3 text-center text-gray-500",
+    thClass: "text-center px-4 py-3 font-medium text-muted-foreground w-14",
+    tdClass: "px-4 py-3 text-center text-muted-foreground",
     render: (n) => n._count.itens,
   },
   {
     id: "cotacao",
     label: "Cotação",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-36",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-36",
     tdClass: "px-4 py-3",
     render: (n) => {
       const cotacoes = n.cotacoes ?? [];
-      if (cotacoes.length === 0) return <span className="text-gray-300 text-xs">—</span>;
+      if (cotacoes.length === 0) return <span className="text-muted-foreground/60 text-xs">—</span>;
       return (
         <div className="flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
           {cotacoes.map((c) => (
             <Link
               key={c.id}
               href={`/suprimentos/cotacoes/${c.id}`}
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 transition-colors"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted hover:bg-info/10 border border-border hover:border-info/30 transition-colors"
             >
-              <span className="font-mono text-[10px] font-medium text-gray-600 hover:text-blue-700">{c.numero}</span>
+              <span className="font-mono text-[10px] font-medium text-muted-foreground hover:text-info">{c.numero}</span>
               <StatusBadge status={c.status} />
             </Link>
           ))}
@@ -262,7 +262,7 @@ const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
   {
     id: "pedidos_compra",
     label: "Pedidos de Compra",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-40",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-40",
     tdClass: "px-4 py-3",
     render: (n) => {
       // Pedidos podem vir via cotacoes (link cotacaoId) ou diretamente (necessidadeId)
@@ -282,7 +282,7 @@ const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
   {
     id: "doc_entrada",
     label: "Doc. de Entrada",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 w-40",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-40",
     tdClass: "px-4 py-3",
     render: (n) => {
       const viaCotacoes = (n.cotacoes ?? []).flatMap((c) => c.pedidos ?? []);
@@ -363,22 +363,22 @@ function StatusFilterChip({
       <div className={cn(
         "inline-flex items-center h-8 rounded-full border text-sm font-medium transition-colors cursor-pointer select-none",
         active
-          ? "border-blue-400 bg-blue-50 text-blue-700"
-          : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700"
+          ? "border-blue-400 bg-info/10 text-info"
+          : "border-border bg-card text-muted-foreground hover:border-border hover:text-foreground"
       )}>
         <button
           type="button"
           onClick={() => { calcPos(); setOpen((p) => !p); setShowOpMenu(false); }}
           className="pl-3 pr-1 h-full flex items-center gap-1.5 rounded-l-full"
         >
-          <span className={cn("text-xs font-semibold", active ? "text-blue-500" : "text-gray-400")}>Status</span>
+          <span className={cn("text-xs font-semibold", active ? "text-blue-500" : "text-muted-foreground")}>Status</span>
           {active && (
             <>
               <button
                 ref={opRef}
                 type="button"
                 onClick={(e) => { e.stopPropagation(); calcOpPos(); setShowOpMenu((p) => !p); setOpen(false); }}
-                className="px-1 py-0.5 rounded hover:bg-blue-100 text-blue-600 text-xs font-medium"
+                className="px-1 py-0.5 rounded hover:bg-info/15 text-info text-xs font-medium"
               >
                 {opLabel}
               </button>
@@ -389,7 +389,7 @@ function StatusFilterChip({
               </span>
             </>
           )}
-          <ChevronDownIcon className={cn("w-3 h-3 ml-0.5 transition-transform", open && "rotate-180", active ? "text-blue-400" : "text-gray-400")} />
+          <ChevronDownIcon className={cn("w-3 h-3 ml-0.5 transition-transform", open && "rotate-180", active ? "text-blue-400" : "text-muted-foreground")} />
         </button>
         {active && (
           <button
@@ -404,10 +404,10 @@ function StatusFilterChip({
 
       {mounted && showOpMenu && opPos && createPortal(
         <div style={{ position: "fixed", top: opPos.top, left: opPos.left, zIndex: 9999 }}
-          className="bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[100px]">
+          className="bg-card border border-border rounded-xl shadow-lg py-1 min-w-[100px]">
           {(["is", "is_not"] as FilterOp[]).map((o) => (
             <button key={o} type="button" onClick={() => { onOpChange(o); setShowOpMenu(false); }}
-              className={cn("w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2", op === o && "text-blue-600 font-medium")}>
+              className={cn("w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2", op === o && "text-info font-medium")}>
               {op === o && <Check className="w-3.5 h-3.5 shrink-0" />}
               {o === "is" ? "É" : "Não é"}
             </button>
@@ -418,11 +418,11 @@ function StatusFilterChip({
 
       {mounted && open && pos && createPortal(
         <div ref={dropRef} style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
-          className="bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
-          <div className="flex border-b border-gray-100">
+          className="bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+          <div className="flex border-b border-border">
             {(["is", "is_not"] as FilterOp[]).map((o) => (
               <button key={o} type="button" onClick={() => onOpChange(o)}
-                className={cn("flex-1 py-2 text-xs font-semibold transition-colors", op === o ? "bg-blue-50 text-blue-600" : "text-gray-400 hover:bg-gray-50")}>
+                className={cn("flex-1 py-2 text-xs font-semibold transition-colors", op === o ? "bg-info/10 text-info" : "text-muted-foreground hover:bg-muted")}>
                 {o === "is" ? "É" : "Não é"}
               </button>
             ))}
@@ -432,8 +432,8 @@ function StatusFilterChip({
               const checked = selected.includes(opt.value);
               return (
                 <button key={opt.value} type="button" onClick={() => toggle(opt.value)}
-                  className={cn("w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left", checked && "bg-blue-50/60")}>
-                  <span className={cn("w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors", checked ? "bg-blue-600 border-blue-600" : "border-gray-300")}>
+                  className={cn("w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted transition-colors text-left", checked && "bg-info/10")}>
+                  <span className={cn("w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors", checked ? "bg-blue-600 border-blue-600" : "border-border")}>
                     {checked && <Check className="w-3 h-3 text-white" />}
                   </span>
                   <StatusBadge status={opt.value} />
@@ -442,9 +442,9 @@ function StatusFilterChip({
             })}
           </div>
           {selected.length > 0 && (
-            <div className="border-t border-gray-100 px-3 py-2">
+            <div className="border-t border-border px-3 py-2">
               <button type="button" onClick={() => { onClear(); setOpen(false); }}
-                className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors">
                 Limpar seleção
               </button>
             </div>
@@ -496,26 +496,26 @@ function KanbanCard({ n, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
       onDragEnd={onDragEnd}
       onClick={onClick}
       className={cn(
-        "bg-white border border-gray-200 rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-grab active:cursor-grabbing group",
+        "bg-card border border-border rounded-xl p-3.5 shadow-sm hover:shadow-md hover:border-info/30 transition-all cursor-grab active:cursor-grabbing group",
         isDragging && "opacity-40 scale-95 rotate-1"
       )}
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="font-mono text-xs font-bold text-gray-500">{n.numero}</span> <EmpresaTag empresaId={n.empresaId} />
+        <span className="font-mono text-xs font-bold text-muted-foreground">{n.numero}</span> <EmpresaTag empresaId={n.empresaId} />
         {canDelete && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 onClick={(e) => e.stopPropagation()}
-                className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all shrink-0"
+                className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"
               >
                 <MoreHorizontal className="w-3.5 h-3.5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
-                className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                className="text-danger focus:text-danger focus:bg-danger/10"
                 onClick={(e) => { e.stopPropagation(); onDelete(); }}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
@@ -527,36 +527,36 @@ function KanbanCard({ n, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
       </div>
 
       {/* Description */}
-      <p className="text-sm text-gray-800 font-medium leading-snug line-clamp-2 mb-2.5">
-        {n.justificativa || <span className="text-gray-400 italic font-normal">Sem descrição</span>}
+      <p className="text-sm text-foreground font-medium leading-snug line-clamp-2 mb-2.5">
+        {n.justificativa || <span className="text-muted-foreground italic font-normal">Sem descrição</span>}
       </p>
 
       {/* Meta */}
       <div className="space-y-1.5">
         {filialLabel && (
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <Building2 className="w-3 h-3 shrink-0 text-gray-400" />
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Building2 className="w-3 h-3 shrink-0 text-muted-foreground" />
             <span className="truncate">{filialLabel}</span>
           </div>
         )}
         {n.solicitante && (
-          <p className="text-xs text-gray-500 truncate">👤 {n.solicitante}</p>
+          <p className="text-xs text-muted-foreground truncate">👤 {n.solicitante}</p>
         )}
         {n.setor && (
-          <p className="text-xs text-gray-500 truncate">🏢 {n.setor.nome}</p>
+          <p className="text-xs text-muted-foreground truncate">🏢 {n.setor.nome}</p>
         )}
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-100">
+      <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-border">
         {prio && (
           <span className={cn("text-xs font-semibold", prio.color)}>
             {n.prioridade} — {prio.label}
           </span>
         )}
         <div className="flex items-center gap-2 ml-auto">
-          <span className="text-xs text-gray-400">{n._count.itens} item{n._count.itens !== 1 ? "s" : ""}</span>
-          <span className="text-xs text-gray-300">{formatDate(n.createdAt)}</span>
+          <span className="text-xs text-muted-foreground">{n._count.itens} item{n._count.itens !== 1 ? "s" : ""}</span>
+          <span className="text-xs text-muted-foreground/60">{formatDate(n.createdAt)}</span>
         </div>
       </div>
     </div>
@@ -620,9 +620,9 @@ function KanbanView({ items, onDelete, onNavigate, canDelete, onCardDrop }: {
             )}>
               <div className="flex items-center gap-2">
                 <div className={cn("w-2 h-2 rounded-full shrink-0", col.dot)} />
-                <span className="text-sm font-semibold text-gray-700">{col.label}</span>
+                <span className="text-sm font-semibold text-foreground">{col.label}</span>
               </div>
-              <span className="text-xs font-bold text-gray-500 bg-white/70 px-2 py-0.5 rounded-full">
+              <span className="text-xs font-bold text-muted-foreground bg-card/70 px-2 py-0.5 rounded-full">
                 {colItems.length}
               </span>
             </div>
@@ -630,11 +630,11 @@ function KanbanView({ items, onDelete, onNavigate, canDelete, onCardDrop }: {
             {/* Cards */}
             <div className={cn(
               "flex flex-col gap-2.5 flex-1 rounded-xl p-1 -m-1 transition-all",
-              isOver && canReceive && "bg-blue-50/50 outline outline-2 outline-dashed outline-blue-300"
+              isOver && canReceive && "bg-info/10 outline outline-2 outline-dashed outline-blue-300"
             )}>
               {colItems.length === 0 && !isOver ? (
                 <div className="flex-1 flex items-start justify-center pt-8">
-                  <p className="text-xs text-gray-300 italic">Nenhuma SC</p>
+                  <p className="text-xs text-muted-foreground/60 italic">Nenhuma SC</p>
                 </div>
               ) : colItems.length === 0 && isOver ? (
                 <div className="flex-1 flex items-center justify-center py-8">
@@ -849,7 +849,7 @@ export default function NecessidadesPage() {
         <div className="flex flex-wrap gap-2 items-center">
           {/* Search */}
           <div className="relative flex-1 min-w-[220px] max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -857,7 +857,7 @@ export default function NecessidadesPage() {
               className="pl-9 pr-8 h-9 text-sm"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
@@ -886,11 +886,11 @@ export default function NecessidadesPage() {
           {/* Sort — hidden in kanban since order within column is inherent */}
           {view === "list" && (
             <div className="flex items-center gap-1.5">
-              <ArrowUpDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
               <select
                 value={sortKey}
                 onChange={(e) => setSortKey(e.target.value)}
-                className="h-9 px-3 pr-8 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                className="h-9 px-3 pr-8 text-sm border border-border rounded-md bg-card focus:outline-none focus:ring-1 focus:ring-blue-400"
               >
                 {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
@@ -900,11 +900,11 @@ export default function NecessidadesPage() {
           {/* Group by — list view only */}
           {view === "list" && (
             <div className="flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <Layers className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
               <select
                 value={groupBy}
                 onChange={(e) => setGroupBy(e.target.value)}
-                className="h-9 px-3 pr-8 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                className="h-9 px-3 pr-8 text-sm border border-border rounded-md bg-card focus:outline-none focus:ring-1 focus:ring-blue-400"
               >
                 {GROUP_OPTIONS.map((o) => <option key={o.value} value={o.value}>Agrupar: {o.label}</option>)}
               </select>
@@ -915,7 +915,7 @@ export default function NecessidadesPage() {
           {hasFilters && (
             <button
               onClick={() => { setSearch(""); setFilterStatuses([]); setFilterStatusOp("is"); setFilterFilial(""); }}
-              className="h-8 px-3 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-full hover:bg-gray-50 flex items-center gap-1 transition-colors"
+              className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full hover:bg-muted flex items-center gap-1 transition-colors"
             >
               <X className="w-3 h-3" /> Limpar tudo
             </button>
@@ -927,15 +927,15 @@ export default function NecessidadesPage() {
           )}
 
           {/* View toggle */}
-          <div className="ml-auto flex items-center gap-0.5 p-0.5 bg-gray-100 rounded-lg border border-gray-200">
+          <div className="ml-auto flex items-center gap-0.5 p-0.5 bg-muted rounded-lg border border-border">
             <button
               type="button"
               onClick={() => setView("list")}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
                 view === "list"
-                  ? "bg-white text-gray-800 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               <LayoutList className="w-4 h-4" />
@@ -947,8 +947,8 @@ export default function NecessidadesPage() {
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
                 view === "kanban"
-                  ? "bg-white text-gray-800 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               <Kanban className="w-4 h-4" />
@@ -959,7 +959,7 @@ export default function NecessidadesPage() {
 
         {/* Results count */}
         {!loading && hasFilters && (
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-muted-foreground">
             {filtered.length} resultado{filtered.length !== 1 ? "s" : ""} encontrado{filtered.length !== 1 ? "s" : ""}
           </p>
         )}
@@ -967,12 +967,12 @@ export default function NecessidadesPage() {
         {/* ── Content ── */}
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : view === "kanban" ? (
           /* ── KANBAN VIEW ── */
           filtered.length === 0 ? (
-            <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+            <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
               <p className="text-lg font-medium">{hasFilters ? "Nenhum resultado encontrado" : "Nenhuma solicitação registrada"}</p>
               <p className="text-sm mt-1">{hasFilters ? "Tente ajustar os filtros." : "Clique em \"Nova Solicitação\" para começar."}</p>
             </div>
@@ -991,7 +991,7 @@ export default function NecessidadesPage() {
         ) : (
           /* ── LIST VIEW ── */
           filtered.length === 0 ? (
-            <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+            <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
               <p className="text-lg font-medium">{hasFilters ? "Nenhum resultado encontrado" : "Nenhuma solicitação registrada"}</p>
               <p className="text-sm mt-1">{hasFilters ? "Tente ajustar os filtros." : "Clique em \"Nova Solicitação\" para começar."}</p>
             </div>
@@ -1001,12 +1001,12 @@ export default function NecessidadesPage() {
                 <div className="flex items-center gap-2 mb-2">
                   <GroupIcon className="w-3.5 h-3.5 text-blue-400" />
                   <span className="text-xs font-bold uppercase tracking-wider text-blue-500">{group.label}</span>
-                  <span className="text-xs text-gray-400">({group.items.length})</span>
+                  <span className="text-xs text-muted-foreground">({group.items.length})</span>
                 </div>
 
-                <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto mb-4">
+                <div className="bg-card rounded-xl border border-border overflow-x-auto mb-4">
                   <table className="w-full min-w-[1100px] text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200">
+                    <thead className="bg-muted border-b border-border">
                       <tr>
                         {orderedNecCols.map((col) => {
                           if (col.id === "prioridade") {
@@ -1028,11 +1028,11 @@ export default function NecessidadesPage() {
                         <th className="w-12" />
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-border">
                       {group.items.map((n) => (
                         <tr
                           key={n.id}
-                          className="hover:bg-blue-50/40 transition-colors cursor-pointer"
+                          className="hover:bg-info/10 transition-colors cursor-pointer"
                           onClick={() => router.push(`/compras/necessidades/${n.id}`)}
                         >
                           {orderedNecCols.map((col) => (
@@ -1042,13 +1042,13 @@ export default function NecessidadesPage() {
                             {canDeleteSC(n) && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <button className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                                  <button className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                                     <MoreHorizontal className="w-3.5 h-3.5" />
                                   </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
-                                    className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                                    className="text-danger focus:text-danger focus:bg-danger/10"
                                     onClick={() => { setDeleteItem(n); setDeleteError(""); }}
                                   >
                                     <Trash2 className="w-4 h-4 mr-2" />
@@ -1072,19 +1072,19 @@ export default function NecessidadesPage() {
       {/* Delete confirm */}
       {deleteItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Excluir solicitação?</p>
-                <p className="text-sm text-gray-500 mt-0.5">{deleteItem.numero}</p>
+                <p className="font-semibold text-foreground">Excluir solicitação?</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{deleteItem.numero}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-4">Esta ação é permanente e não pode ser desfeita.</p>
+            <p className="text-sm text-muted-foreground mb-4">Esta ação é permanente e não pode ser desfeita.</p>
             {deleteError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{deleteError}</p>
+              <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">{deleteError}</p>
             )}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setDeleteItem(null)} disabled={deleteLoading}>Cancelar</Button>
@@ -1114,7 +1114,7 @@ function SortHeader({ label, field, current, onSort }: {
 
   return (
     <button type="button" onClick={toggle}
-      className={cn("flex items-center gap-1 hover:text-gray-800 transition-colors", active ? "text-blue-600" : "text-gray-600")}>
+      className={cn("flex items-center gap-1 hover:text-foreground transition-colors", active ? "text-info" : "text-muted-foreground")}>
       {label}
       {active
         ? curDir === "desc" ? <ChevronDownIcon className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />

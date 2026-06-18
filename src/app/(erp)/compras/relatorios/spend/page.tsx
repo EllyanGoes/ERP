@@ -92,7 +92,7 @@ function fmtDate(iso: string) {
 // ── Empty chart placeholder ───────────────────────────────────────────────────
 function EmptyChart() {
   return (
-    <div className="flex items-center justify-center h-full text-gray-300 text-sm">
+    <div className="flex items-center justify-center h-full text-muted-foreground/60 text-sm">
       Sem dados no período
     </div>
   );
@@ -127,16 +127,16 @@ function DrillDownModal({
         onClick={onClose}
       />
       {/* Panel */}
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
+      <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-start justify-between px-6 py-4 border-b border-border">
           <div>
-            <p className="text-sm font-semibold text-gray-900">{data.title}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{data.subtitle}</p>
+            <p className="text-sm font-semibold text-foreground">{data.title}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{data.subtitle}</p>
           </div>
           <button
             onClick={onClose}
-            className="ml-4 flex items-center justify-center h-8 w-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+            className="ml-4 flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-muted-foreground transition-colors shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -146,7 +146,7 @@ function DrillDownModal({
         <div className="overflow-y-auto flex-1">
           {data.content === "pedidos" && (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide sticky top-0">
+              <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide sticky top-0">
                 <tr>
                   <th className="text-left px-5 py-3 font-semibold">Nº Doc.</th>
                   <th className="text-left px-5 py-3 font-semibold">Fornecedor</th>
@@ -154,28 +154,28 @@ function DrillDownModal({
                   <th className="text-right px-5 py-3 font-semibold">Valor</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {(data.pedidosList ?? []).map((p) => (
                   <tr
                     key={p.id}
-                    className="hover:bg-blue-50 cursor-pointer transition-colors group"
+                    className="hover:bg-info/10 cursor-pointer transition-colors group"
                     title="Abrir documento de entrada"
                     onClick={() => {
                       onClose();
                       router.push(`/suprimentos/conferencias/${p.id}`);
                     }}
                   >
-                    <td className="px-5 py-3 font-mono text-xs text-blue-600 group-hover:underline">{p.numero}</td>
-                    <td className="px-5 py-3 text-gray-800">{p.fornecedorNome}</td>
-                    <td className="px-5 py-3 text-right text-gray-500 text-xs">{fmtDate(p.receiptDate)}</td>
-                    <td className="px-5 py-3 text-right font-semibold text-gray-900">
+                    <td className="px-5 py-3 font-mono text-xs text-info group-hover:underline">{p.numero}</td>
+                    <td className="px-5 py-3 text-foreground">{p.fornecedorNome}</td>
+                    <td className="px-5 py-3 text-right text-muted-foreground text-xs">{fmtDate(p.receiptDate)}</td>
+                    <td className="px-5 py-3 text-right font-semibold text-foreground">
                       {formatBRL(p.valor)}
                     </td>
                   </tr>
                 ))}
                 {(data.pedidosList ?? []).length === 0 && (
                   <tr>
-                    <td colSpan={4} className="text-center py-10 text-gray-400 text-sm">
+                    <td colSpan={4} className="text-center py-10 text-muted-foreground text-sm">
                       Nenhum documento encontrado
                     </td>
                   </tr>
@@ -186,7 +186,7 @@ function DrillDownModal({
 
           {data.content === "subItens" && (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide sticky top-0">
+              <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide sticky top-0">
                 <tr>
                   <th className="text-left px-5 py-3 font-semibold">Código</th>
                   <th className="text-left px-5 py-3 font-semibold">Item / Produto</th>
@@ -194,25 +194,25 @@ function DrillDownModal({
                   <th className="px-5 py-3 w-28" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {(data.subItens ?? []).map((it, i) => {
                   const pct = (it.valor / totalSubItens) * 100;
                   return (
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="px-5 py-3 font-mono text-xs text-gray-500">{it.codigo || "—"}</td>
-                      <td className="px-5 py-3 text-gray-800">{it.nome}</td>
-                      <td className="px-5 py-3 text-right font-semibold text-gray-900">
+                    <tr key={i} className="hover:bg-muted">
+                      <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{it.codigo || "—"}</td>
+                      <td className="px-5 py-3 text-foreground">{it.nome}</td>
+                      <td className="px-5 py-3 text-right font-semibold text-foreground">
                         {formatBRL(it.valor)}
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                             <div
                               className="h-full bg-blue-500 rounded-full"
                               style={{ width: `${Math.min(pct, 100)}%` }}
                             />
                           </div>
-                          <span className="text-xs text-gray-400 w-10 text-right shrink-0">
+                          <span className="text-xs text-muted-foreground w-10 text-right shrink-0">
                             {pct.toFixed(1)}%
                           </span>
                         </div>
@@ -222,7 +222,7 @@ function DrillDownModal({
                 })}
                 {(data.subItens ?? []).length === 0 && (
                   <tr>
-                    <td colSpan={4} className="text-center py-10 text-gray-400 text-sm">
+                    <td colSpan={4} className="text-center py-10 text-muted-foreground text-sm">
                       Nenhum item encontrado
                     </td>
                   </tr>
@@ -459,10 +459,10 @@ function PieChart({
               className="w-2.5 h-2.5 rounded-sm shrink-0 transition-opacity"
               style={{ background: s.color }}
             />
-            <span className="text-xs text-gray-600 truncate flex-1 group-hover:text-blue-600 transition-colors">
+            <span className="text-xs text-muted-foreground truncate flex-1 group-hover:text-info transition-colors">
               {s.categoria}
             </span>
-            <span className="text-xs font-semibold text-gray-800 shrink-0">
+            <span className="text-xs font-semibold text-foreground shrink-0">
               {s.pct.toFixed(1)}%
             </span>
           </div>
@@ -487,7 +487,7 @@ function SummaryCard({
   color: string;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
+    <div className="bg-card rounded-xl border border-border p-4 flex items-center gap-4">
       <span
         className={cn(
           "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
@@ -497,9 +497,9 @@ function SummaryCard({
         {icon}
       </span>
       <div className="min-w-0">
-        <p className="text-xs text-gray-400 font-medium">{label}</p>
-        <p className="text-lg font-bold text-gray-900 truncate">{value}</p>
-        {sub && <p className="text-[11px] text-gray-400">{sub}</p>}
+        <p className="text-xs text-muted-foreground font-medium">{label}</p>
+        <p className="text-lg font-bold text-foreground truncate">{value}</p>
+        {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
       </div>
     </div>
   );
@@ -594,15 +594,15 @@ export default function SpendPage() {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
             <span>Compras</span>
             <span>›</span>
             <span>Relatórios</span>
             <span>›</span>
-            <span className="text-gray-600 font-medium">SPEND</span>
+            <span className="text-muted-foreground font-medium">SPEND</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Spend Analysis</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h1 className="text-2xl font-bold text-foreground">Spend Analysis</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Gastos com base nos documentos de entrada (notas fiscais), por fornecedor, categoria e período
           </p>
         </div>
@@ -610,7 +610,7 @@ export default function SpendPage() {
           <DateRangePicker value={range} onChange={setRange} />
           <button
             onClick={load}
-            className="flex items-center justify-center h-9 w-9 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-center h-9 w-9 border border-border rounded-lg text-muted-foreground hover:bg-muted transition-colors"
             title="Atualizar"
           >
             <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
@@ -620,7 +620,7 @@ export default function SpendPage() {
 
       {loading && !data ? (
         <div className="flex justify-center py-24">
-          <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground/60" />
         </div>
       ) : (
         <>
@@ -629,21 +629,21 @@ export default function SpendPage() {
             <SummaryCard
               label="Total Spend"
               value={fmtMi(s?.totalSpend ?? 0)}
-              icon={<BarChart3 className="w-5 h-5 text-amber-600" />}
-              color="bg-amber-50"
+              icon={<BarChart3 className="w-5 h-5 text-warning" />}
+              color="bg-warning/10"
             />
             <SummaryCard
               label="Documentos de Entrada"
               value={(s?.totalPedidos ?? 0).toLocaleString("pt-BR")}
               sub="documentos de entrada lançados"
-              icon={<ShoppingBag className="w-5 h-5 text-blue-600" />}
-              color="bg-blue-50"
+              icon={<ShoppingBag className="w-5 h-5 text-info" />}
+              color="bg-info/10"
             />
             <SummaryCard
               label="Fornecedores"
               value={(s?.totalFornecedores ?? 0).toLocaleString("pt-BR")}
-              icon={<Users className="w-5 h-5 text-emerald-600" />}
-              color="bg-emerald-50"
+              icon={<Users className="w-5 h-5 text-success" />}
+              color="bg-success/10"
             />
             <SummaryCard
               label="Ticket Médio / Doc"
@@ -656,12 +656,12 @@ export default function SpendPage() {
           {/* ── Charts row ──────────────────────────────────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Spend por Mês / Dia */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="bg-card rounded-xl border border-border p-5">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-gray-700">Spend por Período</p>
+                <p className="text-sm font-semibold text-foreground">Spend por Período</p>
                 <div className="flex items-center gap-3">
                   {/* Group by toggle */}
-                  <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
+                  <div className="flex items-center gap-0.5 bg-muted rounded-lg p-0.5">
                     {(["month", "day"] as const).map((g) => (
                       <button
                         key={g}
@@ -669,15 +669,15 @@ export default function SpendPage() {
                         className={cn(
                           "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
                           groupBy === g
-                            ? "bg-white text-gray-800 shadow-sm"
-                            : "text-gray-500 hover:text-gray-700"
+                            ? "bg-card text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
                         )}
                       >
                         {g === "month" ? "Mês" : "Dia"}
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-400">Clique para ver pedidos</p>
+                  <p className="text-xs text-muted-foreground">Clique para ver pedidos</p>
                 </div>
               </div>
               <LineChart
@@ -688,10 +688,10 @@ export default function SpendPage() {
             </div>
 
             {/* Spend por Categoria */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="bg-card rounded-xl border border-border p-5">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-gray-700">Spend por Categoria</p>
-                <p className="text-xs text-gray-400">Clique para detalhar</p>
+                <p className="text-sm font-semibold text-foreground">Spend por Categoria</p>
+                <p className="text-xs text-muted-foreground">Clique para detalhar</p>
               </div>
               <PieChart
                 data={data?.byCategoria ?? []}
@@ -701,16 +701,16 @@ export default function SpendPage() {
           </div>
 
           {/* ── Pareto Fornecedores ─────────────────────────────────────────── */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-700">Spend por Fornecedor</p>
-              <span className="text-xs text-gray-400">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <p className="text-sm font-semibold text-foreground">Spend por Fornecedor</p>
+              <span className="text-xs text-muted-foreground">
                 {data?.byFornecedor.length ?? 0} fornecedores · clique na linha para ver pedidos
               </span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+                <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                   <tr>
                     <th className="text-left px-5 py-3 font-semibold">#</th>
                     <th className="text-left px-5 py-3 font-semibold">Fornecedor</th>
@@ -721,7 +721,7 @@ export default function SpendPage() {
                     <th className="px-5 py-3 w-40" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {(data?.byFornecedor ?? []).map((f, i) => {
                     const curvaClass =
                       f.pctAcumulado <= 80
@@ -735,24 +735,24 @@ export default function SpendPage() {
                     return (
                       <tr
                         key={f.id}
-                        className="hover:bg-gray-50 transition-colors cursor-pointer"
+                        className="hover:bg-muted transition-colors cursor-pointer"
                         onClick={() => handleFornecedorClick(f)}
                       >
-                        <td className="px-5 py-3 text-gray-400 text-xs">{i + 1}</td>
-                        <td className="px-5 py-3 font-medium text-gray-800">{f.nome}</td>
-                        <td className="px-5 py-3 text-right text-gray-600">{f.pedidos}</td>
-                        <td className="px-5 py-3 text-right font-semibold text-gray-900">
+                        <td className="px-5 py-3 text-muted-foreground text-xs">{i + 1}</td>
+                        <td className="px-5 py-3 font-medium text-foreground">{f.nome}</td>
+                        <td className="px-5 py-3 text-right text-muted-foreground">{f.pedidos}</td>
+                        <td className="px-5 py-3 text-right font-semibold text-foreground">
                           {formatBRL(f.valor)}
                         </td>
-                        <td className="px-5 py-3 text-right text-gray-600">
+                        <td className="px-5 py-3 text-right text-muted-foreground">
                           {f.pct.toFixed(2)}%
                         </td>
-                        <td className="px-5 py-3 text-right font-medium text-gray-700">
+                        <td className="px-5 py-3 text-right font-medium text-foreground">
                           {f.pctAcumulado.toFixed(2)}%
                         </td>
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-blue-500 rounded-full"
                                 style={{ width: `${Math.min(f.pct * 5, 100)}%` }}
@@ -773,25 +773,25 @@ export default function SpendPage() {
                   })}
                   {(data?.byFornecedor.length ?? 0) === 0 && (
                     <tr>
-                      <td colSpan={7} className="text-center py-12 text-gray-400 text-sm">
+                      <td colSpan={7} className="text-center py-12 text-muted-foreground text-sm">
                         Nenhum pedido encontrado no período selecionado
                       </td>
                     </tr>
                   )}
                 </tbody>
                 {(data?.byFornecedor.length ?? 0) > 0 && (
-                  <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+                  <tfoot className="border-t-2 border-border bg-muted">
                     <tr>
                       <td
                         colSpan={3}
-                        className="px-5 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide"
+                        className="px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide"
                       >
                         Total
                       </td>
-                      <td className="px-5 py-3 text-right font-bold text-gray-900">
+                      <td className="px-5 py-3 text-right font-bold text-foreground">
                         {fmtMi(s?.totalSpend ?? 0)}
                       </td>
-                      <td className="px-5 py-3 text-right font-bold text-gray-600">100,00%</td>
+                      <td className="px-5 py-3 text-right font-bold text-muted-foreground">100,00%</td>
                       <td colSpan={2} />
                     </tr>
                   </tfoot>

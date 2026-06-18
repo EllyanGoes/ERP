@@ -54,9 +54,9 @@ export default function FechamentoPage() {
         actions={<EncerrarDialog onDone={load} />}
       />
 
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="text-left text-gray-500 border-b border-gray-100">
+          <thead className="text-left text-muted-foreground border-b border-border">
             <tr>
               <th className="px-6 py-3 font-medium">Exercício</th>
               <th className="px-6 py-3 font-medium text-right">Resultado apurado</th>
@@ -66,22 +66,22 @@ export default function FechamentoPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin inline" /></td></tr>
+              <tr><td colSpan={4} className="px-6 py-10 text-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin inline" /></td></tr>
             ) : lista.length === 0 ? (
-              <tr><td colSpan={4} className="px-6 py-10 text-center text-gray-400">Nenhum exercício encerrado.</td></tr>
+              <tr><td colSpan={4} className="px-6 py-10 text-center text-muted-foreground">Nenhum exercício encerrado.</td></tr>
             ) : lista.map((f) => {
               const res = Number(f.resultado);
               return (
-                <tr key={f.id} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="px-6 py-3 font-medium text-gray-900">{f.exercicio}</td>
-                  <td className={`px-6 py-3 text-right tabular-nums ${res >= 0 ? "text-gray-900" : "text-red-600"}`}>
-                    {formatBRL(res)} <span className="text-xs text-gray-400">{res >= 0 ? "lucro" : "prejuízo"}</span>
+                <tr key={f.id} className="border-b border-gray-50 hover:bg-muted">
+                  <td className="px-6 py-3 font-medium text-foreground">{f.exercicio}</td>
+                  <td className={`px-6 py-3 text-right tabular-nums ${res >= 0 ? "text-foreground" : "text-danger"}`}>
+                    {formatBRL(res)} <span className="text-xs text-muted-foreground">{res >= 0 ? "lucro" : "prejuízo"}</span>
                   </td>
                   <td className="px-6 py-3">
                     {f.status === "FECHADO" ? (
-                      <span className="inline-flex items-center gap-1.5 text-emerald-600"><Lock className="w-3.5 h-3.5" />Encerrado</span>
+                      <span className="inline-flex items-center gap-1.5 text-success"><Lock className="w-3.5 h-3.5" />Encerrado</span>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 text-gray-400"><Unlock className="w-3.5 h-3.5" />Reaberto</span>
+                      <span className="inline-flex items-center gap-1.5 text-muted-foreground"><Unlock className="w-3.5 h-3.5" />Reaberto</span>
                     )}
                   </td>
                   <td className="px-6 py-3 text-right">
@@ -145,19 +145,19 @@ function EncerrarDialog({ onDone }: { onDone: () => void }) {
             <Label>Exercício (ano)</Label>
             <Input type="number" min={2000} max={2100} value={exercicio} onChange={(e) => setExercicio(e.target.value)} />
           </div>
-          <div className="rounded-lg bg-gray-50 p-3 text-sm">
+          <div className="rounded-lg bg-muted p-3 text-sm">
             {loadingPrev ? (
-              <span className="text-gray-400"><Loader2 className="w-4 h-4 animate-spin inline" /> apurando…</span>
+              <span className="text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin inline" /> apurando…</span>
             ) : preview ? (
               <>
-                <p>Resultado apurado: <strong className={preview.resultado >= 0 ? "" : "text-red-600"}>{formatBRL(preview.resultado)}</strong> ({preview.resultado >= 0 ? "lucro" : "prejuízo"})</p>
-                {preview.jaFechado && <p className="text-amber-600 text-xs mt-1">Exercício já encerrado.</p>}
-                {!preview.podeFechar && !preview.jaFechado && <p className="text-amber-600 text-xs mt-1">Há exercício posterior já encerrado — encerre em ordem.</p>}
+                <p>Resultado apurado: <strong className={preview.resultado >= 0 ? "" : "text-danger"}>{formatBRL(preview.resultado)}</strong> ({preview.resultado >= 0 ? "lucro" : "prejuízo"})</p>
+                {preview.jaFechado && <p className="text-warning text-xs mt-1">Exercício já encerrado.</p>}
+                {!preview.podeFechar && !preview.jaFechado && <p className="text-warning text-xs mt-1">Há exercício posterior já encerrado — encerre em ordem.</p>}
               </>
-            ) : <span className="text-gray-400">—</span>}
+            ) : <span className="text-muted-foreground">—</span>}
           </div>
-          <p className="text-xs text-gray-400">Zera as contas de resultado contra Lucros/Prejuízos Acumulados e trava lançamentos até 31/12 do exercício.</p>
-          {erro && <p className="text-sm text-red-600">{erro}</p>}
+          <p className="text-xs text-muted-foreground">Zera as contas de resultado contra Lucros/Prejuízos Acumulados e trava lançamentos até 31/12 do exercício.</p>
+          {erro && <p className="text-sm text-danger">{erro}</p>}
         </div>
         <DialogFooter>
           <Button onClick={encerrar} disabled={saving || !preview?.podeFechar}>{saving ? "Encerrando..." : "Encerrar"}</Button>

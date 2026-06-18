@@ -72,21 +72,21 @@ function StepBar({ current }: { current: number }) {
               "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors",
               current === s.n ? "bg-blue-600 text-white" :
               current > s.n  ? "bg-green-500 text-white" :
-                               "bg-gray-200 text-gray-500"
+                               "bg-muted text-muted-foreground"
             )}>
               {current > s.n ? "✓" : s.n}
             </div>
             <span className={cn(
               "text-sm font-medium whitespace-nowrap",
-              current === s.n ? "text-blue-700" :
-              current > s.n  ? "text-green-600" :
-                               "text-gray-400"
+              current === s.n ? "text-info" :
+              current > s.n  ? "text-success" :
+                               "text-muted-foreground"
             )}>
               {s.label}
             </span>
           </div>
           {i < STEPS.length - 1 && (
-            <div className={cn("w-12 h-px mx-2", current > s.n ? "bg-green-400" : "bg-gray-200")} />
+            <div className={cn("w-12 h-px mx-2", current > s.n ? "bg-green-400" : "bg-muted")} />
           )}
         </div>
       ))}
@@ -236,8 +236,8 @@ export default function CotacaoCreateForm() {
           if (sc.cotacoes?.length) {
             const hasActivePC  = sc.cotacoes.some((c) => c.pedidos?.some((p) => PC_ACTIVE_SET.has(p.status)));
             const hasActiveCot = sc.cotacoes.some((c) => COTACAO_ACTIVE_SET.has(c.status));
-            if (hasActivePC)       tagMap.set(sc.id, { label: "Com PC",      color: "bg-blue-100 text-blue-700 border-blue-200" });
-            else if (hasActiveCot) tagMap.set(sc.id, { label: "Em Cotação",  color: "bg-amber-100 text-amber-700 border-amber-200" });
+            if (hasActivePC)       tagMap.set(sc.id, { label: "Com PC",      color: "bg-info/15 text-info border-info/30" });
+            else if (hasActiveCot) tagMap.set(sc.id, { label: "Em Cotação",  color: "bg-warning/15 text-warning border-warning/30" });
           }
         });
 
@@ -459,12 +459,12 @@ export default function CotacaoCreateForm() {
     <div className="max-w-6xl">
       {!drawer && (
         <>
-          <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-4">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
             <span className="hover:text-blue-500 cursor-pointer" onClick={() => router.push("/suprimentos/cotacoes")}>Cotações de Compra</span>
             <ChevronRight className="w-3 h-3" />
-            <span className="text-gray-700 font-medium">Nova Cotação</span>
+            <span className="text-foreground font-medium">Nova Cotação</span>
           </div>
-          <h1 className="text-xl font-bold text-gray-900 mb-6">Nova Cotação de Compra</h1>
+          <h1 className="text-xl font-bold text-foreground mb-6">Nova Cotação de Compra</h1>
         </>
       )}
 
@@ -476,13 +476,13 @@ export default function CotacaoCreateForm() {
           <div className="mb-4">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <h2 className="text-base font-semibold text-gray-800">Necessidade de Compra</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Selecione os itens que deseja incluir nesta cotação.</p>
+                <h2 className="text-base font-semibold text-foreground">Necessidade de Compra</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Selecione os itens que deseja incluir nesta cotação.</p>
               </div>
               {/* Active filter count badge */}
               {hasFilters && (
                 <button onClick={clearFilters}
-                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-full hover:bg-blue-100 transition-colors">
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-info bg-info/10 border border-info/30 rounded-full hover:bg-info/15 transition-colors">
                   <X className="w-3 h-3" /> Limpar filtros
                 </button>
               )}
@@ -492,12 +492,12 @@ export default function CotacaoCreateForm() {
             <div className="flex flex-wrap gap-2 items-center">
               {/* Search */}
               <div className="relative flex-1 min-w-[200px] max-w-xs">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                 <input type="text" value={itemSearch} onChange={(e) => setItemSearch(e.target.value)}
                   placeholder="Buscar por item, código ou SC..."
-                  className="w-full pl-8 pr-8 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  className="w-full pl-8 pr-8 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
                 {itemSearch && (
-                  <button onClick={() => setItemSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <button onClick={() => setItemSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -510,8 +510,8 @@ export default function CotacaoCreateForm() {
                     value={filterScIds.length === 1 ? filterScIds[0] : ""}
                     onChange={(e) => setFilterScIds(e.target.value ? [e.target.value] : [])}
                     className={cn(
-                      "h-8 pl-3 pr-7 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer appearance-none",
-                      filterScIds.length > 0 ? "border-blue-400 text-blue-700 bg-blue-50" : "border-gray-200 text-gray-600"
+                      "h-8 pl-3 pr-7 text-sm border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer appearance-none",
+                      filterScIds.length > 0 ? "border-blue-400 text-info bg-info/10" : "border-border text-muted-foreground"
                     )}
                   >
                     <option value="">Todas as SCs</option>
@@ -519,7 +519,7 @@ export default function CotacaoCreateForm() {
                       <option key={sc.id} value={sc.id}>{sc.numero}</option>
                     ))}
                   </select>
-                  <SlidersHorizontal className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                  <SlidersHorizontal className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                 </div>
               )}
 
@@ -530,14 +530,14 @@ export default function CotacaoCreateForm() {
                     value={filterCats.length === 1 ? filterCats[0] : ""}
                     onChange={(e) => setFilterCats(e.target.value ? [e.target.value] : [])}
                     className={cn(
-                      "h-8 pl-3 pr-7 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer appearance-none",
-                      filterCats.length > 0 ? "border-blue-400 text-blue-700 bg-blue-50" : "border-gray-200 text-gray-600"
+                      "h-8 pl-3 pr-7 text-sm border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer appearance-none",
+                      filterCats.length > 0 ? "border-blue-400 text-info bg-info/10" : "border-border text-muted-foreground"
                     )}
                   >
                     <option value="">Todas as categorias</option>
                     {catOptions.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
-                  <SlidersHorizontal className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                  <SlidersHorizontal className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                 </div>
               )}
 
@@ -548,8 +548,8 @@ export default function CotacaoCreateForm() {
                 className={cn(
                   "flex items-center gap-1.5 h-8 px-3 text-sm border rounded-lg transition-colors cursor-pointer select-none",
                   hideEmCotacao
-                    ? "border-amber-400 bg-amber-50 text-amber-700"
-                    : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                    ? "border-amber-400 bg-warning/10 text-warning"
+                    : "border-border bg-card text-muted-foreground hover:border-border"
                 )}
               >
                 <EyeOff className="w-3.5 h-3.5" />
@@ -558,7 +558,7 @@ export default function CotacaoCreateForm() {
 
               {/* Result count */}
               {hasFilters && !loadingItems && (
-                <span className="text-xs text-gray-400 ml-1">
+                <span className="text-xs text-muted-foreground ml-1">
                   {filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""}
                 </span>
               )}
@@ -567,33 +567,33 @@ export default function CotacaoCreateForm() {
 
           {loadingItems ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="bg-card rounded-xl border border-border overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-muted border-b border-border">
                   <tr>
                     <th className="px-4 py-3 w-10">
-                      <button type="button" onClick={toggleAllVisible} className="text-gray-400 hover:text-blue-500">
+                      <button type="button" onClick={toggleAllVisible} className="text-muted-foreground hover:text-blue-500">
                         {allVisibleSelected
                           ? <CheckSquare className="w-4 h-4 text-blue-500" />
                           : <Square className="w-4 h-4" />}
                       </button>
                     </th>
-                    <th className="text-left px-3 py-3 font-medium text-gray-600 w-28">Solicitação</th>
-                    <th className="text-left px-3 py-3 font-medium text-gray-600 w-16">Item</th>
-                    <th className="text-left px-3 py-3 font-medium text-gray-600 w-36">Código</th>
-                    <th className="text-left px-3 py-3 font-medium text-gray-600">Descrição do produto</th>
-                    <th className="text-left px-3 py-3 font-medium text-gray-600 w-40">Grupo / Categoria</th>
-                    <th className="text-right px-3 py-3 font-medium text-gray-600 w-28">Qtd</th>
-                    <th className="text-left px-3 py-3 font-medium text-gray-600 w-32">Data necessidade</th>
+                    <th className="text-left px-3 py-3 font-medium text-muted-foreground w-28">Solicitação</th>
+                    <th className="text-left px-3 py-3 font-medium text-muted-foreground w-16">Item</th>
+                    <th className="text-left px-3 py-3 font-medium text-muted-foreground w-36">Código</th>
+                    <th className="text-left px-3 py-3 font-medium text-muted-foreground">Descrição do produto</th>
+                    <th className="text-left px-3 py-3 font-medium text-muted-foreground w-40">Grupo / Categoria</th>
+                    <th className="text-right px-3 py-3 font-medium text-muted-foreground w-28">Qtd</th>
+                    <th className="text-left px-3 py-3 font-medium text-muted-foreground w-32">Data necessidade</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {filteredItems.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="text-center py-12 text-gray-400 italic">
+                      <td colSpan={8} className="text-center py-12 text-muted-foreground italic">
                         {scItems.length === 0
                           ? "Nenhuma solicitação aprovada encontrada."
                           : "Nenhum resultado para a busca."}
@@ -606,12 +606,12 @@ export default function CotacaoCreateForm() {
                         onClick={() => toggleItem(item.id)}
                         className={cn(
                           "cursor-pointer transition-colors",
-                          checked ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-gray-50"
+                          checked ? "bg-info/10 hover:bg-info/15" : "hover:bg-muted"
                         )}>
                         <td className="px-4 py-3">
                           {checked
                             ? <CheckSquare className="w-4 h-4 text-blue-500" />
-                            : <Square className="w-4 h-4 text-gray-300" />}
+                            : <Square className="w-4 h-4 text-muted-foreground/60" />}
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-1.5 flex-wrap">
@@ -619,7 +619,7 @@ export default function CotacaoCreateForm() {
                               type="button"
                               onClick={(e) => { e.stopPropagation(); toggleSC(item.scId); }}
                               title="Selecionar/deselecionar todos itens desta SC"
-                              className="font-mono text-xs text-gray-700 hover:text-blue-600 hover:underline cursor-pointer"
+                              className="font-mono text-xs text-foreground hover:text-info hover:underline cursor-pointer"
                             >
                               {item.scNumero}
                             </button>
@@ -633,17 +633,17 @@ export default function CotacaoCreateForm() {
                             )}
                           </div>
                         </td>
-                        <td className="px-3 py-3 text-center text-gray-500">{String(item.ordem).padStart(4, "0")}</td>
-                        <td className="px-3 py-3 font-mono text-xs text-gray-600">{item.codigo}</td>
-                        <td className="px-3 py-3 font-medium text-gray-900">{item.descricao}</td>
-                        <td className="px-3 py-3 text-gray-500 text-xs">{item.categoria ?? <span className="text-gray-300">—</span>}</td>
-                        <td className="px-3 py-3 text-right text-gray-700">
+                        <td className="px-3 py-3 text-center text-muted-foreground">{String(item.ordem).padStart(4, "0")}</td>
+                        <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{item.codigo}</td>
+                        <td className="px-3 py-3 font-medium text-foreground">{item.descricao}</td>
+                        <td className="px-3 py-3 text-muted-foreground text-xs">{item.categoria ?? <span className="text-muted-foreground/60">—</span>}</td>
+                        <td className="px-3 py-3 text-right text-foreground">
                           {item.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {item.unidade}
                         </td>
-                        <td className="px-3 py-3 text-xs text-gray-500">
+                        <td className="px-3 py-3 text-xs text-muted-foreground">
                           {item.dataNecessidade
                             ? new Date(item.dataNecessidade).toLocaleDateString("pt-BR")
-                            : <span className="text-gray-300">—</span>}
+                            : <span className="text-muted-foreground/60">—</span>}
                         </td>
                       </tr>
                     );
@@ -658,7 +658,7 @@ export default function CotacaoCreateForm() {
             <Button type="button" variant="outline" onClick={() => { clearForm(); voltar(); }}>Cancelar</Button>
             <div className="flex items-center gap-4">
               {selectedItemIds.size > 0 && (
-                <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-700 text-sm px-3 py-1.5 rounded-full">
+                <div className="flex items-center gap-1.5 bg-info/10 border border-info/30 text-info text-sm px-3 py-1.5 rounded-full">
                   <CheckSquare className="w-3.5 h-3.5" />
                   {selectedItemIds.size} {selectedItemIds.size === 1 ? "registro selecionado" : "registros selecionados"}
                 </div>
@@ -676,10 +676,10 @@ export default function CotacaoCreateForm() {
       {/* ── STEP 2 — Dados da cotação ──────────────────────────────────────── */}
       {step === 2 && (
         <div className="max-w-2xl">
-          <h2 className="text-base font-semibold text-gray-800 mb-6">Solicitação de cotação</h2>
+          <h2 className="text-base font-semibold text-foreground mb-6">Solicitação de cotação</h2>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
-            <h3 className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-3">Dados da cotação</h3>
+          <div className="bg-card rounded-xl border border-border p-6 space-y-5">
+            <h3 className="text-sm font-semibold text-foreground border-b border-border pb-3">Dados da cotação</h3>
 
             <div className="space-y-1.5">
               <Label className="required">
@@ -703,11 +703,11 @@ export default function CotacaoCreateForm() {
                 onChange={(e) => setDataLimite(e.target.value)}
                 className={cn("focus-visible:ring-blue-400", !dataLimite && step2Error && "border-red-400")}
               />
-              <p className="text-xs text-gray-400">Prazo limite para os fornecedores enviarem suas propostas.</p>
+              <p className="text-xs text-muted-foreground">Prazo limite para os fornecedores enviarem suas propostas.</p>
             </div>
 
-            <div className="border-t border-gray-100 pt-5">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Informações de entrega</h3>
+            <div className="border-t border-border pt-5">
+              <h3 className="text-sm font-semibold text-foreground mb-3">Informações de entrega</h3>
               <Textarea
                 value={infoEntrega}
                 onChange={(e) => setInfoEntrega(e.target.value)}
@@ -715,11 +715,11 @@ export default function CotacaoCreateForm() {
                 className="font-mono text-sm focus-visible:ring-blue-400"
                 placeholder="Endereço de entrega, instruções especiais..."
               />
-              <p className="text-xs text-gray-400 mt-1">Preenchido automaticamente com os dados da empresa. Você pode editar.</p>
+              <p className="text-xs text-muted-foreground mt-1">Preenchido automaticamente com os dados da empresa. Você pode editar.</p>
             </div>
 
             {step2Error && (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
                 <AlertTriangle className="w-4 h-4 shrink-0" /> {step2Error}
               </div>
             )}
@@ -737,13 +737,13 @@ export default function CotacaoCreateForm() {
       {/* ── STEP 3 — Seleção de Fornecedores ─────────────────────────────── */}
       {step === 3 && (
         <div>
-          <h2 className="text-base font-semibold text-gray-800 mb-1">Seleção de Fornecedores / Participantes</h2>
-          <p className="text-xs text-gray-400 mb-5">Selecione os fornecedores que receberão a solicitação de cotação.</p>
+          <h2 className="text-base font-semibold text-foreground mb-1">Seleção de Fornecedores / Participantes</h2>
+          <p className="text-xs text-muted-foreground mb-5">Selecione os fornecedores que receberão a solicitação de cotação.</p>
 
           {/* Selected summary */}
           {selectedFornIds.size > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-4 mb-5">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            <div className="bg-card rounded-xl border border-border p-4 mb-5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
                 Fornecedores / Participantes selecionados
               </p>
               <div className="flex flex-wrap gap-2">
@@ -751,7 +751,7 @@ export default function CotacaoCreateForm() {
                   const f = allFornecedores.find((x) => x.id === fid) ?? ultFornecedores.find((x) => x.id === fid);
                   return (
                     <span key={fid}
-                      className="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-700 text-xs px-2.5 py-1 rounded-full">
+                      className="inline-flex items-center gap-1 bg-info/10 border border-info/30 text-info text-xs px-2.5 py-1 rounded-full">
                       <Building2 className="w-3 h-3" />
                       {f?.nomeFantasia ?? f?.razaoSocial ?? fid}
                       <button type="button" onClick={() => toggleForn(fid)} className="ml-1 hover:text-red-500">
@@ -765,14 +765,14 @@ export default function CotacaoCreateForm() {
           )}
 
           {/* Tabs + Search */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center justify-between border-b border-gray-100 px-4">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border px-4">
               <div className="flex gap-0">
                 {(["ultimos", "todos"] as const).map((t) => (
                   <button key={t} type="button" onClick={() => { setTab(t); setFornSearch(""); }}
                     className={cn(
                       "px-4 py-3.5 text-sm font-medium border-b-2 transition-colors",
-                      tab === t ? "border-blue-500 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700"
+                      tab === t ? "border-blue-500 text-info" : "border-transparent text-muted-foreground hover:text-foreground"
                     )}>
                     {t === "ultimos" ? "Últimos fornecedores" : "Todos os fornecedores"}
                   </button>
@@ -784,7 +784,7 @@ export default function CotacaoCreateForm() {
                   href="/suprimentos/fornecedores/novo"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap"
+                  className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-info border border-info/30 bg-info/10 hover:bg-info/15 rounded-lg transition-colors whitespace-nowrap"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Novo Fornecedor
@@ -795,33 +795,33 @@ export default function CotacaoCreateForm() {
                   onClick={() => loadFornecedores(true)}
                   disabled={refreshingForn}
                   title="Atualizar lista"
-                  className="flex items-center justify-center w-8 h-8 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors disabled:opacity-50"
+                  className="flex items-center justify-center w-8 h-8 border border-border rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
                 >
                   <RefreshCw className={cn("w-3.5 h-3.5", refreshingForn && "animate-spin")} />
                 </button>
                 {/* Search */}
                 <div className="relative w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                   <input type="text" value={fornSearch} onChange={(e) => setFornSearch(e.target.value)}
                     placeholder="Busque por CNPJ, nome fantasia, razão social..."
-                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
                 </div>
               </div>
             </div>
 
             {tab === "ultimos" && (
-              <p className="px-4 py-2 text-xs text-gray-400 bg-gray-50 border-b border-gray-100">
+              <p className="px-4 py-2 text-xs text-muted-foreground bg-muted border-b border-border">
                 Os últimos fornecedores são listados conforme cotações anteriores para os produtos selecionados.
               </p>
             )}
 
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-border">
               {loadingForn ? (
                 <div className="flex items-center justify-center py-10">
-                  <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                 </div>
               ) : fornListForTab().length === 0 ? (
-                <div className="text-center py-10 text-sm text-gray-400 italic">
+                <div className="text-center py-10 text-sm text-muted-foreground italic">
                   {tab === "ultimos"
                     ? "Nenhum fornecedor encontrado para os itens selecionados."
                     : "Nenhum fornecedor cadastrado."}
@@ -833,19 +833,19 @@ export default function CotacaoCreateForm() {
                     onClick={() => toggleForn(f.id)}
                     className={cn(
                       "flex items-start gap-3 px-4 py-4 cursor-pointer transition-colors",
-                      checked ? "bg-blue-50" : "hover:bg-gray-50"
+                      checked ? "bg-info/10" : "hover:bg-muted"
                     )}>
                     <div className={cn(
                       "mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
-                      checked ? "bg-blue-500 border-blue-500" : "border-gray-300"
+                      checked ? "bg-blue-500 border-blue-500" : "border-border"
                     )}>
                       {checked && <span className="text-white text-xs font-bold">✓</span>}
                     </div>
                     <div className="flex-1">
-                      <p className={cn("font-medium text-sm", checked ? "text-blue-800" : "text-gray-900")}>
+                      <p className={cn("font-medium text-sm", checked ? "text-info" : "text-foreground")}>
                         {f.nomeFantasia || f.razaoSocial}
                       </p>
-                      <div className="flex flex-wrap gap-x-6 gap-y-0.5 mt-1 text-xs text-gray-500">
+                      <div className="flex flex-wrap gap-x-6 gap-y-0.5 mt-1 text-xs text-muted-foreground">
                         {f.cpfCnpj && (
                           <span>{f.cpfCnpj.length === 14 ? "CNPJ" : "CPF"}: {f.cpfCnpj}</span>
                         )}
@@ -874,12 +874,12 @@ export default function CotacaoCreateForm() {
       {/* ── Item-in-cotação warning modal ─────────────────────────────────── */}
       {showItemWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
+          <div className="bg-card rounded-2xl shadow-xl w-full max-w-lg p-6">
             <div className="flex items-start gap-3 mb-4">
               <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
               <div>
-                <h2 className="text-base font-semibold text-gray-900">Itens em cotação aberta</h2>
-                <p className="text-sm text-gray-500 mt-1">
+                <h2 className="text-base font-semibold text-foreground">Itens em cotação aberta</h2>
+                <p className="text-sm text-muted-foreground mt-1">
                   Os itens abaixo já estão em cotações em andamento. Deseja continuar mesmo assim?
                 </p>
               </div>
@@ -887,9 +887,9 @@ export default function CotacaoCreateForm() {
             <div className="border rounded-lg divide-y max-h-56 overflow-y-auto mb-5">
               {itemWarnings.map((w) => (
                 <div key={w.itemId} className="px-4 py-2.5">
-                  <p className="text-sm font-medium text-gray-800">{w.codigo} — {w.descricao}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    Em cotação: <span className="text-amber-600 font-medium">{w.cotacoes.join(", ")}</span>
+                  <p className="text-sm font-medium text-foreground">{w.codigo} — {w.descricao}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Em cotação: <span className="text-warning font-medium">{w.cotacoes.join(", ")}</span>
                   </p>
                 </div>
               ))}
@@ -912,24 +912,24 @@ export default function CotacaoCreateForm() {
       {/* ── Confirm modal ────────────────────────────────────────────────── */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+          <div className="bg-card rounded-2xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-start justify-between mb-4">
-              <h2 className="text-base font-semibold text-gray-900">Solicitação de cotação</h2>
-              <button onClick={() => setShowConfirm(false)} className="text-gray-400 hover:text-gray-600">
+              <h2 className="text-base font-semibold text-foreground">Solicitação de cotação</h2>
+              <button onClick={() => setShowConfirm(false)} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-sm text-gray-600 mb-2">Confirma a criação da cotação de compra?</p>
-            <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500 space-y-1 mb-5">
-              <p><span className="font-medium text-gray-700">Apelido:</span> {nome}</p>
-              <p><span className="font-medium text-gray-700">Itens:</span> {selectedItemIds.size} item(s)</p>
-              <p><span className="font-medium text-gray-700">Fornecedores:</span> {selectedFornIds.size} fornecedor(es)</p>
-              <p><span className="font-medium text-gray-700">Prazo:</span> {dataLimite ? new Date(dataLimite + "T12:00:00").toLocaleDateString("pt-BR") : "—"}</p>
+            <p className="text-sm text-muted-foreground mb-2">Confirma a criação da cotação de compra?</p>
+            <div className="bg-muted rounded-lg p-3 text-xs text-muted-foreground space-y-1 mb-5">
+              <p><span className="font-medium text-foreground">Apelido:</span> {nome}</p>
+              <p><span className="font-medium text-foreground">Itens:</span> {selectedItemIds.size} item(s)</p>
+              <p><span className="font-medium text-foreground">Fornecedores:</span> {selectedFornIds.size} fornecedor(es)</p>
+              <p><span className="font-medium text-foreground">Prazo:</span> {dataLimite ? new Date(dataLimite + "T12:00:00").toLocaleDateString("pt-BR") : "—"}</p>
             </div>
 
             {saveError && (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
+              <div className="flex items-center gap-2 text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">
                 <AlertTriangle className="w-4 h-4 shrink-0" /> {saveError}
               </div>
             )}

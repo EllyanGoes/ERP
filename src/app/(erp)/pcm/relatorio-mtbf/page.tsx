@@ -68,7 +68,7 @@ function TendenciaBadge({ tendencia }: { tendencia: MtbfMensal[] }) {
   const valid = tendencia.filter((t) => t.mtbf != null && t.mtbf > 0);
   if (valid.length < 2) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
         <Minus className="w-3.5 h-3.5" /> Sem tendência
       </span>
     );
@@ -79,7 +79,7 @@ function TendenciaBadge({ tendencia }: { tendencia: MtbfMensal[] }) {
 
   if (pct >= 2) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
+      <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
         <TrendingUp className="w-3.5 h-3.5" /> +{pct.toFixed(1)}% vs. 6 meses
       </span>
     );
@@ -92,7 +92,7 @@ function TendenciaBadge({ tendencia }: { tendencia: MtbfMensal[] }) {
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
       <Minus className="w-3.5 h-3.5" /> Estável ({pct >= 0 ? "+" : ""}{pct.toFixed(1)}%)
     </span>
   );
@@ -103,9 +103,9 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
   if (!active || !payload?.length) return null;
   const v = payload[0]?.value;
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm">
-      <p className="font-semibold text-gray-700 mb-1">{label}</p>
-      <p className="text-blue-700 font-bold">{fmtHoras(v ?? null)}</p>
+    <div className="bg-card border border-border rounded-xl shadow-lg px-4 py-3 text-sm">
+      <p className="font-semibold text-foreground mb-1">{label}</p>
+      <p className="text-info font-bold">{fmtHoras(v ?? null)}</p>
     </div>
   );
 }
@@ -209,13 +209,13 @@ function AplicacaoCombobox({
     ? createPortal(
         <div
           data-apl-dropdown
-          className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
+          className="fixed z-[9999] bg-card border border-border rounded-xl shadow-xl overflow-hidden"
           style={{ top: pos.top, left: pos.left, width: pos.width }}
         >
           {/* Search */}
-          <div className="p-2 border-b border-gray-100">
+          <div className="p-2 border-b border-border">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 ref={searchRef}
                 value={query}
@@ -228,7 +228,7 @@ function AplicacaoCombobox({
           {/* List */}
           <div className="max-h-64 overflow-y-auto">
             {filtered.length === 0 ? (
-              <p className="px-4 py-3 text-xs text-gray-400 italic text-center">Nenhuma aplicação encontrada.</p>
+              <p className="px-4 py-3 text-xs text-muted-foreground italic text-center">Nenhuma aplicação encontrada.</p>
             ) : filtered.map((o) => (
               <button
                 key={o.codApl}
@@ -239,14 +239,14 @@ function AplicacaoCombobox({
                   setQuery("");
                 }}
                 className={cn(
-                  "w-full text-left py-2.5 text-sm hover:bg-blue-50 border-b border-gray-50 last:border-0",
+                  "w-full text-left py-2.5 text-sm hover:bg-info/10 border-b border-gray-50 last:border-0",
                   "flex items-center gap-2",
-                  o.codApl === value && "bg-blue-50 text-blue-700"
+                  o.codApl === value && "bg-info/10 text-info"
                 )}
                 style={{ paddingLeft: `${16 + o.indent * 12}px`, paddingRight: 16 }}
               >
-                <span className="font-mono text-[11px] text-gray-400 shrink-0">{o.tag}</span>
-                <span className="truncate text-gray-800">{o.descricao}</span>
+                <span className="font-mono text-[11px] text-muted-foreground shrink-0">{o.tag}</span>
+                <span className="truncate text-foreground">{o.descricao}</span>
               </button>
             ))}
           </div>
@@ -263,27 +263,27 @@ function AplicacaoCombobox({
         onClick={() => open ? setOpen(false) : openDropdown()}
         disabled={loading}
         className={cn(
-          "w-full h-10 px-3 pr-8 text-left text-sm border rounded-lg bg-white",
+          "w-full h-10 px-3 pr-8 text-left text-sm border rounded-lg bg-card",
           "flex items-center justify-between gap-2",
           "focus:outline-none focus:ring-2 focus:ring-blue-500",
-          loading ? "border-gray-100 text-gray-300" : "border-gray-200 text-gray-800 hover:border-gray-300"
+          loading ? "border-border text-muted-foreground/60" : "border-border text-foreground hover:border-border"
         )}
       >
         <span className="truncate">
           {loading ? "Carregando aplicações…" : (
             selected
-              ? <><span className="font-mono text-gray-400 mr-1.5 text-xs">{selected.tag}</span>{selected.descricao}</>
-              : <span className="text-gray-400">Selecionar aplicação…</span>
+              ? <><span className="font-mono text-muted-foreground mr-1.5 text-xs">{selected.tag}</span>{selected.descricao}</>
+              : <span className="text-muted-foreground">Selecionar aplicação…</span>
           )}
         </span>
-        <ChevronDown className={cn("w-4 h-4 text-gray-400 shrink-0 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", open && "rotate-180")} />
       </button>
 
       {value != null && value > 0 && !loading && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onChange(0); setQuery(""); }}
-          className="absolute right-7 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+          className="absolute right-7 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground"
           title="Limpar"
         >
           <X className="w-3.5 h-3.5" />
@@ -359,8 +359,8 @@ export default function RelatorioMtbfPage() {
   // Cor do MTBF card
   const mtbfColor = useMemo(() => {
     const v = resultado?.mtbfAtual;
-    if (v == null) return "text-gray-400";
-    if (v >= 100) return "text-emerald-600";
+    if (v == null) return "text-muted-foreground";
+    if (v >= 100) return "text-success";
     if (v >= 40)  return "text-amber-500";
     return "text-red-500";
   }, [resultado]);
@@ -380,7 +380,7 @@ export default function RelatorioMtbfPage() {
         {/* ── Filtros ────────────────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Activity className="w-4 h-4 text-orange-500" />
               Parâmetros
             </CardTitle>
@@ -389,7 +389,7 @@ export default function RelatorioMtbfPage() {
             {/* Linha 1: Aplicação + Empresa */}
             <div className="flex flex-wrap items-end gap-4">
               <div className="flex-1 min-w-[280px] space-y-1.5">
-                <Label className="text-xs text-gray-500">
+                <Label className="text-xs text-muted-foreground">
                   Aplicação <span className="text-red-500">*</span>
                 </Label>
                 <AplicacaoCombobox
@@ -400,7 +400,7 @@ export default function RelatorioMtbfPage() {
                 />
               </div>
               <div className="w-28 space-y-1.5">
-                <Label className="text-xs text-gray-500">Empresa (CODEMP)</Label>
+                <Label className="text-xs text-muted-foreground">Empresa (CODEMP)</Label>
                 <Input
                   value={codemp}
                   onChange={(e) => setCodemp(e.target.value)}
@@ -413,7 +413,7 @@ export default function RelatorioMtbfPage() {
             {/* Linha 2: Período + Botão */}
             <div className="flex flex-wrap items-end gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">Data Início</Label>
+                <Label className="text-xs text-muted-foreground">Data Início</Label>
                 <div className="relative">
                   <Input
                     type="date"
@@ -425,7 +425,7 @@ export default function RelatorioMtbfPage() {
                     <button
                       type="button"
                       onClick={() => { setDataInicio(""); setResultado(null); }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -433,7 +433,7 @@ export default function RelatorioMtbfPage() {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">Data Fim</Label>
+                <Label className="text-xs text-muted-foreground">Data Fim</Label>
                 <div className="relative">
                   <Input
                     type="date"
@@ -445,7 +445,7 @@ export default function RelatorioMtbfPage() {
                     <button
                       type="button"
                       onClick={() => { setDataFim(""); setResultado(null); }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -471,7 +471,7 @@ export default function RelatorioMtbfPage() {
                       setDataFim(fim.toISOString().slice(0, 10));
                       setResultado(null);
                     }}
-                    className="px-2.5 py-1 text-xs font-medium rounded-md border border-gray-200 text-gray-600 hover:border-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors"
+                    className="px-2.5 py-1 text-xs font-medium rounded-md border border-border text-muted-foreground hover:border-orange-400 hover:text-orange-600 hover:bg-warning/10 transition-colors"
                   >
                     {label}
                   </button>
@@ -492,7 +492,7 @@ export default function RelatorioMtbfPage() {
 
             {/* Período ativo */}
             {(dataInicio || dataFim) && (
-              <p className="text-xs text-orange-600 bg-orange-50 border border-orange-100 rounded-lg px-3 py-2 flex items-center gap-2">
+              <p className="text-xs text-orange-600 bg-warning/10 border border-orange-100 rounded-lg px-3 py-2 flex items-center gap-2">
                 <Clock className="w-3.5 h-3.5 shrink-0" />
                 Período filtrado: <strong>{dataInicio ? new Date(dataInicio + "T12:00:00").toLocaleDateString("pt-BR") : "início"}</strong>
                 {" até "}
@@ -508,7 +508,7 @@ export default function RelatorioMtbfPage() {
             )}
 
             {error && (
-              <div className="mt-3 flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
+              <div className="mt-3 flex items-center gap-2 text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-4 py-2.5">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 {error}
               </div>
@@ -521,21 +521,21 @@ export default function RelatorioMtbfPage() {
           <>
             {/* Identificação da aplicação */}
             <div className="flex items-center gap-2 px-1">
-              <span className="font-mono text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
+              <span className="font-mono text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
                 {resultado.tag}
               </span>
-              <span className="text-sm font-medium text-gray-700">{resultado.descricao}</span>
+              <span className="text-sm font-medium text-foreground">{resultado.descricao}</span>
             </div>
 
             {/* ── KPI Cards ─────────────────────────────────────────────── */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
               {/* MTBF Atual */}
-              <Card className="border-2 border-blue-100 bg-gradient-to-br from-blue-50 to-white">
+              <Card className="border-2 border-info/20 bg-gradient-to-br from-blue-50 to-white">
                 <CardContent className="pt-5 pb-5">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
                         MTBF Atual
                       </p>
                       <p className={cn("text-4xl font-bold tracking-tight", mtbfColor)}>
@@ -545,19 +545,19 @@ export default function RelatorioMtbfPage() {
                             : `${resultado.mtbfAtual.toFixed(1)}h`
                           : "—"}
                       </p>
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         {resultado.mtbfAtual != null && resultado.mtbfAtual >= 24
                           ? `${resultado.mtbfAtual.toFixed(1)} horas`
                           : "horas entre falhas"}
                       </p>
                     </div>
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <Clock className="w-5 h-5 text-blue-600" />
+                    <div className="p-2 bg-info/15 rounded-lg">
+                      <Clock className="w-5 h-5 text-info" />
                     </div>
                   </div>
                   {/* Fórmula */}
-                  <div className="mt-3 pt-3 border-t border-blue-100">
-                    <p className="text-[10px] text-gray-400 font-mono leading-tight">
+                  <div className="mt-3 pt-3 border-t border-info/20">
+                    <p className="text-[10px] text-muted-foreground font-mono leading-tight">
                       ROUND(DATEDIFF(min, t₀, tₙ) / 60, 2) / n_OS
                     </p>
                   </div>
@@ -569,21 +569,21 @@ export default function RelatorioMtbfPage() {
                 <CardContent className="pt-5 pb-5">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
                         Total de O.S. (falhas)
                       </p>
-                      <p className="text-4xl font-bold text-gray-800">
+                      <p className="text-4xl font-bold text-foreground">
                         {resultado.totalFalhas}
                       </p>
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         com defeito registrado
                       </p>
                     </div>
-                    <div className="p-2 bg-orange-100 rounded-lg">
+                    <div className="p-2 bg-warning/15 rounded-lg">
                       <AlertTriangle className="w-5 h-5 text-orange-500" />
                     </div>
                   </div>
-                  <div className="mt-3 pt-3 border-t border-gray-100 text-[11px] text-gray-400">
+                  <div className="mt-3 pt-3 border-t border-border text-[11px] text-muted-foreground">
                     <p>REGSERV.CODDEF IS NOT NULL</p>
                   </div>
                 </CardContent>
@@ -594,22 +594,22 @@ export default function RelatorioMtbfPage() {
                 <CardContent className="pt-5 pb-5">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
                         Período analisado
                       </p>
-                      <p className="text-sm font-bold text-gray-800 mt-1">
+                      <p className="text-sm font-bold text-foreground mt-1">
                         {fmtDate(resultado.dataInicio)}
                       </p>
-                      <p className="text-xs text-gray-400">até</p>
-                      <p className="text-sm font-bold text-gray-800">
+                      <p className="text-xs text-muted-foreground">até</p>
+                      <p className="text-sm font-bold text-foreground">
                         {fmtDate(resultado.dataFim)}
                       </p>
                     </div>
-                    <div className="p-2 bg-gray-100 rounded-lg">
-                      <Activity className="w-5 h-5 text-gray-500" />
+                    <div className="p-2 bg-muted rounded-lg">
+                      <Activity className="w-5 h-5 text-muted-foreground" />
                     </div>
                   </div>
-                  <div className="mt-2 pt-2 border-t border-gray-100">
+                  <div className="mt-2 pt-2 border-t border-border">
                     <TendenciaBadge tendencia={resultado.tendencia} />
                   </div>
                 </CardContent>
@@ -620,21 +620,21 @@ export default function RelatorioMtbfPage() {
             <Card>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-blue-500" />
                     Tendência MTBF — Últimos 6 meses
                   </CardTitle>
                   {mediasMtbf != null && (
-                    <span className="text-xs text-gray-400">
-                      Média: <span className="font-semibold text-gray-600">{fmtHoras(mediasMtbf)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      Média: <span className="font-semibold text-muted-foreground">{fmtHoras(mediasMtbf)}</span>
                     </span>
                   )}
                 </div>
               </CardHeader>
               <CardContent className="pt-2">
                 {resultado.tendencia.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
-                    <AlertTriangle className="w-8 h-8 text-gray-300" />
+                  <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
+                    <AlertTriangle className="w-8 h-8 text-muted-foreground/60" />
                     <p className="text-sm">Sem dados nos últimos 6 meses para esta aplicação.</p>
                   </div>
                 ) : (
@@ -693,14 +693,14 @@ export default function RelatorioMtbfPage() {
 
                 {/* Tabela de suporte */}
                 {resultado.tendencia.length > 0 && (
-                  <div className="mt-4 border border-gray-100 rounded-lg overflow-hidden">
+                  <div className="mt-4 border border-border rounded-lg overflow-hidden">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b border-gray-100">
+                      <thead className="bg-muted border-b border-border">
                         <tr>
-                          <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Mês</th>
-                          <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">Falhas (OS)</th>
-                          <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">MTBF</th>
-                          <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">vs. Média</th>
+                          <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Mês</th>
+                          <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">Falhas (OS)</th>
+                          <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">MTBF</th>
+                          <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground">vs. Média</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
@@ -709,26 +709,26 @@ export default function RelatorioMtbfPage() {
                             ? ((t.mtbf - mediasMtbf) / mediasMtbf) * 100
                             : null;
                           return (
-                            <tr key={t.mes} className="hover:bg-gray-50">
-                              <td className="px-4 py-2 text-sm font-medium text-gray-700">{t.label}</td>
-                              <td className="px-4 py-2 text-right text-sm text-gray-600">{t.falhas}</td>
+                            <tr key={t.mes} className="hover:bg-muted">
+                              <td className="px-4 py-2 text-sm font-medium text-foreground">{t.label}</td>
+                              <td className="px-4 py-2 text-right text-sm text-muted-foreground">{t.falhas}</td>
                               <td className="px-4 py-2 text-right font-semibold text-sm">
                                 {t.mtbf != null
-                                  ? <span className={t.mtbf >= (mediasMtbf ?? 0) ? "text-emerald-600" : "text-red-500"}>{fmtHoras(t.mtbf)}</span>
-                                  : <span className="text-gray-400 text-xs">1 OS (sem intervalo)</span>
+                                  ? <span className={t.mtbf >= (mediasMtbf ?? 0) ? "text-success" : "text-red-500"}>{fmtHoras(t.mtbf)}</span>
+                                  : <span className="text-muted-foreground text-xs">1 OS (sem intervalo)</span>
                                 }
                               </td>
                               <td className="px-4 py-2 text-right text-xs">
                                 {diff != null ? (
                                   <span className={cn(
                                     "inline-flex items-center gap-0.5 font-semibold",
-                                    diff >= 0 ? "text-emerald-600" : "text-red-500"
+                                    diff >= 0 ? "text-success" : "text-red-500"
                                   )}>
                                     {diff >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                                     {diff >= 0 ? "+" : ""}{diff.toFixed(1)}%
                                   </span>
                                 ) : (
-                                  <span className="text-gray-300">—</span>
+                                  <span className="text-muted-foreground/60">—</span>
                                 )}
                               </td>
                             </tr>
@@ -742,8 +742,8 @@ export default function RelatorioMtbfPage() {
             </Card>
 
             {/* Nota metodológica */}
-            <div className="text-xs text-gray-400 bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 space-y-1">
-              <p className="font-semibold text-gray-500">Metodologia de cálculo</p>
+            <div className="text-xs text-muted-foreground bg-muted border border-border rounded-lg px-4 py-3 space-y-1">
+              <p className="font-semibold text-muted-foreground">Metodologia de cálculo</p>
               <p><strong>MTBF Atual:</strong> ROUND(DATEDIFF(min, 1ª OS, última OS) / 60, 2) / n° de OS — intervalo total entre a primeira e a última falha confirmada (CODDEF IS NOT NULL), dividido pelo número de ordens de serviço.</p>
               <p><strong>Tendência (6 meses):</strong> mesma fórmula aplicada mês a mês. Meses com apenas 1 OS exibem "1 OS (sem intervalo)" pois o DATEDIFF seria zero.</p>
               <p><strong>Filiais excluídas:</strong> CODFIL = 000.</p>

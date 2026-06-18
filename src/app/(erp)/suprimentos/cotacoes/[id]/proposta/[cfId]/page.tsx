@@ -378,7 +378,7 @@ export default function EditPropostaPage() {
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) return (
     <div className="flex items-center justify-center py-24">
-      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
     </div>
   );
 
@@ -429,29 +429,29 @@ export default function EditPropostaPage() {
 
       <div className="px-8 pb-8 max-w-5xl space-y-6">
         {saveError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{saveError}</div>
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{saveError}</div>
         )}
 
         {/* ── Seção Fornecedor ─────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-sm text-gray-800">Fornecedor</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Fornecedor</h2>
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Código fornecedor</Label>
-              <Input value={codigoForn} readOnly className="font-mono bg-gray-50" />
+              <Label className="text-xs text-muted-foreground">Código fornecedor</Label>
+              <Input value={codigoForn} readOnly className="font-mono bg-muted" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Loja</Label>
-              <Input value="01" readOnly className="bg-gray-50" />
+              <Label className="text-xs text-muted-foreground">Loja</Label>
+              <Input value="01" readOnly className="bg-muted" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Nome Fornecedor</Label>
-              <Input value={fornNome} readOnly className="bg-gray-50" />
+              <Label className="text-xs text-muted-foreground">Nome Fornecedor</Label>
+              <Input value={fornNome} readOnly className="bg-muted" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Contato</Label>
+              <Label className="text-xs text-muted-foreground">Contato</Label>
               <Input
                 value={contato}
                 onChange={(e) => setContato(e.target.value)}
@@ -459,7 +459,7 @@ export default function EditPropostaPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">E-mail</Label>
+              <Label className="text-xs text-muted-foreground">E-mail</Label>
               <Input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -467,32 +467,32 @@ export default function EditPropostaPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Proposta</Label>
-              <Input value={propostaLabel} readOnly className="bg-gray-50 font-mono" />
+              <Label className="text-xs text-muted-foreground">Proposta</Label>
+              <Input value={propostaLabel} readOnly className="bg-muted font-mono" />
             </div>
           </div>
         </div>
 
         {/* ── Itens da cotação ──────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-sm text-gray-800">Itens da cotação</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Itens da cotação</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
+              <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600">Produto</th>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600">Descrição</th>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600">U.M.</th>
-                  <th className="text-left px-4 py-2 font-medium text-gray-600 w-36">Situação</th>
-                  <th className="text-right px-4 py-2 font-medium text-gray-600">Quantidade</th>
-                  <th className="text-right px-4 py-2 font-medium text-gray-600 w-36">Preço Unitário</th>
-                  <th className="text-right px-4 py-2 font-medium text-gray-600 w-24">% Desc.</th>
-                  <th className="text-right px-4 py-2 font-medium text-gray-600">Total Item</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Produto</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Descrição</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">U.M.</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground w-36">Situação</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground">Quantidade</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-36">Preço Unitário</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-24">% Desc.</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground">Total Item</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {itens.map((item, idx) => {
                   const preco = parseFloat(item.precoUnitario) || 0;
                   const pctDesc = parseFloat(item.desconto) || 0;
@@ -501,10 +501,10 @@ export default function EditPropostaPage() {
                   const isNaoConsidera = item.situacao === "NAO_CONSIDERA";
 
                   return (
-                    <tr key={item.id} className={cn("hover:bg-gray-50", isNaoConsidera && "opacity-50")}>
-                      <td className="px-4 py-2 font-mono text-xs text-gray-500">{item.item.codigo}</td>
-                      <td className="px-4 py-2 text-gray-800">{item.item.descricao}</td>
-                      <td className="px-4 py-2 text-gray-600">{item.item.unidadeMedida}</td>
+                    <tr key={item.id} className={cn("hover:bg-muted", isNaoConsidera && "opacity-50")}>
+                      <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{item.item.codigo}</td>
+                      <td className="px-4 py-2 text-foreground">{item.item.descricao}</td>
+                      <td className="px-4 py-2 text-muted-foreground">{item.item.unidadeMedida}</td>
                       <td className="px-4 py-2">
                         <Select
                           value={item.situacao}
@@ -523,7 +523,7 @@ export default function EditPropostaPage() {
                           </SelectContent>
                         </Select>
                       </td>
-                      <td className="px-4 py-2 text-right text-gray-700">
+                      <td className="px-4 py-2 text-right text-foreground">
                         {item.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                       </td>
                       <td className="px-4 py-2">
@@ -563,10 +563,10 @@ export default function EditPropostaPage() {
                             className="text-right h-8 pr-6"
                             placeholder="0"
                           />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
                         </div>
                       </td>
-                      <td className="px-4 py-2 text-right font-medium text-gray-800">
+                      <td className="px-4 py-2 text-right font-medium text-foreground">
                         {isNaoConsidera ? "—" : formatBRL(totalItem)}
                       </td>
                     </tr>
@@ -574,41 +574,41 @@ export default function EditPropostaPage() {
                 })}
                 {itens.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-4 text-center text-gray-400 text-sm">
+                    <td colSpan={8} className="px-4 py-4 text-center text-muted-foreground text-sm">
                       Nenhum item na proposta
                     </td>
                   </tr>
                 )}
               </tbody>
-              <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+              <tfoot className="border-t-2 border-border bg-muted">
                 {descontoTotalItens > 0 && (
                   <tr className="text-sm">
-                    <td colSpan={6} className="px-4 py-1.5 text-right text-gray-500">
+                    <td colSpan={6} className="px-4 py-1.5 text-right text-muted-foreground">
                       Desconto Total Itens
                     </td>
                     <td />
-                    <td className="px-4 py-1.5 text-right text-red-600 font-medium">
+                    <td className="px-4 py-1.5 text-right text-danger font-medium">
                       -{formatBRL(descontoTotalItens)}
                     </td>
                   </tr>
                 )}
                 {vrDescontoCalc > 0 && (
                   <tr className="text-sm">
-                    <td colSpan={6} className="px-4 py-1.5 text-right text-gray-500">
+                    <td colSpan={6} className="px-4 py-1.5 text-right text-muted-foreground">
                       Desconto Global Total
                     </td>
                     <td />
-                    <td className="px-4 py-1.5 text-right text-red-600 font-medium">
+                    <td className="px-4 py-1.5 text-right text-danger font-medium">
                       -{formatBRL(vrDescontoCalc)}
                     </td>
                   </tr>
                 )}
                 <tr>
-                  <td colSpan={6} className="px-4 py-2 text-right font-semibold text-gray-700 text-sm">
+                  <td colSpan={6} className="px-4 py-2 text-right font-semibold text-foreground text-sm">
                     Total da cotação
                   </td>
                   <td />
-                  <td className="px-4 py-2 text-right font-bold text-gray-900">
+                  <td className="px-4 py-2 text-right font-bold text-foreground">
                     {formatBRL(totalCotacao)}
                   </td>
                 </tr>
@@ -618,29 +618,29 @@ export default function EditPropostaPage() {
         </div>
 
         {/* ── Seção Cotação ─────────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-sm text-gray-800">Cotação</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Cotação</h2>
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Total itens</Label>
+              <Label className="text-xs text-muted-foreground">Total itens</Label>
               <Input
                 value={totalItens.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                 readOnly
-                className="bg-gray-50 text-right"
+                className="bg-muted text-right"
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Total Cotação</Label>
+              <Label className="text-xs text-muted-foreground">Total Cotação</Label>
               <Input
                 value={formatBRL(totalCotacao)}
                 readOnly
-                className="bg-gray-50 text-right font-semibold"
+                className="bg-muted text-right font-semibold"
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">% Desconto</Label>
+              <Label className="text-xs text-muted-foreground">% Desconto</Label>
               <div className="relative">
                 <Input
                   type="number"
@@ -652,11 +652,11 @@ export default function EditPropostaPage() {
                   placeholder="0,00"
                   className="text-right pr-7"
                 />
-                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Vr Desconto</Label>
+              <Label className="text-xs text-muted-foreground">Vr Desconto</Label>
               <Input
                 type="number"
                 step="0.01"
@@ -668,7 +668,7 @@ export default function EditPropostaPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Frete</Label>
+              <Label className="text-xs text-muted-foreground">Frete</Label>
               <Input
                 type="number"
                 step="0.01"
@@ -680,7 +680,7 @@ export default function EditPropostaPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Tipo Frete</Label>
+              <Label className="text-xs text-muted-foreground">Tipo Frete</Label>
               <Select value={tipoFrete} onValueChange={setTipoFrete}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar" />
@@ -694,11 +694,11 @@ export default function EditPropostaPage() {
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label className="text-xs text-gray-500">Condição pagamento</Label>
+                <Label className="text-xs text-muted-foreground">Condição pagamento</Label>
                 <button
                   type="button"
                   onClick={() => { setShowNovaCondicao(true); setNovaCondicaoNome(""); setNovaCondicaoDesc(""); setErroCondicao(""); }}
-                  className="flex items-center gap-0.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                  className="flex items-center gap-0.5 text-xs text-info hover:text-info font-medium"
                   title="Nova condição de pagamento"
                 >
                   <Plus className="w-3 h-3" /> Nova
@@ -722,7 +722,7 @@ export default function EditPropostaPage() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Despesas</Label>
+              <Label className="text-xs text-muted-foreground">Despesas</Label>
               <Input
                 type="number"
                 step="0.01"
@@ -734,7 +734,7 @@ export default function EditPropostaPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Seguro</Label>
+              <Label className="text-xs text-muted-foreground">Seguro</Label>
               <Input
                 type="number"
                 step="0.01"
@@ -749,9 +749,9 @@ export default function EditPropostaPage() {
         </div>
 
         {/* ── Anexos ────────────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-sm text-gray-800">Documentos da Proposta</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Documentos da Proposta</h2>
           </div>
           <div className="p-4">
             <AnexosSection
@@ -764,11 +764,11 @@ export default function EditPropostaPage() {
       {/* ── Modal Nova Condição de Pagamento ─────────────────────────────────── */}
       {showNovaCondicao && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm flex flex-col">
+          <div className="bg-card rounded-2xl shadow-xl w-full max-w-sm flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-900">Nova Condição de Pagamento</h2>
-              <button onClick={() => setShowNovaCondicao(false)} className="text-gray-400 hover:text-gray-600">
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
+              <h2 className="font-semibold text-foreground">Nova Condição de Pagamento</h2>
+              <button onClick={() => setShowNovaCondicao(false)} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -776,7 +776,7 @@ export default function EditPropostaPage() {
             {/* Body */}
             <div className="px-6 py-5 space-y-4">
               {erroCondicao && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{erroCondicao}</p>
+                <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{erroCondicao}</p>
               )}
               <div className="space-y-1.5">
                 <Label>Nome <span className="text-red-500">*</span></Label>
@@ -789,7 +789,7 @@ export default function EditPropostaPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-gray-600">Descrição <span className="text-gray-400 text-xs font-normal">(opcional)</span></Label>
+                <Label className="text-muted-foreground">Descrição <span className="text-muted-foreground text-xs font-normal">(opcional)</span></Label>
                 <Input
                   value={novaCondicaoDesc}
                   onChange={(e) => setNovaCondicaoDesc(e.target.value)}
@@ -799,7 +799,7 @@ export default function EditPropostaPage() {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end gap-2">
+            <div className="px-6 py-4 border-t border-border bg-muted rounded-b-2xl flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setShowNovaCondicao(false)}>
                 Cancelar
               </Button>

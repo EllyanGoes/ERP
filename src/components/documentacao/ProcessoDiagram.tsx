@@ -15,12 +15,12 @@ export type BpmnTipo = "inicio" | "fim" | "tarefa" | "gateway" | "nota";
 
 // Cor da "raia" (módulo) — borda/realce da tarefa.
 const COR: Record<string, string> = {
-  azul:    "border-blue-300 bg-blue-50/40",
-  ambar:   "border-amber-300 bg-amber-50/40",
-  verde:   "border-emerald-300 bg-emerald-50/40",
+  azul:    "border-blue-300 bg-info/10",
+  ambar:   "border-amber-300 bg-warning/10",
+  verde:   "border-emerald-300 bg-success/10",
   violeta: "border-violet-300 bg-violet-50/40",
-  rosa:    "border-rose-300 bg-rose-50/40",
-  cinza:   "border-gray-300 bg-gray-50",
+  rosa:    "border-rose-300 bg-danger/10",
+  cinza:   "border-border bg-muted",
 };
 
 export type BpmnNo = {
@@ -32,20 +32,20 @@ export type BpmnGrafo = { nodes: BpmnNo[]; edges: BpmnLigacao[] };
 
 type NodeData = { label: string; sub?: string; cor?: keyof typeof COR };
 
-const hAlvo = <Handle type="target" position={Position.Left} className="!w-1.5 !h-1.5 !bg-gray-300 !border-0" />;
-const hOrig = <Handle type="source" position={Position.Right} className="!w-1.5 !h-1.5 !bg-gray-300 !border-0" />;
+const hAlvo = <Handle type="target" position={Position.Left} className="!w-1.5 !h-1.5 !bg-muted !border-0" />;
+const hOrig = <Handle type="source" position={Position.Right} className="!w-1.5 !h-1.5 !bg-muted !border-0" />;
 
 function Evento({ data, tipo }: { data: NodeData; tipo: "inicio" | "fim" }) {
   return (
     <div className="relative flex flex-col items-center" style={{ width: 64 }}>
       {hAlvo}
       <div className={cn(
-        "w-9 h-9 rounded-full bg-white flex items-center justify-center",
+        "w-9 h-9 rounded-full bg-card flex items-center justify-center",
         tipo === "inicio" ? "border-2 border-emerald-500" : "border-[3px] border-rose-500",
       )}>
         <span className={cn("w-2.5 h-2.5 rounded-full", tipo === "inicio" ? "bg-emerald-500" : "bg-rose-500")} />
       </div>
-      <span className="mt-1 text-[10px] text-center text-gray-600 leading-tight">{data.label}</span>
+      <span className="mt-1 text-[10px] text-center text-muted-foreground leading-tight">{data.label}</span>
       {hOrig}
     </div>
   );
@@ -58,8 +58,8 @@ function Tarefa({ data }: { data: NodeData }) {
       COR[data.cor ?? "cinza"],
     )}>
       {hAlvo}
-      <p className="text-[13px] font-medium text-gray-800 leading-tight">{data.label}</p>
-      {data.sub && <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{data.sub}</p>}
+      <p className="text-[13px] font-medium text-foreground leading-tight">{data.label}</p>
+      {data.sub && <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{data.sub}</p>}
       {hOrig}
     </div>
   );
@@ -69,10 +69,10 @@ function Gateway({ data }: { data: NodeData }) {
   return (
     <div className="relative flex flex-col items-center" style={{ width: 80 }}>
       {hAlvo}
-      <div className="w-9 h-9 rotate-45 bg-amber-50 border-2 border-amber-400 flex items-center justify-center">
-        <span className="-rotate-45 text-amber-600 text-sm font-bold">×</span>
+      <div className="w-9 h-9 rotate-45 bg-warning/10 border-2 border-amber-400 flex items-center justify-center">
+        <span className="-rotate-45 text-warning text-sm font-bold">×</span>
       </div>
-      <span className="mt-1 text-[10px] text-center text-gray-600 leading-tight">{data.label}</span>
+      <span className="mt-1 text-[10px] text-center text-muted-foreground leading-tight">{data.label}</span>
       {hOrig}
     </div>
   );
@@ -80,8 +80,8 @@ function Gateway({ data }: { data: NodeData }) {
 
 function Nota({ data }: { data: NodeData }) {
   return (
-    <div className="rounded-md border border-dashed border-gray-300 bg-white/70 px-2.5 py-1.5 max-w-[200px]">
-      <p className="text-[11px] text-gray-500 leading-snug">{data.label}</p>
+    <div className="rounded-md border border-dashed border-border bg-card/70 px-2.5 py-1.5 max-w-[200px]">
+      <p className="text-[11px] text-muted-foreground leading-snug">{data.label}</p>
     </div>
   );
 }
@@ -111,7 +111,7 @@ export default function ProcessoDiagram({ grafo, altura = 360 }: { grafo: BpmnGr
   })), [grafo]);
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white" style={{ height: altura }}>
+    <div className="rounded-xl border border-border bg-card" style={{ height: altura }}>
       <ReactFlowProvider>
         <ReactFlow
           nodes={nodes}

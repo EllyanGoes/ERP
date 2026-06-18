@@ -59,15 +59,15 @@ function fmtH(h: number): string {
 }
 
 const PRIORIDADE_COLOR: Record<string, string> = {
-  ALTA:  "bg-red-100 text-red-700 border-red-200",
-  MÉDIA: "bg-amber-100 text-amber-700 border-amber-200",
-  BAIXA: "bg-green-100 text-green-700 border-green-200",
+  ALTA:  "bg-danger/15 text-danger border-danger/30",
+  MÉDIA: "bg-warning/15 text-warning border-warning/30",
+  BAIXA: "bg-success/15 text-success border-success/30",
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  A: "bg-blue-100 text-blue-700",
-  F: "bg-green-100 text-green-700",
-  C: "bg-gray-100 text-gray-500",
+  A: "bg-info/15 text-info",
+  F: "bg-success/15 text-success",
+  C: "bg-muted text-muted-foreground",
 };
 const STATUS_LABEL: Record<string, string> = {
   A: "Em Aberto",
@@ -82,14 +82,14 @@ function Kpi({ label, value, sub, color, bg, icon: Icon }: {
   label: string; value: string; sub?: string; color: string; bg: string; icon: React.ElementType;
 }) {
   return (
-    <div className={`rounded-xl p-4 ${bg} border border-gray-100`}>
+    <div className={`rounded-xl p-4 ${bg} border border-border`}>
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
           <p className={`text-2xl font-bold mt-0.5 ${color}`}>{value}</p>
-          {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+          {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
         </div>
-        <div className={`p-2 rounded-lg bg-white/60`}>
+        <div className={`p-2 rounded-lg bg-card/60`}>
           <Icon className={`w-5 h-5 ${color}`} />
         </div>
       </div>
@@ -205,13 +205,13 @@ export default function FMEAPage() {
         actions={
           <div className="flex items-center gap-2">
             {engemanOffline ? (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-red-50 border-red-200 text-red-700">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-danger/10 border-danger/30 text-danger">
                 <Database className="w-3.5 h-3.5" />
                 <span className="w-2 h-2 rounded-full bg-red-500" />
                 Engeman inacessível
               </div>
             ) : data && (
-              <div className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border", "bg-green-50 border-green-200 text-green-700")}>
+              <div className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border", "bg-success/10 border-success/30 text-success")}>
                 <Database className="w-3.5 h-3.5" />
                 <span className={cn("w-2 h-2 rounded-full", "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]")} />
                 Engeman online
@@ -248,7 +248,7 @@ export default function FMEAPage() {
       <div className="px-8 pb-10 space-y-6">
 
         {loading && !data && (
-          <div className="flex items-center justify-center py-24 text-gray-400 gap-2">
+          <div className="flex items-center justify-center py-24 text-muted-foreground gap-2">
             <Loader2 className="w-5 h-5 animate-spin" />
             <span className="text-sm">Buscando histórico de O.S…</span>
           </div>
@@ -256,8 +256,8 @@ export default function FMEAPage() {
         {!loading && engemanOffline && !data && (
           <div className="flex flex-col items-center justify-center py-24 gap-3 text-sm">
             <Database className="w-10 h-10 text-red-300" />
-            <p className="font-semibold text-red-600">Engeman inacessível</p>
-            <p className="text-gray-400 text-center max-w-sm">
+            <p className="font-semibold text-danger">Engeman inacessível</p>
+            <p className="text-muted-foreground text-center max-w-sm">
               O servidor Engeman não está acessível neste ambiente (rede local apenas).
             </p>
             <Button variant="outline" size="sm" className="gap-1.5 mt-1" onClick={fetchData}>
@@ -270,41 +270,41 @@ export default function FMEAPage() {
         {data && (
           <>
             {/* ── Equipamento info ────────────────────────────────────────── */}
-            <Card className="border-gray-100">
+            <Card className="border-border">
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-start gap-6 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <div className="p-2 bg-blue-50 rounded-lg">
-                      <Cpu className="w-5 h-5 text-blue-600" />
+                    <div className="p-2 bg-info/10 rounded-lg">
+                      <Cpu className="w-5 h-5 text-info" />
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400">Ativo</p>
-                      <p className="text-sm font-semibold text-gray-900">{data.equipamento}</p>
+                      <p className="text-xs text-muted-foreground">Ativo</p>
+                      <p className="text-sm font-semibold text-foreground">{data.equipamento}</p>
                     </div>
                   </div>
                   {data.tag && (
                     <div className="flex items-center gap-2">
-                      <div className="p-2 bg-gray-50 rounded-lg">
-                        <Tag className="w-5 h-5 text-gray-500" />
+                      <div className="p-2 bg-muted rounded-lg">
+                        <Tag className="w-5 h-5 text-muted-foreground" />
                       </div>
                       <div>
-                        <p className="text-xs text-gray-400">TAG</p>
-                        <p className="text-sm font-semibold text-gray-700 font-mono">{data.tag}</p>
+                        <p className="text-xs text-muted-foreground">TAG</p>
+                        <p className="text-sm font-semibold text-foreground font-mono">{data.tag}</p>
                       </div>
                     </div>
                   )}
                   <div className="flex items-center gap-2">
-                    <div className="p-2 bg-gray-50 rounded-lg">
-                      <MapPin className="w-5 h-5 text-gray-500" />
+                    <div className="p-2 bg-muted rounded-lg">
+                      <MapPin className="w-5 h-5 text-muted-foreground" />
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400">Local</p>
-                      <p className="text-sm font-semibold text-gray-700">{data.local}</p>
+                      <p className="text-xs text-muted-foreground">Local</p>
+                      <p className="text-sm font-semibold text-foreground">{data.local}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-auto">
-                    <FileBarChart2 className="w-4 h-4 text-gray-400" />
-                    <p className="text-xs text-gray-400">
+                    <FileBarChart2 className="w-4 h-4 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">
                       Análise de Modos de Falha e Efeitos — últimos {data.periodoMeses} {data.periodoMeses === 1 ? "mês" : "meses"}
                     </p>
                   </div>
@@ -318,8 +318,8 @@ export default function FMEAPage() {
                 label="Total OS"
                 value={String(data.totalFalhas)}
                 sub="ordens de serviço"
-                color={data.totalFalhas >= 10 ? "text-red-600" : data.totalFalhas >= 5 ? "text-amber-600" : "text-gray-700"}
-                bg={data.totalFalhas >= 10 ? "bg-red-50" : data.totalFalhas >= 5 ? "bg-amber-50" : "bg-gray-50"}
+                color={data.totalFalhas >= 10 ? "text-danger" : data.totalFalhas >= 5 ? "text-warning" : "text-foreground"}
+                bg={data.totalFalhas >= 10 ? "bg-danger/10" : data.totalFalhas >= 5 ? "bg-warning/10" : "bg-muted"}
                 icon={AlertTriangle}
               />
               <Kpi
@@ -327,7 +327,7 @@ export default function FMEAPage() {
                 value={fmtH(data.totalHorasParada)}
                 sub="tempo total de reparo"
                 color="text-orange-600"
-                bg="bg-orange-50"
+                bg="bg-warning/10"
                 icon={Timer}
               />
               <Kpi
@@ -342,25 +342,25 @@ export default function FMEAPage() {
                 label="MTTR"
                 value={fmtH(data.mttr)}
                 sub="tempo médio de reparo"
-                color="text-amber-600"
-                bg="bg-amber-50"
+                color="text-warning"
+                bg="bg-warning/10"
                 icon={Timer}
               />
               <Kpi
                 label="Disponibilidade"
                 value={`${data.disponibilidade.toFixed(1)}%`}
                 sub="tempo operacional"
-                color={data.disponibilidade >= 95 ? "text-green-600" : data.disponibilidade >= 85 ? "text-amber-600" : "text-red-600"}
-                bg={data.disponibilidade >= 95 ? "bg-green-50" : data.disponibilidade >= 85 ? "bg-amber-50" : "bg-red-50"}
+                color={data.disponibilidade >= 95 ? "text-success" : data.disponibilidade >= 85 ? "text-warning" : "text-danger"}
+                bg={data.disponibilidade >= 95 ? "bg-success/10" : data.disponibilidade >= 85 ? "bg-warning/10" : "bg-danger/10"}
                 icon={TrendingUp}
               />
             </div>
 
             {/* ── Falhas por tipo (bar chart) ─────────────────────────────── */}
             {tipoChart.length > 0 && (
-              <Card className="border-gray-100">
+              <Card className="border-border">
                 <CardContent className="pt-4 pb-2">
-                  <p className="text-sm font-semibold text-gray-700 mb-3">Frequência por Tipo de Manutenção</p>
+                  <p className="text-sm font-semibold text-foreground mb-3">Frequência por Tipo de Manutenção</p>
                   <ResponsiveContainer width="100%" height={160}>
                     <BarChart data={tipoChart} layout="vertical" margin={{ top: 0, right: 24, left: 8, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
@@ -385,18 +385,18 @@ export default function FMEAPage() {
             )}
 
             {/* ── Failure list ─────────────────────────────────────────────── */}
-            <Card className="border-gray-100">
+            <Card className="border-border">
               <CardContent className="p-0">
                 {/* Table header */}
                 <div className="px-5 pt-4 pb-2 flex items-center justify-between">
-                  <p className="text-sm font-semibold text-gray-700">
+                  <p className="text-sm font-semibold text-foreground">
                     Registro de O.S.
-                    <span className="ml-2 text-xs font-normal text-gray-400">{data.falhas.length} ordens de serviço</span>
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">{data.falhas.length} ordens de serviço</span>
                   </p>
                 </div>
 
                 {data.falhas.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                  <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                     <Activity className="w-10 h-10 mb-3 opacity-30" />
                     <p className="text-sm">Nenhuma falha corretiva registrada no período.</p>
                   </div>
@@ -404,25 +404,25 @@ export default function FMEAPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-t border-gray-100 bg-gray-50 text-xs text-gray-400 uppercase">
+                        <tr className="border-b border-t border-border bg-muted text-xs text-muted-foreground uppercase">
                           <th className="text-left px-5 py-2.5">
-                            <button className="flex items-center gap-1 hover:text-gray-600" onClick={() => handleSort("datent")}>
+                            <button className="flex items-center gap-1 hover:text-muted-foreground" onClick={() => handleSort("datent")}>
                               Data Abertura <SortIcon field="datent" sortKey={sortKey} sortDir={sortDir} />
                             </button>
                           </th>
                           <th className="text-left px-4 py-2.5">OS # / Descrição</th>
                           <th className="text-left px-4 py-2.5 hidden md:table-cell">
-                            <button className="flex items-center gap-1 hover:text-gray-600" onClick={() => handleSort("tipo")}>
+                            <button className="flex items-center gap-1 hover:text-muted-foreground" onClick={() => handleSort("tipo")}>
                               Tipo <SortIcon field="tipo" sortKey={sortKey} sortDir={sortDir} />
                             </button>
                           </th>
                           <th className="text-center px-4 py-2.5">
-                            <button className="flex items-center gap-1 hover:text-gray-600 mx-auto" onClick={() => handleSort("prioridade")}>
+                            <button className="flex items-center gap-1 hover:text-muted-foreground mx-auto" onClick={() => handleSort("prioridade")}>
                               Prioridade <SortIcon field="prioridade" sortKey={sortKey} sortDir={sortDir} />
                             </button>
                           </th>
                           <th className="text-right px-4 py-2.5">
-                            <button className="flex items-center gap-1 hover:text-gray-600 ml-auto" onClick={() => handleSort("horasParada")}>
+                            <button className="flex items-center gap-1 hover:text-muted-foreground ml-auto" onClick={() => handleSort("horasParada")}>
                               Horas Parada <SortIcon field="horasParada" sortKey={sortKey} sortDir={sortDir} />
                             </button>
                           </th>
@@ -432,41 +432,41 @@ export default function FMEAPage() {
                       </thead>
                       <tbody>
                         {sorted.map((f, i) => (
-                          <tr key={f.codord} className={`border-b border-gray-50 hover:bg-gray-50/70 transition-colors ${i % 2 === 1 ? "bg-gray-50/30" : ""}`}>
+                          <tr key={f.codord} className={`border-b border-gray-50 hover:bg-muted/70 transition-colors ${i % 2 === 1 ? "bg-muted/30" : ""}`}>
                             <td className="px-5 py-3">
-                              <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                                <CalendarCheck className="w-3 h-3 text-gray-400" />
+                              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <CalendarCheck className="w-3 h-3 text-muted-foreground" />
                                 {f.datent}
                               </span>
                             </td>
                             <td className="px-4 py-3">
-                              <p className="font-medium text-gray-800 text-xs truncate max-w-[220px]">{f.descricao}</p>
-                              <p className="text-[11px] text-gray-400 font-mono mt-0.5">#{f.codord}</p>
+                              <p className="font-medium text-foreground text-xs truncate max-w-[220px]">{f.descricao}</p>
+                              <p className="text-[11px] text-muted-foreground font-mono mt-0.5">#{f.codord}</p>
                             </td>
                             <td className="px-4 py-3 hidden md:table-cell">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground border border-border">
                                 {f.tipo}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-center">
                               {f.prioridade ? (
                                 <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border",
-                                  PRIORIDADE_COLOR[f.prioridade] ?? "bg-gray-100 text-gray-600 border-gray-200"
+                                  PRIORIDADE_COLOR[f.prioridade] ?? "bg-muted text-muted-foreground border-border"
                                 )}>
                                   {f.prioridade}
                                 </span>
                               ) : (
-                                <span className="text-gray-300 text-xs">—</span>
+                                <span className="text-muted-foreground/60 text-xs">—</span>
                               )}
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <span className={`font-bold text-sm ${f.horasParada >= 8 ? "text-red-600" : f.horasParada >= 4 ? "text-amber-600" : "text-gray-700"}`}>
+                              <span className={`font-bold text-sm ${f.horasParada >= 8 ? "text-danger" : f.horasParada >= 4 ? "text-warning" : "text-foreground"}`}>
                                 {fmtH(f.horasParada)}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-center">
                               <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium",
-                                STATUS_COLOR[f.statord] ?? "bg-gray-100 text-gray-500"
+                                STATUS_COLOR[f.statord] ?? "bg-muted text-muted-foreground"
                               )}>
                                 {STATUS_LABEL[f.statord] ?? f.statord}
                               </span>
@@ -474,18 +474,18 @@ export default function FMEAPage() {
                             <td className="px-4 py-3 hidden lg:table-cell">
                               {f.datafim ? (
                                 <div className="flex flex-col gap-0.5">
-                                  <span className="flex items-center gap-1.5 text-xs text-gray-600">
+                                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                     <CalendarX className="w-3 h-3 text-green-500 flex-shrink-0" />
                                     {f.datafim}
                                   </span>
                                   {f.fechadoPor && (
-                                    <span className="text-[11px] text-gray-400 pl-[18px] truncate max-w-[160px]">
+                                    <span className="text-[11px] text-muted-foreground pl-[18px] truncate max-w-[160px]">
                                       {f.fechadoPor}
                                     </span>
                                   )}
                                 </div>
                               ) : (
-                                <span className="text-gray-300 text-xs">Em aberto</span>
+                                <span className="text-muted-foreground/60 text-xs">Em aberto</span>
                               )}
                             </td>
                           </tr>
@@ -498,7 +498,7 @@ export default function FMEAPage() {
             </Card>
 
             {/* Footer */}
-            <p className="text-xs text-gray-400 text-right">
+            <p className="text-xs text-muted-foreground text-right">
               Atualizado em {new Date(data.generatedAt).toLocaleString("pt-BR")} ·{" "}
               Fonte: Engeman CMMS
             </p>

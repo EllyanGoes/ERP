@@ -5,16 +5,16 @@ import { cn } from "@/lib/utils";
 // receber). Usados na lista e no detalhe do pedido.
 
 const ENTREGA: Record<string, { label: string; cls: string }> = {
-  PENDENTE: { label: "Entrega pendente", cls: "bg-gray-100 text-gray-600" },
-  PARCIAL:  { label: "Entrega parcial",  cls: "bg-amber-100 text-amber-700" },
-  ENTREGUE: { label: "Entregue",         cls: "bg-emerald-100 text-emerald-700" },
+  PENDENTE: { label: "Entrega pendente", cls: "bg-muted text-muted-foreground" },
+  PARCIAL:  { label: "Entrega parcial",  cls: "bg-warning/15 text-warning" },
+  ENTREGUE: { label: "Entregue",         cls: "bg-success/15 text-success" },
 };
 
 const FINANCEIRO: Record<string, { label: string; cls: string }> = {
-  NAO_FATURADO: { label: "Não faturado", cls: "bg-gray-100 text-gray-500" },
-  A_RECEBER:    { label: "A receber",    cls: "bg-blue-100 text-blue-700" },
-  PARCIAL:      { label: "Recebido parcial", cls: "bg-amber-100 text-amber-700" },
-  RECEBIDO:     { label: "Recebido",     cls: "bg-emerald-100 text-emerald-700" },
+  NAO_FATURADO: { label: "Não faturado", cls: "bg-muted text-muted-foreground" },
+  A_RECEBER:    { label: "A receber",    cls: "bg-info/15 text-info" },
+  PARCIAL:      { label: "Recebido parcial", cls: "bg-warning/15 text-warning" },
+  RECEBIDO:     { label: "Recebido",     cls: "bg-success/15 text-success" },
 };
 
 export function EntregaBadge({ status, className }: { status?: string | null; className?: string }) {

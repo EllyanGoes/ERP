@@ -391,23 +391,23 @@ export default function AnaliseCotacaoPage() {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>;
-  if (!cotacao) return <div className="p-8 text-red-600">Cotação não encontrada.</div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (!cotacao) return <div className="p-8 text-danger">Cotação não encontrada.</div>;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Breadcrumb */}
-      <nav className="text-sm text-gray-500 mb-2 flex items-center gap-1">
-        <Link href="/suprimentos/cotacoes" className="hover:text-gray-700">Cotações</Link>
+      <nav className="text-sm text-muted-foreground mb-2 flex items-center gap-1">
+        <Link href="/suprimentos/cotacoes" className="hover:text-foreground">Cotações</Link>
         <span>›</span>
-        <Link href={`/suprimentos/cotacoes/${id}`} className="hover:text-gray-700">{cotacao.numero}</Link>
+        <Link href={`/suprimentos/cotacoes/${id}`} className="hover:text-foreground">{cotacao.numero}</Link>
         <span>›</span>
-        <span className="text-gray-700">Análise</span>
+        <span className="text-foreground">Análise</span>
       </nav>
 
       {/* Header bar */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-800">Análise da Cotação</h1>
+        <h1 className="text-xl font-bold text-foreground">Análise da Cotação</h1>
         <button
           disabled
           title="Em breve"
@@ -422,17 +422,17 @@ export default function AnaliseCotacaoPage() {
       </div>
 
       {/* Mapa da cotação collapsible */}
-      <div className="border rounded-xl mb-6 bg-gray-50 border-gray-200 shadow-sm">
+      <div className="border rounded-xl mb-6 bg-muted border-border shadow-sm">
         <button
-          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700"
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground"
           onClick={() => setMapaOpen(!mapaOpen)}
         >
           <span>Mapa da cotação</span>
           {mapaOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </button>
         {mapaOpen && (
-          <div className="px-4 pb-4 text-sm text-gray-600">
-            <p className="text-gray-400 italic">Mapa de comparação de itens por fornecedor.</p>
+          <div className="px-4 pb-4 text-sm text-muted-foreground">
+            <p className="text-muted-foreground italic">Mapa de comparação de itens por fornecedor.</p>
           </div>
         )}
       </div>
@@ -445,7 +445,7 @@ export default function AnaliseCotacaoPage() {
             onClick={() => setTab(t.key as "proposta" | "item")}
             className={cn(
               "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-              tab === t.key ? "border-red-600 text-red-600" : "border-transparent text-gray-500 hover:text-gray-700"
+              tab === t.key ? "border-red-600 text-danger" : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
             {t.label}
@@ -455,11 +455,11 @@ export default function AnaliseCotacaoPage() {
 
       {/* Sort row */}
       <div className="flex items-center gap-3 mb-6">
-        <span className="text-sm font-medium text-gray-700">Ordenar por:</span>
+        <span className="text-sm font-medium text-foreground">Ordenar por:</span>
         <select
           value={sortBy}
           onChange={e => setSortBy(e.target.value)}
-          className="border rounded-lg px-3 py-1.5 text-sm bg-white border-gray-200"
+          className="border rounded-lg px-3 py-1.5 text-sm bg-card border-border"
         >
           <option value="melhor_preco">Melhor preço sem impostos</option>
           <option value="pior_preco">Maior preço</option>
@@ -467,11 +467,11 @@ export default function AnaliseCotacaoPage() {
         </select>
       </div>
 
-      <p className="text-sm font-medium text-gray-700 mb-4">Informações</p>
+      <p className="text-sm font-medium text-foreground mb-4">Informações</p>
 
       {/* No respondidas */}
       {respondidas.length === 0 && (
-        <div className="text-center py-12 text-gray-400">
+        <div className="text-center py-12 text-muted-foreground">
           <BarChart3 className="h-10 w-10 mx-auto mb-3 opacity-40" />
           <p>Nenhuma proposta respondida para analisar.</p>
         </div>
@@ -505,8 +505,8 @@ export default function AnaliseCotacaoPage() {
                   className={cn(
                     "border rounded-xl p-4 cursor-pointer transition-all shadow-sm",
                     isSelected
-                      ? "border-blue-500 ring-1 ring-blue-100 bg-blue-50/30"
-                      : "border-gray-200 bg-white hover:border-gray-300"
+                      ? "border-blue-500 ring-1 ring-blue-100 bg-info/10"
+                      : "border-border bg-card hover:border-border"
                   )}
                 >
                   {/* Header */}
@@ -514,18 +514,18 @@ export default function AnaliseCotacaoPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap gap-1 mb-1">
                         {isBest && (
-                          <span className="inline-block bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold px-2 py-0.5 rounded-full">
+                          <span className="inline-block bg-success/10 text-success border border-success/30 text-xs font-semibold px-2 py-0.5 rounded-full">
                             Melhor preço
                           </span>
                         )}
                         {latestHistorico && (
-                          <span className="inline-block bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full">
+                          <span className="inline-block bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded-full">
                             Proposta v{latestHistorico.versao} · {formatDate(latestHistorico.createdAt)}
                           </span>
                         )}
                       </div>
-                      <p className="font-bold text-gray-800 text-sm leading-tight truncate">{nome}</p>
-                      {cf.fornecedor.cpfCnpj && <p className="text-xs text-gray-500 mt-0.5">{cf.fornecedor.cpfCnpj}</p>}
+                      <p className="font-bold text-foreground text-sm leading-tight truncate">{nome}</p>
+                      {cf.fornecedor.cpfCnpj && <p className="text-xs text-muted-foreground mt-0.5">{cf.fornecedor.cpfCnpj}</p>}
                     </div>
                     <input
                       type="radio"
@@ -536,36 +536,36 @@ export default function AnaliseCotacaoPage() {
                   </div>
 
                   {/* Stats */}
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mt-3 pt-3 border-t border-gray-100">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mt-3 pt-3 border-t border-border">
                     <div>
-                      <p className="text-gray-400">Total da proposta</p>
-                      <p className="font-semibold text-gray-800">{formatBRL(total)}</p>
+                      <p className="text-muted-foreground">Total da proposta</p>
+                      <p className="font-semibold text-foreground">{formatBRL(total)}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400">Frete</p>
-                      <p className="font-semibold text-gray-800">{frete > 0 ? formatBRL(frete) : "—"}</p>
+                      <p className="text-muted-foreground">Frete</p>
+                      <p className="font-semibold text-foreground">{frete > 0 ? formatBRL(frete) : "—"}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400">Desconto / Extras</p>
-                      <p className="font-semibold text-gray-800">{extrasTotal !== 0 ? formatBRL(extrasTotal) : "—"}</p>
+                      <p className="text-muted-foreground">Desconto / Extras</p>
+                      <p className="font-semibold text-foreground">{extrasTotal !== 0 ? formatBRL(extrasTotal) : "—"}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400">Prazo mín.</p>
-                      <p className="font-semibold text-gray-800">{cf.prazoEntregaDias != null ? `${cf.prazoEntregaDias} Dias` : "—"}</p>
+                      <p className="text-muted-foreground">Prazo mín.</p>
+                      <p className="font-semibold text-foreground">{cf.prazoEntregaDias != null ? `${cf.prazoEntregaDias} Dias` : "—"}</p>
                     </div>
                   </div>
 
                   {/* Footer row */}
-                  <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
+                  <div className="mt-3 pt-2 border-t border-border flex items-center justify-between">
                     <Link
                       href={`/suprimentos/cotacoes/${id}/proposta/${cf.id}`}
                       onClick={e => e.stopPropagation()}
-                      className="text-xs text-red-600 hover:underline"
+                      className="text-xs text-danger hover:underline"
                     >
                       Detalhes
                     </Link>
                     {updatedLabel && (
-                      <span className="text-[11px] text-gray-400">{updatedLabel}</span>
+                      <span className="text-[11px] text-muted-foreground">{updatedLabel}</span>
                     )}
                   </div>
                 </div>
@@ -586,42 +586,42 @@ export default function AnaliseCotacaoPage() {
         <div className="mb-8">
           {/* Search */}
           <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
               value={itemSearch}
               onChange={e => setItemSearch(e.target.value)}
               placeholder="Buscar por código ou descrição..."
-              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-300"
+              className="w-full pl-9 pr-4 py-2 border border-border rounded-lg text-sm bg-card focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-300"
             />
           </div>
 
           {filteredItems.length === 0 && (
-            <div className="text-center py-12 text-gray-400">
+            <div className="text-center py-12 text-muted-foreground">
               <p>Nenhum item encontrado.</p>
             </div>
           )}
 
           {filteredItems.map(itemAnalysis => (
-            <div key={itemAnalysis.itemId} className="bg-white rounded-xl border border-gray-200 mb-4 overflow-hidden">
+            <div key={itemAnalysis.itemId} className="bg-card rounded-xl border border-border mb-4 overflow-hidden">
               {/* Item header */}
-              <div className="bg-gray-50 px-4 py-3 grid grid-cols-4 text-sm border-b border-gray-200">
+              <div className="bg-muted px-4 py-3 grid grid-cols-4 text-sm border-b border-border">
                 <div>
-                  <p className="text-xs text-gray-400 mb-0.5">Código do produto</p>
-                  <p className="font-semibold text-gray-800">{itemAnalysis.codigo}</p>
+                  <p className="text-xs text-muted-foreground mb-0.5">Código do produto</p>
+                  <p className="font-semibold text-foreground">{itemAnalysis.codigo}</p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-xs text-gray-400 mb-0.5">Descrição do produto</p>
-                  <p className="font-semibold text-gray-800">{itemAnalysis.descricao}</p>
+                  <p className="text-xs text-muted-foreground mb-0.5">Descrição do produto</p>
+                  <p className="font-semibold text-foreground">{itemAnalysis.descricao}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-gray-400 mb-0.5">U.M.</p>
-                    <p className="font-semibold text-gray-800">{itemAnalysis.unidadeMedida}</p>
+                    <p className="text-xs text-muted-foreground mb-0.5">U.M.</p>
+                    <p className="font-semibold text-foreground">{itemAnalysis.unidadeMedida}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400 mb-0.5">Quantidade</p>
-                    <p className="font-semibold text-gray-800">{itemAnalysis.quantidade}</p>
+                    <p className="text-xs text-muted-foreground mb-0.5">Quantidade</p>
+                    <p className="font-semibold text-foreground">{itemAnalysis.quantidade}</p>
                   </div>
                 </div>
               </div>
@@ -630,7 +630,7 @@ export default function AnaliseCotacaoPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gray-100 text-xs font-medium text-gray-600">
+                    <tr className="bg-muted text-xs font-medium text-muted-foreground">
                       <th className="w-8 px-3 py-2"></th>
                       <th className="px-3 py-2 text-left">Status</th>
                       <th className="px-3 py-2 text-left">Cód. Fornecedor</th>
@@ -658,12 +658,12 @@ export default function AnaliseCotacaoPage() {
                           key={supplier.cfId}
                           onClick={() => setSelectedByItem(prev => new Map(prev).set(itemAnalysis.itemId, supplier.cfId))}
                           className={cn(
-                            "border-t border-gray-100 cursor-pointer transition-colors",
+                            "border-t border-border cursor-pointer transition-colors",
                             isSelectedForItem
-                              ? "bg-blue-50"
+                              ? "bg-info/10"
                               : supplier.isBestPrice
-                              ? "bg-emerald-50 hover:bg-emerald-100/60"
-                              : "hover:bg-gray-50"
+                              ? "bg-success/10 hover:bg-success/15"
+                              : "hover:bg-muted"
                           )}
                         >
                           <td className="px-3 py-2.5 text-center">
@@ -677,20 +677,20 @@ export default function AnaliseCotacaoPage() {
                           </td>
                           <td className="px-3 py-2.5">
                             {supplier.isBestPrice && (
-                              <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
+                              <span className="bg-success/15 text-success text-xs px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
                                 Melhor preço
                               </span>
                             )}
                           </td>
-                          <td className="px-3 py-2.5 text-gray-500 font-mono text-xs">{supplier.fornecedorCodigo}</td>
-                          <td className="px-3 py-2.5 font-medium text-gray-800 max-w-[200px] truncate">{supplier.fornecedorNome}</td>
-                          <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">
+                          <td className="px-3 py-2.5 text-muted-foreground font-mono text-xs">{supplier.fornecedorCodigo}</td>
+                          <td className="px-3 py-2.5 font-medium text-foreground max-w-[200px] truncate">{supplier.fornecedorNome}</td>
+                          <td className="px-3 py-2.5 text-right text-foreground whitespace-nowrap">
                             {supplier.prazoEntregaDias != null ? `${supplier.prazoEntregaDias}d` : "—"}
                           </td>
-                          <td className="px-3 py-2.5 text-right text-gray-700">{formatBRL(fretePerItem)}</td>
-                          <td className="px-3 py-2.5 text-right text-gray-700">{descontoPercent}%</td>
-                          <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{formatBRL(supplier.subtotal)}</td>
-                          <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{formatBRL(valorTotal)}</td>
+                          <td className="px-3 py-2.5 text-right text-foreground">{formatBRL(fretePerItem)}</td>
+                          <td className="px-3 py-2.5 text-right text-foreground">{descontoPercent}%</td>
+                          <td className="px-3 py-2.5 text-right font-semibold text-foreground">{formatBRL(supplier.subtotal)}</td>
+                          <td className="px-3 py-2.5 text-right font-semibold text-foreground">{formatBRL(valorTotal)}</td>
                         </tr>
                       );
                     })}
@@ -701,28 +701,28 @@ export default function AnaliseCotacaoPage() {
           ))}
 
           {/* Summary bar */}
-          <div className="bg-white border-t-2 border-gray-200 px-6 py-4 flex flex-wrap gap-8 text-sm rounded-xl mt-6 shadow-sm">
+          <div className="bg-card border-t-2 border-border px-6 py-4 flex flex-wrap gap-8 text-sm rounded-xl mt-6 shadow-sm">
             <div>
-              <p className="text-xs text-gray-400 mb-0.5">Total Itens</p>
-              <p className="font-bold text-gray-800">{formatBRL(summary.totalItens)}</p>
+              <p className="text-xs text-muted-foreground mb-0.5">Total Itens</p>
+              <p className="font-bold text-foreground">{formatBRL(summary.totalItens)}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 mb-0.5">Total Frete</p>
-              <p className="font-bold text-gray-800">{formatBRL(summary.totalFrete)}</p>
+              <p className="text-xs text-muted-foreground mb-0.5">Total Frete</p>
+              <p className="font-bold text-foreground">{formatBRL(summary.totalFrete)}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 mb-0.5">Descontos</p>
-              <p className="font-bold text-gray-800">{formatBRL(summary.totalDesconto)}</p>
+              <p className="text-xs text-muted-foreground mb-0.5">Descontos</p>
+              <p className="font-bold text-foreground">{formatBRL(summary.totalDesconto)}</p>
             </div>
             <div className="ml-auto">
-              <p className="text-xs text-gray-400 mb-0.5">Valor a pagar</p>
-              <p className="font-bold text-lg text-gray-900">{formatBRL(summary.valorPagar)}</p>
+              <p className="text-xs text-muted-foreground mb-0.5">Valor a pagar</p>
+              <p className="font-bold text-lg text-foreground">{formatBRL(summary.valorPagar)}</p>
             </div>
           </div>
         </div>
       )}
 
-      {genError && <p className="text-red-600 text-sm mb-4">{genError}</p>}
+      {genError && <p className="text-danger text-sm mb-4">{genError}</p>}
 
       {/* Footer actions */}
       <div className="flex justify-end gap-3 pt-4 border-t">
@@ -733,7 +733,7 @@ export default function AnaliseCotacaoPage() {
           variant="outline"
           onClick={handleDownloadPdf}
           disabled={downloadingPdf || !cotacao}
-          className="border-gray-300 text-gray-700 hover:bg-gray-50"
+          className="border-border text-foreground hover:bg-muted"
         >
           {downloadingPdf ? (
             <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -765,9 +765,9 @@ export default function AnaliseCotacaoPage() {
       {/* Confirm modal */}
       {showConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Formalizar a cotação</h2>
-            <p className="text-gray-600 mb-6">
+          <div className="bg-card rounded-xl shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Formalizar a cotação</h2>
+            <p className="text-muted-foreground mb-6">
               Deseja confirmar a análise e gerar documentos com os vencedores selecionados?
             </p>
             <div className="flex justify-end gap-3">

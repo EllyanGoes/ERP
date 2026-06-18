@@ -91,15 +91,15 @@ export default function IntegracaoPagamentoPage() {
 
       <div className="px-8 pb-8 max-w-2xl space-y-5">
         {loading ? (
-          <div className="text-gray-400 flex items-center gap-2 text-sm pt-2">
+          <div className="text-muted-foreground flex items-center gap-2 text-sm pt-2">
             <Loader2 className="w-4 h-4 animate-spin" /> Carregando…
           </div>
         ) : configs.length === 0 ? (
-          <p className="text-sm text-gray-500">Nenhuma empresa ativa.</p>
+          <p className="text-sm text-muted-foreground">Nenhuma empresa ativa.</p>
         ) : (
           <>
             {/* Aviso sobre cobrança automática */}
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 leading-relaxed">
+            <div className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-xs text-warning leading-relaxed">
               <strong>Como funciona:</strong> guarde aqui as credenciais da maquininha de cada empresa.
               A cobrança automática (enviar o valor para a maquininha e receber a confirmação) só é
               possível com adquirentes que oferecem API de nuvem — atualmente <strong>Stone</strong>.
@@ -109,7 +109,7 @@ export default function IntegracaoPagamentoPage() {
 
             {/* Seletor de empresa */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Empresa</Label>
+              <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Empresa</Label>
               <ComboboxWithCreate
                 value={empresaSel}
                 onChange={(v) => { setEmpresaSel(v); setShowToken(false); setMsg(null); }}
@@ -120,34 +120,34 @@ export default function IntegracaoPagamentoPage() {
             </div>
 
             {config && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+              <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
                 <div className="flex items-center gap-3 pb-1">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
-                    <CreditCard className="w-5 h-5 text-emerald-600" />
+                  <div className="w-10 h-10 rounded-xl bg-success/10 border border-emerald-100 flex items-center justify-center">
+                    <CreditCard className="w-5 h-5 text-success" />
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900 text-sm">Adquirente</p>
-                    <p className="text-xs text-gray-400">Configuração de {config.empresaNome}</p>
+                    <p className="font-semibold text-foreground text-sm">Adquirente</p>
+                    <p className="text-xs text-muted-foreground">Configuração de {config.empresaNome}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-gray-500">Provedor</Label>
+                    <Label className="text-xs text-muted-foreground">Provedor</Label>
                     <select
                       value={config.provedor}
                       onChange={(e) => atualizarCampo("provedor", e.target.value)}
-                      className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="STONE">Stone</option>
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-gray-500">Ambiente</Label>
+                    <Label className="text-xs text-muted-foreground">Ambiente</Label>
                     <select
                       value={config.ambiente}
                       onChange={(e) => atualizarCampo("ambiente", e.target.value)}
-                      className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="PRODUCAO">Produção</option>
                       <option value="SANDBOX">Sandbox (teste)</option>
@@ -156,7 +156,7 @@ export default function IntegracaoPagamentoPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">Ponto de venda / Serial do terminal</Label>
+                  <Label className="text-xs text-muted-foreground">Ponto de venda / Serial do terminal</Label>
                   <Input
                     value={config.pontoVendaId}
                     onChange={(e) => atualizarCampo("pontoVendaId", e.target.value)}
@@ -165,7 +165,7 @@ export default function IntegracaoPagamentoPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">Token de acesso (credencial da adquirente)</Label>
+                  <Label className="text-xs text-muted-foreground">Token de acesso (credencial da adquirente)</Label>
                   <div className="relative">
                     <Input
                       type={showToken ? "text" : "password"}
@@ -178,12 +178,12 @@ export default function IntegracaoPagamentoPage() {
                     <button
                       type="button"
                       onClick={() => setShowToken((v) => !v)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
                     >
                       {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <p className="text-[11px] text-gray-400">
+                  <p className="text-[11px] text-muted-foreground">
                     Credencial secreta — fica só no servidor e nunca é exibida depois de salva.
                   </p>
                 </div>
@@ -195,16 +195,16 @@ export default function IntegracaoPagamentoPage() {
                     onChange={(e) => atualizarCampo("ativo", e.target.checked)}
                     className="w-4 h-4 accent-emerald-600"
                   />
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm text-foreground">
                     Ligar cobrança automática no Caixa
-                    <span className="block text-[11px] text-gray-400">Quando ativo, o Caixa envia a cobrança direto para a maquininha desta empresa (requer provedor com API).</span>
+                    <span className="block text-[11px] text-muted-foreground">Quando ativo, o Caixa envia a cobrança direto para a maquininha desta empresa (requer provedor com API).</span>
                   </span>
                 </label>
 
                 {msg && (
                   <div className={cn(
                     "flex items-center gap-2 text-sm rounded-lg px-3 py-2",
-                    msg.tipo === "ok" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600",
+                    msg.tipo === "ok" ? "bg-success/10 text-success" : "bg-danger/10 text-danger",
                   )}>
                     {msg.tipo === "ok" ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
                     {msg.texto}

@@ -163,28 +163,28 @@ function StopCard({
       onDragEnd={onDragEnd}
       onClick={onClick}
       className={cn(
-        "bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-grab active:cursor-grabbing group select-none",
+        "bg-card border border-border rounded-lg p-3 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-grab active:cursor-grabbing group select-none",
         isDragging && "opacity-40 scale-95",
         finalizado && "opacity-75",
       )}
     >
       <div className="flex items-start gap-2 mb-1.5">
-        <span className="flex items-center justify-center w-5 h-5 shrink-0 rounded-full bg-gray-100 text-gray-600 text-[11px] font-bold">
+        <span className="flex items-center justify-center w-5 h-5 shrink-0 rounded-full bg-muted text-muted-foreground text-[11px] font-bold">
           {ordem}
         </span>
-        <span className="font-mono text-xs font-bold text-gray-800">{m.numero}</span>
-        <span className="font-mono text-xs text-gray-400 ml-auto">{m.pedidoVenda.numero}</span>
-        <GripVertical className="w-3.5 h-3.5 text-gray-300 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+        <span className="font-mono text-xs font-bold text-foreground">{m.numero}</span>
+        <span className="font-mono text-xs text-muted-foreground ml-auto">{m.pedidoVenda.numero}</span>
+        <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
 
-      <p className="text-xs text-gray-700 font-medium leading-snug line-clamp-2">
+      <p className="text-xs text-foreground font-medium leading-snug line-clamp-2">
         {clienteNome(cliente)}
       </p>
       {m.pedidoVenda.numeroOrcamento && (
-        <p className="text-[11px] text-gray-400 mt-0.5">Orç. {m.pedidoVenda.numeroOrcamento}</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5">Orç. {m.pedidoVenda.numeroOrcamento}</p>
       )}
       {local && (
-        <div className="flex items-center gap-1 text-[11px] text-gray-400 mt-0.5">
+        <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
           <MapPin className="w-3 h-3 shrink-0" />
           <span className="truncate">{local}</span>
         </div>
@@ -192,16 +192,16 @@ function StopCard({
 
       <div className="flex items-center gap-2 mt-2">
         <StatusBadge status={m.status} label={statusMinutaLabel(m.status, m.tipo)} />
-        <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+        <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
           {TIPO_MINUTA_LABEL[m.tipo] ?? "Entrega"}
         </span>
-        <span className="text-[11px] text-gray-400 ml-auto">
+        <span className="text-[11px] text-muted-foreground ml-auto">
           {m.itens.length} item{m.itens.length !== 1 ? "s" : ""}
         </span>
       </div>
 
       {m.placa && (
-        <div className="flex items-center gap-1 text-[11px] text-gray-400 mt-1">
+        <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-1">
           <Truck className="w-3 h-3 shrink-0" />
           <span>{m.placa}</span>
         </div>
@@ -209,13 +209,13 @@ function StopCard({
 
       {/* Ações de status */}
       {(m.status === "PENDENTE" || m.status === "SAIU_PARA_ENTREGA") && (
-        <div className="mt-2 pt-2 border-t border-gray-100">
+        <div className="mt-2 pt-2 border-t border-border">
           {m.status === "PENDENTE" ? (
             <button
               type="button"
               disabled={busy}
               onClick={(e) => { e.stopPropagation(); onStatus("SAIU_PARA_ENTREGA"); }}
-              className="w-full flex items-center justify-center gap-1.5 h-7 rounded-md bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 disabled:opacity-50 transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 h-7 rounded-md bg-info/10 text-info text-xs font-medium hover:bg-info/15 disabled:opacity-50 transition-colors"
             >
               <Send className="w-3 h-3" /> {confirmacaoMinutaLabel(m.tipo) === "Confirmar Retirada" ? "Aguardar retirada" : "Marcar saída"}
             </button>
@@ -224,7 +224,7 @@ function StopCard({
               type="button"
               disabled={busy}
               onClick={(e) => { e.stopPropagation(); onStatus("ENTREGUE"); }}
-              className="w-full flex items-center justify-center gap-1.5 h-7 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 h-7 rounded-md bg-success/10 text-success text-xs font-medium hover:bg-success/15 disabled:opacity-50 transition-colors"
             >
               <PackageCheck className="w-3 h-3" /> {confirmacaoMinutaLabel(m.tipo)}
             </button>
@@ -574,7 +574,7 @@ export default function AgendaEntregasPage() {
         <div className="flex items-center gap-1">
           <button
             onClick={() => setDay((d) => view === "dia" ? addDaysISO(d, -1) : view === "semana" ? addDaysISO(d, -7) : addMonthsISO(d, -1))}
-            className="h-8 w-8 flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
+            className="h-8 w-8 flex items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:bg-muted"
             title={view === "dia" ? "Dia anterior" : view === "semana" ? "Semana anterior" : "Mês anterior"}
           >
             <ChevronLeft className="w-4 h-4" />
@@ -583,18 +583,18 @@ export default function AgendaEntregasPage() {
             type="date"
             value={day}
             onChange={(e) => e.target.value && setDay(e.target.value)}
-            className="h-8 w-40 border-gray-200 text-sm"
+            className="h-8 w-40 border-border text-sm"
           />
           <button
             onClick={() => setDay((d) => view === "dia" ? addDaysISO(d, 1) : view === "semana" ? addDaysISO(d, 7) : addMonthsISO(d, 1))}
-            className="h-8 w-8 flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
+            className="h-8 w-8 flex items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:bg-muted"
             title={view === "dia" ? "Próximo dia" : view === "semana" ? "Próxima semana" : "Próximo mês"}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
           <button
             onClick={() => setDay(toISODate(new Date()))}
-            className="h-8 px-3 rounded-md border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 ml-1"
+            className="h-8 px-3 rounded-md border border-border bg-card text-xs font-medium text-muted-foreground hover:bg-muted ml-1"
           >
             Hoje
           </button>
@@ -602,7 +602,7 @@ export default function AgendaEntregasPage() {
 
         {/* Busca */}
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input
             className="pl-9 h-9 text-sm"
             placeholder="Cliente, cidade, minuta, pedido..."
@@ -611,7 +611,7 @@ export default function AgendaEntregasPage() {
           />
           {search && (
             <button
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
               onClick={() => setSearch("")}
             >
               <X className="w-3.5 h-3.5" />
@@ -620,11 +620,11 @@ export default function AgendaEntregasPage() {
         </div>
 
         {/* Contadores */}
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-muted-foreground">
           {loading ? "…" : `${total} entrega${total !== 1 ? "s" : ""}`}
         </span>
         {!loading && semMotorista > 0 && (
-          <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+          <span className="inline-flex items-center gap-1 text-xs text-warning">
             <UserX className="w-3.5 h-3.5" /> {semMotorista} sem motorista
           </span>
         )}
@@ -644,24 +644,24 @@ export default function AgendaEntregasPage() {
         </button>
 
         {/* Toggle Dia | Semana | Mês */}
-        <div className="flex items-center gap-1 border border-gray-200 rounded-lg p-0.5 bg-white">
+        <div className="flex items-center gap-1 border border-border rounded-lg p-0.5 bg-card">
           <button
             className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
-              view === "dia" ? "bg-gray-100 text-gray-800" : "text-gray-500 hover:text-gray-700")}
+              view === "dia" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
             onClick={() => setView("dia")}
           >
             <Route className="w-3.5 h-3.5" /> Dia
           </button>
           <button
             className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
-              view === "semana" ? "bg-gray-100 text-gray-800" : "text-gray-500 hover:text-gray-700")}
+              view === "semana" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
             onClick={() => setView("semana")}
           >
             <CalendarDays className="w-3.5 h-3.5" /> Semana
           </button>
           <button
             className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
-              view === "mes" ? "bg-gray-100 text-gray-800" : "text-gray-500 hover:text-gray-700")}
+              view === "mes" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
             onClick={() => setView("mes")}
           >
             <CalendarRange className="w-3.5 h-3.5" /> Mês
@@ -671,14 +671,14 @@ export default function AgendaEntregasPage() {
 
       {/* Erro */}
       {error && (
-        <div className="mx-8 mb-3 flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
+        <div className="mx-8 mb-3 flex items-center gap-2 px-4 py-2.5 bg-danger/10 border border-danger/30 rounded-xl text-sm text-danger font-medium">
           <X className="w-4 h-4 shrink-0" /> {error}
         </div>
       )}
 
       {/* Conteúdo */}
       {loading ? (
-        <div className="flex items-center justify-center py-24 text-gray-400 gap-2">
+        <div className="flex items-center justify-center py-24 text-muted-foreground gap-2">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span className="text-sm">Carregando agenda…</span>
         </div>
@@ -763,33 +763,33 @@ function RightRail({
   const totalSaldoPedidos = saldo.reduce((s, c) => s + c.pedidos.length, 0);
 
   return (
-    <aside className="w-80 shrink-0 border-l border-gray-200 bg-gray-50 flex flex-col">
+    <aside className="w-80 shrink-0 border-l border-border bg-muted flex flex-col">
       {/* Abas */}
-      <div className="flex border-b border-gray-200 bg-white">
+      <div className="flex border-b border-border bg-card">
         <button
           onClick={() => setTab("pendentes")}
           className={cn("flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors",
-            tab === "pendentes" ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700")}
+            tab === "pendentes" ? "border-blue-600 text-info" : "border-transparent text-muted-foreground hover:text-foreground")}
         >
           <ClipboardList className="w-3.5 h-3.5" /> Pendentes
-          {pendentes.length > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">{pendentes.length}</span>}
+          {pendentes.length > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-warning/15 text-warning font-semibold">{pendentes.length}</span>}
         </button>
         <button
           onClick={() => setTab("saldo")}
           className={cn("flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors",
-            tab === "saldo" ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700")}
+            tab === "saldo" ? "border-blue-600 text-info" : "border-transparent text-muted-foreground hover:text-foreground")}
         >
           <Boxes className="w-3.5 h-3.5" /> Saldo a entregar
-          {totalSaldoPedidos > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">{totalSaldoPedidos}</span>}
+          {totalSaldoPedidos > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-info/15 text-info font-semibold">{totalSaldoPedidos}</span>}
         </button>
       </div>
 
       {tab === "pendentes" ? (
         <div className="flex-1 overflow-auto p-2 space-y-2">
-          <p className="text-[11px] text-gray-400 px-1 pb-1">Minutas sem data — arraste para um dia/motorista na agenda.</p>
+          <p className="text-[11px] text-muted-foreground px-1 pb-1">Minutas sem data — arraste para um dia/motorista na agenda.</p>
           {pendentes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center text-xs text-gray-400">
-              <PackageCheck className="w-6 h-6 mb-2 text-gray-300" />
+            <div className="flex flex-col items-center justify-center py-12 text-center text-xs text-muted-foreground">
+              <PackageCheck className="w-6 h-6 mb-2 text-muted-foreground/60" />
               Nenhuma minuta pendente de agendamento.
             </div>
           ) : (
@@ -808,27 +808,27 @@ function RightRail({
                   }}
                   onClick={() => { if (!draggingId) onOpen(m.id); }}
                   className={cn(
-                    "bg-white border border-gray-300 rounded-lg p-2.5 shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 hover:shadow transition-all select-none border-l-4",
+                    "bg-card border border-border rounded-lg p-2.5 shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 hover:shadow transition-all select-none border-l-4",
                     isRetirada ? "border-l-violet-400" : "border-l-amber-400",
                     m.id === draggingId && "opacity-40",
                   )}
                 >
                   <div className="flex items-center gap-1.5 mb-1">
-                    <GripVertical className="w-3.5 h-3.5 text-gray-300 shrink-0" />
-                    <span className="font-mono text-xs font-bold text-gray-700">{m.numero}</span>
+                    <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+                    <span className="font-mono text-xs font-bold text-foreground">{m.numero}</span>
                     {isRetirada && (
                       <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">
                         <PackageOpen className="w-3 h-3" /> Retirada
                       </span>
                     )}
-                    <span className="font-mono text-[11px] text-gray-400 ml-auto">{m.pedidoVenda.numero}</span>
+                    <span className="font-mono text-[11px] text-muted-foreground ml-auto">{m.pedidoVenda.numero}</span>
                   </div>
-                  <p className="text-xs font-medium text-gray-800 leading-snug line-clamp-2">{clienteNome(cliente)}</p>
+                  <p className="text-xs font-medium text-foreground leading-snug line-clamp-2">{clienteNome(cliente)}</p>
                   {m.pedidoVenda.numeroOrcamento && (
-                    <p className="text-[11px] text-gray-400 mt-0.5">Orç. {m.pedidoVenda.numeroOrcamento}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Orç. {m.pedidoVenda.numeroOrcamento}</p>
                   )}
                   {local && (
-                    <div className="flex items-center gap-1 text-[11px] text-gray-400 mt-0.5">
+                    <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
                       <MapPin className="w-3 h-3 shrink-0" />
                       <span className="truncate">{local}</span>
                     </div>
@@ -840,28 +840,28 @@ function RightRail({
         </div>
       ) : (
         <div className="flex-1 overflow-auto p-2 space-y-2">
-          <p className="text-[11px] text-gray-400 px-1 pb-1">Pedidos confirmados com saldo a entregar. Crie a minuta para agendar.</p>
+          <p className="text-[11px] text-muted-foreground px-1 pb-1">Pedidos confirmados com saldo a entregar. Crie a minuta para agendar.</p>
           {saldo.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center text-xs text-gray-400">
-              <Boxes className="w-6 h-6 mb-2 text-gray-300" />
+            <div className="flex flex-col items-center justify-center py-12 text-center text-xs text-muted-foreground">
+              <Boxes className="w-6 h-6 mb-2 text-muted-foreground/60" />
               Nenhum saldo a entregar.
             </div>
           ) : (
             saldo.map((cli) => (
-              <div key={cli.id} className="bg-white border border-gray-300 rounded-lg overflow-hidden">
-                <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-                  <p className="text-xs font-semibold text-gray-800 truncate">{cli.nome}</p>
+              <div key={cli.id} className="bg-card border border-border rounded-lg overflow-hidden">
+                <div className="px-3 py-2 bg-muted border-b border-border">
+                  <p className="text-xs font-semibold text-foreground truncate">{cli.nome}</p>
                 </div>
-                <div className="divide-y divide-gray-100">
+                <div className="divide-y divide-border">
                   {cli.pedidos.map((p) => (
                     <div key={p.id} className="flex items-center gap-2 px-3 py-2">
                       <div className="min-w-0 flex-1">
-                        <p className="font-mono text-xs font-bold text-gray-700">{p.numero}</p>
-                        <p className="text-[11px] text-gray-400">{p.itensPendentes} item{p.itensPendentes !== 1 ? "s" : ""} pendente{p.itensPendentes !== 1 ? "s" : ""}</p>
+                        <p className="font-mono text-xs font-bold text-foreground">{p.numero}</p>
+                        <p className="text-[11px] text-muted-foreground">{p.itensPendentes} item{p.itensPendentes !== 1 ? "s" : ""} pendente{p.itensPendentes !== 1 ? "s" : ""}</p>
                       </div>
                       <button
                         onClick={() => onAgendar(p.id)}
-                        className="shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors"
+                        className="shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-info/10 text-info text-xs font-medium hover:bg-info/15 transition-colors"
                       >
                         <Plus className="w-3 h-3" /> Agendar
                       </button>
@@ -897,7 +897,7 @@ function DayBoard({
 }) {
   return (
     <div className="px-8 pb-8 flex-1 overflow-x-auto">
-      <p className="text-xs text-gray-400 mb-3">Roteiro de {dayLabel}</p>
+      <p className="text-xs text-muted-foreground mb-3">Roteiro de {dayLabel}</p>
       <div className="flex gap-4 min-w-max items-start">
         {lanes.map((lane) => {
           const laneKey = lane.id;
@@ -910,19 +910,19 @@ function DayBoard({
             <div key={laneKey} className="w-72 flex-shrink-0">
               <div className={cn(
                 "flex items-center justify-between px-3 py-2.5 rounded-t-xl border border-b-0",
-                isNone ? "bg-amber-50 border-amber-200" : "bg-gray-50 border-gray-200",
+                isNone ? "bg-warning/10 border-warning/30" : "bg-muted border-border",
               )}>
                 <div className="flex items-center gap-2 min-w-0">
                   {isNone
                     ? <UserX className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    : <Truck className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
-                  <span className={cn("text-xs font-semibold truncate", isNone ? "text-amber-700" : "text-gray-700")}>
+                    : <Truck className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                  <span className={cn("text-xs font-semibold truncate", isNone ? "text-warning" : "text-foreground")}>
                     {lane.nome}
                   </span>
                 </div>
                 <span className={cn(
                   "text-xs font-medium px-1.5 py-0.5 rounded-full border",
-                  isNone ? "bg-amber-50 text-amber-600 border-amber-200" : "bg-white text-gray-500 border-gray-200",
+                  isNone ? "bg-warning/10 text-warning border-warning/30" : "bg-card text-muted-foreground border-border",
                 )}>
                   {stops.length}
                 </span>
@@ -931,7 +931,7 @@ function DayBoard({
               <div
                 className={cn(
                   "rounded-b-xl border min-h-[120px] p-2 space-y-2 transition-colors",
-                  isNone ? "border-amber-200 bg-amber-50/40" : "border-gray-200 bg-gray-50/60",
+                  isNone ? "border-warning/30 bg-warning/10" : "border-border bg-muted/60",
                   draggingId && "border-dashed",
                   isOverLaneEnd && "ring-2 ring-inset ring-blue-300",
                 )}
@@ -943,7 +943,7 @@ function DayBoard({
                 {stops.length === 0 ? (
                   <div className={cn(
                     "flex items-center justify-center py-8 text-xs",
-                    draggingId ? "text-blue-400" : "text-gray-300",
+                    draggingId ? "text-blue-400" : "text-muted-foreground/60",
                   )}>
                     {draggingId ? "Solte aqui" : "Sem paradas"}
                   </div>
@@ -1010,25 +1010,25 @@ function WeekGrid({
 
   return (
     <div className="px-8 pb-8 flex-1 overflow-auto">
-      <div className="rounded-xl border border-gray-300 shadow-sm bg-white">
+      <div className="rounded-xl border border-border shadow-sm bg-card">
       <table className="w-full border-separate border-spacing-0 min-w-[900px]">
         <thead>
           <tr>
-            <th className="sticky left-0 z-10 bg-gray-100 text-left text-xs font-bold uppercase tracking-wide text-gray-600 px-3 py-2.5 w-44 border-b-2 border-gray-300">
+            <th className="sticky left-0 z-10 bg-muted text-left text-xs font-bold uppercase tracking-wide text-muted-foreground px-3 py-2.5 w-44 border-b-2 border-border">
               Motorista
             </th>
             {weekDays.map((d, i) => (
               <th key={d} className={cn(
-                "border-b-2 border-l border-gray-300 px-2 py-2.5",
-                d === todayISO ? "bg-blue-100" : "bg-gray-100",
+                "border-b-2 border-l border-border px-2 py-2.5",
+                d === todayISO ? "bg-info/15" : "bg-muted",
               )}>
                 <button
                   onClick={() => onOpenDay(d)}
-                  className="w-full flex flex-col items-center rounded-md py-1 hover:bg-white/60 transition-colors"
+                  className="w-full flex flex-col items-center rounded-md py-1 hover:bg-card/60 transition-colors"
                   title="Ver roteiro deste dia"
                 >
-                  <span className="text-[11px] font-bold text-gray-600 uppercase">{WEEKDAYS[i]}</span>
-                  <span className={cn("text-xs font-medium", d === todayISO ? "text-blue-700 font-bold" : "text-gray-500")}>
+                  <span className="text-[11px] font-bold text-muted-foreground uppercase">{WEEKDAYS[i]}</span>
+                  <span className={cn("text-xs font-medium", d === todayISO ? "text-info font-bold" : "text-muted-foreground")}>
                     {formatDayLabel(d).slice(0, 5)}
                   </span>
                 </button>
@@ -1043,14 +1043,14 @@ function WeekGrid({
             return (
               <tr key={lane.id} className="group/row">
                 <td className={cn(
-                  "sticky left-0 z-10 px-3 py-2 border-b border-gray-200 align-top w-44",
-                  isNone ? "bg-amber-50" : "bg-gray-50 group-hover/row:bg-gray-100",
+                  "sticky left-0 z-10 px-3 py-2 border-b border-border align-top w-44",
+                  isNone ? "bg-warning/10" : "bg-muted group-hover/row:bg-muted",
                 )}>
                   <div className="flex items-center gap-1.5">
                     {isNone
                       ? <UserX className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                      : <Truck className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
-                    <span className={cn("text-xs font-semibold truncate", isNone ? "text-amber-700" : "text-gray-800")}>{lane.nome}</span>
+                      : <Truck className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                    <span className={cn("text-xs font-semibold truncate", isNone ? "text-warning" : "text-foreground")}>{lane.nome}</span>
                   </div>
                 </td>
                 {weekDays.map((d) => {
@@ -1066,10 +1066,10 @@ function WeekGrid({
                     <td
                       key={d}
                       className={cn(
-                        "border-b border-l border-gray-200 p-1.5 align-top min-w-[110px] transition-colors",
-                        isOver ? "bg-blue-50 ring-2 ring-inset ring-blue-300"
-                          : draggingId ? "bg-gray-100/60"
-                          : isToday ? "bg-blue-50/40" : "bg-white",
+                        "border-b border-l border-border p-1.5 align-top min-w-[110px] transition-colors",
+                        isOver ? "bg-info/10 ring-2 ring-inset ring-blue-300"
+                          : draggingId ? "bg-muted/60"
+                          : isToday ? "bg-info/10" : "bg-card",
                       )}
                       onDragOver={(e) => {
                         if (draggingId) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOver({ laneId: key, index: 0 }); }
@@ -1090,7 +1090,7 @@ function WeekGrid({
                               }}
                               onClick={() => { if (!draggingId) onOpen(m.id); }}
                               className={cn(
-                                "flex items-center gap-1.5 rounded-md border border-gray-300 border-l-[3px] bg-white px-1.5 py-1 shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 text-[11px] transition-colors",
+                                "flex items-center gap-1.5 rounded-md border border-border border-l-[3px] bg-card px-1.5 py-1 shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 text-[11px] transition-colors",
                                 isRetirada ? "border-l-violet-400" : "border-l-blue-400",
                                 m.id === draggingId && "opacity-40",
                                 !matchesSearch(m) && "opacity-30",
@@ -1098,7 +1098,7 @@ function WeekGrid({
                               title={`${m.numero} · ${clienteNome(m.pedidoVenda.cliente)}${m.pedidoVenda.numeroOrcamento ? ` · Orç. ${m.pedidoVenda.numeroOrcamento}` : ""}${isRetirada ? " · Retirada" : ""}`}
                             >
                               <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", STATUS_DOT[m.status])} />
-                              <span className="truncate text-gray-700">{clienteNome(m.pedidoVenda.cliente)}</span>
+                              <span className="truncate text-foreground">{clienteNome(m.pedidoVenda.cliente)}</span>
                               {isRetirada && <PackageOpen className="w-3 h-3 text-violet-500 shrink-0 ml-auto" />}
                             </div>
                           );
@@ -1140,19 +1140,19 @@ function MonthGrid({
 
   return (
     <div className="px-8 pb-8 flex-1 overflow-auto">
-      <p className="text-xs font-semibold text-gray-500 mb-3 capitalize">{monthLabel(refMonth)}</p>
-      <div className="rounded-xl border border-gray-300 overflow-hidden shadow-sm bg-white">
+      <p className="text-xs font-semibold text-muted-foreground mb-3 capitalize">{monthLabel(refMonth)}</p>
+      <div className="rounded-xl border border-border overflow-hidden shadow-sm bg-card">
         {/* Cabeçalho dos dias da semana */}
-        <div className="grid grid-cols-7 bg-gray-100 border-b-2 border-gray-300">
+        <div className="grid grid-cols-7 bg-muted border-b-2 border-border">
           {WEEKDAYS.map((w) => (
-            <div key={w} className="px-2 py-2 text-center text-[11px] font-bold uppercase text-gray-600 border-l first:border-l-0 border-gray-200">
+            <div key={w} className="px-2 py-2 text-center text-[11px] font-bold uppercase text-muted-foreground border-l first:border-l-0 border-border">
               {w}
             </div>
           ))}
         </div>
         {/* Semanas */}
         {weeks.map((week, wi) => (
-          <div key={wi} className="grid grid-cols-7 border-b border-gray-200 last:border-b-0">
+          <div key={wi} className="grid grid-cols-7 border-b border-border last:border-b-0">
             {week.map((d) => {
               const foraDoMes = parseISODate(d).getUTCMonth() !== refMes;
               const isToday = d === todayISO;
@@ -1163,11 +1163,11 @@ function MonthGrid({
                 <div
                   key={d}
                   className={cn(
-                    "border-l first:border-l-0 border-gray-200 min-h-[104px] p-1.5 flex flex-col gap-1 transition-colors",
-                    isOver ? "bg-blue-50 ring-2 ring-inset ring-blue-300"
-                      : draggingId ? "bg-gray-100/50"
-                      : foraDoMes ? "bg-gray-50/70"
-                      : isToday ? "bg-blue-50/40" : "bg-white",
+                    "border-l first:border-l-0 border-border min-h-[104px] p-1.5 flex flex-col gap-1 transition-colors",
+                    isOver ? "bg-info/10 ring-2 ring-inset ring-blue-300"
+                      : draggingId ? "bg-muted/50"
+                      : foraDoMes ? "bg-muted/70"
+                      : isToday ? "bg-info/10" : "bg-card",
                   )}
                   onDragOver={(e) => {
                     if (draggingId) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOver({ laneId: d, index: 0 }); }
@@ -1177,8 +1177,8 @@ function MonthGrid({
                   <button
                     onClick={() => onOpenDay(d)}
                     className={cn(
-                      "self-end text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors",
-                      isToday ? "bg-blue-600 text-white hover:bg-blue-600" : foraDoMes ? "text-gray-300" : "text-gray-600",
+                      "self-end text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full hover:bg-info/15 transition-colors",
+                      isToday ? "bg-blue-600 text-white hover:bg-blue-600" : foraDoMes ? "text-muted-foreground/60" : "text-muted-foreground",
                     )}
                     title="Ver roteiro deste dia"
                   >
@@ -1198,7 +1198,7 @@ function MonthGrid({
                           }}
                           onClick={(e) => { e.stopPropagation(); if (!draggingId) onOpen(m.id); }}
                           className={cn(
-                            "flex items-center gap-1 rounded border border-gray-300 border-l-[3px] bg-white px-1 py-0.5 shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 text-[10px] transition-colors",
+                            "flex items-center gap-1 rounded border border-border border-l-[3px] bg-card px-1 py-0.5 shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 text-[10px] transition-colors",
                             isRetirada ? "border-l-violet-400" : "border-l-blue-400",
                             m.id === draggingId && "opacity-40",
                             !matchesSearch(m) && "opacity-30",
@@ -1206,13 +1206,13 @@ function MonthGrid({
                           title={`${m.numero} · ${clienteNome(m.pedidoVenda.cliente)}${m.pedidoVenda.numeroOrcamento ? ` · Orç. ${m.pedidoVenda.numeroOrcamento}` : ""}${m.motorista ? ` · ${m.motorista.nome}` : ""}${isRetirada ? " · Retirada" : ""}`}
                         >
                           <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", STATUS_DOT[m.status])} />
-                          <span className="truncate text-gray-700">{clienteNome(m.pedidoVenda.cliente)}</span>
+                          <span className="truncate text-foreground">{clienteNome(m.pedidoVenda.cliente)}</span>
                           {isRetirada && <PackageOpen className="w-2.5 h-2.5 text-violet-500 shrink-0 ml-auto" />}
                         </div>
                       );
                     })}
                     {dayMinutas.length > 4 && (
-                      <button onClick={() => onOpenDay(d)} className="text-[10px] text-blue-600 hover:underline text-left pl-1">
+                      <button onClick={() => onOpenDay(d)} className="text-[10px] text-info hover:underline text-left pl-1">
                         +{dayMinutas.length - 4} mais
                       </button>
                     )}

@@ -111,7 +111,7 @@ export default function CreateDrawer({
           <SheetHeader className="px-6 py-4">
             <SheetTitle>{title}</SheetTitle>
           </SheetHeader>
-          <div className="flex-1 overflow-y-auto px-6 py-5 bg-gray-50/60">
+          <div className="flex-1 overflow-y-auto px-6 py-5 bg-muted/60">
             {/* monta o conteúdo só com o painel aberto: o form nasce zerado a cada abertura */}
             {open && (
               <Ctx.Provider value={{ fechar, aposCriar, recriar }}>

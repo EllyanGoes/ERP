@@ -151,7 +151,7 @@ export default function SetoresPage() {
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Buscar setores..."
             value={search}
@@ -162,13 +162,13 @@ export default function SetoresPage() {
 
         {/* Form */}
         {formOpen && (
-          <div className="border border-gray-200 rounded-xl p-5 bg-white space-y-4 shadow-sm">
-            <h3 className="font-semibold text-sm text-gray-700">
+          <div className="border border-border rounded-xl p-5 bg-card space-y-4 shadow-sm">
+            <h3 className="font-semibold text-sm text-foreground">
               {editingId ? "Editar Setor" : "Novo Setor"}
             </h3>
 
             {formError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
                 {formError}
               </p>
             )}
@@ -219,12 +219,12 @@ export default function SetoresPage() {
 
         {/* Delete confirm */}
         {deleteId && (
-          <div className="border border-red-200 rounded-xl p-4 bg-red-50 space-y-3">
-            <p className="text-sm text-red-700 font-medium">
+          <div className="border border-danger/30 rounded-xl p-4 bg-danger/10 space-y-3">
+            <p className="text-sm text-danger font-medium">
               Confirmar exclusão do setor &ldquo;{setores.find((s) => s.id === deleteId)?.nome}&rdquo;?
             </p>
             {deleteError && (
-              <p className="text-sm text-red-600">{deleteError}</p>
+              <p className="text-sm text-danger">{deleteError}</p>
             )}
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setDeleteId(null)} disabled={deleteLoading}>
@@ -246,35 +246,35 @@ export default function SetoresPage() {
         {/* List */}
         {loading ? (
           <div className="flex justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Layers className="w-12 h-12 text-gray-200 mb-3" />
-            <p className="text-gray-500 font-medium">Nenhum setor encontrado</p>
-            {search && <p className="text-gray-400 text-sm mt-1">Tente outro termo de busca</p>}
+            <p className="text-muted-foreground font-medium">Nenhum setor encontrado</p>
+            {search && <p className="text-muted-foreground text-sm mt-1">Tente outro termo de busca</p>}
           </div>
         ) : (
-          <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
+          <div className="divide-y divide-border border border-border rounded-xl overflow-hidden">
             {filtered.map((s) => (
               <div
                 key={s.id}
-                className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50 transition-colors"
+                className="flex items-center justify-between px-4 py-3 bg-card hover:bg-muted transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={cn(
                     "w-2 h-2 rounded-full shrink-0",
-                    s.ativo ? "bg-emerald-400" : "bg-gray-300"
+                    s.ativo ? "bg-emerald-400" : "bg-muted"
                   )} />
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{s.nome}</p>
+                    <p className="text-sm font-medium text-foreground truncate">{s.nome}</p>
                     {s.descricao && (
-                      <p className="text-xs text-gray-400 truncate">{s.descricao}</p>
+                      <p className="text-xs text-muted-foreground truncate">{s.descricao}</p>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-4 shrink-0 ml-4">
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-muted-foreground">
                     {s._count.colaboradores} colaborador{s._count.colaboradores !== 1 ? "es" : ""}
                   </span>
                   <div className="flex gap-1">
@@ -289,7 +289,7 @@ export default function SetoresPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                      className="h-7 w-7 p-0 text-red-400 hover:text-danger hover:bg-danger/10"
                       onClick={() => { setDeleteId(s.id); setDeleteError(""); }}
                     >
                       <Trash2 className="w-3.5 h-3.5" />

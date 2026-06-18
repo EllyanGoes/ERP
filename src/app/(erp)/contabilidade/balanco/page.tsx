@@ -29,13 +29,13 @@ function LinhaRow({ l, soComSaldo, modo, data }: { l: Linha; soComSaldo: boolean
   return (
     <div className={cn(
       "flex items-center justify-between px-4 py-1.5 border-b border-gray-50 text-sm tabular-nums",
-      l.tipo === "SINTETICA" ? "bg-gray-50/40 font-semibold text-gray-900" : "text-gray-700",
+      l.tipo === "SINTETICA" ? "bg-muted/40 font-semibold text-foreground" : "text-foreground",
     )}>
-      <Link href={`/contabilidade/razao?contaId=${l.id}&from=${inicioAno(data)}&to=${data}`} className="flex items-center gap-2 min-w-0 hover:text-blue-600" style={{ paddingLeft: `${(l.nivel - 1) * 16}px` }} title="Abrir razão">
-        <span className="font-mono text-xs text-gray-400 shrink-0">{l.codigo}</span>
+      <Link href={`/contabilidade/razao?contaId=${l.id}&from=${inicioAno(data)}&to=${data}`} className="flex items-center gap-2 min-w-0 hover:text-info" style={{ paddingLeft: `${(l.nivel - 1) * 16}px` }} title="Abrir razão">
+        <span className="font-mono text-xs text-muted-foreground shrink-0">{l.codigo}</span>
         <span className="truncate">{l.nome}</span>
       </Link>
-      <span className={cn(l.saldo === 0 && "text-gray-300", saldoAnormal(l.saldo) && "text-red-600 font-medium")}>{fmtSaldo(l.saldo, modo, l.natureza)}</span>
+      <span className={cn(l.saldo === 0 && "text-muted-foreground/60", saldoAnormal(l.saldo) && "text-danger font-medium")}>{fmtSaldo(l.saldo, modo, l.natureza)}</span>
     </div>
   );
 }
@@ -63,19 +63,19 @@ export default function BalancoPage() {
       <PageHeader title="Balanço Patrimonial" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "Balanço" }]} />
       <div className="px-8 pb-8 space-y-4">
         <div className="flex items-center gap-3 flex-wrap no-print">
-          <label className="flex items-center gap-2 text-sm text-gray-600">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
             Posição em
-            <Input type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-10 w-44 border-gray-300" />
+            <Input type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-10 w-44 border-border" />
           </label>
-          <label className="flex items-center gap-2 text-sm text-gray-600">
-            <input type="checkbox" checked={soComSaldo} onChange={(e) => setSoComSaldo(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-blue-600" />
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <input type="checkbox" checked={soComSaldo} onChange={(e) => setSoComSaldo(e.target.checked)} className="w-4 h-4 rounded border-border text-info" />
             Só contas com saldo
           </label>
           <FormatoToggle modo={modo} onChange={setModo} />
           <PrintButton />
           {bal && (
             <span className={cn("ml-auto inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg",
-              bal.confere ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")}>
+              bal.confere ? "bg-success/10 text-success" : "bg-danger/10 text-danger")}>
               {bal.confere ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
               {bal.confere ? "Confere (Ativo = Passivo + PL)" : "Não fecha!"}
             </span>
@@ -83,43 +83,43 @@ export default function BalancoPage() {
         </div>
 
         {loading || !bal ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Carregando…</div>
+          <div className="flex items-center justify-center py-16 text-muted-foreground gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Carregando…</div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             {/* ATIVO */}
-            <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-muted flex items-center gap-2">
                 <Scale className="w-4 h-4 text-blue-500" />
-                <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Ativo</h2>
+                <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Ativo</h2>
               </div>
               <div>
                 {bal.ativo.map((l) => <LinhaRow key={l.id} l={l} soComSaldo={soComSaldo} modo={modo} data={data} />)}
               </div>
-              <div className="flex items-center justify-between px-4 py-3 border-t-2 border-gray-200 bg-blue-50 font-bold text-gray-900 tabular-nums">
+              <div className="flex items-center justify-between px-4 py-3 border-t-2 border-border bg-info/10 font-bold text-foreground tabular-nums">
                 <span>Total do Ativo</span>
                 <span>{fmtSaldo(bal.totalAtivo, modo, "DEVEDORA")}</span>
               </div>
             </div>
 
             {/* PASSIVO + PL */}
-            <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-muted flex items-center gap-2">
                 <Scale className="w-4 h-4 text-amber-500" />
-                <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Passivo + Patrimônio Líquido</h2>
+                <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Passivo + Patrimônio Líquido</h2>
               </div>
               <div>
                 {bal.passivo.map((l) => <LinhaRow key={l.id} l={l} soComSaldo={soComSaldo} modo={modo} data={data} />)}
                 {bal.patrimonioLiquido.map((l) => <LinhaRow key={l.id} l={l} soComSaldo={soComSaldo} modo={modo} data={data} />)}
                 {/* Resultado do exercício compõe o PL sem lançamento de encerramento */}
-                <div className="flex items-center justify-between px-4 py-1.5 border-b border-gray-50 text-sm tabular-nums text-gray-700 italic">
+                <div className="flex items-center justify-between px-4 py-1.5 border-b border-gray-50 text-sm tabular-nums text-foreground italic">
                   <span className="flex items-center gap-2" style={{ paddingLeft: "16px" }}>
-                    <span className="font-mono text-xs text-gray-400">2.3.9</span>
+                    <span className="font-mono text-xs text-muted-foreground">2.3.9</span>
                     <span>Resultado do Exercício</span>
                   </span>
-                  <span className={cn(bal.resultadoExercicio < 0 && "text-red-600")}>{fmtSaldo(bal.resultadoExercicio, modo, "CREDORA")}</span>
+                  <span className={cn(bal.resultadoExercicio < 0 && "text-danger")}>{fmtSaldo(bal.resultadoExercicio, modo, "CREDORA")}</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between px-4 py-3 border-t-2 border-gray-200 bg-amber-50 font-bold text-gray-900 tabular-nums">
+              <div className="flex items-center justify-between px-4 py-3 border-t-2 border-border bg-warning/10 font-bold text-foreground tabular-nums">
                 <span>Total Passivo + PL</span>
                 <span>{fmtSaldo(bal.totalPassivo + bal.totalPLcomResultado, modo, "CREDORA")}</span>
               </div>

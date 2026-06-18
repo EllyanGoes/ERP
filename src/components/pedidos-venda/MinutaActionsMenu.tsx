@@ -113,7 +113,7 @@ export default function MinutaActionsMenu({ id, numero, status }: Props) {
         onClick={openMenu}
         className={cn(
           "flex items-center justify-center w-7 h-7 rounded-lg transition-colors",
-          "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+          "text-muted-foreground hover:text-foreground hover:bg-muted"
         )}
         title="Ações"
       >
@@ -124,7 +124,7 @@ export default function MinutaActionsMenu({ id, numero, status }: Props) {
       {mounted && open && createPortal(
         <div
           ref={menuRef}
-          className="fixed z-[9999] w-40 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+          className="fixed z-[9999] w-40 bg-card border border-border rounded-xl shadow-lg overflow-hidden"
           style={{ top: pos.top, left: pos.left }}
         >
           <button
@@ -133,14 +133,14 @@ export default function MinutaActionsMenu({ id, numero, status }: Props) {
             className={cn(
               "w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
               canEdit
-                ? "text-gray-700 hover:bg-gray-50"
-                : "text-gray-300 cursor-not-allowed"
+                ? "text-foreground hover:bg-muted"
+                : "text-muted-foreground/60 cursor-not-allowed"
             )}
           >
             <Pencil className="w-3.5 h-3.5 shrink-0" />
             Editar
           </button>
-          <div className="border-t border-gray-100" />
+          <div className="border-t border-border" />
           <button
             onClick={handleDeleteClick}
             disabled={!canDelete}
@@ -148,8 +148,8 @@ export default function MinutaActionsMenu({ id, numero, status }: Props) {
             className={cn(
               "w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
               canDelete
-                ? "text-red-600 hover:bg-red-50"
-                : "text-gray-300 cursor-not-allowed"
+                ? "text-danger hover:bg-danger/10"
+                : "text-muted-foreground/60 cursor-not-allowed"
             )}
           >
             <Trash2 className="w-3.5 h-3.5 shrink-0" />
@@ -162,18 +162,18 @@ export default function MinutaActionsMenu({ id, numero, status }: Props) {
       {/* Confirm delete modal */}
       {mounted && showConfirm && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <div className="flex items-start gap-3 mb-4">
-              <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <Trash2 className="w-4 h-4 text-red-600" />
+              <div className="w-9 h-9 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <Trash2 className="w-4 h-4 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Excluir minuta?</p>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  A minuta <span className="font-mono font-semibold text-gray-700">{numero}</span> será excluída permanentemente. Esta ação não pode ser desfeita.
+                <p className="font-semibold text-foreground">Excluir minuta?</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  A minuta <span className="font-mono font-semibold text-foreground">{numero}</span> será excluída permanentemente. Esta ação não pode ser desfeita.
                 </p>
                 {status !== "PENDENTE" && (
-                  <p className="text-sm text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg mt-2">
+                  <p className="text-sm text-warning bg-warning/10 px-2.5 py-1.5 rounded-lg mt-2">
                     Esta minuta já movimentou estoque — a saída será <span className="font-semibold">estornada</span> (o estoque volta).
                   </p>
                 )}
@@ -181,14 +181,14 @@ export default function MinutaActionsMenu({ id, numero, status }: Props) {
             </div>
 
             {deleteError && (
-              <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg mb-3">{deleteError}</p>
+              <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg mb-3">{deleteError}</p>
             )}
 
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setShowConfirm(false)}
                 disabled={deleting}
-                className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm rounded-lg border border-border text-foreground hover:bg-muted transition-colors"
               >
                 Cancelar
               </button>
@@ -209,15 +209,15 @@ export default function MinutaActionsMenu({ id, numero, status }: Props) {
       {/* Confirm edit modal */}
       {mounted && showEditConfirm && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <div className="flex items-start gap-3 mb-4">
-              <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                <Pencil className="w-4 h-4 text-blue-600" />
+              <div className="w-9 h-9 rounded-full bg-info/15 flex items-center justify-center shrink-0">
+                <Pencil className="w-4 h-4 text-info" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Editar minuta?</p>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  Você será redirecionado para a edição da minuta <span className="font-mono font-semibold text-gray-700">{numero}</span>.
+                <p className="font-semibold text-foreground">Editar minuta?</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Você será redirecionado para a edição da minuta <span className="font-mono font-semibold text-foreground">{numero}</span>.
                 </p>
               </div>
             </div>
@@ -225,7 +225,7 @@ export default function MinutaActionsMenu({ id, numero, status }: Props) {
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setShowEditConfirm(false)}
-                className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm rounded-lg border border-border text-foreground hover:bg-muted transition-colors"
               >
                 Cancelar
               </button>

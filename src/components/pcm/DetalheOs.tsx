@@ -54,14 +54,14 @@ export default function DetalheOs({
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-xs text-gray-400 py-3">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground py-3">
         <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Carregando detalhe do Engeman…
       </div>
     );
   }
   if (erro) {
     return (
-      <div className="flex items-center gap-2 text-xs text-amber-700 py-3">
+      <div className="flex items-center gap-2 text-xs text-warning py-3">
         <AlertTriangle className="w-3.5 h-3.5" /> {erro}
       </div>
     );
@@ -79,21 +79,21 @@ export default function DetalheOs({
     <div className="space-y-3">
       {/* Resumo / reconciliação */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="inline-flex items-center rounded-full bg-red-50 text-red-700 px-2.5 py-1 font-medium">
+        <span className="inline-flex items-center rounded-full bg-danger/10 text-danger px-2.5 py-1 font-medium">
           Parada não planejada: {fmtH(r.paradaNaoPlanejada)} · {r.nFalhas} {r.nFalhas === 1 ? "falha" : "falhas"}
         </span>
-        <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-600 px-2.5 py-1 font-medium">
+        <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground px-2.5 py-1 font-medium">
           Demais OS (não descontadas): {r.nDemais} · {fmtH(r.paradaDemais)}
         </span>
         {r.semJanela > 0 && (
           <span
-            className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 px-2.5 py-1 font-medium"
+            className="inline-flex items-center gap-1 rounded-full bg-warning/15 text-warning px-2.5 py-1 font-medium"
             title="Falhas sem o carimbo de parada MAQPAR→MAQFUN. A parada principal entrou como 0h — confira/preencha no Engeman."
           >
             <TriangleAlert className="w-3 h-3" /> {r.semJanela} sem carimbo de parada — revisar
           </span>
         )}
-        <span className="text-gray-400">
+        <span className="text-muted-foreground">
           Os valores em vermelho são os que entram no fechamento deste mês.
         </span>
       </div>
@@ -138,37 +138,37 @@ export default function DetalheOs({
                   {hoverOs ? ` · ${hoverOs.tipo}` : ""} · {fmtH(hover.horas)}
                 </div>
                 {hoverOs?.ocorrencia && (
-                  <div className="text-gray-300 truncate">Ocorrência: {hoverOs.ocorrencia}</div>
+                  <div className="text-muted-foreground/60 truncate">Ocorrência: {hoverOs.ocorrencia}</div>
                 )}
                 {hoverOs?.causa && (
-                  <div className="text-gray-300 truncate">Causa: {hoverOs.causa}</div>
+                  <div className="text-muted-foreground/60 truncate">Causa: {hoverOs.causa}</div>
                 )}
                 {hoverOs?.servico && (
-                  <div className="text-gray-300 truncate">Serviço: {hoverOs.servico}</div>
+                  <div className="text-muted-foreground/60 truncate">Serviço: {hoverOs.servico}</div>
                 )}
               </div>
             );
           })()}
         </div>
-        <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+        <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
           <span>{ddMM(data.inicioMes)}</span>
           <span>{ddMM(data.fimMes)}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-3 mt-1 text-[11px] text-gray-500">
+        <div className="flex flex-wrap items-center gap-3 mt-1 text-[11px] text-muted-foreground">
           <Legenda cor="bg-emerald-500/80" texto="Online (operando)" />
           <Legenda cor="bg-red-500" texto="Parada não planejada (desconta)" />
           <Legenda cor="bg-amber-400" texto="Planejada (não desconta)" />
-          <span className="text-gray-400">Passe o mouse nas paradas para ver a OS. A timeline usa só OS com carimbo MAQPAR→MAQFUN.</span>
+          <span className="text-muted-foreground">Passe o mouse nas paradas para ver a OS. A timeline usa só OS com carimbo MAQPAR→MAQFUN.</span>
         </div>
       </div>
 
       {/* Tabela de OS */}
       {data.os.length === 0 ? (
-        <p className="text-xs text-gray-400">Nenhuma OS no Engeman para este ativo no mês.</p>
+        <p className="text-xs text-muted-foreground">Nenhuma OS no Engeman para este ativo no mês.</p>
       ) : (
-        <div className="rounded-lg border border-gray-200 overflow-x-auto bg-white">
+        <div className="rounded-lg border border-border overflow-x-auto bg-card">
           <table className="w-full min-w-[1280px] text-xs">
-            <thead className="bg-gray-50 text-gray-500 uppercase tracking-wider">
+            <thead className="bg-muted text-muted-foreground uppercase tracking-wider">
               <tr>
                 <th className="text-left font-medium px-2 py-1.5 w-24">O.S.</th>
                 <th className="text-left font-medium px-2 py-1.5 w-16">Tipo</th>
@@ -183,56 +183,56 @@ export default function DetalheOs({
                 <th className="text-center font-medium px-2 py-1.5 w-20">Desconta?</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-border">
               {data.os.map((o) => (
-                <tr key={o.codord} className={cn(o.contabilizada && "bg-red-50/40")}>
-                  <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">
+                <tr key={o.codord} className={cn(o.contabilizada && "bg-danger/10")}>
+                  <td className="px-2 py-1.5 text-foreground whitespace-nowrap">
                     <div className="font-mono">{o.osNumero}</div>
-                    <div className="text-[10px] text-gray-300 font-mono">red. {o.codord}</div>
+                    <div className="text-[10px] text-muted-foreground/60 font-mono">red. {o.codord}</div>
                   </td>
                   <td className="px-2 py-1.5">
-                    <span className="font-semibold text-gray-700" title={o.tipo}>{o.tipoSigla}</span>
+                    <span className="font-semibold text-foreground" title={o.tipo}>{o.tipoSigla}</span>
                   </td>
-                  <td className="px-2 py-1.5 text-gray-600">
+                  <td className="px-2 py-1.5 text-muted-foreground">
                     {o.descricao ? (
                       <span className="truncate inline-block max-w-[180px] align-middle" title={o.descricao}>{o.descricao}</span>
                     ) : (
-                      <span className="text-gray-300">—</span>
+                      <span className="text-muted-foreground/60">—</span>
                     )}
                   </td>
-                  <td className="px-2 py-1.5 text-gray-600">
+                  <td className="px-2 py-1.5 text-muted-foreground">
                     {o.ocorrencia ? (
                       <span className="truncate inline-block max-w-[150px] align-middle" title={o.ocorrencia}>{o.ocorrencia}</span>
                     ) : (
-                      <span className="text-gray-300">—</span>
+                      <span className="text-muted-foreground/60">—</span>
                     )}
                   </td>
-                  <td className="px-2 py-1.5 text-gray-600">
+                  <td className="px-2 py-1.5 text-muted-foreground">
                     {o.causa ? (
                       <span className="truncate inline-block max-w-[150px] align-middle" title={o.causa}>{o.causa}</span>
                     ) : (
-                      <span className="text-gray-300">—</span>
+                      <span className="text-muted-foreground/60">—</span>
                     )}
                   </td>
-                  <td className="px-2 py-1.5 text-gray-600">
+                  <td className="px-2 py-1.5 text-muted-foreground">
                     {o.servico ? (
                       <span className="truncate inline-block max-w-[180px] align-middle" title={o.servico}>{o.servico}</span>
                     ) : (
-                      <span className="text-gray-300">—</span>
+                      <span className="text-muted-foreground/60">—</span>
                     )}
                   </td>
                   <td className="px-2 py-1.5 text-center">
                     {o.contabilizada ? (
-                      <span className="inline-flex items-center rounded-full bg-red-100 text-red-700 px-2 py-0.5 font-medium">Não planejada</span>
+                      <span className="inline-flex items-center rounded-full bg-danger/15 text-danger px-2 py-0.5 font-medium">Não planejada</span>
                     ) : o.planejada ? (
-                      <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 font-medium">Planejada</span>
+                      <span className="inline-flex items-center rounded-full bg-warning/15 text-warning px-2 py-0.5 font-medium">Planejada</span>
                     ) : (
-                      <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 font-medium">Outra</span>
+                      <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground px-2 py-0.5 font-medium">Outra</span>
                     )}
                   </td>
-                  <td className="px-2 py-1.5 text-gray-600 tabular-nums whitespace-nowrap">{fmtDT(o.inicio)}</td>
-                  <td className="px-2 py-1.5 text-gray-600 tabular-nums whitespace-nowrap">{fmtDT(o.fim)}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums text-gray-700 whitespace-nowrap">
+                  <td className="px-2 py-1.5 text-muted-foreground tabular-nums whitespace-nowrap">{fmtDT(o.inicio)}</td>
+                  <td className="px-2 py-1.5 text-muted-foreground tabular-nums whitespace-nowrap">{fmtDT(o.fim)}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums text-foreground whitespace-nowrap">
                     {fmtH(o.horas)}
                     {o.contabilizada && !o.comJanela && (
                       <TriangleAlert
@@ -241,13 +241,13 @@ export default function DetalheOs({
                       />
                     )}
                     {o.paradaAdicional > 0 && (
-                      <div className="text-[10px] text-gray-400" title="Inclui paradas adicionais do Engeman (ORDXPAR)">
+                      <div className="text-[10px] text-muted-foreground" title="Inclui paradas adicionais do Engeman (ORDXPAR)">
                         inclui +{fmtH(o.paradaAdicional)} adic.
                       </div>
                     )}
                   </td>
                   <td className="px-2 py-1.5 text-center">
-                    {o.contabilizada ? <span className="text-red-600 font-bold">✓</span> : <span className="text-gray-300">—</span>}
+                    {o.contabilizada ? <span className="text-danger font-bold">✓</span> : <span className="text-muted-foreground/60">—</span>}
                   </td>
                 </tr>
               ))}

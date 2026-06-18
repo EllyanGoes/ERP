@@ -33,8 +33,8 @@ export default async function ClientesPage() {
         {/* Summary */}
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: "Ativos", key: "ATIVO", color: "text-green-600 bg-green-50" },
-            { label: "Inativos", key: "INATIVO", color: "text-gray-500 bg-gray-50" },
+            { label: "Ativos", key: "ATIVO", color: "text-success bg-success/10" },
+            { label: "Inativos", key: "INATIVO", color: "text-muted-foreground bg-muted" },
             { label: "Prospectos", key: "PROSPECTO", color: "text-sky-600 bg-sky-50" },
           ].map(({ label, key, color }) => (
             <div key={key} className={`rounded-xl p-4 ${color}`}>

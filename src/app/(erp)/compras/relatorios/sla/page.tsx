@@ -35,7 +35,7 @@ function fmtMonth(m: string) {
 
 function EmptyChart() {
   return (
-    <div className="flex items-center justify-center h-full text-gray-300 text-sm">
+    <div className="flex items-center justify-center h-full text-muted-foreground/60 text-sm">
       Sem dados no período
     </div>
   );
@@ -69,7 +69,7 @@ function GroupedBarChart({
   return (
     <div className="space-y-2 h-full flex flex-col">
       {/* Legend */}
-      <div className="flex items-center gap-4 text-xs text-gray-500 pl-1">
+      <div className="flex items-center gap-4 text-xs text-muted-foreground pl-1">
         <span className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-sm inline-block" style={{ background: COLOR_OK }} />
           Atendido
@@ -250,8 +250,8 @@ function PieChart({
         {slices.map((s, i) => (
           <div key={i} className="flex items-center gap-2 min-w-0">
             <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: s.color }} />
-            <span className="text-xs text-gray-600 truncate flex-1">{s.categoria}</span>
-            <span className="text-xs font-semibold text-gray-800 shrink-0">{s.total}</span>
+            <span className="text-xs text-muted-foreground truncate flex-1">{s.categoria}</span>
+            <span className="text-xs font-semibold text-foreground shrink-0">{s.total}</span>
           </div>
         ))}
       </div>
@@ -279,14 +279,14 @@ function HorizontalStackedBar({
           <div key={d.id} className="flex items-center gap-3 min-w-0">
             {/* Name */}
             <span
-              className="text-xs text-gray-600 shrink-0 w-32 truncate"
+              className="text-xs text-muted-foreground shrink-0 w-32 truncate"
               title={d.nome}
             >
               {d.nome}
             </span>
 
             {/* Bar */}
-            <div className="flex-1 flex h-5 rounded overflow-hidden bg-gray-100">
+            <div className="flex-1 flex h-5 rounded overflow-hidden bg-muted">
               {d.atendido > 0 && (
                 <div
                   className="flex items-center justify-center text-[10px] font-semibold text-white"
@@ -306,7 +306,7 @@ function HorizontalStackedBar({
             </div>
 
             {/* Total count */}
-            <span className="text-xs font-semibold text-gray-700 shrink-0 w-8 text-right">
+            <span className="text-xs font-semibold text-foreground shrink-0 w-8 text-right">
               {d.total}
             </span>
           </div>
@@ -324,14 +324,14 @@ function SummaryCard({
   icon: React.ReactNode; color: string;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
+    <div className="bg-card rounded-xl border border-border p-4 flex items-center gap-4">
       <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", color)}>
         {icon}
       </span>
       <div className="min-w-0">
-        <p className="text-xs text-gray-400 font-medium">{label}</p>
-        <p className="text-lg font-bold text-gray-900 truncate">{value}</p>
-        {sub && <p className="text-[11px] text-gray-400">{sub}</p>}
+        <p className="text-xs text-muted-foreground font-medium">{label}</p>
+        <p className="text-lg font-bold text-foreground truncate">{value}</p>
+        {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
       </div>
     </div>
   );
@@ -384,7 +384,7 @@ export default function SlaPage() {
           <DateRangePicker value={range} onChange={setRange} />
           <button
             onClick={load}
-            className="flex items-center justify-center h-9 w-9 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-center h-9 w-9 border border-border rounded-lg text-muted-foreground hover:bg-muted transition-colors"
             title="Atualizar"
           >
             <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
@@ -394,7 +394,7 @@ export default function SlaPage() {
 
       {loading && !data ? (
         <div className="flex justify-center py-24">
-          <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground/60" />
         </div>
       ) : (
         <>
@@ -404,37 +404,37 @@ export default function SlaPage() {
               label="Total Pedidos"
               value={(s?.total ?? 0).toLocaleString("pt-BR")}
               sub="excluídos rascunhos e cancelados"
-              icon={<BarChart3 className="w-5 h-5 text-blue-600" />}
-              color="bg-blue-50"
+              icon={<BarChart3 className="w-5 h-5 text-info" />}
+              color="bg-info/10"
             />
             <SummaryCard
               label="SLA %"
               value={`${(s?.slaPct ?? 0).toFixed(1)}%`}
               sub="pedidos no prazo"
-              icon={<TrendingUp className="w-5 h-5 text-emerald-600" />}
-              color="bg-emerald-50"
+              icon={<TrendingUp className="w-5 h-5 text-success" />}
+              color="bg-success/10"
             />
             <SummaryCard
               label="Atendidos"
               value={(s?.atendidos ?? 0).toLocaleString("pt-BR")}
               sub="dentro do prazo"
-              icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />}
-              color="bg-emerald-50"
+              icon={<CheckCircle2 className="w-5 h-5 text-success" />}
+              color="bg-success/10"
             />
             <SummaryCard
               label="Não Atendidos"
               value={(s?.naoAtendidos ?? 0).toLocaleString("pt-BR")}
               sub="fora do prazo"
               icon={<XCircle className="w-5 h-5 text-red-500" />}
-              color="bg-red-50"
+              color="bg-danger/10"
             />
           </div>
 
           {/* ── Row 2: Grouped Bar + Pie ──────────────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Grouped Bar Chart */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <p className="text-sm font-semibold text-gray-700 mb-4">
+            <div className="bg-card rounded-xl border border-border p-5">
+              <p className="text-sm font-semibold text-foreground mb-4">
                 Atendido × Não Atendido por Mês
               </p>
               <div className="h-[260px]">
@@ -443,8 +443,8 @@ export default function SlaPage() {
             </div>
 
             {/* Pie by categoria */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <p className="text-sm font-semibold text-gray-700 mb-4">
+            <div className="bg-card rounded-xl border border-border p-5">
+              <p className="text-sm font-semibold text-foreground mb-4">
                 Pedidos por Categoria
               </p>
               <div className="h-[260px] flex items-center">
@@ -456,24 +456,24 @@ export default function SlaPage() {
           {/* ── Row 3: Line Chart + Horizontal Stacked Bar ────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* SLA % over months */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <p className="text-sm font-semibold text-gray-700 mb-1">
+            <div className="bg-card rounded-xl border border-border p-5">
+              <p className="text-sm font-semibold text-foreground mb-1">
                 SLA % por Mês
               </p>
-              <p className="text-xs text-gray-400 mb-4">Evolução do nível de serviço</p>
+              <p className="text-xs text-muted-foreground mb-4">Evolução do nível de serviço</p>
               <div className="h-[220px]">
                 <LineChartSla data={data?.byMonth ?? []} />
               </div>
             </div>
 
             {/* Horizontal stacked bar by fornecedor */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="bg-card rounded-xl border border-border p-5">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-gray-700">SLA por Fornecedor</p>
-                <span className="text-xs text-gray-400">Top 10</span>
+                <p className="text-sm font-semibold text-foreground">SLA por Fornecedor</p>
+                <span className="text-xs text-muted-foreground">Top 10</span>
               </div>
               {/* Legend */}
-              <div className="flex items-center gap-4 text-xs text-gray-500 mb-3">
+              <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
                 <span className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded-sm inline-block" style={{ background: COLOR_OK }} />
                   Atendido
@@ -489,9 +489,9 @@ export default function SlaPage() {
 
           {/* ── Empty state ───────────────────────────────────────────── */}
           {(data?.summary.total ?? 0) === 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 flex flex-col items-center justify-center py-16 gap-3">
+            <div className="bg-card rounded-xl border border-border flex flex-col items-center justify-center py-16 gap-3">
               <Clock className="w-8 h-8 text-gray-200" />
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-muted-foreground">
                 Nenhum pedido com prazo de entrega encontrado no período selecionado
               </p>
             </div>

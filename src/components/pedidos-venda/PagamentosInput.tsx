@@ -129,8 +129,8 @@ export default function PagamentosInput({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Pagamento</span>
-        <button type="button" onClick={add} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pagamento</span>
+        <button type="button" onClick={add} className="inline-flex items-center gap-1 text-xs text-info hover:text-info font-medium">
           <Plus className="w-3.5 h-3.5" /> Forma
         </button>
       </div>
@@ -161,7 +161,7 @@ export default function PagamentosInput({
                 onChange={(v) => up(l._key, "contaBancariaId", v)}
                 allowNone={false}
                 placeholder="Conta de destino"
-                triggerClassName={cn("h-9 rounded-lg", invalida && "border-red-400 bg-red-50 text-red-700")}
+                triggerClassName={cn("h-9 rounded-lg", invalida && "border-red-400 bg-danger/10 text-danger")}
                 options={[
                   ...(!temCaixa ? [{ value: "caixa-geral", label: "Caixa Geral" }] : []),
                   ...contasOpts.map((c) => ({ value: c.id, label: c.nome })),
@@ -173,13 +173,13 @@ export default function PagamentosInput({
             value={l.valor}
             onChange={(e) => up(l._key, "valor", e.target.value)}
             placeholder="0,00"
-            className="h-9 w-full min-w-0 rounded-lg border border-gray-300 px-2 text-sm text-right font-mono bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="h-9 w-full min-w-0 rounded-lg border border-border px-2 text-sm text-right font-mono bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             type="button"
             onClick={() => rm(l._key)}
             disabled={linhas.length <= 1}
-            className="p-1.5 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent"
+            className="p-1.5 rounded text-muted-foreground/60 hover:text-red-500 hover:bg-danger/10 disabled:opacity-30 disabled:hover:bg-transparent"
             title="Remover forma"
           >
             <Trash2 className="w-4 h-4" />
@@ -188,15 +188,15 @@ export default function PagamentosInput({
       ))}
 
       <div className="flex items-center justify-between text-sm pt-1">
-        <span className="text-gray-500">Pago: <span className="font-semibold text-gray-800 tabular-nums">{formatBRL(pago)}</span></span>
+        <span className="text-muted-foreground">Pago: <span className="font-semibold text-foreground tabular-nums">{formatBRL(pago)}</span></span>
         {falta > 0.001 ? (
-          <span className="font-bold text-red-600 tabular-nums">Falta {formatBRL(falta)}</span>
+          <span className="font-bold text-danger tabular-nums">Falta {formatBRL(falta)}</span>
         ) : trocoValido ? (
-          <span className="font-bold text-amber-600 tabular-nums">Troco {formatBRL(excesso)}</span>
+          <span className="font-bold text-warning tabular-nums">Troco {formatBRL(excesso)}</span>
         ) : excesso > 0.001 ? (
-          <span className="font-bold text-red-600 tabular-nums">Excesso sem dinheiro {formatBRL(excesso)}</span>
+          <span className="font-bold text-danger tabular-nums">Excesso sem dinheiro {formatBRL(excesso)}</span>
         ) : (
-          <span className="font-bold text-emerald-600">Pagamento fecha ✓</span>
+          <span className="font-bold text-success">Pagamento fecha ✓</span>
         )}
       </div>
     </div>

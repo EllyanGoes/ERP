@@ -46,26 +46,26 @@ export default async function NecessidadesPage() {
       />
       <div className="px-8 pb-8">
         {necessidades.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">
+          <div className="text-center py-16 text-muted-foreground">
             <p className="text-lg font-medium">Nenhuma necessidade registrada</p>
             <p className="text-sm mt-1">Clique em &quot;Nova Necessidade&quot; para começar.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Número</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Solicitante</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Data Necessidade</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Itens</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Cotação</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Pedidos de Compra</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Doc. de Entrada</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Número</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Solicitante</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Data Necessidade</th>
+                  <th className="text-center px-4 py-3 font-medium text-muted-foreground">Itens</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Cotação</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Pedidos de Compra</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Doc. de Entrada</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {necessidades.map((n) => {
                   // Collect all conferências from pedidos
                   const conferencias = n.pedidosCompra
@@ -74,27 +74,27 @@ export default async function NecessidadesPage() {
 
                   return (
                     <ClickableRow key={n.id} href={`/suprimentos/necessidades/${n.id}`}>
-                      <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">{n.numero}</td>
-                      <td className="px-4 py-3 text-gray-700">{n.solicitante || "—"}</td>
+                      <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">{n.numero}</td>
+                      <td className="px-4 py-3 text-foreground">{n.solicitante || "—"}</td>
                       <td className="px-4 py-3">
                         <StatusBadge status={n.status} />
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{formatDate(n.dataNecessidade)}</td>
-                      <td className="px-4 py-3 text-center text-gray-600">{n._count.itens}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{formatDate(n.dataNecessidade)}</td>
+                      <td className="px-4 py-3 text-center text-muted-foreground">{n._count.itens}</td>
 
                       {/* Cotações */}
                       <td className="px-4 py-3">
                         {n.cotacoes.length === 0 ? (
-                          <span className="text-gray-400 text-xs">—</span>
+                          <span className="text-muted-foreground text-xs">—</span>
                         ) : (
                           <div className="flex flex-wrap gap-1">
                             {n.cotacoes.map((c) => (
                               <Link
                                 key={c.id}
                                 href={`/suprimentos/cotacoes/${c.id}`}
-                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-gray-100 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 transition-colors group"
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted hover:bg-info/10 border border-border hover:border-info/30 transition-colors group"
                               >
-                                <span className="font-mono text-xs font-medium text-gray-700 group-hover:text-blue-700">
+                                <span className="font-mono text-xs font-medium text-foreground group-hover:text-info">
                                   {c.numero}
                                 </span>
                                 <StatusBadge status={c.status} />
@@ -107,16 +107,16 @@ export default async function NecessidadesPage() {
                       {/* Pedidos de Compra */}
                       <td className="px-4 py-3">
                         {n.pedidosCompra.length === 0 ? (
-                          <span className="text-gray-400 text-xs">—</span>
+                          <span className="text-muted-foreground text-xs">—</span>
                         ) : (
                           <div className="flex flex-wrap gap-1">
                             {n.pedidosCompra.map((p) => (
                               <Link
                                 key={p.id}
                                 href={`/suprimentos/pedidos-compra/${p.id}`}
-                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-gray-100 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 transition-colors group"
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted hover:bg-info/10 border border-border hover:border-info/30 transition-colors group"
                               >
-                                <span className="font-mono text-xs font-medium text-gray-700 group-hover:text-blue-700">
+                                <span className="font-mono text-xs font-medium text-foreground group-hover:text-info">
                                   {p.numero}
                                 </span>
                                 <StatusBadge status={p.status} />
@@ -129,16 +129,16 @@ export default async function NecessidadesPage() {
                       {/* Documentos de Entrada */}
                       <td className="px-4 py-3">
                         {conferencias.length === 0 ? (
-                          <span className="text-gray-400 text-xs">—</span>
+                          <span className="text-muted-foreground text-xs">—</span>
                         ) : (
                           <div className="flex flex-wrap gap-1">
                             {conferencias.map((c) => (
                               <Link
                                 key={c.id}
                                 href={`/suprimentos/conferencias/${c.id}`}
-                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-gray-100 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 transition-colors group"
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted hover:bg-info/10 border border-border hover:border-info/30 transition-colors group"
                               >
-                                <span className="font-mono text-xs font-medium text-gray-700 group-hover:text-blue-700">
+                                <span className="font-mono text-xs font-medium text-foreground group-hover:text-info">
                                   {c.numero}
                                 </span>
                                 <StatusBadge status={c.status} />

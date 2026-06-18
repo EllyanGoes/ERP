@@ -55,23 +55,23 @@ export default function PerfisPage() {
       {/* Delete modal */}
       {deleteId && typeof window !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm text-center space-y-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm text-center space-y-4">
             <div className="flex justify-center">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
+              <div className="w-12 h-12 rounded-full bg-danger/15 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-danger" />
               </div>
             </div>
-            <h3 className="font-semibold text-gray-900">Excluir perfil?</h3>
-            <p className="text-sm text-gray-500">
-              <strong className="text-gray-700">{deleteTarget?.nome}</strong> será removido.
+            <h3 className="font-semibold text-foreground">Excluir perfil?</h3>
+            <p className="text-sm text-muted-foreground">
+              <strong className="text-foreground">{deleteTarget?.nome}</strong> será removido.
               {(deleteTarget?._count.usuarios ?? 0) > 0 && (
-                <span className="block mt-1 text-amber-600">
+                <span className="block mt-1 text-warning">
                   {deleteTarget?._count.usuarios} usuário(s) serão desvinculados.
                 </span>
               )}
             </p>
             {deleteError && (
-              <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{deleteError}</p>
+              <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{deleteError}</p>
             )}
             <div className="flex gap-2">
               <Button
@@ -102,9 +102,9 @@ export default function PerfisPage() {
 
       <div className="px-8 pb-8 max-w-4xl">
         {loading ? (
-          <p className="text-gray-400 text-sm py-8">Carregando...</p>
+          <p className="text-muted-foreground text-sm py-8">Carregando...</p>
         ) : perfis.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
+          <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
             <ShieldCheck className="w-10 h-10 text-gray-200" />
             <p className="text-sm font-medium">Nenhum perfil de acesso cadastrado</p>
             <Button size="sm" variant="outline" onClick={() => router.push("/admin/perfis/novo")}>
@@ -116,34 +116,34 @@ export default function PerfisPage() {
             {perfis.map((p) => (
               <div
                 key={p.id}
-                className="bg-white border border-gray-200 rounded-xl px-5 py-4 flex items-center gap-4 hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer group"
+                className="bg-card border border-border rounded-xl px-5 py-4 flex items-center gap-4 hover:border-info/30 hover:shadow-sm transition-all cursor-pointer group"
                 onClick={() => router.push(`/admin/perfis/${p.id}`)}
               >
                 {/* Icon */}
-                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
+                <div className="w-10 h-10 rounded-xl bg-info/10 flex items-center justify-center shrink-0 group-hover:bg-info/15 transition-colors">
                   <ShieldCheck className="w-5 h-5 text-blue-500" />
                 </div>
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">{p.nome}</p>
+                  <p className="text-sm font-semibold text-foreground">{p.nome}</p>
                   {p.descricao && (
-                    <p className="text-xs text-gray-400 truncate mt-0.5">{p.descricao}</p>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{p.descricao}</p>
                   )}
                 </div>
 
                 {/* Stats */}
                 <div className="flex items-center gap-4 shrink-0">
                   <div className="text-center hidden sm:block">
-                    <p className="text-sm font-semibold text-gray-800">{p.permissoes.length}</p>
-                    <p className="text-[10px] text-gray-400 uppercase tracking-wide">permissões</p>
+                    <p className="text-sm font-semibold text-foreground">{p.permissoes.length}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">permissões</p>
                   </div>
                   <div className="text-center hidden sm:block">
-                    <div className="flex items-center gap-1 text-sm font-semibold text-gray-800">
-                      <Users className="w-3.5 h-3.5 text-gray-400" />
+                    <div className="flex items-center gap-1 text-sm font-semibold text-foreground">
+                      <Users className="w-3.5 h-3.5 text-muted-foreground" />
                       {p._count.usuarios}
                     </div>
-                    <p className="text-[10px] text-gray-400 uppercase tracking-wide">usuários</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">usuários</p>
                   </div>
 
                   {/* Actions */}
@@ -158,7 +158,7 @@ export default function PerfisPage() {
                       <Edit className="w-3.5 h-3.5" />
                     </Button>
                     <Button
-                      variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-300 hover:text-red-500"
+                      variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground/60 hover:text-red-500"
                       onClick={() => { setDeleteError(""); setDeleteId(p.id); }}
                     >
                       <Trash2 className="w-3.5 h-3.5" />

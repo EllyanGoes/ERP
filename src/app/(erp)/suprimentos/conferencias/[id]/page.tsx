@@ -129,9 +129,9 @@ type NewItem = {
 };
 
 function getItemStatus(pedida: number, recebida: number): { label: string; cls: string } {
-  if (recebida === 0) return { label: "Faltante", cls: "bg-red-100 text-red-700" };
-  if (Math.abs(pedida - recebida) > 0.001) return { label: "Divergência", cls: "bg-amber-100 text-amber-700" };
-  return { label: "OK", cls: "bg-green-100 text-green-700" };
+  if (recebida === 0) return { label: "Faltante", cls: "bg-danger/15 text-danger" };
+  if (Math.abs(pedida - recebida) > 0.001) return { label: "Divergência", cls: "bg-warning/15 text-warning" };
+  return { label: "OK", cls: "bg-success/15 text-success" };
 }
 
 export default function DocumentoEntradaDetailPage() {
@@ -571,7 +571,7 @@ export default function DocumentoEntradaDetailPage() {
 
   useTabTitle(conferencia ? `Doc. ${conferencia.numero}` : null);
 
-  if (loading) return <div className="px-8 pt-8 text-gray-400">Carregando...</div>;
+  if (loading) return <div className="px-8 pt-8 text-muted-foreground">Carregando...</div>;
   if (!conferencia) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
   const isPendente    = conferencia.status === "PENDENTE";
@@ -665,16 +665,16 @@ export default function DocumentoEntradaDetailPage() {
       {/* ── Local de Estoque — pop-up de aviso ──────────────────────────────── */}
       {showLocalAlert && (
         <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30">
-          <div className="bg-white rounded-2xl shadow-2xl border border-red-200 max-w-md w-full mx-4 p-6">
+          <div className="bg-card rounded-2xl shadow-2xl border border-danger/30 max-w-md w-full mx-4 p-6">
             <div className="flex items-start gap-4">
-              <div className="shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <div className="shrink-0 w-10 h-10 bg-danger/15 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-danger" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 3h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                 </svg>
               </div>
               <div className="flex-1">
-                <h3 className="text-sm font-semibold text-gray-900 mb-1">Local de Estoque obrigatório</h3>
-                <p className="text-sm text-gray-500">
+                <h3 className="text-sm font-semibold text-foreground mb-1">Local de Estoque obrigatório</h3>
+                <p className="text-sm text-muted-foreground">
                   {modoLocalEstoque === "GLOBAL"
                     ? "Selecione o Local de Estoque antes de salvar ou concluir este documento."
                     : "Um ou mais itens não possuem Local de Estoque definido. Preencha o campo antes de salvar ou concluir."}
@@ -709,49 +709,49 @@ export default function DocumentoEntradaDetailPage() {
 
         return (
           <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30">
-            <div className="bg-white rounded-2xl shadow-2xl border border-amber-200 max-w-lg w-full mx-4 p-6">
+            <div className="bg-card rounded-2xl shadow-2xl border border-warning/30 max-w-lg w-full mx-4 p-6">
               <div className="flex items-start gap-4 mb-4">
-                <div className="shrink-0 w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
-                  <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <div className="shrink-0 w-10 h-10 bg-warning/15 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 3h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Divergência de quantidades</h3>
-                  <p className="text-sm text-gray-500">
+                  <h3 className="text-sm font-semibold text-foreground mb-1">Divergência de quantidades</h3>
+                  <p className="text-sm text-muted-foreground">
                     {divergentItems.length === 1
                       ? "O item abaixo foi recebido em quantidade diferente da pedida."
                       : `Os ${divergentItems.length} itens abaixo foram recebidos em quantidades diferentes das pedidas.`}
-                    {" "}O documento será concluído com status <span className="font-semibold text-amber-700">Divergência</span>.
+                    {" "}O documento será concluído com status <span className="font-semibold text-warning">Divergência</span>.
                   </p>
                 </div>
               </div>
 
               {/* Tabela de itens divergentes */}
-              <div className="rounded-lg border border-gray-100 overflow-hidden mb-5">
+              <div className="rounded-lg border border-border overflow-hidden mb-5">
                 <table className="w-full text-xs">
-                  <thead className="bg-gray-50 border-b border-gray-100">
+                  <thead className="bg-muted border-b border-border">
                     <tr>
-                      <th className="text-left px-3 py-2 font-medium text-gray-500">Produto</th>
-                      <th className="text-right px-3 py-2 font-medium text-gray-500">Qtd. Pedida</th>
-                      <th className="text-right px-3 py-2 font-medium text-gray-500">Qtd. Recebida</th>
-                      <th className="text-right px-3 py-2 font-medium text-gray-500">Diferença</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Produto</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Qtd. Pedida</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Qtd. Recebida</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Diferença</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {divergentItems.map((it) => (
                       <tr key={it.codigo}>
                         <td className="px-3 py-2">
-                          <span className="font-mono text-gray-400 mr-1.5">{it.codigo}</span>
-                          <span className="text-gray-700">{it.descricao}</span>
+                          <span className="font-mono text-muted-foreground mr-1.5">{it.codigo}</span>
+                          <span className="text-foreground">{it.descricao}</span>
                         </td>
-                        <td className="px-3 py-2 text-right text-gray-600">
+                        <td className="px-3 py-2 text-right text-muted-foreground">
                           {it.pedida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {it.unidade}
                         </td>
-                        <td className="px-3 py-2 text-right text-gray-600">
+                        <td className="px-3 py-2 text-right text-muted-foreground">
                           {it.recebida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {it.unidade}
                         </td>
-                        <td className={`px-3 py-2 text-right font-semibold ${it.recebida < it.pedida ? "text-red-600" : "text-emerald-600"}`}>
+                        <td className={`px-3 py-2 text-right font-semibold ${it.recebida < it.pedida ? "text-danger" : "text-success"}`}>
                           {it.recebida > it.pedida ? "+" : ""}
                           {(it.recebida - it.pedida).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {it.unidade}
                         </td>
@@ -764,7 +764,7 @@ export default function DocumentoEntradaDetailPage() {
               <div className="flex justify-end gap-3">
                 <button
                   onClick={() => setShowDivergenciaConfirm(false)}
-                  className="px-4 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                  className="px-4 py-2 border border-border text-muted-foreground text-sm font-medium rounded-lg hover:bg-muted transition-colors"
                 >
                   Cancelar
                 </button>
@@ -806,7 +806,7 @@ export default function DocumentoEntradaDetailPage() {
               <Button
                 size="sm"
                 variant="outline"
-                className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                className="text-danger border-danger/30 hover:bg-danger/10 hover:text-danger"
                 onClick={() => setConfirmDelete(true)}
                 disabled={deleting}
               >
@@ -814,8 +814,8 @@ export default function DocumentoEntradaDetailPage() {
                 Excluir
               </Button>
             ) : (
-              <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
-                <span className="text-xs text-red-700 font-medium">Confirmar exclusão?</span>
+              <div className="flex items-center gap-1.5 bg-danger/10 border border-danger/30 rounded-lg px-3 py-1.5">
+                <span className="text-xs text-danger font-medium">Confirmar exclusão?</span>
                 <button
                   onClick={handleDelete}
                   disabled={deleting}
@@ -825,7 +825,7 @@ export default function DocumentoEntradaDetailPage() {
                 </button>
                 <button
                   onClick={() => setConfirmDelete(false)}
-                  className="text-xs text-red-500 hover:text-red-700 px-1"
+                  className="text-xs text-red-500 hover:text-danger px-1"
                 >
                   Não
                 </button>
@@ -837,36 +837,36 @@ export default function DocumentoEntradaDetailPage() {
 
       <div className="px-8 pb-8 space-y-6">
         {(actionError || validationError) && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">
             {validationError || actionError}
           </div>
         )}
 
         {/* ── Banner: modo edição administrativa ───────────────────────────── */}
         {isConcluded && isAdmin && (
-          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2.5 rounded-xl text-sm">
-            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+          <div className="flex items-center gap-2 bg-warning/10 border border-warning/30 text-warning px-4 py-2.5 rounded-xl text-sm">
+            <ShieldAlert className="w-4 h-4 text-warning shrink-0" />
             <span className="font-medium">Modo edição administrativa</span>
-            <span className="text-amber-600">— alterações salvas substituirão os dados do documento concluído.</span>
+            <span className="text-warning">— alterações salvas substituirão os dados do documento concluído.</span>
           </div>
         )}
 
         {/* ── Admin: Alterar Status (sempre visível para ADMIN) ────────────── */}
         {isAdmin && (
-          <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-4">
-            <ShieldAlert className="w-4 h-4 text-gray-500 shrink-0" />
-            <span className="text-sm font-medium text-gray-700 shrink-0">Alterar status:</span>
+          <div className="bg-muted border border-border rounded-xl px-4 py-3 flex items-center gap-4">
+            <ShieldAlert className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium text-foreground shrink-0">Alterar status:</span>
             <select
               value={adminStatus}
               onChange={(e) => setAdminStatus(e.target.value)}
-              className="h-8 px-3 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="h-8 px-3 border border-border rounded-md text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
               <option value="PENDENTE">Pendente</option>
               <option value="EM_CONFERENCIA">Em Conferência</option>
               <option value="CONCLUIDA">Concluída</option>
               <option value="DIVERGENCIA">Divergência</option>
             </select>
-            <span className="text-xs text-gray-400">Salve para aplicar</span>
+            <span className="text-xs text-muted-foreground">Salve para aplicar</span>
           </div>
         )}
 
@@ -879,12 +879,12 @@ export default function DocumentoEntradaDetailPage() {
 
             {/* Tipo de Documento */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Tipo de Documento <span className="text-red-500">*</span></Label>
+              <Label className="text-xs text-muted-foreground">Tipo de Documento <span className="text-red-500">*</span></Label>
               {nfEditable ? (
                 <select
                   value={tipoNota}
                   onChange={(e) => setTipoNota(e.target.value)}
-                  className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full h-9 px-3 border border-border rounded-md text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="NF">NF — Nota Fiscal</option>
                   <option value="SN">SN — Sem Nota</option>
@@ -893,14 +893,14 @@ export default function DocumentoEntradaDetailPage() {
                 <Input
                   value={tipoNota === "SN" ? "SN — Sem Nota" : "NF — Nota Fiscal"}
                   readOnly
-                  className="bg-gray-50"
+                  className="bg-muted"
                 />
               )}
             </div>
 
             {/* Número NF */}
             <div className="space-y-1.5">
-              <Label className={cn("text-xs", isSN ? "text-gray-300" : "text-gray-500")}>
+              <Label className={cn("text-xs", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
                 Número NF{isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
               </Label>
               {nfEditable ? (
@@ -909,16 +909,16 @@ export default function DocumentoEntradaDetailPage() {
                   onChange={(e) => setNumeroNF(e.target.value)}
                   placeholder={isSN ? "—" : "000000"}
                   disabled={isSN}
-                  className={isSN ? "bg-gray-50 text-gray-300 cursor-not-allowed" : ""}
+                  className={isSN ? "bg-muted text-muted-foreground/60 cursor-not-allowed" : ""}
                 />
               ) : (
-                <Input value={conferencia.numeroNF ?? "—"} readOnly className="bg-gray-50" />
+                <Input value={conferencia.numeroNF ?? "—"} readOnly className="bg-muted" />
               )}
             </div>
 
             {/* Série */}
             <div className="space-y-1.5">
-              <Label className={cn("text-xs", isSN ? "text-gray-300" : "text-gray-500")}>
+              <Label className={cn("text-xs", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
                 Série{isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
               </Label>
               {nfEditable ? (
@@ -927,16 +927,16 @@ export default function DocumentoEntradaDetailPage() {
                   onChange={(e) => setSerie(e.target.value)}
                   placeholder={isSN ? "—" : "1"}
                   disabled={isSN}
-                  className={isSN ? "bg-gray-50 text-gray-300 cursor-not-allowed" : ""}
+                  className={isSN ? "bg-muted text-muted-foreground/60 cursor-not-allowed" : ""}
                 />
               ) : (
-                <Input value={conferencia.serie ?? "—"} readOnly className="bg-gray-50" />
+                <Input value={conferencia.serie ?? "—"} readOnly className="bg-muted" />
               )}
             </div>
 
             {/* DT Emissão */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">DT Emissão <span className="text-red-500">*</span></Label>
+              <Label className="text-xs text-muted-foreground">DT Emissão <span className="text-red-500">*</span></Label>
               {nfEditable ? (
                 <Input
                   type="date"
@@ -948,14 +948,14 @@ export default function DocumentoEntradaDetailPage() {
                 <Input
                   value={conferencia.dtEmissao ? formatDate(conferencia.dtEmissao) : "—"}
                   readOnly
-                  className="bg-gray-50"
+                  className="bg-muted"
                 />
               )}
             </div>
 
             {/* Espécie de Documento */}
             <div className="space-y-1.5">
-              <Label className={cn("text-xs", isSN ? "text-gray-300" : "text-gray-500")}>
+              <Label className={cn("text-xs", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
                 Espécie de Documento{isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
               </Label>
               {nfEditable ? (
@@ -964,16 +964,16 @@ export default function DocumentoEntradaDetailPage() {
                   onChange={(e) => setEspDocumento(e.target.value)}
                   placeholder={isSN ? "—" : "SPED"}
                   disabled={isSN}
-                  className={isSN ? "bg-gray-50 text-gray-300 cursor-not-allowed" : ""}
+                  className={isSN ? "bg-muted text-muted-foreground/60 cursor-not-allowed" : ""}
                 />
               ) : (
-                <Input value={conferencia.espDocumento ?? "—"} readOnly className="bg-gray-50" />
+                <Input value={conferencia.espDocumento ?? "—"} readOnly className="bg-muted" />
               )}
             </div>
 
             {/* UF Origem */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">UF Origem</Label>
+              <Label className="text-xs text-muted-foreground">UF Origem</Label>
               {nfEditable ? (
                 <ComboboxWithCreate
                   value={ufOrigem}
@@ -983,30 +983,30 @@ export default function DocumentoEntradaDetailPage() {
                   options={UF_LIST.map((uf) => ({ value: uf, label: uf }))}
                 />
               ) : (
-                <Input value={conferencia.ufOrigem ?? "—"} readOnly className="bg-gray-50" />
+                <Input value={conferencia.ufOrigem ?? "—"} readOnly className="bg-muted" />
               )}
             </div>
 
             {/* Loja */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Loja</Label>
-              <Input value="01" readOnly className="bg-gray-50" />
+              <Label className="text-xs text-muted-foreground">Loja</Label>
+              <Input value="01" readOnly className="bg-muted" />
             </div>
 
             {/* Nº Documento (read-only) */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Nº Documento</Label>
-              <Input value={conferencia.numero} readOnly className="bg-gray-50 font-mono text-xs" />
+              <Label className="text-xs text-muted-foreground">Nº Documento</Label>
+              <Input value={conferencia.numero} readOnly className="bg-muted font-mono text-xs" />
             </div>
 
             {/* Data Conferência (read-only) */}
             {conferencia.dataConferencia && (
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">Data Conferência</Label>
+                <Label className="text-xs text-muted-foreground">Data Conferência</Label>
                 <Input
                   value={formatDate(conferencia.dataConferencia)}
                   readOnly
-                  className="bg-gray-50"
+                  className="bg-muted"
                 />
               </div>
             )}
@@ -1021,7 +1021,7 @@ export default function DocumentoEntradaDetailPage() {
               {conferencia.pedido && (
                 <Link
                   href={`/suprimentos/pedidos-compra/${conferencia.pedido.id}`}
-                  className="text-xs text-blue-600 hover:underline font-mono"
+                  className="text-xs text-info hover:underline font-mono"
                 >
                   Pedido vinculado: {conferencia.pedido.numero}
                 </Link>
@@ -1031,7 +1031,7 @@ export default function DocumentoEntradaDetailPage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1.5 md:col-span-2">
-                <Label className="text-xs text-gray-500">
+                <Label className="text-xs text-muted-foreground">
                   Fornecedor <span className="text-red-500">*</span>
                 </Label>
                 {nfEditable ? (
@@ -1049,11 +1049,11 @@ export default function DocumentoEntradaDetailPage() {
                     createLabel="fornecedor"
                   />
                 ) : (
-                  <Input value={fornNome} readOnly className="bg-gray-50" />
+                  <Input value={fornNome} readOnly className="bg-muted" />
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">CNPJ</Label>
+                <Label className="text-xs text-muted-foreground">CNPJ</Label>
                 <Input
                   value={
                     nfEditable
@@ -1061,19 +1061,19 @@ export default function DocumentoEntradaDetailPage() {
                       : (fornInfo?.cpfCnpj ?? "—")
                   }
                   readOnly
-                  className="bg-gray-50 font-mono text-xs"
+                  className="bg-muted font-mono text-xs"
                 />
               </div>
               {fornInfo?.contato && (
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">Contato</Label>
-                  <Input value={fornInfo.contato} readOnly className="bg-gray-50" />
+                  <Label className="text-xs text-muted-foreground">Contato</Label>
+                  <Input value={fornInfo.contato} readOnly className="bg-muted" />
                 </div>
               )}
               {fornInfo?.email && (
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">E-mail</Label>
-                  <Input value={fornInfo.email} readOnly className="bg-gray-50" />
+                  <Label className="text-xs text-muted-foreground">E-mail</Label>
+                  <Input value={fornInfo.email} readOnly className="bg-muted" />
                 </div>
               )}
             </div>
@@ -1081,23 +1081,23 @@ export default function DocumentoEntradaDetailPage() {
         </Card>
 
         {/* ── Seção 3: Local de Estoque ────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-sm text-gray-800">Local de Estoque</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Local de Estoque</h2>
           </div>
           <div className="p-4 flex flex-col md:flex-row md:items-end gap-4">
             {/* Mode toggle */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Modo de entrada</Label>
-              <div className="flex items-center border border-gray-200 rounded-lg p-0.5 bg-gray-50 w-fit">
+              <Label className="text-xs text-muted-foreground">Modo de entrada</Label>
+              <div className="flex items-center border border-border rounded-lg p-0.5 bg-muted w-fit">
                 <button
                   type="button"
                   onClick={() => nfEditable && handleModoChange("GLOBAL")}
                   className={cn(
                     "px-4 py-1.5 rounded-md text-xs font-medium transition-colors",
                     modoLocalEstoque === "GLOBAL"
-                      ? "bg-white text-blue-700 shadow-sm border border-blue-200"
-                      : "text-gray-500 hover:text-gray-700"
+                      ? "bg-card text-info shadow-sm border border-info/30"
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   Global
@@ -1108,8 +1108,8 @@ export default function DocumentoEntradaDetailPage() {
                   className={cn(
                     "px-4 py-1.5 rounded-md text-xs font-medium transition-colors",
                     modoLocalEstoque === "POR_ITEM"
-                      ? "bg-white text-blue-700 shadow-sm border border-blue-200"
-                      : "text-gray-500 hover:text-gray-700"
+                      ? "bg-card text-info shadow-sm border border-info/30"
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   Por Item
@@ -1120,7 +1120,7 @@ export default function DocumentoEntradaDetailPage() {
             {/* Global local selector */}
             {modoLocalEstoque === "GLOBAL" && (
               <div className="space-y-1.5 flex-1 max-w-xs">
-                <Label className="text-xs text-gray-500">
+                <Label className="text-xs text-muted-foreground">
                   Local de Estoque <span className="text-red-500">*</span>
                 </Label>
                 {nfEditable ? (
@@ -1136,14 +1136,14 @@ export default function DocumentoEntradaDetailPage() {
                   <Input
                     value={locaisEstoque.find((l) => l.id === localEstoqueGlobalId)?.nome ?? "—"}
                     readOnly
-                    className="bg-gray-50"
+                    className="bg-muted"
                   />
                 )}
               </div>
             )}
 
             {modoLocalEstoque === "POR_ITEM" && (
-              <p className="text-xs text-gray-400 pb-1.5">
+              <p className="text-xs text-muted-foreground pb-1.5">
                 O local de estoque será definido individualmente para cada item na tabela abaixo.
               </p>
             )}
@@ -1159,7 +1159,7 @@ export default function DocumentoEntradaDetailPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddRow((v) => !v)}
-                  className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                  className="flex items-center gap-1.5 text-xs font-medium text-info hover:text-info transition-colors"
                 >
                   <span className="text-base leading-none">+</span> Adicionar item
                 </button>
@@ -1173,7 +1173,7 @@ export default function DocumentoEntradaDetailPage() {
               ? produtos.filter((p) => p.descricao.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q)).slice(0, 10)
               : [];
             return (
-              <div className="px-4 py-3 border-b border-gray-100 bg-blue-50/40">
+              <div className="px-4 py-3 border-b border-border bg-info/10">
                 <div className="relative max-w-sm">
                   <input
                     autoFocus
@@ -1181,26 +1181,26 @@ export default function DocumentoEntradaDetailPage() {
                     placeholder="Buscar produto por código ou descrição..."
                     value={addItemSearch}
                     onChange={(e) => setAddItemSearch(e.target.value)}
-                    className="w-full h-8 px-3 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full h-8 px-3 border border-border rounded-md text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   {filteredProdutos.length > 0 && (
-                    <div className="absolute top-9 left-0 z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                    <div className="absolute top-9 left-0 z-50 w-full bg-card border border-border rounded-xl shadow-lg max-h-52 overflow-y-auto">
                       {filteredProdutos.map((p) => (
                         <button
                           key={p.id}
                           type="button"
-                          className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center gap-2 text-sm"
+                          className="w-full text-left px-3 py-2 hover:bg-info/10 flex items-center gap-2 text-sm"
                           onClick={() => addNewItemRow(p)}
                         >
-                          <span className="font-mono text-xs text-gray-400 shrink-0">{p.codigo}</span>
-                          <span className="text-gray-800">{p.descricao}</span>
-                          <span className="ml-auto text-xs text-gray-400 shrink-0">{p.unidadeMedida}</span>
+                          <span className="font-mono text-xs text-muted-foreground shrink-0">{p.codigo}</span>
+                          <span className="text-foreground">{p.descricao}</span>
+                          <span className="ml-auto text-xs text-muted-foreground shrink-0">{p.unidadeMedida}</span>
                         </button>
                       ))}
                     </div>
                   )}
                   {q && filteredProdutos.length === 0 && (
-                    <p className="mt-1 text-xs text-gray-400">Nenhum produto encontrado.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Nenhum produto encontrado.</p>
                   )}
                 </div>
               </div>
@@ -1209,27 +1209,27 @@ export default function DocumentoEntradaDetailPage() {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-muted border-b border-border">
                   <tr>
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">#NF</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">Produto</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">Descrição</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">#NF</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">Produto</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">Descrição</th>
                     {modoLocalEstoque === "POR_ITEM" && (
-                      <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">Local Estoque</th>
+                      <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">Local Estoque</th>
                     )}
-                    <th className="text-left px-3 py-2.5 font-medium text-gray-600 text-xs">U.M.</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Qtd. Pedida</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Qtd. Recebida</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Vlr. Unit.</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">% Desc.</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Vlr. Total</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Vlr. IPI</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-gray-600 text-xs">Vlr. ICMS</th>
-                    <th className="text-center px-3 py-2.5 font-medium text-gray-600 text-xs">Status</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">U.M.</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Qtd. Pedida</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Qtd. Recebida</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Vlr. Unit.</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">% Desc.</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Vlr. Total</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Vlr. IPI</th>
+                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Vlr. ICMS</th>
+                    <th className="text-center px-3 py-2.5 font-medium text-muted-foreground text-xs">Status</th>
                     {itemsEditable && <th className="w-8" />}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {conferencia.itens.map((item, idx) => {
                     const ei = editItems[idx];
                     const qtdPedida = decimalToNumber(item.quantidadePedida);
@@ -1240,11 +1240,11 @@ export default function DocumentoEntradaDetailPage() {
                     return (
                       <tr
                         key={item.id}
-                        className={`hover:bg-gray-50 ${item.divergencia && !itemsEditable ? "bg-amber-50/50" : ""}`}
+                        className={`hover:bg-muted ${item.divergencia && !itemsEditable ? "bg-warning/10" : ""}`}
                       >
-                        <td className="px-3 py-2 text-xs text-gray-400">{idx + 1}</td>
-                        <td className="px-3 py-2 font-mono text-xs text-gray-500">{item.item.codigo}</td>
-                        <td className="px-3 py-2 text-xs text-gray-800 max-w-[200px]">{item.item.descricao}</td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground">{idx + 1}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{item.item.codigo}</td>
+                        <td className="px-3 py-2 text-xs text-foreground max-w-[200px]">{item.item.descricao}</td>
 
                         {/* Local Estoque — only shown in Por Item mode */}
                         {modoLocalEstoque === "POR_ITEM" && (
@@ -1254,19 +1254,19 @@ export default function DocumentoEntradaDetailPage() {
                                 value={ei.localEstoqueId}
                                 onChange={(v) => updateEditItem(item.id, "localEstoqueId", v)}
                                 noneLabel="—"
-                                triggerClassName={cn("h-7 rounded text-xs", !ei.localEstoqueId && "border-red-400 bg-red-50 text-red-700")}
+                                triggerClassName={cn("h-7 rounded text-xs", !ei.localEstoqueId && "border-red-400 bg-danger/10 text-danger")}
                                 options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
                               />
                             ) : (
-                              <span className="text-xs text-gray-600">{localNome ?? "—"}</span>
+                              <span className="text-xs text-muted-foreground">{localNome ?? "—"}</span>
                             )}
                           </td>
                         )}
 
-                        <td className="px-3 py-2 text-xs text-gray-500">{item.item.unidadeMedida}</td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground">{item.item.unidadeMedida}</td>
 
                         {/* Qtd. Pedida */}
-                        <td className="px-3 py-2 text-right text-xs text-gray-700">
+                        <td className="px-3 py-2 text-right text-xs text-foreground">
                           {qtdPedida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                         </td>
 
@@ -1282,7 +1282,7 @@ export default function DocumentoEntradaDetailPage() {
                               onChange={(e) => updateItemAndCalc(item.id, "quantidadeRecebida", e.target.value)}
                             />
                           ) : (
-                            <span className="block text-right text-xs text-gray-700">
+                            <span className="block text-right text-xs text-foreground">
                               {decimalToNumber(item.quantidadeRecebida).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                             </span>
                           )}
@@ -1300,7 +1300,7 @@ export default function DocumentoEntradaDetailPage() {
                               onChange={(e) => updateItemAndCalc(item.id, "vlrUnitario", e.target.value)}
                             />
                           ) : (
-                            <span className="block text-right text-xs text-gray-700">
+                            <span className="block text-right text-xs text-foreground">
                               {decimalToNumber(item.vlrUnitario) > 0
                                 ? formatBRL(decimalToNumber(item.vlrUnitario))
                                 : "—"}
@@ -1321,10 +1321,10 @@ export default function DocumentoEntradaDetailPage() {
                                 value={ei.desconto}
                                 onChange={(e) => updateItemAndCalc(item.id, "desconto", e.target.value)}
                               />
-                              <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                              <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
                             </div>
                           ) : (
-                            <span className="block text-right text-xs text-gray-700">
+                            <span className="block text-right text-xs text-foreground">
                               {decimalToNumber(item.desconto) > 0
                                 ? `${decimalToNumber(item.desconto)}%`
                                 : "—"}
@@ -1344,7 +1344,7 @@ export default function DocumentoEntradaDetailPage() {
                               onChange={(e) => updateEditItem(item.id, "vlrTotal", e.target.value)}
                             />
                           ) : (
-                            <span className="block text-right text-xs text-gray-700">
+                            <span className="block text-right text-xs text-foreground">
                               {decimalToNumber(item.vlrTotal) > 0
                                 ? formatBRL(decimalToNumber(item.vlrTotal))
                                 : "—"}
@@ -1364,7 +1364,7 @@ export default function DocumentoEntradaDetailPage() {
                               onChange={(e) => updateEditItem(item.id, "vlrIPI", e.target.value)}
                             />
                           ) : (
-                            <span className="block text-right text-xs text-gray-700">
+                            <span className="block text-right text-xs text-foreground">
                               {decimalToNumber(item.vlrIPI) > 0
                                 ? formatBRL(decimalToNumber(item.vlrIPI))
                                 : "—"}
@@ -1384,7 +1384,7 @@ export default function DocumentoEntradaDetailPage() {
                               onChange={(e) => updateEditItem(item.id, "vlrICMS", e.target.value)}
                             />
                           ) : (
-                            <span className="block text-right text-xs text-gray-700">
+                            <span className="block text-right text-xs text-foreground">
                               {decimalToNumber(item.vlrICMS) > 0
                                 ? formatBRL(decimalToNumber(item.vlrICMS))
                                 : "—"}
@@ -1407,23 +1407,23 @@ export default function DocumentoEntradaDetailPage() {
 
                   {/* ── Novas linhas adicionadas ─────────────────────────── */}
                   {newItems.map((ni) => (
-                    <tr key={ni._key} className="bg-blue-50/30 hover:bg-blue-50">
+                    <tr key={ni._key} className="bg-info/10 hover:bg-info/10">
                       <td className="px-3 py-2 text-xs text-blue-400">+</td>
-                      <td className="px-3 py-2 font-mono text-xs text-gray-500">{ni.codigo}</td>
-                      <td className="px-3 py-2 text-xs text-gray-800 max-w-[200px]">{ni.descricao}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{ni.codigo}</td>
+                      <td className="px-3 py-2 text-xs text-foreground max-w-[200px]">{ni.descricao}</td>
                       {modoLocalEstoque === "POR_ITEM" && (
                         <td className="px-3 py-2">
                           <ComboboxWithCreate
                             value={ni.localEstoqueId}
                             onChange={(v) => updateNewItem(ni._key, "localEstoqueId", v)}
                             noneLabel="—"
-                            triggerClassName={cn("h-7 rounded text-xs", !ni.localEstoqueId && "border-red-400 bg-red-50 text-red-700")}
+                            triggerClassName={cn("h-7 rounded text-xs", !ni.localEstoqueId && "border-red-400 bg-danger/10 text-danger")}
                             options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
                           />
                         </td>
                       )}
-                      <td className="px-3 py-2 text-xs text-gray-500">{ni.unidadeMedida}</td>
-                      <td className="px-3 py-2 text-right text-xs text-gray-400">—</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{ni.unidadeMedida}</td>
+                      <td className="px-3 py-2 text-right text-xs text-muted-foreground">—</td>
                       <td className="px-3 py-2">
                         <Input
                           type="number" step="0.001" min="0"
@@ -1448,7 +1448,7 @@ export default function DocumentoEntradaDetailPage() {
                             value={ni.desconto}
                             onChange={(e) => updateNewItem(ni._key, "desconto", e.target.value)}
                           />
-                          <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                          <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
                         </div>
                       </td>
                       <td className="px-3 py-2">
@@ -1479,7 +1479,7 @@ export default function DocumentoEntradaDetailPage() {
                         <button
                           type="button"
                           onClick={() => removeNewItem(ni._key)}
-                          className="text-red-400 hover:text-red-600 text-xs font-medium"
+                          className="text-red-400 hover:text-danger text-xs font-medium"
                           title="Remover"
                         >✕</button>
                       </td>
@@ -1492,21 +1492,21 @@ export default function DocumentoEntradaDetailPage() {
         </Card>
 
         {/* ── Seção 4: Totais ──────────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 className="font-semibold text-sm text-gray-800">Totais</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Totais</h2>
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Vlr. Mercadoria</Label>
+              <Label className="text-xs text-muted-foreground">Vlr. Mercadoria</Label>
               {itemsEditable ? (
-                <Input value={formatBRL(vlrMercadoria)} readOnly className="bg-gray-50 text-right" />
+                <Input value={formatBRL(vlrMercadoria)} readOnly className="bg-muted text-right" />
               ) : (
-                <Input value={vlrMercadoria > 0 ? formatBRL(vlrMercadoria) : "—"} readOnly className="bg-gray-50 text-right" />
+                <Input value={vlrMercadoria > 0 ? formatBRL(vlrMercadoria) : "—"} readOnly className="bg-muted text-right" />
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Condição de Pagamento</Label>
+              <Label className="text-xs text-muted-foreground">Condição de Pagamento</Label>
               {nfEditable ? (
                 <ComboboxWithCreate
                   value={condicaoPagamentoId}
@@ -1516,11 +1516,11 @@ export default function DocumentoEntradaDetailPage() {
                   options={condicoes.map((c) => ({ value: c.id, label: c.nome }))}
                 />
               ) : (
-                <Input value={condicoes.find((c) => c.id === condicaoPagamentoId)?.nome ?? "—"} readOnly className="bg-gray-50" />
+                <Input value={condicoes.find((c) => c.id === condicaoPagamentoId)?.nome ?? "—"} readOnly className="bg-muted" />
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Natureza Financeira</Label>
+              <Label className="text-xs text-muted-foreground">Natureza Financeira</Label>
               {nfEditable ? (
                 <NaturezaCombobox
                   value={naturezaFinanceiraId}
@@ -1529,11 +1529,11 @@ export default function DocumentoEntradaDetailPage() {
                   placeholder="— Selecionar natureza —"
                 />
               ) : (
-                <Input value={naturezas.find((n) => n.id === naturezaFinanceiraId)?.nome ?? "—"} readOnly className="bg-gray-50" />
+                <Input value={naturezas.find((n) => n.id === naturezaFinanceiraId)?.nome ?? "—"} readOnly className="bg-muted" />
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Frete</Label>
+              <Label className="text-xs text-muted-foreground">Frete</Label>
               {nfEditable ? (
                 <Input
                   type="number"
@@ -1545,11 +1545,11 @@ export default function DocumentoEntradaDetailPage() {
                   className="text-right"
                 />
               ) : (
-                <Input value={freteNum > 0 ? formatBRL(freteNum) : "—"} readOnly className="bg-gray-50 text-right" />
+                <Input value={freteNum > 0 ? formatBRL(freteNum) : "—"} readOnly className="bg-muted text-right" />
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Seguro</Label>
+              <Label className="text-xs text-muted-foreground">Seguro</Label>
               {nfEditable ? (
                 <Input
                   type="number"
@@ -1561,11 +1561,11 @@ export default function DocumentoEntradaDetailPage() {
                   className="text-right"
                 />
               ) : (
-                <Input value={seguroNum > 0 ? formatBRL(seguroNum) : "—"} readOnly className="bg-gray-50 text-right" />
+                <Input value={seguroNum > 0 ? formatBRL(seguroNum) : "—"} readOnly className="bg-muted text-right" />
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Despesas</Label>
+              <Label className="text-xs text-muted-foreground">Despesas</Label>
               {nfEditable ? (
                 <Input
                   type="number"
@@ -1577,19 +1577,19 @@ export default function DocumentoEntradaDetailPage() {
                   className="text-right"
                 />
               ) : (
-                <Input value={despesasNum > 0 ? formatBRL(despesasNum) : "—"} readOnly className="bg-gray-50 text-right" />
+                <Input value={despesasNum > 0 ? formatBRL(despesasNum) : "—"} readOnly className="bg-muted text-right" />
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Desc. Total Itens</Label>
+              <Label className="text-xs text-muted-foreground">Desc. Total Itens</Label>
               <Input
                 value={descontoTotalItens > 0 ? formatBRL(descontoTotalItens) : "—"}
                 readOnly
-                className="bg-gray-50 text-right text-red-600"
+                className="bg-muted text-right text-danger"
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Desc. Global (NF)</Label>
+              <Label className="text-xs text-muted-foreground">Desc. Global (NF)</Label>
               {nfEditable ? (
                 <Input
                   type="number"
@@ -1601,15 +1601,15 @@ export default function DocumentoEntradaDetailPage() {
                   className="text-right"
                 />
               ) : (
-                <Input value={descontoNum > 0 ? formatBRL(descontoNum) : "—"} readOnly className="bg-gray-50 text-right" />
+                <Input value={descontoNum > 0 ? formatBRL(descontoNum) : "—"} readOnly className="bg-muted text-right" />
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Vlr. Bruto</Label>
+              <Label className="text-xs text-muted-foreground">Vlr. Bruto</Label>
               <Input
                 value={vlrBruto > 0 ? formatBRL(vlrBruto) : "—"}
                 readOnly
-                className="bg-blue-50 text-right font-bold text-blue-900 border-blue-200"
+                className="bg-info/10 text-right font-bold text-blue-900 border-info/30"
               />
             </div>
           </div>
@@ -1673,17 +1673,17 @@ export default function DocumentoEntradaDetailPage() {
       {vinculoPopup && (
         <div className="fixed inset-0 z-[9200] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setVinculoPopup(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+          <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
             {/* Header */}
-            <div className="flex items-start gap-3 px-6 pt-6 pb-4 border-b border-gray-100">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50">
-                <LinkIcon className="w-5 h-5 text-blue-600" />
+            <div className="flex items-start gap-3 px-6 pt-6 pb-4 border-b border-border">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info/10">
+                <LinkIcon className="w-5 h-5 text-info" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-gray-900">Novo vínculo fornecedor × produto</p>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-sm font-semibold text-foreground">Novo vínculo fornecedor × produto</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   Ao concluir, {vinculoPopup.novos.length === 1 ? "o produto abaixo será vinculado" : `os ${vinculoPopup.novos.length} produtos abaixo serão vinculados`} ao fornecedor{" "}
-                  <span className="font-medium text-gray-700">{vinculoPopup.fornecedorNome}</span> pela primeira vez.
+                  <span className="font-medium text-foreground">{vinculoPopup.fornecedorNome}</span> pela primeira vez.
                 </p>
               </div>
             </div>
@@ -1691,13 +1691,13 @@ export default function DocumentoEntradaDetailPage() {
             <ul className="divide-y divide-gray-50 max-h-52 overflow-y-auto">
               {vinculoPopup.novos.map((item) => (
                 <li key={item.id} className="flex items-center gap-3 px-6 py-2.5">
-                  <span className="font-mono text-[11px] text-gray-400 w-16 shrink-0">{item.codigo}</span>
-                  <span className="text-sm text-gray-800">{item.descricao}</span>
+                  <span className="font-mono text-[11px] text-muted-foreground w-16 shrink-0">{item.codigo}</span>
+                  <span className="text-sm text-foreground">{item.descricao}</span>
                 </li>
               ))}
             </ul>
             {/* Footer */}
-            <div className="flex justify-end gap-2 px-6 py-4 bg-gray-50 border-t border-gray-100">
+            <div className="flex justify-end gap-2 px-6 py-4 bg-muted border-t border-border">
               <Button variant="outline" size="sm" onClick={() => setVinculoPopup(null)}>
                 Cancelar
               </Button>

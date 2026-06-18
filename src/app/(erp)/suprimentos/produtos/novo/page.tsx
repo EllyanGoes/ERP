@@ -138,7 +138,7 @@ export default function NovoProdutoPage() {
       />
       <form onSubmit={handleSubmit} className="px-8 pb-8 space-y-6 max-w-4xl">
         {serverError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">
             {serverError}
           </div>
         )}
@@ -151,11 +151,11 @@ export default function NovoProdutoPage() {
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Código</Label>
-              <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-gray-200 bg-gray-50">
-                <span className="text-sm text-gray-400 italic">Gerado automaticamente</span>
-                <span className="ml-auto text-[10px] font-semibold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">auto</span>
+              <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-muted">
+                <span className="text-sm text-muted-foreground italic">Gerado automaticamente</span>
+                <span className="ml-auto text-[10px] font-semibold text-blue-500 bg-info/10 px-1.5 py-0.5 rounded">auto</span>
               </div>
-              <p className="text-[10px] text-gray-400">Ex: PROD-0001, PROD-0002 …</p>
+              <p className="text-[10px] text-muted-foreground">Ex: PROD-0001, PROD-0002 …</p>
             </div>
 
             <div className="space-y-1.5">
@@ -213,7 +213,7 @@ export default function NovoProdutoPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[10px] text-gray-400">Define em quais locais de estoque o produto pode entrar.</p>
+              <p className="text-[10px] text-muted-foreground">Define em quais locais de estoque o produto pode entrar.</p>
             </div>
 
             <div className="space-y-1.5">
@@ -250,7 +250,7 @@ export default function NovoProdutoPage() {
                     onChange={(e) => setForm((prev) => ({ ...prev, vendavel: e.target.checked }))}
                     className="sr-only peer"
                   />
-                  <div className="w-5 h-5 rounded border-2 border-gray-300 bg-white peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-colors group-hover:border-blue-400 flex items-center justify-center">
+                  <div className="w-5 h-5 rounded border-2 border-border bg-card peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-colors group-hover:border-blue-400 flex items-center justify-center">
                     {form.vendavel && (
                       <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -259,8 +259,8 @@ export default function NovoProdutoPage() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-800">Este produto é vendável</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-sm font-medium text-foreground">Este produto é vendável</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Marque se este produto pode ser comercializado e incluído em Pedidos de Venda.
                   </p>
                 </div>
@@ -277,7 +277,7 @@ export default function NovoProdutoPage() {
                     onChange={(e) => setForm((prev) => ({ ...prev, comodato: e.target.checked }))}
                     className="sr-only peer"
                   />
-                  <div className="w-5 h-5 rounded border-2 border-gray-300 bg-white peer-checked:bg-orange-500 peer-checked:border-orange-500 transition-colors group-hover:border-orange-400 flex items-center justify-center">
+                  <div className="w-5 h-5 rounded border-2 border-border bg-card peer-checked:bg-orange-500 peer-checked:border-orange-500 transition-colors group-hover:border-orange-400 flex items-center justify-center">
                     {form.comodato && (
                       <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -286,8 +286,8 @@ export default function NovoProdutoPage() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-800">Item de comodato (vasilhame retornável)</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-sm font-medium text-foreground">Item de comodato (vasilhame retornável)</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Pallets, engradados e outros itens emprestados ao cliente que devem retornar. Aparece na tela de Comodato.
                   </p>
                 </div>
@@ -313,7 +313,7 @@ export default function NovoProdutoPage() {
                 placeholder="0,00"
               />
             </div>
-            <div className="flex items-start gap-2 md:col-span-2 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 text-sm text-blue-700">
+            <div className="flex items-start gap-2 md:col-span-2 bg-info/10 border border-info/20 rounded-lg px-4 py-3 text-sm text-info">
               <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z" />
               </svg>
@@ -351,7 +351,7 @@ export default function NovoProdutoPage() {
                   placeholder="0"
                 />
               </div>
-              <p className="col-span-2 text-xs text-gray-400">
+              <p className="col-span-2 text-xs text-muted-foreground">
                 O local de estoque é definido ao registrar uma movimentação de entrada.
               </p>
             </CardContent>

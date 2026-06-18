@@ -39,7 +39,7 @@ const TIPO_ITEM_OPTIONS: { id: string; nome: string }[] = [
 ];
 
 const ACTIVE_TAB_CLS = "border-b-2 border-indigo-600 text-indigo-700 font-medium";
-const INACTIVE_TAB_CLS = "border-b-2 border-transparent text-gray-500 hover:text-gray-800";
+const INACTIVE_TAB_CLS = "border-b-2 border-transparent text-muted-foreground hover:text-foreground";
 
 /* Portal-based single select */
 function PortalSelect<T extends { id: string }>({
@@ -64,22 +64,22 @@ function PortalSelect<T extends { id: string }>({
   }
   const filtered = options.filter((o) => !query || getLabel(o).toLowerCase().includes(query.toLowerCase()));
   const dropdown = open && mounted && pos ? createPortal(
-    <div className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+    <div className="fixed z-[9999] bg-card border border-border rounded-xl shadow-lg overflow-hidden"
       style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: 220 }}>
-      <div className="p-1.5 border-b border-gray-100">
+      <div className="p-1.5 border-b border-border">
         <input autoFocus type="text" value={query} onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar..." className="w-full px-2 py-1 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+          placeholder="Buscar..." className="w-full px-2 py-1 text-sm border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400" />
       </div>
       <div className="overflow-y-auto" style={{ maxHeight: 160 }}>
         <button type="button" onMouseDown={() => { onChange(""); setOpen(false); }}
-          className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 border-b border-gray-50">{placeholder}</button>
+          className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:bg-muted border-b border-gray-50">{placeholder}</button>
         {filtered.map((o) => (
           <button key={o.id} type="button" onMouseDown={() => { onChange(o.id); setOpen(false); }}
-            className={cn("w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0", value === o.id && "bg-indigo-50 text-indigo-700")}>
+            className={cn("w-full text-left px-3 py-2 text-sm hover:bg-muted border-b border-gray-50 last:border-0", value === o.id && "bg-indigo-50 text-indigo-700")}>
             {getLabel(o)}
           </button>
         ))}
-        {filtered.length === 0 && <p className="px-3 py-2 text-sm text-gray-400 italic">Nenhum resultado.</p>}
+        {filtered.length === 0 && <p className="px-3 py-2 text-sm text-muted-foreground italic">Nenhum resultado.</p>}
       </div>
     </div>, document.body) : null;
   useEffect(() => {
@@ -91,10 +91,10 @@ function PortalSelect<T extends { id: string }>({
   return (
     <div ref={containerRef} className="relative">
       <button type="button" onClick={openDropdown}
-        className={cn("w-full h-9 px-3 text-sm text-left border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 flex items-center justify-between",
-          error ? "border-red-300" : "border-gray-200", !selected && "text-gray-400")}>
-        <span className={selected ? "text-gray-900" : "text-gray-400"}>{selected ? getLabel(selected) : placeholder}</span>
-        <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        className={cn("w-full h-9 px-3 text-sm text-left border rounded-md bg-card focus:outline-none focus:ring-2 focus:ring-indigo-400 flex items-center justify-between",
+          error ? "border-red-300" : "border-border", !selected && "text-muted-foreground")}>
+        <span className={selected ? "text-foreground" : "text-muted-foreground"}>{selected ? getLabel(selected) : placeholder}</span>
+        <svg className="w-4 h-4 text-muted-foreground shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -138,34 +138,34 @@ function PortalMultiSelect<T extends { id: string }>({
       : `${values.length} selecionados`;
 
   const dropdown = open && mounted && pos ? createPortal(
-    <div className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+    <div className="fixed z-[9999] bg-card border border-border rounded-xl shadow-lg overflow-hidden"
       style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: 260 }}>
-      <div className="p-1.5 border-b border-gray-100">
+      <div className="p-1.5 border-b border-border">
         <input autoFocus type="text" value={query} onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar..." className="w-full px-2 py-1 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+          placeholder="Buscar..." className="w-full px-2 py-1 text-sm border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400" />
       </div>
       {values.length > 0 && (
-        <div className="px-3 py-1.5 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-3 py-1.5 border-b border-border flex items-center justify-between">
           <span className="text-xs text-indigo-600 font-medium">{values.length} selecionado(s)</span>
-          <button type="button" onMouseDown={() => onChange([])} className="text-xs text-gray-400 hover:text-red-500">Limpar</button>
+          <button type="button" onMouseDown={() => onChange([])} className="text-xs text-muted-foreground hover:text-red-500">Limpar</button>
         </div>
       )}
       <div className="overflow-y-auto" style={{ maxHeight: 180 }}>
         {filtered.length === 0
-          ? <p className="px-3 py-2 text-sm text-gray-400 italic">Nenhum resultado.</p>
+          ? <p className="px-3 py-2 text-sm text-muted-foreground italic">Nenhum resultado.</p>
           : filtered.map((o) => {
             const checked = values.includes(o.id);
             return (
               <button key={o.id} type="button" onMouseDown={() => toggle(o.id)}
-                className={cn("w-full text-left px-3 py-2 text-sm flex items-center gap-2.5 hover:bg-gray-50 border-b border-gray-50 last:border-0",
+                className={cn("w-full text-left px-3 py-2 text-sm flex items-center gap-2.5 hover:bg-muted border-b border-gray-50 last:border-0",
                   checked && "bg-indigo-50")}>
                 <span className={cn("w-4 h-4 rounded border flex items-center justify-center shrink-0",
-                  checked ? "bg-indigo-600 border-indigo-600" : "border-gray-300")}>
+                  checked ? "bg-indigo-600 border-indigo-600" : "border-border")}>
                   {checked && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>}
                 </span>
-                <span className={checked ? "text-indigo-700 font-medium" : "text-gray-700"}>{getLabel(o)}</span>
+                <span className={checked ? "text-indigo-700 font-medium" : "text-foreground"}>{getLabel(o)}</span>
               </button>
             );
           })
@@ -183,10 +183,10 @@ function PortalMultiSelect<T extends { id: string }>({
   return (
     <div ref={containerRef} className="relative">
       <button type="button" onClick={openDropdown}
-        className={cn("w-full h-9 px-3 text-sm text-left border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 flex items-center justify-between",
-          values.length === 0 && "text-gray-400")}>
-        <span className={values.length > 0 ? "text-gray-900" : "text-gray-400"}>{triggerLabel}</span>
-        <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        className={cn("w-full h-9 px-3 text-sm text-left border border-border rounded-md bg-card focus:outline-none focus:ring-2 focus:ring-indigo-400 flex items-center justify-between",
+          values.length === 0 && "text-muted-foreground")}>
+        <span className={values.length > 0 ? "text-foreground" : "text-muted-foreground"}>{triggerLabel}</span>
+        <svg className="w-4 h-4 text-muted-foreground shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -345,7 +345,7 @@ export default function InventarioCreateForm() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">
+                <Label className="text-xs text-muted-foreground">
                   Local de Estoque <span className="text-red-500">*</span>
                 </Label>
                 <PortalSelect
@@ -362,7 +362,7 @@ export default function InventarioCreateForm() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">Responsável</Label>
+                <Label className="text-xs text-muted-foreground">Responsável</Label>
                 <ComboboxWithCreate
                   options={colaboradores.map((c) => ({ value: c.id, label: c.nome }))}
                   value={colaboradorId}
@@ -375,7 +375,7 @@ export default function InventarioCreateForm() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-500">
+                <Label className="text-xs text-muted-foreground">
                   Data do Inventário <span className="text-red-500">*</span>
                 </Label>
                 <Input
@@ -389,12 +389,12 @@ export default function InventarioCreateForm() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Observações</Label>
+              <Label className="text-xs text-muted-foreground">Observações</Label>
               <textarea
                 value={observacoes}
                 onChange={(e) => setObservacoes(e.target.value)}
                 rows={2}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                className="w-full px-3 py-2 text-sm border border-border rounded-md bg-card focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
               />
             </div>
           </CardContent>
@@ -402,7 +402,7 @@ export default function InventarioCreateForm() {
 
         {/* ── Amostragem ───────────────────────────────────────────────── */}
         <Card className="overflow-hidden">
-          <div className="border-b border-gray-100 px-4">
+          <div className="border-b border-border px-4">
             <nav className="flex gap-0">
               {([
                 { key: "filtros",    label: "Filtros de Amostragem" },
@@ -421,10 +421,10 @@ export default function InventarioCreateForm() {
 
           {activeTab === "filtros" && (
             <div className="p-6 space-y-4">
-              <p className="text-xs text-gray-400">Defina os filtros para selecionar os materiais que serão inventariados.</p>
+              <p className="text-xs text-muted-foreground">Defina os filtros para selecionar os materiais que serão inventariados.</p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">Produto</Label>
+                  <Label className="text-xs text-muted-foreground">Produto</Label>
                   <PortalMultiSelect
                     options={estoqueItens.map((e) => ({ id: e.item.id, nome: e.item.descricao, codigo: e.item.codigo }))}
                     values={filtroItemIds}
@@ -434,7 +434,7 @@ export default function InventarioCreateForm() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">Tipo de Produto</Label>
+                  <Label className="text-xs text-muted-foreground">Tipo de Produto</Label>
                   <PortalMultiSelect
                     options={TIPO_ITEM_OPTIONS}
                     values={filtroTipos}
@@ -453,15 +453,15 @@ export default function InventarioCreateForm() {
                 </Button>
               </div>
               {!localEstoqueId && (
-                <p className="text-xs text-amber-600">Selecione um Local de Estoque para usar os filtros.</p>
+                <p className="text-xs text-warning">Selecione um Local de Estoque para usar os filtros.</p>
               )}
             </div>
           )}
 
           {activeTab === "amostragem" && (
             <div>
-              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
-                <p className="text-xs text-gray-500">{rows.length} material(is) na amostragem</p>
+              <div className="flex items-center justify-between px-4 py-3 bg-muted border-b border-border">
+                <p className="text-xs text-muted-foreground">{rows.length} material(is) na amostragem</p>
                 <Button
                   size="sm"
                   variant="outline"
@@ -475,15 +475,15 @@ export default function InventarioCreateForm() {
                 </Button>
               </div>
               {rows.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
+                <div className="text-center py-12 text-muted-foreground">
                   <p className="text-sm">Nenhum material na amostragem.</p>
                   <p className="text-xs mt-1">Use os filtros na aba anterior para adicionar materiais.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-100">
-                      <tr className="text-xs text-gray-400 uppercase tracking-wide">
+                    <thead className="bg-muted border-b border-border">
+                      <tr className="text-xs text-muted-foreground uppercase tracking-wide">
                         <th className="text-left px-4 py-2.5 font-medium">Material</th>
                         <th className="text-left px-4 py-2.5 font-medium">Unidade</th>
                         <th className="text-left px-4 py-2.5 font-medium">Fornecedor</th>
@@ -493,20 +493,20 @@ export default function InventarioCreateForm() {
                         <th className="w-10" />
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-border">
                       {rows.map((r) => (
                         <tr key={r._key}>
                           <td className="px-4 py-2.5">
                             {r.item ? (
                               <div>
-                                <span className="text-gray-800">{r.item.descricao}</span>
-                                <span className="text-xs text-gray-400 ml-2 font-mono">{r.item.codigo}</span>
+                                <span className="text-foreground">{r.item.descricao}</span>
+                                <span className="text-xs text-muted-foreground ml-2 font-mono">{r.item.codigo}</span>
                               </div>
                             ) : (
-                              <span className="text-gray-400 text-xs">—</span>
+                              <span className="text-muted-foreground text-xs">—</span>
                             )}
                           </td>
-                          <td className="px-4 py-2.5 text-gray-500 text-xs">
+                          <td className="px-4 py-2.5 text-muted-foreground text-xs">
                             {r.item?.unidade?.sigla ?? r.item?.unidadeMedida ?? "—"}
                           </td>
                           <td className="px-4 py-2.5 min-w-[180px]">
@@ -547,7 +547,7 @@ export default function InventarioCreateForm() {
                           <td className="px-4 py-2.5 text-center">
                             <button
                               onClick={() => setRows(p => p.filter(x => x._key !== r._key))}
-                              className="text-red-400 hover:text-red-600"
+                              className="text-red-400 hover:text-danger"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -562,7 +562,7 @@ export default function InventarioCreateForm() {
           )}
         </Card>
 
-        {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+        {saveError && <p className="text-sm text-danger">{saveError}</p>}
 
         <div className="flex items-center gap-3">
           <Button

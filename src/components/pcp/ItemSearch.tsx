@@ -59,8 +59,8 @@ export default function ItemSearch({
 
   return (
     <div ref={boxRef} className="relative">
-      <div className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-cyan-500 bg-white">
-        <Search className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+      <div className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-cyan-500 bg-card">
+        <Search className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -70,13 +70,13 @@ export default function ItemSearch({
         />
         {q && (
           <button type="button" onClick={() => { setQ(""); setResults([]); }} className="shrink-0">
-            <X className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500" />
+            <X className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-muted-foreground" />
           </button>
         )}
       </div>
       {open && (loading || results.length > 0 || q.trim().length >= 2) && (
-        <div className="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-          {loading && <div className="px-3 py-2 text-xs text-gray-400">Buscando…</div>}
+        <div className="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-border bg-card shadow-lg">
+          {loading && <div className="px-3 py-2 text-xs text-muted-foreground">Buscando…</div>}
           {results.map((it) => (
             <button
               key={it.id}
@@ -84,12 +84,12 @@ export default function ItemSearch({
               onClick={() => { onSelect(it); setQ(""); setResults([]); setOpen(false); }}
               className="w-full text-left px-3 py-2 hover:bg-cyan-50 text-sm"
             >
-              <span className="font-mono text-gray-400 text-xs mr-2">{it.codigo}</span>
+              <span className="font-mono text-muted-foreground text-xs mr-2">{it.codigo}</span>
               {it.descricao}
             </button>
           ))}
           {!loading && results.length === 0 && q.trim().length >= 2 && (
-            <div className="px-3 py-2 text-xs text-gray-400">Nada encontrado</div>
+            <div className="px-3 py-2 text-xs text-muted-foreground">Nada encontrado</div>
           )}
         </div>
       )}

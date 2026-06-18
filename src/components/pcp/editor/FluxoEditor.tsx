@@ -177,29 +177,29 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center gap-3 px-4 h-14 border-b border-gray-200 bg-white shrink-0">
-        <button onClick={() => router.push("/pcp/fluxos")} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100" title="Voltar">
+      <div className="flex items-center gap-3 px-4 h-14 border-b border-border bg-card shrink-0">
+        <button onClick={() => router.push("/pcp/fluxos")} className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted" title="Voltar">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-800 truncate">{fluxo.nome}</p>
-          <p className="text-[11px] text-gray-400">
+          <p className="text-sm font-semibold text-foreground truncate">{fluxo.nome}</p>
+          <p className="text-[11px] text-muted-foreground">
             Versão {fluxo.versaoAtual?.versao ?? 1} · {status === "PUBLICADA" ? "publicada" : status === "ARQUIVADA" ? "arquivada" : "rascunho"}
           </p>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
           {erros > 0 ? (
-            <span className="inline-flex items-center gap-1 text-xs text-red-600">
+            <span className="inline-flex items-center gap-1 text-xs text-danger">
               <AlertTriangle className="w-3.5 h-3.5" /> {erros} erro(s){avisos ? `, ${avisos} aviso(s)` : ""}
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+            <span className="inline-flex items-center gap-1 text-xs text-success">
               <CheckCircle2 className="w-3.5 h-3.5" /> válido{avisos ? ` · ${avisos} aviso(s)` : ""}
             </span>
           )}
-          {msg && <span className={cn("text-xs", msg.kind === "ok" ? "text-emerald-600" : "text-red-600")}>{msg.text}</span>}
-          <button onClick={salvar} disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+          {msg && <span className={cn("text-xs", msg.kind === "ok" ? "text-success" : "text-danger")}>{msg.text}</span>}
+          <button onClick={salvar} disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-foreground hover:bg-muted disabled:opacity-50">
             {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar
           </button>
           <button
@@ -215,8 +215,8 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
 
       {/* Paleta + canvas + config */}
       <div className="flex-1 min-h-0 flex">
-        <div className="w-44 border-r border-gray-200 bg-gray-50/60 p-2 space-y-1.5 shrink-0 overflow-y-auto">
-          <p className="text-[10px] uppercase tracking-wide text-gray-400 px-1 mb-1">Arraste para o quadro</p>
+        <div className="w-44 border-r border-border bg-muted/60 p-2 space-y-1.5 shrink-0 overflow-y-auto">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground px-1 mb-1">Arraste para o quadro</p>
           {PALETTE.map((p) => {
             const st = NODE_STYLE[p.kind];
             return (
@@ -227,12 +227,12 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
                   e.dataTransfer.setData("application/reactflow", p.kind);
                   e.dataTransfer.effectAllowed = "move";
                 }}
-                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1.5 cursor-grab active:cursor-grabbing hover:border-cyan-300"
+                className="flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5 cursor-grab active:cursor-grabbing hover:border-cyan-300"
               >
                 <span className={cn("flex w-5 h-5 items-center justify-center rounded", st.chipBg, st.chipText)}>
                   <st.icon className="w-3 h-3" />
                 </span>
-                <span className="text-xs text-gray-700">{p.label}</span>
+                <span className="text-xs text-foreground">{p.label}</span>
               </div>
             );
           })}

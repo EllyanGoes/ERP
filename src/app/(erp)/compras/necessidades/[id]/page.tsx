@@ -62,24 +62,24 @@ type Necessidade = {
 };
 
 const PRIORIDADE_INFO: Record<number, { label: string; className: string }> = {
-  1: { label: "1 — Muito Baixa", className: "text-gray-400" },
+  1: { label: "1 — Muito Baixa", className: "text-muted-foreground" },
   2: { label: "2 — Baixa",       className: "text-blue-400" },
   3: { label: "3 — Média",       className: "text-amber-500" },
   4: { label: "4 — Alta",        className: "text-orange-500" },
-  5: { label: "5 — Crítica",     className: "text-red-600 font-semibold" },
+  5: { label: "5 — Crítica",     className: "text-danger font-semibold" },
 };
 
 function InfoField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400 mb-0.5">{label}</p>
-      <div className="text-sm text-gray-800">{children}</div>
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">{label}</p>
+      <div className="text-sm text-foreground">{children}</div>
     </div>
   );
 }
 
 function PrioridadeBadge({ prioridade }: { prioridade: number }) {
-  const info = PRIORIDADE_INFO[prioridade] ?? { label: String(prioridade), className: "text-gray-500" };
+  const info = PRIORIDADE_INFO[prioridade] ?? { label: String(prioridade), className: "text-muted-foreground" };
   return <span className={cn("text-sm", info.className)}>{info.label}</span>;
 }
 
@@ -106,24 +106,24 @@ function SelectField<T extends { id: string }>({
   return (
     <div className="relative">
       <button type="button" disabled={disabled} onClick={() => setOpen((p) => !p)}
-        className={cn("flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white text-left transition-colors",
-          disabled ? "opacity-60 cursor-not-allowed bg-gray-50" : "hover:border-gray-300",
+        className={cn("flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg border border-border bg-card text-left transition-colors",
+          disabled ? "opacity-60 cursor-not-allowed bg-muted" : "hover:border-border",
           open && "border-blue-400 ring-1 ring-blue-200")}>
-        <span className={selected ? "text-gray-900" : "text-gray-400"}>{selected ? getLabel(selected) : placeholder}</span>
-        <ChevronDown className={cn("w-4 h-4 text-gray-400 shrink-0 transition-transform", open && "rotate-180")} />
+        <span className={selected ? "text-foreground" : "text-muted-foreground"}>{selected ? getLabel(selected) : placeholder}</span>
+        <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", open && "rotate-180")} />
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-auto max-h-52">
-            <button type="button" onClick={() => { onChange(""); setOpen(false); }} className="w-full px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 text-left">(Nenhum)</button>
+          <div className="absolute z-50 mt-1 w-full bg-card border border-border rounded-xl shadow-lg overflow-auto max-h-52">
+            <button type="button" onClick={() => { onChange(""); setOpen(false); }} className="w-full px-3 py-2 text-sm text-muted-foreground hover:bg-muted text-left">(Nenhum)</button>
             {options.map((o) => (
               <button key={o.id} type="button" onClick={() => { onChange(o.id); setOpen(false); }}
-                className={cn("w-full px-3 py-2 text-sm text-left hover:bg-blue-50 hover:text-blue-700 transition-colors", o.id === value && "bg-blue-50 text-blue-700 font-medium")}>
+                className={cn("w-full px-3 py-2 text-sm text-left hover:bg-info/10 hover:text-info transition-colors", o.id === value && "bg-info/10 text-info font-medium")}>
                 {getLabel(o)}
               </button>
             ))}
-            {options.length === 0 && <p className="px-3 py-2 text-sm text-gray-400 italic">Nenhuma opção disponível</p>}
+            {options.length === 0 && <p className="px-3 py-2 text-sm text-muted-foreground italic">Nenhuma opção disponível</p>}
           </div>
         </>
       )}
@@ -162,7 +162,7 @@ function UnitSelect({ value, options, onChange, disabled }: {
 
   if (disabled || options.length === 0) {
     return (
-      <div className="h-9 flex items-center px-3 text-sm border border-gray-100 rounded-md bg-gray-50 font-mono text-gray-500">
+      <div className="h-9 flex items-center px-3 text-sm border border-border rounded-md bg-muted font-mono text-muted-foreground">
         {value || "—"}
       </div>
     );
@@ -170,7 +170,7 @@ function UnitSelect({ value, options, onChange, disabled }: {
 
   if (options.length === 1) {
     return (
-      <div className="h-9 flex items-center px-3 text-sm border border-gray-100 rounded-md bg-gray-50 font-mono text-gray-700">
+      <div className="h-9 flex items-center px-3 text-sm border border-border rounded-md bg-muted font-mono text-foreground">
         {value || options[0].sigla}
       </div>
     );
@@ -179,22 +179,22 @@ function UnitSelect({ value, options, onChange, disabled }: {
   return (
     <>
       <button ref={btnRef} type="button" onClick={() => setOpen((p) => !p)}
-        className={cn("h-9 w-full flex items-center justify-between px-2 text-sm border border-gray-200 rounded-md bg-white font-mono transition-colors hover:border-gray-300", open && "border-blue-400 ring-1 ring-blue-200")}>
-        <span className={value ? "text-gray-800" : "text-gray-400"}>{value || "Un."}</span>
-        <ChevronDown className={cn("w-3 h-3 text-gray-400 shrink-0 transition-transform", open && "rotate-180")} />
+        className={cn("h-9 w-full flex items-center justify-between px-2 text-sm border border-border rounded-md bg-card font-mono transition-colors hover:border-border", open && "border-blue-400 ring-1 ring-blue-200")}>
+        <span className={value ? "text-foreground" : "text-muted-foreground"}>{value || "Un."}</span>
+        <ChevronDown className={cn("w-3 h-3 text-muted-foreground shrink-0 transition-transform", open && "rotate-180")} />
       </button>
       {open && typeof window !== "undefined" && (
         <>
           <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
           {pos && (
-            <div className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-auto"
+            <div className="fixed z-[9999] bg-card border border-border rounded-xl shadow-lg overflow-auto"
               style={{ top: pos.top, bottom: pos.bottom, left: pos.left, width: Math.max(pos.width, 140), maxHeight: 180 }}>
               {options.map((u) => (
                 <button key={u.id} type="button" onClick={() => { onChange(u.sigla); setOpen(false); }}
-                  className={cn("w-full px-3 py-2 text-sm text-left hover:bg-blue-50 hover:text-blue-700 transition-colors font-mono", value === u.sigla && "bg-blue-50 text-blue-700 font-medium")}>
+                  className={cn("w-full px-3 py-2 text-sm text-left hover:bg-info/10 hover:text-info transition-colors font-mono", value === u.sigla && "bg-info/10 text-info font-medium")}>
                   <span className="font-bold">{u.sigla}</span>
-                  {u.nome && <span className="text-gray-400 ml-1.5 text-xs font-sans">{u.nome}</span>}
-                  {u.isPrincipal && <span className="ml-1.5 text-[10px] text-emerald-600">principal</span>}
+                  {u.nome && <span className="text-muted-foreground ml-1.5 text-xs font-sans">{u.nome}</span>}
+                  {u.isPrincipal && <span className="ml-1.5 text-[10px] text-success">principal</span>}
                 </button>
               ))}
             </div>
@@ -597,7 +597,7 @@ export default function NecessidadeDetailPage() {
 
   useTabTitle(necessidade ? `Solicitação ${necessidade.numero}` : null);
 
-  if (loading) return <div className="px-8 pt-8 text-gray-400"><Loader2 className="w-5 h-5 animate-spin inline mr-2" />Carregando...</div>;
+  if (loading) return <div className="px-8 pt-8 text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin inline mr-2" />Carregando...</div>;
   if (!necessidade) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
   const isRascunho = necessidade.status === "RASCUNHO";
@@ -622,7 +622,7 @@ export default function NecessidadeDetailPage() {
         />
 
         <form onSubmit={handleSaveEdit} className="px-8 pb-8 space-y-5 max-w-5xl">
-          {editError && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{editError}</div>}
+          {editError && <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{editError}</div>}
 
           <Card>
             <CardHeader className="pb-3"><CardTitle className="text-base">Informações</CardTitle></CardHeader>
@@ -643,7 +643,7 @@ export default function NecessidadeDetailPage() {
                 <div className="col-span-3 space-y-1.5">
                   <Label>Prioridade <span className="text-red-500">*</span></Label>
                   <select value={ePrioridade} onChange={(e) => setEPrioridade(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+                    className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400">
                     {PRIORIDADES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
                   </select>
                 </div>
@@ -661,7 +661,7 @@ export default function NecessidadeDetailPage() {
                 <div className="space-y-1.5">
                   <Label>Tipo de compra</Label>
                   <select value={eTipoCompra} onChange={(e) => setETipoCompra(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+                    className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400">
                     <option value="">Selecione...</option>
                     <option value="SGA">SGA</option><option value="OPEX">OPEX</option>
                     <option value="CAPEX">CAPEX</option><option value="ESTOQUE">ESTOQUE</option>
@@ -801,7 +801,7 @@ export default function NecessidadeDetailPage() {
             {/* Cancelar SC — soft-cancel com motivo (não exclui registros); estado final */}
             {canCancel && (
               <Button size="sm" variant="outline"
-                className="border-gray-300 text-gray-600 hover:bg-gray-50 gap-1.5"
+                className="border-border text-muted-foreground hover:bg-muted gap-1.5"
                 onClick={() => { setShowCancelForm(true); setActionError(""); setMotivoCancelamento(""); }}
               >
                 <XCircle className="w-3.5 h-3.5" />
@@ -812,7 +812,7 @@ export default function NecessidadeDetailPage() {
             {/* Excluir — apenas admin, qualquer status */}
             {isAdmin && (
               <Button size="sm" variant="outline"
-                className="border-red-200 text-red-600 hover:bg-red-50"
+                className="border-danger/30 text-danger hover:bg-danger/10"
                 onClick={() => { setShowDelete(true); setDeleteError(""); }}
               >
                 <Trash2 className="w-3.5 h-3.5 mr-1" />Excluir
@@ -831,7 +831,7 @@ export default function NecessidadeDetailPage() {
 
       <div className="px-8 pb-8">
         {actionError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-5">{actionError}</div>
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm mb-5">{actionError}</div>
         )}
 
         {/* Side-by-side quando sidebar recolhida; empilhado quando painel aberto */}
@@ -847,7 +847,7 @@ export default function NecessidadeDetailPage() {
                 {/* Row 1: identidade */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
                   <InfoField label="Número">
-                    <span className="font-mono font-bold text-gray-900">{necessidade.numero}</span>
+                    <span className="font-mono font-bold text-foreground">{necessidade.numero}</span>
                   </InfoField>
                   <InfoField label="Status">
                     <div className="mt-0.5"><StatusBadge status={necessidade.status} /></div>
@@ -860,7 +860,7 @@ export default function NecessidadeDetailPage() {
                   </InfoField>
                 </div>
 
-                <div className="h-px bg-gray-100" />
+                <div className="h-px bg-muted" />
 
                 {/* Row 2: origem */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
@@ -878,7 +878,7 @@ export default function NecessidadeDetailPage() {
                   </InfoField>
                 </div>
 
-                <div className="h-px bg-gray-100" />
+                <div className="h-px bg-muted" />
 
                 {/* Row 3: solicitação */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
@@ -899,7 +899,7 @@ export default function NecessidadeDetailPage() {
                 {/* Row 4: classificação — só mostra se algum tiver valor */}
                 {(necessidade.categoria || necessidade.projeto || necessidade.classificacaoAuxiliar) && (
                   <>
-                    <div className="h-px bg-gray-100" />
+                    <div className="h-px bg-muted" />
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3">
                       <InfoField label="Categoria">{necessidade.categoria ?? "—"}</InfoField>
                       <InfoField label="Projeto">{necessidade.projeto ?? "—"}</InfoField>
@@ -908,15 +908,15 @@ export default function NecessidadeDetailPage() {
                   </>
                 )}
 
-                <div className="h-px bg-gray-100" />
+                <div className="h-px bg-muted" />
 
                 {/* Row 5: textos livres */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                   <InfoField label="Descrição / Justificativa">
-                    <span className="text-gray-700 whitespace-pre-wrap">{necessidade.justificativa || "—"}</span>
+                    <span className="text-foreground whitespace-pre-wrap">{necessidade.justificativa || "—"}</span>
                   </InfoField>
                   <InfoField label="Observações">
-                    <span className="text-gray-700 whitespace-pre-wrap">{necessidade.observacoes || "—"}</span>
+                    <span className="text-foreground whitespace-pre-wrap">{necessidade.observacoes || "—"}</span>
                   </InfoField>
                 </div>
 
@@ -926,29 +926,29 @@ export default function NecessidadeDetailPage() {
             {/* Approval / rejection / cancellation info */}
             {(necessidade.status === "APROVADA" || necessidade.status === "REJEITADA" || isCancelada) && (
               <Card className={
-                necessidade.status === "APROVADA" ? "border-green-200 bg-green-50"
-                : isCancelada ? "border-gray-200 bg-gray-50"
-                : "border-red-200 bg-red-50"
+                necessidade.status === "APROVADA" ? "border-success/30 bg-success/10"
+                : isCancelada ? "border-border bg-muted"
+                : "border-danger/30 bg-danger/10"
               }>
                 <CardContent className="pt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {necessidade.status === "APROVADA" && (
                     <>
-                      <div><p className="text-xs text-gray-500">Aprovado por</p><p className="text-sm font-medium">{necessidade.aprovadoPor || "—"}</p></div>
-                      <div><p className="text-xs text-gray-500">Data de Aprovação</p><p className="text-sm font-medium">{formatDate(necessidade.dataAprovacao)}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Aprovado por</p><p className="text-sm font-medium">{necessidade.aprovadoPor || "—"}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Data de Aprovação</p><p className="text-sm font-medium">{formatDate(necessidade.dataAprovacao)}</p></div>
                     </>
                   )}
                   {necessidade.status === "REJEITADA" && (
                     <div className="sm:col-span-3">
-                      <p className="text-xs text-red-600">Motivo da Rejeição</p>
-                      <p className="text-sm text-red-800 mt-1">{necessidade.motivoReprovacao || "—"}</p>
+                      <p className="text-xs text-danger">Motivo da Rejeição</p>
+                      <p className="text-sm text-danger mt-1">{necessidade.motivoReprovacao || "—"}</p>
                     </div>
                   )}
                   {isCancelada && (
                     <div className="sm:col-span-3">
-                      <p className="text-xs text-gray-500">Motivo do Cancelamento</p>
-                      <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap">{necessidade.motivoCancelamento || "—"}</p>
+                      <p className="text-xs text-muted-foreground">Motivo do Cancelamento</p>
+                      <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{necessidade.motivoCancelamento || "—"}</p>
                       {necessidade.dataCancelamento && (
-                        <p className="text-xs text-gray-400 mt-1.5">Cancelada em {formatDate(necessidade.dataCancelamento)}</p>
+                        <p className="text-xs text-muted-foreground mt-1.5">Cancelada em {formatDate(necessidade.dataCancelamento)}</p>
                       )}
                     </div>
                   )}
@@ -960,34 +960,34 @@ export default function NecessidadeDetailPage() {
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4 text-green-600" />
+                  <MessageCircle className="w-4 h-4 text-success" />
                   <CardTitle className="text-base">Histórico de Aprovações</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
                 {(necessidade.aprovacoes ?? []).length === 0 ? (
-                  <p className="text-sm text-gray-400 italic">Nenhuma aprovação registrada.</p>
+                  <p className="text-sm text-muted-foreground italic">Nenhuma aprovação registrada.</p>
                 ) : (
                   <div className="space-y-2">
                     {(necessidade.aprovacoes ?? []).map((apr) => (
-                      <div key={apr.id} className="flex items-center gap-4 bg-gray-50 rounded-lg px-4 py-3 text-sm">
+                      <div key={apr.id} className="flex items-center gap-4 bg-muted rounded-lg px-4 py-3 text-sm">
                         <div className="shrink-0">
                           {apr.status === "APROVADO" && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
                           {apr.status === "REPROVADO" && <XCircle className="w-5 h-5 text-red-500" />}
                           {apr.status === "PENDENTE" && <Clock className="w-5 h-5 text-amber-500" />}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 truncate">
+                          <p className="font-medium text-foreground truncate">
                             {apr.etapaNome ?? `Etapa ${apr.etapaOrdem}`}
-                            <span className="ml-2 text-xs font-normal text-gray-400">
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
                               · {apr.aprovador.nome}
                             </span>
                           </p>
                           {apr.observacao && (
-                            <p className="text-xs text-gray-500 mt-0.5">{apr.observacao}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{apr.observacao}</p>
                           )}
                           {!apr.waMsgId && apr.status === "PENDENTE" && (
-                            <p className="text-xs text-amber-600 mt-0.5 flex items-center gap-1">
+                            <p className="text-xs text-warning mt-0.5 flex items-center gap-1">
                               <AlertTriangle className="w-3 h-3 shrink-0" />
                               Mensagem não enviada — configure o WhatsApp e reenvie
                             </p>
@@ -996,16 +996,16 @@ export default function NecessidadeDetailPage() {
                         <div className="text-right shrink-0">
                           <span className={cn(
                             "inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full",
-                            apr.status === "APROVADO"  && "bg-emerald-50 text-emerald-700 border border-emerald-200",
-                            apr.status === "REPROVADO" && "bg-red-50 text-red-700 border border-red-200",
-                            apr.status === "PENDENTE"  && "bg-amber-50 text-amber-700 border border-amber-200",
+                            apr.status === "APROVADO"  && "bg-success/10 text-success border border-success/30",
+                            apr.status === "REPROVADO" && "bg-danger/10 text-danger border border-danger/30",
+                            apr.status === "PENDENTE"  && "bg-warning/10 text-warning border border-warning/30",
                           )}>
                             {apr.status === "APROVADO" && "Aprovado"}
                             {apr.status === "REPROVADO" && "Reprovado"}
                             {apr.status === "PENDENTE" && "Aguardando"}
                           </span>
                           {apr.respondidoEm && (
-                            <p className="text-xs text-gray-400 mt-0.5">{formatDate(apr.respondidoEm)}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{formatDate(apr.respondidoEm)}</p>
                           )}
                         </div>
                       </div>
@@ -1024,35 +1024,35 @@ export default function NecessidadeDetailPage() {
               <CardHeader><CardTitle className="text-base">Itens Solicitados</CardTitle></CardHeader>
               <CardContent className="p-0">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-muted border-b border-border">
                     <tr>
-                      <th className="text-left px-4 py-3 font-medium text-gray-600">Código</th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-600">Descrição</th>
-                      <th className="text-right px-4 py-3 font-medium text-gray-600">Qtd.</th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-600 w-14">Un.</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Código</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Descrição</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qtd.</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground w-14">Un.</th>
                       {necessidade.status === "APROVADA" && (
-                        <th className="text-right px-4 py-3 font-medium text-gray-600">Aprov.</th>
+                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aprov.</th>
                       )}
-                      <th className="text-left px-4 py-3 font-medium text-gray-600">Obs.</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Obs.</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-border">
                     {necessidade.itens.map((item) => (
-                      <tr key={item.id} className="hover:bg-gray-50">
+                      <tr key={item.id} className="hover:bg-muted">
                         <td className="px-4 py-3 font-mono text-xs">{item.item.codigo}</td>
                         <td className="px-4 py-3">{item.item.descricao}</td>
                         <td className="px-4 py-3 text-right tabular-nums">
                           {decimalToNumber(item.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                           {item.unidade ?? item.item.unidade?.sigla ?? item.item.unidadeMedida}
                         </td>
                         {necessidade.status === "APROVADA" && (
-                          <td className="px-4 py-3 text-right text-green-700 font-medium tabular-nums">
+                          <td className="px-4 py-3 text-right text-success font-medium tabular-nums">
                             {item.quantidadeAprovada ? decimalToNumber(item.quantidadeAprovada).toLocaleString("pt-BR") : "—"}
                           </td>
                         )}
-                        <td className="px-4 py-3 text-gray-500 text-xs">{item.observacao || "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground text-xs">{item.observacao || "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1067,8 +1067,8 @@ export default function NecessidadeDetailPage() {
                 <CardContent className="flex flex-wrap gap-2">
                   {necessidade.cotacoes.map((c) => (
                     <Link key={c.id} href={`/suprimentos/cotacoes/${c.id}`}
-                      className="inline-flex items-center gap-2 text-sm border border-gray-200 hover:border-blue-300 hover:bg-blue-50 rounded-lg px-3 py-1.5 transition-colors group">
-                      <span className="font-mono font-medium text-gray-700 group-hover:text-blue-700">{c.numero}</span>
+                      className="inline-flex items-center gap-2 text-sm border border-border hover:border-blue-300 hover:bg-info/10 rounded-lg px-3 py-1.5 transition-colors group">
+                      <span className="font-mono font-medium text-foreground group-hover:text-info">{c.numero}</span>
                       <StatusBadge status={c.status} />
                     </Link>
                   ))}
@@ -1083,8 +1083,8 @@ export default function NecessidadeDetailPage() {
                 <CardContent className="flex flex-wrap gap-2">
                   {necessidade.pedidosCompra!.map((p) => (
                     <Link key={p.id} href={`/suprimentos/pedidos-compra/${p.id}`}
-                      className="inline-flex items-center gap-2 text-sm border border-gray-200 hover:border-blue-300 hover:bg-blue-50 rounded-lg px-3 py-1.5 transition-colors group">
-                      <span className="font-mono font-medium text-gray-700 group-hover:text-blue-700">{p.numero}</span>
+                      className="inline-flex items-center gap-2 text-sm border border-border hover:border-blue-300 hover:bg-info/10 rounded-lg px-3 py-1.5 transition-colors group">
+                      <span className="font-mono font-medium text-foreground group-hover:text-info">{p.numero}</span>
                       <StatusBadge status={p.status} />
                     </Link>
                   ))}
@@ -1103,8 +1103,8 @@ export default function NecessidadeDetailPage() {
                   <CardContent className="flex flex-wrap gap-2">
                     {conferencias.map((c) => (
                       <Link key={c.id} href={`/suprimentos/conferencias/${c.id}`}
-                        className="inline-flex items-center gap-2 text-sm border border-gray-200 hover:border-blue-300 hover:bg-blue-50 rounded-lg px-3 py-1.5 transition-colors group">
-                        <span className="font-mono font-medium text-gray-700 group-hover:text-blue-700">{c.numero}</span>
+                        className="inline-flex items-center gap-2 text-sm border border-border hover:border-blue-300 hover:bg-info/10 rounded-lg px-3 py-1.5 transition-colors group">
+                        <span className="font-mono font-medium text-foreground group-hover:text-info">{c.numero}</span>
                         <StatusBadge status={c.status} />
                       </Link>
                     ))}
@@ -1120,21 +1120,21 @@ export default function NecessidadeDetailPage() {
       {/* Approve modal */}
       {showApproveForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                <span className="text-green-600 text-lg">✓</span>
+              <div className="w-10 h-10 rounded-full bg-success/15 flex items-center justify-center shrink-0">
+                <span className="text-success text-lg">✓</span>
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Aprovar solicitação</p>
-                <p className="text-sm text-gray-500">{necessidade.numero}</p>
+                <p className="font-semibold text-foreground">Aprovar solicitação</p>
+                <p className="text-sm text-muted-foreground">{necessidade.numero}</p>
               </div>
             </div>
             <div className="space-y-1.5">
               <Label>Aprovado por</Label>
               <Input value={aprovadoPor} onChange={(e) => setAprovadoPor(e.target.value)} placeholder="Nome do aprovador" autoFocus />
             </div>
-            {actionError && <p className="text-sm text-red-600">{actionError}</p>}
+            {actionError && <p className="text-sm text-danger">{actionError}</p>}
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="outline" onClick={() => setShowApproveForm(false)} disabled={actioning}>Cancelar</Button>
               <Button size="sm" className="bg-green-600 hover:bg-green-700"
@@ -1149,21 +1149,21 @@ export default function NecessidadeDetailPage() {
       {/* Reject modal */}
       {showRejectForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <X className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <X className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Reprovar solicitação</p>
-                <p className="text-sm text-gray-500">{necessidade.numero}</p>
+                <p className="font-semibold text-foreground">Reprovar solicitação</p>
+                <p className="text-sm text-muted-foreground">{necessidade.numero}</p>
               </div>
             </div>
             <div className="space-y-1.5">
               <Label>Motivo da reprovação</Label>
               <Input value={motivoReprovacao} onChange={(e) => setMotivoReprovacao(e.target.value)} placeholder="Descreva o motivo..." autoFocus />
             </div>
-            {actionError && <p className="text-sm text-red-600">{actionError}</p>}
+            {actionError && <p className="text-sm text-danger">{actionError}</p>}
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="outline" onClick={() => setShowRejectForm(false)} disabled={actioning}>Cancelar</Button>
               <Button size="sm" variant="destructive"
@@ -1178,24 +1178,24 @@ export default function NecessidadeDetailPage() {
       {/* Cancel modal — soft-cancel da SC com motivo obrigatório (estado final) */}
       {showCancelForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                <XCircle className="w-5 h-5 text-gray-500" />
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                <XCircle className="w-5 h-5 text-muted-foreground" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Cancelar solicitação</p>
-                <p className="text-sm text-gray-500">{necessidade.numero}</p>
+                <p className="font-semibold text-foreground">Cancelar solicitação</p>
+                <p className="text-sm text-muted-foreground">{necessidade.numero}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               A SC será marcada como <strong>Cancelada</strong> — os registros não são excluídos. Esta ação é definitiva.
             </p>
             <div className="space-y-1.5">
               <Label>Motivo do cancelamento <span className="text-red-500">*</span></Label>
               <Textarea value={motivoCancelamento} onChange={(e) => setMotivoCancelamento(e.target.value)} placeholder="Descreva o motivo..." rows={3} autoFocus />
             </div>
-            {actionError && <p className="text-sm text-red-600">{actionError}</p>}
+            {actionError && <p className="text-sm text-danger">{actionError}</p>}
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="outline" onClick={() => setShowCancelForm(false)} disabled={actioning}>Voltar</Button>
               <Button size="sm" variant="destructive"
@@ -1211,20 +1211,20 @@ export default function NecessidadeDetailPage() {
       {/* ── Modal Encaminhar Aprovação ──────────────────────────────────────── */}
       {showWAModal && necessidade && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
+          <div className="bg-card rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
 
             {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 shrink-0">
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border shrink-0">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                  <Send className="w-4 h-4 text-blue-600" />
+                <div className="w-8 h-8 rounded-full bg-info/15 flex items-center justify-center shrink-0">
+                  <Send className="w-4 h-4 text-info" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-gray-900">Encaminhar para Aprovação</h2>
-                  <p className="text-xs text-gray-400 mt-0.5 font-mono">{necessidade.numero}</p>
+                  <h2 className="font-semibold text-foreground">Encaminhar para Aprovação</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-mono">{necessidade.numero}</p>
                 </div>
               </div>
-              <button onClick={() => setShowWAModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setShowWAModal(false)} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1233,9 +1233,9 @@ export default function NecessidadeDetailPage() {
 
               {/* Aprovador — combobox dropdown */}
               <div className="space-y-2">
-                <Label className="text-xs text-gray-500 uppercase tracking-wide">Aprovador</Label>
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Aprovador</Label>
                 {waUsersLoading ? (
-                  <div className="flex items-center gap-2 py-3 text-sm text-gray-400">
+                  <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
                     <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
                   </div>
                 ) : (
@@ -1245,33 +1245,33 @@ export default function NecessidadeDetailPage() {
                       type="button"
                       onClick={() => { setWADropdownOpen((p) => !p); setWAUserSearch(""); }}
                       className={cn(
-                        "flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg border bg-white text-left transition-colors",
-                        waDropdownOpen ? "border-green-400 ring-1 ring-green-200" : "border-gray-200 hover:border-gray-300"
+                        "flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg border bg-card text-left transition-colors",
+                        waDropdownOpen ? "border-green-400 ring-1 ring-green-200" : "border-border hover:border-border"
                       )}
                     >
                       {waAprovadorId ? (
-                        <span className="text-gray-900 font-medium">
+                        <span className="text-foreground font-medium">
                           {waUsers.find((u) => u.id === waAprovadorId)?.nome ?? "—"}
                         </span>
                       ) : (
-                        <span className="text-gray-400">Selecionar aprovador...</span>
+                        <span className="text-muted-foreground">Selecionar aprovador...</span>
                       )}
-                      <ChevronDown className={cn("w-4 h-4 text-gray-400 shrink-0 transition-transform", waDropdownOpen && "rotate-180")} />
+                      <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", waDropdownOpen && "rotate-180")} />
                     </button>
 
                     {/* Dropdown panel */}
                     {waDropdownOpen && (
-                      <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                      <div className="absolute z-50 mt-1 w-full bg-card border border-border rounded-xl shadow-lg overflow-hidden">
                         {/* Search input inside dropdown */}
-                        <div className="relative border-b border-gray-100">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                        <div className="relative border-b border-border">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                           <input
                             type="text"
                             autoFocus
                             value={waUserSearch}
                             onChange={(e) => setWAUserSearch(e.target.value)}
                             placeholder="Buscar colaborador..."
-                            className="w-full pl-8 pr-3 py-2.5 text-sm focus:outline-none bg-transparent placeholder:text-gray-400"
+                            className="w-full pl-8 pr-3 py-2.5 text-sm focus:outline-none bg-transparent placeholder:text-muted-foreground"
                           />
                         </div>
                         {/* Results */}
@@ -1280,17 +1280,17 @@ export default function NecessidadeDetailPage() {
                             const q = waUserSearch.toLowerCase();
                             const filtered = waUsers.filter((u) => !q || u.nome.toLowerCase().includes(q));
                             if (filtered.length === 0) {
-                              return <p className="px-4 py-3 text-sm text-gray-400 italic">Nenhum resultado.</p>;
+                              return <p className="px-4 py-3 text-sm text-muted-foreground italic">Nenhum resultado.</p>;
                             }
                             return filtered.map((u) => (
                               <button key={u.id} type="button"
                                 onClick={() => { setWAAprovadorId(u.id); setWADropdownOpen(false); setWAUserSearch(""); }}
                                 className={cn(
-                                  "w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0",
-                                  waAprovadorId === u.id && "bg-blue-50"
+                                  "w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-muted transition-colors border-b border-gray-50 last:border-0",
+                                  waAprovadorId === u.id && "bg-info/10"
                                 )}
                               >
-                                <span className={cn("font-medium", waAprovadorId === u.id ? "text-blue-700" : "text-gray-900")}>{u.nome}</span>
+                                <span className={cn("font-medium", waAprovadorId === u.id ? "text-info" : "text-foreground")}>{u.nome}</span>
                                 {u.telegramChatId
                                   ? <span className="text-xs text-blue-500 flex items-center gap-1">✈️ Telegram</span>
                                   : <span className="text-xs text-red-400">sem Telegram</span>}
@@ -1317,17 +1317,17 @@ export default function NecessidadeDetailPage() {
 
               {/* Preview da mensagem */}
               <div className="space-y-2">
-                <Label className="text-xs text-gray-500 uppercase tracking-wide">Mensagem</Label>
-                <div className="bg-[#e9ffd9] border border-green-200 rounded-xl p-4 text-sm text-gray-800 font-mono leading-relaxed whitespace-pre-wrap select-all">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Mensagem</Label>
+                <div className="bg-[#e9ffd9] border border-success/30 rounded-xl p-4 text-sm text-foreground font-mono leading-relaxed whitespace-pre-wrap select-all">
                   {buildWAMessage()}
                 </div>
               </div>
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-100 shrink-0 bg-gray-50 rounded-b-2xl">
+            <div className="px-6 py-4 border-t border-border shrink-0 bg-muted rounded-b-2xl">
               {waModalError && (
-                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+                <div className="flex items-center gap-2 text-xs text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-3">
                   <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                   {waModalError}
                 </div>
@@ -1337,7 +1337,7 @@ export default function NecessidadeDetailPage() {
                   Fechar
                 </Button>
                 <Button type="button" variant="outline" size="sm" onClick={copyWAMessage} disabled={waModalLoading}
-                  className={cn("gap-1.5", waCopied && "border-green-400 text-green-700 bg-green-50")}>
+                  className={cn("gap-1.5", waCopied && "border-green-400 text-success bg-success/10")}>
                   <Copy className="w-3.5 h-3.5" />
                   {waCopied ? "Copiado!" : "Copiar mensagem"}
                 </Button>
@@ -1358,17 +1358,17 @@ export default function NecessidadeDetailPage() {
       {/* Delete confirm modal */}
       {showDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Excluir solicitação?</p>
-                <p className="text-sm text-gray-500 mt-0.5">{necessidade.numero}</p>
+                <p className="font-semibold text-foreground">Excluir solicitação?</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{necessidade.numero}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-muted-foreground mb-4">
               {(() => {
                 const nCot = necessidade.cotacoes?.length ?? 0;
                 const nPed = necessidade.pedidosCompra?.length ?? 0;
@@ -1379,12 +1379,12 @@ export default function NecessidadeDetailPage() {
                   nDE  > 0 ? `${nDE} documento(s) de entrada` : null,
                 ].filter(Boolean).join(", ");
                 return vinc
-                  ? <>Também serão <strong className="text-red-600">excluídos: {vinc}</strong>{nDE > 0 ? " — revertendo o estoque lançado por esses documentos" : ""}. Esta ação é permanente e não pode ser desfeita.</>
+                  ? <>Também serão <strong className="text-danger">excluídos: {vinc}</strong>{nDE > 0 ? " — revertendo o estoque lançado por esses documentos" : ""}. Esta ação é permanente e não pode ser desfeita.</>
                   : <>Esta ação é permanente e não pode ser desfeita.</>;
               })()}
             </p>
             {deleteError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{deleteError}</p>
+              <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">{deleteError}</p>
             )}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setShowDelete(false)} disabled={deleteLoading}>Cancelar</Button>

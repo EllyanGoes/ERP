@@ -269,57 +269,57 @@ export default function PdvPage() {
 
       <div className="flex-1 min-h-0 px-8 pb-8 grid grid-cols-[340px_1fr] gap-4">
         {/* ── Fila de pedidos abertos ─────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-300 shadow-sm flex flex-col min-h-0">
-          <div className="p-3 border-b border-gray-100 space-y-2">
+        <div className="bg-card rounded-xl border border-border shadow-sm flex flex-col min-h-0">
+          <div className="p-3 border-b border-border space-y-2">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-gray-800">Pedidos abertos</h2>
-              <button onClick={() => carregarFila(true)} className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-50" title="Atualizar fila">
+              <h2 className="text-sm font-bold text-foreground">Pedidos abertos</h2>
+              <button onClick={() => carregarFila(true)} className="p-1.5 rounded-md text-muted-foreground hover:text-muted-foreground hover:bg-muted" title="Atualizar fila">
                 <RefreshCw className={cn("w-4 h-4", filaLoading && "animate-spin")} />
               </button>
             </div>
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <input
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder="Número ou cliente..."
-                className="w-full h-9 rounded-lg border border-gray-300 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-9 rounded-lg border border-border pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
           <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
             {fila.length === 0 && !filaLoading && (
-              <p className="px-4 py-10 text-center text-sm text-gray-400">Nenhum pedido aberto para o caixa.</p>
+              <p className="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum pedido aberto para o caixa.</p>
             )}
             {fila.map((p) => (
               <button
                 key={p.id}
                 onClick={() => selecionar(p.id)}
                 className={cn(
-                  "w-full text-left px-4 py-3 hover:bg-blue-50/50 transition-colors",
-                  selecionadoId === p.id && "bg-blue-50 border-l-2 border-blue-600",
+                  "w-full text-left px-4 py-3 hover:bg-info/10 transition-colors",
+                  selecionadoId === p.id && "bg-info/10 border-l-2 border-blue-600",
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs font-bold text-gray-800">{p.numero}</span>
-                  <span className="text-sm font-bold text-gray-900 tabular-nums">{formatBRL(decimalToNumber(p.valorTotal))}</span>
+                  <span className="font-mono text-xs font-bold text-foreground">{p.numero}</span>
+                  <span className="text-sm font-bold text-foreground tabular-nums">{formatBRL(decimalToNumber(p.valorTotal))}</span>
                 </div>
-                <p className="text-xs text-gray-500 truncate mt-0.5">{p.cliente.nomeFantasia || p.cliente.razaoSocial}</p>
+                <p className="text-xs text-muted-foreground truncate mt-0.5">{p.cliente.nomeFantasia || p.cliente.razaoSocial}</p>
               </button>
             ))}
           </div>
         </div>
 
         {/* ── Painel de cobrança ──────────────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-300 shadow-sm flex flex-col min-h-0">
+        <div className="bg-card rounded-xl border border-border shadow-sm flex flex-col min-h-0">
           {sucesso ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
               <CheckCircle2 className="w-14 h-14 text-emerald-500" />
-              <p className="text-lg font-bold text-gray-800">Venda {sucesso.numero} concluída</p>
+              <p className="text-lg font-bold text-foreground">Venda {sucesso.numero} concluída</p>
               {sucesso.troco != null && (
-                <p className="text-2xl font-bold text-amber-600">Troco: {formatBRL(sucesso.troco)}</p>
+                <p className="text-2xl font-bold text-warning">Troco: {formatBRL(sucesso.troco)}</p>
               )}
-              <p className="text-sm text-gray-500">Estoque baixado, recebimento lançado no caixa e cupom enviado para impressão.</p>
+              <p className="text-sm text-muted-foreground">Estoque baixado, recebimento lançado no caixa e cupom enviado para impressão.</p>
               <div className="flex gap-2 mt-2">
                 {sucesso.print && (
                   <Button variant="outline" size="sm" onClick={() => sucesso.print && imprimir(sucesso.print)}>
@@ -330,34 +330,34 @@ export default function PdvPage() {
               </div>
             </div>
           ) : !selecionadoId ? (
-            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-300">
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground/60">
               <Receipt className="w-14 h-14" />
-              <p className="text-sm text-gray-400">Selecione um pedido na fila para cobrar.</p>
+              <p className="text-sm text-muted-foreground">Selecione um pedido na fila para cobrar.</p>
             </div>
           ) : pedidoLoading || !pedido ? (
-            <div className="flex-1 flex items-center justify-center text-gray-400 gap-2 text-sm">
+            <div className="flex-1 flex items-center justify-center text-muted-foreground gap-2 text-sm">
               <Loader2 className="w-4 h-4 animate-spin" /> Carregando pedido…
             </div>
           ) : (
             <div className="flex-1 min-h-0 flex flex-col">
               {/* Itens */}
-              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+              <div className="px-5 py-3 border-b border-border flex items-center justify-between">
                 <div>
-                  <p className="font-mono text-sm font-bold text-gray-800">{pedido.numero}</p>
-                  <p className="text-xs text-gray-500">{pedido.cliente.nomeFantasia || pedido.cliente.razaoSocial}</p>
+                  <p className="font-mono text-sm font-bold text-foreground">{pedido.numero}</p>
+                  <p className="text-xs text-muted-foreground">{pedido.cliente.nomeFantasia || pedido.cliente.razaoSocial}</p>
                 </div>
-                <p className="text-3xl font-bold text-gray-900 tabular-nums">{formatBRL(total)}</p>
+                <p className="text-3xl font-bold text-foreground tabular-nums">{formatBRL(total)}</p>
               </div>
               <div className="flex-1 overflow-y-auto px-5 py-2">
                 <table className="w-full text-sm">
                   <tbody className="divide-y divide-gray-50">
                     {pedido.itens.map((i) => (
                       <tr key={i.id}>
-                        <td className="py-1.5 text-gray-800">{i.item.descricao}</td>
-                        <td className="py-1.5 text-right text-xs text-gray-500 whitespace-nowrap">
+                        <td className="py-1.5 text-foreground">{i.item.descricao}</td>
+                        <td className="py-1.5 text-right text-xs text-muted-foreground whitespace-nowrap">
                           {decimalToNumber(i.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {i.item.unidade?.sigla || i.item.unidadeMedida} × {formatBRL(decimalToNumber(i.precoUnitario))}
                         </td>
-                        <td className="py-1.5 text-right font-medium text-gray-800 tabular-nums w-28">{formatBRL(decimalToNumber(i.valorTotal))}</td>
+                        <td className="py-1.5 text-right font-medium text-foreground tabular-nums w-28">{formatBRL(decimalToNumber(i.valorTotal))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -365,8 +365,8 @@ export default function PdvPage() {
               </div>
 
               {/* Cobrança */}
-              <div className="border-t border-gray-200 px-5 py-4 space-y-3 bg-gray-50/60 rounded-b-xl">
-                {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
+              <div className="border-t border-border px-5 py-4 space-y-3 bg-muted/60 rounded-b-xl">
+                {erro && <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{erro}</p>}
 
                 {/* Venda à ordem: estoque sai de outra empresa do grupo. */}
                 {aOrdem && (
@@ -378,7 +378,7 @@ export default function PdvPage() {
                 {/* A2: marcar à ordem aqui no caixa (se o pedido ainda não era). */}
                 {!jaAOrdem && grupoEmpresas.length > 1 && (
                   <div className="grid grid-cols-2 gap-3">
-                    <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                    <label className="space-y-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                       Estoque de outra empresa (à ordem)
                       <ComboboxWithCreate
                         value={origemSel}
@@ -389,16 +389,16 @@ export default function PdvPage() {
                       />
                     </label>
                     {origemSel && (
-                      <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                        Preço de transferência (total) <span className="font-normal normal-case text-gray-400">(opcional)</span>
-                        <input inputMode="decimal" value={precoTransf} onChange={(e) => setPrecoTransf(e.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00" className="w-full h-10 rounded-lg border border-gray-300 px-2 text-sm font-normal text-right bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <label className="space-y-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Preço de transferência (total) <span className="font-normal normal-case text-muted-foreground">(opcional)</span>
+                        <input inputMode="decimal" value={precoTransf} onChange={(e) => setPrecoTransf(e.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00" className="w-full h-10 rounded-lg border border-border px-2 text-sm font-normal text-right bg-card focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       </label>
                     )}
                   </div>
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
-                  <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                  <label className="space-y-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     {aOrdem ? `Local p/ registro${origemNome ? "" : ""} *` : "Local de estoque *"}
                     <ComboboxWithCreate
                       value={localId}
@@ -408,9 +408,9 @@ export default function PdvPage() {
                       options={locais.map((l) => ({ value: l.id, label: l.nome }))}
                     />
                   </label>
-                  <label className="space-y-1 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                  <label className="space-y-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     Data do recebimento
-                    <input type="date" value={data} onChange={(e) => setData(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-2 text-sm font-normal bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <input type="date" value={data} onChange={(e) => setData(e.target.value)} className="w-full h-10 rounded-lg border border-border px-2 text-sm font-normal bg-card focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </label>
                 </div>
 
@@ -421,7 +421,7 @@ export default function PdvPage() {
                       <p className="text-xs font-semibold text-teal-800">Crédito do cliente — saldo {formatBRL(creditoSaldo)}</p>
                       <p className="text-[11px] text-teal-600">Abater nesta venda (o caixa cobre o restante).</p>
                     </div>
-                    <input inputMode="decimal" value={creditoUsadoStr} onChange={(e) => setCreditoUsadoStr(e.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00" className="w-28 h-9 rounded-lg border border-teal-300 px-2 text-sm text-right bg-white" />
+                    <input inputMode="decimal" value={creditoUsadoStr} onChange={(e) => setCreditoUsadoStr(e.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00" className="w-28 h-9 rounded-lg border border-teal-300 px-2 text-sm text-right bg-card" />
                     <button type="button" onClick={() => setCreditoUsadoStr(Math.min(creditoSaldo, total).toFixed(2).replace(".", ","))} className="text-xs text-teal-700 font-medium hover:underline whitespace-nowrap">usar máx.</button>
                   </div>
                 )}
@@ -430,8 +430,8 @@ export default function PdvPage() {
                 <PagamentosInput linhas={pagamentos} setLinhas={setPagamentos} formas={formas} contas={contas} total={alvoCash} />
 
                 <div className="flex items-center gap-3 pt-1">
-                  <span className="text-sm text-gray-500">
-                    Total <span className="font-bold text-gray-900 tabular-nums">{formatBRL(total)}</span>
+                  <span className="text-sm text-muted-foreground">
+                    Total <span className="font-bold text-foreground tabular-nums">{formatBRL(total)}</span>
                     {creditoUsadoNum > 0 && <span className="ml-2 text-teal-700">− crédito {formatBRL(creditoUsadoNum)} = <span className="font-semibold">{formatBRL(alvoCash)}</span></span>}
                   </span>
                   <div className="flex-1" />

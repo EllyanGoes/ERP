@@ -33,7 +33,7 @@ export default function EstoqueTable({ estoques }: { estoques: EstoqueRow[] }) {
   const columns = useMemo<ColumnDef<EstoqueRow>[]>(() => [
     { accessorKey: "item.codigo", header: "Código", cell: ({ row }) => <span className="font-mono text-xs font-medium">{row.original.item.codigo}</span> },
     { accessorKey: "item.descricao", header: "Descrição" },
-    { accessorKey: "item.unidadeMedida", header: "Un.", cell: ({ row }) => <span className="text-xs text-gray-500">{row.original.item.unidadeMedida}</span> },
+    { accessorKey: "item.unidadeMedida", header: "Un.", cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.original.item.unidadeMedida}</span> },
     {
       id: "quantidadeAtual",
       header: "Qtd. Atual",
@@ -43,7 +43,7 @@ export default function EstoqueTable({ estoques }: { estoques: EstoqueRow[] }) {
         const baixo = atual <= min && min > 0;
         return (
           <div className="flex items-center gap-1">
-            <span className={`font-semibold ${atual === 0 ? "text-red-600" : baixo ? "text-amber-600" : "text-gray-900"}`}>{atual}</span>
+            <span className={`font-semibold ${atual === 0 ? "text-danger" : baixo ? "text-warning" : "text-foreground"}`}>{atual}</span>
             {baixo && <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />}
           </div>
         );
@@ -52,7 +52,7 @@ export default function EstoqueTable({ estoques }: { estoques: EstoqueRow[] }) {
     {
       id: "quantidadeMin",
       header: "Qtd. Min.",
-      cell: ({ row }) => <span className="text-gray-500">{decimalToNumber(row.original.quantidadeMin)}</span>,
+      cell: ({ row }) => <span className="text-muted-foreground">{decimalToNumber(row.original.quantidadeMin)}</span>,
     },
     {
       id: "status",
@@ -60,12 +60,12 @@ export default function EstoqueTable({ estoques }: { estoques: EstoqueRow[] }) {
       cell: ({ row }) => {
         const atual = decimalToNumber(row.original.quantidadeAtual);
         const min = decimalToNumber(row.original.quantidadeMin);
-        if (atual === 0) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Zerado</span>;
-        if (atual <= min && min > 0) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Baixo</span>;
-        return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">OK</span>;
+        if (atual === 0) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-danger/15 text-danger">Zerado</span>;
+        if (atual <= min && min > 0) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-warning/15 text-warning">Baixo</span>;
+        return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-success/15 text-success">OK</span>;
       },
     },
-    { id: "localizacao", header: "Localização", cell: ({ row }) => <span className="text-xs text-gray-400">{row.original.localizacao || "—"}</span> },
+    { id: "localizacao", header: "Localização", cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.original.localizacao || "—"}</span> },
     {
       id: "actions",
       header: "",
@@ -97,7 +97,7 @@ export default function EstoqueTable({ estoques }: { estoques: EstoqueRow[] }) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Ajuste de Estoque</DialogTitle>
-            {ajusteItem && <p className="text-sm text-gray-500">{ajusteItem.item.codigo} — {ajusteItem.item.descricao}</p>}
+            {ajusteItem && <p className="text-sm text-muted-foreground">{ajusteItem.item.codigo} — {ajusteItem.item.descricao}</p>}
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>

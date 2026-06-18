@@ -16,8 +16,8 @@ type Dre = { ano: number; secoes: Secao[]; resultadoMeses: number[]; resultadoTo
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 function celula(v: number, modo: "contabil" | "real") {
-  if (Math.abs(v) < 0.005) return <span className="text-gray-300">—</span>;
-  return <span className={v < 0 ? "text-red-600" : ""}>{fmtColuna(v, modo)}</span>;
+  if (Math.abs(v) < 0.005) return <span className="text-muted-foreground/60">—</span>;
+  return <span className={v < 0 ? "text-danger" : ""}>{fmtColuna(v, modo)}</span>;
 }
 
 export default function DrePage() {
@@ -41,13 +41,13 @@ export default function DrePage() {
       <PageHeader title="DRE" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "DRE" }]} />
       <div className="px-8 pb-8 space-y-4">
         <div className="flex items-center gap-3 flex-wrap no-print">
-          <label className="flex items-center gap-2 text-sm text-gray-600">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
             Exercício
-            <select value={ano} onChange={(e) => setAno(parseInt(e.target.value, 10))} className="h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
+            <select value={ano} onChange={(e) => setAno(parseInt(e.target.value, 10))} className="h-10 rounded-lg border border-border px-3 text-sm bg-card">
               {Array.from({ length: 6 }).map((_, i) => { const y = new Date().getUTCFullYear() - i; return <option key={y} value={y}>{y}</option>; })}
             </select>
           </label>
-          <Link href="/contabilidade/dre/estrutura" className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50">
+          <Link href="/contabilidade/dre/estrutura" className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg border border-border hover:bg-muted">
             <SlidersHorizontal className="w-4 h-4" /> Editar estrutura
           </Link>
           <FormatoToggle modo={modo} onChange={setModo} />
@@ -55,22 +55,22 @@ export default function DrePage() {
         </div>
 
         {loading || !dre ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Carregando…</div>
+          <div className="flex items-center justify-center py-16 text-muted-foreground gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Carregando…</div>
         ) : (
-          <div className="rounded-xl border border-gray-200 bg-white overflow-auto print-area">
+          <div className="rounded-xl border border-border bg-card overflow-auto print-area">
             <table className="w-full text-sm tabular-nums whitespace-nowrap">
-              <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide sticky top-0 z-10">
+              <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide sticky top-0 z-10">
                 <tr>
-                  <th className="text-left px-4 py-2.5 font-semibold sticky left-0 bg-gray-50 z-20 min-w-[16rem]">Conta</th>
+                  <th className="text-left px-4 py-2.5 font-semibold sticky left-0 bg-muted z-20 min-w-[16rem]">Conta</th>
                   {MESES.map((m) => <th key={m} className="text-right px-3 py-2.5 font-semibold w-24">{m}</th>)}
-                  <th className="text-right px-4 py-2.5 font-semibold w-28 bg-gray-100">Total</th>
+                  <th className="text-right px-4 py-2.5 font-semibold w-28 bg-muted">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {dre.secoes.map((s) => (
                   <SecaoRows key={s.id} secao={s} ano={dre.ano} modo={modo} />
                 ))}
-                <tr className="border-t-2 border-gray-300 bg-gray-900 text-white font-bold">
+                <tr className="border-t-2 border-border bg-gray-900 text-white font-bold">
                   <td className="px-4 py-3 sticky left-0 bg-gray-900 z-10">Resultado do Exercício</td>
                   {dre.resultadoMeses.map((v, i) => (
                     <td key={i} className={cn("text-right px-3 py-3", v < 0 && "text-red-300")}>{Math.abs(v) < 0.005 ? "" : fmtColuna(v, modo)}</td>
@@ -89,27 +89,27 @@ export default function DrePage() {
 function SecaoRows({ secao, ano, modo }: { secao: Secao; ano: number; modo: "contabil" | "real" }) {
   return (
     <>
-      <tr className="bg-gray-100/70 border-y border-gray-200 font-semibold text-gray-800">
-        <td className="px-4 py-2 sticky left-0 bg-gray-100/70 z-10">
-          {secao.nome} <span className="text-xs font-normal text-gray-400">({secao.operacao === "SUBTRAI" ? "−" : "+"})</span>
+      <tr className="bg-muted/70 border-y border-border font-semibold text-foreground">
+        <td className="px-4 py-2 sticky left-0 bg-muted/70 z-10">
+          {secao.nome} <span className="text-xs font-normal text-muted-foreground">({secao.operacao === "SUBTRAI" ? "−" : "+"})</span>
         </td>
         {secao.meses.map((v, i) => <td key={i} className="text-right px-3 py-2">{celula(v, modo)}</td>)}
-        <td className="text-right px-4 py-2 bg-gray-100">{celula(secao.total, modo)}</td>
+        <td className="text-right px-4 py-2 bg-muted">{celula(secao.total, modo)}</td>
       </tr>
       {secao.contas.map((c) => (
-        <tr key={c.id} className="border-b border-gray-50 hover:bg-blue-50/30">
-          <td className="px-4 py-1.5 sticky left-0 bg-white z-10">
+        <tr key={c.id} className="border-b border-gray-50 hover:bg-info/10">
+          <td className="px-4 py-1.5 sticky left-0 bg-card z-10">
             <Link
               href={`/contabilidade/razao?contaId=${c.id}&from=${ano}-01-01&to=${ano}-12-31`}
-              className="flex items-center gap-2 hover:text-blue-600"
+              className="flex items-center gap-2 hover:text-info"
               title="Abrir razão da conta"
             >
-              <span className="font-mono text-[11px] text-gray-400">{c.codigo}</span>
+              <span className="font-mono text-[11px] text-muted-foreground">{c.codigo}</span>
               <span className="truncate">{c.nome}</span>
             </Link>
           </td>
-          {c.meses.map((v, i) => <td key={i} className="text-right px-3 py-1.5 text-gray-600">{celula(v, modo)}</td>)}
-          <td className="text-right px-4 py-1.5 font-medium bg-gray-50/50">{celula(c.total, modo)}</td>
+          {c.meses.map((v, i) => <td key={i} className="text-right px-3 py-1.5 text-muted-foreground">{celula(v, modo)}</td>)}
+          <td className="text-right px-4 py-1.5 font-medium bg-muted/50">{celula(c.total, modo)}</td>
         </tr>
       ))}
     </>

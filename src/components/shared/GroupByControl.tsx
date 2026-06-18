@@ -45,30 +45,30 @@ export default function GroupByControl({
         className={cn(
           "flex items-center gap-1.5 h-9 px-3 text-sm border rounded-lg transition-colors",
           active
-            ? "border-blue-300 bg-blue-50 text-blue-700"
-            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+            ? "border-blue-300 bg-info/10 text-info"
+            : "border-border bg-card text-foreground hover:bg-muted"
         )}
         title="Agrupar registros"
       >
         <Layers className="w-3.5 h-3.5" />
         <span>{active ? current.label : "Agrupar"}</span>
-        <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
       </button>
 
       {open && (
-        <div className="absolute left-0 top-10 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1.5 w-48">
+        <div className="absolute left-0 top-10 z-20 bg-card border border-border rounded-xl shadow-lg py-1.5 w-48">
           {OPTIONS.map((o) => (
             <button
               key={o.value}
               type="button"
-              className="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+              className="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-muted"
               onClick={() => {
                 onChange(o.value);
                 setOpen(false);
               }}
             >
               <span>{o.label}</span>
-              {value === o.value && <Check className="w-3.5 h-3.5 text-blue-600" />}
+              {value === o.value && <Check className="w-3.5 h-3.5 text-info" />}
             </button>
           ))}
         </div>

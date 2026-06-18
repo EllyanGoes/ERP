@@ -2,9 +2,9 @@ import { cn } from "@/lib/utils";
 
 // Criticidade: A = mais crítico (vermelho), B = média (âmbar), C = baixa (verde).
 const MAP: Record<string, { cls: string; titulo: string }> = {
-  A: { cls: "bg-red-100 text-red-700", titulo: "Criticidade A — alta" },
-  B: { cls: "bg-amber-100 text-amber-700", titulo: "Criticidade B — média" },
-  C: { cls: "bg-emerald-100 text-emerald-700", titulo: "Criticidade C — baixa" },
+  A: { cls: "bg-danger/15 text-danger", titulo: "Criticidade A — alta" },
+  B: { cls: "bg-warning/15 text-warning", titulo: "Criticidade B — média" },
+  C: { cls: "bg-success/15 text-success", titulo: "Criticidade C — baixa" },
 };
 
 export default function CriticidadeBadge({

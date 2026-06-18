@@ -88,38 +88,38 @@ export default function DreEstruturaPage() {
     <div>
       <PageHeader title="Estrutura da DRE" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "DRE" }, { label: "Estrutura" }]}
         actions={<div className="flex items-center gap-2">
-          <Link href="/contabilidade/dre" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800"><ArrowLeft className="w-4 h-4" /> Voltar à DRE</Link>
+          <Link href="/contabilidade/dre" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="w-4 h-4" /> Voltar à DRE</Link>
           <Button onClick={salvar} disabled={saving}>{saving ? "Salvando…" : "Salvar"}</Button>
         </div>} />
       <div className="px-8 pb-8 space-y-4">
-        {msg && <p className="text-sm text-emerald-600">{msg}</p>}
+        {msg && <p className="text-sm text-success">{msg}</p>}
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Carregando…</div>
+          <div className="flex items-center justify-center py-16 text-muted-foreground gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Carregando…</div>
         ) : (
           <>
-            <p className="text-sm text-gray-500">Defina as seções (somam ou subtraem no resultado), sua ordem, e em qual seção cada conta de resultado aparece.</p>
+            <p className="text-sm text-muted-foreground">Defina as seções (somam ou subtraem no resultado), sua ordem, e em qual seção cada conta de resultado aparece.</p>
             {secoes.map((s, i) => (
-              <div key={s.id} className="rounded-xl border border-gray-200 bg-white">
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50">
+              <div key={s.id} className="rounded-xl border border-border bg-card">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted">
                   <div className="flex flex-col">
-                    <button type="button" onClick={() => moverSecao(i, -1)} className="text-gray-400 hover:text-gray-700"><ChevronUp className="w-4 h-4" /></button>
-                    <button type="button" onClick={() => moverSecao(i, 1)} className="text-gray-400 hover:text-gray-700"><ChevronDown className="w-4 h-4" /></button>
+                    <button type="button" onClick={() => moverSecao(i, -1)} className="text-muted-foreground hover:text-foreground"><ChevronUp className="w-4 h-4" /></button>
+                    <button type="button" onClick={() => moverSecao(i, 1)} className="text-muted-foreground hover:text-foreground"><ChevronDown className="w-4 h-4" /></button>
                   </div>
                   <Input value={s.nome} onChange={(e) => patchSecao(s.id, { nome: e.target.value })} className="h-9 max-w-xs font-semibold" />
-                  <select value={s.operacao} onChange={(e) => patchSecao(s.id, { operacao: e.target.value as "SOMA" | "SUBTRAI" })} className="h-9 rounded-lg border border-gray-300 px-2 text-sm bg-white">
+                  <select value={s.operacao} onChange={(e) => patchSecao(s.id, { operacao: e.target.value as "SOMA" | "SUBTRAI" })} className="h-9 rounded-lg border border-border px-2 text-sm bg-card">
                     <option value="SOMA">Soma (+)</option>
                     <option value="SUBTRAI">Subtrai (−)</option>
                   </select>
-                  <button type="button" onClick={() => delSecao(s.id)} className="ml-auto text-gray-300 hover:text-red-500" title="Excluir seção"><Trash2 className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => delSecao(s.id)} className="ml-auto text-muted-foreground/60 hover:text-red-500" title="Excluir seção"><Trash2 className="w-4 h-4" /></button>
                 </div>
                 <ContasDaSecao contas={contas.filter((c) => c.dreSecaoId === s.id)} secoes={secoes} onMove={moverConta} onMoveSecao={moverContaSecao} />
               </div>
             ))}
-            <button type="button" onClick={addSecao} className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700"><Plus className="w-4 h-4" /> Adicionar seção</button>
+            <button type="button" onClick={addSecao} className="inline-flex items-center gap-1.5 text-sm font-medium text-info hover:text-info"><Plus className="w-4 h-4" /> Adicionar seção</button>
 
             {semSecao.length > 0 && (
-              <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50/40">
-                <div className="px-4 py-2 text-sm font-semibold text-amber-700">Sem seção ({semSecao.length}) — não aparecem na DRE</div>
+              <div className="rounded-xl border border-dashed border-amber-300 bg-warning/10">
+                <div className="px-4 py-2 text-sm font-semibold text-warning">Sem seção ({semSecao.length}) — não aparecem na DRE</div>
                 <ContasDaSecao contas={semSecao} secoes={secoes} onMove={moverConta} onMoveSecao={moverContaSecao} />
               </div>
             )}
@@ -134,18 +134,18 @@ function ContasDaSecao({ contas, secoes, onMove, onMoveSecao }: {
   contas: Conta[]; secoes: Secao[];
   onMove: (id: string, dir: -1 | 1) => void; onMoveSecao: (id: string, secaoId: string | null) => void;
 }) {
-  if (contas.length === 0) return <div className="px-4 py-3 text-xs text-gray-400">Nenhuma conta nesta seção.</div>;
+  if (contas.length === 0) return <div className="px-4 py-3 text-xs text-muted-foreground">Nenhuma conta nesta seção.</div>;
   return (
     <ul className="divide-y divide-gray-50">
       {contas.map((c) => (
         <li key={c.id} className="flex items-center gap-2 px-4 py-1.5 text-sm">
           <div className="flex flex-col">
-            <button type="button" onClick={() => onMove(c.id, -1)} className="text-gray-300 hover:text-gray-700"><ChevronUp className="w-3.5 h-3.5" /></button>
-            <button type="button" onClick={() => onMove(c.id, 1)} className="text-gray-300 hover:text-gray-700"><ChevronDown className="w-3.5 h-3.5" /></button>
+            <button type="button" onClick={() => onMove(c.id, -1)} className="text-muted-foreground/60 hover:text-foreground"><ChevronUp className="w-3.5 h-3.5" /></button>
+            <button type="button" onClick={() => onMove(c.id, 1)} className="text-muted-foreground/60 hover:text-foreground"><ChevronDown className="w-3.5 h-3.5" /></button>
           </div>
-          <span className="font-mono text-[11px] text-gray-400 w-20">{c.codigo}</span>
-          <span className="flex-1 truncate text-gray-700">{c.nome}</span>
-          <select value={c.dreSecaoId ?? ""} onChange={(e) => onMoveSecao(c.id, e.target.value || null)} className="h-8 rounded-lg border border-gray-300 px-2 text-xs bg-white max-w-[12rem]">
+          <span className="font-mono text-[11px] text-muted-foreground w-20">{c.codigo}</span>
+          <span className="flex-1 truncate text-foreground">{c.nome}</span>
+          <select value={c.dreSecaoId ?? ""} onChange={(e) => onMoveSecao(c.id, e.target.value || null)} className="h-8 rounded-lg border border-border px-2 text-xs bg-card max-w-[12rem]">
             <option value="">— sem seção —</option>
             {secoes.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
           </select>

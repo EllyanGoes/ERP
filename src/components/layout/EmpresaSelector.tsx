@@ -92,7 +92,7 @@ export default function EmpresaSelector() {
       >
         {trocando
           ? <Loader2 size={14} className="animate-spin text-muted-foreground" />
-          : <Building2 size={14} className={grupo ? "text-purple-600 dark:text-purple-400" : "text-blue-600 dark:text-blue-400"} />}
+          : <Building2 size={14} className={grupo ? "text-purple-600 dark:text-purple-400" : "text-info dark:text-blue-400"} />}
         <span className="max-w-[140px] truncate">{grupo ? "Todas as empresas" : ativa.nome}</span>
         <ChevronDown size={13} className="text-muted-foreground" />
       </button>
@@ -132,7 +132,7 @@ export default function EmpresaSelector() {
               )}
               style={{ height: 18, width: 32 }}
             >
-              <span className="w-3.5 h-3.5 bg-white rounded-full shadow" />
+              <span className="w-3.5 h-3.5 bg-card rounded-full shadow" />
             </span>
           </button>
           <p className="px-3 pb-1.5 text-[11px] text-muted-foreground">

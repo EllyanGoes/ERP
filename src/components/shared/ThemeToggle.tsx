@@ -21,7 +21,7 @@ export default function ThemeToggle({ className }: { className?: string }) {
       onClick={() => setTheme(isDark ? "light" : "dark")}
       title={mounted ? (isDark ? "Tema claro" : "Tema escuro") : "Alternar tema"}
       className={cn(
-        "flex items-center justify-center w-9 h-9 rounded-xl text-gray-500 hover:bg-gray-800 hover:text-gray-200 transition-colors",
+        "flex items-center justify-center w-9 h-9 rounded-xl text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors",
         className,
       )}
     >

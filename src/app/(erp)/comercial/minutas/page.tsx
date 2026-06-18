@@ -51,10 +51,10 @@ const STATUS_COLS: {
   key: Minuta["status"]; label: string;
   color: string; bg: string; border: string; dot: string;
 }[] = [
-  { key: "PENDENTE",          label: "Pendente",        color: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-200",   dot: "bg-amber-400"   },
-  { key: "SAIU_PARA_ENTREGA", label: "Saiu p/ Entrega", color: "text-blue-700",    bg: "bg-blue-50",    border: "border-blue-200",    dot: "bg-blue-500"    },
-  { key: "ENTREGUE",          label: "Entregue",        color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", dot: "bg-emerald-500" },
-  { key: "CANCELADA",         label: "Cancelada",       color: "text-red-600",     bg: "bg-red-50",     border: "border-red-200",     dot: "bg-red-400"     },
+  { key: "PENDENTE",          label: "Pendente",        color: "text-warning",   bg: "bg-warning/10",   border: "border-warning/30",   dot: "bg-amber-400"   },
+  { key: "SAIU_PARA_ENTREGA", label: "Saiu p/ Entrega", color: "text-info",    bg: "bg-info/10",    border: "border-info/30",    dot: "bg-blue-500"    },
+  { key: "ENTREGUE",          label: "Entregue",        color: "text-success", bg: "bg-success/10", border: "border-success/30", dot: "bg-emerald-500" },
+  { key: "CANCELADA",         label: "Cancelada",       color: "text-danger",     bg: "bg-danger/10",     border: "border-danger/30",     dot: "bg-red-400"     },
 ];
 
 const STATUS_OPTIONS = STATUS_COLS.map((s) => ({ value: s.key, label: s.label }));
@@ -111,22 +111,22 @@ const COLS: ColDef<Minuta>[] = [
   {
     id: "numero",
     label: "Minuta",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 font-mono text-xs font-semibold text-gray-900",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 font-mono text-xs font-semibold text-foreground",
     render: (m) => m.numero,
   },
   {
     id: "numeroFisico",
     label: "Nº Físico",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 font-mono text-xs text-gray-600",
-    render: (m) => m.numeroFisico || <span className="text-gray-300">—</span>,
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 font-mono text-xs text-muted-foreground",
+    render: (m) => m.numeroFisico || <span className="text-muted-foreground/60">—</span>,
   },
   {
     id: "pedido",
     label: "Pedido",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-xs text-gray-500",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-xs text-muted-foreground",
     render: (m) => (
       <div className="flex flex-col items-start gap-0.5">
         <span className="font-mono">{m.pedidoVenda.numero}</span>
@@ -141,15 +141,15 @@ const COLS: ColDef<Minuta>[] = [
   {
     id: "cliente",
     label: "Cliente",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3 max-w-[220px]",
     render: (m) => (
       <div>
-        <div className="font-medium text-gray-800 text-sm">
+        <div className="font-medium text-foreground text-sm">
           {m.pedidoVenda.cliente.nomeFantasia || m.pedidoVenda.cliente.razaoSocial}
         </div>
         {m.pedidoVenda.cliente.nomeFantasia && (
-          <div className="text-xs text-gray-400">{m.pedidoVenda.cliente.razaoSocial}</div>
+          <div className="text-xs text-muted-foreground">{m.pedidoVenda.cliente.razaoSocial}</div>
         )}
       </div>
     ),
@@ -157,45 +157,45 @@ const COLS: ColDef<Minuta>[] = [
   {
     id: "tipo",
     label: "Tipo",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-gray-600 text-sm",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-muted-foreground text-sm",
     render: (m) => TIPO_MINUTA_LABEL[m.tipo] ?? "Entrega",
   },
   {
     id: "status",
     label: "Status",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3",
     render: (m) => <StatusBadge status={m.status} label={statusMinutaLabel(m.status, m.tipo)} />,
   },
   {
     id: "dataEmissao",
     label: "Emissão",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-gray-500 text-sm",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-muted-foreground text-sm",
     render: (m) => formatDate(m.dataEmissao),
   },
   {
     id: "dataEntrega",
     label: "Data de Entrega",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell",
-    tdClass: "px-4 py-3 text-gray-500 text-sm hidden lg:table-cell",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell",
+    tdClass: "px-4 py-3 text-muted-foreground text-sm hidden lg:table-cell",
     render: (m) => m.dataEntrega ? formatDate(m.dataEntrega) : "—",
   },
   {
     id: "motorista",
     label: "Motorista / Placa",
-    thClass: "text-left px-4 py-3 font-medium text-gray-600 hidden xl:table-cell",
-    tdClass: "px-4 py-3 text-gray-500 text-sm hidden xl:table-cell",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground hidden xl:table-cell",
+    tdClass: "px-4 py-3 text-muted-foreground text-sm hidden xl:table-cell",
     render: (m) => m.motorista
-      ? <span>{m.motorista.nome}{m.placa && <span className="text-gray-400"> · {m.placa}</span>}</span>
-      : <span className="text-gray-300">—</span>,
+      ? <span>{m.motorista.nome}{m.placa && <span className="text-muted-foreground"> · {m.placa}</span>}</span>
+      : <span className="text-muted-foreground/60">—</span>,
   },
   {
     id: "itens",
     label: "Itens",
-    thClass: "text-center px-4 py-3 font-medium text-gray-600",
-    tdClass: "px-4 py-3 text-center text-gray-500 text-sm",
+    thClass: "text-center px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-center text-muted-foreground text-sm",
     render: (m) => m.itens.length,
   },
 ];
@@ -243,8 +243,8 @@ function StatusFilterChip({
       <div className={cn(
         "inline-flex items-center h-8 rounded-full border text-sm font-medium transition-colors cursor-pointer select-none",
         active
-          ? "border-blue-400 bg-blue-50 text-blue-700"
-          : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700"
+          ? "border-blue-400 bg-info/10 text-info"
+          : "border-border bg-card text-muted-foreground hover:border-border hover:text-foreground"
       )}>
         <button
           type="button"
@@ -255,7 +255,7 @@ function StatusFilterChip({
           }}
           className="pl-3 pr-1 h-full flex items-center gap-1.5 rounded-l-full"
         >
-          <span className={cn("text-xs font-semibold", active ? "text-blue-500" : "text-gray-400")}>Status</span>
+          <span className={cn("text-xs font-semibold", active ? "text-blue-500" : "text-muted-foreground")}>Status</span>
           {active && (
             <>
               <button
@@ -267,7 +267,7 @@ function StatusFilterChip({
                   if (r) setOpPos({ top: r.bottom + 4, left: r.left });
                   setShowOpMenu((p) => !p); setOpen(false);
                 }}
-                className="px-1 py-0.5 rounded hover:bg-blue-100 text-blue-600 text-xs font-medium"
+                className="px-1 py-0.5 rounded hover:bg-info/15 text-info text-xs font-medium"
               >
                 {opLabel}
               </button>
@@ -278,7 +278,7 @@ function StatusFilterChip({
               </span>
             </>
           )}
-          <ChevronDownIcon className={cn("w-3 h-3 ml-0.5 transition-transform", open && "rotate-180", active ? "text-blue-400" : "text-gray-400")} />
+          <ChevronDownIcon className={cn("w-3 h-3 ml-0.5 transition-transform", open && "rotate-180", active ? "text-blue-400" : "text-muted-foreground")} />
         </button>
         {active && (
           <button
@@ -293,10 +293,10 @@ function StatusFilterChip({
 
       {mounted && showOpMenu && opPos && createPortal(
         <div style={{ position: "fixed", top: opPos.top, left: opPos.left, zIndex: 9999 }}
-          className="bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[100px]">
+          className="bg-card border border-border rounded-xl shadow-lg py-1 min-w-[100px]">
           {(["is", "is_not"] as FilterOp[]).map((o) => (
             <button key={o} type="button" onClick={() => { onOpChange(o); setShowOpMenu(false); }}
-              className={cn("w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2", op === o && "text-blue-600 font-medium")}>
+              className={cn("w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2", op === o && "text-info font-medium")}>
               {op === o && <Check className="w-3.5 h-3.5 shrink-0" />}
               {o === "is" ? "É" : "Não é"}
             </button>
@@ -307,11 +307,11 @@ function StatusFilterChip({
 
       {mounted && open && pos && createPortal(
         <div ref={dropRef} style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
-          className="bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
-          <div className="flex border-b border-gray-100">
+          className="bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+          <div className="flex border-b border-border">
             {(["is", "is_not"] as FilterOp[]).map((o) => (
               <button key={o} type="button" onClick={() => onOpChange(o)}
-                className={cn("flex-1 py-2 text-xs font-semibold transition-colors", op === o ? "bg-blue-50 text-blue-600" : "text-gray-400 hover:bg-gray-50")}>
+                className={cn("flex-1 py-2 text-xs font-semibold transition-colors", op === o ? "bg-info/10 text-info" : "text-muted-foreground hover:bg-muted")}>
                 {o === "is" ? "É" : "Não é"}
               </button>
             ))}
@@ -321,8 +321,8 @@ function StatusFilterChip({
               const checked = selected.includes(opt.value);
               return (
                 <button key={opt.value} type="button" onClick={() => toggle(opt.value)}
-                  className={cn("w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left", checked && "bg-blue-50/60")}>
-                  <span className={cn("w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors", checked ? "bg-blue-600 border-blue-600" : "border-gray-300")}>
+                  className={cn("w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted transition-colors text-left", checked && "bg-info/10")}>
+                  <span className={cn("w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-colors", checked ? "bg-blue-600 border-blue-600" : "border-border")}>
                     {checked && <Check className="w-3 h-3 text-white" />}
                   </span>
                   <StatusBadge status={opt.value} />
@@ -331,9 +331,9 @@ function StatusFilterChip({
             })}
           </div>
           {selected.length > 0 && (
-            <div className="border-t border-gray-100 px-3 py-2">
+            <div className="border-t border-border px-3 py-2">
               <button type="button" onClick={() => { onClear(); setOpen(false); }}
-                className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors">
                 Limpar seleção
               </button>
             </div>
@@ -369,22 +369,22 @@ function MinutaKanbanCard({
       onDragStart={onDragStart}
       onClick={onClick}
       className={cn(
-        "bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-grab active:cursor-grabbing group select-none",
+        "bg-card border border-border rounded-lg p-3 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-grab active:cursor-grabbing group select-none",
         isDragging && "opacity-40 scale-95",
       )}
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
-        <span className="font-mono text-xs font-bold text-gray-800">{m.numero}</span> <EmpresaTag empresaId={m.empresaId} />
-        <span className="font-mono text-xs text-gray-400">{m.pedidoVenda.numero}</span>
+        <span className="font-mono text-xs font-bold text-foreground">{m.numero}</span> <EmpresaTag empresaId={m.empresaId} />
+        <span className="font-mono text-xs text-muted-foreground">{m.pedidoVenda.numero}</span>
       </div>
-      <p className="text-xs text-gray-700 font-medium mb-2 leading-snug line-clamp-2">
+      <p className="text-xs text-foreground font-medium mb-2 leading-snug line-clamp-2">
         {cliente.nomeFantasia || cliente.razaoSocial}
       </p>
-      <span className="inline-block text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 mb-2">
+      <span className="inline-block text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground mb-2">
         {TIPO_MINUTA_LABEL[m.tipo] ?? "Entrega"}
       </span>
       {(m.motorista || m.placa) && (
-        <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
           <Truck className="w-3 h-3 shrink-0" />
           <span className="truncate">
             {m.motorista?.nome}
@@ -392,10 +392,10 @@ function MinutaKanbanCard({
           </span>
         </div>
       )}
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-        <span className="text-xs text-gray-400">{m.itens.length} item{m.itens.length !== 1 ? "s" : ""}</span>
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+        <span className="text-xs text-muted-foreground">{m.itens.length} item{m.itens.length !== 1 ? "s" : ""}</span>
         {m.dataEntrega && (
-          <span className="flex items-center gap-1 text-xs text-gray-400">
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <CalendarDays className="w-3 h-3" />
             {formatDate(m.dataEntrega)}
           </span>
@@ -523,7 +523,7 @@ export default function MinutasPage() {
   const renderRow = (m: Minuta) => (
     <tr
       key={m.id}
-      className="hover:bg-gray-50 cursor-pointer transition-colors"
+      className="hover:bg-muted cursor-pointer transition-colors"
       onClick={() => router.push(`/comercial/minutas/${m.id}`)}
     >
       {orderedCols.map((col) => (
@@ -674,7 +674,7 @@ export default function MinutasPage() {
       <div className="px-8 pb-4 flex items-center gap-3 flex-wrap">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input
             className="pl-9 h-9 text-sm"
             placeholder="Número, físico, pedido, cliente..."
@@ -683,7 +683,7 @@ export default function MinutasPage() {
           />
           {filters.search && (
             <button
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
               onClick={() => updateFilters({ search: "" })}
             >
               <X className="w-3.5 h-3.5" />
@@ -702,20 +702,20 @@ export default function MinutasPage() {
 
         {/* Date range */}
         <div className="flex items-center gap-1.5">
-          <CalendarDays className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          <CalendarDays className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           <Input
             type="date"
             value={filters.dateFrom}
             onChange={(e) => updateFilters({ dateFrom: e.target.value })}
-            className="h-8 w-36 border-gray-200 text-sm"
+            className="h-8 w-36 border-border text-sm"
             title="De"
           />
-          <span className="text-gray-300 text-sm">—</span>
+          <span className="text-muted-foreground/60 text-sm">—</span>
           <Input
             type="date"
             value={filters.dateTo}
             onChange={(e) => updateFilters({ dateTo: e.target.value })}
-            className="h-8 w-36 border-gray-200 text-sm"
+            className="h-8 w-36 border-border text-sm"
             title="Até"
           />
         </div>
@@ -725,7 +725,7 @@ export default function MinutasPage() {
           onClick={() => updateFilters({ aOrdem: !filters.aOrdem })}
           className={cn(
             "inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs font-medium transition-colors whitespace-nowrap",
-            filters.aOrdem ? "border-violet-300 bg-violet-50 text-violet-700" : "border-gray-200 text-gray-500 hover:bg-gray-50",
+            filters.aOrdem ? "border-violet-300 bg-violet-50 text-violet-700" : "border-border text-muted-foreground hover:bg-muted",
           )}
           title="Mostrar só minutas de venda à ordem (pedido de entrega da empresa de origem)"
         >
@@ -736,14 +736,14 @@ export default function MinutasPage() {
         {hasActive && (
           <button
             onClick={() => updateFilters({ search: "", statuses: [], statusOp: "is", dateFrom: "", dateTo: "", aOrdem: false })}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap"
+            className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors whitespace-nowrap"
           >
             Limpar tudo
           </button>
         )}
 
         {/* Results count */}
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-muted-foreground">
           {loading ? "…" : `${filtered.length} minuta${filtered.length !== 1 ? "s" : ""}`}
         </span>
 
@@ -753,7 +753,7 @@ export default function MinutasPage() {
             <select
               value={filters.sortKey}
               onChange={(e) => updateFilters({ sortKey: e.target.value })}
-              className="h-8 px-2.5 pr-7 text-xs border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-gray-600"
+              className="h-8 px-2.5 pr-7 text-xs border border-border rounded-md bg-card focus:outline-none focus:ring-1 focus:ring-blue-400 text-muted-foreground"
             >
               {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -767,8 +767,8 @@ export default function MinutasPage() {
             className={cn(
               "flex items-center gap-1.5 h-8 px-2.5 text-xs border rounded-md transition-colors",
               filters.groupByDelivery
-                ? "border-blue-400 bg-blue-50 text-blue-700"
-                : "border-gray-200 bg-white text-gray-600 hover:border-gray-300",
+                ? "border-blue-400 bg-info/10 text-info"
+                : "border-border bg-card text-muted-foreground hover:border-border",
             )}
             title="Agrupar minutas por dia de entrega"
           >
@@ -793,7 +793,7 @@ export default function MinutasPage() {
         <button
           onClick={downloadPDF}
           disabled={loading || filtered.length === 0}
-          className="flex items-center gap-1.5 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700"
+          className="flex items-center gap-1.5 h-9 px-3 text-sm border border-border rounded-lg bg-card hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-foreground"
           title="Baixar PDF das minutas filtradas"
         >
           <Download className="w-3.5 h-3.5" />
@@ -801,10 +801,10 @@ export default function MinutasPage() {
         </button>
 
         {/* View toggle */}
-        <div className="ml-auto flex items-center gap-1 border border-gray-200 rounded-lg p-0.5 bg-white">
+        <div className="ml-auto flex items-center gap-1 border border-border rounded-lg p-0.5 bg-card">
           <button
             className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
-              filters.view === "list" ? "bg-gray-100 text-gray-800" : "text-gray-500 hover:text-gray-700")}
+              filters.view === "list" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
             onClick={() => updateFilters({ view: "list" })}
           >
             <LayoutList className="w-3.5 h-3.5" />
@@ -812,7 +812,7 @@ export default function MinutasPage() {
           </button>
           <button
             className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
-              filters.view === "kanban" ? "bg-gray-100 text-gray-800" : "text-gray-500 hover:text-gray-700")}
+              filters.view === "kanban" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
             onClick={() => updateFilters({ view: "kanban" })}
           >
             <Kanban className="w-3.5 h-3.5" />
@@ -823,41 +823,41 @@ export default function MinutasPage() {
 
       {/* ── Content ───────────────────────────────────────────────────────── */}
       {loading ? (
-        <div className="flex items-center justify-center py-24 text-gray-400 gap-2">
+        <div className="flex items-center justify-center py-24 text-muted-foreground gap-2">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span className="text-sm">Carregando minutas…</span>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-gray-400 gap-2">
-          <Truck className="w-8 h-8 text-gray-300" />
+        <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-2">
+          <Truck className="w-8 h-8 text-muted-foreground/60" />
           <p className="text-sm font-medium">Nenhuma minuta encontrada</p>
           <p className="text-xs">Tente ajustar os filtros ou crie uma nova minuta.</p>
         </div>
       ) : filters.view === "list" ? (
         // ── List view ──────────────────────────────────────────────────────
         <div className="px-8 pb-8">
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {deliveryGroups
                   ? deliveryGroups.map((g) => (
                       <Fragment key={g.key}>
-                        <tr className="bg-gray-50">
+                        <tr className="bg-muted">
                           <td
                             colSpan={orderedCols.length}
-                            className="px-4 py-2 border-t border-gray-200 text-xs font-semibold text-gray-700"
+                            className="px-4 py-2 border-t border-border text-xs font-semibold text-foreground"
                           >
                             <span className="inline-flex items-center gap-1.5">
-                              <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
+                              <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" />
                               {g.label}
-                              <span className="font-normal text-gray-400">
+                              <span className="font-normal text-muted-foreground">
                                 · {g.items.length} minuta{g.items.length !== 1 ? "s" : ""}
                               </span>
                             </span>
@@ -876,7 +876,7 @@ export default function MinutasPage() {
         <div className="px-8 pb-8 flex-1 overflow-x-auto">
           {/* Drag error toast */}
           {dragError && (
-            <div className="mb-3 flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
+            <div className="mb-3 flex items-center gap-2 px-4 py-2.5 bg-danger/10 border border-danger/30 rounded-xl text-sm text-danger font-medium">
               <X className="w-4 h-4 shrink-0" />
               {dragError}
             </div>
@@ -931,13 +931,13 @@ export default function MinutasPage() {
                     "rounded-b-xl border min-h-[120px] p-2 space-y-2 transition-colors",
                     isOver
                       ? `bg-opacity-80 ${col.bg} ${col.border} ring-2 ring-inset ${col.border}`
-                      : `bg-gray-50/60 ${col.border}`,
+                      : `bg-muted/60 ${col.border}`,
                     draggingId && isValidTarget && !isOver && "border-dashed",
                   )}>
                     {col.items.length === 0 && !isOver ? (
                       <div className={cn(
                         "flex items-center justify-center py-8 text-xs transition-colors",
-                        draggingId && isValidTarget ? col.color + " opacity-50" : "text-gray-300",
+                        draggingId && isValidTarget ? col.color + " opacity-50" : "text-muted-foreground/60",
                       )}>
                         {draggingId && isValidTarget ? "Solte aqui" : "Vazio"}
                       </div>

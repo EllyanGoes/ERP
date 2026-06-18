@@ -137,7 +137,7 @@ export default function EstoqueTerceirosPage() {
     }
   }
 
-  const selectCls = "w-full h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400";
+  const selectCls = "w-full h-9 px-3 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400";
   const optDono = (incluiProprio: boolean) => (
     <>
       {incluiProprio && <option value="">Estoque próprio</option>}
@@ -161,32 +161,32 @@ export default function EstoqueTerceirosPage() {
       />
 
       <div className="px-8 pb-12 space-y-6">
-        <p className="text-xs text-gray-500 flex items-center gap-1.5">
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
           <PackageOpen className="w-3.5 h-3.5" />
           Mercadoria de clientes armazenada sob a guarda da empresa. Esses saldos fazem parte do
           estoque físico, mas não entram no custo médio, no estoque mínimo nem nos relatórios de consumo.
         </p>
 
-        {erro && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">{erro}</div>}
+        {erro && <div className="bg-danger/10 border border-danger/30 text-danger text-sm px-4 py-3 rounded-xl">{erro}</div>}
 
         {loading ? (
-          <div className="flex items-center justify-center h-40"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+          <div className="flex items-center justify-center h-40"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         ) : (
           <>
             {/* cards resumo */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-amber-600" />Clientes com saldo
+                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-warning" />Clientes com saldo
                   </CardTitle>
                 </CardHeader>
                 <CardContent><p className="text-xl font-semibold">{porCliente.length}</p></CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-amber-600" />Quantidade sob guarda
+                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-warning" />Quantidade sob guarda
                   </CardTitle>
                 </CardHeader>
                 <CardContent><p className="text-xl font-semibold">{fmtQtd(porCliente.reduce((s, [, c]) => s + c.total, 0))}</p></CardContent>
@@ -194,14 +194,14 @@ export default function EstoqueTerceirosPage() {
             </div>
 
             {/* abas */}
-            <div className="flex items-center gap-1 border-b border-gray-200">
+            <div className="flex items-center gap-1 border-b border-border">
               {([["saldos", "Saldos por cliente"], ["lancamentos", "Lançamentos"]] as const).map(([k, label]) => (
                 <button
                   key={k}
                   onClick={() => setAba(k)}
                   className={cn(
                     "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-                    aba === k ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700"
+                    aba === k ? "border-blue-600 text-info" : "border-transparent text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {label}
@@ -211,18 +211,18 @@ export default function EstoqueTerceirosPage() {
 
             {aba === "saldos" && (
               porCliente.length === 0 ? (
-                <p className="text-sm text-gray-400 py-8 text-center">Nenhuma mercadoria de terceiro sob guarda.</p>
+                <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma mercadoria de terceiro sob guarda.</p>
               ) : (
                 <div className="space-y-5">
                   {porCliente.map(([clienteId, grupo]) => (
-                    <section key={clienteId} className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-                      <div className="px-5 py-3 bg-amber-50/60 border-b border-gray-100 flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-gray-800">{grupo.nome}</h3>
-                        <span className="text-xs text-gray-500">{fmtQtd(grupo.total)} un. sob guarda</span>
+                    <section key={clienteId} className="bg-card border border-border rounded-2xl overflow-hidden">
+                      <div className="px-5 py-3 bg-warning/10 border-b border-border flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-foreground">{grupo.nome}</h3>
+                        <span className="text-xs text-muted-foreground">{fmtQtd(grupo.total)} un. sob guarda</span>
                       </div>
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+                          <tr className="text-left text-xs text-muted-foreground border-b border-border">
                             <th className="px-5 py-2 font-medium">Produto</th>
                             <th className="px-5 py-2 font-medium">Local</th>
                             <th className="px-5 py-2 font-medium text-right">Quantidade</th>
@@ -233,10 +233,10 @@ export default function EstoqueTerceirosPage() {
                           {grupo.linhas.map((s) => (
                             <tr key={s.id} className="border-b border-gray-50">
                               <td className="px-5 py-2.5">
-                                <span className="font-mono text-xs text-gray-400 mr-2">{s.item.codigo}</span>
+                                <span className="font-mono text-xs text-muted-foreground mr-2">{s.item.codigo}</span>
                                 {s.item.descricao}
                               </td>
-                              <td className="px-5 py-2.5 text-gray-500">{s.localEstoque?.nome ?? "—"}</td>
+                              <td className="px-5 py-2.5 text-muted-foreground">{s.localEstoque?.nome ?? "—"}</td>
                               <td className="px-5 py-2.5 text-right font-semibold">
                                 {fmtQtd(s.quantidadeAtual)} {s.item.unidade?.sigla ?? s.item.unidadeMedida}
                               </td>
@@ -256,10 +256,10 @@ export default function EstoqueTerceirosPage() {
             )}
 
             {aba === "lancamentos" && (
-              <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+              <section className="bg-card border border-border rounded-2xl overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs text-gray-500 border-b border-gray-200 bg-gray-50">
+                    <tr className="text-left text-xs text-muted-foreground border-b border-border bg-muted">
                       <th className="px-5 py-2.5 font-medium">Data</th>
                       <th className="px-5 py-2.5 font-medium">Tipo</th>
                       <th className="px-5 py-2.5 font-medium">Produto</th>
@@ -272,25 +272,25 @@ export default function EstoqueTerceirosPage() {
                   </thead>
                   <tbody>
                     {movs.length === 0 && (
-                      <tr><td colSpan={8} className="px-5 py-8 text-center text-gray-400">Nenhum lançamento.</td></tr>
+                      <tr><td colSpan={8} className="px-5 py-8 text-center text-muted-foreground">Nenhum lançamento.</td></tr>
                     )}
                     {movs.map((m) => (
                       <tr key={m.id} className="border-b border-gray-50">
-                        <td className="px-5 py-2 text-gray-500 text-xs">{formatDate(m.createdAt)}</td>
+                        <td className="px-5 py-2 text-muted-foreground text-xs">{formatDate(m.createdAt)}</td>
                         <td className="px-5 py-2">
                           <span className={cn(
                             "px-1.5 py-0.5 rounded text-[10px] font-medium",
-                            m.tipo === "ENTRADA" ? "bg-green-50 text-green-700"
-                              : m.tipo === "SAIDA" ? "bg-red-50 text-red-700"
-                              : "bg-gray-100 text-gray-600"
+                            m.tipo === "ENTRADA" ? "bg-success/10 text-success"
+                              : m.tipo === "SAIDA" ? "bg-danger/10 text-danger"
+                              : "bg-muted text-muted-foreground"
                           )}>{m.tipo}</span>
                         </td>
-                        <td className="px-5 py-2"><span className="font-mono text-xs text-gray-400 mr-1.5">{m.item.codigo}</span>{m.item.descricao}</td>
-                        <td className="px-5 py-2 text-gray-600">{m.clienteDono.nomeFantasia || m.clienteDono.razaoSocial}</td>
-                        <td className="px-5 py-2 text-gray-500">{m.localEstoque?.nome ?? "—"}</td>
+                        <td className="px-5 py-2"><span className="font-mono text-xs text-muted-foreground mr-1.5">{m.item.codigo}</span>{m.item.descricao}</td>
+                        <td className="px-5 py-2 text-muted-foreground">{m.clienteDono.nomeFantasia || m.clienteDono.razaoSocial}</td>
+                        <td className="px-5 py-2 text-muted-foreground">{m.localEstoque?.nome ?? "—"}</td>
                         <td className="px-5 py-2 text-right font-medium">{fmtQtd(m.quantidade)}</td>
-                        <td className="px-5 py-2 text-right text-gray-500">{fmtQtd(m.saldoDepois)}</td>
-                        <td className="px-5 py-2 text-xs text-gray-400">{m.lote?.numero ?? m.documento ?? "—"}</td>
+                        <td className="px-5 py-2 text-right text-muted-foreground">{fmtQtd(m.saldoDepois)}</td>
+                        <td className="px-5 py-2 text-xs text-muted-foreground">{m.lote?.numero ?? m.documento ?? "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -304,19 +304,19 @@ export default function EstoqueTerceirosPage() {
       {/* ── Modal de reclassificação ─────────────────────────────────────────── */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4" onClick={() => !salvando && setShowModal(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                <ArrowLeftRight className="w-4 h-4 text-blue-600" />Reclassificar propriedade
+          <div className="bg-card rounded-2xl shadow-xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <ArrowLeftRight className="w-4 h-4 text-info" />Reclassificar propriedade
               </h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-muted-foreground"><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={reclassificar} className="px-6 py-5 space-y-4">
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Move a quantidade entre proprietários do mesmo produto/local, sem alterar o total físico
                 (gera um lote de AJUSTE com as duas pernas).
               </p>
-              {formErro && <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-lg">{formErro}</div>}
+              {formErro && <div className="bg-danger/10 border border-danger/30 text-danger text-xs px-3 py-2 rounded-lg">{formErro}</div>}
 
               <div className="space-y-1.5">
                 <Label>Produto <span className="text-red-500">*</span></Label>

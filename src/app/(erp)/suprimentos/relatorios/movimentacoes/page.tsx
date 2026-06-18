@@ -140,8 +140,8 @@ export default function RelatorioMovimentacoesPage() {
         {/* ── Filter bar ─────────────────────────────────────────────────── */}
         {(() => {
           const TIPO_OPTIONS: FilterOption[] = [
-            { key: "ENTRADA", label: "Entradas", color: "bg-emerald-100 text-emerald-700" },
-            { key: "SAIDA",   label: "Saídas",   color: "bg-red-100 text-red-700" },
+            { key: "ENTRADA", label: "Entradas", color: "bg-success/15 text-success" },
+            { key: "SAIDA",   label: "Saídas",   color: "bg-danger/15 text-danger" },
           ];
           const LOCAL_OPTIONS: FilterOption[] = locais.map((l) => ({ key: l.id, label: l.nome }));
           const defaultR = defaultRange();
@@ -174,19 +174,19 @@ export default function RelatorioMovimentacoesPage() {
               {hasFilters && (
                 <button
                   onClick={() => { setTipo(""); setLocalId(""); setPeriodo(defaultRange()); }}
-                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-muted-foreground"
                 >
                   <X className="w-3.5 h-3.5" /> Limpar
                 </button>
               )}
               {/* Product search */}
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Filtrar por produto..."
-                  className="pl-8 pr-3 h-9 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-52"
+                  className="pl-8 pr-3 h-9 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 w-52"
                 />
               </div>
 
@@ -209,44 +209,44 @@ export default function RelatorioMovimentacoesPage() {
         {/* ── KPI cards ──────────────────────────────────────────────────── */}
         {searched && !loading && (
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
-                <TrendingUp className="w-5 h-5 text-emerald-600" />
+            <div className="bg-card rounded-xl border border-border px-5 py-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center shrink-0">
+                <TrendingUp className="w-5 h-5 text-success" />
               </div>
               <div>
-                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Total Entradas</p>
-                <p className="text-xl font-bold text-emerald-700">{formatBRL(totEntradaValor)}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{formatQty(totEntradaQtd)} unidades</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Total Entradas</p>
+                <p className="text-xl font-bold text-success">{formatBRL(totEntradaValor)}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{formatQty(totEntradaQtd)} unidades</p>
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+            <div className="bg-card rounded-xl border border-border px-5 py-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-danger/10 flex items-center justify-center shrink-0">
                 <TrendingDown className="w-5 h-5 text-red-500" />
               </div>
               <div>
-                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Total Saídas</p>
-                <p className="text-xl font-bold text-red-600">{formatBRL(totSaidaValor)}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{formatQty(totSaidaQtd)} unidades</p>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Total Saídas</p>
+                <p className="text-xl font-bold text-danger">{formatBRL(totSaidaValor)}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{formatQty(totSaidaQtd)} unidades</p>
               </div>
             </div>
 
             <div className={cn(
-              "bg-white rounded-xl border px-5 py-4 flex items-center gap-4",
-              saldoLiquido >= 0 ? "border-gray-200" : "border-orange-200 bg-orange-50/30"
+              "bg-card rounded-xl border px-5 py-4 flex items-center gap-4",
+              saldoLiquido >= 0 ? "border-border" : "border-orange-200 bg-warning/10"
             )}>
               <div className={cn(
                 "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                saldoLiquido >= 0 ? "bg-blue-50" : "bg-orange-50"
+                saldoLiquido >= 0 ? "bg-info/10" : "bg-warning/10"
               )}>
-                <BarChart3 className={cn("w-5 h-5", saldoLiquido >= 0 ? "text-blue-600" : "text-orange-500")} />
+                <BarChart3 className={cn("w-5 h-5", saldoLiquido >= 0 ? "text-info" : "text-orange-500")} />
               </div>
               <div>
-                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Saldo Líquido</p>
-                <p className={cn("text-xl font-bold", saldoLiquido >= 0 ? "text-blue-700" : "text-orange-600")}>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Saldo Líquido</p>
+                <p className={cn("text-xl font-bold", saldoLiquido >= 0 ? "text-info" : "text-orange-600")}>
                   {formatBRL(saldoLiquido)}
                 </p>
-                <p className="text-xs text-gray-400 mt-0.5">{filtered.length} produto{filtered.length !== 1 ? "s" : ""} · {total} mov.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{filtered.length} produto{filtered.length !== 1 ? "s" : ""} · {total} mov.</p>
               </div>
             </div>
           </div>
@@ -254,102 +254,102 @@ export default function RelatorioMovimentacoesPage() {
 
         {/* ── Table ──────────────────────────────────────────────────────── */}
         {loading ? (
-          <div className="bg-white rounded-xl border border-gray-200 flex justify-center py-20">
-            <Loader2 className="w-7 h-7 animate-spin text-gray-300" />
+          <div className="bg-card rounded-xl border border-border flex justify-center py-20">
+            <Loader2 className="w-7 h-7 animate-spin text-muted-foreground/60" />
           </div>
         ) : !searched ? null : rows.length === 0 ? (
-          <div className="bg-white rounded-xl border border-dashed border-gray-200 flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
+          <div className="bg-card rounded-xl border border-dashed border-border flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
             <FileBarChart2 className="w-12 h-12 opacity-20" />
             <p className="font-medium">Nenhuma movimentação no período</p>
             <p className="text-sm">Ajuste os filtros e gere o relatório novamente.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr className="text-xs text-gray-400 uppercase tracking-wide">
+                <thead className="bg-muted border-b border-border">
+                  <tr className="text-xs text-muted-foreground uppercase tracking-wide">
                     <th className="text-left px-4 py-3 font-medium">Código</th>
                     <th className="text-left px-4 py-3 font-medium">Produto</th>
                     <th className="text-left px-4 py-3 font-medium">Und.</th>
                     {/* Entradas */}
-                    <th className="text-right px-4 py-3 font-medium border-l border-gray-200 text-emerald-600">
+                    <th className="text-right px-4 py-3 font-medium border-l border-border text-success">
                       Qtd. Entrada
                     </th>
-                    <th className="text-right px-4 py-3 font-medium text-emerald-600">
+                    <th className="text-right px-4 py-3 font-medium text-success">
                       Valor Entrada
                     </th>
                     {/* Saídas */}
-                    <th className="text-right px-4 py-3 font-medium border-l border-gray-200 text-red-500">
+                    <th className="text-right px-4 py-3 font-medium border-l border-border text-red-500">
                       Qtd. Saída
                     </th>
                     <th className="text-right px-4 py-3 font-medium text-red-500">
                       Valor Saída
                     </th>
                     {/* Saldo */}
-                    <th className="text-right px-4 py-3 font-medium border-l border-gray-200 text-blue-600">
+                    <th className="text-right px-4 py-3 font-medium border-l border-border text-info">
                       Saldo (R$)
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {filtered.map((r) => {
                     const saldo = r.totalEntradaValor - r.totalSaidaValor;
                     return (
-                      <tr key={r.itemId} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">
+                      <tr key={r.itemId} className="hover:bg-muted transition-colors">
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
                           {r.codigo}
                         </td>
-                        <td className="px-4 py-3 font-medium text-gray-900 max-w-[260px]">
+                        <td className="px-4 py-3 font-medium text-foreground max-w-[260px]">
                           <span className="truncate block">{r.descricao}</span>
-                          <span className="text-xs text-gray-400">{r.movimentacoes} mov.</span>
+                          <span className="text-xs text-muted-foreground">{r.movimentacoes} mov.</span>
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-500 font-mono">
+                        <td className="px-4 py-3 text-xs text-muted-foreground font-mono">
                           {r.unidade}
                         </td>
                         {/* Entradas */}
-                        <td className="px-4 py-3 text-right border-l border-gray-100">
+                        <td className="px-4 py-3 text-right border-l border-border">
                           {r.totalEntradaQtd > 0 ? (
-                            <span className="text-emerald-700 font-medium">
+                            <span className="text-success font-medium">
                               +{formatQty(r.totalEntradaQtd)}
                             </span>
                           ) : (
-                            <span className="text-gray-300">—</span>
+                            <span className="text-muted-foreground/60">—</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
                           {r.totalEntradaValor > 0 ? (
-                            <span className="text-emerald-700 font-semibold">
+                            <span className="text-success font-semibold">
                               {formatBRL(r.totalEntradaValor)}
                             </span>
                           ) : (
-                            <span className="text-gray-300">—</span>
+                            <span className="text-muted-foreground/60">—</span>
                           )}
                         </td>
                         {/* Saídas */}
-                        <td className="px-4 py-3 text-right border-l border-gray-100">
+                        <td className="px-4 py-3 text-right border-l border-border">
                           {r.totalSaidaQtd > 0 ? (
-                            <span className="text-red-600 font-medium">
+                            <span className="text-danger font-medium">
                               -{formatQty(r.totalSaidaQtd)}
                             </span>
                           ) : (
-                            <span className="text-gray-300">—</span>
+                            <span className="text-muted-foreground/60">—</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
                           {r.totalSaidaValor > 0 ? (
-                            <span className="text-red-600 font-semibold">
+                            <span className="text-danger font-semibold">
                               {formatBRL(r.totalSaidaValor)}
                             </span>
                           ) : (
-                            <span className="text-gray-300">—</span>
+                            <span className="text-muted-foreground/60">—</span>
                           )}
                         </td>
                         {/* Saldo */}
-                        <td className="px-4 py-3 text-right border-l border-gray-100">
+                        <td className="px-4 py-3 text-right border-l border-border">
                           <span className={cn(
                             "font-bold",
-                            saldo > 0 ? "text-blue-700" : saldo < 0 ? "text-orange-600" : "text-gray-400"
+                            saldo > 0 ? "text-info" : saldo < 0 ? "text-orange-600" : "text-muted-foreground"
                           )}>
                             {formatBRL(saldo)}
                           </span>
@@ -361,21 +361,21 @@ export default function RelatorioMovimentacoesPage() {
 
                 {/* Totals footer */}
                 <tfoot>
-                  <tr className="bg-gray-50 border-t-2 border-gray-200 font-semibold text-sm">
-                    <td colSpan={3} className="px-4 py-3 text-gray-500 text-xs uppercase tracking-wide">
+                  <tr className="bg-muted border-t-2 border-border font-semibold text-sm">
+                    <td colSpan={3} className="px-4 py-3 text-muted-foreground text-xs uppercase tracking-wide">
                       Total ({filtered.length} produto{filtered.length !== 1 ? "s" : ""})
                     </td>
-                    <td className="px-4 py-3 border-l border-gray-200" />
-                    <td className="px-4 py-3 text-right text-emerald-700">
+                    <td className="px-4 py-3 border-l border-border" />
+                    <td className="px-4 py-3 text-right text-success">
                       {formatBRL(totEntradaValor)}
                     </td>
-                    <td className="px-4 py-3 border-l border-gray-200" />
-                    <td className="px-4 py-3 text-right text-red-600">
+                    <td className="px-4 py-3 border-l border-border" />
+                    <td className="px-4 py-3 text-right text-danger">
                       {formatBRL(totSaidaValor)}
                     </td>
                     <td className={cn(
-                      "px-4 py-3 text-right border-l border-gray-200",
-                      saldoLiquido >= 0 ? "text-blue-700" : "text-orange-600"
+                      "px-4 py-3 text-right border-l border-border",
+                      saldoLiquido >= 0 ? "text-info" : "text-orange-600"
                     )}>
                       {formatBRL(saldoLiquido)}
                     </td>

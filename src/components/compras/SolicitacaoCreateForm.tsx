@@ -127,7 +127,7 @@ function SearchableSelect<T extends { id: string }>({
 
   if (disabled) {
     return (
-      <div className="flex items-center px-3 py-2 text-sm rounded-lg border border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed min-h-[38px]">
+      <div className="flex items-center px-3 py-2 text-sm rounded-lg border border-border bg-muted text-muted-foreground cursor-not-allowed min-h-[38px]">
         {placeholder}
       </div>
     );
@@ -136,10 +136,10 @@ function SearchableSelect<T extends { id: string }>({
   return (
     <div ref={containerRef} className="relative">
       <div className={cn(
-        "flex items-center rounded-lg border bg-white transition-colors",
+        "flex items-center rounded-lg border bg-card transition-colors",
         open ? "border-blue-400 ring-1 ring-blue-200"
           : error && !value ? "border-red-400 ring-1 ring-red-100"
-          : "border-gray-200 hover:border-gray-300"
+          : "border-border hover:border-border"
       )}>
         <input
           ref={inputRef}
@@ -148,19 +148,19 @@ function SearchableSelect<T extends { id: string }>({
           onChange={(e) => { setQuery(e.target.value); if (!open) openDropdown(); }}
           onFocus={openDropdown}
           placeholder={placeholder}
-          className="flex-1 px-3 py-2 text-sm bg-transparent outline-none placeholder:text-gray-400 text-gray-900"
+          className="flex-1 px-3 py-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground text-foreground"
         />
         {value && !open && (
-          <button type="button" onClick={handleClear} className="px-1.5 text-gray-300 hover:text-gray-500 transition-colors">
+          <button type="button" onClick={handleClear} className="px-1.5 text-muted-foreground/60 hover:text-muted-foreground transition-colors">
             <X className="w-3.5 h-3.5" />
           </button>
         )}
-        <ChevronDown className={cn("w-4 h-4 text-gray-400 shrink-0 mr-2 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 mr-2 transition-transform", open && "rotate-180")} />
       </div>
 
       {mounted && open && createPortal(
         <div
-          className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-auto max-h-56"
+          className="fixed z-[9999] bg-card border border-border rounded-xl shadow-lg overflow-auto max-h-56"
           style={{ top: pos?.top, left: pos?.left, width: pos?.width }}
         >
           {filtered.length > 0 ? filtered.map((o) => (
@@ -169,14 +169,14 @@ function SearchableSelect<T extends { id: string }>({
               type="button"
               onMouseDown={(e) => { e.preventDefault(); handleSelect(o.id); }}
               className={cn(
-                "w-full px-3 py-2 text-sm text-left hover:bg-blue-50 hover:text-blue-700 transition-colors",
-                o.id === value && "bg-blue-50 text-blue-700 font-medium"
+                "w-full px-3 py-2 text-sm text-left hover:bg-info/10 hover:text-info transition-colors",
+                o.id === value && "bg-info/10 text-info font-medium"
               )}
             >
               {getLabel(o)}
             </button>
           )) : (
-            <p className="px-3 py-2.5 text-sm text-gray-400 italic">
+            <p className="px-3 py-2.5 text-sm text-muted-foreground italic">
               {query ? `Nenhum resultado para "${query}"` : "Nenhuma opção disponível"}
             </p>
           )}
@@ -210,28 +210,28 @@ function SelectField<T extends { id: string }>({
         disabled={disabled}
         onClick={() => setOpen((p) => !p)}
         className={cn(
-          "flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white text-left transition-colors",
-          disabled ? "opacity-60 cursor-not-allowed bg-gray-50" : "hover:border-gray-300",
+          "flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg border border-border bg-card text-left transition-colors",
+          disabled ? "opacity-60 cursor-not-allowed bg-muted" : "hover:border-border",
           open && "border-blue-400 ring-1 ring-blue-200"
         )}
       >
-        <span className={selected ? "text-gray-900" : "text-gray-400"}>
+        <span className={selected ? "text-foreground" : "text-muted-foreground"}>
           {selected ? getLabel(selected) : placeholder}
         </span>
-        <ChevronDown className={cn("w-4 h-4 text-gray-400 shrink-0 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", open && "rotate-180")} />
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-auto max-h-52">
-            <button type="button" onClick={() => { onChange(""); setOpen(false); }} className="w-full px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 text-left">(Nenhum)</button>
+          <div className="absolute z-50 mt-1 w-full bg-card border border-border rounded-xl shadow-lg overflow-auto max-h-52">
+            <button type="button" onClick={() => { onChange(""); setOpen(false); }} className="w-full px-3 py-2 text-sm text-muted-foreground hover:bg-muted text-left">(Nenhum)</button>
             {options.map((o) => (
               <button key={o.id} type="button" onClick={() => { onChange(o.id); setOpen(false); }}
-                className={cn("w-full px-3 py-2 text-sm text-left hover:bg-blue-50 hover:text-blue-700 transition-colors", o.id === value && "bg-blue-50 text-blue-700 font-medium")}>
+                className={cn("w-full px-3 py-2 text-sm text-left hover:bg-info/10 hover:text-info transition-colors", o.id === value && "bg-info/10 text-info font-medium")}>
                 {getLabel(o)}
               </button>
             ))}
-            {options.length === 0 && <p className="px-3 py-2 text-sm text-gray-400 italic">Nenhuma opção disponível</p>}
+            {options.length === 0 && <p className="px-3 py-2 text-sm text-muted-foreground italic">Nenhuma opção disponível</p>}
           </div>
         </>
       )}
@@ -271,7 +271,7 @@ function UnitSelect({ value, options, onChange, disabled }: {
   // No units registered → show plain text
   if (disabled || options.length === 0) {
     return (
-      <div className="h-9 flex items-center px-3 text-sm border border-gray-100 rounded-md bg-gray-50 font-mono text-gray-500">
+      <div className="h-9 flex items-center px-3 text-sm border border-border rounded-md bg-muted font-mono text-muted-foreground">
         {value || "—"}
       </div>
     );
@@ -280,7 +280,7 @@ function UnitSelect({ value, options, onChange, disabled }: {
   // Only one unit → show as non-interactive badge
   if (options.length === 1) {
     return (
-      <div className="h-9 flex items-center px-3 text-sm border border-gray-100 rounded-md bg-gray-50 font-mono text-gray-700">
+      <div className="h-9 flex items-center px-3 text-sm border border-border rounded-md bg-muted font-mono text-foreground">
         {value || options[0].sigla}
       </div>
     );
@@ -290,27 +290,27 @@ function UnitSelect({ value, options, onChange, disabled }: {
     <>
       <button ref={btnRef} type="button" onClick={() => setOpen((p) => !p)}
         className={cn(
-          "h-9 w-full flex items-center justify-between px-2 text-sm border border-gray-200 rounded-md bg-white font-mono transition-colors hover:border-gray-300",
+          "h-9 w-full flex items-center justify-between px-2 text-sm border border-border rounded-md bg-card font-mono transition-colors hover:border-border",
           open && "border-blue-400 ring-1 ring-blue-200"
         )}>
-        <span className={value ? "text-gray-800" : "text-gray-400"}>{value || "Un."}</span>
-        <ChevronDown className={cn("w-3 h-3 text-gray-400 shrink-0 transition-transform", open && "rotate-180")} />
+        <span className={value ? "text-foreground" : "text-muted-foreground"}>{value || "Un."}</span>
+        <ChevronDown className={cn("w-3 h-3 text-muted-foreground shrink-0 transition-transform", open && "rotate-180")} />
       </button>
       {open && typeof window !== "undefined" && (
         <>
           <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
           {pos && (
-            <div className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-lg overflow-auto"
+            <div className="fixed z-[9999] bg-card border border-border rounded-xl shadow-lg overflow-auto"
               style={{ top: pos.top, bottom: pos.bottom, left: pos.left, width: Math.max(pos.width, 140), maxHeight: 180 }}>
               {options.map((u) => (
                 <button key={u.id} type="button" onClick={() => { onChange(u.sigla); setOpen(false); }}
                   className={cn(
-                    "w-full px-3 py-2 text-sm text-left hover:bg-blue-50 hover:text-blue-700 transition-colors font-mono",
-                    value === u.sigla && "bg-blue-50 text-blue-700 font-medium"
+                    "w-full px-3 py-2 text-sm text-left hover:bg-info/10 hover:text-info transition-colors font-mono",
+                    value === u.sigla && "bg-info/10 text-info font-medium"
                   )}>
                   <span className="font-bold">{u.sigla}</span>
-                  {u.nome && <span className="text-gray-400 ml-1.5 text-xs font-sans">{u.nome}</span>}
-                  {u.isPrincipal && <span className="ml-1.5 text-[10px] text-emerald-600">principal</span>}
+                  {u.nome && <span className="text-muted-foreground ml-1.5 text-xs font-sans">{u.nome}</span>}
+                  {u.isPrincipal && <span className="ml-1.5 text-[10px] text-success">principal</span>}
                 </button>
               ))}
             </div>
@@ -556,7 +556,7 @@ export default function SolicitacaoCreateForm() {
   return (
     <div>
       <form onSubmit={handleSubmit} className="space-y-5 max-w-5xl">
-        {serverError && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{serverError}</div>}
+        {serverError && <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{serverError}</div>}
 
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-base">Informações</CardTitle></CardHeader>
@@ -572,7 +572,7 @@ export default function SolicitacaoCreateForm() {
                   triggerClassName="h-9 rounded-lg"
                   options={user!.empresas!.map((e) => ({ value: e.id, label: e.nome }))}
                 />
-                <p className="text-xs text-gray-400">Para qual empresa do grupo é esta solicitação — todo o processo (cotação, pedido, conferência) seguirá nela.</p>
+                <p className="text-xs text-muted-foreground">Para qual empresa do grupo é esta solicitação — todo o processo (cotação, pedido, conferência) seguirá nela.</p>
               </div>
             )}
 
@@ -584,7 +584,7 @@ export default function SolicitacaoCreateForm() {
                 error={submitted && !filialId} />
               {submitted && !filialId
                 ? <p className="text-xs text-red-500">Filial é obrigatória</p>
-                : !filialId && <p className="text-xs text-gray-400">Selecione a filial para habilitar o campo Local de Estoque</p>
+                : !filialId && <p className="text-xs text-muted-foreground">Selecione a filial para habilitar o campo Local de Estoque</p>
               }
             </div>
 
@@ -596,7 +596,7 @@ export default function SolicitacaoCreateForm() {
               <div className="col-span-3 space-y-1.5">
                 <Label>Prioridade <span className="text-red-500">*</span></Label>
                 <select value={prioridade} onChange={(e) => setPrioridade(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+                  className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400">
                   {PRIORIDADES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
                 </select>
               </div>
@@ -638,7 +638,7 @@ export default function SolicitacaoCreateForm() {
               <div className="space-y-1.5">
                 <Label>Tipo de compra</Label>
                 <select value={tipoCompra} onChange={(e) => setTipoCompra(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+                  className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400">
                   <option value="">Selecione...</option>
                   <option value="SGA">SGA</option><option value="OPEX">OPEX</option>
                   <option value="CAPEX">CAPEX</option><option value="ESTOQUE">ESTOQUE</option>
@@ -752,51 +752,51 @@ export default function SolicitacaoCreateForm() {
       {/* ── Duplicate Warning Modal ──────────────────────────────────────────── */}
       {showDuplicateWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
             {/* Header */}
-            <div className="flex items-center gap-3 px-6 py-4 border-b border-amber-100 bg-amber-50">
-              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-amber-100 bg-warning/10">
+              <div className="w-9 h-9 rounded-full bg-warning/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-warning" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Itens já em andamento</p>
-                <p className="text-xs text-gray-500 mt-0.5">Alguns itens já estão presentes em processos ativos</p>
+                <p className="font-semibold text-foreground">Itens já em andamento</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Alguns itens já estão presentes em processos ativos</p>
               </div>
             </div>
 
             {/* Body */}
             <div className="px-6 py-4 max-h-72 overflow-y-auto space-y-3">
-              <p className="text-sm text-gray-600">Os seguintes itens já estão em processos ativos:</p>
+              <p className="text-sm text-muted-foreground">Os seguintes itens já estão em processos ativos:</p>
               <ul className="space-y-3">
                 {duplicateConflicts.map((c) => (
-                  <li key={c.itemId} className="rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2.5">
-                    <p className="text-sm font-medium text-gray-800">
-                      <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded mr-1.5">{c.itemCodigo}</span>
+                  <li key={c.itemId} className="rounded-lg border border-amber-100 bg-warning/10 px-3 py-2.5">
+                    <p className="text-sm font-medium text-foreground">
+                      <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded mr-1.5">{c.itemCodigo}</span>
                       {c.itemDescricao}
                     </p>
                     <ul className="mt-1.5 space-y-1">
                       {c.processos.map((p, idx) => (
-                        <li key={idx} className="flex items-center gap-1.5 text-xs text-gray-600">
-                          <span className="text-gray-400">→</span>
-                          <span className="font-mono font-semibold text-gray-700">{p.numero}</span>
+                        <li key={idx} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <span className="text-muted-foreground">→</span>
+                          <span className="font-mono font-semibold text-foreground">{p.numero}</span>
                           <span className={cn(
                             "px-1.5 py-0.5 rounded text-[10px] font-medium",
                             p.tipo === "SC"
-                              ? "bg-blue-100 text-blue-700"
+                              ? "bg-info/15 text-info"
                               : "bg-purple-100 text-purple-700"
                           )}>{p.tipo}</span>
-                          <span className="text-gray-500">{STATUS_PT[p.status] ?? p.status}</span>
+                          <span className="text-muted-foreground">{STATUS_PT[p.status] ?? p.status}</span>
                         </li>
                       ))}
                     </ul>
                   </li>
                 ))}
               </ul>
-              <p className="text-sm text-gray-600 pt-1">Deseja prosseguir assim mesmo?</p>
+              <p className="text-sm text-muted-foreground pt-1">Deseja prosseguir assim mesmo?</p>
             </div>
 
             {/* Footer */}
-            <div className="flex gap-3 px-6 py-4 border-t border-gray-100 justify-end">
+            <div className="flex gap-3 px-6 py-4 border-t border-border justify-end">
               <Button
                 type="button"
                 variant="outline"

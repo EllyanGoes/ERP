@@ -63,26 +63,26 @@ function SelectGrupo({
         disabled={disabled}
         onClick={() => setOpen((p) => !p)}
         className={cn(
-          "flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg border border-gray-200",
-          "bg-white hover:border-gray-300 transition-colors text-left",
+          "flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg border border-border",
+          "bg-card hover:border-border transition-colors text-left",
           disabled && "opacity-60 cursor-not-allowed",
           open && "border-blue-400 ring-1 ring-blue-200"
         )}
       >
-        <span className={selected ? "text-gray-900" : "text-gray-400"}>
+        <span className={selected ? "text-foreground" : "text-muted-foreground"}>
           {selected ? selected.nome : placeholder ?? "Selecionar grupo..."}
         </span>
-        <ChevronDown className={cn("w-4 h-4 text-gray-400 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="absolute z-50 mt-1 w-full bg-card border border-border rounded-xl shadow-lg overflow-hidden">
             <button
               type="button"
               onClick={() => { onChange(""); setOpen(false); }}
-              className="w-full px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 text-left"
+              className="w-full px-3 py-2 text-sm text-muted-foreground hover:bg-muted text-left"
             >
               (Nenhum)
             </button>
@@ -92,8 +92,8 @@ function SelectGrupo({
                 type="button"
                 onClick={() => { onChange(g.id); setOpen(false); }}
                 className={cn(
-                  "w-full px-3 py-2 text-sm text-left hover:bg-blue-50 hover:text-blue-700 transition-colors",
-                  g.id === value && "bg-blue-50 text-blue-700 font-medium"
+                  "w-full px-3 py-2 text-sm text-left hover:bg-info/10 hover:text-info transition-colors",
+                  g.id === value && "bg-info/10 text-info font-medium"
                 )}
               >
                 {g.nome}
@@ -266,14 +266,14 @@ export default function CentrosCustoPage() {
       <div className="px-8 pb-8 space-y-5">
         {/* Summary */}
         <div className="flex items-center gap-4">
-          <div className="rounded-xl px-5 py-3 bg-blue-50 text-blue-700 flex items-center gap-3">
+          <div className="rounded-xl px-5 py-3 bg-info/10 text-info flex items-center gap-3">
             <DollarSign className="w-5 h-5 opacity-60" />
             <div>
               <p className="text-xs font-medium opacity-70">Total</p>
               <p className="text-2xl font-bold leading-none mt-0.5">{centros.length}</p>
             </div>
           </div>
-          <div className="rounded-xl px-5 py-3 bg-emerald-50 text-emerald-700 flex items-center gap-3">
+          <div className="rounded-xl px-5 py-3 bg-success/10 text-success flex items-center gap-3">
             <div className="w-2 h-2 rounded-full bg-emerald-400" />
             <div>
               <p className="text-xs font-medium opacity-70">Ativos</p>
@@ -281,7 +281,7 @@ export default function CentrosCustoPage() {
             </div>
           </div>
           {inativos > 0 && (
-            <div className="rounded-xl px-5 py-3 bg-gray-50 text-gray-500 flex items-center gap-3">
+            <div className="rounded-xl px-5 py-3 bg-muted text-muted-foreground flex items-center gap-3">
               <div className="w-2 h-2 rounded-full bg-gray-400" />
               <div>
                 <p className="text-xs font-medium opacity-70">Inativos</p>
@@ -294,13 +294,13 @@ export default function CentrosCustoPage() {
         {/* Filters */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px] max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar código ou nome..."
-              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
           </div>
 
@@ -318,7 +318,7 @@ export default function CentrosCustoPage() {
           <select
             value={filtroAtivo}
             onChange={(e) => setFiltroAtivo(e.target.value as "" | "true" | "false")}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-gray-700"
+            className="px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400 text-foreground"
           >
             <option value="">Todos</option>
             <option value="true">Ativos</option>
@@ -329,42 +329,42 @@ export default function CentrosCustoPage() {
         {/* Table */}
         {loading ? (
           <div className="flex justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : centros.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+          <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
             <DollarSign className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="font-medium">Nenhum centro de custo encontrado</p>
             <p className="text-sm mt-1">Clique em &quot;Adicionar&quot; para criar o primeiro.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Código</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Nome</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-44">Grupo</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600 w-24">Ativo</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600 w-20">Ações</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground w-36">Código</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nome</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground w-44">Grupo</th>
+                  <th className="text-center px-4 py-3 font-medium text-muted-foreground w-24">Ativo</th>
+                  <th className="text-center px-4 py-3 font-medium text-muted-foreground w-20">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {centros.map((centro) => (
-                  <tr key={centro.id} className="hover:bg-gray-50/60 transition-colors">
+                  <tr key={centro.id} className="hover:bg-muted/60 transition-colors">
                     <td className="px-4 py-3">
-                      <span className="font-mono text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded">
+                      <span className="font-mono text-xs font-semibold text-foreground bg-muted px-2 py-0.5 rounded">
                         {centro.codigo}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{centro.nome}</td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-4 py-3 font-medium text-foreground">{centro.nome}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
                       {centro.grupoCentroCusto ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-violet-50 text-violet-700">
                           {centro.grupoCentroCusto.nome}
                         </span>
                       ) : (
-                        <span className="text-gray-300">—</span>
+                        <span className="text-muted-foreground/60">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -372,8 +372,8 @@ export default function CentrosCustoPage() {
                         className={cn(
                           "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
                           centro.ativo
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-gray-100 text-gray-500"
+                            ? "bg-success/15 text-success"
+                            : "bg-muted text-muted-foreground"
                         )}
                       >
                         {centro.ativo ? "Ativo" : "Inativo"}
@@ -383,14 +383,14 @@ export default function CentrosCustoPage() {
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={(e) => openEdit(centro, e)}
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
                           title="Editar"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={(e) => openDelete(centro, e)}
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
                           title="Excluir"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -408,15 +408,15 @@ export default function CentrosCustoPage() {
       {/* ── Create Modal ───────────────────────────────────────────────────────── */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 space-y-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <DollarSign className="w-4 h-4 text-blue-600" />
+                <div className="w-8 h-8 rounded-lg bg-info/15 flex items-center justify-center">
+                  <DollarSign className="w-4 h-4 text-info" />
                 </div>
-                <h3 className="font-semibold text-gray-900">Adicionar centro de custo</h3>
+                <h3 className="font-semibold text-foreground">Adicionar centro de custo</h3>
               </div>
-              <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setShowCreate(false)} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -454,7 +454,7 @@ export default function CentrosCustoPage() {
             </div>
 
             {createError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
                 {createError}
               </p>
             )}
@@ -481,10 +481,10 @@ export default function CentrosCustoPage() {
       {/* ── Edit Modal ─────────────────────────────────────────────────────────── */}
       {editItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 space-y-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Editar centro de custo</h3>
-              <button onClick={() => setEditItem(null)} className="text-gray-400 hover:text-gray-600">
+              <h3 className="font-semibold text-foreground">Editar centro de custo</h3>
+              <button onClick={() => setEditItem(null)} className="text-muted-foreground hover:text-muted-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -530,7 +530,7 @@ export default function CentrosCustoPage() {
             </div>
 
             {editError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
                 {editError}
               </p>
             )}
@@ -557,22 +557,22 @@ export default function CentrosCustoPage() {
       {/* ── Delete Modal ───────────────────────────────────────────────────────── */}
       {deleteItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+          <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-danger" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Excluir centro de custo?</p>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">{deleteItem.codigo}</span>
+                <p className="font-semibold text-foreground">Excluir centro de custo?</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{deleteItem.codigo}</span>
                   {" "}{deleteItem.nome}
                 </p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-4">Esta ação é permanente e não pode ser desfeita.</p>
+            <p className="text-sm text-muted-foreground mb-4">Esta ação é permanente e não pode ser desfeita.</p>
             {deleteError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
+              <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">
                 {deleteError}
               </p>
             )}

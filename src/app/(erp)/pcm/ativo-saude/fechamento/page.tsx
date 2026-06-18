@@ -189,7 +189,7 @@ export default function FechamentoPage() {
         <select
           value={mes}
           onChange={(e) => setMes(Number(e.target.value))}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           {MESES.map((m, i) => (
             <option key={m} value={i + 1}>{m}</option>
@@ -198,13 +198,13 @@ export default function FechamentoPage() {
         <select
           value={ano}
           onChange={(e) => setAno(Number(e.target.value))}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           {anos.map((a) => (
             <option key={a} value={a}>{a}</option>
           ))}
         </select>
-        <label className="flex items-center gap-1.5 text-sm text-gray-600">
+        <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
           Ativo
           <ComboboxWithCreate
             value={codAplFiltro === null ? "" : String(codAplFiltro)}
@@ -223,7 +223,7 @@ export default function FechamentoPage() {
               onClick={() => setFiltro(f)}
               className={cn(
                 "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium border transition-colors",
-                filtro === f ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50",
+                filtro === f ? "bg-blue-600 text-white border-blue-600" : "bg-card text-muted-foreground border-border hover:bg-muted",
               )}
             >
               {f === "all" ? "Todos" : <>Criticidade {f}</>}
@@ -237,7 +237,7 @@ export default function FechamentoPage() {
               "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium border transition-colors",
               soRevisar
                 ? "bg-amber-500 text-white border-amber-500"
-                : "bg-white text-amber-700 border-amber-200 hover:bg-amber-50",
+                : "bg-card text-warning border-warning/30 hover:bg-warning/10",
             )}
           >
             <TriangleAlert className="w-3.5 h-3.5" /> Só a revisar
@@ -245,7 +245,7 @@ export default function FechamentoPage() {
           </button>
         </div>
 
-        <div className="ml-auto flex items-center gap-2 text-xs text-gray-500">
+        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
           <span>{resumo.fechados}/{resumo.total} fechados</span>
           <button
             type="button"
@@ -260,14 +260,14 @@ export default function FechamentoPage() {
       </div>
 
       {erroSalvar && (
-        <div className="mx-8 mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="mx-8 mb-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
           {erroSalvar}
         </div>
       )}
 
       {/* Observação sobre o sinal de estimativa */}
       {!loading && !erroCarga && resumo.aRevisar > 0 && (
-        <div className="mx-8 mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <div className="mx-8 mb-3 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
           <TriangleAlert className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
           <span>
             A tag <strong>Revisar</strong> indica que há <strong>falha sem o carimbo de parada</strong>{" "}
@@ -282,15 +282,15 @@ export default function FechamentoPage() {
       {/* Conteúdo */}
       <div className="flex-1 min-h-0 flex flex-col px-8 pb-8">
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-gray-400 gap-2 text-sm">
+          <div className="flex items-center justify-center py-20 text-muted-foreground gap-2 text-sm">
             <RefreshCw className="w-4 h-4 animate-spin" /> Carregando…
           </div>
         ) : erroCarga ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mb-3">
+            <div className="w-14 h-14 rounded-full bg-warning/10 flex items-center justify-center mb-3">
               <AlertTriangle className="w-7 h-7 text-amber-400" />
             </div>
-            <p className="text-sm font-medium text-gray-700">{erroCarga}</p>
+            <p className="text-sm font-medium text-foreground">{erroCarga}</p>
             <button
               type="button"
               onClick={load}
@@ -301,18 +301,18 @@ export default function FechamentoPage() {
           </div>
         ) : visible.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-              <PackageSearch className="w-7 h-7 text-gray-300" />
+            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-3">
+              <PackageSearch className="w-7 h-7 text-muted-foreground/60" />
             </div>
-            <p className="text-sm font-medium text-gray-700">Nenhum ativo neste mês</p>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-sm font-medium text-foreground">Nenhum ativo neste mês</p>
+            <p className="text-xs text-muted-foreground mt-1">
               Sem falhas registradas no Engeman em {MESES[mes - 1]}/{ano} para o filtro atual.
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-auto min-h-0">
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-auto min-h-0">
             <table className="w-full min-w-[920px] text-sm">
-              <thead className="sticky top-0 z-10 bg-gray-50 text-xs text-gray-500 uppercase tracking-wider shadow-sm">
+              <thead className="sticky top-0 z-10 bg-muted text-xs text-muted-foreground uppercase tracking-wider shadow-sm">
                 <tr>
                   <th className="text-left font-medium px-3 py-2">Ativo</th>
                   <th className="text-center font-medium px-2 py-2 w-12">Crit.</th>
@@ -324,7 +324,7 @@ export default function FechamentoPage() {
                   <th className="text-right font-medium px-3 py-2 w-44">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {visible.map((row) => {
                   const mtbf = calcMtbf(row.horasFuncionamento, row.horasParadaNaoPlanejada, row.numeroFalhas);
                   const mttr = calcMttr(row.horasParadaNaoPlanejada, row.numeroFalhas);
@@ -332,26 +332,26 @@ export default function FechamentoPage() {
                   return (
                     <Fragment key={row.codApl}>
                     <tr
-                      className={cn(row.fechado ? "bg-emerald-50/40" : row.temEstimativa && "bg-amber-50/40")}
+                      className={cn(row.fechado ? "bg-success/10" : row.temEstimativa && "bg-warning/10")}
                     >
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => setDetalhe((d) => (d === row.codApl ? null : row.codApl))}
-                            className="text-gray-400 hover:text-gray-600 shrink-0"
+                            className="text-muted-foreground hover:text-muted-foreground shrink-0"
                             title="Ver as OS do Engeman deste ativo no mês"
                           >
                             {detalhe === row.codApl ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                           </button>
                           <div className="min-w-0">
-                            <div className="text-gray-800 truncate max-w-[260px]" title={row.descricao}>{row.descricao}</div>
-                            <div className="text-[11px] text-gray-400 font-mono">{row.tag}</div>
+                            <div className="text-foreground truncate max-w-[260px]" title={row.descricao}>{row.descricao}</div>
+                            <div className="text-[11px] text-muted-foreground font-mono">{row.tag}</div>
                           </div>
                         </div>
                       </td>
                       <td className="px-2 py-2 text-center">
-                        {row.criticidade ? <CriticidadeBadge value={row.criticidade} /> : <span className="text-gray-300">—</span>}
+                        {row.criticidade ? <CriticidadeBadge value={row.criticidade} /> : <span className="text-muted-foreground/60">—</span>}
                       </td>
                       <td className="px-2 py-2 text-right">
                         <input
@@ -359,14 +359,14 @@ export default function FechamentoPage() {
                           value={row.horasFuncionamento}
                           disabled={row.fechado || saving}
                           onChange={(e) => setCampo(row.codApl, "horasFuncionamento", e.target.value === "" ? 0 : Number(e.target.value))}
-                          className="w-24 rounded border border-gray-200 px-2 py-1 text-right tabular-nums disabled:bg-gray-50 disabled:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-24 rounded border border-border px-2 py-1 text-right tabular-nums disabled:bg-muted disabled:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                       </td>
                       <td className="px-2 py-2 text-right">
                         {row.temEstimativa && (
                           <div className="flex justify-end mb-1">
                             <span
-                              className="inline-flex items-center gap-1 rounded bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] font-semibold"
+                              className="inline-flex items-center gap-1 rounded bg-warning/15 text-warning px-1.5 py-0.5 text-[10px] font-semibold"
                               title="Há falha sem o carimbo de parada MAQPAR→MAQFUN — a parada principal entrou como 0h. Confira/preencha antes de fechar."
                             >
                               <TriangleAlert className="w-3 h-3" /> Revisar
@@ -379,7 +379,7 @@ export default function FechamentoPage() {
                           disabled={row.fechado || saving}
                           title={row.temEstimativa ? "Há falha sem o carimbo de parada MAQPAR→MAQFUN (parada principal = 0h)" : `Engeman: ${numFmt.format(row.engemanParada)} h`}
                           onChange={(e) => setCampo(row.codApl, "horasParadaNaoPlanejada", e.target.value === "" ? 0 : Number(e.target.value))}
-                          className="w-24 rounded border border-gray-200 px-2 py-1 text-right tabular-nums disabled:bg-gray-50 disabled:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-24 rounded border border-border px-2 py-1 text-right tabular-nums disabled:bg-muted disabled:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                       </td>
                       <td className="px-2 py-2 text-right">
@@ -389,22 +389,22 @@ export default function FechamentoPage() {
                           disabled={row.fechado || saving}
                           title={`Engeman: ${row.engemanFalhas}`}
                           onChange={(e) => setCampo(row.codApl, "numeroFalhas", e.target.value === "" ? 0 : Number(e.target.value))}
-                          className="w-16 rounded border border-gray-200 px-2 py-1 text-right tabular-nums disabled:bg-gray-50 disabled:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-16 rounded border border-border px-2 py-1 text-right tabular-nums disabled:bg-muted disabled:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                       </td>
-                      <td className="px-2 py-2 text-right tabular-nums font-semibold text-blue-700">{fmtH(mtbf)}</td>
-                      <td className="px-2 py-2 text-right tabular-nums font-semibold text-gray-700">{fmtH(mttr)}</td>
+                      <td className="px-2 py-2 text-right tabular-nums font-semibold text-info">{fmtH(mtbf)}</td>
+                      <td className="px-2 py-2 text-right tabular-nums font-semibold text-foreground">{fmtH(mttr)}</td>
                       <td className="px-3 py-2">
                         <div className="flex items-center justify-end gap-1.5">
                           {row.fechado ? (
                             <>
-                              <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-medium">
+                              <span className="inline-flex items-center gap-1 text-xs text-success font-medium">
                                 <Lock className="w-3.5 h-3.5" /> Fechado
                               </span>
                               <button
                                 type="button" disabled={saving}
                                 onClick={() => salvar(row, false)}
-                                className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-40"
                               >
                                 <Unlock className="w-3.5 h-3.5" /> Reabrir
                               </button>
@@ -414,7 +414,7 @@ export default function FechamentoPage() {
                               <button
                                 type="button" disabled={saving}
                                 onClick={() => salvar(row, false)}
-                                className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-40"
                               >
                                 {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Salvar
                               </button>
@@ -432,7 +432,7 @@ export default function FechamentoPage() {
                     </tr>
                     {detalhe === row.codApl && (
                       <tr>
-                        <td colSpan={8} className="bg-gray-50/70 px-4 py-3 border-b border-gray-100">
+                        <td colSpan={8} className="bg-muted/70 px-4 py-3 border-b border-border">
                           <DetalheOs codApl={row.codApl} ano={ano} mes={mes} />
                         </td>
                       </tr>

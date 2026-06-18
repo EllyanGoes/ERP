@@ -74,10 +74,10 @@ function ChartTooltip({ active, payload, labelKey }: {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   return (
-    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm text-xs">
-      <div className="font-semibold text-gray-800">{labelKey === "cliente" ? p.label : p.label}</div>
-      <div className="text-gray-600 mt-0.5">{formatBRL(p.valor)}</div>
-      <div className="text-gray-400">{p.pedidos} pedido{p.pedidos !== 1 ? "s" : ""}</div>
+    <div className="rounded-lg border border-border bg-card px-3 py-2 shadow-sm text-xs">
+      <div className="font-semibold text-foreground">{labelKey === "cliente" ? p.label : p.label}</div>
+      <div className="text-muted-foreground mt-0.5">{formatBRL(p.valor)}</div>
+      <div className="text-muted-foreground">{p.pedidos} pedido{p.pedidos !== 1 ? "s" : ""}</div>
     </div>
   );
 }
@@ -259,23 +259,23 @@ export default function FaturamentoReportPage() {
         {/* Filtro de período + critério do que conta como faturado */}
         <div className="flex items-center gap-3 flex-wrap">
           <DateRangePicker value={range} onChange={setRange} />
-          <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden shrink-0">
+          <div className="inline-flex rounded-lg border border-border overflow-hidden shrink-0">
             <button
               type="button"
               onClick={() => setCriterio("entrega")}
-              className={cn("px-3 py-2 text-sm font-medium", criterio === "entrega" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50")}
+              className={cn("px-3 py-2 text-sm font-medium", criterio === "entrega" ? "bg-blue-600 text-white" : "bg-card text-muted-foreground hover:bg-muted")}
             >
               Por entrega/conclusão
             </button>
             <button
               type="button"
               onClick={() => setCriterio("confirmacao")}
-              className={cn("px-3 py-2 text-sm font-medium border-l border-gray-300", criterio === "confirmacao" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50")}
+              className={cn("px-3 py-2 text-sm font-medium border-l border-border", criterio === "confirmacao" ? "bg-blue-600 text-white" : "bg-card text-muted-foreground hover:bg-muted")}
             >
               Por confirmação do pedido
             </button>
           </div>
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-muted-foreground">
             {criterio === "entrega"
               ? "Faturamento realizado: balcão na conclusão e venda agendada a cada entrega (minuta entregue)."
               : "Faturamento por pedido confirmado: confirmados, em agendamento e concluídos, pelo valor total na data de emissão."}
@@ -291,22 +291,22 @@ export default function FaturamentoReportPage() {
         </div>
 
         {/* Gráfico + drill-down */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-5 py-3 border-b border-border flex items-center justify-between gap-3 flex-wrap">
             {/* Breadcrumb de drill-down */}
             <div className="flex items-center gap-1.5 text-sm">
               <button
                 onClick={() => { setSelectedDay(null); setSelectedCliente(null); }}
-                className={cn("font-semibold", selectedDay ? "text-blue-600 hover:underline" : "text-gray-800")}
+                className={cn("font-semibold", selectedDay ? "text-info hover:underline" : "text-foreground")}
               >
                 Por dia
               </button>
               {selectedDay && (
                 <>
-                  <ChevronRight className="w-4 h-4 text-gray-300" />
+                  <ChevronRight className="w-4 h-4 text-muted-foreground/60" />
                   <button
                     onClick={() => setSelectedCliente(null)}
-                    className={cn("font-semibold", selectedCliente ? "text-blue-600 hover:underline" : "text-gray-800")}
+                    className={cn("font-semibold", selectedCliente ? "text-info hover:underline" : "text-foreground")}
                   >
                     {diaLabelLongo(selectedDay)}
                   </button>
@@ -314,24 +314,24 @@ export default function FaturamentoReportPage() {
               )}
               {selectedCliente && (
                 <>
-                  <ChevronRight className="w-4 h-4 text-gray-300" />
-                  <span className="font-semibold text-gray-800">{selectedCliente.nome}</span>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground/60" />
+                  <span className="font-semibold text-foreground">{selectedCliente.nome}</span>
                 </>
               )}
             </div>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-muted-foreground">
               {selectedDay ? "Por cliente — clique numa barra para filtrar os pedidos" : "Clique num ponto (dia) para detalhar"}
             </span>
           </div>
 
           <div className="p-5">
             {loading ? (
-              <div className="flex items-center justify-center h-[320px] text-gray-400 gap-2">
+              <div className="flex items-center justify-center h-[320px] text-muted-foreground gap-2">
                 <Loader2 className="w-5 h-5 animate-spin" /> <span className="text-sm">Carregando…</span>
               </div>
             ) : chartData.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-[320px] text-gray-400 gap-2">
-                <BarChart3 className="w-8 h-8 text-gray-300" />
+              <div className="flex flex-col items-center justify-center h-[320px] text-muted-foreground gap-2">
+                <BarChart3 className="w-8 h-8 text-muted-foreground/60" />
                 <p className="text-sm font-medium">Nenhum faturamento no período</p>
               </div>
             ) : selectedDay ? (
@@ -412,15 +412,15 @@ export default function FaturamentoReportPage() {
 
           {/* Lista de pedidos do dia selecionado */}
           {selectedDay && !loading && (
-            <div className="border-t border-gray-100">
-              <div className="px-5 py-3 flex items-center gap-2 text-sm text-gray-600 bg-gray-50">
-                <Users className="w-4 h-4 text-gray-400" />
+            <div className="border-t border-border">
+              <div className="px-5 py-3 flex items-center gap-2 text-sm text-muted-foreground bg-muted">
+                <Users className="w-4 h-4 text-muted-foreground" />
                 Pedidos de {diaLabelLongo(selectedDay)}
-                {selectedCliente && <> · <span className="font-medium text-gray-800">{selectedCliente.nome}</span></>}
-                <span className="ml-auto text-xs text-gray-400">{listaPedidos.length} pedido{listaPedidos.length !== 1 ? "s" : ""}</span>
+                {selectedCliente && <> · <span className="font-medium text-foreground">{selectedCliente.nome}</span></>}
+                <span className="ml-auto text-xs text-muted-foreground">{listaPedidos.length} pedido{listaPedidos.length !== 1 ? "s" : ""}</span>
               </div>
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-y border-gray-100 text-xs text-gray-500">
+                <thead className="bg-muted border-y border-border text-xs text-muted-foreground">
                   <tr>
                     <th className="text-left px-5 py-2 font-medium">Pedido</th>
                     <th className="text-left px-5 py-2 font-medium">Cliente</th>
@@ -428,17 +428,17 @@ export default function FaturamentoReportPage() {
                     <th className="text-right px-5 py-2 font-medium">Valor</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {listaPedidos.map((r) => (
                     <tr
                       key={r.id}
-                      className="hover:bg-gray-50 cursor-pointer transition-colors"
+                      className="hover:bg-muted cursor-pointer transition-colors"
                       onClick={() => router.push(`/pedidos-venda/${r.id}`)}
                     >
-                      <td className="px-5 py-2.5 font-mono text-xs font-semibold text-gray-900">{r.numero}</td>
-                      <td className="px-5 py-2.5 text-gray-700">{r.clienteNome}</td>
+                      <td className="px-5 py-2.5 font-mono text-xs font-semibold text-foreground">{r.numero}</td>
+                      <td className="px-5 py-2.5 text-foreground">{r.clienteNome}</td>
                       <td className="px-5 py-2.5"><StatusBadge status={r.status} /></td>
-                      <td className="px-5 py-2.5 text-right font-semibold text-gray-900">{formatBRL(r.valor)}</td>
+                      <td className="px-5 py-2.5 text-right font-semibold text-foreground">{formatBRL(r.valor)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -448,25 +448,25 @@ export default function FaturamentoReportPage() {
         </div>
 
         {/* ── Faturamento por Cliente (ranking / Curva ABC) ──────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-              <Users className="w-4 h-4 text-gray-400" /> Faturamento por Cliente
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Users className="w-4 h-4 text-muted-foreground" /> Faturamento por Cliente
             </p>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-muted-foreground">
               {porClientePareto.length} cliente{porClientePareto.length !== 1 ? "s" : ""} · clique na linha para ver os pedidos
             </span>
           </div>
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-gray-400 gap-2">
+            <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
               <Loader2 className="w-5 h-5 animate-spin" /> <span className="text-sm">Carregando…</span>
             </div>
           ) : porClientePareto.length === 0 ? (
-            <div className="text-center py-12 text-gray-400 text-sm">Nenhum faturamento no período selecionado</div>
+            <div className="text-center py-12 text-muted-foreground text-sm">Nenhum faturamento no período selecionado</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+                <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                   <tr>
                     <th className="text-left px-5 py-3 font-semibold">#</th>
                     <th className="text-left px-5 py-3 font-semibold">Cliente</th>
@@ -477,21 +477,21 @@ export default function FaturamentoReportPage() {
                     <th className="px-5 py-3 w-40" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {porClientePareto.map((c, i) => {
                     const curvaClass = c.pctAcumulado <= 80 ? "bg-blue-500" : c.pctAcumulado <= 95 ? "bg-amber-400" : "bg-rose-400";
                     const curvaLabel = c.pctAcumulado <= 80 ? "A" : c.pctAcumulado <= 95 ? "B" : "C";
                     return (
-                      <tr key={c.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => abrirCliente(c)}>
-                        <td className="px-5 py-3 text-gray-400 text-xs">{i + 1}</td>
-                        <td className="px-5 py-3 font-medium text-gray-800">{c.nome}</td>
-                        <td className="px-5 py-3 text-right text-gray-600">{c.pedidos}</td>
-                        <td className="px-5 py-3 text-right font-semibold text-gray-900">{formatBRL(c.valor)}</td>
-                        <td className="px-5 py-3 text-right text-gray-600">{c.pct.toFixed(2)}%</td>
-                        <td className="px-5 py-3 text-right font-medium text-gray-700">{c.pctAcumulado.toFixed(2)}%</td>
+                      <tr key={c.id} className="hover:bg-muted transition-colors cursor-pointer" onClick={() => abrirCliente(c)}>
+                        <td className="px-5 py-3 text-muted-foreground text-xs">{i + 1}</td>
+                        <td className="px-5 py-3 font-medium text-foreground">{c.nome}</td>
+                        <td className="px-5 py-3 text-right text-muted-foreground">{c.pedidos}</td>
+                        <td className="px-5 py-3 text-right font-semibold text-foreground">{formatBRL(c.valor)}</td>
+                        <td className="px-5 py-3 text-right text-muted-foreground">{c.pct.toFixed(2)}%</td>
+                        <td className="px-5 py-3 text-right font-medium text-foreground">{c.pctAcumulado.toFixed(2)}%</td>
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                               <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(c.pct * 5, 100)}%` }} />
                             </div>
                             <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded text-white shrink-0", curvaClass)}>{curvaLabel}</span>
@@ -501,11 +501,11 @@ export default function FaturamentoReportPage() {
                     );
                   })}
                 </tbody>
-                <tfoot className="border-t-2 border-gray-200 bg-gray-50">
+                <tfoot className="border-t-2 border-border bg-muted">
                   <tr>
-                    <td colSpan={3} className="px-5 py-3 text-xs font-bold text-gray-600 uppercase tracking-wide">Total</td>
-                    <td className="px-5 py-3 text-right font-bold text-gray-900">{formatBRL(faturamentoTotal)}</td>
-                    <td className="px-5 py-3 text-right font-bold text-gray-600">100,00%</td>
+                    <td colSpan={3} className="px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide">Total</td>
+                    <td className="px-5 py-3 text-right font-bold text-foreground">{formatBRL(faturamentoTotal)}</td>
+                    <td className="px-5 py-3 text-right font-bold text-muted-foreground">100,00%</td>
                     <td colSpan={2} />
                   </tr>
                 </tfoot>
@@ -515,19 +515,19 @@ export default function FaturamentoReportPage() {
         </div>
 
         {/* ── Faturamento por Produto (rosca) ────────────────────────────────── */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="bg-card rounded-xl border border-border p-5">
           <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-            <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-              <Package className="w-4 h-4 text-gray-400" /> Faturamento por Produto
+            <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Package className="w-4 h-4 text-muted-foreground" /> Faturamento por Produto
             </p>
-            <span className="text-xs text-gray-400">Principais produtos · clique para detalhar</span>
+            <span className="text-xs text-muted-foreground">Principais produtos · clique para detalhar</span>
           </div>
           {loading ? (
-            <div className="flex items-center justify-center h-40 text-gray-400 gap-2">
+            <div className="flex items-center justify-center h-40 text-muted-foreground gap-2">
               <Loader2 className="w-5 h-5 animate-spin" /> <span className="text-sm">Carregando…</span>
             </div>
           ) : porProduto.length === 0 ? (
-            <div className="flex items-center justify-center h-40 text-gray-300 text-sm">Sem dados no período</div>
+            <div className="flex items-center justify-center h-40 text-muted-foreground/60 text-sm">Sem dados no período</div>
           ) : (
             <div className="flex flex-col sm:flex-row items-center gap-6">
               <div className="w-44 h-44 shrink-0">
@@ -563,9 +563,9 @@ export default function FaturamentoReportPage() {
                     title={p.label}
                   >
                     <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                    <span className="text-xs text-gray-600 truncate flex-1 group-hover:text-blue-600 transition-colors">{p.label}</span>
-                    <span className="text-xs text-gray-400 shrink-0 tabular-nums">{formatBRL(p.valor)}</span>
-                    <span className="text-xs font-semibold text-gray-800 shrink-0 w-12 text-right tabular-nums">{p.pct.toFixed(1)}%</span>
+                    <span className="text-xs text-muted-foreground truncate flex-1 group-hover:text-info transition-colors">{p.label}</span>
+                    <span className="text-xs text-muted-foreground shrink-0 tabular-nums">{formatBRL(p.valor)}</span>
+                    <span className="text-xs font-semibold text-foreground shrink-0 w-12 text-right tabular-nums">{p.pct.toFixed(1)}%</span>
                   </button>
                 ))}
               </div>
@@ -587,10 +587,10 @@ function ProdutoTooltip({ active, payload }: {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   return (
-    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm text-xs">
-      <div className="font-semibold text-gray-800 max-w-[220px] truncate">{p.label}</div>
-      <div className="text-gray-600 mt-0.5">{formatBRL(p.valor)}</div>
-      <div className="text-gray-400">{p.pct.toFixed(1)}% do faturamento</div>
+    <div className="rounded-lg border border-border bg-card px-3 py-2 shadow-sm text-xs">
+      <div className="font-semibold text-foreground max-w-[220px] truncate">{p.label}</div>
+      <div className="text-muted-foreground mt-0.5">{formatBRL(p.valor)}</div>
+      <div className="text-muted-foreground">{p.pct.toFixed(1)}% do faturamento</div>
     </div>
   );
 }
@@ -611,15 +611,15 @@ function DrillModal({ data, onClose }: { data: DrillDown; onClose: () => void })
   return (
     <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
-        <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100">
+      <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
+        <div className="flex items-start justify-between px-6 py-4 border-b border-border">
           <div>
-            <p className="text-sm font-semibold text-gray-900">{data.title}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{data.subtitle}</p>
+            <p className="text-sm font-semibold text-foreground">{data.title}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{data.subtitle}</p>
           </div>
           <button
             onClick={onClose}
-            className="ml-4 flex items-center justify-center h-8 w-8 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+            className="ml-4 flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-muted-foreground transition-colors shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -628,7 +628,7 @@ function DrillModal({ data, onClose }: { data: DrillDown; onClose: () => void })
         <div className="overflow-y-auto flex-1">
           {data.kind === "pedidos" && (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide sticky top-0">
+              <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide sticky top-0">
                 <tr>
                   <th className="text-left px-5 py-3 font-semibold">Pedido</th>
                   <th className="text-left px-5 py-3 font-semibold">Cliente</th>
@@ -636,22 +636,22 @@ function DrillModal({ data, onClose }: { data: DrillDown; onClose: () => void })
                   <th className="text-right px-5 py-3 font-semibold">Valor</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {data.pedidos.map((p) => (
                   <tr
                     key={p.id + p.numero}
-                    className="hover:bg-blue-50 cursor-pointer transition-colors group"
+                    className="hover:bg-info/10 cursor-pointer transition-colors group"
                     title="Abrir pedido de venda"
                     onClick={() => { onClose(); router.push(`/pedidos-venda/${p.id}`); }}
                   >
-                    <td className="px-5 py-3 font-mono text-xs text-blue-600 group-hover:underline">{p.numero}</td>
-                    <td className="px-5 py-3 text-gray-800">{p.clienteNome}</td>
-                    <td className="px-5 py-3 text-right text-gray-500 text-xs">{diaLabelLongo(p.data)}</td>
-                    <td className="px-5 py-3 text-right font-semibold text-gray-900">{formatBRL(p.valor)}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-info group-hover:underline">{p.numero}</td>
+                    <td className="px-5 py-3 text-foreground">{p.clienteNome}</td>
+                    <td className="px-5 py-3 text-right text-muted-foreground text-xs">{diaLabelLongo(p.data)}</td>
+                    <td className="px-5 py-3 text-right font-semibold text-foreground">{formatBRL(p.valor)}</td>
                   </tr>
                 ))}
                 {data.pedidos.length === 0 && (
-                  <tr><td colSpan={4} className="text-center py-10 text-gray-400 text-sm">Nenhum pedido encontrado</td></tr>
+                  <tr><td colSpan={4} className="text-center py-10 text-muted-foreground text-sm">Nenhum pedido encontrado</td></tr>
                 )}
               </tbody>
             </table>
@@ -659,7 +659,7 @@ function DrillModal({ data, onClose }: { data: DrillDown; onClose: () => void })
 
           {data.kind === "produtos" && (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide sticky top-0">
+              <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide sticky top-0">
                 <tr>
                   <th className="text-left px-5 py-3 font-semibold">Código</th>
                   <th className="text-left px-5 py-3 font-semibold">Produto</th>
@@ -667,27 +667,27 @@ function DrillModal({ data, onClose }: { data: DrillDown; onClose: () => void })
                   <th className="px-5 py-3 w-28" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {data.produtos.map((it, i) => {
                   const pct = (it.valor / totalProdutos) * 100;
                   return (
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="px-5 py-3 font-mono text-xs text-gray-500">{it.codigo || "—"}</td>
-                      <td className="px-5 py-3 text-gray-800">{it.nome}</td>
-                      <td className="px-5 py-3 text-right font-semibold text-gray-900">{formatBRL(it.valor)}</td>
+                    <tr key={i} className="hover:bg-muted">
+                      <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{it.codigo || "—"}</td>
+                      <td className="px-5 py-3 text-foreground">{it.nome}</td>
+                      <td className="px-5 py-3 text-right font-semibold text-foreground">{formatBRL(it.valor)}</td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                             <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
                           </div>
-                          <span className="text-xs text-gray-400 w-10 text-right shrink-0">{pct.toFixed(1)}%</span>
+                          <span className="text-xs text-muted-foreground w-10 text-right shrink-0">{pct.toFixed(1)}%</span>
                         </div>
                       </td>
                     </tr>
                   );
                 })}
                 {data.produtos.length === 0 && (
-                  <tr><td colSpan={4} className="text-center py-10 text-gray-400 text-sm">Nenhum produto encontrado</td></tr>
+                  <tr><td colSpan={4} className="text-center py-10 text-muted-foreground text-sm">Nenhum produto encontrado</td></tr>
                 )}
               </tbody>
             </table>
@@ -700,11 +700,11 @@ function DrillModal({ data, onClose }: { data: DrillDown; onClose: () => void })
 
 function KpiCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
-      <div className="flex items-center gap-2 text-gray-400 text-xs font-medium uppercase tracking-wide">
+    <div className="bg-card rounded-xl border border-border p-4">
+      <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium uppercase tracking-wide">
         {icon}{label}
       </div>
-      <div className="mt-1.5 text-xl font-bold text-gray-900 tabular-nums">{value}</div>
+      <div className="mt-1.5 text-xl font-bold text-foreground tabular-nums">{value}</div>
     </div>
   );
 }

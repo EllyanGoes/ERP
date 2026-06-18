@@ -190,18 +190,18 @@ export default function NovoFornecedorPage() {
       />
       <form onSubmit={handleSubmit} className="px-8 pb-8 space-y-6 max-w-4xl">
         {serverError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">
             {serverError}
           </div>
         )}
 
         {clienteVinculo && (
-          <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-center justify-between gap-4">
+          <div className="rounded-lg border border-amber-300 bg-warning/10 px-4 py-3 text-sm text-warning flex items-center justify-between gap-4">
             <span>
               Este CPF/CNPJ já é um <strong>cliente</strong>:{" "}
               <strong>{clienteVinculo.nomeFantasia || clienteVinculo.razaoSocial}</strong>. É a mesma pessoa? Aproveite o cadastro.
             </span>
-            <Button type="button" variant="outline" size="sm" className="border-amber-400 text-amber-800 shrink-0"
+            <Button type="button" variant="outline" size="sm" className="border-amber-400 text-warning shrink-0"
               onClick={copiarDoCliente}>
               Copiar dados do cliente
             </Button>

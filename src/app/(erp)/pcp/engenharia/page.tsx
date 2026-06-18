@@ -18,7 +18,7 @@ interface EngRow {
 }
 interface FluxoOpt { id: string; nome: string; versaoAtivaId: string | null; }
 
-const inputCls = "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500";
+const inputCls = "w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500";
 
 export default function EngenhariaPage() {
   useTabTitle("Engenharia do Produto");
@@ -85,24 +85,24 @@ export default function EngenhariaPage() {
       />
 
       <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8">
-        {erro && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</div>}
+        {erro && <div className="mb-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</div>}
 
         {novo && (
           <div className="mb-4 rounded-xl border border-cyan-200 bg-cyan-50/40 p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Produto acabado *</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Produto acabado *</label>
                 {novo.item ? (
-                  <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
-                    <span><span className="font-mono text-gray-400 text-xs mr-2">{novo.item.codigo}</span>{novo.item.descricao}</span>
-                    <button onClick={() => setNovo({ ...novo, item: null })}><X className="w-4 h-4 text-gray-300 hover:text-gray-500" /></button>
+                  <div className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm">
+                    <span><span className="font-mono text-muted-foreground text-xs mr-2">{novo.item.codigo}</span>{novo.item.descricao}</span>
+                    <button onClick={() => setNovo({ ...novo, item: null })}><X className="w-4 h-4 text-muted-foreground/60 hover:text-muted-foreground" /></button>
                   </div>
                 ) : (
                   <ItemSearch onSelect={(it) => setNovo({ ...novo, item: it })} placeholder="Buscar o produto…" />
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Fluxo de produção *</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Fluxo de produção *</label>
                 <ComboboxWithCreate
                   value={novo.fluxoId}
                   onChange={(v) => setNovo({ ...novo, fluxoId: v })}
@@ -113,7 +113,7 @@ export default function EngenhariaPage() {
               </div>
             </div>
             <div className="mt-3 flex items-center justify-end gap-2">
-              <button onClick={() => setNovo(null)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">
+              <button onClick={() => setNovo(null)} className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
                 <X className="w-4 h-4" /> Cancelar
               </button>
               <button onClick={criar} disabled={busy || !novo.item || !novo.fluxoId} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
@@ -124,17 +124,17 @@ export default function EngenhariaPage() {
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 gap-2 text-sm"><RefreshCw className="w-4 h-4 animate-spin" /> Carregando…</div>
+          <div className="flex items-center justify-center py-16 text-muted-foreground gap-2 text-sm"><RefreshCw className="w-4 h-4 animate-spin" /> Carregando…</div>
         ) : engs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-14 h-14 rounded-full bg-cyan-50 flex items-center justify-center mb-3"><FlaskConical className="w-7 h-7 text-cyan-400" /></div>
-            <p className="text-sm font-medium text-gray-700">Nenhuma engenharia cadastrada</p>
-            <p className="text-xs text-gray-400 mt-1 max-w-sm">Defina, por produto, o fluxo que ele usa e a lista de insumos (BOM). Um mesmo fluxo serve para vários produtos.</p>
+            <p className="text-sm font-medium text-foreground">Nenhuma engenharia cadastrada</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm">Defina, por produto, o fluxo que ele usa e a lista de insumos (BOM). Um mesmo fluxo serve para vários produtos.</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+              <thead className="bg-muted text-xs text-muted-foreground uppercase tracking-wider">
                 <tr>
                   <th className="text-left font-medium px-4 py-2.5">Produto</th>
                   <th className="text-left font-medium px-4 py-2.5">Fluxo</th>
@@ -142,18 +142,18 @@ export default function EngenhariaPage() {
                   <th className="text-center font-medium px-4 py-2.5">Ativo</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {engs.map((e) => (
                   <tr key={e.id} onClick={() => router.push(`/pcp/engenharia/${e.id}`)} className="hover:bg-cyan-50/40 cursor-pointer">
-                    <td className="px-4 py-2.5 text-gray-800">
-                      <span className="font-mono text-gray-400 text-xs mr-2">{e.item?.codigo}</span>{e.item?.descricao ?? "—"}
+                    <td className="px-4 py-2.5 text-foreground">
+                      <span className="font-mono text-muted-foreground text-xs mr-2">{e.item?.codigo}</span>{e.item?.descricao ?? "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-gray-600">{e.fluxo?.nome ?? "—"}</td>
-                    <td className="px-4 py-2.5 text-center text-gray-600">
-                      <span className="inline-flex items-center gap-1"><ClipboardList className="w-3.5 h-3.5 text-gray-300" /> {e.totalInsumos}</span>
+                    <td className="px-4 py-2.5 text-muted-foreground">{e.fluxo?.nome ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-center text-muted-foreground">
+                      <span className="inline-flex items-center gap-1"><ClipboardList className="w-3.5 h-3.5 text-muted-foreground/60" /> {e.totalInsumos}</span>
                     </td>
                     <td className="px-4 py-2.5 text-center">
-                      <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", e.ativo ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-400")}>{e.ativo ? "Sim" : "Não"}</span>
+                      <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", e.ativo ? "bg-success/10 text-success" : "bg-muted text-muted-foreground")}>{e.ativo ? "Sim" : "Não"}</span>
                     </td>
                   </tr>
                 ))}

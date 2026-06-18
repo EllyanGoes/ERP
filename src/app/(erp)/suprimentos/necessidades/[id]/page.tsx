@@ -119,7 +119,7 @@ export default function NecessidadeDetailPage() {
   // Set tab title dynamically
   useTabTitle(necessidade ? `Necessidade ${necessidade.numero}` : null);
 
-  if (loading) return <div className="px-8 pt-8 text-gray-400">Carregando...</div>;
+  if (loading) return <div className="px-8 pt-8 text-muted-foreground">Carregando...</div>;
   if (!necessidade) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
   return (
@@ -135,7 +135,7 @@ export default function NecessidadeDetailPage() {
       />
       <div className="px-8 pb-8 space-y-6 max-w-5xl">
         {actionError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{actionError}</div>
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{actionError}</div>
         )}
 
         {/* Info */}
@@ -145,23 +145,23 @@ export default function NecessidadeDetailPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <p className="text-xs text-gray-500">Solicitante</p>
+              <p className="text-xs text-muted-foreground">Solicitante</p>
               <p className="text-sm font-medium">{necessidade.solicitante || "—"}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Data de Necessidade</p>
+              <p className="text-xs text-muted-foreground">Data de Necessidade</p>
               <p className="text-sm font-medium">{formatDate(necessidade.dataNecessidade)}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Status</p>
+              <p className="text-xs text-muted-foreground">Status</p>
               <div className="mt-1">
                 <StatusBadge status={necessidade.status} />
               </div>
             </div>
             {necessidade.justificativa && (
               <div className="md:col-span-3">
-                <p className="text-xs text-gray-500">Justificativa</p>
-                <p className="text-sm text-gray-700 mt-1">{necessidade.justificativa}</p>
+                <p className="text-xs text-muted-foreground">Justificativa</p>
+                <p className="text-sm text-foreground mt-1">{necessidade.justificativa}</p>
               </div>
             )}
           </CardContent>
@@ -169,24 +169,24 @@ export default function NecessidadeDetailPage() {
 
         {/* Approval info */}
         {(necessidade.status === "APROVADA" || necessidade.status === "REJEITADA") && (
-          <Card className={necessidade.status === "APROVADA" ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
+          <Card className={necessidade.status === "APROVADA" ? "border-success/30 bg-success/10" : "border-danger/30 bg-danger/10"}>
             <CardContent className="pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
               {necessidade.status === "APROVADA" && (
                 <>
                   <div>
-                    <p className="text-xs text-gray-500">Aprovado por</p>
+                    <p className="text-xs text-muted-foreground">Aprovado por</p>
                     <p className="text-sm font-medium">{necessidade.aprovadoPor || "—"}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Data de Aprovação</p>
+                    <p className="text-xs text-muted-foreground">Data de Aprovação</p>
                     <p className="text-sm font-medium">{formatDate(necessidade.dataAprovacao)}</p>
                   </div>
                 </>
               )}
               {necessidade.status === "REJEITADA" && (
                 <div className="md:col-span-3">
-                  <p className="text-xs text-red-600">Motivo da Rejeição</p>
-                  <p className="text-sm text-red-800 mt-1">{necessidade.motivoReprovacao || "—"}</p>
+                  <p className="text-xs text-danger">Motivo da Rejeição</p>
+                  <p className="text-sm text-danger mt-1">{necessidade.motivoReprovacao || "—"}</p>
                 </div>
               )}
             </CardContent>
@@ -200,20 +200,20 @@ export default function NecessidadeDetailPage() {
           </CardHeader>
           <CardContent className="p-0">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Código</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Descrição</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Qtd. Solicitada</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Código</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Descrição</th>
+                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qtd. Solicitada</th>
                   {necessidade.status === "APROVADA" && (
-                    <th className="text-right px-4 py-3 font-medium text-gray-600">Qtd. Aprovada</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qtd. Aprovada</th>
                   )}
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Observação</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Observação</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {necessidade.itens.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
+                  <tr key={item.id} className="hover:bg-muted">
                     <td className="px-4 py-3 font-mono text-xs">{item.item.codigo}</td>
                     <td className="px-4 py-3">{item.item.descricao}</td>
                     <td className="px-4 py-3 text-right">
@@ -224,13 +224,13 @@ export default function NecessidadeDetailPage() {
                       {item.item.unidadeMedida}
                     </td>
                     {necessidade.status === "APROVADA" && (
-                      <td className="px-4 py-3 text-right text-green-700 font-medium">
+                      <td className="px-4 py-3 text-right text-success font-medium">
                         {item.quantidadeAprovada
                           ? decimalToNumber(item.quantidadeAprovada).toLocaleString("pt-BR")
                           : "—"}
                       </td>
                     )}
-                    <td className="px-4 py-3 text-gray-500 text-xs">{item.observacao || "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{item.observacao || "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -249,7 +249,7 @@ export default function NecessidadeDetailPage() {
                 <Link
                   key={c.id}
                   href={`/suprimentos/cotacoes/${c.id}`}
-                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline border border-blue-200 rounded px-3 py-1"
+                  className="inline-flex items-center gap-1 text-sm text-info hover:underline border border-info/30 rounded px-3 py-1"
                 >
                   {c.numero} — <StatusBadge status={c.status} />
                 </Link>
@@ -274,14 +274,14 @@ export default function NecessidadeDetailPage() {
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  className="border-green-500 text-green-700 hover:bg-green-50"
+                  className="border-green-500 text-success hover:bg-success/10"
                   onClick={() => { setShowApproveForm(true); setShowRejectForm(false); }}
                 >
                   Aprovar
                 </Button>
                 <Button
                   variant="outline"
-                  className="border-red-500 text-red-700 hover:bg-red-50"
+                  className="border-red-500 text-danger hover:bg-danger/10"
                   onClick={() => { setShowRejectForm(true); setShowApproveForm(false); }}
                 >
                   Reprovar
@@ -289,7 +289,7 @@ export default function NecessidadeDetailPage() {
               </div>
 
               {showApproveForm && (
-                <Card className="border-green-200">
+                <Card className="border-success/30">
                   <CardContent className="pt-4 space-y-3">
                     <div className="space-y-1.5">
                       <Label>Aprovado por</Label>
@@ -317,7 +317,7 @@ export default function NecessidadeDetailPage() {
               )}
 
               {showRejectForm && (
-                <Card className="border-red-200">
+                <Card className="border-danger/30">
                   <CardContent className="pt-4 space-y-3">
                     <div className="space-y-1.5">
                       <Label>Motivo da Rejeição</Label>

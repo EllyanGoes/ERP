@@ -72,7 +72,7 @@ export default function ConsolidadoGrupoPage() {
 
   if (user && user.perfil !== "ADMIN") {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-gray-500 gap-2">
+      <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
         <ShieldAlert className="w-8 h-8" />
         <p className="text-sm">Consolidado do grupo é restrito a administradores.</p>
       </div>
@@ -82,11 +82,11 @@ export default function ConsolidadoGrupoPage() {
   const grupo = dados?.grupo;
   const cards = grupo
     ? [
-        { titulo: "Vendas no período", valor: grupo.vendas, eliminado: grupo.eliminado.vendas, icon: TrendingUp, cor: "text-green-600" },
+        { titulo: "Vendas no período", valor: grupo.vendas, eliminado: grupo.eliminado.vendas, icon: TrendingUp, cor: "text-success" },
         { titulo: "Compras no período", valor: grupo.compras, eliminado: grupo.eliminado.compras, icon: TrendingDown, cor: "text-orange-600" },
-        { titulo: "A receber em aberto", valor: grupo.receberAberto, eliminado: grupo.eliminado.receberAberto, icon: Wallet, cor: "text-blue-600" },
-        { titulo: "A pagar em aberto", valor: grupo.pagarAberto, eliminado: grupo.eliminado.pagarAberto, icon: Wallet, cor: "text-red-600" },
-        { titulo: "Estoque (custo)", valor: grupo.estoqueValor, eliminado: 0, icon: Package, cor: "text-gray-700" },
+        { titulo: "A receber em aberto", valor: grupo.receberAberto, eliminado: grupo.eliminado.receberAberto, icon: Wallet, cor: "text-info" },
+        { titulo: "A pagar em aberto", valor: grupo.pagarAberto, eliminado: grupo.eliminado.pagarAberto, icon: Wallet, cor: "text-danger" },
+        { titulo: "Estoque (custo)", valor: grupo.estoqueValor, eliminado: 0, icon: Package, cor: "text-foreground" },
       ]
     : [];
 
@@ -113,19 +113,19 @@ export default function ConsolidadoGrupoPage() {
       />
 
       <div className="px-8 pb-12 space-y-6">
-        <p className="text-xs text-gray-500 flex items-center gap-1.5">
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
           <Building2 className="w-3.5 h-3.5" />
           Soma das empresas ativas do grupo, com as operações intragrupo eliminadas do total
           (vendas entre empresas do grupo não contam como receita do grupo).
         </p>
 
         {erro && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">{erro}</div>
+          <div className="bg-danger/10 border border-danger/30 text-danger text-sm px-4 py-3 rounded-xl">{erro}</div>
         )}
 
         {loading && !dados ? (
           <div className="flex items-center justify-center h-40">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : dados && (
           <>
@@ -134,15 +134,15 @@ export default function ConsolidadoGrupoPage() {
               {cards.map((c) => (
                 <Card key={c.titulo}>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
+                    <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                       <c.icon className={`w-3.5 h-3.5 ${c.cor}`} />
                       {c.titulo}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-xl font-semibold text-gray-900">{formatBRL(c.valor)}</p>
+                    <p className="text-xl font-semibold text-foreground">{formatBRL(c.valor)}</p>
                     {c.eliminado > 0 && (
-                      <p className="text-[11px] text-gray-400 mt-0.5">
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
                         intragrupo eliminado: {formatBRL(c.eliminado)}
                       </p>
                     )}
@@ -159,7 +159,7 @@ export default function ConsolidadoGrupoPage() {
               <CardContent>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs text-gray-500 border-b border-gray-200">
+                    <tr className="text-left text-xs text-muted-foreground border-b border-border">
                       <th className="py-2 pr-4 font-medium">Empresa</th>
                       <th className="py-2 pr-4 font-medium text-right">Vendas</th>
                       <th className="py-2 pr-4 font-medium text-right">Compras</th>
@@ -170,8 +170,8 @@ export default function ConsolidadoGrupoPage() {
                   </thead>
                   <tbody>
                     {dados.empresas.map((l) => (
-                      <tr key={l.id} className="border-b border-gray-100">
-                        <td className="py-2 pr-4 font-medium text-gray-800">{l.nome}</td>
+                      <tr key={l.id} className="border-b border-border">
+                        <td className="py-2 pr-4 font-medium text-foreground">{l.nome}</td>
                         <td className="py-2 pr-4 text-right">{formatBRL(l.vendas.total)}</td>
                         <td className="py-2 pr-4 text-right">{formatBRL(l.compras.total)}</td>
                         <td className="py-2 pr-4 text-right">{formatBRL(l.receberAberto.total)}</td>
@@ -179,7 +179,7 @@ export default function ConsolidadoGrupoPage() {
                         <td className="py-2 text-right">{formatBRL(l.estoqueValor)}</td>
                       </tr>
                     ))}
-                    <tr className="border-b border-gray-100 text-gray-400">
+                    <tr className="border-b border-border text-muted-foreground">
                       <td className="py-2 pr-4">(−) Intragrupo</td>
                       <td className="py-2 pr-4 text-right">−{formatBRL(dados.grupo.eliminado.vendas)}</td>
                       <td className="py-2 pr-4 text-right">−{formatBRL(dados.grupo.eliminado.compras)}</td>
@@ -187,7 +187,7 @@ export default function ConsolidadoGrupoPage() {
                       <td className="py-2 pr-4 text-right">−{formatBRL(dados.grupo.eliminado.pagarAberto)}</td>
                       <td className="py-2 text-right">—</td>
                     </tr>
-                    <tr className="font-semibold text-gray-900">
+                    <tr className="font-semibold text-foreground">
                       <td className="py-2 pr-4">Grupo</td>
                       <td className="py-2 pr-4 text-right">{formatBRL(dados.grupo.vendas)}</td>
                       <td className="py-2 pr-4 text-right">{formatBRL(dados.grupo.compras)}</td>

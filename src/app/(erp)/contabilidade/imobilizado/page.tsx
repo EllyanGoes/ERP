@@ -64,9 +64,9 @@ export default function ImobilizadoPage() {
         <Card label="Valor contábil líquido" value={formatBRL(totalLiquido)} />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="text-left text-gray-500 border-b border-gray-100">
+          <thead className="text-left text-muted-foreground border-b border-border">
             <tr>
               <th className="px-6 py-3 font-medium">Bem</th>
               <th className="px-6 py-3 font-medium">Aquisição</th>
@@ -78,16 +78,16 @@ export default function ImobilizadoPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin inline" /></td></tr>
+              <tr><td colSpan={6} className="px-6 py-10 text-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin inline" /></td></tr>
             ) : bens.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-10 text-center text-gray-400">Nenhum bem cadastrado.</td></tr>
+              <tr><td colSpan={6} className="px-6 py-10 text-center text-muted-foreground">Nenhum bem cadastrado.</td></tr>
             ) : bens.map((b) => (
-              <tr key={b.id} className={`border-b border-gray-50 hover:bg-gray-50 ${b.status !== "ATIVO" ? "opacity-50" : ""}`}>
-                <td className="px-6 py-3 font-medium text-gray-900">{b.descricao}</td>
-                <td className="px-6 py-3 text-gray-600">{new Date(b.dataAquisicao).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</td>
+              <tr key={b.id} className={`border-b border-gray-50 hover:bg-muted ${b.status !== "ATIVO" ? "opacity-50" : ""}`}>
+                <td className="px-6 py-3 font-medium text-foreground">{b.descricao}</td>
+                <td className="px-6 py-3 text-muted-foreground">{new Date(b.dataAquisicao).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</td>
                 <td className="px-6 py-3 text-right tabular-nums">{formatBRL(Number(b.valorAquisicao))}</td>
-                <td className="px-6 py-3 text-center text-gray-600">{b.vidaUtilMeses} m</td>
-                <td className="px-6 py-3 text-right tabular-nums text-gray-600">{formatBRL(b.depreciacaoAcumulada)}</td>
+                <td className="px-6 py-3 text-center text-muted-foreground">{b.vidaUtilMeses} m</td>
+                <td className="px-6 py-3 text-right tabular-nums text-muted-foreground">{formatBRL(b.depreciacaoAcumulada)}</td>
                 <td className="px-6 py-3 text-right tabular-nums font-semibold">{formatBRL(b.valorContabil)}</td>
               </tr>
             ))}
@@ -100,9 +100,9 @@ export default function ImobilizadoPage() {
 
 function Card({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-xl font-semibold text-gray-900 tabular-nums mt-1">{value}</p>
+    <div className="bg-card rounded-xl border border-border p-4">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-xl font-semibold text-foreground tabular-nums mt-1">{value}</p>
     </div>
   );
 }
@@ -148,7 +148,7 @@ function NovoBemDialog({ onDone }: { onDone: () => void }) {
           </div>
           <div>
             <Label>Tipo</Label>
-            <select value={deprecia ? "movel" : "terreno"} onChange={(e) => setDeprecia(e.target.value === "movel")} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
+            <select value={deprecia ? "movel" : "terreno"} onChange={(e) => setDeprecia(e.target.value === "movel")} className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card">
               <option value="movel">Bem depreciável (veículo, máquina, equipamento)</option>
               <option value="terreno">Terreno / não depreciável</option>
             </select>
@@ -173,8 +173,8 @@ function NovoBemDialog({ onDone }: { onDone: () => void }) {
               <Input type="number" min={0} step="0.01" value={valorResidual} onChange={(e) => setValorResidual(e.target.value)} />
             </div>
           </div>
-          <p className="text-xs text-gray-400">Depreciação linear: (valor − residual) ÷ vida útil, por mês.</p>
-          {erro && <p className="text-sm text-red-600">{erro}</p>}
+          <p className="text-xs text-muted-foreground">Depreciação linear: (valor − residual) ÷ vida útil, por mês.</p>
+          {erro && <p className="text-sm text-danger">{erro}</p>}
         </div>
         <DialogFooter>
           <Button onClick={salvar} disabled={saving || !valido}>{saving ? "Salvando..." : "Salvar"}</Button>
@@ -212,8 +212,8 @@ function DepreciarDialog({ onDone }: { onDone: () => void }) {
             <Label>Competência</Label>
             <Input type="month" value={competencia} onChange={(e) => setCompetencia(e.target.value)} />
           </div>
-          <p className="text-xs text-gray-400">Lança a depreciação linear do mês para todos os bens ativos. Rodar o mesmo mês duas vezes não duplica.</p>
-          {resultado && <p className="text-sm text-gray-700">{resultado}</p>}
+          <p className="text-xs text-muted-foreground">Lança a depreciação linear do mês para todos os bens ativos. Rodar o mesmo mês duas vezes não duplica.</p>
+          {resultado && <p className="text-sm text-foreground">{resultado}</p>}
         </div>
         <DialogFooter>
           <Button onClick={processar} disabled={running}>{running ? <><Loader2 className="w-4 h-4 animate-spin mr-1.5" />Processando…</> : "Processar"}</Button>
