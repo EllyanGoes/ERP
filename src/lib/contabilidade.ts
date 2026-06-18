@@ -1,5 +1,6 @@
 import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
+import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
 import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback } from "@/lib/conta-contabil";
 
@@ -139,15 +140,18 @@ export async function contabilizarTituloReceber(crId: string) {
 
   // Receita cai na conta da natureza do título; senão na sintética 3.1.
   // Caixa/banco: conta de disponibilidade do banco do título; senão a sintética 1.1.1.
-  const [contaCli, contaNat, contaReceitaFb, contaBanco, conta111] = await Promise.all([
+  // Caixa/banco do título, ou o "Caixa em Dinheiro" da empresa como padrão —
+  // sempre uma analítica sob 1.1.1 (a sintética é só fallback extremo).
+  const caixaCbId = cr.contaBancariaId ?? contaCaixaIdDaEmpresa(cr.empresaId);
+  const [contaCli, contaNat, contaReceitaFb, contaCaixaResolved, conta111] = await Promise.all([
     contaDoCliente(cr.empresaId, cr.clienteId),
     cr.naturezaFinanceiraId ? contaDaNatureza(cr.empresaId, cr.naturezaFinanceiraId) : Promise.resolve(null),
     garantirContaReceitaFallback(cr.empresaId),
-    cr.contaBancariaId ? contaDoBanco(cr.empresaId, cr.contaBancariaId) : Promise.resolve(null),
+    contaDoBanco(cr.empresaId, caixaCbId),
     contaPorCodigo(cr.empresaId, "1.1.1"),
   ]);
   const contaReceita = contaNat ?? contaReceitaFb;
-  const contaCaixa = contaBanco ?? conta111;
+  const contaCaixa = contaCaixaResolved ?? conta111;
   if (!contaCli) return;
 
   const valor = decimalToNumber(cr.valorOriginal);
@@ -190,15 +194,16 @@ export async function contabilizarTituloPagar(cpId: string) {
 
   // Despesa/custo cai na conta da natureza do título; senão na sintética 3.3.
   // Caixa/banco: conta de disponibilidade do banco do título; senão a sintética 1.1.1.
-  const [contaForn, contaNat, contaDespesaFb, contaBanco, conta111] = await Promise.all([
+  const caixaCbId = cp.contaBancariaId ?? contaCaixaIdDaEmpresa(cp.empresaId);
+  const [contaForn, contaNat, contaDespesaFb, contaCaixaResolved, conta111] = await Promise.all([
     contaDoFornecedor(cp.empresaId, cp.fornecedorId),
     cp.naturezaFinanceiraId ? contaDaNatureza(cp.empresaId, cp.naturezaFinanceiraId) : Promise.resolve(null),
     garantirContaDespesaFallback(cp.empresaId),
-    cp.contaBancariaId ? contaDoBanco(cp.empresaId, cp.contaBancariaId) : Promise.resolve(null),
+    contaDoBanco(cp.empresaId, caixaCbId),
     contaPorCodigo(cp.empresaId, "1.1.1"),
   ]);
   const contaDespesa = contaNat ?? contaDespesaFb;
-  const contaCaixa = contaBanco ?? conta111;
+  const contaCaixa = contaCaixaResolved ?? conta111;
   if (!contaForn) return;
 
   const valor = decimalToNumber(cp.valorOriginal);
