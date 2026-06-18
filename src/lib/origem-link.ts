@@ -10,6 +10,8 @@ export function linkOrigemLancamento(origemTipo: string, origemId: string | null
   }
   switch (origemTipo) {
     case "VENDA":
+      // Venda passou a ser dirigida pelo PEDIDO (origemId = pedidoVendaId).
+      return `/pedidos-venda/${origemId}`;
     case "RECEBIMENTO":
       return `/contas-receber?focus=${origemId}`;
     case "COMPRA":
@@ -18,6 +20,9 @@ export function linkOrigemLancamento(origemTipo: string, origemId: string | null
     case "ESTOQUE_ENTRADA":
       return `/suprimentos/conferencias/${origemId}`;
     case "ESTOQUE_SAIDA":
+      return `/comercial/minutas/${origemId}`;
+    case "RECEITA_ENTREGA":
+      // Receita reconhecida na entrega da minuta (origemId = minutaId).
       return `/comercial/minutas/${origemId}`;
     case "ESTOQUE_PRODUCAO":
       return `/pcp/ordens/${origemId}`;

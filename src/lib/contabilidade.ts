@@ -2,7 +2,7 @@ import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -58,7 +58,9 @@ export async function contaPorCodigo(empresaId: string, codigo: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo }, select: { id: true } });
 }
 export async function contaDoCliente(empresaId: string, clienteId: string) {
-  return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, clienteId }, select: { id: true } });
+  // grupo=ATIVO: o mesmo clienteId também identifica a analítica de Material a
+  // Entregar (PASSIVO, 2.1.2.x) — aqui queremos a de Clientes a Receber (1.1.2.x).
+  return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, grupo: "ATIVO", clienteId }, select: { id: true } });
 }
 export async function contaDoFornecedor(empresaId: string, fornecedorId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, fornecedorId }, select: { id: true } });
@@ -71,6 +73,19 @@ export async function contaDaNatureza(empresaId: string, naturezaFinanceiraId: s
 }
 export async function contaDoBanco(empresaId: string, contaBancariaId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, contaBancariaId }, select: { id: true } });
+}
+
+// Resumo curto dos itens (ex.: "100× Bloco de Vedação, 50× Cimento +2") para
+// enriquecer o histórico/descrição dos lançamentos de venda/entrega.
+function resumoItens(itens: { quantidade: unknown; item?: { descricao?: string | null } | null }[], max = 3): string {
+  if (!itens.length) return "";
+  const partes = itens.slice(0, max).map((it) => {
+    const q = decimalToNumber(it.quantidade);
+    const qStr = Number.isInteger(q) ? String(q) : q.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+    return `${qStr}× ${it.item?.descricao ?? "item"}`;
+  });
+  const resto = itens.length - max;
+  return partes.join(", ") + (resto > 0 ? ` +${resto}` : "");
 }
 
 /**
@@ -145,15 +160,15 @@ export async function contabilizarTituloReceber(crId: string) {
   // Caixa/banco do título, ou o "Caixa em Dinheiro" da empresa como padrão —
   // sempre uma analítica sob 1.1.1 (a sintética é só fallback extremo).
   const caixaCbId = cr.contaBancariaId ?? contaCaixaIdDaEmpresa(cr.empresaId);
-  const [contaCli, contaNat, contaReceitaFb, contaCaixaResolved, conta111] = await Promise.all([
+  const [contaCli, contaReceitaFb, contaCaixaResolved, conta111] = await Promise.all([
     contaDoCliente(cr.empresaId, cr.clienteId),
-    cr.naturezaFinanceiraId ? contaDaNatureza(cr.empresaId, cr.naturezaFinanceiraId) : Promise.resolve(null),
     garantirContaReceitaFallback(cr.empresaId),
     contaDoBanco(cr.empresaId, caixaCbId),
     contaPorCodigo(cr.empresaId, "1.1.1"),
   ]);
-  const contaReceita = contaNat ?? contaReceitaFb;
-  const contaCaixa = contaCaixaResolved ?? conta111;
+  // Receita de venda unificada numa única conta "Receita de Vendas" (3.1.9002),
+  // independente da natureza do título (decisão: não dividir receita por natureza).
+  const contaReceita = contaReceitaFb;
   if (!contaCli) return;
 
   // Venda de PEDIDO é contabilizada pelo PEDIDO (contabilizarVendaPedido):
@@ -293,7 +308,10 @@ export async function contabilizarPedidoVenda(pedidoVendaId: string) {
 export async function contabilizarVendaPedido(pedidoVendaId: string) {
   const pedido = await prismaSemEscopo.pedidoVenda.findUnique({
     where: { id: pedidoVendaId },
-    select: { id: true, empresaId: true, clienteId: true, numero: true, status: true, intragrupo: true, valorTotal: true, createdAt: true },
+    select: {
+      id: true, empresaId: true, clienteId: true, numero: true, status: true, intragrupo: true, valorTotal: true, createdAt: true,
+      itens: { select: { quantidade: true, item: { select: { descricao: true } } } },
+    },
   });
   if (!pedido || pedido.intragrupo) return;
   if (!["CONFIRMADO", "EM_AGENDAMENTO", "CONCLUIDO"].includes(pedido.status)) return;
@@ -302,16 +320,17 @@ export async function contabilizarVendaPedido(pedidoVendaId: string) {
 
   const [contaCli, contaMat] = await Promise.all([
     contaDoCliente(pedido.empresaId, pedido.clienteId),
-    garantirContaMaterialEntregar(pedido.empresaId),
+    garantirContaMaterialEntregarCliente(pedido.empresaId, pedido.clienteId),
   ]);
   if (!contaCli || !contaMat) return;
 
+  const resumo = resumoItens(pedido.itens);
   await registrarLancamento({
     empresaId: pedido.empresaId, data: pedido.createdAt,
-    historico: `Venda (a entregar) — pedido ${pedido.numero}`, origemTipo: "VENDA", origemId: pedido.id,
+    historico: `Venda (a entregar) — pedido ${pedido.numero}${resumo ? ` — ${resumo}` : ""}`, origemTipo: "VENDA", origemId: pedido.id,
     partidas: [
       { contaId: contaCli.id, tipo: "DEBITO", valor, clienteId: pedido.clienteId },
-      { contaId: contaMat.id, tipo: "CREDITO", valor },
+      { contaId: contaMat.id, tipo: "CREDITO", valor, clienteId: pedido.clienteId },
     ],
   });
 }
@@ -378,9 +397,16 @@ export async function contabilizarEntradaEstoque(conferenciaId: string) {
 export async function contabilizarCmvMinuta(minutaId: string) {
   const minuta = await prismaSemEscopo.minuta.findUnique({
     where: { id: minutaId },
-    select: { id: true, empresaId: true, numero: true, dataEntrega: true, dataEmissao: true, createdAt: true },
+    select: {
+      id: true, empresaId: true, numero: true, dataEntrega: true, dataEmissao: true, createdAt: true,
+      empresa: { select: { industrializa: true } },
+      itens: { select: { quantidade: true, item: { select: { descricao: true } } } },
+    },
   });
   if (!minuta) return;
+  // Só fábrica usa CPV; empresa de pura revenda (ex.: Cimento e Mix) lança tudo
+  // em CMV mesmo que o item seja produto acabado no grupo (quem produz é a irmã).
+  const usaCpv = minuta.empresa?.industrializa ?? false;
 
   const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
     where: { empresaId: minuta.empresaId, documento: minuta.numero, tipo: "SAIDA", localEstoqueId: { not: null } },
@@ -398,7 +424,7 @@ export async function contabilizarCmvMinuta(minutaId: string) {
     const v = decimalToNumber(m.quantidade) * (vi?.valorUnitario ?? 0);
     if (v <= 0) continue;
     credLocal.set(m.localEstoqueId, (credLocal.get(m.localEstoqueId) ?? 0) + v);
-    if (vi?.categoria === "PRODUTO_ACABADO") totalCpv += v; else totalCmv += v;
+    if (usaCpv && vi?.categoria === "PRODUTO_ACABADO") totalCpv += v; else totalCmv += v;
   }
   if (totalCmv + totalCpv <= 0) return;
 
@@ -422,7 +448,7 @@ export async function contabilizarCmvMinuta(minutaId: string) {
 
   await registrarLancamento({
     empresaId: minuta.empresaId, data: minuta.dataEntrega ?? minuta.dataEmissao ?? minuta.createdAt,
-    historico: `Custo da venda — saída ${minuta.numero}`, origemTipo: "ESTOQUE_SAIDA", origemId: minuta.id,
+    historico: `Custo da venda — saída ${minuta.numero}${resumoItens(minuta.itens) ? ` — ${resumoItens(minuta.itens)}` : ""}`, origemTipo: "ESTOQUE_SAIDA", origemId: minuta.id,
     partidas,
   });
 }
@@ -438,7 +464,8 @@ export async function contabilizarReceitaMinuta(minutaId: string) {
     where: { id: minutaId },
     select: {
       id: true, empresaId: true, numero: true, status: true, dataEntrega: true, dataEmissao: true, createdAt: true, pedidoVendaId: true,
-      itens: { select: { quantidade: true, pedidoVendaItem: { select: { precoUnitario: true } } } },
+      pedidoVenda: { select: { clienteId: true } },
+      itens: { select: { quantidade: true, item: { select: { descricao: true } }, pedidoVendaItem: { select: { precoUnitario: true } } } },
     },
   });
   if (!minuta || minuta.status !== "ENTREGUE") return;
@@ -449,23 +476,19 @@ export async function contabilizarReceitaMinuta(minutaId: string) {
   );
   if (valor <= 0.005) return;
 
-  // Receita pela natureza da CR do pedido; senão fallback 3.1.9002.
-  const cr = minuta.pedidoVendaId
-    ? await prismaSemEscopo.contaReceber.findFirst({ where: { pedidoVendaId: minuta.pedidoVendaId }, select: { naturezaFinanceiraId: true } })
-    : null;
-  const [contaMat, contaNat, contaReceitaFb] = await Promise.all([
-    garantirContaMaterialEntregar(minuta.empresaId),
-    cr?.naturezaFinanceiraId ? contaDaNatureza(minuta.empresaId, cr.naturezaFinanceiraId) : Promise.resolve(null),
+  // Receita de venda unificada numa única "Receita de Vendas" (3.1.9002).
+  const clienteId = minuta.pedidoVenda?.clienteId ?? null;
+  const [contaMat, contaReceita] = await Promise.all([
+    clienteId ? garantirContaMaterialEntregarCliente(minuta.empresaId, clienteId) : garantirContaMaterialEntregar(minuta.empresaId),
     garantirContaReceitaFallback(minuta.empresaId),
   ]);
-  const contaReceita = contaNat ?? contaReceitaFb;
   if (!contaMat || !contaReceita) return;
 
   await registrarLancamento({
     empresaId: minuta.empresaId, data: minuta.dataEntrega ?? minuta.dataEmissao ?? minuta.createdAt,
-    historico: `Receita na entrega — ${minuta.numero}`, origemTipo: "RECEITA_ENTREGA", origemId: minuta.id,
+    historico: `Receita na entrega — ${minuta.numero}${resumoItens(minuta.itens) ? ` — ${resumoItens(minuta.itens)}` : ""}`, origemTipo: "RECEITA_ENTREGA", origemId: minuta.id,
     partidas: [
-      { contaId: contaMat.id, tipo: "DEBITO", valor: decimalToNumber(valor) },
+      { contaId: contaMat.id, tipo: "DEBITO", valor: decimalToNumber(valor), clienteId },
       { contaId: contaReceita.id, tipo: "CREDITO", valor: decimalToNumber(valor) },
     ],
   });

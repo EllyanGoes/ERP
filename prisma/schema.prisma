@@ -824,6 +824,9 @@ model Empresa {
   // ── multiempresa: a Empresa é o tenant do grupo ────────────────────────────
   slug                      String?                 @unique
   ativo                     Boolean                 @default(true)
+  // Fábrica/indústria: se true, a baixa de produto acabado na venda vira CPV;
+  // se false (só revenda, ex.: Cimento e Mix), toda baixa vira CMV.
+  industrializa             Boolean                 @default(false)
   // vínculo intragrupo (Fase 4): a empresa como cliente/fornecedor das irmãs
   clienteId                 String?                 @unique
   fornecedorId              String?                 @unique

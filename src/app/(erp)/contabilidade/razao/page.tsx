@@ -117,7 +117,7 @@ export default function RazaoPage() {
         `Conta: ${razao.conta.codigo} — ${razao.conta.nome} (${nat === "DEVEDORA" ? "Devedora" : "Credora"})`,
         `Período: ${formatDate(range.from)} a ${formatDate(range.to)} · Formato: ${modo === "contabil" ? "Contábil" : "Real"}`,
       ],
-      head: ["Data", "Histórico", "Contrapartida", "Débito", "Crédito", "Saldo"],
+      head: ["Data", "Descrição", "Contrapartida", "Débito", "Crédito", "Saldo"],
       linhas,
       alinharDireitaDe: 3,
       arquivo: `razao-${razao.conta.codigo}-${range.from}-a-${range.to}.pdf`,
@@ -169,7 +169,7 @@ export default function RazaoPage() {
               <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                 <tr>
                   <th className="text-left px-4 py-2 font-semibold w-24">Data</th>
-                  <th className="text-left px-4 py-2 font-semibold">Histórico</th>
+                  <th className="text-left px-4 py-2 font-semibold">Descrição</th>
                   <th className="text-left px-4 py-2 font-semibold w-56">Contrapartida</th>
                   <th className="text-right px-4 py-2 font-semibold w-28">Débito</th>
                   <th className="text-right px-4 py-2 font-semibold w-28">Crédito</th>

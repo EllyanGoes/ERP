@@ -43,6 +43,8 @@ export default function PlanoContasContabilPage() {
   const [loading, setLoading] = useState(true);
   // Conjunto de ids recolhidos (filhos ocultos), persistido no localStorage.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Contas inativas (estrutura reservada p/ o futuro) ficam ocultas por padrão.
+  const [mostrarInativas, setMostrarInativas] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,11 +85,12 @@ export default function PlanoContasContabilPage() {
   }, [flat, persist]);
   const expandirTudo = useCallback(() => persist(new Set()), [persist]);
 
-  // Raízes na ordem dos grupos (1, 2, 3).
-  const raizes = useMemo(
-    () => [...arvore].sort((a, b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true })),
-    [arvore],
-  );
+  // Raízes na ordem dos grupos (1, 2, 3) — podando inativas quando ocultas.
+  const raizes = useMemo(() => {
+    const podar = (cs: Conta[]): Conta[] =>
+      cs.filter((c) => mostrarInativas || c.ativo).map((c) => ({ ...c, filhos: podar(c.filhos) }));
+    return podar([...arvore]).sort((a, b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true }));
+  }, [arvore, mostrarInativas]);
 
   return (
     <div>
@@ -106,6 +109,10 @@ export default function PlanoContasContabilPage() {
         ) : (
           <>
             <div className="flex items-center justify-end gap-2 mb-3">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mr-auto cursor-pointer select-none">
+                <input type="checkbox" checked={mostrarInativas} onChange={(e) => setMostrarInativas(e.target.checked)} className="accent-info" />
+                Mostrar contas futuras (inativas)
+              </label>
               <button type="button" onClick={recolherTudo} className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-md border border-border hover:bg-muted">
                 Recolher tudo
               </button>

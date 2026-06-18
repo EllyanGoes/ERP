@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Fragment, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -10,7 +10,7 @@ import { useSession } from "@/lib/session-context";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
 import { Loader2, FileBarChart, SlidersHorizontal, FileDown } from "lucide-react";
 
-type LinhaConta = { id: string; codigo: string; nome: string; meses: number[]; total: number };
+type LinhaConta = { id: string; codigo: string; nome: string; meses: number[]; total: number; subgrupoCodigo: string | null; subgrupoNome: string | null };
 type Secao = { id: string; nome: string; operacao: "SOMA" | "SUBTRAI"; contas: LinhaConta[]; meses: number[]; total: number };
 type Dre = { ano: number; secoes: Secao[]; resultadoMeses: number[]; resultadoTotal: number };
 
@@ -36,7 +36,16 @@ export default function DrePage() {
     const linhas: LinhaPdf[] = [];
     for (const s of dre.secoes) {
       linhas.push({ estilo: "secao", celulas: [`${s.nome} (${s.operacao === "SUBTRAI" ? "−" : "+"})`, ...s.meses.map(celMes), celMes(s.total)] });
-      for (const c of s.contas) linhas.push({ celulas: [`${c.codigo}  ${c.nome}`, ...c.meses.map(celMes), celMes(c.total)] });
+      const subtotais = subtotaisDoSubgrupo(s.contas);
+      let ultimoSub: string | null = null;
+      for (const c of s.contas) {
+        if (c.subgrupoCodigo && c.subgrupoCodigo !== ultimoSub) {
+          const st = subtotais.get(c.subgrupoCodigo);
+          if (st) linhas.push({ estilo: "secao", celulas: [`  ${c.subgrupoCodigo}  ${st.nome}`, ...st.meses.map(celMes), celMes(st.total)] });
+        }
+        ultimoSub = c.subgrupoCodigo;
+        linhas.push({ celulas: [`${c.subgrupoCodigo ? "    " : ""}${c.codigo}  ${c.nome}`, ...c.meses.map(celMes), celMes(c.total)] });
+      }
     }
     linhas.push({ estilo: "total", celulas: ["Resultado do Exercício", ...dre.resultadoMeses.map(celMes), fmtColuna(dre.resultadoTotal, modo)] });
     gerarPdfContabil({
@@ -113,7 +122,22 @@ export default function DrePage() {
   );
 }
 
+// Subtotais por sintética-pai (ex.: CMV, CPV) — soma das analíticas do subgrupo.
+function subtotaisDoSubgrupo(contas: LinhaConta[]) {
+  const m = new Map<string, { nome: string; meses: number[]; total: number }>();
+  for (const c of contas) {
+    if (!c.subgrupoCodigo) continue;
+    let g = m.get(c.subgrupoCodigo);
+    if (!g) { g = { nome: c.subgrupoNome ?? c.subgrupoCodigo, meses: new Array(12).fill(0), total: 0 }; m.set(c.subgrupoCodigo, g); }
+    for (let i = 0; i < 12; i++) g.meses[i] += c.meses[i];
+    g.total += c.total;
+  }
+  return m;
+}
+
 function SecaoRows({ secao, ano, modo }: { secao: Secao; ano: number; modo: "contabil" | "real" }) {
+  const subtotais = subtotaisDoSubgrupo(secao.contas);
+  let ultimoSub: string | null = null;
   return (
     <>
       <tr className="bg-muted/70 border-y border-border font-semibold text-foreground">
@@ -123,22 +147,38 @@ function SecaoRows({ secao, ano, modo }: { secao: Secao; ano: number; modo: "con
         {secao.meses.map((v, i) => <td key={i} className="text-right px-3 py-2">{celula(v, modo)}</td>)}
         <td className="text-right px-4 py-2 bg-muted">{celula(secao.total, modo)}</td>
       </tr>
-      {secao.contas.map((c) => (
-        <tr key={c.id} className="border-b border-gray-50 hover:bg-info/10">
-          <td className="px-4 py-1.5 sticky left-0 bg-card z-10">
-            <Link
-              href={`/contabilidade/razao?contaId=${c.id}&from=${ano}-01-01&to=${ano}-12-31`}
-              className="flex items-center gap-2 hover:text-info"
-              title="Abrir razão da conta"
-            >
-              <span className="font-mono text-[11px] text-muted-foreground">{c.codigo}</span>
-              <span className="truncate">{c.nome}</span>
-            </Link>
-          </td>
-          {c.meses.map((v, i) => <td key={i} className="text-right px-3 py-1.5 text-muted-foreground">{celula(v, modo)}</td>)}
-          <td className="text-right px-4 py-1.5 font-medium bg-muted/50">{celula(c.total, modo)}</td>
-        </tr>
-      ))}
+      {secao.contas.map((c) => {
+        const abreSub = c.subgrupoCodigo && c.subgrupoCodigo !== ultimoSub;
+        ultimoSub = c.subgrupoCodigo;
+        const st = abreSub ? subtotais.get(c.subgrupoCodigo!) : null;
+        return (
+          <Fragment key={c.id}>
+            {st && (
+              <tr className="border-b border-border bg-muted/40 font-medium text-foreground">
+                <td className="px-4 py-1.5 sticky left-0 bg-muted/40 z-10">
+                  <span className="font-mono text-[11px] text-muted-foreground mr-2">{c.subgrupoCodigo}</span>{st.nome}
+                </td>
+                {st.meses.map((v, i) => <td key={i} className="text-right px-3 py-1.5">{celula(v, modo)}</td>)}
+                <td className="text-right px-4 py-1.5 bg-muted/60">{celula(st.total, modo)}</td>
+              </tr>
+            )}
+            <tr className="border-b border-gray-50 hover:bg-info/10">
+              <td className={cn("px-4 py-1.5 sticky left-0 bg-card z-10", c.subgrupoCodigo && "pl-9")}>
+                <Link
+                  href={`/contabilidade/razao?contaId=${c.id}&from=${ano}-01-01&to=${ano}-12-31`}
+                  className="flex items-center gap-2 hover:text-info"
+                  title="Abrir razão da conta"
+                >
+                  <span className="font-mono text-[11px] text-muted-foreground">{c.codigo}</span>
+                  <span className="truncate">{c.nome}</span>
+                </Link>
+              </td>
+              {c.meses.map((v, i) => <td key={i} className="text-right px-3 py-1.5 text-muted-foreground">{celula(v, modo)}</td>)}
+              <td className="text-right px-4 py-1.5 font-medium bg-muted/50">{celula(c.total, modo)}</td>
+            </tr>
+          </Fragment>
+        );
+      })}
     </>
   );
 }

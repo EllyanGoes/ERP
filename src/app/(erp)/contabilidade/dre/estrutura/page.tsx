@@ -6,10 +6,15 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTabTitle } from "@/lib/tabs-context";
-import { Loader2, Plus, Trash2, ChevronUp, ChevronDown, ArrowLeft } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Loader2, Plus, Trash2, GripVertical, ArrowLeft } from "lucide-react";
 
 type Secao = { id: string; nome: string; operacao: "SOMA" | "SUBTRAI"; ordem: number };
 type Conta = { id: string; codigo: string; nome: string; dreSecaoId: string | null; ordemDre: number };
+
+// O que está sendo arrastado: uma seção (reordena seções) ou uma conta (reordena
+// dentro da seção / move entre seções).
+type Drag = { kind: "secao" | "conta"; id: string } | null;
 
 export default function DreEstruturaPage() {
   useTabTitle("Estrutura da DRE");
@@ -18,6 +23,8 @@ export default function DreEstruturaPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [drag, setDrag] = useState<Drag>(null);
+  const [overSecao, setOverSecao] = useState<string | "—" | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -28,14 +35,6 @@ export default function DreEstruturaPage() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  function moverSecao(i: number, dir: -1 | 1) {
-    setSecoes((prev) => {
-      const arr = [...prev]; const j = i + dir;
-      if (j < 0 || j >= arr.length) return prev;
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-      return arr.map((s, idx) => ({ ...s, ordem: idx }));
-    });
-  }
   function addSecao() {
     setSecoes((prev) => [...prev, { id: `novo:${Date.now()}`, nome: "Nova seção", operacao: "SOMA", ordem: prev.length }]);
   }
@@ -46,22 +45,56 @@ export default function DreEstruturaPage() {
   function patchSecao(id: string, patch: Partial<Secao>) {
     setSecoes((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }
-  function moverConta(contaId: string, dir: -1 | 1) {
-    setContas((prev) => {
-      const c = prev.find((x) => x.id === contaId); if (!c) return prev;
-      const mesma = prev.filter((x) => x.dreSecaoId === c.dreSecaoId);
-      const pos = mesma.findIndex((x) => x.id === contaId);
-      const alvo = mesma[pos + dir]; if (!alvo) return prev;
-      // troca a ordem relativa das duas na lista global
+
+  // ── Drag & drop ────────────────────────────────────────────────────────────
+  // Reordena seções: solta a seção arrastada antes da seção-alvo.
+  function reordenarSecao(targetId: string) {
+    if (!drag || drag.kind !== "secao" || drag.id === targetId) return;
+    setSecoes((prev) => {
       const arr = [...prev];
-      const ia = arr.findIndex((x) => x.id === c.id), ib = arr.findIndex((x) => x.id === alvo.id);
-      [arr[ia], arr[ib]] = [arr[ib], arr[ia]];
+      const from = arr.findIndex((s) => s.id === drag.id);
+      const to = arr.findIndex((s) => s.id === targetId);
+      if (from < 0 || to < 0) return prev;
+      const [moved] = arr.splice(from, 1);
+      arr.splice(to, 0, moved);
+      return arr.map((s, idx) => ({ ...s, ordem: idx }));
+    });
+  }
+  // Reordena conta: solta a conta arrastada antes da conta-alvo (adotando a seção da alvo).
+  function reordenarConta(targetId: string) {
+    if (!drag || drag.kind !== "conta" || drag.id === targetId) return;
+    setContas((prev) => {
+      const arr = [...prev];
+      const from = arr.findIndex((c) => c.id === drag.id);
+      const alvo = arr.find((c) => c.id === targetId);
+      if (from < 0 || !alvo) return prev;
+      const [moved] = arr.splice(from, 1);
+      moved.dreSecaoId = alvo.dreSecaoId;
+      const to = arr.findIndex((c) => c.id === targetId);
+      arr.splice(to, 0, moved);
+      return arr;
+    });
+  }
+  // Move conta para o fim de uma seção (drop na área/título da seção).
+  function moverContaParaSecao(secaoId: string | null) {
+    if (!drag || drag.kind !== "conta") return;
+    setContas((prev) => {
+      const arr = [...prev];
+      const from = arr.findIndex((c) => c.id === drag.id);
+      if (from < 0) return prev;
+      const [moved] = arr.splice(from, 1);
+      moved.dreSecaoId = secaoId;
+      // insere após a última conta da seção de destino (mantém agrupamento)
+      let lastIdx = -1;
+      arr.forEach((c, i) => { if (c.dreSecaoId === secaoId) lastIdx = i; });
+      arr.splice(lastIdx + 1, 0, moved);
       return arr;
     });
   }
   function moverContaSecao(contaId: string, secaoId: string | null) {
     setContas((prev) => prev.map((c) => (c.id === contaId ? { ...c, dreSecaoId: secaoId } : c)));
   }
+  function endDrag() { setDrag(null); setOverSecao(null); }
 
   async function salvar() {
     setSaving(true); setMsg(null);
@@ -97,14 +130,27 @@ export default function DreEstruturaPage() {
           <div className="flex items-center justify-center py-16 text-muted-foreground gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Carregando…</div>
         ) : (
           <>
-            <p className="text-sm text-muted-foreground">Defina as seções (somam ou subtraem no resultado), sua ordem, e em qual seção cada conta de resultado aparece.</p>
-            {secoes.map((s, i) => (
-              <div key={s.id} className="rounded-xl border border-border bg-card">
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted">
-                  <div className="flex flex-col">
-                    <button type="button" onClick={() => moverSecao(i, -1)} className="text-muted-foreground hover:text-foreground"><ChevronUp className="w-4 h-4" /></button>
-                    <button type="button" onClick={() => moverSecao(i, 1)} className="text-muted-foreground hover:text-foreground"><ChevronDown className="w-4 h-4" /></button>
-                  </div>
+            <p className="text-sm text-muted-foreground">Arraste pelo <GripVertical className="inline w-3.5 h-3.5 align-text-bottom" /> para reordenar seções e contas — solte uma conta sobre outra seção para movê-la. Cada seção soma ou subtrai no resultado.</p>
+            {secoes.map((s) => (
+              <div
+                key={s.id}
+                className={cn("rounded-xl border bg-card transition-colors", overSecao === s.id ? "border-info ring-1 ring-info/40" : "border-border")}
+                onDragOver={(e) => { if (drag?.kind === "conta") { e.preventDefault(); setOverSecao(s.id); } }}
+                onDragLeave={() => setOverSecao((v) => (v === s.id ? null : v))}
+                onDrop={(e) => { if (drag?.kind === "conta") { e.preventDefault(); moverContaParaSecao(s.id); endDrag(); } }}
+              >
+                <div
+                  className={cn("flex items-center gap-2 px-4 py-3 border-b border-border bg-muted rounded-t-xl select-none", drag?.kind === "secao" && drag.id === s.id && "opacity-40")}
+                  onDragOver={(e) => { if (drag?.kind === "secao") { e.preventDefault(); } }}
+                  onDrop={(e) => { if (drag?.kind === "secao") { e.preventDefault(); reordenarSecao(s.id); endDrag(); } }}
+                >
+                  <span
+                    draggable
+                    onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; setDrag({ kind: "secao", id: s.id }); }}
+                    onDragEnd={endDrag}
+                    className="text-muted-foreground/60 hover:text-foreground cursor-grab active:cursor-grabbing"
+                    title="Arraste para reordenar a seção"
+                  ><GripVertical className="w-4 h-4" /></span>
                   <Input value={s.nome} onChange={(e) => patchSecao(s.id, { nome: e.target.value })} className="h-9 max-w-xs font-semibold" />
                   <select value={s.operacao} onChange={(e) => patchSecao(s.id, { operacao: e.target.value as "SOMA" | "SUBTRAI" })} className="h-9 rounded-lg border border-border px-2 text-sm bg-card">
                     <option value="SOMA">Soma (+)</option>
@@ -112,15 +158,20 @@ export default function DreEstruturaPage() {
                   </select>
                   <button type="button" onClick={() => delSecao(s.id)} className="ml-auto text-muted-foreground/60 hover:text-red-500" title="Excluir seção"><Trash2 className="w-4 h-4" /></button>
                 </div>
-                <ContasDaSecao contas={contas.filter((c) => c.dreSecaoId === s.id)} secoes={secoes} onMove={moverConta} onMoveSecao={moverContaSecao} />
+                <ContasDaSecao contas={contas.filter((c) => c.dreSecaoId === s.id)} secoes={secoes} drag={drag} setDrag={setDrag} onReorder={reordenarConta} onMoveSecao={moverContaSecao} onEndDrag={endDrag} />
               </div>
             ))}
             <button type="button" onClick={addSecao} className="inline-flex items-center gap-1.5 text-sm font-medium text-info hover:text-info"><Plus className="w-4 h-4" /> Adicionar seção</button>
 
             {semSecao.length > 0 && (
-              <div className="rounded-xl border border-dashed border-amber-300 bg-warning/10">
+              <div
+                className={cn("rounded-xl border border-dashed bg-warning/10 transition-colors", overSecao === "—" ? "border-info ring-1 ring-info/40" : "border-amber-300")}
+                onDragOver={(e) => { if (drag?.kind === "conta") { e.preventDefault(); setOverSecao("—"); } }}
+                onDragLeave={() => setOverSecao((v) => (v === "—" ? null : v))}
+                onDrop={(e) => { if (drag?.kind === "conta") { e.preventDefault(); moverContaParaSecao(null); endDrag(); } }}
+              >
                 <div className="px-4 py-2 text-sm font-semibold text-warning">Sem seção ({semSecao.length}) — não aparecem na DRE</div>
-                <ContasDaSecao contas={semSecao} secoes={secoes} onMove={moverConta} onMoveSecao={moverContaSecao} />
+                <ContasDaSecao contas={semSecao} secoes={secoes} drag={drag} setDrag={setDrag} onReorder={reordenarConta} onMoveSecao={moverContaSecao} onEndDrag={endDrag} />
               </div>
             )}
           </>
@@ -130,19 +181,30 @@ export default function DreEstruturaPage() {
   );
 }
 
-function ContasDaSecao({ contas, secoes, onMove, onMoveSecao }: {
+function ContasDaSecao({ contas, secoes, drag, setDrag, onReorder, onMoveSecao, onEndDrag }: {
   contas: Conta[]; secoes: Secao[];
-  onMove: (id: string, dir: -1 | 1) => void; onMoveSecao: (id: string, secaoId: string | null) => void;
+  drag: Drag; setDrag: (d: Drag) => void;
+  onReorder: (targetId: string) => void;
+  onMoveSecao: (id: string, secaoId: string | null) => void;
+  onEndDrag: () => void;
 }) {
-  if (contas.length === 0) return <div className="px-4 py-3 text-xs text-muted-foreground">Nenhuma conta nesta seção.</div>;
+  if (contas.length === 0) return <div className="px-4 py-3 text-xs text-muted-foreground">Nenhuma conta nesta seção. Arraste uma conta para cá.</div>;
   return (
-    <ul className="divide-y divide-gray-50">
+    <ul className="divide-y divide-border/50">
       {contas.map((c) => (
-        <li key={c.id} className="flex items-center gap-2 px-4 py-1.5 text-sm">
-          <div className="flex flex-col">
-            <button type="button" onClick={() => onMove(c.id, -1)} className="text-muted-foreground/60 hover:text-foreground"><ChevronUp className="w-3.5 h-3.5" /></button>
-            <button type="button" onClick={() => onMove(c.id, 1)} className="text-muted-foreground/60 hover:text-foreground"><ChevronDown className="w-3.5 h-3.5" /></button>
-          </div>
+        <li
+          key={c.id}
+          className={cn("flex items-center gap-2 px-4 py-1.5 text-sm select-none transition-colors", drag?.kind === "conta" && drag.id === c.id && "opacity-40")}
+          onDragOver={(e) => { if (drag?.kind === "conta") { e.preventDefault(); } }}
+          onDrop={(e) => { if (drag?.kind === "conta") { e.preventDefault(); e.stopPropagation(); onReorder(c.id); onEndDrag(); } }}
+        >
+          <span
+            draggable
+            onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.stopPropagation(); setDrag({ kind: "conta", id: c.id }); }}
+            onDragEnd={onEndDrag}
+            className="text-muted-foreground/60 hover:text-foreground cursor-grab active:cursor-grabbing"
+            title="Arraste para reordenar / mover de seção"
+          ><GripVertical className="w-3.5 h-3.5" /></span>
           <span className="font-mono text-[11px] text-muted-foreground w-20">{c.codigo}</span>
           <span className="flex-1 truncate text-foreground">{c.nome}</span>
           <select value={c.dreSecaoId ?? ""} onChange={(e) => onMoveSecao(c.id, e.target.value || null)} className="h-8 rounded-lg border border-border px-2 text-xs bg-card max-w-[12rem]">

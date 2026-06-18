@@ -17,13 +17,26 @@ export async function GET(req: NextRequest) {
   const ini = new Date(Date.UTC(ano, 0, 1));
   const fim = new Date(Date.UTC(ano, 11, 31, 23, 59, 59, 999));
 
-  const [secoes, contas] = await Promise.all([
+  const [secoes, contas, sinteticas] = await Promise.all([
     prisma.dRESecao.findMany({ orderBy: { ordem: "asc" }, select: { id: true, nome: true, operacao: true, ordem: true } }),
     prisma.contaContabil.findMany({
-      where: { grupo: "RESULTADO", tipo: "ANALITICA" },
+      where: { grupo: "RESULTADO", tipo: "ANALITICA", ativo: true },
       select: { id: true, codigo: true, nome: true, natureza: true, dreSecaoId: true, ordemDre: true },
     }),
+    // Sintéticas de resultado (ex.: 3.2.1 CMV, 3.2.2 CPV) — rótulo dos subtotais.
+    prisma.contaContabil.findMany({
+      where: { grupo: "RESULTADO", tipo: "SINTETICA" },
+      select: { codigo: true, nome: true },
+    }),
   ]);
+  const nomeSintetica = new Map(sinteticas.map((s) => [s.codigo, s.nome]));
+  // Subgrupo = sintética-pai intermediária (código com >= 3 segmentos, ex. 3.2.1).
+  // Contas direto sob o grupo (3.1/3.2/3.3) não têm subgrupo.
+  const subgrupoDe = (codigo: string): { codigo: string; nome: string } | null => {
+    const pai = codigo.split(".").slice(0, -1).join(".");
+    if (pai.split(".").length < 3) return null;
+    return { codigo: pai, nome: nomeSintetica.get(pai) ?? pai };
+  };
   const contaIds = contas.map((c) => c.id);
 
   // Partidas do ano, com data (para o mês) — bucketiza em JS (volume pequeno).
@@ -52,7 +65,7 @@ export async function GET(req: NextRequest) {
     return secoes.find((s) => s.nome === nomeAlvo) ?? secoes[0];
   };
 
-  type LinhaConta = { id: string; codigo: string; nome: string; ordemDre: number; meses: number[]; total: number };
+  type LinhaConta = { id: string; codigo: string; nome: string; ordemDre: number; meses: number[]; total: number; subgrupoCodigo: string | null; subgrupoNome: string | null };
   type SecaoOut = { id: string; nome: string; operacao: string; contas: LinhaConta[]; meses: number[]; total: number };
 
   const porSecao = new Map<string, SecaoOut>();
@@ -73,7 +86,8 @@ export async function GET(req: NextRequest) {
     const secaoId = c.dreSecaoId && porSecao.has(c.dreSecaoId) ? c.dreSecaoId : secaoPorPrefixo(c.codigo)?.id;
     const sec = secaoId ? porSecao.get(secaoId) : undefined;
     if (!sec) continue;
-    sec.contas.push({ id: c.id, codigo: c.codigo, nome: c.nome, ordemDre: c.ordemDre ?? 0, meses, total });
+    const sg = subgrupoDe(c.codigo);
+    sec.contas.push({ id: c.id, codigo: c.codigo, nome: c.nome, ordemDre: c.ordemDre ?? 0, meses, total, subgrupoCodigo: sg?.codigo ?? null, subgrupoNome: sg?.nome ?? null });
     for (let i = 0; i < 12; i++) sec.meses[i] = r2(sec.meses[i] + meses[i]);
     sec.total = r2(sec.total + total);
   }

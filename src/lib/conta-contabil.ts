@@ -30,7 +30,10 @@ async function garantirEntidadeEmpresa(
   nome: string,
 ) {
   const chave = tipo === "cliente" ? { clienteId: entidadeId } : { fornecedorId: entidadeId };
-  const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, ...chave } });
+  // Cliente pode ter duas analíticas com o mesmo clienteId (1.1.2 Clientes a
+  // Receber, ATIVO; e 2.1.2.x Material a Entregar, PASSIVO) — desambigua pelo grupo.
+  const grupoChave = tipo === "cliente" ? "ATIVO" : "PASSIVO";
+  const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, grupo: grupoChave, ...chave } });
   if (existente) return existente;
 
   const codPai = tipo === "cliente" ? COD_CLIENTES : COD_FORNECEDORES;
@@ -240,15 +243,38 @@ export async function garantirContaImobilizadoBem(empresaId: string, descricao: 
   });
 }
 
-// Contas de resultado dedicadas (analíticas .9xxx) para fatos que antes caíam nas
+// Contas de resultado dedicadas (analíticas) para fatos que antes caíam nas
 // sintéticas 3.1/3.2/3.3 — assim o Balanço (que só soma analíticas) as enxerga.
-/** Analítica de CMV (3.2.9002) — baixa de estoque de mercadoria (revenda) na venda. */
-export async function garantirContaCmv(empresaId: string) {
-  return garantirContaSistema(empresaId, { codigo: "3.2.9002", nome: "CMV — Custo das Mercadorias Vendidas", pai: "3.2" });
+
+/** Garante (idempotente) uma SINTÉTICA de resultado sob um pai (por código). */
+async function garantirSinteticaResultado(empresaId: string, codigo: string, nome: string, paiCodigo: string) {
+  const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo }, select: { id: true } });
+  if (existente) return existente;
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: paiCodigo } });
+  if (!pai) return null;
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo, nome,
+      grupo: "RESULTADO", natureza: pai.natureza, tipo: "SINTETICA",
+      nivel: pai.nivel + 1, aceitaLancamento: false, paiId: pai.id,
+    },
+    select: { id: true },
+  });
 }
-/** Analítica de CPV (3.2.9003) — baixa de estoque de produto acabado (fabricado) na venda. */
+
+/**
+ * Analítica de CMV (3.2.1.0001) sob a sintética 3.2.1 CMV — baixa de estoque de
+ * mercadoria (revenda) na venda. O motor perpétuo lança aqui; a sintética pai
+ * totaliza no DRE (modelo periódico, Fase 1).
+ */
+export async function garantirContaCmv(empresaId: string) {
+  await garantirSinteticaResultado(empresaId, "3.2.1", "CMV — Custo das Mercadorias Vendidas", "3.2");
+  return garantirContaSistema(empresaId, { codigo: "3.2.1.0001", nome: "Custo das mercadorias vendidas", pai: "3.2.1" });
+}
+/** Analítica de CPV (3.2.2.0001) sob a sintética 3.2.2 CPV — baixa de produto acabado na venda. */
 export async function garantirContaCpv(empresaId: string) {
-  return garantirContaSistema(empresaId, { codigo: "3.2.9003", nome: "CPV — Custo dos Produtos Vendidos", pai: "3.2" });
+  await garantirSinteticaResultado(empresaId, "3.2.2", "CPV — Custo dos Produtos Vendidos", "3.2");
+  return garantirContaSistema(empresaId, { codigo: "3.2.2.0001", nome: "Custo dos produtos vendidos", pai: "3.2.2" });
 }
 /** Analítica de receita sem natureza (3.1.9002). */
 export async function garantirContaReceitaFallback(empresaId: string) {
@@ -258,7 +284,11 @@ export async function garantirContaReceitaFallback(empresaId: string) {
 export async function garantirContaDespesaFallback(empresaId: string) {
   return garantirContaSistema(empresaId, { codigo: "3.3.9004", nome: "Despesas Gerais", pai: "3.3" });
 }
-/** Passivo "Material a Entregar" (2.1.2) — receita diferida até a entrega. */
+/**
+ * Sintética "Material a Entregar" (2.1.2) — receita diferida até a entrega.
+ * Passou a ser conta-pai: o saldo fica nas analíticas por cliente (2.1.2.NNNN),
+ * espelhando Fornecedores a Pagar (2.1.1). Get-or-create defensivo.
+ */
 export async function garantirContaMaterialEntregar(empresaId: string) {
   const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "2.1.2" }, select: { id: true } });
   if (existente) return existente;
@@ -267,8 +297,36 @@ export async function garantirContaMaterialEntregar(empresaId: string) {
   return prismaSemEscopo.contaContabil.create({
     data: {
       empresaId, codigo: "2.1.2", nome: "Material a Entregar",
+      grupo: "PASSIVO", natureza: "CREDORA", tipo: "SINTETICA",
+      nivel: pai.nivel + 1, aceitaLancamento: false, paiId: pai.id,
+    },
+    select: { id: true },
+  });
+}
+
+/**
+ * Garante (idempotente) a analítica de Material a Entregar de um cliente, sob a
+ * sintética 2.1.2. Keyed por clienteId + grupo=PASSIVO (o mesmo clienteId também
+ * identifica a analítica de Clientes a Receber, em ATIVO). Best-effort.
+ */
+export async function garantirContaMaterialEntregarCliente(empresaId: string, clienteId: string) {
+  const existente = await prismaSemEscopo.contaContabil.findFirst({
+    where: { empresaId, grupo: "PASSIVO", clienteId },
+    select: { id: true },
+  });
+  if (existente) return existente;
+  const pai = await garantirContaMaterialEntregar(empresaId);
+  if (!pai) return null;
+  const cliente = await prismaSemEscopo.cliente.findUnique({ where: { id: clienteId }, select: { razaoSocial: true } });
+  const paiFull = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "2.1.2" }, select: { id: true, codigo: true, nivel: true } });
+  if (!paiFull) return null;
+  const filhos = await prismaSemEscopo.contaContabil.findMany({ where: { empresaId, paiId: paiFull.id }, select: { codigo: true } });
+  const codigo = montarProximo(paiFull.codigo, filhos.map((f) => f.codigo));
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo, nome: cliente?.razaoSocial ?? "Cliente",
       grupo: "PASSIVO", natureza: "CREDORA", tipo: "ANALITICA",
-      nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id,
+      nivel: paiFull.nivel + 1, aceitaLancamento: true, paiId: paiFull.id, clienteId,
     },
     select: { id: true },
   });

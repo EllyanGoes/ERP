@@ -178,7 +178,7 @@ function NovoLancamentoDialog({ onDone }: { onDone: () => void }) {
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-3">
             <div><Label>Data</Label><Input type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
-            <div className="col-span-2"><Label>Histórico</Label><Input value={historico} onChange={(e) => setHistorico(e.target.value)} placeholder="Descrição do lançamento" /></div>
+            <div className="col-span-2"><Label>Descrição</Label><Input value={historico} onChange={(e) => setHistorico(e.target.value)} placeholder="Descrição do lançamento" /></div>
           </div>
           <div className="space-y-2">
             {linhas.map((l, i) => (
