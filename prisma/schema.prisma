@@ -517,7 +517,9 @@ model ContaContabil {
   empresa          Empresa           @relation(fields: [empresaId], references: [id])
 
   @@unique([empresaId, codigo])
-  @@unique([empresaId, clienteId])
+  // grupo no key: um cliente pode ter Clientes a Receber (ATIVO) e Material a
+  // Entregar (PASSIVO) — ambos com o mesmo clienteId, em grupos distintos.
+  @@unique([empresaId, grupo, clienteId])
   @@unique([empresaId, fornecedorId])
   @@unique([empresaId, naturezaFinanceiraId])
   @@unique([empresaId, localEstoqueId])
