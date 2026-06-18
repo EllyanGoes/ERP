@@ -1,7 +1,7 @@
 import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
-import { custosDaEmpresa } from "@/lib/custo-empresa";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaReceitaFallback, garantirContaDespesaFallback } from "@/lib/conta-contabil";
+import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -288,8 +288,10 @@ export async function contabilizarEntradaEstoque(conferenciaId: string) {
 }
 
 /**
- * CMV na venda: D Custos (3.2) / C Estoque (conta do local), pelo custo médio
- * (CMPM) dos itens baixados na minuta. Idempotente por (empresa, ESTOQUE_SAIDA, minutaId).
+ * Custo da venda: baixa do estoque na minuta, separando CMV (mercadoria comprada)
+ * de CPV (produto acabado fabricado). Valora pela regra de custeio
+ * (`valorUnitarioEstoque`): acabado pelo preço médio de venda, demais pelo CMPM.
+ * D 3.2.9002 CMV e/ou 3.2.9003 CPV / C Estoque (conta do local). Idempotente.
  */
 export async function contabilizarCmvMinuta(minutaId: string) {
   const minuta = await prismaSemEscopo.minuta.findUnique({
@@ -304,21 +306,32 @@ export async function contabilizarCmvMinuta(minutaId: string) {
   });
   if (movs.length === 0) return;
 
-  const custos = await custosDaEmpresa(prismaSemEscopo, minuta.empresaId, Array.from(new Set(movs.map((m) => m.itemId))));
-  const porLocal = new Map<string, number>();
+  const valores = await valoresEstoqueDaEmpresa(minuta.empresaId, movs.map((m) => m.itemId));
+  // Crédito de estoque por local; débito separado em CMV (mercadoria) e CPV (acabado).
+  const credLocal = new Map<string, number>();
+  let totalCmv = 0, totalCpv = 0;
   for (const m of movs) {
     if (!m.localEstoqueId) continue;
-    const custo = custos.get(m.itemId) ?? 0;
-    const v = decimalToNumber(m.quantidade) * (custo ?? 0);
-    if (v > 0) porLocal.set(m.localEstoqueId, (porLocal.get(m.localEstoqueId) ?? 0) + v);
+    const vi = valores.get(m.itemId);
+    const v = decimalToNumber(m.quantidade) * (vi?.valorUnitario ?? 0);
+    if (v <= 0) continue;
+    credLocal.set(m.localEstoqueId, (credLocal.get(m.localEstoqueId) ?? 0) + v);
+    if (vi?.categoria === "PRODUTO_ACABADO") totalCpv += v; else totalCmv += v;
   }
-  const total = Array.from(porLocal.values()).reduce((s, v) => s + v, 0);
-  if (total <= 0) return;
+  if (totalCmv + totalCpv <= 0) return;
 
-  const contaCusto = await garantirContaCmv(minuta.empresaId);
-  if (!contaCusto) return;
-  const partidas: PartidaIn[] = [{ contaId: contaCusto.id, tipo: "DEBITO", valor: total }];
-  for (const [localId, v] of Array.from(porLocal.entries())) {
+  const partidas: PartidaIn[] = [];
+  if (totalCmv > 0.005) {
+    const c = await garantirContaCmv(minuta.empresaId);
+    if (!c) return;
+    partidas.push({ contaId: c.id, tipo: "DEBITO", valor: totalCmv });
+  }
+  if (totalCpv > 0.005) {
+    const c = await garantirContaCpv(minuta.empresaId);
+    if (!c) return;
+    partidas.push({ contaId: c.id, tipo: "DEBITO", valor: totalCpv });
+  }
+  for (const [localId, v] of Array.from(credLocal.entries())) {
     if (v <= 0) continue;
     const cl = await contaDoLocal(minuta.empresaId, localId);
     if (!cl) return;
@@ -327,7 +340,7 @@ export async function contabilizarCmvMinuta(minutaId: string) {
 
   await registrarLancamento({
     empresaId: minuta.empresaId, data: minuta.dataEntrega ?? minuta.dataEmissao ?? minuta.createdAt,
-    historico: `CMV — saída ${minuta.numero}`, origemTipo: "ESTOQUE_SAIDA", origemId: minuta.id,
+    historico: `Custo da venda — saída ${minuta.numero}`, origemTipo: "ESTOQUE_SAIDA", origemId: minuta.id,
     partidas,
   });
 }
@@ -358,14 +371,14 @@ async function postMovimentosEstoque(opts: {
   if (proprios.length === 0) return;
 
   const itemIds = Array.from(new Set(proprios.map((m) => m.itemId)));
-  const custos = await custosDaEmpresa(prismaSemEscopo, empresaId, itemIds);
+  const valores = await valoresEstoqueDaEmpresa(empresaId, itemIds);
 
-  // Variação de valor (signed) por local.
+  // Variação de valor (signed) por local — acabado pelo preço médio de venda, demais pelo CMPM.
   const porLocal = new Map<string, number>();
   for (const m of proprios) {
     if (!m.localEstoqueId) continue;
-    const custo = custos.get(m.itemId) ?? 0;
-    if (!custo) continue; // sem custo → não compõe valor
+    const custo = valores.get(m.itemId)?.valorUnitario ?? 0;
+    if (!custo) continue; // sem valor → não compõe
     // Direção do AJUSTE pelo sinal de (saldoDepois − saldoAntes); demais pelo tipo.
     let sinal = 0;
     if (m.tipo === "ENTRADA") sinal = 1;

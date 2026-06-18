@@ -6,7 +6,7 @@ import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker"
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatDate, cn } from "@/lib/utils";
-import { useFormatoContabil, FormatoToggle, fmtSaldo, fmtColuna, type NaturezaConta } from "@/lib/formato-contabil";
+import { useFormatoContabil, FormatoToggle, fmtSaldo, fmtColuna, saldoAnormal, type NaturezaConta } from "@/lib/formato-contabil";
 import { Loader2, BookOpen } from "lucide-react";
 
 type FlatConta = { id: string; codigo: string; nome: string };
@@ -119,7 +119,7 @@ export default function RazaoPage() {
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums text-blue-700">{fmtColuna(m.debito, modo)}</td>
                     <td className="px-4 py-2 text-right tabular-nums text-amber-700">{fmtColuna(m.credito, modo)}</td>
-                    <td className="px-4 py-2 text-right tabular-nums font-medium text-gray-900">{fmtSaldo(m.saldo, modo, razao.conta.natureza as NaturezaConta)}</td>
+                    <td className={cn("px-4 py-2 text-right tabular-nums font-medium", saldoAnormal(m.saldo) ? "text-red-600" : "text-gray-900")}>{fmtSaldo(m.saldo, modo, razao.conta.natureza as NaturezaConta)}</td>
                   </tr>
                 ))}
               </tbody>

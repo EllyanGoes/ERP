@@ -23,6 +23,7 @@ type DbCusto = {
   };
   item: {
     findMany(args: { where: { id: { in: string[] } }; select: { id: true; precoCusto: true } }): Promise<{ id: string; precoCusto: unknown }[]>;
+    findUnique(args: { where: { id: string }; select: { categoriaEstoque: true } }): Promise<{ categoriaEstoque: unknown } | null>;
   };
 };
 
@@ -94,6 +95,11 @@ export async function aplicarCmpmEmpresa(
   quantidade: number,
   valorUnitario: number,
 ): Promise<number> {
+  // Produto Acabado não tem CMPM: o custo virá do PCP; valoração é por preço
+  // médio de venda. Não recalcula (mantém em branco).
+  const it = await tx.item.findUnique({ where: { id: itemId }, select: { categoriaEstoque: true } });
+  if (it && String(it.categoriaEstoque) === "PRODUTO_ACABADO") return 0;
+
   const atual = await tx.itemCustoEmpresa.findUnique({ where: { empresaId_itemId: { empresaId, itemId } } });
   const custoAtual = num(atual?.precoCusto) ?? 0;
 

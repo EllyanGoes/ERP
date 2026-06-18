@@ -6,7 +6,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { useFormatoContabil, FormatoToggle, fmtSaldo, fmtColuna, type NaturezaConta } from "@/lib/formato-contabil";
+import { useFormatoContabil, FormatoToggle, fmtSaldo, fmtColuna, saldoAnormal, type NaturezaConta } from "@/lib/formato-contabil";
 import { Loader2, Scale, Check, X, ChevronRight, ChevronDown } from "lucide-react";
 
 type Linha = {
@@ -128,10 +128,10 @@ export default function BalancetePage() {
                           <span className="truncate">{l.nome}</span>
                         </Link>
                       </span>
-                      <span className="text-right">{fmtSaldo(l.saldoAnterior, modo, l.natureza)}</span>
+                      <span className={cn("text-right", saldoAnormal(l.saldoAnterior) && "text-red-600 font-medium")}>{fmtSaldo(l.saldoAnterior, modo, l.natureza)}</span>
                       <span className="text-right text-blue-700">{fmtColuna(l.debito, modo) || <span className="text-gray-300">—</span>}</span>
                       <span className="text-right text-amber-700">{fmtColuna(l.credito, modo) || <span className="text-gray-300">—</span>}</span>
-                      <span className="text-right font-medium text-gray-900">{fmtSaldo(l.saldoFinal, modo, l.natureza)}</span>
+                      <span className={cn("text-right font-medium", saldoAnormal(l.saldoFinal) ? "text-red-600" : "text-gray-900")}>{fmtSaldo(l.saldoFinal, modo, l.natureza)}</span>
                     </div>
                   );
                 })}

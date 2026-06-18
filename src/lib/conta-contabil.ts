@@ -242,9 +242,13 @@ export async function garantirContaImobilizadoBem(empresaId: string, descricao: 
 
 // Contas de resultado dedicadas (analíticas .9xxx) para fatos que antes caíam nas
 // sintéticas 3.1/3.2/3.3 — assim o Balanço (que só soma analíticas) as enxerga.
-/** Analítica de CMV (3.2.9002) — baixa de estoque na venda. */
+/** Analítica de CMV (3.2.9002) — baixa de estoque de mercadoria (revenda) na venda. */
 export async function garantirContaCmv(empresaId: string) {
   return garantirContaSistema(empresaId, { codigo: "3.2.9002", nome: "CMV — Custo das Mercadorias Vendidas", pai: "3.2" });
+}
+/** Analítica de CPV (3.2.9003) — baixa de estoque de produto acabado (fabricado) na venda. */
+export async function garantirContaCpv(empresaId: string) {
+  return garantirContaSistema(empresaId, { codigo: "3.2.9003", nome: "CPV — Custo dos Produtos Vendidos", pai: "3.2" });
 }
 /** Analítica de receita sem natureza (3.1.9002). */
 export async function garantirContaReceitaFallback(empresaId: string) {

@@ -57,6 +57,7 @@ type Item = {
   categoriaEstoque: CategoriaEstoque | null;
   ncm: string | null;
   precoVenda: unknown;
+  precoVendaMedio?: unknown;
   precoCusto: unknown;
   ativo: boolean;
   favorito: boolean;
@@ -901,9 +902,16 @@ export default function ProdutoDetailPage() {
     : empresasEstoque.length === 1
       ? custoDaEmpresa(empresasEstoque[0].id)
       : 0;
-  // Custo total ponderado pelo custo da empresa de cada linha de saldo.
+  // Produto Acabado: custo médio fica em branco (custo virá do PCP); valoração do
+  // estoque é pelo PREÇO MÉDIO DE VENDA enquanto isso.
+  const ehAcabado = item.categoriaEstoque === "PRODUTO_ACABADO";
+  const precoVendaMedioNum = item.precoVendaMedio != null
+    ? decimalToNumber(item.precoVendaMedio)
+    : (item.precoVenda != null ? decimalToNumber(item.precoVenda) : 0);
+  const valorUnitDaEmpresa = (empId: string) => ehAcabado ? precoVendaMedioNum : custoDaEmpresa(empId);
+  // Valor total do estoque (base de valoração por categoria).
   const custoTotal = estoqueComLocal.reduce(
-    (s, e) => s + decimalToNumber(e.quantidadeAtual) * custoDaEmpresa(e.empresaId),
+    (s, e) => s + decimalToNumber(e.quantidadeAtual) * valorUnitDaEmpresa(e.empresaId),
     0,
   );
 
@@ -1302,17 +1310,19 @@ export default function ProdutoDetailPage() {
                   {filtroEmpresaEstoque && (
                     <div className="col-span-2 sm:col-span-4 flex justify-end -mb-2">{filtroEmpresaEstoque}</div>
                   )}
-                  {/* Custo Médio */}
+                  {/* Custo Médio (acabado: preço médio de venda) */}
                   <div className="rounded-xl bg-gray-50 px-4 py-3">
-                    <p className="text-xs text-gray-500 font-medium mb-1">Custo Médio</p>
+                    <p className="text-xs text-gray-500 font-medium mb-1">{ehAcabado ? "Preço méd. de venda" : "Custo Médio"}</p>
                     <p className="text-xl font-bold text-gray-800">
-                      {custoUnit > 0 ? formatBRL(custoUnit) : "—"}
+                      {ehAcabado ? (precoVendaMedioNum > 0 ? formatBRL(precoVendaMedioNum) : "—") : (custoUnit > 0 ? formatBRL(custoUnit) : "—")}
                     </p>
-                    {custoUnit > 0 && <p className="text-xs text-gray-400 mt-0.5">CMPM por entradas</p>}
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {ehAcabado ? "custo de produção: a definir (PCP)" : (custoUnit > 0 ? "CMPM por entradas" : "")}
+                    </p>
                   </div>
-                  {/* Custo Total */}
+                  {/* Valor Total em Estoque */}
                   <div className="rounded-xl bg-blue-50 px-4 py-3">
-                    <p className="text-xs text-blue-600 font-medium mb-1">Custo Total em Estoque</p>
+                    <p className="text-xs text-blue-600 font-medium mb-1">{ehAcabado ? "Valor em Estoque (venda)" : "Custo Total em Estoque"}</p>
                     <p className="text-xl font-bold text-blue-800">
                       {custoTotal > 0 ? formatBRL(custoTotal) : "—"}
                     </p>

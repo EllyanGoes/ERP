@@ -1014,6 +1014,7 @@ model Item {
   ncm                    String?
   cest                   String?
   precoVenda             Decimal                  @db.Decimal(15, 2)
+  precoVendaMedio        Decimal?                 @db.Decimal(15, 2) // média ponderada das vendas reais (base de valoração do acabado enquanto não há custo de produção)
   precoCusto             Decimal?                 @db.Decimal(15, 2)
   pesoLiquido            Decimal?                 @db.Decimal(10, 3)
   pesoBruto              Decimal?                 @db.Decimal(10, 3)

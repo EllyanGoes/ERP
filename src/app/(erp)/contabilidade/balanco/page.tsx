@@ -6,7 +6,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Input } from "@/components/ui/input";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { useFormatoContabil, FormatoToggle, fmtSaldo, type FormatoModo, type NaturezaConta } from "@/lib/formato-contabil";
+import { useFormatoContabil, FormatoToggle, fmtSaldo, saldoAnormal, type FormatoModo, type NaturezaConta } from "@/lib/formato-contabil";
 import { Loader2, Scale, Check, X } from "lucide-react";
 
 type Linha = { id: string; codigo: string; nome: string; tipo: "SINTETICA" | "ANALITICA"; natureza: NaturezaConta; nivel: number; saldo: number };
@@ -34,7 +34,7 @@ function LinhaRow({ l, soComSaldo, modo, data }: { l: Linha; soComSaldo: boolean
         <span className="font-mono text-xs text-gray-400 shrink-0">{l.codigo}</span>
         <span className="truncate">{l.nome}</span>
       </Link>
-      <span className={cn(l.saldo === 0 && "text-gray-300")}>{fmtSaldo(l.saldo, modo, l.natureza)}</span>
+      <span className={cn(l.saldo === 0 && "text-gray-300", saldoAnormal(l.saldo) && "text-red-600 font-medium")}>{fmtSaldo(l.saldo, modo, l.natureza)}</span>
     </div>
   );
 }

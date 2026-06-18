@@ -4,6 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
 import { garantirContaContabilLocalEstoque } from "@/lib/conta-contabil";
+import { decimalToNumber } from "@/lib/utils";
 import { CategoriaEstoque } from "@prisma/client";
 import { z } from "zod";
 
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
         select: {
           itemId: true,
           quantidadeAtual: true,
-          item: { select: { precoCusto: true } },
+          item: { select: { precoCusto: true, categoriaEstoque: true, precoVendaMedio: true, precoVenda: true } },
         },
       },
     },
@@ -51,8 +52,13 @@ export async function GET(req: NextRequest) {
     ...l,
     estoqueItens: l.estoqueItens.map((e) => {
       const proprio = custos.get(chaveCustoEmpresa(l.empresaId, e.itemId));
-      // Estrito por empresa: sem custo próprio → sem custo (não herda o global).
-      return { ...e, item: { ...e.item, precoCusto: proprio != null ? proprio : null } };
+      // Valoração por categoria: Produto Acabado pelo preço médio de venda
+      // (custo de produção virá do PCP); demais pelo CMPM próprio da empresa.
+      const ehAcabado = e.item.categoriaEstoque === "PRODUTO_ACABADO";
+      const valorUnit = ehAcabado
+        ? (e.item.precoVendaMedio != null ? decimalToNumber(e.item.precoVendaMedio) : (e.item.precoVenda != null ? decimalToNumber(e.item.precoVenda) : null))
+        : (proprio != null ? proprio : null);
+      return { ...e, item: { ...e.item, precoCusto: valorUnit } };
     }),
   }));
   return NextResponse.json(comCusto);

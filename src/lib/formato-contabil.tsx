@@ -45,6 +45,16 @@ export function fmtColuna(valor: number, modo: FormatoModo): string {
   return modo === "real" ? formatBRL(valor) : num(valor);
 }
 
+/**
+ * Saldo anormal = conta com saldo no lado oposto à sua natureza (devedora com
+ * saldo credor, ou credora com saldo devedor). Como o saldo já vem ajustado pela
+ * natureza (>=0 = lado normal), anormal é simplesmente saldo < 0. Sinaliza
+ * movimentação fora do padrão para o gestor (exibir em vermelho).
+ */
+export function saldoAnormal(valor: number): boolean {
+  return valor < -0.005;
+}
+
 export function FormatoToggle({ modo, onChange, className }: { modo: FormatoModo; onChange: (m: FormatoModo) => void; className?: string }) {
   return (
     <div className={cn("inline-flex rounded-lg border border-gray-200 overflow-hidden text-xs", className)}>
