@@ -54,7 +54,7 @@ export default function LancamentosContabeisPage() {
     <div>
       <PageHeader
         title="Diário Contábil"
-        breadcrumbs={[{ label: "Contabilidade" }, { label: "Diário" }]}
+        breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "Diário" }]}
         action={
           <Button size="sm" variant="outline" onClick={gerarRetroativos} disabled={gerando}>
             {gerando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}

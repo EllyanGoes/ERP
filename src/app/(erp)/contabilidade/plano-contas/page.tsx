@@ -93,7 +93,7 @@ export default function PlanoContasContabilPage() {
     <div>
       <PageHeader
         title="Plano de Contas Contábil"
-        breadcrumbs={[{ label: "Contabilidade" }, { label: "Plano de Contas" }]}
+        breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "Plano de Contas" }]}
         action={<NovaContaDialog flat={flat} onDone={load} />}
       />
       <div className="px-8 pb-8">
@@ -137,6 +137,8 @@ function Node({ conta, onChanged, flat, collapsed, onToggle }: {
   const auto = !!(conta.clienteId || conta.fornecedorId);
   const temFilhos = conta.filhos.length > 0;
   const recolhido = collapsed.has(conta.id);
+  // Nº de contas dentro desta (todos os descendentes, por prefixo de código).
+  const qtdDentro = flat.filter((x) => x.codigo.startsWith(conta.codigo + ".")).length;
   return (
     <li>
       <div
@@ -162,6 +164,14 @@ function Node({ conta, onChanged, flat, collapsed, onToggle }: {
           <span className={cn("truncate", conta.tipo === "SINTETICA" ? "font-semibold text-gray-900" : "text-gray-700")}>
             {conta.nome}
           </span>
+          {qtdDentro > 0 && (
+            <span
+              className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-gray-100 text-gray-500 text-[11px] font-medium shrink-0 tabular-nums"
+              title={`${qtdDentro} ${qtdDentro === 1 ? "conta" : "contas"} dentro`}
+            >
+              {qtdDentro}
+            </span>
+          )}
           {auto && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-400 shrink-0">auto</span>}
           {!conta.ativo && <span className="text-xs text-gray-400 shrink-0">(inativa)</span>}
         </div>

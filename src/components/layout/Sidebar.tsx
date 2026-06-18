@@ -256,7 +256,7 @@ const mainModules: Module[] = [
   },
   {
     id: "contabilidade",
-    label: "Contabilidade",
+    label: "Contabilidade Gerencial",
     icon: Calculator,
     sections: [
       {

@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Input } from "@/components/ui/input";
 import { useTabTitle } from "@/lib/tabs-context";
-import { formatBRL, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useFormatoContabil, FormatoToggle, fmtSaldo, type FormatoModo, type NaturezaConta } from "@/lib/formato-contabil";
 import { Loader2, Scale, Check, X } from "lucide-react";
 
-type Linha = { id: string; codigo: string; nome: string; tipo: "SINTETICA" | "ANALITICA"; nivel: number; saldo: number };
+type Linha = { id: string; codigo: string; nome: string; tipo: "SINTETICA" | "ANALITICA"; natureza: NaturezaConta; nivel: number; saldo: number };
 type Balanco = {
   ativo: Linha[]; passivo: Linha[]; patrimonioLiquido: Linha[];
   totalAtivo: number; totalPassivo: number; totalPL: number;
@@ -17,19 +19,22 @@ type Balanco = {
 function hoje() {
   return new Date().toISOString().slice(0, 10);
 }
+function inicioAno(d: string) {
+  return `${d.slice(0, 4)}-01-01`;
+}
 
-function LinhaRow({ l, soComSaldo }: { l: Linha; soComSaldo: boolean }) {
+function LinhaRow({ l, soComSaldo, modo, data }: { l: Linha; soComSaldo: boolean; modo: FormatoModo; data: string }) {
   if (soComSaldo && l.saldo === 0) return null;
   return (
     <div className={cn(
       "flex items-center justify-between px-4 py-1.5 border-b border-gray-50 text-sm tabular-nums",
       l.tipo === "SINTETICA" ? "bg-gray-50/40 font-semibold text-gray-900" : "text-gray-700",
     )}>
-      <span className="flex items-center gap-2 min-w-0" style={{ paddingLeft: `${(l.nivel - 1) * 16}px` }}>
+      <Link href={`/contabilidade/razao?contaId=${l.id}&from=${inicioAno(data)}&to=${data}`} className="flex items-center gap-2 min-w-0 hover:text-blue-600" style={{ paddingLeft: `${(l.nivel - 1) * 16}px` }} title="Abrir razão">
         <span className="font-mono text-xs text-gray-400 shrink-0">{l.codigo}</span>
         <span className="truncate">{l.nome}</span>
-      </span>
-      <span className={cn(l.saldo === 0 && "text-gray-300")}>{formatBRL(l.saldo)}</span>
+      </Link>
+      <span className={cn(l.saldo === 0 && "text-gray-300")}>{fmtSaldo(l.saldo, modo, l.natureza)}</span>
     </div>
   );
 }
@@ -40,6 +45,7 @@ export default function BalancoPage() {
   const [bal, setBal] = useState<Balanco | null>(null);
   const [loading, setLoading] = useState(true);
   const [soComSaldo, setSoComSaldo] = useState(true);
+  const [modo, setModo] = useFormatoContabil();
 
   const load = useCallback(async (d: string) => {
     setLoading(true);
@@ -53,7 +59,7 @@ export default function BalancoPage() {
 
   return (
     <div>
-      <PageHeader title="Balanço Patrimonial" breadcrumbs={[{ label: "Contabilidade" }, { label: "Balanço" }]} />
+      <PageHeader title="Balanço Patrimonial" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "Balanço" }]} />
       <div className="px-8 pb-8 space-y-4">
         <div className="flex items-center gap-3 flex-wrap">
           <label className="flex items-center gap-2 text-sm text-gray-600">
@@ -64,6 +70,7 @@ export default function BalancoPage() {
             <input type="checkbox" checked={soComSaldo} onChange={(e) => setSoComSaldo(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-blue-600" />
             Só contas com saldo
           </label>
+          <FormatoToggle modo={modo} onChange={setModo} />
           {bal && (
             <span className={cn("ml-auto inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg",
               bal.confere ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")}>
@@ -84,11 +91,11 @@ export default function BalancoPage() {
                 <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Ativo</h2>
               </div>
               <div>
-                {bal.ativo.map((l) => <LinhaRow key={l.id} l={l} soComSaldo={soComSaldo} />)}
+                {bal.ativo.map((l) => <LinhaRow key={l.id} l={l} soComSaldo={soComSaldo} modo={modo} data={data} />)}
               </div>
               <div className="flex items-center justify-between px-4 py-3 border-t-2 border-gray-200 bg-blue-50 font-bold text-gray-900 tabular-nums">
                 <span>Total do Ativo</span>
-                <span>{formatBRL(bal.totalAtivo)}</span>
+                <span>{fmtSaldo(bal.totalAtivo, modo, "DEVEDORA")}</span>
               </div>
             </div>
 
@@ -99,20 +106,20 @@ export default function BalancoPage() {
                 <h2 className="font-bold text-sm text-gray-800 uppercase tracking-wide">Passivo + Patrimônio Líquido</h2>
               </div>
               <div>
-                {bal.passivo.map((l) => <LinhaRow key={l.id} l={l} soComSaldo={soComSaldo} />)}
-                {bal.patrimonioLiquido.map((l) => <LinhaRow key={l.id} l={l} soComSaldo={soComSaldo} />)}
+                {bal.passivo.map((l) => <LinhaRow key={l.id} l={l} soComSaldo={soComSaldo} modo={modo} data={data} />)}
+                {bal.patrimonioLiquido.map((l) => <LinhaRow key={l.id} l={l} soComSaldo={soComSaldo} modo={modo} data={data} />)}
                 {/* Resultado do exercício compõe o PL sem lançamento de encerramento */}
                 <div className="flex items-center justify-between px-4 py-1.5 border-b border-gray-50 text-sm tabular-nums text-gray-700 italic">
                   <span className="flex items-center gap-2" style={{ paddingLeft: "16px" }}>
                     <span className="font-mono text-xs text-gray-400">2.3.9</span>
                     <span>Resultado do Exercício</span>
                   </span>
-                  <span className={cn(bal.resultadoExercicio < 0 && "text-red-600")}>{formatBRL(bal.resultadoExercicio)}</span>
+                  <span className={cn(bal.resultadoExercicio < 0 && "text-red-600")}>{fmtSaldo(bal.resultadoExercicio, modo, "CREDORA")}</span>
                 </div>
               </div>
               <div className="flex items-center justify-between px-4 py-3 border-t-2 border-gray-200 bg-amber-50 font-bold text-gray-900 tabular-nums">
                 <span>Total Passivo + PL</span>
-                <span>{formatBRL(bal.totalPassivo + bal.totalPLcomResultado)}</span>
+                <span>{fmtSaldo(bal.totalPassivo + bal.totalPLcomResultado, modo, "CREDORA")}</span>
               </div>
             </div>
           </div>

@@ -89,8 +89,8 @@ export const MODULOS: ModuloDef[] = [
   },
   {
     key: "contabilidade",
-    label: "Contabilidade",
-    group: "Contabilidade",
+    label: "Contabilidade Gerencial",
+    group: "Contabilidade Gerencial",
     recursos: [
       { key: "plano-contas", label: "Plano de Contas Contábil", acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "lancamentos",  label: "Diário Contábil",          acoes: ["ver", "inserir"] },

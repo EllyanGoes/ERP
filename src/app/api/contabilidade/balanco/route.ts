@@ -53,11 +53,11 @@ export async function GET(req: NextRequest) {
     return c.natureza === "DEVEDORA" ? d - cr : cr - d;
   }
 
-  type Linha = { id: string; codigo: string; nome: string; tipo: string; nivel: number; saldo: number };
+  type Linha = { id: string; codigo: string; nome: string; tipo: string; natureza: string; nivel: number; saldo: number };
   const linhasDoGrupo = (grupo: string): Linha[] =>
     contas
       .filter((c) => c.grupo === grupo)
-      .map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome, tipo: c.tipo, nivel: c.nivel, saldo: saldoConta(c) }))
+      .map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome, tipo: c.tipo, natureza: c.natureza, nivel: c.nivel, saldo: saldoConta(c) }))
       .sort((a, b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true }));
 
   const ativo = linhasDoGrupo("ATIVO");

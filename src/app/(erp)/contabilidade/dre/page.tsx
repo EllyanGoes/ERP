@@ -40,7 +40,7 @@ export default function DrePage() {
 
   return (
     <div>
-      <PageHeader title="DRE — Demonstração do Resultado" breadcrumbs={[{ label: "Contabilidade" }, { label: "DRE" }]} />
+      <PageHeader title="DRE — Demonstração do Resultado" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "DRE" }]} />
       <div className="px-8 pb-8 space-y-4">
         <DateRangePicker value={range} onChange={setRange} />
 

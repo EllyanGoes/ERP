@@ -501,6 +501,8 @@ model ContaContabil {
   naturezaFinanceiraId String? // analítica de resultado vinculada a uma natureza
   localEstoqueId   String? // analítica de estoque vinculada a um local
   contaBancariaId  String? // analítica de disponibilidade vinculada a uma conta bancária
+  dreSecaoId       String? // seção da DRE (estrutura gerencial editável) — só contas de resultado
+  ordemDre         Int               @default(0) // ordem da conta dentro da seção da DRE
   ativo            Boolean           @default(true)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -588,6 +590,24 @@ model PartidaContabil {
 enum StatusFechamento {
   FECHADO
   REABERTO
+}
+
+enum DREOperacao {
+  SOMA
+  SUBTRAI
+}
+
+// Seção da DRE gerencial (estrutura editável por empresa): agrupa contas de
+// resultado e define se o subtotal soma ou subtrai no resultado final.
+model DRESecao {
+  id        String      @id @default(cuid())
+  empresaId String      @default("emp_tramontin")
+  nome      String
+  operacao  DREOperacao @default(SOMA)
+  ordem     Int         @default(0)
+  createdAt DateTime    @default(now())
+
+  @@index([empresaId])
 }
 
 // Encerramento do exercício: zera o grupo Resultado contra o PL e trava

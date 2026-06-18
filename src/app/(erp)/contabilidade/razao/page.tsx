@@ -5,7 +5,8 @@ import PageHeader from "@/components/shared/PageHeader";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
-import { formatBRL, formatDate, cn } from "@/lib/utils";
+import { formatDate, cn } from "@/lib/utils";
+import { useFormatoContabil, FormatoToggle, fmtSaldo, fmtColuna, type NaturezaConta } from "@/lib/formato-contabil";
 import { Loader2, BookOpen } from "lucide-react";
 
 type FlatConta = { id: string; codigo: string; nome: string };
@@ -19,8 +20,9 @@ type Razao = {
 };
 
 function defaultRange(): DateRange {
+  // Ano corrente (1º jan → hoje) — para a atividade das analíticas aparecer.
   const h = new Date();
-  return { from: new Date(h.getFullYear(), h.getMonth(), 1).toISOString().slice(0, 10), to: h.toISOString().slice(0, 10) };
+  return { from: new Date(h.getFullYear(), 0, 1).toISOString().slice(0, 10), to: h.toISOString().slice(0, 10) };
 }
 
 export default function RazaoPage() {
@@ -30,11 +32,22 @@ export default function RazaoPage() {
   const [range, setRange] = useState<DateRange>(defaultRange);
   const [razao, setRazao] = useState<Razao | null>(null);
   const [loading, setLoading] = useState(false);
+  const [modo, setModo] = useFormatoContabil();
   const rangeRef = useRef(range);
   useEffect(() => { rangeRef.current = range; }, [range]);
 
   useEffect(() => {
     fetch("/api/contabilidade/plano-contas").then((r) => r.json()).then((j) => setContas(j.flat ?? []));
+  }, []);
+
+  // Click-through do balancete/balanço/DRE: ?contaId=&from=&to=
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const cId = sp.get("contaId");
+    const from = sp.get("from");
+    const to = sp.get("to");
+    if (cId) setContaId(cId);
+    if (from || to) setRange((r) => ({ from: from || r.from, to: to || r.to }));
   }, []);
 
   const load = useCallback(async () => {
@@ -51,7 +64,7 @@ export default function RazaoPage() {
 
   return (
     <div>
-      <PageHeader title="Razão" breadcrumbs={[{ label: "Contabilidade" }, { label: "Razão" }]} />
+      <PageHeader title="Razão" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "Razão" }]} />
       <div className="px-8 pb-8 space-y-4">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="w-[28rem] max-w-full">
@@ -64,6 +77,7 @@ export default function RazaoPage() {
             />
           </div>
           <DateRangePicker value={range} onChange={setRange} />
+          <div className="ml-auto"><FormatoToggle modo={modo} onChange={setModo} /></div>
         </div>
 
         {!contaId ? (
@@ -81,7 +95,7 @@ export default function RazaoPage() {
                 <span className="font-mono text-xs text-gray-500 mr-2">{razao.conta.codigo}</span>{razao.conta.nome}
                 <span className="ml-2 text-xs text-gray-400">({razao.conta.natureza === "DEVEDORA" ? "Devedora" : "Credora"})</span>
               </span>
-              <span className="text-sm text-gray-500">Saldo anterior: <b className="text-gray-800 tabular-nums">{formatBRL(razao.saldoInicial)}</b></span>
+              <span className="text-sm text-gray-500">Saldo anterior: <b className="text-gray-800 tabular-nums">{fmtSaldo(razao.saldoInicial, modo, razao.conta.natureza as NaturezaConta)}</b></span>
             </div>
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
@@ -103,18 +117,18 @@ export default function RazaoPage() {
                       {m.historico}
                       {razao.conta.tipo === "SINTETICA" && <span className="ml-1.5 font-mono text-[11px] text-gray-400">[{m.contaCodigo}]</span>}
                     </td>
-                    <td className="px-4 py-2 text-right tabular-nums text-blue-700">{m.debito ? formatBRL(m.debito) : ""}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-amber-700">{m.credito ? formatBRL(m.credito) : ""}</td>
-                    <td className="px-4 py-2 text-right tabular-nums font-medium text-gray-900">{formatBRL(m.saldo)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-blue-700">{fmtColuna(m.debito, modo)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-amber-700">{fmtColuna(m.credito, modo)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums font-medium text-gray-900">{fmtSaldo(m.saldo, modo, razao.conta.natureza as NaturezaConta)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot className="border-t-2 border-gray-200 bg-gray-50">
                 <tr className="font-bold text-gray-900 tabular-nums">
                   <td className="px-4 py-2.5" colSpan={2}>Saldo final</td>
-                  <td className="px-4 py-2.5 text-right text-blue-700">{formatBRL(razao.movimentos.reduce((s, m) => s + m.debito, 0))}</td>
-                  <td className="px-4 py-2.5 text-right text-amber-700">{formatBRL(razao.movimentos.reduce((s, m) => s + m.credito, 0))}</td>
-                  <td className="px-4 py-2.5 text-right">{formatBRL(razao.saldoFinal)}</td>
+                  <td className="px-4 py-2.5 text-right text-blue-700">{fmtColuna(razao.movimentos.reduce((s, m) => s + m.debito, 0), modo)}</td>
+                  <td className="px-4 py-2.5 text-right text-amber-700">{fmtColuna(razao.movimentos.reduce((s, m) => s + m.credito, 0), modo)}</td>
+                  <td className="px-4 py-2.5 text-right">{fmtSaldo(razao.saldoFinal, modo, razao.conta.natureza as NaturezaConta)}</td>
                 </tr>
               </tfoot>
             </table>
