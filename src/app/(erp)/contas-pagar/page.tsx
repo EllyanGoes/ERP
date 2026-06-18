@@ -50,17 +50,17 @@ export default async function ContasPagarPage() {
       />
       <div className="px-8 pb-8 space-y-6">
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-orange-50 rounded-xl p-4">
-            <p className="text-sm font-medium text-orange-700">A Pagar</p>
-            <p className="text-2xl font-bold text-orange-800 mt-1">{formatBRL(emAberto)}</p>
+          <div className="bg-warning/10 rounded-xl p-4">
+            <p className="text-sm font-medium text-warning">A Pagar</p>
+            <p className="text-2xl font-bold text-warning mt-1">{formatBRL(emAberto)}</p>
           </div>
-          <div className="bg-red-50 rounded-xl p-4">
-            <p className="text-sm font-medium text-red-700">Vencido</p>
-            <p className="text-2xl font-bold text-red-800 mt-1">{formatBRL(vencido)}</p>
+          <div className="bg-danger/10 rounded-xl p-4">
+            <p className="text-sm font-medium text-danger">Vencido</p>
+            <p className="text-2xl font-bold text-danger mt-1">{formatBRL(vencido)}</p>
           </div>
-          <div className="bg-gray-50 rounded-xl p-4">
-            <p className="text-sm font-medium text-gray-600">Pago no Mês</p>
-            <p className="text-2xl font-bold text-gray-800 mt-1">{formatBRL(pagoMes)}</p>
+          <div className="bg-muted rounded-xl p-4">
+            <p className="text-sm font-medium text-muted-foreground">Pago no Mês</p>
+            <p className="text-2xl font-bold text-foreground mt-1">{formatBRL(pagoMes)}</p>
           </div>
         </div>
         <ContasPagarTable contas={contas as any} />

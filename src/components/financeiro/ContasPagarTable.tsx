@@ -97,13 +97,13 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
     { accessorKey: "numero", header: "Número", cell: ({ row }) => <span className="font-mono text-xs font-semibold">{row.original.numero}</span> },
     { id: "fornecedor", header: "Fornecedor", cell: ({ row }) => <span>{row.original.fornecedor?.razaoSocial ?? "—"}</span> },
     { accessorKey: "descricao", header: "Descrição" },
-    { accessorKey: "categoria", header: "Categoria", cell: ({ row }) => <span className="text-xs text-gray-500">{row.original.categoria ?? "—"}</span> },
+    { accessorKey: "categoria", header: "Categoria", cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.original.categoria ?? "—"}</span> },
     {
       accessorKey: "dataVencimento",
       header: "Vencimento",
       cell: ({ row }) => {
         const vencida = isVencida(row.original.dataVencimento, row.original.dataPagamento);
-        return <span className={vencida ? "text-red-600 font-medium" : "text-gray-600"}>{formatDate(row.original.dataVencimento)}</span>;
+        return <span className={vencida ? "text-danger font-medium" : "text-muted-foreground"}>{formatDate(row.original.dataVencimento)}</span>;
       },
     },
     { accessorKey: "valorOriginal", header: "Valor", cell: ({ row }) => <span className="font-medium">{formatBRL(decimalToNumber(row.original.valorOriginal))}</span> },
@@ -113,7 +113,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
       header: "Conta",
       cell: ({ row }) => {
         const cs = row.original.contasContrapartida ?? [];
-        return cs.length ? <span className="text-xs text-gray-600">{cs.map((c) => c.nome).join(" + ")}</span> : <span className="text-gray-300">—</span>;
+        return cs.length ? <span className="text-xs text-muted-foreground">{cs.map((c) => c.nome).join(" + ")}</span> : <span className="text-muted-foreground/60">—</span>;
       },
     },
     {
@@ -165,10 +165,10 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
                 "px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors " +
                 (ativo
                   ? "bg-blue-600 border-blue-600 text-white"
-                  : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50")
+                  : "bg-card border-border text-muted-foreground hover:bg-muted")
               }
             >
-              {f.label} <span className={ativo ? "opacity-80" : "text-gray-400"}>{n}</span>
+              {f.label} <span className={ativo ? "opacity-80" : "text-muted-foreground"}>{n}</span>
             </button>
           );
         })}
@@ -198,7 +198,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Registrar Pagamento</DialogTitle>
-            {selected && <p className="text-sm text-gray-500">{selected.numero} — Saldo: {formatBRL(saldo)}</p>}
+            {selected && <p className="text-sm text-muted-foreground">{selected.numero} — Saldo: {formatBRL(saldo)}</p>}
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
@@ -212,7 +212,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
               contas={contasBanco}
               total={saldo}
             />
-            {erro && <p className="text-sm text-red-600">{erro}</p>}
+            {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelected(null)}>Cancelar</Button>

@@ -51,17 +51,17 @@ export default async function ContasReceberPage() {
       />
       <div className="px-8 pb-8 space-y-6">
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-blue-50 rounded-xl p-4">
-            <p className="text-sm font-medium text-blue-700">Em Aberto</p>
-            <p className="text-2xl font-bold text-blue-800 mt-1">{formatBRL(emAberto)}</p>
+          <div className="bg-info/10 rounded-xl p-4">
+            <p className="text-sm font-medium text-info">Em Aberto</p>
+            <p className="text-2xl font-bold text-info mt-1">{formatBRL(emAberto)}</p>
           </div>
-          <div className="bg-red-50 rounded-xl p-4">
-            <p className="text-sm font-medium text-red-700">Vencido</p>
-            <p className="text-2xl font-bold text-red-800 mt-1">{formatBRL(vencido)}</p>
+          <div className="bg-danger/10 rounded-xl p-4">
+            <p className="text-sm font-medium text-danger">Vencido</p>
+            <p className="text-2xl font-bold text-danger mt-1">{formatBRL(vencido)}</p>
           </div>
-          <div className="bg-green-50 rounded-xl p-4">
-            <p className="text-sm font-medium text-green-700">Recebido no Mês</p>
-            <p className="text-2xl font-bold text-green-800 mt-1">{formatBRL(recebidoMes)}</p>
+          <div className="bg-success/10 rounded-xl p-4">
+            <p className="text-sm font-medium text-success">Recebido no Mês</p>
+            <p className="text-2xl font-bold text-success mt-1">{formatBRL(recebidoMes)}</p>
           </div>
         </div>
         <ContasReceberTable contas={contas as any} />

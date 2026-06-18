@@ -113,14 +113,14 @@ export default function FluxoCaixaPage() {
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload?.length) {
       return (
-        <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm text-xs space-y-1">
-          <p className="font-semibold text-gray-700">{formatDate(payload[0]?.payload?.fullDate ?? label)}</p>
+        <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-sm text-xs space-y-1">
+          <p className="font-semibold text-foreground">{formatDate(payload[0]?.payload?.fullDate ?? label)}</p>
           {payload.map((p: any) => (
             <p key={p.name} style={{ color: p.color }} className="font-medium">
               {p.name}: {formatBRL(Number(p.value))}
             </p>
           ))}
-          <p className="text-gray-400 pt-0.5">Clique para detalhes</p>
+          <p className="text-muted-foreground pt-0.5">Clique para detalhes</p>
         </div>
       );
     }
@@ -128,11 +128,11 @@ export default function FluxoCaixaPage() {
   };
 
   const statusColor: Record<string, string> = {
-    ABERTA: "text-blue-600",
-    PAGA: "text-green-600",
-    VENCIDA: "text-red-600",
-    PARCIAL: "text-amber-600",
-    CANCELADA: "text-gray-400",
+    ABERTA: "text-info",
+    PAGA: "text-success",
+    VENCIDA: "text-danger",
+    PARCIAL: "text-warning",
+    CANCELADA: "text-muted-foreground",
   };
 
   return (
@@ -143,7 +143,7 @@ export default function FluxoCaixaPage() {
       />
       <div className="px-8 pb-8 space-y-6">
         {/* View tabs */}
-        <div className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
+        <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-card p-1">
           <Button variant={view === "projecao" ? "default" : "ghost"} size="sm" onClick={() => setView("projecao")}>Projeção diária</Button>
           <Button variant={view === "relatorio" ? "default" : "ghost"} size="sm" onClick={() => setView("relatorio")}>Relatório anual</Button>
         </div>
@@ -168,19 +168,19 @@ export default function FluxoCaixaPage() {
 
         {/* Summary cards */}
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-green-50 rounded-xl p-4">
-            <p className="text-sm text-green-700 font-medium">Receitas Projetadas</p>
-            <p className="text-2xl font-bold text-green-800 mt-1">{formatBRL(totalReceitas)}</p>
+          <div className="bg-success/10 rounded-xl p-4">
+            <p className="text-sm text-success font-medium">Receitas Projetadas</p>
+            <p className="text-2xl font-bold text-success mt-1">{formatBRL(totalReceitas)}</p>
           </div>
-          <div className="bg-red-50 rounded-xl p-4">
-            <p className="text-sm text-red-700 font-medium">Despesas Projetadas</p>
-            <p className="text-2xl font-bold text-red-800 mt-1">{formatBRL(totalDespesas)}</p>
+          <div className="bg-danger/10 rounded-xl p-4">
+            <p className="text-sm text-danger font-medium">Despesas Projetadas</p>
+            <p className="text-2xl font-bold text-danger mt-1">{formatBRL(totalDespesas)}</p>
           </div>
-          <div className={`rounded-xl p-4 ${saldoFinal >= 0 ? "bg-blue-50" : "bg-orange-50"}`}>
-            <p className={`text-sm font-medium ${saldoFinal >= 0 ? "text-blue-700" : "text-orange-700"}`}>
+          <div className={`rounded-xl p-4 ${saldoFinal >= 0 ? "bg-info/10" : "bg-warning/10"}`}>
+            <p className={`text-sm font-medium ${saldoFinal >= 0 ? "text-info" : "text-warning"}`}>
               Saldo Acumulado
             </p>
-            <p className={`text-2xl font-bold mt-1 ${saldoFinal >= 0 ? "text-blue-800" : "text-orange-800"}`}>
+            <p className={`text-2xl font-bold mt-1 ${saldoFinal >= 0 ? "text-info" : "text-warning"}`}>
               {formatBRL(saldoFinal)}
             </p>
           </div>
@@ -191,7 +191,7 @@ export default function FluxoCaixaPage() {
           <CardHeader>
             <CardTitle className="text-base">
               Receitas vs Despesas por Vencimento
-              <span className="ml-2 text-xs font-normal text-gray-400">
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
                 — clique em uma barra para detalhar o dia
               </span>
             </CardTitle>
@@ -249,7 +249,7 @@ export default function FluxoCaixaPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-xs text-gray-400 uppercase">
+                  <tr className="border-b text-xs text-muted-foreground uppercase">
                     <th className="text-left pb-2 py-2">Data</th>
                     <th className="text-right pb-2 py-2">Receitas</th>
                     <th className="text-right pb-2 py-2">Despesas</th>
@@ -261,19 +261,19 @@ export default function FluxoCaixaPage() {
                   {filtered.map((d) => (
                     <tr
                       key={d.data}
-                      className={`border-b border-gray-50 hover:bg-gray-50 cursor-pointer ${
-                        selectedDay === d.data ? "bg-blue-50" : ""
+                      className={`border-b border-gray-50 hover:bg-muted cursor-pointer ${
+                        selectedDay === d.data ? "bg-info/10" : ""
                       }`}
                       onClick={() => handleBarClick({ fullDate: d.data })}
                     >
                       <td className="py-2.5">{formatDate(d.data)}</td>
-                      <td className="py-2.5 text-right text-green-600">{formatBRL(d.receitas)}</td>
+                      <td className="py-2.5 text-right text-success">{formatBRL(d.receitas)}</td>
                       <td className="py-2.5 text-right text-red-500">{formatBRL(d.despesas)}</td>
-                      <td className={`py-2.5 text-right font-semibold ${d.saldo >= 0 ? "text-blue-700" : "text-orange-600"}`}>
+                      <td className={`py-2.5 text-right font-semibold ${d.saldo >= 0 ? "text-info" : "text-orange-600"}`}>
                         {formatBRL(d.saldo)}
                       </td>
                       <td className="py-2.5 text-right">
-                        <ExternalLink className="w-3.5 h-3.5 text-gray-300 hover:text-blue-500" />
+                        <ExternalLink className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-blue-500" />
                       </td>
                     </tr>
                   ))}
@@ -302,7 +302,7 @@ export default function FluxoCaixaPage() {
             {loadingDetail && (
               <div className="flex items-center justify-center py-16">
                 <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                <span className="ml-2 text-sm text-gray-500">Carregando...</span>
+                <span className="ml-2 text-sm text-muted-foreground">Carregando...</span>
               </div>
             )}
 
@@ -310,29 +310,29 @@ export default function FluxoCaixaPage() {
               <>
                 {/* Totals row */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-green-50 rounded-xl p-3">
+                  <div className="bg-success/10 rounded-xl p-3">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <TrendingUp className="w-3.5 h-3.5 text-green-600" />
-                      <span className="text-xs text-green-700 font-medium">A Receber</span>
+                      <TrendingUp className="w-3.5 h-3.5 text-success" />
+                      <span className="text-xs text-success font-medium">A Receber</span>
                     </div>
-                    <p className="text-lg font-bold text-green-800">{formatBRL(dayDetail.totalCR)}</p>
+                    <p className="text-lg font-bold text-success">{formatBRL(dayDetail.totalCR)}</p>
                   </div>
-                  <div className="bg-red-50 rounded-xl p-3">
+                  <div className="bg-danger/10 rounded-xl p-3">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <TrendingDown className="w-3.5 h-3.5 text-red-600" />
-                      <span className="text-xs text-red-700 font-medium">A Pagar</span>
+                      <TrendingDown className="w-3.5 h-3.5 text-danger" />
+                      <span className="text-xs text-danger font-medium">A Pagar</span>
                     </div>
-                    <p className="text-lg font-bold text-red-800">{formatBRL(dayDetail.totalCP)}</p>
+                    <p className="text-lg font-bold text-danger">{formatBRL(dayDetail.totalCP)}</p>
                   </div>
                 </div>
 
                 {/* Contas a Receber */}
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                     Contas a Receber ({dayDetail.cr.length})
                   </p>
                   {dayDetail.cr.length === 0 ? (
-                    <p className="text-sm text-gray-400 py-3 text-center">Nenhuma conta a receber</p>
+                    <p className="text-sm text-muted-foreground py-3 text-center">Nenhuma conta a receber</p>
                   ) : (
                     <div className="border rounded-lg overflow-hidden">
                       {dayDetail.cr.map((c, i) => (
@@ -340,29 +340,29 @@ export default function FluxoCaixaPage() {
                           key={c.id}
                           className={`flex items-start justify-between p-3 gap-3 ${
                             i < dayDetail.cr.length - 1 ? "border-b" : ""
-                          } hover:bg-gray-50`}
+                          } hover:bg-muted`}
                         >
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs text-gray-400">{c.numero}</span>
+                              <span className="font-mono text-xs text-muted-foreground">{c.numero}</span>
                               <StatusBadge status={c.status} />
                             </div>
-                            <p className="text-sm font-medium text-gray-800 mt-0.5 truncate">
+                            <p className="text-sm font-medium text-foreground mt-0.5 truncate">
                               {c.cliente?.razaoSocial ?? "—"}
                             </p>
-                            <p className="text-xs text-gray-400 truncate">{c.descricao}</p>
+                            <p className="text-xs text-muted-foreground truncate">{c.descricao}</p>
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="text-sm font-semibold text-green-700">
+                            <p className="text-sm font-semibold text-success">
                               {formatBRL(Number(c.valorOriginal))}
                             </p>
                             {c.pedidoVenda && (
-                              <p className="text-xs text-gray-400 font-mono">{c.pedidoVenda.numero}</p>
+                              <p className="text-xs text-muted-foreground font-mono">{c.pedidoVenda.numero}</p>
                             )}
                           </div>
                           <Link
                             href={`/contas-receber/${c.id}`}
-                            className="text-blue-400 hover:text-blue-600 shrink-0 mt-0.5"
+                            className="text-blue-400 hover:text-info shrink-0 mt-0.5"
                             onClick={() => setSheetOpen(false)}
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
@@ -375,11 +375,11 @@ export default function FluxoCaixaPage() {
 
                 {/* Contas a Pagar */}
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                     Contas a Pagar ({dayDetail.cp.length})
                   </p>
                   {dayDetail.cp.length === 0 ? (
-                    <p className="text-sm text-gray-400 py-3 text-center">Nenhuma conta a pagar</p>
+                    <p className="text-sm text-muted-foreground py-3 text-center">Nenhuma conta a pagar</p>
                   ) : (
                     <div className="border rounded-lg overflow-hidden">
                       {dayDetail.cp.map((c, i) => (
@@ -387,29 +387,29 @@ export default function FluxoCaixaPage() {
                           key={c.id}
                           className={`flex items-start justify-between p-3 gap-3 ${
                             i < dayDetail.cp.length - 1 ? "border-b" : ""
-                          } hover:bg-gray-50`}
+                          } hover:bg-muted`}
                         >
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs text-gray-400">{c.numero}</span>
+                              <span className="font-mono text-xs text-muted-foreground">{c.numero}</span>
                               <StatusBadge status={c.status} />
                             </div>
-                            <p className="text-sm font-medium text-gray-800 mt-0.5 truncate">
+                            <p className="text-sm font-medium text-foreground mt-0.5 truncate">
                               {c.descricao}
                             </p>
-                            <p className="text-xs text-gray-400">{c.categoria}</p>
+                            <p className="text-xs text-muted-foreground">{c.categoria}</p>
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="text-sm font-semibold text-red-700">
+                            <p className="text-sm font-semibold text-danger">
                               {formatBRL(Number(c.valorOriginal))}
                             </p>
                             {c.fornecedor && (
-                              <p className="text-xs text-gray-400 truncate max-w-[100px]">{c.fornecedor.razaoSocial}</p>
+                              <p className="text-xs text-muted-foreground truncate max-w-[100px]">{c.fornecedor.razaoSocial}</p>
                             )}
                           </div>
                           <Link
                             href={`/contas-pagar/${c.id}`}
-                            className="text-blue-400 hover:text-blue-600 shrink-0 mt-0.5"
+                            className="text-blue-400 hover:text-info shrink-0 mt-0.5"
                             onClick={() => setSheetOpen(false)}
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
@@ -421,12 +421,12 @@ export default function FluxoCaixaPage() {
                 </div>
 
                 {/* Net position */}
-                <div className={`rounded-xl p-4 ${dayDetail.totalCR - dayDetail.totalCP >= 0 ? "bg-blue-50" : "bg-orange-50"}`}>
+                <div className={`rounded-xl p-4 ${dayDetail.totalCR - dayDetail.totalCP >= 0 ? "bg-info/10" : "bg-warning/10"}`}>
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm font-medium ${dayDetail.totalCR - dayDetail.totalCP >= 0 ? "text-blue-700" : "text-orange-700"}`}>
+                    <span className={`text-sm font-medium ${dayDetail.totalCR - dayDetail.totalCP >= 0 ? "text-info" : "text-warning"}`}>
                       Saldo do dia
                     </span>
-                    <span className={`text-lg font-bold ${dayDetail.totalCR - dayDetail.totalCP >= 0 ? "text-blue-800" : "text-orange-800"}`}>
+                    <span className={`text-lg font-bold ${dayDetail.totalCR - dayDetail.totalCP >= 0 ? "text-info" : "text-warning"}`}>
                       {formatBRL(dayDetail.totalCR - dayDetail.totalCP)}
                     </span>
                   </div>
@@ -435,7 +435,7 @@ export default function FluxoCaixaPage() {
             )}
 
             {!loadingDetail && !dayDetail && (
-              <p className="text-center text-sm text-gray-400 py-12">
+              <p className="text-center text-sm text-muted-foreground py-12">
                 Erro ao carregar detalhes. Tente novamente.
               </p>
             )}

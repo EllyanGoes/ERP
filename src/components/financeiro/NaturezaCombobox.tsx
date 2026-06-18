@@ -102,13 +102,13 @@ export default function NaturezaCombobox({
           <button
             type="button"
             className={cn(
-              "w-full flex items-center justify-between gap-2 h-9 px-2.5 rounded-lg border border-gray-300 bg-white text-sm text-left transition-colors hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0",
+              "w-full flex items-center justify-between gap-2 h-9 px-2.5 rounded-lg border border-border bg-card text-sm text-left transition-colors hover:border-border focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0",
               className,
             )}
           />
         }
       >
-        <span className={cn("flex items-center gap-1.5 truncate", !selected && "text-gray-400")}>
+        <span className={cn("flex items-center gap-1.5 truncate", !selected && "text-muted-foreground")}>
           {selected ? (
             <>
               <Seta tipo={selected.tipo} />
@@ -116,7 +116,7 @@ export default function NaturezaCombobox({
             </>
           ) : placeholder}
         </span>
-        <ChevronDown className={cn("w-4 h-4 text-gray-400 shrink-0 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", open && "rotate-180")} />
       </PopoverTrigger>
 
       <PopoverContent align="start" sideOffset={4} className="w-[460px] max-w-[calc(100vw-2rem)] p-0 gap-0 overflow-hidden">
@@ -124,25 +124,25 @@ export default function NaturezaCombobox({
           /* Painel de criação inline */
           <div className="p-3 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-700">Nova natureza</span>
-              <button type="button" onClick={() => setCriando(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              <span className="text-sm font-semibold text-foreground">Nova natureza</span>
+              <button type="button" onClick={() => setCriando(false)} className="text-muted-foreground hover:text-muted-foreground"><X className="w-4 h-4" /></button>
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Seta tipo={defaultTipo} />
-              {defaultTipo === "ENTRADA" ? "Entrada" : "Saída"} <span className="text-gray-300">(segue o movimento)</span>
+              {defaultTipo === "ENTRADA" ? "Entrada" : "Saída"} <span className="text-muted-foreground/60">(segue o movimento)</span>
             </div>
             <input
               autoFocus value={novoNome} onChange={(e) => setNovoNome(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") salvarNova(); }}
               placeholder="Nome da natureza"
-              className="w-full h-9 rounded-lg border border-gray-300 px-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full h-9 rounded-lg border border-border px-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <select value={novoGrupo} onChange={(e) => setNovoGrupo(e.target.value)} className="w-full h-9 rounded-lg border border-gray-300 px-2 text-sm bg-white">
+            <select value={novoGrupo} onChange={(e) => setNovoGrupo(e.target.value)} className="w-full h-9 rounded-lg border border-border px-2 text-sm bg-card">
               {GRUPO_ORDER.map((g) => <option key={g} value={g}>{GRUPO_LABEL[g]}</option>)}
             </select>
             {erroNova && <p className="text-xs text-rose-500">{erroNova}</p>}
             <div className="flex justify-end gap-2 pt-0.5">
-              <button type="button" onClick={() => setCriando(false)} className="text-sm text-gray-500 hover:text-gray-700 px-2 py-1">Cancelar</button>
+              <button type="button" onClick={() => setCriando(false)} className="text-sm text-muted-foreground hover:text-foreground px-2 py-1">Cancelar</button>
               <button type="button" onClick={salvarNova} disabled={salvandoNova || !novoNome.trim()} className="text-sm bg-blue-600 text-white rounded-lg px-3 py-1.5 hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-1.5">
                 {salvandoNova && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Salvar
               </button>
@@ -151,12 +151,12 @@ export default function NaturezaCombobox({
         ) : (
           <>
             {/* Busca */}
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
-              <Search className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+              <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
               <input
                 autoFocus value={busca} onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar natureza..."
-                className="flex-1 text-sm outline-none bg-transparent placeholder:text-gray-400"
+                className="flex-1 text-sm outline-none bg-transparent placeholder:text-muted-foreground"
               />
             </div>
 
@@ -164,7 +164,7 @@ export default function NaturezaCombobox({
             {allowCreate && (
               <button
                 type="button" onClick={abrirCriar}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 border-b border-gray-100"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-info hover:bg-info/10 border-b border-border"
               >
                 <Plus className="w-3.5 h-3.5" /> Criar nova
               </button>
@@ -173,13 +173,13 @@ export default function NaturezaCombobox({
             {/* Lista agrupada */}
             <div className="max-h-64 overflow-y-auto py-1">
               {filtradas.length === 0 ? (
-                <p className="px-3 py-6 text-xs text-gray-400 text-center">
+                <p className="px-3 py-6 text-xs text-muted-foreground text-center">
                   {busca ? "Nenhuma natureza encontrada" : "Nenhuma natureza cadastrada"}
                 </p>
               ) : (
                 gruposPresentes.map((g) => (
                   <div key={g}>
-                    <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50/70">
+                    <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted/70">
                       {GRUPO_LABEL[g] ?? g}
                     </div>
                     {filtradas.filter((n) => n.grupo === g).map((n) => (
@@ -187,15 +187,15 @@ export default function NaturezaCombobox({
                         key={n.id} type="button" onClick={() => selecionar(n.id)}
                         className={cn(
                           "w-full flex items-start gap-2 px-3 py-2 text-sm text-left transition-colors",
-                          value === n.id ? "bg-blue-50/70 text-blue-700" : "hover:bg-gray-50 text-gray-700",
+                          value === n.id ? "bg-info/10/70 text-info" : "hover:bg-muted text-foreground",
                         )}
                       >
                         <span className="mt-0.5 shrink-0"><Seta tipo={n.tipo} /></span>
                         <span className="flex-1 leading-snug">
-                          {n.subgrupo ? <span className="text-gray-400">{n.subgrupo.nome} · </span> : null}
+                          {n.subgrupo ? <span className="text-muted-foreground">{n.subgrupo.nome} · </span> : null}
                           {n.nome}
                         </span>
-                        {value === n.id && <Check className="w-3.5 h-3.5 text-blue-600 ml-auto shrink-0 mt-0.5" />}
+                        {value === n.id && <Check className="w-3.5 h-3.5 text-info ml-auto shrink-0 mt-0.5" />}
                       </button>
                     ))}
                   </div>

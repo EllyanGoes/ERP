@@ -92,7 +92,7 @@ export default function AgendaFinanceiraPage() {
       />
       <div className="px-8 pb-8 space-y-4">
         {/* Abas */}
-        <div className="flex border-b border-gray-200 gap-1">
+        <div className="flex border-b border-border gap-1">
           {([
             { key: "PAGAR", label: "A Pagar", count: cp.length },
             { key: "RECEBER", label: "A Receber", count: cr.length },
@@ -103,24 +103,24 @@ export default function AgendaFinanceiraPage() {
               onClick={() => setTipo(t.key)}
               className={cn(
                 "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
-                tipo === t.key ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700",
+                tipo === t.key ? "border-blue-600 text-info" : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               {t.label}
-              <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-semibold", tipo === t.key ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500")}>{t.count}</span>
+              <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-semibold", tipo === t.key ? "bg-info/15 text-info" : "bg-muted text-muted-foreground")}>{t.count}</span>
             </button>
           ))}
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
           {loading ? (
-            <p className="px-6 py-10 text-sm text-gray-400 text-center">Carregando...</p>
+            <p className="px-6 py-10 text-sm text-muted-foreground text-center">Carregando...</p>
           ) : titulos.length === 0 ? (
-            <p className="px-6 py-10 text-sm text-gray-400 text-center">Nenhum título em aberto.</p>
+            <p className="px-6 py-10 text-sm text-muted-foreground text-center">Nenhum título em aberto.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 border-b border-gray-100">
+                <tr className="text-left text-muted-foreground border-b border-border">
                   <th className="px-4 py-3 w-10">
                     <input type="checkbox" checked={sel.size === titulos.length && titulos.length > 0} onChange={toggleAll} />
                   </th>
@@ -135,14 +135,14 @@ export default function AgendaFinanceiraPage() {
                   const aberto = Number(t.valorOriginal) - Number(t.valorPago);
                   const vencido = new Date(t.dataVencimento) < new Date(new Date().toDateString());
                   return (
-                    <tr key={t.id} className={cn("border-b border-gray-50 hover:bg-gray-50", sel.has(t.id) && "bg-blue-50/40")}>
+                    <tr key={t.id} className={cn("border-b border-gray-50 hover:bg-muted", sel.has(t.id) && "bg-info/10/40")}>
                       <td className="px-4 py-3"><input type="checkbox" checked={sel.has(t.id)} onChange={() => toggle(t.id)} /></td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{t.numero}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{t.numero}</td>
                       <td className="px-4 py-3">
-                        <span className="text-gray-900">{t.descricao}</span>
-                        <span className="block text-xs text-gray-400">{t.cliente?.razaoSocial || t.fornecedor?.razaoSocial || ""}</span>
+                        <span className="text-foreground">{t.descricao}</span>
+                        <span className="block text-xs text-muted-foreground">{t.cliente?.razaoSocial || t.fornecedor?.razaoSocial || ""}</span>
                       </td>
-                      <td className={cn("px-4 py-3", vencido ? "text-red-600 font-medium" : "text-gray-600")}>{formatDate(t.dataVencimento)}</td>
+                      <td className={cn("px-4 py-3", vencido ? "text-danger font-medium" : "text-muted-foreground")}>{formatDate(t.dataVencimento)}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-semibold">{formatBRL(aberto)}</td>
                     </tr>
                   );
@@ -154,23 +154,23 @@ export default function AgendaFinanceiraPage() {
 
         {/* Barra de baixa em lote */}
         {sel.size > 0 && (
-          <div className="sticky bottom-4 rounded-xl border border-gray-200 bg-white shadow-lg p-4 flex flex-wrap items-end gap-3">
+          <div className="sticky bottom-4 rounded-xl border border-border bg-card shadow-lg p-4 flex flex-wrap items-end gap-3">
             <div className="text-sm">
-              <span className="text-gray-500">Selecionados:</span>{" "}
+              <span className="text-muted-foreground">Selecionados:</span>{" "}
               <span className="font-semibold">{sel.size}</span>{" "}
-              <span className="text-gray-400">·</span>{" "}
+              <span className="text-muted-foreground">·</span>{" "}
               <span className="font-semibold">{formatBRL(totalSel)}</span>
             </div>
             <div className="flex-1" />
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-500">Conta</label>
+              <label className="block text-xs font-medium text-muted-foreground">Conta</label>
               <div className="min-w-[180px]">
                 <ComboboxWithCreate value={contaBancariaId} onChange={setContaBancariaId} placeholder="Selecione a conta..." noneLabel="Selecione" triggerClassName="h-9 rounded-lg"
                   options={contas.map((c) => ({ value: c.id, label: c.nome }))} />
               </div>
             </div>
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-500">Data</label>
+              <label className="block text-xs font-medium text-muted-foreground">Data</label>
               <Input type="date" value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} className="h-9 w-40" />
             </div>
             <Button onClick={baixarLote} disabled={baixando || !contaBancariaId}>

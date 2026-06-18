@@ -93,7 +93,7 @@ export default function NaturezasPage() {
         }
       />
       <div className="px-8 pb-8 max-w-3xl space-y-6">
-        <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-700">
+        <div className="flex items-start gap-3 bg-info/10 border border-info/20 rounded-xl p-4 text-sm text-info">
           <Info className="w-4 h-4 mt-0.5 shrink-0" />
           <p>
             A natureza classifica os títulos por <b>tipo</b> (entrada/saída) e <b>grupo</b> do fluxo de caixa. É escolhida no Pedido de Venda e no Documento de Entrada e diferente do plano de contas.
@@ -101,9 +101,9 @@ export default function NaturezasPage() {
         </div>
 
         {loading ? (
-          <div className="py-16 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-300" /></div>
+          <div className="py-16 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground/60" /></div>
         ) : gruposComConteudo.length === 0 ? (
-          <div className="py-16 text-center text-gray-400 text-sm">Nenhuma natureza cadastrada.</div>
+          <div className="py-16 text-center text-muted-foreground text-sm">Nenhuma natureza cadastrada.</div>
         ) : (
           <div className="space-y-8">
             {gruposComConteudo.map((g) => (
@@ -153,8 +153,8 @@ function GrupoSecao({ grupo, naturezas, subgrupos, onEditNat, onDelNat, onEditSu
   const semSubgrupo = naturezas.filter((n) => !n.subgrupoId);
   return (
     <section className="space-y-1">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 px-1 mb-2">{GRUPO_LABEL[grupo]}</h2>
-      <div className="border border-gray-200 rounded-xl bg-white shadow-sm divide-y divide-gray-100 overflow-hidden">
+      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1 mb-2">{GRUPO_LABEL[grupo]}</h2>
+      <div className="border border-border rounded-xl bg-card shadow-sm divide-y divide-border overflow-hidden">
         {subgrupos.map((s) => {
           const filhas = naturezas.filter((n) => n.subgrupoId === s.id);
           return (
@@ -162,10 +162,10 @@ function GrupoSecao({ grupo, naturezas, subgrupos, onEditNat, onDelNat, onEditSu
               <RowShell
                 indent={0}
                 left={
-                  <span className="inline-flex items-center gap-2 text-gray-800 font-medium">
-                    <FolderClosed className="w-4 h-4 text-gray-400" />
+                  <span className="inline-flex items-center gap-2 text-foreground font-medium">
+                    <FolderClosed className="w-4 h-4 text-muted-foreground" />
                     {s.nome}
-                    <span className="text-xs font-normal text-gray-400">({filhas.length})</span>
+                    <span className="text-xs font-normal text-muted-foreground">({filhas.length})</span>
                   </span>
                 }
                 onEdit={() => onEditSub(s)}
@@ -194,12 +194,12 @@ function NaturezaRow({ n, indent, onEdit, onDelete }: {
       indent={indent}
       faded={!n.ativo}
       left={
-        <span className="inline-flex items-center gap-2 text-gray-700">
+        <span className="inline-flex items-center gap-2 text-foreground">
           {entrada
             ? <ArrowUpRight className="w-4 h-4 text-emerald-500 shrink-0" />
             : <ArrowDownLeft className="w-4 h-4 text-rose-500 shrink-0" />}
           {n.nome}
-          {!n.ativo && <span className="text-[11px] text-gray-400">(inativa)</span>}
+          {!n.ativo && <span className="text-[11px] text-muted-foreground">(inativa)</span>}
         </span>
       }
       onEdit={() => onEdit(n)}
@@ -213,15 +213,15 @@ function RowShell({ indent, left, faded, onEdit, onDelete }: {
 }) {
   return (
     <div
-      className={cn("group flex items-center justify-between pr-3 py-2.5 hover:bg-gray-50", faded && "opacity-50")}
+      className={cn("group flex items-center justify-between pr-3 py-2.5 hover:bg-muted", faded && "opacity-50")}
       style={{ paddingLeft: `${16 + indent * 24}px` }}
     >
       <div className="text-sm">{left}</div>
       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-400 hover:text-gray-700" onClick={onEdit}>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={onEdit}>
           <Pencil className="w-3.5 h-3.5" />
         </Button>
-        <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-400 hover:text-rose-600" onClick={onDelete}>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-danger" onClick={onDelete}>
           <Trash2 className="w-3.5 h-3.5" />
         </Button>
       </div>
@@ -273,7 +273,7 @@ function NaturezaDialog({ editing, subgrupos, onClose, onSaved }: {
           </div>
           <div className="space-y-1.5">
             <Label>Grupo *</Label>
-            <select value={grupo} onChange={(e) => { setGrupo(e.target.value as Grupo); setSubgrupoId(""); }} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
+            <select value={grupo} onChange={(e) => { setGrupo(e.target.value as Grupo); setSubgrupoId(""); }} className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card">
               {GRUPOS.map((g) => <option key={g} value={g}>{GRUPO_LABEL[g]}</option>)}
             </select>
           </div>
@@ -333,7 +333,7 @@ function SubgrupoDialog({ editing, onClose, onSaved }: {
           </div>
           <div className="space-y-1.5">
             <Label>Grupo *</Label>
-            <select value={grupo} onChange={(e) => setGrupo(e.target.value as Grupo)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
+            <select value={grupo} onChange={(e) => setGrupo(e.target.value as Grupo)} className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card">
               {GRUPOS.map((g) => <option key={g} value={g}>{GRUPO_LABEL[g]}</option>)}
             </select>
           </div>
@@ -354,10 +354,10 @@ function TipoRadio({ label, icon, active, onClick, cor }: {
   return (
     <button type="button" onClick={onClick} className="inline-flex items-center gap-2 text-sm">
       <span className={cn("w-4 h-4 rounded-full border flex items-center justify-center",
-        active ? (cor === "emerald" ? "border-emerald-500" : "border-rose-500") : "border-gray-300")}>
+        active ? (cor === "emerald" ? "border-emerald-500" : "border-rose-500") : "border-border")}>
         {active && <span className={cn("w-2 h-2 rounded-full", cor === "emerald" ? "bg-emerald-500" : "bg-rose-500")} />}
       </span>
-      <span className={cn("inline-flex items-center gap-1", active ? "text-gray-800 font-medium" : "text-gray-500")}>
+      <span className={cn("inline-flex items-center gap-1", active ? "text-foreground font-medium" : "text-muted-foreground")}>
         {icon}{label}
       </span>
     </button>

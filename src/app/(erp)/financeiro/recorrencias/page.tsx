@@ -80,17 +80,17 @@ export default function RecorrenciasPage() {
         action={<NovaRecorrenciaDialog naturezas={naturezas} contas={contas} clientes={clientes} fornecedores={fornecedores} onDone={load} />}
       />
       <div className="px-8 pb-8">
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
           {loading ? (
-            <p className="px-6 py-10 text-sm text-gray-400 text-center">Carregando...</p>
+            <p className="px-6 py-10 text-sm text-muted-foreground text-center">Carregando...</p>
           ) : recs.length === 0 ? (
-            <p className="px-6 py-10 text-sm text-gray-400 text-center">
+            <p className="px-6 py-10 text-sm text-muted-foreground text-center">
               Nenhuma recorrência. Clique em &quot;Nova Recorrência&quot;.
             </p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 border-b border-gray-100">
+                <tr className="text-left text-muted-foreground border-b border-border">
                   <th className="px-6 py-3 font-medium">Descrição</th>
                   <th className="px-6 py-3 font-medium">Tipo</th>
                   <th className="px-6 py-3 font-medium">Periodicidade</th>
@@ -101,23 +101,23 @@ export default function RecorrenciasPage() {
               </thead>
               <tbody>
                 {recs.map((r) => (
-                  <tr key={r.id} className={`border-b border-gray-50 hover:bg-gray-50 ${!r.ativo ? "opacity-50" : ""}`}>
+                  <tr key={r.id} className={`border-b border-gray-50 hover:bg-muted ${!r.ativo ? "opacity-50" : ""}`}>
                     <td className="px-6 py-3">
-                      <p className="font-medium text-gray-900">{r.descricao}</p>
-                      <p className="text-xs text-gray-400">
+                      <p className="font-medium text-foreground">{r.descricao}</p>
+                      <p className="text-xs text-muted-foreground">
                         {r.cliente?.razaoSocial || r.fornecedor?.razaoSocial || "—"}
                         {r.naturezaFinanceira ? ` · ${r.naturezaFinanceira.nome}` : ""}
                       </p>
                     </td>
                     <td className="px-6 py-3">
                       {r.tipo === "RECEBER" ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-700"><ArrowUpRight className="w-3.5 h-3.5" />Receber</span>
+                        <span className="inline-flex items-center gap-1 text-success"><ArrowUpRight className="w-3.5 h-3.5" />Receber</span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-red-600"><ArrowDownLeft className="w-3.5 h-3.5" />Pagar</span>
+                        <span className="inline-flex items-center gap-1 text-danger"><ArrowDownLeft className="w-3.5 h-3.5" />Pagar</span>
                       )}
                     </td>
-                    <td className="px-6 py-3 text-gray-600">{PERIODO_LABEL[r.periodicidade] ?? r.periodicidade}</td>
-                    <td className="px-6 py-3 text-gray-600">{formatDate(r.proximaGeracao)}</td>
+                    <td className="px-6 py-3 text-muted-foreground">{PERIODO_LABEL[r.periodicidade] ?? r.periodicidade}</td>
+                    <td className="px-6 py-3 text-muted-foreground">{formatDate(r.proximaGeracao)}</td>
                     <td className="px-6 py-3 text-right tabular-nums font-semibold">{formatBRL(Number(r.valor))}</td>
                     <td className="px-6 py-3 text-right">
                       {r.ativo && (
@@ -187,7 +187,7 @@ function NovaRecorrenciaDialog({ naturezas, contas, clientes, fornecedores, onDo
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Tipo</Label>
-              <select value={tipo} onChange={(e) => setTipo(e.target.value as "RECEBER" | "PAGAR")} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
+              <select value={tipo} onChange={(e) => setTipo(e.target.value as "RECEBER" | "PAGAR")} className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card">
                 <option value="PAGAR">A Pagar</option>
                 <option value="RECEBER">A Receber</option>
               </select>
@@ -204,7 +204,7 @@ function NovaRecorrenciaDialog({ naturezas, contas, clientes, fornecedores, onDo
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Periodicidade</Label>
-              <select value={periodicidade} onChange={(e) => setPeriodicidade(e.target.value)} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
+              <select value={periodicidade} onChange={(e) => setPeriodicidade(e.target.value)} className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card">
                 {Object.entries(PERIODO_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
@@ -230,7 +230,7 @@ function NovaRecorrenciaDialog({ naturezas, contas, clientes, fornecedores, onDo
               <Label>Cliente</Label>
               <ComboboxWithCreate value={clienteId} onChange={setClienteId} placeholder="Selecione..." noneLabel="Nenhum" triggerClassName="h-10 rounded-lg"
                 options={clientes.map((c) => ({ value: c.id, label: c.razaoSocial ?? "" }))} />
-              <p className="text-xs text-gray-400">Obrigatório para gerar títulos a receber.</p>
+              <p className="text-xs text-muted-foreground">Obrigatório para gerar títulos a receber.</p>
             </div>
           ) : (
             <div className="space-y-1.5">

@@ -147,24 +147,24 @@ export default function ExtratoContaPage() {
       />
       <div className="px-8 pb-8 space-y-6">
         {loading && !conta ? (
-          <p className="text-sm text-gray-400 py-10 text-center">Carregando...</p>
+          <p className="text-sm text-muted-foreground py-10 text-center">Carregando...</p>
         ) : !conta ? (
-          <p className="text-sm text-gray-400 py-10 text-center">Conta não encontrada.</p>
+          <p className="text-sm text-muted-foreground py-10 text-center">Conta não encontrada.</p>
         ) : (
           <>
             {aviso && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{aviso}</div>
+              <div className="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">{aviso}</div>
             )}
             <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-xl p-4 bg-gray-50 text-gray-700">
+              <div className="rounded-xl p-4 bg-muted text-foreground">
                 <p className="text-sm font-medium opacity-75">Saldo inicial</p>
                 <p className="text-2xl font-bold mt-1">{formatBRL(Number(conta.saldoInicial))}</p>
               </div>
-              <div className={`rounded-xl p-4 ${conta.saldoAtual >= 0 ? "bg-blue-50 text-blue-700" : "bg-red-50 text-red-700"}`}>
+              <div className={`rounded-xl p-4 ${conta.saldoAtual >= 0 ? "bg-info/10 text-info" : "bg-danger/10 text-danger"}`}>
                 <p className="text-sm font-medium opacity-75">{de || ate ? "Saldo do período" : "Saldo atual"}</p>
                 <p className="text-2xl font-bold mt-1">{formatBRL(conta.saldoAtual)}</p>
               </div>
-              <div className="rounded-xl p-4 bg-gray-50 text-gray-700">
+              <div className="rounded-xl p-4 bg-muted text-foreground">
                 <p className="text-sm font-medium opacity-75">Lançamentos</p>
                 <p className="text-2xl font-bold mt-1">{conta.extrato.length}</p>
               </div>
@@ -172,15 +172,15 @@ export default function ExtratoContaPage() {
 
             {/* Filtro de período + PDF */}
             <div className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1 text-xs text-gray-500">
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
                 De
                 <input type="date" value={de} onChange={(e) => setDe(e.target.value)}
-                  className="h-9 rounded-lg border border-gray-300 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="h-9 rounded-lg border border-border px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </label>
-              <label className="flex flex-col gap-1 text-xs text-gray-500">
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
                 Até
                 <input type="date" value={ate} onChange={(e) => setAte(e.target.value)}
-                  className="h-9 rounded-lg border border-gray-300 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="h-9 rounded-lg border border-border px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </label>
               {(de || ate) && (
                 <Button variant="outline" size="sm" onClick={() => { setDe(""); setAte(""); }} className="h-9">Limpar</Button>
@@ -195,16 +195,16 @@ export default function ExtratoContaPage() {
               </Button>
             </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100">
-                <h2 className="font-semibold text-gray-900">Extrato</h2>
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-6 py-4 border-b border-border">
+                <h2 className="font-semibold text-foreground">Extrato</h2>
               </div>
               {conta.extrato.length === 0 ? (
-                <p className="px-6 py-10 text-sm text-gray-400 text-center">Nenhum lançamento no período.</p>
+                <p className="px-6 py-10 text-sm text-muted-foreground text-center">Nenhum lançamento no período.</p>
               ) : (
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-gray-500 border-b border-gray-100 bg-gray-50">
+                    <tr className="text-left text-muted-foreground border-b border-border bg-muted">
                       <th className="px-6 py-3 font-medium">Data</th>
                       <th className="px-6 py-3 font-medium">Descrição</th>
                       <th className="px-6 py-3 font-medium">Cliente / Contato</th>
@@ -224,37 +224,37 @@ export default function ExtratoContaPage() {
                       return (
                         <tr
                           key={l.id}
-                          className={`border-b border-gray-50 hover:bg-gray-50 ${pedido ? "cursor-pointer" : ""}`}
+                          className={`border-b border-gray-50 hover:bg-muted ${pedido ? "cursor-pointer" : ""}`}
                           onClick={pedido ? () => router.push(`/pedidos-venda/${pedido.id}`) : undefined}
                         >
-                          <td className="px-6 py-3 text-gray-600 whitespace-nowrap">{formatDate(l.dataLancamento)}</td>
+                          <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{formatDate(l.dataLancamento)}</td>
                           <td className="px-6 py-3">
-                            <span className="inline-flex items-center gap-1.5 text-gray-900">
-                              {l.tipo === "RECEITA" ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="inline-flex items-center gap-1.5 text-foreground">
+                              {l.tipo === "RECEITA" ? <ArrowUpRight className="w-3.5 h-3.5 text-success" />
                                 : l.tipo === "DESPESA" ? <ArrowDownLeft className="w-3.5 h-3.5 text-red-500" />
                                 : <ArrowLeftRight className="w-3.5 h-3.5 text-blue-500" />}
                               {descricaoLimpa(l)}
                             </span>
-                            {titulo && <span className="ml-2 font-mono text-xs text-gray-400">{titulo}</span>}
+                            {titulo && <span className="ml-2 font-mono text-xs text-muted-foreground">{titulo}</span>}
                             {pedido && (
                               <Link
                                 href={`/pedidos-venda/${pedido.id}`}
                                 onClick={(e) => e.stopPropagation()}
-                                className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
+                                className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-info hover:underline"
                               >
                                 {pedido.numero} <ArrowUpRight className="w-3 h-3" />
                               </Link>
                             )}
                           </td>
-                          <td className="px-6 py-3 text-gray-600">{contatoLinha(l)}</td>
-                          <td className="px-6 py-3 text-gray-500">{l.naturezaFinanceira?.nome ?? "—"}</td>
-                          <td className="px-6 py-3 text-right tabular-nums font-medium text-emerald-700">
+                          <td className="px-6 py-3 text-muted-foreground">{contatoLinha(l)}</td>
+                          <td className="px-6 py-3 text-muted-foreground">{l.naturezaFinanceira?.nome ?? "—"}</td>
+                          <td className="px-6 py-3 text-right tabular-nums font-medium text-success">
                             {v > 0 ? formatBRL(v) : "—"}
                           </td>
-                          <td className="px-6 py-3 text-right tabular-nums font-medium text-red-600">
+                          <td className="px-6 py-3 text-right tabular-nums font-medium text-danger">
                             {v < 0 ? formatBRL(-v) : "—"}
                           </td>
-                          <td className="px-6 py-3 text-right tabular-nums font-semibold text-gray-900">{formatBRL(l.saldoCorrente)}</td>
+                          <td className="px-6 py-3 text-right tabular-nums font-semibold text-foreground">{formatBRL(l.saldoCorrente)}</td>
                         </tr>
                       );
                     })}
@@ -262,7 +262,7 @@ export default function ExtratoContaPage() {
                 </table>
               )}
             </div>
-            <Link href="/financeiro/contas" className="text-sm text-blue-600 hover:underline">← Voltar para contas</Link>
+            <Link href="/financeiro/contas" className="text-sm text-info hover:underline">← Voltar para contas</Link>
           </>
         )}
       </div>

@@ -105,9 +105,9 @@ export default function ConciliacaoPage() {
       <PageHeader title="Conciliação Bancária (OFX)" breadcrumbs={[{ label: "Financeiro" }, { label: "Conciliação (OFX)" }]} />
       <div className="px-8 pb-8 space-y-6">
         {/* Importar */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5 flex flex-wrap items-end gap-3">
+        <div className="rounded-xl border border-border bg-card p-5 flex flex-wrap items-end gap-3">
           <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-gray-500">Conta bancária</label>
+            <label className="block text-xs font-medium text-muted-foreground">Conta bancária</label>
             <div className="min-w-[200px]">
               <ComboboxWithCreate value={contaId} onChange={setContaId} placeholder="Selecione..." noneLabel="Selecione" triggerClassName="h-10 rounded-lg"
                 options={contas.map((c) => ({ value: c.id, label: c.nome }))} />
@@ -115,31 +115,31 @@ export default function ConciliacaoPage() {
           </div>
           <label className={cn(
             "inline-flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-medium cursor-pointer",
-            contaId ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-gray-200 text-gray-400 cursor-not-allowed",
+            contaId ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-muted text-muted-foreground cursor-not-allowed",
           )}>
             <Upload className="w-4 h-4" />
             {importando ? "Importando..." : "Importar arquivo OFX"}
             <input type="file" accept=".ofx,.OFX,text/plain" className="hidden" disabled={!contaId || importando} onChange={onFile} />
           </label>
-          {msg && <span className="text-sm text-gray-500">{msg}</span>}
+          {msg && <span className="text-sm text-muted-foreground">{msg}</span>}
         </div>
 
         <div className="grid grid-cols-[280px_1fr] gap-6">
           {/* Importações */}
-          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden h-fit">
-            <div className="px-4 py-3 border-b border-gray-100"><h2 className="font-semibold text-gray-900 text-sm">Importações</h2></div>
+          <div className="rounded-xl border border-border bg-card overflow-hidden h-fit">
+            <div className="px-4 py-3 border-b border-border"><h2 className="font-semibold text-foreground text-sm">Importações</h2></div>
             {importacoes.length === 0 ? (
-              <p className="px-4 py-6 text-xs text-gray-400 text-center">Nenhuma importação ainda.</p>
+              <p className="px-4 py-6 text-xs text-muted-foreground text-center">Nenhuma importação ainda.</p>
             ) : (
               <ul>
                 {importacoes.map((imp) => (
                   <li key={imp.id}>
                     <button
                       onClick={() => abrir(imp.id)}
-                      className={cn("w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50", detalhe?.id === imp.id && "bg-blue-50")}
+                      className={cn("w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-muted", detalhe?.id === imp.id && "bg-info/10")}
                     >
-                      <p className="text-sm font-medium text-gray-800 truncate">{imp.nomeArquivo || "Extrato OFX"}</p>
-                      <p className="text-xs text-gray-400">{imp.contaBancaria.nome} · {formatDate(imp.dataImportacao)} · {imp._count.linhas} linhas</p>
+                      <p className="text-sm font-medium text-foreground truncate">{imp.nomeArquivo || "Extrato OFX"}</p>
+                      <p className="text-xs text-muted-foreground">{imp.contaBancaria.nome} · {formatDate(imp.dataImportacao)} · {imp._count.linhas} linhas</p>
                     </button>
                   </li>
                 ))}
@@ -148,17 +148,17 @@ export default function ConciliacaoPage() {
           </div>
 
           {/* Linhas da importação selecionada */}
-          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
             {!detalhe ? (
-              <div className="py-16 text-center text-sm text-gray-400">
-                <FileCheck2 className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+              <div className="py-16 text-center text-sm text-muted-foreground">
+                <FileCheck2 className="w-8 h-8 mx-auto mb-2 text-muted-foreground/60" />
                 Importe um OFX ou selecione uma importação para conciliar.
               </div>
             ) : (
               <>
-                <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-                  <h2 className="font-semibold text-gray-900">{detalhe.contaBancaria.nome}</h2>
-                  <span className="text-xs text-gray-500">{conciliadas}/{totalLinhas} conciliadas</span>
+                <div className="px-5 py-3 border-b border-border flex items-center justify-between">
+                  <h2 className="font-semibold text-foreground">{detalhe.contaBancaria.nome}</h2>
+                  <span className="text-xs text-muted-foreground">{conciliadas}/{totalLinhas} conciliadas</span>
                 </div>
                 <div className="divide-y divide-gray-50">
                   {detalhe.linhas.map((l) => {
@@ -167,23 +167,23 @@ export default function ConciliacaoPage() {
                       <div key={l.id} className="px-5 py-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-sm text-gray-900 truncate">{l.descricao || "—"}</p>
-                            <p className="text-xs text-gray-400">{formatDate(l.data)}</p>
+                            <p className="text-sm text-foreground truncate">{l.descricao || "—"}</p>
+                            <p className="text-xs text-muted-foreground">{formatDate(l.data)}</p>
                           </div>
                           <div className="text-right shrink-0">
-                            <span className={cn("text-sm font-semibold tabular-nums", v >= 0 ? "text-emerald-700" : "text-red-600")}>
+                            <span className={cn("text-sm font-semibold tabular-nums", v >= 0 ? "text-success" : "text-danger")}>
                               {v >= 0 ? "+" : "−"}{formatBRL(Math.abs(v))}
                             </span>
                           </div>
                         </div>
 
                         {l.lancamentoConciliadoId ? (
-                          <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-emerald-50 px-3 py-2">
-                            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700">
+                          <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-success/10 px-3 py-2">
+                            <span className="inline-flex items-center gap-1.5 text-xs text-success">
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               Conciliada com: {l.lancamentoConciliado?.descricao}
                             </span>
-                            <button onClick={() => desconciliar(l.id)} className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-red-600">
+                            <button onClick={() => desconciliar(l.id)} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-danger">
                               <Unlink className="w-3.5 h-3.5" /> Desfazer
                             </button>
                           </div>
@@ -191,9 +191,9 @@ export default function ConciliacaoPage() {
                           <div className="mt-2 space-y-1.5">
                             {l.sugestoes.length > 0 ? (
                               l.sugestoes.map((s) => (
-                                <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-1.5">
-                                  <span className="text-xs text-gray-600 truncate">
-                                    {s.descricao} <span className="text-gray-400">· {formatDate(s.dataLancamento)}</span>
+                                <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg bg-muted px-3 py-1.5">
+                                  <span className="text-xs text-muted-foreground truncate">
+                                    {s.descricao} <span className="text-muted-foreground">· {formatDate(s.dataLancamento)}</span>
                                   </span>
                                   <Button size="sm" variant="outline" onClick={() => conciliar(l.id, s.id)}>
                                     <Link2 className="w-3.5 h-3.5 mr-1" /> Conciliar
@@ -202,7 +202,7 @@ export default function ConciliacaoPage() {
                               ))
                             ) : (
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs text-gray-400">Sem correspondência encontrada</span>
+                                <span className="text-xs text-muted-foreground">Sem correspondência encontrada</span>
                                 <Button size="sm" variant="outline" onClick={() => criarLancamento(l.id)}>
                                   <Plus className="w-3.5 h-3.5 mr-1" /> Criar lançamento
                                 </Button>

@@ -47,7 +47,7 @@ export default function NovaContaButton({ tipo }: { tipo: "pagar" | "receber" })
       >
         {opcoes === null ? (
           <div className="flex items-center justify-center h-32">
-            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
           <LancamentoForm tipo={tipo} contatos={opcoes} />

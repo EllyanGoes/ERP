@@ -33,15 +33,15 @@ export default function BancosPage() {
         action={<NovoBancoDialog onDone={load} />}
       />
       <div className="px-8 pb-8">
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
           {loading ? (
-            <p className="px-6 py-10 text-sm text-gray-400 text-center">Carregando...</p>
+            <p className="px-6 py-10 text-sm text-muted-foreground text-center">Carregando...</p>
           ) : bancos.length === 0 ? (
-            <p className="px-6 py-10 text-sm text-gray-400 text-center">Nenhum banco cadastrado.</p>
+            <p className="px-6 py-10 text-sm text-muted-foreground text-center">Nenhum banco cadastrado.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 border-b border-gray-100">
+                <tr className="text-left text-muted-foreground border-b border-border">
                   <th className="px-6 py-3 font-medium w-32">Código</th>
                   <th className="px-6 py-3 font-medium">Nome</th>
                   <th className="px-6 py-3 font-medium w-24">Status</th>
@@ -50,13 +50,13 @@ export default function BancosPage() {
               </thead>
               <tbody>
                 {bancos.map((b) => (
-                  <tr key={b.id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="px-6 py-3 font-mono text-gray-500">{b.codigo || "—"}</td>
-                    <td className="px-6 py-3 font-medium text-gray-900">{b.nome}</td>
+                  <tr key={b.id} className="border-b border-gray-50 hover:bg-muted">
+                    <td className="px-6 py-3 font-mono text-muted-foreground">{b.codigo || "—"}</td>
+                    <td className="px-6 py-3 font-medium text-foreground">{b.nome}</td>
                     <td className="px-6 py-3">
                       <span className={b.ativo
-                        ? "inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700"
-                        : "inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500"}>
+                        ? "inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-success/10 text-success"
+                        : "inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground"}>
                         {b.ativo ? "Ativo" : "Inativo"}
                       </span>
                     </td>
@@ -106,13 +106,13 @@ function EditarBancoDialog({ banco, onDone }: { banco: Banco; onDone: () => void
 
   return (
     <Dialog open={open} onOpenChange={abrir}>
-      <DialogTrigger render={<button className="p-1.5 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Editar banco" />}>
+      <DialogTrigger render={<button className="p-1.5 rounded-md text-muted-foreground hover:text-info hover:bg-info/10 transition-colors" title="Editar banco" />}>
         <Pencil className="w-4 h-4" />
       </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader><DialogTitle>Editar banco</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
-          {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
+          {erro && <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{erro}</p>}
           <div className="space-y-1.5">
             <Label>Código (FEBRABAN)</Label>
             <Input value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="Ex: 341" />
@@ -121,8 +121,8 @@ function EditarBancoDialog({ banco, onDone }: { banco: Banco; onDone: () => void
             <Label>Nome *</Label>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Itaú Unibanco" />
           </div>
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} className="rounded border-gray-300" />
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} className="rounded border-border" />
             Banco ativo
           </label>
         </div>

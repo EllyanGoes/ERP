@@ -110,14 +110,14 @@ export default function ContaReceberForm({ clientes }: { clientes: ClienteOption
               <Input type="number" min="1" step="1" value={intervaloDias} onChange={(e) => setIntervaloDias(e.target.value)} />
             </div>
             {Number(parcelas) > 1 && (
-              <p className="col-span-2 text-xs text-gray-500">
+              <p className="col-span-2 text-xs text-muted-foreground">
                 Serão geradas {parcelas} parcelas, vencendo a cada {intervaloDias} dias a partir do vencimento informado. O valor é dividido entre elas.
               </p>
             )}
           </CardContent>
         </Card>
         {serverError && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
             {serverError}
           </div>
         )}
