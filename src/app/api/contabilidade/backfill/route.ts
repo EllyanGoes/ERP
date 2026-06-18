@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
-import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntradaEstoque, contabilizarCmvMinuta, contabilizarReceitaMinuta } from "@/lib/contabilidade";
+import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntradaEstoque, contabilizarCmvMinuta, contabilizarReceitaMinuta, contabilizarVendaPedido } from "@/lib/contabilidade";
 
 // POST /api/contabilidade/backfill
 // Gera (idempotente) os lançamentos contábeis retroativos a partir dos títulos
@@ -24,6 +24,17 @@ export async function POST() {
   for (const c of confs) {
     try { await contabilizarEntradaEstoque(c.id); processados++; }
     catch (e) { erros.push(`Conf ${c.numero}: ${(e as Error).message}`); }
+  }
+
+  // Venda pelo PEDIDO (D Clientes / C Material a Entregar) — todo pedido
+  // confirmado/em agendamento/concluído, faturado ou não.
+  const pedidos = await prismaSemEscopo.pedidoVenda.findMany({
+    where: { status: { in: ["CONFIRMADO", "EM_AGENDAMENTO", "CONCLUIDO"] }, intragrupo: false },
+    select: { id: true, numero: true },
+  });
+  for (const p of pedidos) {
+    try { await contabilizarVendaPedido(p.id); processados++; }
+    catch (e) { erros.push(`Pedido ${p.numero}: ${(e as Error).message}`); }
   }
 
   const crs = await prismaSemEscopo.contaReceber.findMany({

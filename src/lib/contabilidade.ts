@@ -156,19 +156,17 @@ export async function contabilizarTituloReceber(crId: string) {
   const contaCaixa = contaCaixaResolved ?? conta111;
   if (!contaCli) return;
 
-  // Venda de PEDIDO: receita diferida — crédito em Material a Entregar (passivo),
-  // reconhecida como Receita só na entrega da minuta. Venda avulsa (sem pedido):
-  // crédito direto na Receita (não há entrega a diferir).
+  // Venda de PEDIDO é contabilizada pelo PEDIDO (contabilizarVendaPedido):
+  // D Clientes / C Material a Entregar na confirmação, independente do faturamento.
+  // Aqui só a venda AVULSA (CR sem pedido) gera a perna VENDA (D Clientes / C Receita).
   const valor = decimalToNumber(cr.valorOriginal);
-  const contaCredito = cr.pedidoVendaId ? await garantirContaMaterialEntregar(cr.empresaId) : contaReceita;
-  if (valor > 0 && contaCredito) {
+  if (!cr.pedidoVendaId && valor > 0 && contaReceita) {
     await registrarLancamento({
       empresaId: cr.empresaId, data: cr.dataCompetencia ?? cr.createdAt,
-      historico: cr.pedidoVendaId ? `Venda (a entregar) — título ${cr.numero}` : `Venda — título ${cr.numero}`,
-      origemTipo: "VENDA", origemId: cr.id,
+      historico: `Venda — título ${cr.numero}`, origemTipo: "VENDA", origemId: cr.id,
       partidas: [
         { contaId: contaCli.id, tipo: "DEBITO", valor, clienteId: cr.clienteId },
-        { contaId: contaCredito.id, tipo: "CREDITO", valor },
+        { contaId: contaReceita.id, tipo: "CREDITO", valor },
       ],
     });
   }
@@ -244,8 +242,44 @@ export async function contabilizarTituloPagar(cpId: string) {
  * Chamado pós-commit nas rotas que geram/baixam CR do pedido.
  */
 export async function contabilizarPedidoVenda(pedidoVendaId: string) {
+  // Venda pelo PEDIDO (D Clientes / C Material a Entregar) — independe de faturamento.
+  await contabilizarVendaPedido(pedidoVendaId).catch(() => null);
+  // CRs do pedido: para o RECEBIMENTO (baixa). A perna VENDA da CR é pulada
+  // quando há pedido (já contabilizada acima).
   const crs = await prismaSemEscopo.contaReceber.findMany({ where: { pedidoVendaId }, select: { id: true } });
   for (const cr of crs) await contabilizarTituloReceber(cr.id).catch(() => null);
+}
+
+/**
+ * Venda pelo PEDIDO: na confirmação (faturado ou não) reconhece o direito a
+ * receber e a obrigação de entregar — D Clientes a Receber / C Material a
+ * Entregar, pelo valor total do pedido. Receita só na entrega (CPC 47).
+ * Idempotente por (empresa, VENDA, pedidoId). Pula orçamento/cancelado/intragrupo.
+ */
+export async function contabilizarVendaPedido(pedidoVendaId: string) {
+  const pedido = await prismaSemEscopo.pedidoVenda.findUnique({
+    where: { id: pedidoVendaId },
+    select: { id: true, empresaId: true, clienteId: true, numero: true, status: true, intragrupo: true, valorTotal: true, createdAt: true },
+  });
+  if (!pedido || pedido.intragrupo) return;
+  if (!["CONFIRMADO", "EM_AGENDAMENTO", "CONCLUIDO"].includes(pedido.status)) return;
+  const valor = decimalToNumber(pedido.valorTotal);
+  if (valor <= 0) return;
+
+  const [contaCli, contaMat] = await Promise.all([
+    contaDoCliente(pedido.empresaId, pedido.clienteId),
+    garantirContaMaterialEntregar(pedido.empresaId),
+  ]);
+  if (!contaCli || !contaMat) return;
+
+  await registrarLancamento({
+    empresaId: pedido.empresaId, data: pedido.createdAt,
+    historico: `Venda (a entregar) — pedido ${pedido.numero}`, origemTipo: "VENDA", origemId: pedido.id,
+    partidas: [
+      { contaId: contaCli.id, tipo: "DEBITO", valor, clienteId: pedido.clienteId },
+      { contaId: contaMat.id, tipo: "CREDITO", valor },
+    ],
+  });
 }
 
 /** Contabiliza (idempotente) todas as contas a pagar de um pedido de compra. */
