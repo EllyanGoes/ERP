@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ModalPortal from "@/components/shared/ModalPortal";
-import StatusDimBadges, { FinanceiroBadge } from "@/components/pedidos-venda/StatusDimBadges";
+import StatusDimBadges, { EntregaBadge, FinanceiroBadge } from "@/components/pedidos-venda/StatusDimBadges";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -171,7 +171,8 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"itens" | "minutas" | "comodato">("itens");
+  const [mainTab, setMainTab] = useState<"informacoes" | "minutas" | "pagamento">("informacoes");
+  const [activeTab, setActiveTab] = useState<"itens" | "comodato">("itens");
   const [blockModal, setBlockModal] = useState<{ msg: string; pendentes: ItemPendente[] } | null>(null);
   // Exclusão de pedido (apenas ADMIN).
   const [excluirOpen, setExcluirOpen] = useState(false);
@@ -718,7 +719,42 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-6">
+      {/* Abas principais: Informações | Minutas | Pagamento */}
+      <div className="flex items-center gap-1 border-b border-gray-200">
+        <button
+          onClick={() => setMainTab("informacoes")}
+          className={cn(
+            "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+            mainTab === "informacoes" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700",
+          )}
+        >
+          Informações
+        </button>
+        <button
+          onClick={() => setMainTab("minutas")}
+          className={cn(
+            "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2",
+            mainTab === "minutas" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700",
+          )}
+        >
+          <span>Minutas{minutas.length > 0 ? ` (${minutas.length})` : ""}</span>
+          <EntregaBadge status={pedido.statusEntrega} />
+        </button>
+        <button
+          onClick={() => setMainTab("pagamento")}
+          className={cn(
+            "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2",
+            mainTab === "pagamento" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700",
+          )}
+        >
+          <span>Pagamento{pedido.contasReceber.length > 0 ? ` (${pedido.contasReceber.length})` : ""}</span>
+          <FinanceiroBadge status={pedido.statusFinanceiro} />
+        </button>
+      </div>
+
+      {/* ── INFORMAÇÕES: dados e totais ── */}
+      {mainTab === "informacoes" && (
+      <div className="grid grid-cols-2 gap-6 pt-6">
         {/* Info card */}
         <Card>
           <CardHeader><CardTitle className="text-base">Informações</CardTitle></CardHeader>
@@ -795,10 +831,12 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           </CardContent>
         </Card>
       </div>
+      )}
 
-      {/* Contas a Receber do pedido (lado financeiro, gerido como as minutas) */}
-      {pedido.contasReceber.length > 0 && (
-        <Card>
+      {/* ── PAGAMENTO: títulos a receber do pedido ── */}
+      {mainTab === "pagamento" && (
+        pedido.contasReceber.length > 0 ? (
+        <Card className="mt-6">
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-base">Contas a Receber</CardTitle>
             <FinanceiroBadge status={pedido.statusFinanceiro} />
@@ -845,10 +883,14 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             </div>
           </CardContent>
         </Card>
+        ) : (
+          <p className="text-sm text-gray-400 text-center py-10">Nenhum título a receber gerado para este pedido ainda.</p>
+        )
       )}
 
-      {/* Tabs: Itens | Minutas | Comodato */}
-      <div>
+      {/* ── INFORMAÇÕES (cont.): sub-abas Itens | Comodato ── */}
+      {mainTab === "informacoes" && (
+      <div className="pt-6">
         <div className="flex items-center border-b border-gray-200 mb-0">
           <button
             onClick={() => setActiveTab("itens")}
@@ -860,18 +902,6 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             )}
           >
             Itens ({pedido.itens.length})
-          </button>
-          <button
-            onClick={() => setActiveTab("minutas")}
-            className={cn(
-              "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5",
-              activeTab === "minutas"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            )}
-          >
-            <Truck className="w-3.5 h-3.5" />
-            Minutas {minutas.length > 0 && `(${minutas.length})`}
           </button>
           <button
             onClick={() => setActiveTab("comodato")}
@@ -927,112 +957,6 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                   })}
                 </tbody>
               </table>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* MINUTAS TAB */}
-        {activeTab === "minutas" && (
-          <Card style={{ borderTopLeftRadius: 0 }}>
-            <CardContent className="pt-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-500">
-                  {minutas.length === 0
-                    ? "Nenhuma minuta criada para este pedido."
-                    : `${minutas.length} minuta${minutas.length !== 1 ? "s" : ""}`
-                  }
-                </p>
-                <Button
-                  size="sm"
-                  onClick={() => router.push(`/comercial/minutas/nova?pedidoVendaId=${pedido.id}`)}
-                  className="gap-1.5 font-semibold"
-                >
-                  <Plus className="w-4 h-4" />
-                  Nova Minuta
-                </Button>
-              </div>
-
-              {minutas.length > 0 && (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-xs text-gray-400 uppercase">
-                      <th className="text-left pb-2">Número</th>
-                      <th className="text-left pb-2">Nº Físico</th>
-                      <th className="text-left pb-2">Status</th>
-                      <th className="text-left pb-2">Emissão</th>
-                      <th className="text-left pb-2">Entrega</th>
-                      <th className="text-left pb-2">Motorista</th>
-                      <th className="text-left pb-2">Local</th>
-                      <th className="text-right pb-2">Itens</th>
-                      <th className="pb-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {minutas.map((m) => (
-                      <tr
-                        key={m.id}
-                        className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
-                        onClick={() => router.push(`/comercial/minutas/${m.id}`)}
-                      >
-                        <td className="py-2.5 font-mono font-semibold text-blue-600 hover:underline">{m.numero}</td>
-                        <td className="py-2.5 font-mono text-gray-600">{m.numeroFisico || "—"}</td>
-                        <td className="py-2.5">
-                          <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold", STATUS_COLOR[m.status])}>
-                            {STATUS_LABEL[m.status]}
-                          </span>
-                        </td>
-                        <td className="py-2.5 text-gray-600">{fmtDate(m.dataEmissao)}</td>
-                        <td className="py-2.5 text-gray-600">{fmtDate(m.dataEntrega)}</td>
-                        <td className="py-2.5 text-gray-600">{m.motorista?.nome ?? "—"}</td>
-                        <td className="py-2.5 text-gray-600">{m.localEstoque?.nome ?? "—"}</td>
-                        <td className="py-2.5 text-right text-gray-600">{m.itens.length}</td>
-                        <td className="py-2.5 text-right">
-                          <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
-                            <MinutaActionsMenu id={m.id} numero={m.numero} status={m.status} />
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-
-              {/* Saldo per item summary */}
-              {pedido.itens.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Saldo por Item</p>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-xs text-gray-400 uppercase border-b">
-                        <th className="text-left pb-1.5">Produto</th>
-                        <th className="text-right pb-1.5">Pedido</th>
-                        <th className="text-right pb-1.5">Minutado</th>
-                        <th className="text-right pb-1.5">Entregue</th>
-                        <th className="text-right pb-1.5">Saldo</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pedido.itens.map((pvItem) => {
-                        const total = decimalToNumber(pvItem.quantidade);
-                        const minutado = pvItem.minutaItens.reduce((s, mi) => s + parseFloat(mi.quantidade.toString()), 0);
-                        const entregue = getEntregue(pvItem);
-                        const saldo = Math.max(total - minutado, 0);
-                        return (
-                          <tr key={pvItem.id} className="border-b border-gray-50">
-                            <td className="py-2 text-gray-700">{pvItem.item.descricao}</td>
-                            <td className="py-2 text-right tabular-nums text-gray-600">{fmtQty(total)}</td>
-                            <td className="py-2 text-right tabular-nums text-blue-600">{fmtQty(minutado)}</td>
-                            <td className="py-2 text-right tabular-nums text-emerald-600">{fmtQty(entregue)}</td>
-                            <td className="py-2 text-right tabular-nums font-semibold">
-                              <span className={saldo === 0 ? "text-gray-400" : "text-gray-800"}>{fmtQty(saldo)}</span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
             </CardContent>
           </Card>
         )}
@@ -1171,6 +1095,113 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           </Card>
         )}
       </div>
+      )}
+
+      {/* ── MINUTAS: entregas do pedido ── */}
+      {mainTab === "minutas" && (
+        <Card className="mt-6">
+          <CardContent className="pt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-500">
+                {minutas.length === 0
+                  ? "Nenhuma minuta criada para este pedido."
+                  : `${minutas.length} minuta${minutas.length !== 1 ? "s" : ""}`
+                }
+              </p>
+              <Button
+                size="sm"
+                onClick={() => router.push(`/comercial/minutas/nova?pedidoVendaId=${pedido.id}`)}
+                className="gap-1.5 font-semibold"
+              >
+                <Plus className="w-4 h-4" />
+                Nova Minuta
+              </Button>
+            </div>
+
+            {minutas.length > 0 && (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-xs text-gray-400 uppercase">
+                    <th className="text-left pb-2">Número</th>
+                    <th className="text-left pb-2">Nº Físico</th>
+                    <th className="text-left pb-2">Status</th>
+                    <th className="text-left pb-2">Emissão</th>
+                    <th className="text-left pb-2">Entrega</th>
+                    <th className="text-left pb-2">Motorista</th>
+                    <th className="text-left pb-2">Local</th>
+                    <th className="text-right pb-2">Itens</th>
+                    <th className="pb-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {minutas.map((m) => (
+                    <tr
+                      key={m.id}
+                      className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => router.push(`/comercial/minutas/${m.id}`)}
+                    >
+                      <td className="py-2.5 font-mono font-semibold text-blue-600 hover:underline">{m.numero}</td>
+                      <td className="py-2.5 font-mono text-gray-600">{m.numeroFisico || "—"}</td>
+                      <td className="py-2.5">
+                        <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold", STATUS_COLOR[m.status])}>
+                          {STATUS_LABEL[m.status]}
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-gray-600">{fmtDate(m.dataEmissao)}</td>
+                      <td className="py-2.5 text-gray-600">{fmtDate(m.dataEntrega)}</td>
+                      <td className="py-2.5 text-gray-600">{m.motorista?.nome ?? "—"}</td>
+                      <td className="py-2.5 text-gray-600">{m.localEstoque?.nome ?? "—"}</td>
+                      <td className="py-2.5 text-right text-gray-600">{m.itens.length}</td>
+                      <td className="py-2.5 text-right">
+                        <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+                          <MinutaActionsMenu id={m.id} numero={m.numero} status={m.status} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {/* Saldo per item summary */}
+            {pedido.itens.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Saldo por Item</p>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-gray-400 uppercase border-b">
+                      <th className="text-left pb-1.5">Produto</th>
+                      <th className="text-right pb-1.5">Pedido</th>
+                      <th className="text-right pb-1.5">Minutado</th>
+                      <th className="text-right pb-1.5">Entregue</th>
+                      <th className="text-right pb-1.5">Saldo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pedido.itens.map((pvItem) => {
+                      const total = decimalToNumber(pvItem.quantidade);
+                      const minutado = pvItem.minutaItens.reduce((s, mi) => s + parseFloat(mi.quantidade.toString()), 0);
+                      const entregue = getEntregue(pvItem);
+                      const saldo = Math.max(total - minutado, 0);
+                      return (
+                        <tr key={pvItem.id} className="border-b border-gray-50">
+                          <td className="py-2 text-gray-700">{pvItem.item.descricao}</td>
+                          <td className="py-2 text-right tabular-nums text-gray-600">{fmtQty(total)}</td>
+                          <td className="py-2 text-right tabular-nums text-blue-600">{fmtQty(minutado)}</td>
+                          <td className="py-2 text-right tabular-nums text-emerald-600">{fmtQty(entregue)}</td>
+                          <td className="py-2 text-right tabular-nums font-semibold">
+                            <span className={saldo === 0 ? "text-gray-400" : "text-gray-800"}>{fmtQty(saldo)}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <ModalPortal>
       {balcaoOpen && (
