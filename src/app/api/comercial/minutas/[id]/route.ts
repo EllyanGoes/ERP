@@ -18,6 +18,9 @@ const MINUTA_INCLUDE = {
   pedidoVenda: {
     include: {
       cliente: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+      // Venda à ordem: destinatário (cliente final) p/ o romaneio mostrar
+      // adquirente (cliente) + destinatário.
+      clienteFinal: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
       itens: {
         include: {
           item: {

@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
   const irmas = lancIds.length
     ? await prisma.partidaContabil.findMany({
         where: { lancamentoId: { in: lancIds } },
-        select: { lancamentoId: true, tipo: true, contaId: true, conta: { select: { codigo: true, nome: true } } },
+        select: { lancamentoId: true, tipo: true, contaId: true, conta: { select: { id: true, codigo: true, nome: true } } },
       })
     : [];
   const porLanc = new Map<string, typeof irmas>();
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
     const contrapartidas = Array.from(new Map(
       irmasLanc
         .filter((p) => p.tipo !== m.tipo && !idSet.has(p.contaId))
-        .map((p) => [p.conta.codigo, { codigo: p.conta.codigo, nome: p.conta.nome }]),
+        .map((p) => [p.conta.codigo, { id: p.conta.id, codigo: p.conta.codigo, nome: p.conta.nome }]),
     ).values());
     return {
       data: m.lancamento.data,

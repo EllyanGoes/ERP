@@ -16,6 +16,12 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
       where: { id: params.id },
       include: {
         cliente: true,
+        // Venda à ordem: destinatário (cliente final) + empresa de origem +
+        // pedido de venda de origem (p/ o banner e a linha "Destinatário").
+        clienteFinal: { select: { id: true, razaoSocial: true } },
+        estoqueOrigemEmpresa: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+        pedidoVendaOrigem: { select: { id: true, numero: true, empresa: { select: { razaoSocial: true, nomeFantasia: true } } } },
+        entregasTriangular: { select: { id: true, numero: true, status: true, empresa: { select: { razaoSocial: true, nomeFantasia: true } } } },
         empresa: true,
         vendedor: { select: { id: true, nome: true } },
         pagamentos: { orderBy: { ordem: "asc" }, include: { contaBancaria: { select: { id: true, nome: true } } } },

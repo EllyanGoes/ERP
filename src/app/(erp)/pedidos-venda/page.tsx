@@ -18,7 +18,7 @@ import { useSession } from "@/lib/session-context";
 import {
   Search, X, LayoutList, Kanban, Loader2,
   ChevronDown as ChevronDownIcon, CalendarDays, Download, Check,
-  ShoppingCart, AlertTriangle, Trash2, Shuffle,
+  ShoppingCart, AlertTriangle, Trash2, Shuffle, Truck,
 } from "lucide-react";
 import EmpresaTag from "@/components/shared/EmpresaTag";
 
@@ -40,6 +40,8 @@ type PedidoRow = {
   minutas?: { numeroFisico: string | null }[];
   estoqueOrigemEmpresaId?: string | null;
   estoqueOrigemEmpresa?: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
+  pedidoVendaOrigemId?: string | null;
+  pedidoVendaOrigem?: { id: string; numero: string; empresa: { id: string; razaoSocial: string; nomeFantasia: string | null } | null } | null;
   _count?: { minutas: number };
 };
 
@@ -170,6 +172,17 @@ const COLS: ColDef<PedidoRow>[] = [
         {p.estoqueOrigemEmpresa && (
           <span className="text-[11px] text-gray-400">
             de {p.estoqueOrigemEmpresa.nomeFantasia || p.estoqueOrigemEmpresa.razaoSocial}
+          </span>
+        )}
+      </span>
+    ) : p.pedidoVendaOrigemId ? (
+      <span className="inline-flex flex-col items-start gap-0.5">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-violet-100 text-violet-700 border border-violet-200">
+          <Truck className="w-3 h-3" /> Entrega à ordem
+        </span>
+        {p.pedidoVendaOrigem?.empresa && (
+          <span className="text-[11px] text-gray-400">
+            de {p.pedidoVendaOrigem.empresa.nomeFantasia || p.pedidoVendaOrigem.empresa.razaoSocial}
           </span>
         )}
       </span>
@@ -402,6 +415,11 @@ function KanbanCard({
           <Shuffle className="w-2.5 h-2.5" /> À ordem
         </span>
       )}
+      {!p.estoqueOrigemEmpresaId && p.pedidoVendaOrigemId && (
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 border border-violet-200 mb-1">
+          <Truck className="w-2.5 h-2.5" /> Entrega à ordem
+        </span>
+      )}
       {p.condicaoPagamento && (
         <p className="text-xs text-gray-400 mb-1">{p.condicaoPagamento}</p>
       )}
@@ -496,7 +514,7 @@ export default function PedidosVendaPage() {
         if (filters.statusOp === "is_not" &&  filters.statuses.includes(p.status)) return false;
       }
       if (filters.semOrcamento && (p.numeroOrcamento ?? "").trim() !== "") return false;
-      if (filters.aOrdem && !p.estoqueOrigemEmpresaId) return false;
+      if (filters.aOrdem && !p.estoqueOrigemEmpresaId && !p.pedidoVendaOrigemId) return false;
       // Compara a data-calendário (UTC, igual ao formatDate exibido na coluna)
       // como string YYYY-MM-DD — evita desvio de fuso no limite do período.
       if (filters.dateFrom || filters.dateTo) {
@@ -781,7 +799,7 @@ export default function PedidosVendaPage() {
               ? "border-violet-300 bg-violet-50 text-violet-700"
               : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
           )}
-          title="Mostrar só pedidos de venda à ordem (estoque de outra empresa do grupo)"
+          title="Mostrar só pedidos de venda à ordem (a venda na origem e a entrega na matriz)"
         >
           <Shuffle className="w-3.5 h-3.5" />
           À ordem

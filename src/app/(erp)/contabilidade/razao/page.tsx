@@ -16,7 +16,7 @@ type FlatConta = { id: string; codigo: string; nome: string };
 type Mov = {
   data: string; historico: string; origemTipo: string; origemId: string | null;
   contaCodigo: string; contaNome: string;
-  contrapartidas: { codigo: string; nome: string }[];
+  contrapartidas: { id: string; codigo: string; nome: string }[];
   debito: number; credito: number; saldo: number;
 };
 
@@ -140,9 +140,18 @@ export default function RazaoPage() {
                     </td>
                     <td className="px-4 py-2 text-gray-600">
                       {m.contrapartidas.length === 0 ? <span className="text-gray-300">—</span> : (
-                        <span title={m.contrapartidas.map((c) => `${c.codigo} ${c.nome}`).join(", ")}>
-                          <span className="font-mono text-[11px] text-gray-400">{m.contrapartidas[0].codigo}</span> {m.contrapartidas[0].nome}
-                          {m.contrapartidas.length > 1 && <span className="text-gray-400"> +{m.contrapartidas.length - 1}</span>}
+                        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                          {m.contrapartidas.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => { setContaId(c.id); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                              className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                              title={`Abrir razão de ${c.codigo} ${c.nome}`}
+                            >
+                              <span className="font-mono text-[11px] text-gray-400">{c.codigo}</span> {c.nome}
+                            </button>
+                          ))}
                         </span>
                       )}
                     </td>

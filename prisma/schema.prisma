@@ -110,7 +110,8 @@ model Cliente {
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
   contasReceber          ContaReceber[]
-  pedidosVenda           PedidoVenda[]
+  pedidosVenda           PedidoVenda[]          @relation("PedidoVendaCliente")
+  pedidosVendaFinal      PedidoVenda[]          @relation("PedidoVendaClienteFinal")
   movimentacoesComodato  MovimentacaoComodato[]
   estoqueTerceiros       EstoqueItem[]          @relation("EstoqueTerceiros")
   movimentacoesTerceiros MovimentacaoEstoque[]  @relation("MovimentacoesTerceiros")
@@ -1406,6 +1407,9 @@ model PedidoVenda {
   numeroOrcamento        String?
   intragrupo             Boolean                @default(false)
   clienteId              String
+  // Venda à ordem: nas entregas (matriz) o `cliente` é o adquirente (empresa
+  // intermediária) e o destinatário (cliente final) fica aqui. null = normal.
+  clienteFinalId         String?
   tabelaPrecoId          String?
   vendedorId             String?
   modalidade             String                 @default("AGENDADA") // legado/derivado de necessidadeEntrega (RETIRADA→BALCAO, ENTREGA→AGENDADA); mantido p/ relatórios
@@ -1441,7 +1445,8 @@ model PedidoVenda {
   updatedAt              DateTime               @updatedAt
   contasReceber          ContaReceber[]
   espelhoCompra          PedidoCompra?          @relation("EspelhoIntragrupo")
-  cliente                Cliente                @relation(fields: [clienteId], references: [id])
+  cliente                Cliente                @relation("PedidoVendaCliente", fields: [clienteId], references: [id])
+  clienteFinal           Cliente?               @relation("PedidoVendaClienteFinal", fields: [clienteFinalId], references: [id])
   condicaoPagamentoRef   CondicaoPagamento?     @relation(fields: [condicaoPagamentoId], references: [id])
   naturezaFinanceira     NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
   tabelaPreco            TabelaPreco?           @relation(fields: [tabelaPrecoId], references: [id])
@@ -1458,6 +1463,7 @@ model PedidoVenda {
 
   @@unique([empresaId, numero])
   @@index([clienteId])
+  @@index([clienteFinalId])
   @@index([dataEmissao])
   @@index([status])
   @@index([vendedorId])

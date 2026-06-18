@@ -281,7 +281,7 @@ export async function espelharEntregaTriangular(pedidoVendaId: string): Promise<
   try {
     const venda = await prismaSemEscopo.pedidoVenda.findUnique({
       where: { id: pedidoVendaId },
-      include: { itens: true, empresa: true },
+      include: { itens: true, empresa: true, cliente: { select: { razaoSocial: true, nomeFantasia: true } } },
     });
     if (!venda || venda.status !== "CONFIRMADO") return;
     if (!venda.estoqueOrigemEmpresaId) return;      // não é triangular
@@ -318,11 +318,22 @@ export async function espelharEntregaTriangular(pedidoVendaId: string): Promise<
       });
       const valorProdutos = itensData.reduce((s, i) => s.add(i.valorTotal), new Prisma.Decimal(0));
 
+      // Venda à ordem: o adquirente (comprador oficial do pedido de entrega) é a
+      // empresa intermediária da venda (ex.: Cimento); o cliente final vira o
+      // destinatário (acoberta o trânsito da mercadoria). Fallback defensivo p/
+      // o próprio cliente final se a empresa não tiver cadastro de Cliente.
+      const adquirenteId = venda.empresa.clienteId ?? venda.clienteId;
+      if (!venda.empresa.clienteId) {
+        console.warn(`[intragrupo] empresa ${nomeEmpresa(venda.empresa)} sem cadastro de Cliente — pedido de entrega ${numero} ficou com o cliente final como adquirente.`);
+      }
+      const destinatarioNome = venda.cliente.nomeFantasia || venda.cliente.razaoSocial;
+
       await tx.pedidoVenda.create({
         data: {
           empresaId: origem.id,
           numero,
-          clienteId: venda.clienteId,
+          clienteId: adquirenteId,
+          clienteFinalId: venda.clienteId,
           status: "CONFIRMADO",
           modalidade: "AGENDADA",
           necessidadeEntrega: "ENTREGA",
@@ -331,7 +342,7 @@ export async function espelharEntregaTriangular(pedidoVendaId: string): Promise<
           dataEntrega: venda.dataEntrega,
           valorProdutos,
           valorTotal: valorProdutos,
-          observacoes: `Entrega por conta e ordem — venda ${venda.numero} da ${nomeEmpresa(venda.empresa)} (preço de transferência).`,
+          observacoes: `Entrega por conta e ordem — venda ${venda.numero} da ${nomeEmpresa(venda.empresa)} (preço de transferência). Destinatário: ${destinatarioNome}.`,
           pedidoVendaOrigemId: venda.id,
           itens: { create: itensData },
         },

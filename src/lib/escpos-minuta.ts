@@ -15,6 +15,9 @@ export type MinutaPrint = {
   pedidoVenda: {
     numero: string;
     cliente: { razaoSocial: string; nomeFantasia: string | null };
+    // Venda à ordem: destinatário (cliente final). Quando presente, o `cliente`
+    // é o adquirente e este é quem recebe fisicamente a mercadoria.
+    clienteFinal?: { razaoSocial: string; nomeFantasia: string | null } | null;
   };
   itens: Array<{
     item: { codigo: string; descricao: string };
@@ -93,9 +96,18 @@ export function buildMinutaEscPos(minuta: MinutaPrint, opts: EscPosOptions = {})
   lr(minuta.tipo === "RETIRADA" ? "Retirada:" : "Entrega:", fmtDate(minuta.dataEntrega));
   sep();
 
-  // Cliente
-  raw(BOLD_ON); line("CLIENTE"); raw(BOLD_OFF);
-  line(minuta.pedidoVenda.cliente.nomeFantasia || minuta.pedidoVenda.cliente.razaoSocial);
+  // Cliente — venda à ordem mostra adquirente + destinatário; senão, só o cliente.
+  const cli = minuta.pedidoVenda.cliente;
+  const dest = minuta.pedidoVenda.clienteFinal;
+  if (dest) {
+    raw(BOLD_ON); line("ADQUIRENTE"); raw(BOLD_OFF);
+    line(cli.nomeFantasia || cli.razaoSocial);
+    raw(BOLD_ON); line("DESTINATARIO"); raw(BOLD_OFF);
+    line(dest.nomeFantasia || dest.razaoSocial);
+  } else {
+    raw(BOLD_ON); line("CLIENTE"); raw(BOLD_OFF);
+    line(cli.nomeFantasia || cli.razaoSocial);
+  }
   sep();
 
   // Itens

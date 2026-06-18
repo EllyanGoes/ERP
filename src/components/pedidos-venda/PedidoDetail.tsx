@@ -86,6 +86,7 @@ type PedidoDetailProps = {
     condicaoPagamento: string | null; formaPagamento: string | null; observacoes: string | null;
     valorProdutos: unknown; valorDesconto: unknown; valorFrete: unknown; valorTotal: unknown;
     cliente: { id: string; razaoSocial: string };
+    clienteFinal?: { id: string; razaoSocial: string } | null;
     vendedor?: { id: string; nome: string } | null;
     pagamentos?: { id: string; forma: string; valor: unknown; contaBancaria?: { id: string; nome: string } | null }[];
     itens: ItemRow[];
@@ -763,7 +764,10 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               <span className="text-gray-500">Situação</span>
               <StatusDimBadges entrega={pedido.statusEntrega} financeiro={pedido.statusFinanceiro} className="justify-end" />
             </div>
-            <div className="flex justify-between"><span className="text-gray-500">Cliente</span><Link href={`/clientes/${pedido.cliente.id}`} className="font-medium text-blue-600 hover:underline">{pedido.cliente.razaoSocial}</Link></div>
+            <div className="flex justify-between"><span className="text-gray-500">{pedido.clienteFinal ? "Adquirente" : "Cliente"}</span><Link href={`/clientes/${pedido.cliente.id}`} className="font-medium text-blue-600 hover:underline">{pedido.cliente.razaoSocial}</Link></div>
+            {pedido.clienteFinal && (
+              <div className="flex justify-between"><span className="text-gray-500">Destinatário</span><Link href={`/clientes/${pedido.clienteFinal.id}`} className="font-medium text-blue-600 hover:underline">{pedido.clienteFinal.razaoSocial}</Link></div>
+            )}
             <div className="flex justify-between items-center">
               <span className="text-gray-500">Pagamento</span>
               <span className={cn(

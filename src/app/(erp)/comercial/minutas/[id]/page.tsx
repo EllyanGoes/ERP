@@ -44,6 +44,7 @@ type Minuta = {
     id: string;
     numero: string;
     cliente: { id: string; razaoSocial: string; nomeFantasia: string | null };
+    clienteFinal?: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
   };
   localEstoque: LocalEstoque | null;
   itens: MinutaItem[];
@@ -301,11 +302,21 @@ export default function MinutaDetailPage() {
                 </button>
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Cliente</div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                  {minuta.pedidoVenda.clienteFinal ? "Adquirente" : "Cliente"}
+                </div>
                 <div className="text-gray-800 font-medium">
                   {minuta.pedidoVenda.cliente.nomeFantasia || minuta.pedidoVenda.cliente.razaoSocial}
                 </div>
               </div>
+              {minuta.pedidoVenda.clienteFinal && (
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Destinatário</div>
+                  <div className="text-gray-800 font-medium">
+                    {minuta.pedidoVenda.clienteFinal.nomeFantasia || minuta.pedidoVenda.clienteFinal.razaoSocial}
+                  </div>
+                </div>
+              )}
               <div>
                 <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Local de Estoque</div>
                 <div className="text-gray-800">{minuta.localEstoque?.nome ?? "—"}</div>
