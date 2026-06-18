@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { formatBRL, cn } from "@/lib/utils";
 
-// Formato de exibição de valores na Contabilidade Gerencial:
+// Formato de exibição de valores na Contabilidade:
 //  - "contabil" (padrão): notação D/C, sem "R$" (saldo "1.234,56 D").
 //  - "real": R$ com sinal (formatBRL), como no resto do ERP.
 

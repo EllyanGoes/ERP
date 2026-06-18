@@ -96,7 +96,7 @@ export default function PlanoContasContabilPage() {
     <div>
       <PageHeader
         title="Plano de Contas Contábil"
-        breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "Plano de Contas" }]}
+        breadcrumbs={[{ label: "Contabilidade" }, { label: "Plano de Contas" }]}
         action={<NovaContaDialog flat={flat} onDone={load} />}
       />
       <div className="px-8 pb-8">

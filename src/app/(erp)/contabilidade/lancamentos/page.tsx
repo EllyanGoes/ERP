@@ -69,7 +69,7 @@ export default function LancamentosContabeisPage() {
     <div>
       <PageHeader
         title="Diário Contábil"
-        breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "Diário" }]}
+        breadcrumbs={[{ label: "Contabilidade" }, { label: "Diário" }]}
         actions={
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={gerarRetroativos} disabled={gerando}>

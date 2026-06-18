@@ -119,7 +119,7 @@ export default function DreEstruturaPage() {
 
   return (
     <div>
-      <PageHeader title="Estrutura da DRE" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "DRE" }, { label: "Estrutura" }]}
+      <PageHeader title="Estrutura da DRE" breadcrumbs={[{ label: "Contabilidade" }, { label: "DRE" }, { label: "Estrutura" }]}
         actions={<div className="flex items-center gap-2">
           <Link href="/contabilidade/dre" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="w-4 h-4" /> Voltar à DRE</Link>
           <Button onClick={salvar} disabled={saving}>{saving ? "Salvando…" : "Salvar"}</Button>

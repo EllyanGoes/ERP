@@ -126,7 +126,7 @@ export default function RazaoPage() {
 
   return (
     <div>
-      <PageHeader title="Razão" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "Razão" }]} />
+      <PageHeader title="Razão" breadcrumbs={[{ label: "Contabilidade" }, { label: "Razão" }]} />
       <div className="px-8 pb-8 space-y-4">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="w-[28rem] max-w-full">

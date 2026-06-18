@@ -75,7 +75,7 @@ export default function DrePage() {
 
   return (
     <div>
-      <PageHeader title="DRE" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "DRE" }]} />
+      <PageHeader title="DRE" breadcrumbs={[{ label: "Contabilidade" }, { label: "DRE" }]} />
       <div className="px-8 pb-8 space-y-4">
         <div className="flex items-center gap-3 flex-wrap no-print">
           <label className="flex items-center gap-2 text-sm text-muted-foreground">

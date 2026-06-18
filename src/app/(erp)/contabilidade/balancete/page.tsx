@@ -108,7 +108,7 @@ export default function BalancetePage() {
 
   return (
     <div>
-      <PageHeader title="Balancete de Verificação" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "Balancete" }]} />
+      <PageHeader title="Balancete de Verificação" breadcrumbs={[{ label: "Contabilidade" }, { label: "Balancete" }]} />
       <div className="px-8 pb-8 space-y-4">
         <div className="flex items-center gap-3 flex-wrap no-print">
           <DateRangePicker value={range} onChange={setRange} />
