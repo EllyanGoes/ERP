@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
       nivel: pai.nivel + 1,
       aceitaLancamento: parsed.data.tipo === "ANALITICA",
       paiId: pai.id,
+      manual: true,
     },
   });
   return NextResponse.json({ data: conta }, { status: 201 });

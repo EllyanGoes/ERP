@@ -32,6 +32,7 @@ type Conta = {
   clienteId: string | null;
   fornecedorId: string | null;
   ativo: boolean;
+  manual: boolean;
   filhos: Conta[];
 };
 type FlatConta = Omit<Conta, "filhos">;
@@ -179,7 +180,15 @@ function Node({ conta, onChanged, flat, collapsed, onToggle }: {
               {qtdDentro}
             </span>
           )}
-          {auto && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">auto</span>}
+          <span
+            className={cn(
+              "text-[10px] px-1.5 py-0.5 rounded shrink-0",
+              conta.manual ? "bg-info/15 text-info" : "bg-muted text-muted-foreground",
+            )}
+            title={conta.manual ? "Criada manualmente" : "Criada automaticamente (seed/motor)"}
+          >
+            {conta.manual ? "manual" : "auto"}
+          </span>
           {!conta.ativo && <span className="text-xs text-muted-foreground shrink-0">(inativa)</span>}
         </div>
         <span className="w-16 text-center">

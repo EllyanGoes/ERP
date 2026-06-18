@@ -505,6 +505,7 @@ model ContaContabil {
   dreSecaoId       String? // seção da DRE (estrutura gerencial editável) — só contas de resultado
   ordemDre         Int               @default(0) // ordem da conta dentro da seção da DRE
   ativo            Boolean           @default(true)
+  manual           Boolean           @default(false) // true = criada manualmente pelo usuário; false = automática (seed/motor)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   pai              ContaContabil?    @relation("ContaArvore", fields: [paiId], references: [id])
