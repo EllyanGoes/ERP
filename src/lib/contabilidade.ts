@@ -2,7 +2,7 @@ import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber, generateDocNumber } from "@/lib/utils";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaClienteReceber } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -58,9 +58,10 @@ export async function contaPorCodigo(empresaId: string, codigo: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo }, select: { id: true } });
 }
 export async function contaDoCliente(empresaId: string, clienteId: string) {
-  // grupo=ATIVO: o mesmo clienteId também identifica a analítica de Material a
-  // Entregar (PASSIVO, 2.1.2.x) — aqui queremos a de Clientes a Receber (1.1.2.x).
-  return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, grupo: "ATIVO", clienteId }, select: { id: true } });
+  // 1.1.2.x (Clientes a Receber). O mesmo clienteId também identifica Material a
+  // Entregar (2.1.2.x, PASSIVO) e Bens a Entregar (1.1.4.x, ATIVO) — desambigua
+  // pelo código, não pelo grupo (Clientes e Bens são ambos ATIVO).
+  return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, clienteId, codigo: { startsWith: "1.1.2." } }, select: { id: true } });
 }
 export async function contaDoFornecedor(empresaId: string, fornecedorId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, fornecedorId }, select: { id: true } });
@@ -192,28 +193,32 @@ export async function contabilizarTituloReceber(crId: string) {
   // Caixa/banco do título, ou o "Caixa em Dinheiro" da empresa como padrão —
   // sempre uma analítica sob 1.1.1 (a sintética é só fallback extremo).
   const caixaCbId = cr.contaBancariaId ?? contaCaixaIdDaEmpresa(cr.empresaId);
-  const [contaCli, contaReceitaFb, contaCaixaResolved, conta111] = await Promise.all([
-    contaDoCliente(cr.empresaId, cr.clienteId),
+  const [contaCli, contaReceitaFb, contaCaixaResolved, conta111, contaBens] = await Promise.all([
+    garantirContaClienteReceber(cr.empresaId, cr.clienteId),
     garantirContaReceitaFallback(cr.empresaId),
     contaDoBanco(cr.empresaId, caixaCbId),
     contaPorCodigo(cr.empresaId, "1.1.1"),
+    cr.pedidoVendaId ? garantirContaBensEntregarCliente(cr.empresaId, cr.clienteId) : Promise.resolve(null),
   ]);
   // Receita de venda unificada numa única conta "Receita de Vendas" (3.1.9002),
   // independente da natureza do título (decisão: não dividir receita por natureza).
   const contaReceita = contaReceitaFb;
   if (!contaCli) return;
 
-  // Venda de PEDIDO é contabilizada pelo PEDIDO (contabilizarVendaPedido):
-  // D Clientes / C Material a Entregar na confirmação, independente do faturamento.
-  // Aqui só a venda AVULSA (CR sem pedido) gera a perna VENDA (D Clientes / C Receita).
+  // O RECEBÍVEL nasce com o TÍTULO (assim Clientes a Receber contábil = financeiro):
+  //  - título de PEDIDO: D Clientes a Receber / C Bens a Entregar (converte o
+  //    backlog-ativo da confirmação em recebível; a receita já foi reconhecida na
+  //    entrega via contabilizarReceitaMinuta).
+  //  - título AVULSO (sem pedido): D Clientes a Receber / C Receita (não há backlog).
   const valor = decimalToNumber(cr.valorOriginal);
-  if (!cr.pedidoVendaId && valor > 0 && contaReceita) {
+  const contraVenda = cr.pedidoVendaId ? contaBens : contaReceita;
+  if (valor > 0 && contraVenda) {
     await registrarLancamento({
       empresaId: cr.empresaId, data: cr.dataCompetencia ?? cr.createdAt,
       historico: `Venda — Título ${cr.numero}${refPedido}${cliNome ? ` · ${cliNome}` : ""}`, origemTipo: "VENDA", origemId: cr.id,
       partidas: [
         { contaId: contaCli.id, tipo: "DEBITO", valor, clienteId: cr.clienteId },
-        { contaId: contaReceita.id, tipo: "CREDITO", valor },
+        { contaId: contraVenda.id, tipo: "CREDITO", valor, clienteId: cr.pedidoVendaId ? cr.clienteId : undefined },
       ],
     });
   }
@@ -388,7 +393,7 @@ export async function contabilizarVendaPedido(pedidoVendaId: string) {
   if (valor <= 0) return;
 
   const [contaBens, contaMat] = await Promise.all([
-    garantirContaBensEntregar(pedido.empresaId),
+    garantirContaBensEntregarCliente(pedido.empresaId, pedido.clienteId),
     garantirContaMaterialEntregarCliente(pedido.empresaId, pedido.clienteId),
   ]);
   if (!contaBens || !contaMat) return;
@@ -645,14 +650,12 @@ export async function contabilizarReceitaMinuta(minutaId: string) {
   if (bruto <= 0.005) return;
 
   const clienteId = minuta.pedidoVenda?.clienteId ?? null;
-  const [contaMat, contaReceita, contaDesc, contaCli, contaBens] = await Promise.all([
+  const [contaMat, contaReceita, contaDesc] = await Promise.all([
     clienteId ? garantirContaMaterialEntregarCliente(minuta.empresaId, clienteId) : garantirContaMaterialEntregar(minuta.empresaId),
     garantirContaReceitaFallback(minuta.empresaId),                 // Receita BRUTA unificada (3.1.9002)
     desconto > 0.005 ? garantirContaDescontoConcedido(minuta.empresaId) : Promise.resolve(null),
-    clienteId ? garantirContaClienteReceber(minuta.empresaId, clienteId) : Promise.resolve(null),
-    garantirContaBensEntregar(minuta.empresaId),
   ]);
-  if (!contaMat || !contaReceita || !contaCli || !contaBens) return;
+  if (!contaMat || !contaReceita) return;
 
   // Histórico no padrão do razão: minuta · pedido · CR(s) · cliente · itens entregues.
   const detalhe = detalheItens(minuta.itens.map((it) => ({
@@ -666,13 +669,13 @@ export async function contabilizarReceitaMinuta(minutaId: string) {
     + (crNums ? ` · ${crNums}` : "")
     + (cli ? ` · ${cli}` : "")
     + (detalhe ? ` · ${detalhe}` : "");
-  // Recebível + receita (a receita bruta é creditada; o desconto vira conta
-  // redutora). E baixa do backlog: D Material a Entregar / C Bens a Entregar.
+  // Reconhecimento de receita na entrega (CPC 47): baixa o passivo Material a
+  // Entregar (líquido) e credita a Receita BRUTA, separando o desconto na conta
+  // redutora. O RECEBÍVEL não nasce aqui — nasce com o título (ver
+  // contabilizarTituloReceber), para o contábil bater com o financeiro.
   const partidas: PartidaIn[] = [
-    { contaId: contaCli.id, tipo: "DEBITO", valor: liquido, clienteId },
-    { contaId: contaReceita.id, tipo: "CREDITO", valor: bruto },
     { contaId: contaMat.id, tipo: "DEBITO", valor: liquido, clienteId },
-    { contaId: contaBens.id, tipo: "CREDITO", valor: liquido, clienteId },
+    { contaId: contaReceita.id, tipo: "CREDITO", valor: bruto },
   ];
   if (desconto > 0.005 && contaDesc) {
     partidas.push({ contaId: contaDesc.id, tipo: "DEBITO", valor: desconto });

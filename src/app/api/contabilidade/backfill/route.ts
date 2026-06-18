@@ -15,9 +15,19 @@ export async function POST(req: Request) {
   let processados = 0;
   const erros: string[] = [];
 
+  // Trava contra execução concorrente (clique duplo / refresh + reclique): o
+  // reprocesso apaga e regrava em massa; dois rodando juntos se atropelam e
+  // deixam o balanço inconsistente. Advisory lock global; liberado no finally.
+  const LOCK_KEY = 778899;
+  const [{ locked }] = await prismaSemEscopo.$queryRaw<{ locked: boolean }[]>`SELECT pg_try_advisory_lock(${LOCK_KEY}) AS locked`;
+  if (!locked) {
+    return NextResponse.json({ error: "Já há um reprocesso em execução. Aguarde ele terminar antes de rodar de novo." }, { status: 409 });
+  }
+
+  try {
   // ?reset=vendas → apaga os lançamentos de venda/entrega/recebimento e os
   // regrava do zero (necessário ao mudar o modelo: o backlog passou a debitar
-  // "Bens a Entregar" na confirmação e o recebível só nasce na entrega). As
+  // "Bens a Entregar" na confirmação e o recebível só nasce com o título). As
   // partidas saem em cascata. CMV, compras, pagamentos e abertura ficam intactos.
   const reset = new URL(req.url).searchParams.get("reset");
   if (reset === "vendas") {
@@ -90,4 +100,7 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true, processados, erros: erros.slice(0, 20) });
+  } finally {
+    await prismaSemEscopo.$queryRaw`SELECT pg_advisory_unlock(${LOCK_KEY})`.catch(() => {});
+  }
 }

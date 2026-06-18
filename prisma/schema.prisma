@@ -517,9 +517,10 @@ model ContaContabil {
   empresa          Empresa           @relation(fields: [empresaId], references: [id])
 
   @@unique([empresaId, codigo])
-  // grupo no key: um cliente pode ter Clientes a Receber (ATIVO) e Material a
-  // Entregar (PASSIVO) — ambos com o mesmo clienteId, em grupos distintos.
-  @@unique([empresaId, grupo, clienteId])
+  // Unicidade por PAI: um cliente tem várias analíticas com o mesmo clienteId —
+  // Clientes a Receber (1.1.2.x) e Bens a Entregar (1.1.4.x), ambas ATIVO, e
+  // Material a Entregar (2.1.2.x), PASSIVO. Uma por conta-pai.
+  @@unique([empresaId, paiId, clienteId])
   @@unique([empresaId, fornecedorId])
   @@unique([empresaId, naturezaFinanceiraId])
   @@unique([empresaId, localEstoqueId])

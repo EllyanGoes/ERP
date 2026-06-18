@@ -30,13 +30,13 @@ async function garantirEntidadeEmpresa(
   nome: string,
 ) {
   const chave = tipo === "cliente" ? { clienteId: entidadeId } : { fornecedorId: entidadeId };
-  // Cliente pode ter duas analíticas com o mesmo clienteId (1.1.2 Clientes a
-  // Receber, ATIVO; e 2.1.2.x Material a Entregar, PASSIVO) — desambigua pelo grupo.
-  const grupoChave = tipo === "cliente" ? "ATIVO" : "PASSIVO";
-  const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, grupo: grupoChave, ...chave } });
+  // Cliente tem várias analíticas com o mesmo clienteId (1.1.2.x Clientes a
+  // Receber e 1.1.4.x Bens a Entregar, ambas ATIVO; 2.1.2.x Material a Entregar,
+  // PASSIVO) — desambigua pelo CÓDIGO do pai, não pelo grupo.
+  const codPai = tipo === "cliente" ? COD_CLIENTES : COD_FORNECEDORES;
+  const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, ...chave, codigo: { startsWith: codPai + "." } } });
   if (existente) return existente;
 
-  const codPai = tipo === "cliente" ? COD_CLIENTES : COD_FORNECEDORES;
   const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: codPai } });
   if (!pai) return null; // plano da empresa ainda não semeado
 
@@ -422,11 +422,11 @@ export async function garantirContaClienteReceber(empresaId: string, clienteId: 
 }
 
 /**
- * Garante (idempotente) a conta de controle "Bens a Entregar" (1.1.4, ATIVO).
- * Contrapartida ATIVA do "Material a Entregar" (passivo) na confirmação do
- * pedido: o backlog de pedidos confirmados-não-entregues fica visível no balanço
- * sem inflar "Clientes a Receber" — o recebível só nasce na entrega, com o
- * título (assim contábil e financeiro convergem). Best-effort.
+ * Garante (idempotente) a sintética "Bens a Entregar" (1.1.4, ATIVO). Espelho
+ * ATIVO do "Material a Entregar" (passivo 2.1.2): o backlog de pedidos
+ * confirmados-não-entregues fica visível no balanço sem inflar "Clientes a
+ * Receber" — o recebível só nasce com o título. Analítica por cliente (1.1.4.x)
+ * via garantirContaBensEntregarCliente. Best-effort.
  */
 export async function garantirContaBensEntregar(empresaId: string) {
   const ex = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.4" }, select: { id: true } });
@@ -436,8 +436,36 @@ export async function garantirContaBensEntregar(empresaId: string) {
   return prismaSemEscopo.contaContabil.create({
     data: {
       empresaId, codigo: "1.1.4", nome: "Bens a Entregar",
+      grupo: "ATIVO", natureza: "DEVEDORA", tipo: "SINTETICA",
+      nivel: pai.nivel + 1, aceitaLancamento: false, paiId: pai.id, ativo: true,
+    },
+    select: { id: true },
+  });
+}
+
+/**
+ * Garante (idempotente) a analítica de Bens a Entregar de um cliente, sob a
+ * sintética 1.1.4. Keyed por (empresa, pai 1.1.4, cliente) — o mesmo clienteId
+ * também tem a analítica de Clientes a Receber (1.1.2.x), por isso a unicidade é
+ * por pai e não por grupo. Espelho ativo do Material a Entregar do cliente.
+ */
+export async function garantirContaBensEntregarCliente(empresaId: string, clienteId: string) {
+  let pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.4" }, select: { id: true, codigo: true, nivel: true } });
+  if (!pai) {
+    await garantirContaBensEntregar(empresaId);
+    pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.4" }, select: { id: true, codigo: true, nivel: true } });
+  }
+  if (!pai) return null;
+  const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, paiId: pai.id, clienteId }, select: { id: true } });
+  if (existente) return existente;
+  const cliente = await prismaSemEscopo.cliente.findUnique({ where: { id: clienteId }, select: { razaoSocial: true } });
+  const filhos = await prismaSemEscopo.contaContabil.findMany({ where: { empresaId, paiId: pai.id }, select: { codigo: true } });
+  const codigo = montarProximo(pai.codigo, filhos.map((f) => f.codigo));
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo, nome: cliente?.razaoSocial ?? "Cliente",
       grupo: "ATIVO", natureza: "DEVEDORA", tipo: "ANALITICA",
-      nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id, ativo: true,
+      nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id, clienteId,
     },
     select: { id: true },
   });
