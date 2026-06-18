@@ -134,7 +134,7 @@ export async function registrarLancamento(input: LancamentoIn) {
 export async function contabilizarTituloReceber(crId: string) {
   const cr = await prismaSemEscopo.contaReceber.findUnique({
     where: { id: crId },
-    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, contaBancariaId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
+    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
   });
   if (!cr || cr.status === "CANCELADA") return;
 
@@ -165,8 +165,9 @@ export async function contabilizarTituloReceber(crId: string) {
       ],
     });
   }
+  // Caixa só com pagamento de fato; intragrupo nunca lança caixa.
   const pago = decimalToNumber(cr.valorPago);
-  if (pago > 0 && contaCaixa) {
+  if (pago > 0 && !cr.intragrupo && contaCaixa) {
     await registrarLancamento({
       empresaId: cr.empresaId, data: cr.dataPagamento ?? cr.createdAt,
       historico: `Recebimento — título ${cr.numero}`, origemTipo: "RECEBIMENTO", origemId: cr.id,
@@ -183,7 +184,7 @@ export async function contabilizarTituloReceber(crId: string) {
 export async function contabilizarTituloPagar(cpId: string) {
   const cp = await prismaSemEscopo.contaPagar.findUnique({
     where: { id: cpId },
-    select: { id: true, empresaId: true, fornecedorId: true, naturezaFinanceiraId: true, contaBancariaId: true, pedidoCompraId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
+    select: { id: true, empresaId: true, fornecedorId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true },
   });
   if (!cp || cp.status === "CANCELADA" || !cp.fornecedorId) return;
 
@@ -217,8 +218,9 @@ export async function contabilizarTituloPagar(cpId: string) {
       ],
     });
   }
+  // Caixa só com pagamento de fato; intragrupo nunca lança caixa.
   const pago = decimalToNumber(cp.valorPago);
-  if (pago > 0 && contaCaixa) {
+  if (pago > 0 && !cp.intragrupo && contaCaixa) {
     await registrarLancamento({
       empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
       historico: `Pagamento — título ${cp.numero}`, origemTipo: "PAGAMENTO", origemId: cp.id,
