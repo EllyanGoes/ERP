@@ -544,12 +544,12 @@ export async function contabilizarDepreciacaoMes(imobilizadoId: string, competen
   const bem = await prismaSemEscopo.imobilizado.findUnique({
     where: { id: imobilizadoId },
     select: {
-      id: true, empresaId: true, status: true, dataAquisicao: true,
+      id: true, empresaId: true, status: true, deprecia: true, dataAquisicao: true,
       valorAquisicao: true, valorResidual: true, vidaUtilMeses: true,
       contaDepreciacaoAcumuladaId: true, contaDespesaId: true,
     },
   });
-  if (!bem || bem.status !== "ATIVO" || bem.vidaUtilMeses <= 0) return 0;
+  if (!bem || bem.status !== "ATIVO" || !bem.deprecia || bem.vidaUtilMeses <= 0) return 0;
 
   const competencia = primeiroDiaDoMes(competenciaIn);
   // Não deprecia antes do mês de aquisição.
@@ -607,7 +607,7 @@ export async function contabilizarDepreciacaoMes(imobilizadoId: string, competen
 /** Processa a depreciação de uma competência para todos os bens ATIVO de uma empresa. */
 export async function processarDepreciacaoEmpresa(empresaId: string, competencia: Date) {
   const bens = await prismaSemEscopo.imobilizado.findMany({
-    where: { empresaId, status: "ATIVO" }, select: { id: true },
+    where: { empresaId, status: "ATIVO", deprecia: true }, select: { id: true },
   });
   let processados = 0;
   let total = 0;

@@ -649,6 +649,7 @@ model Imobilizado {
   valorAquisicao              Decimal                 @db.Decimal(15, 2)
   valorResidual               Decimal                 @default(0) @db.Decimal(15, 2)
   vidaUtilMeses               Int
+  deprecia                    Boolean                 @default(true) // terrenos e bens não depreciáveis = false
   metodo                      MetodoDepreciacao       @default(LINEAR)
   status                      StatusImobilizado       @default(ATIVO)
   contaAtivoId                String? // analítica do bem (1.2.1.NNNN)

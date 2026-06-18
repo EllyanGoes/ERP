@@ -114,22 +114,23 @@ function NovoBemDialog({ onDone }: { onDone: () => void }) {
   const [valorAquisicao, setValorAquisicao] = useState("");
   const [valorResidual, setValorResidual] = useState("0");
   const [vidaUtilMeses, setVidaUtilMeses] = useState("");
+  const [deprecia, setDeprecia] = useState(true);
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const valido = descricao.trim() && Number(valorAquisicao) > 0 && parseInt(vidaUtilMeses, 10) > 0;
+  const valido = descricao.trim() && Number(valorAquisicao) > 0 && (!deprecia || parseInt(vidaUtilMeses, 10) > 0);
 
   async function salvar() {
     setSaving(true); setErro(null);
     const res = await fetch("/api/contabilidade/imobilizado", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ descricao, dataAquisicao, valorAquisicao, valorResidual, vidaUtilMeses }),
+      body: JSON.stringify({ descricao, dataAquisicao, valorAquisicao, valorResidual, deprecia, vidaUtilMeses: deprecia ? vidaUtilMeses : 0 }),
     });
     setSaving(false);
     if (!res.ok) { const d = await res.json().catch(() => ({})); setErro(d.error ?? "Erro ao salvar"); return; }
     setOpen(false);
-    setDescricao(""); setValorAquisicao(""); setValorResidual("0"); setVidaUtilMeses("");
+    setDescricao(""); setValorAquisicao(""); setValorResidual("0"); setVidaUtilMeses(""); setDeprecia(true);
     onDone();
   }
 
@@ -145,6 +146,13 @@ function NovoBemDialog({ onDone }: { onDone: () => void }) {
             <Label>Descrição</Label>
             <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex: Forno túnel, Caminhão Mercedes…" />
           </div>
+          <div>
+            <Label>Tipo</Label>
+            <select value={deprecia ? "movel" : "terreno"} onChange={(e) => setDeprecia(e.target.value === "movel")} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
+              <option value="movel">Bem depreciável (veículo, máquina, equipamento)</option>
+              <option value="terreno">Terreno / não depreciável</option>
+            </select>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Data de aquisição</Label>
@@ -152,7 +160,7 @@ function NovoBemDialog({ onDone }: { onDone: () => void }) {
             </div>
             <div>
               <Label>Vida útil (meses)</Label>
-              <Input type="number" min={1} value={vidaUtilMeses} onChange={(e) => setVidaUtilMeses(e.target.value)} placeholder="Ex: 120" />
+              <Input type="number" min={1} value={vidaUtilMeses} onChange={(e) => setVidaUtilMeses(e.target.value)} placeholder="Ex: 120" disabled={!deprecia} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

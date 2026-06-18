@@ -224,9 +224,9 @@ export async function garantirContasImobilizado(empresaId: string) {
   return { deprAcumId: deprAcum?.id ?? null, despesaId: despesa?.id ?? null };
 }
 
-/** Cria (idempotente por contaId no bem) a analítica de um bem sob 1.2.1 Imobilizado. */
-export async function garantirContaImobilizadoBem(empresaId: string, descricao: string) {
-  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.2.1" } });
+/** Cria a analítica de um bem sob o pai indicado (1.2.1 Imobilizado depreciável; 1.2.3 Terrenos). */
+export async function garantirContaImobilizadoBem(empresaId: string, descricao: string, codigoPai = "1.2.1") {
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: codigoPai } });
   if (!pai) return null;
   const filhos = await prismaSemEscopo.contaContabil.findMany({ where: { empresaId, paiId: pai.id }, select: { codigo: true } });
   const codigo = montarProximo(pai.codigo, filhos.map((f) => f.codigo));

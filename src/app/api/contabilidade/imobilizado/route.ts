@@ -10,9 +10,10 @@ const schema = z.object({
   dataAquisicao: z.string().min(1, "Data de aquisição é obrigatória"),
   valorAquisicao: z.coerce.number().positive("Valor deve ser positivo"),
   valorResidual: z.coerce.number().min(0).optional().default(0),
-  vidaUtilMeses: z.coerce.number().int().positive("Vida útil deve ser positiva"),
+  deprecia: z.coerce.boolean().optional().default(true),
+  vidaUtilMeses: z.coerce.number().int().min(0).optional().default(0),
   observacoes: z.string().optional().nullable(),
-});
+}).refine((d) => !d.deprecia || d.vidaUtilMeses > 0, { message: "Vida útil deve ser positiva para bens depreciáveis", path: ["vidaUtilMeses"] });
 
 // GET → lista de bens com depreciação acumulada e conta vinculada.
 export async function GET() {
@@ -55,15 +56,17 @@ export async function POST(req: NextRequest) {
       valorAquisicao: d.valorAquisicao,
       valorResidual: d.valorResidual ?? 0,
       vidaUtilMeses: d.vidaUtilMeses,
+      deprecia: d.deprecia,
       observacoes: d.observacoes?.trim() || null,
     },
   });
 
-  // Cria a analítica do bem (1.2.1.NNNN) e resolve as contas compartilhadas.
-  const [contaBem, compart] = await Promise.all([
-    garantirContaImobilizadoBem(bem.empresaId, d.descricao).catch(() => null),
-    garantirContasImobilizado(bem.empresaId).catch(() => ({ deprAcumId: null, despesaId: null })),
-  ]);
+  // Bem depreciável → analítica sob 1.2.1 Imobilizado + contas de depreciação.
+  // Terreno (não deprecia) → analítica sob 1.2.3 Terrenos, sem depreciação.
+  const contaBem = await garantirContaImobilizadoBem(bem.empresaId, d.descricao, d.deprecia ? "1.2.1" : "1.2.3").catch(() => null);
+  const compart = d.deprecia
+    ? await garantirContasImobilizado(bem.empresaId).catch(() => ({ deprAcumId: null, despesaId: null }))
+    : { deprAcumId: null, despesaId: null };
   const atualizado = await prisma.imobilizado.update({
     where: { id: bem.id },
     data: {
