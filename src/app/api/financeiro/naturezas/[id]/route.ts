@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
+import { vincularNaturezaConta } from "@/lib/conta-contabil";
 import { z } from "zod";
 
 const GRUPOS = ["RECEITA_OPERACIONAL", "CUSTO_OPERACIONAL", "DESPESA_OPERACIONAL", "INVESTIMENTO", "FINANCIAMENTO"] as const;
@@ -11,6 +12,7 @@ const schema = z.object({
   tipo: z.enum(["ENTRADA", "SAIDA"]).optional(),
   grupo: z.enum(GRUPOS).optional(),
   subgrupoId: z.string().optional().nullable(),
+  contaContabilId: z.string().optional().nullable(),
   ativo: z.boolean().optional(),
 });
 
@@ -21,11 +23,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const parsed = schema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos" }, { status: 400 });
 
-  const { subgrupoId, ...rest } = parsed.data;
+  const { subgrupoId, contaContabilId, ...rest } = parsed.data;
   const data = await prisma.naturezaFinanceira.update({
     where: { id: params.id },
     data: { ...rest, ...(subgrupoId !== undefined ? { subgrupoId: subgrupoId || null } : {}) },
   });
+  if (contaContabilId) await vincularNaturezaConta(data.empresaId, data.id, contaContabilId).catch(() => null);
   return NextResponse.json({ data });
 }
 

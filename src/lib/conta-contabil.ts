@@ -114,6 +114,22 @@ async function garantirAnaliticaSobPai(
   });
 }
 
+/**
+ * Vincula uma natureza financeira a uma conta de resultado escolhida pelo usuário
+ * (cadastro de relacionamento). Move o link `naturezaFinanceiraId` para a conta
+ * escolhida (1 por empresa), liberando a conta antes vinculada à natureza.
+ */
+export async function vincularNaturezaConta(empresaId: string, naturezaId: string, contaContabilId: string) {
+  await prismaSemEscopo.contaContabil.updateMany({
+    where: { empresaId, naturezaFinanceiraId: naturezaId, id: { not: contaContabilId } },
+    data: { naturezaFinanceiraId: null },
+  });
+  await prismaSemEscopo.contaContabil.update({
+    where: { id: contaContabilId },
+    data: { naturezaFinanceiraId: naturezaId },
+  });
+}
+
 /** Garante (idempotente) a conta de Resultado de uma natureza, na empresa dela. */
 export async function garantirContaContabilNatureza(naturezaId: string) {
   const n = await prismaSemEscopo.naturezaFinanceira.findUnique({

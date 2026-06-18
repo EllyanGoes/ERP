@@ -29,14 +29,17 @@ const GRUPO_LABEL: Record<Grupo, string> = {
 
 type Tipo = "ENTRADA" | "SAIDA";
 type Subgrupo = { id: string; nome: string; grupo: Grupo };
+type ContaResultado = { id: string; codigo: string; nome: string };
 type Natureza = {
   id: string; nome: string; tipo: Tipo; grupo: Grupo;
   subgrupoId: string | null; subgrupo: { id: string; nome: string } | null; ativo: boolean;
+  contaContabilId: string | null; contaContabil: ContaResultado | null;
 };
 
 export default function NaturezasPage() {
   const [rows, setRows] = useState<Natureza[]>([]);
   const [subgrupos, setSubgrupos] = useState<Subgrupo[]>([]);
+  const [contasResultado, setContasResultado] = useState<ContaResultado[]>([]);
   const [loading, setLoading] = useState(true);
 
   // null = fechado; objeto vazio = novo; objeto preenchido = edição
@@ -46,10 +49,11 @@ export default function NaturezasPage() {
   const load = useCallback(async () => {
     setLoading(true);
     const [n, s] = await Promise.all([
-      fetch("/api/financeiro/naturezas").then((r) => r.json()),
+      fetch("/api/financeiro/naturezas?comContas=1").then((r) => r.json()),
       fetch("/api/financeiro/naturezas/subgrupos").then((r) => r.json()),
     ]);
     setRows(n.data ?? []);
+    setContasResultado(n.contasResultado ?? []);
     setSubgrupos(s.data ?? []);
     setLoading(false);
   }, []);
@@ -126,6 +130,7 @@ export default function NaturezasPage() {
         <NaturezaDialog
           editing={natModal === "new" ? null : natModal}
           subgrupos={subgrupos}
+          contasResultado={contasResultado}
           onClose={() => setNatModal(null)}
           onSaved={() => { setNatModal(null); load(); }}
         />
@@ -229,9 +234,10 @@ function RowShell({ indent, left, faded, onEdit, onDelete }: {
   );
 }
 
-function NaturezaDialog({ editing, subgrupos, onClose, onSaved }: {
+function NaturezaDialog({ editing, subgrupos, contasResultado, onClose, onSaved }: {
   editing: Natureza | null;
   subgrupos: Subgrupo[];
+  contasResultado: ContaResultado[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -239,6 +245,7 @@ function NaturezaDialog({ editing, subgrupos, onClose, onSaved }: {
   const [tipo, setTipo] = useState<Tipo>(editing?.tipo ?? "SAIDA");
   const [grupo, setGrupo] = useState<Grupo>(editing?.grupo ?? "DESPESA_OPERACIONAL");
   const [subgrupoId, setSubgrupoId] = useState(editing?.subgrupoId ?? "");
+  const [contaContabilId, setContaContabilId] = useState(editing?.contaContabilId ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -251,7 +258,7 @@ function NaturezaDialog({ editing, subgrupos, onClose, onSaved }: {
     const res = await fetch(url, {
       method: editing ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: nome.trim(), tipo, grupo, subgrupoId: subgrupoId || null }),
+      body: JSON.stringify({ nome: nome.trim(), tipo, grupo, subgrupoId: subgrupoId || null, contaContabilId: contaContabilId || null }),
     });
     if (!res.ok) { setError((await res.json()).error ?? "Erro ao salvar"); setSaving(false); return; }
     onSaved();
@@ -286,6 +293,17 @@ function NaturezaDialog({ editing, subgrupos, onClose, onSaved }: {
               triggerClassName="h-10 rounded-lg"
               options={subsDoGrupo.map((s) => ({ value: s.id, label: s.nome }))}
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Conta de resultado (contábil)</Label>
+            <ComboboxWithCreate
+              value={contaContabilId}
+              onChange={(v) => setContaContabilId(v)}
+              noneLabel="— Automática (por grupo) —"
+              triggerClassName="h-10 rounded-lg"
+              options={contasResultado.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))}
+            />
+            <p className="text-[11px] text-muted-foreground">Vincula a natureza a uma conta do plano de contas (integração contábil). Em branco usa a conta automática do grupo.</p>
           </div>
           {error && <p className="text-sm text-rose-500">{error}</p>}
         </div>
