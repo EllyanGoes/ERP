@@ -5,10 +5,11 @@ import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Input } from "@/components/ui/input";
 import { useTabTitle } from "@/lib/tabs-context";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtSaldo, saldoAnormal, type FormatoModo, type NaturezaConta } from "@/lib/formato-contabil";
-import PrintButton from "@/components/shared/PrintButton";
-import { Loader2, Scale, Check, X } from "lucide-react";
+import { useSession } from "@/lib/session-context";
+import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
+import { Loader2, Scale, Check, X, FileDown } from "lucide-react";
 
 type Linha = { id: string; codigo: string; nome: string; tipo: "SINTETICA" | "ANALITICA"; natureza: NaturezaConta; nivel: number; saldo: number };
 type Balanco = {
@@ -58,6 +59,39 @@ export default function BalancoPage() {
 
   useEffect(() => { if (data) load(data); }, [data, load]);
 
+  const { user } = useSession();
+  const empresaNome = user?.empresas?.find((e) => e.id === user.activeEmpresaId)?.nome ?? null;
+
+  function baixarPdf() {
+    if (!bal) return;
+    const conta = (l: Linha): LinhaPdf | null => {
+      if (soComSaldo && l.saldo === 0) return null;
+      return {
+        estilo: l.tipo === "SINTETICA" ? "secao" : "normal",
+        celulas: [l.codigo, `${"   ".repeat(Math.max(0, l.nivel - 1))}${l.nome}`, fmtSaldo(l.saldo, modo, l.natureza)],
+      };
+    };
+    const linhas: LinhaPdf[] = [{ estilo: "secao", celulas: ["", "ATIVO", ""] }];
+    for (const l of bal.ativo) { const r = conta(l); if (r) linhas.push(r); }
+    linhas.push({ estilo: "total", celulas: ["", "Total do Ativo", fmtSaldo(bal.totalAtivo, modo, "DEVEDORA")] });
+    linhas.push({ estilo: "secao", celulas: ["", "PASSIVO + PATRIMÔNIO LÍQUIDO", ""] });
+    for (const l of [...bal.passivo, ...bal.patrimonioLiquido]) { const r = conta(l); if (r) linhas.push(r); }
+    linhas.push({ celulas: ["2.3.9", "   Resultado do Exercício", fmtSaldo(bal.resultadoExercicio, modo, "CREDORA")] });
+    linhas.push({ estilo: "total", celulas: ["", "Total Passivo + PL", fmtSaldo(bal.totalPassivo + bal.totalPLcomResultado, modo, "CREDORA")] });
+    gerarPdfContabil({
+      titulo: "Balanço Patrimonial",
+      empresa: empresaNome,
+      subinfo: [
+        `Posição em: ${formatDate(data)}`,
+        `Formato: ${modo === "contabil" ? "Contábil" : "Real"} · ${bal.confere ? "Confere (Ativo = Passivo + PL)" : "Não fecha!"}`,
+      ],
+      head: ["Código", "Conta", "Saldo"],
+      linhas,
+      alinharDireitaDe: 2,
+      arquivo: `balanco-${data}.pdf`,
+    });
+  }
+
   return (
     <div>
       <PageHeader title="Balanço Patrimonial" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "Balanço" }]} />
@@ -72,7 +106,10 @@ export default function BalancoPage() {
             Só contas com saldo
           </label>
           <FormatoToggle modo={modo} onChange={setModo} />
-          <PrintButton />
+          <button type="button" onClick={baixarPdf} disabled={!bal}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50">
+            <FileDown className="w-4 h-4" /> Baixar PDF
+          </button>
           {bal && (
             <span className={cn("ml-auto inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg",
               bal.confere ? "bg-success/10 text-success" : "bg-danger/10 text-danger")}>

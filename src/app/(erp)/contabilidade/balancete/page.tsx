@@ -5,10 +5,11 @@ import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import { useTabTitle } from "@/lib/tabs-context";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtSaldo, fmtColuna, saldoAnormal, type NaturezaConta } from "@/lib/formato-contabil";
-import PrintButton from "@/components/shared/PrintButton";
-import { Loader2, Scale, Check, X, ChevronRight, ChevronDown } from "lucide-react";
+import { useSession } from "@/lib/session-context";
+import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
+import { Loader2, Scale, Check, X, ChevronRight, ChevronDown, FileDown } from "lucide-react";
 
 type Linha = {
   id: string; codigo: string; nome: string; tipo: "SINTETICA" | "ANALITICA"; natureza: NaturezaConta; nivel: number;
@@ -75,6 +76,36 @@ export default function BalancetePage() {
   const recolherTudo = useCallback(() => persist(new Set(comMov.filter((l) => temFilhos(l)).map((l) => l.codigo))), [comMov, temFilhos, persist]);
   const expandirTudo = useCallback(() => persist(new Set()), [persist]);
 
+  const { user } = useSession();
+  const empresaNome = user?.empresas?.find((e) => e.id === user.activeEmpresaId)?.nome ?? null;
+
+  function baixarPdf() {
+    const linhas: LinhaPdf[] = visiveis.map((l) => ({
+      estilo: l.tipo === "SINTETICA" ? "secao" : "normal",
+      celulas: [
+        l.codigo,
+        `${"   ".repeat(Math.max(0, l.nivel - 1))}${l.nome}`,
+        fmtSaldo(l.saldoAnterior, modo, l.natureza),
+        fmtColuna(l.debito, modo) || "—",
+        fmtColuna(l.credito, modo) || "—",
+        fmtSaldo(l.saldoFinal, modo, l.natureza),
+      ],
+    }));
+    linhas.push({ estilo: "total", celulas: ["", "Totais do período", "", fmtColuna(resumo.totalDebito, modo), fmtColuna(resumo.totalCredito, modo), ""] });
+    gerarPdfContabil({
+      titulo: "Balancete de Verificação",
+      empresa: empresaNome,
+      subinfo: [
+        `Período: ${formatDate(range.from)} a ${formatDate(range.to)}`,
+        `Formato: ${modo === "contabil" ? "Contábil" : "Real"} · ${resumo.confere ? "Confere (Σ débito = Σ crédito)" : "Não fecha!"}`,
+      ],
+      head: ["Código", "Conta", "Saldo Ant.", "Débito", "Crédito", "Saldo Atual"],
+      linhas,
+      alinharDireitaDe: 2,
+      arquivo: `balancete-${range.from}-a-${range.to}.pdf`,
+    });
+  }
+
   return (
     <div>
       <PageHeader title="Balancete de Verificação" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "Balancete" }]} />
@@ -88,7 +119,10 @@ export default function BalancetePage() {
           <button type="button" onClick={recolherTudo} className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-md border border-border hover:bg-muted">Recolher tudo</button>
           <button type="button" onClick={expandirTudo} className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-md border border-border hover:bg-muted">Expandir tudo</button>
           <FormatoToggle modo={modo} onChange={setModo} />
-          <PrintButton />
+          <button type="button" onClick={baixarPdf}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg border border-border hover:bg-muted">
+            <FileDown className="w-4 h-4" /> Baixar PDF
+          </button>
           <span className={cn("ml-auto inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg",
             resumo.confere ? "bg-success/10 text-success" : "bg-danger/10 text-danger")}>
             {resumo.confere ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}

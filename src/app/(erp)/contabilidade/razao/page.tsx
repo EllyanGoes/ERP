@@ -5,13 +5,14 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import { linkOrigemLancamento } from "@/lib/origem-link";
-import PrintButton from "@/components/shared/PrintButton";
+import { useSession } from "@/lib/session-context";
+import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatDate, cn } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtSaldo, fmtColuna, saldoAnormal, type NaturezaConta } from "@/lib/formato-contabil";
-import { Loader2, BookOpen } from "lucide-react";
+import { Loader2, BookOpen, FileDown } from "lucide-react";
 
 type FlatConta = { id: string; codigo: string; nome: string };
 type Mov = {
@@ -77,6 +78,52 @@ export default function RazaoPage() {
 
   useEffect(() => { load(); }, [contaId, range.from, range.to, load]);
 
+  const { user } = useSession();
+  const empresaNome = user?.empresas?.find((e) => e.id === user.activeEmpresaId)?.nome ?? null;
+
+  function baixarPdf() {
+    if (!razao) return;
+    const nat = razao.conta.natureza as NaturezaConta;
+    const sintetica = razao.conta.tipo === "SINTETICA";
+    const linhas: LinhaPdf[] = [
+      { estilo: "secao", celulas: ["", "Saldo anterior", "", "", "", fmtSaldo(razao.saldoInicial, modo, nat)] },
+    ];
+    for (const m of razao.movimentos) {
+      const contrap = m.contrapartidas.map((c) => `${c.codigo} ${c.nome}`).join("; ") || "—";
+      linhas.push({
+        celulas: [
+          formatDate(m.data),
+          `${m.historico}${sintetica ? ` [${m.contaCodigo}]` : ""}`,
+          contrap,
+          fmtColuna(m.debito, modo),
+          fmtColuna(m.credito, modo),
+          fmtSaldo(m.saldo, modo, nat),
+        ],
+      });
+    }
+    linhas.push({
+      estilo: "total",
+      celulas: [
+        "", "Saldo final", "",
+        fmtColuna(razao.movimentos.reduce((s, m) => s + m.debito, 0), modo),
+        fmtColuna(razao.movimentos.reduce((s, m) => s + m.credito, 0), modo),
+        fmtSaldo(razao.saldoFinal, modo, nat),
+      ],
+    });
+    gerarPdfContabil({
+      titulo: "Razão",
+      empresa: empresaNome,
+      subinfo: [
+        `Conta: ${razao.conta.codigo} — ${razao.conta.nome} (${nat === "DEVEDORA" ? "Devedora" : "Credora"})`,
+        `Período: ${formatDate(range.from)} a ${formatDate(range.to)} · Formato: ${modo === "contabil" ? "Contábil" : "Real"}`,
+      ],
+      head: ["Data", "Histórico", "Contrapartida", "Débito", "Crédito", "Saldo"],
+      linhas,
+      alinharDireitaDe: 3,
+      arquivo: `razao-${razao.conta.codigo}-${range.from}-a-${range.to}.pdf`,
+    });
+  }
+
   return (
     <div>
       <PageHeader title="Razão" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "Razão" }]} />
@@ -92,7 +139,13 @@ export default function RazaoPage() {
             />
           </div>
           <DateRangePicker value={range} onChange={setRange} />
-          <div className="ml-auto flex items-center gap-2"><FormatoToggle modo={modo} onChange={setModo} /><PrintButton /></div>
+          <div className="ml-auto flex items-center gap-2">
+            <FormatoToggle modo={modo} onChange={setModo} />
+            <button type="button" onClick={baixarPdf} disabled={!razao}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50">
+              <FileDown className="w-4 h-4" /> Baixar PDF
+            </button>
+          </div>
         </div>
 
         {!contaId ? (

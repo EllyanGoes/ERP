@@ -6,8 +6,9 @@ import PageHeader from "@/components/shared/PageHeader";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtColuna } from "@/lib/formato-contabil";
-import PrintButton from "@/components/shared/PrintButton";
-import { Loader2, FileBarChart, SlidersHorizontal } from "lucide-react";
+import { useSession } from "@/lib/session-context";
+import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
+import { Loader2, FileBarChart, SlidersHorizontal, FileDown } from "lucide-react";
 
 type LinhaConta = { id: string; codigo: string; nome: string; meses: number[]; total: number };
 type Secao = { id: string; nome: string; operacao: "SOMA" | "SUBTRAI"; contas: LinhaConta[]; meses: number[]; total: number };
@@ -26,6 +27,29 @@ export default function DrePage() {
   const [dre, setDre] = useState<Dre | null>(null);
   const [loading, setLoading] = useState(true);
   const [modo, setModo] = useFormatoContabil();
+  const { user } = useSession();
+  const empresaNome = user?.empresas?.find((e) => e.id === user.activeEmpresaId)?.nome ?? null;
+
+  function baixarPdf() {
+    if (!dre) return;
+    const celMes = (v: number) => (Math.abs(v) < 0.005 ? "" : fmtColuna(v, modo));
+    const linhas: LinhaPdf[] = [];
+    for (const s of dre.secoes) {
+      linhas.push({ estilo: "secao", celulas: [`${s.nome} (${s.operacao === "SUBTRAI" ? "−" : "+"})`, ...s.meses.map(celMes), celMes(s.total)] });
+      for (const c of s.contas) linhas.push({ celulas: [`${c.codigo}  ${c.nome}`, ...c.meses.map(celMes), celMes(c.total)] });
+    }
+    linhas.push({ estilo: "total", celulas: ["Resultado do Exercício", ...dre.resultadoMeses.map(celMes), fmtColuna(dre.resultadoTotal, modo)] });
+    gerarPdfContabil({
+      titulo: "DRE — Demonstração do Resultado",
+      empresa: empresaNome,
+      subinfo: [`Exercício: ${dre.ano}`, `Formato: ${modo === "contabil" ? "Contábil" : "Real"}`],
+      head: ["Conta", ...MESES, "Total"],
+      linhas,
+      alinharDireitaDe: 1,
+      orientacao: "l",
+      arquivo: `dre-${dre.ano}.pdf`,
+    });
+  }
 
   const load = useCallback(async (a: number) => {
     setLoading(true);
@@ -51,7 +75,10 @@ export default function DrePage() {
             <SlidersHorizontal className="w-4 h-4" /> Editar estrutura
           </Link>
           <FormatoToggle modo={modo} onChange={setModo} />
-          <PrintButton />
+          <button type="button" onClick={baixarPdf} disabled={!dre}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50">
+            <FileDown className="w-4 h-4" /> Baixar PDF
+          </button>
         </div>
 
         {loading || !dre ? (
