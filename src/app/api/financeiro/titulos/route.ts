@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   const f = parsed.data;
 
   const isReceber = f.tipo === "receber";
-  if (isReceber && !f.contatoId) return NextResponse.json({ error: "Informe o cliente." }, { status: 400 });
+  if (!f.contatoId) return NextResponse.json({ error: isReceber ? "Informe o cliente." : "Informe o fornecedor." }, { status: 400 });
 
   const session = await getSession();
   const empresaId = session?.activeEmpresaId ?? EMPRESA_PADRAO_ID;

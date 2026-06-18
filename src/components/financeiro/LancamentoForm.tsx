@@ -119,7 +119,7 @@ export default function LancamentoForm({
 
   async function salvar() {
     setErro(null);
-    if (isReceber && !contatoId) { setErro("Selecione o cliente."); return; }
+    if (!contatoId) { setErro(isReceber ? "Selecione o cliente." : "Selecione o fornecedor."); return; }
     const linhasValidas = linhas.filter((l) => parseDecimal(l.valor) > 0);
     if (linhasValidas.length === 0) { setErro("Informe ao menos uma natureza com valor."); return; }
     if (linhasValidas.some((l) => !l.naturezaFinanceiraId)) { setErro("Selecione a natureza financeira de todas as linhas com valor."); return; }
@@ -196,7 +196,7 @@ export default function LancamentoForm({
       {/* Nome + Descrição */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">{isReceber ? "Cliente" : "Fornecedor"} {isReceber && <span className="text-red-500">*</span>}</Label>
+          <Label className="text-xs text-muted-foreground">{isReceber ? "Cliente" : "Fornecedor"} <span className="text-red-500">*</span></Label>
           <ComboboxWithCreate
             value={contatoId}
             onChange={setContatoId}
