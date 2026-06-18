@@ -285,6 +285,30 @@ export async function garantirContaDespesaFallback(empresaId: string) {
   return garantirContaSistema(empresaId, { codigo: "3.3.9004", nome: "Despesas Gerais", pai: "3.3" });
 }
 /**
+ * Conta "Compras de Mercadorias" (3.2.1.9001), DEVEDORA sob a sintética CMV (3.2.1).
+ * Destino das compras de mercadoria (revenda) sem natureza nas empresas que não
+ * industrializam. Ativa a conta (foi semeada como Fase 2 inativa). Get-or-create.
+ */
+export async function garantirContaComprasMercadorias(empresaId: string) {
+  await garantirSinteticaResultado(empresaId, "3.2.1", "CMV — Custo das Mercadorias Vendidas", "3.2");
+  const ex = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "3.2.1.9001" }, select: { id: true, ativo: true } });
+  if (ex) {
+    if (!ex.ativo) await prismaSemEscopo.contaContabil.update({ where: { id: ex.id }, data: { ativo: true } });
+    return ex;
+  }
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "3.2.1" } });
+  if (!pai) return null;
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo: "3.2.1.9001", nome: "Compras de Mercadorias",
+      grupo: "RESULTADO", natureza: "DEVEDORA", tipo: "ANALITICA",
+      nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id, ativo: true,
+    },
+    select: { id: true },
+  });
+}
+
+/**
  * Conta redutora de receita "(-) Descontos Concedidos" (3.1.9003) — DEVEDORA sob
  * 3.1 Receitas. Reconhece o desconto dado no pedido como dedução da receita bruta.
  * (No DRE fica na seção de Deduções, que subtrai.) Get-or-create defensivo.
