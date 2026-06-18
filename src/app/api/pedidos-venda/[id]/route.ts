@@ -418,6 +418,94 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
   }
 
+  // Cancelamento em cadeia: cancela as necessidades de ENTREGA (minutas) e de
+  // PAGAMENTO (contas a receber) do pedido, reverte o estoque das entregas e o
+  // caixa dos recebimentos, e reflete no CONTÁBIL apagando os lançamentos do
+  // pedido/minutas/títulos (coerente com o reprocesso: contabilizar* pula
+  // cancelados). Tudo numa transação.
+  if (status === "CANCELADO") {
+    await prismaSemEscopo.$transaction(async (tx) => {
+      const ped = await tx.pedidoVenda.findUnique({
+        where: { id: params.id },
+        select: {
+          id: true, numero: true, empresaId: true,
+          itens: { select: { id: true } },
+          minutas: { select: { id: true, numero: true } },
+          contasReceber: { select: { id: true } },
+        },
+      });
+      if (!ped) return;
+      const itemIds = ped.itens.map((i) => i.id);
+      const minutaNumeros = ped.minutas.map((m) => m.numero);
+      const minutaIds = ped.minutas.map((m) => m.id);
+      const crIds = ped.contasReceber.map((c) => c.id);
+
+      // 1) Reverte o estoque das minutas (devolve o saldo) e apaga as movimentações.
+      const movs = await tx.movimentacaoEstoque.findMany({
+        where: {
+          OR: [
+            ...(minutaNumeros.length ? [{ documento: { in: minutaNumeros } }] : []),
+            ...(itemIds.length ? [{ pedidoVendaItemId: { in: itemIds } }] : []),
+          ],
+        },
+        select: { id: true, itemId: true, localEstoqueId: true, clienteDonoId: true, tipo: true, quantidade: true, loteId: true },
+      });
+      const afetados = new Set<string>();
+      const loteIds = new Set<string>();
+      for (const mv of movs) {
+        if (mv.loteId) loteIds.add(mv.loteId);
+        if (!mv.localEstoqueId) continue;
+        const qtd = Number(mv.quantidade);
+        const efeito = mv.tipo === "ENTRADA" ? qtd : mv.tipo === "SAIDA" ? -qtd : 0;
+        if (efeito !== 0) {
+          await tx.estoqueItem.updateMany({
+            where: { itemId: mv.itemId, localEstoqueId: mv.localEstoqueId, clienteDonoId: mv.clienteDonoId ?? null },
+            data: { quantidadeAtual: { decrement: efeito } },
+          });
+        }
+        afetados.add(`${mv.itemId}|${mv.localEstoqueId}|${mv.clienteDonoId ?? ""}`);
+      }
+      if (movs.length) await tx.movimentacaoEstoque.deleteMany({ where: { id: { in: movs.map((m) => m.id) } } });
+      for (const chave of Array.from(afetados)) {
+        const [itemId, localEstoqueId, dono] = chave.split("|");
+        await recalcularSaldos(tx, itemId, localEstoqueId, dono || null);
+      }
+      for (const loteId of Array.from(loteIds)) {
+        const restantes = await tx.movimentacaoEstoque.count({ where: { loteId } });
+        if (restantes === 0) await tx.loteMovimentacao.delete({ where: { id: loteId } }).catch(() => {});
+      }
+
+      // 2) Necessidades de ENTREGA: minutas → CANCELADA.
+      if (minutaIds.length) {
+        await tx.minuta.updateMany({ where: { id: { in: minutaIds }, status: { not: "CANCELADA" } }, data: { status: "CANCELADA" } });
+      }
+      // 3) Necessidades de PAGAMENTO: contas a receber → CANCELADA (reverte o caixa).
+      if (crIds.length) {
+        await tx.lancamentoFinanceiro.deleteMany({ where: { contaReceberId: { in: crIds } } });
+        await tx.contaReceber.updateMany({
+          where: { id: { in: crIds }, status: { not: "CANCELADA" } },
+          data: { status: "CANCELADA", valorPago: 0, dataPagamento: null },
+        });
+      }
+
+      // 4) CONTÁBIL: apaga os lançamentos gerados pelo pedido, minutas e títulos
+      //    (partidas saem em cascata). Cancelados não são recontabilizados.
+      await tx.lancamentoContabil.deleteMany({ where: { empresaId: ped.empresaId, origemTipo: "VENDA", origemId: ped.id } });
+      if (crIds.length) {
+        await tx.lancamentoContabil.deleteMany({ where: { empresaId: ped.empresaId, origemTipo: { in: ["VENDA", "RECEBIMENTO"] }, origemId: { in: crIds } } });
+      }
+      if (minutaIds.length) {
+        await tx.lancamentoContabil.deleteMany({ where: { empresaId: ped.empresaId, origemTipo: { in: ["RECEITA_ENTREGA", "ESTOQUE_SAIDA"] }, origemId: { in: minutaIds } } });
+      }
+
+      // 5) Status do pedido.
+      await tx.pedidoVenda.update({ where: { id: ped.id }, data: { status: "CANCELADO" } });
+    });
+    // Intragrupo: cancela a compra espelhada na empresa do grupo.
+    await cancelarEspelhoVenda(params.id);
+    return NextResponse.json({ data: { id: params.id, status: "CANCELADO" } });
+  }
+
   const pedido = await prisma.pedidoVenda.update({
     where: { id: params.id },
     data: { status: status as never },
@@ -426,7 +514,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   // Intragrupo: venda para empresa do grupo gera/cancela a compra espelhada
   if (status === "CONFIRMADO") await espelharConfirmacaoVenda(params.id);
-  if (status === "CANCELADO") await cancelarEspelhoVenda(params.id);
 
   return NextResponse.json({ data: pedido });
 }
