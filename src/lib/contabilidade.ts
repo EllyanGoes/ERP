@@ -217,13 +217,14 @@ export async function contabilizarTituloReceber(crId: string) {
 }
 
 // Idempotente: gera COMPRA e (se houver valor pago) PAGAMENTO de uma conta a
-// pagar. Só contabiliza títulos com fornecedor.
+// pagar. Títulos sem fornecedor (despesa avulsa paga direto) geram só o
+// pagamento D Despesa / C Caixa/Banco.
 export async function contabilizarTituloPagar(cpId: string) {
   const cp = await prismaSemEscopo.contaPagar.findUnique({
     where: { id: cpId },
     select: { id: true, empresaId: true, fornecedorId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true, empresa: { select: { industrializa: true } } },
   });
-  if (!cp || cp.status === "CANCELADA" || !cp.fornecedorId) return;
+  if (!cp || cp.status === "CANCELADA") return;
 
   // Compra de estoque (CP de pedido de compra): a perna COMPRA (despesa) NÃO é
   // gerada — a entrada de estoque (D Estoque / C Fornecedor) credita o
@@ -234,12 +235,54 @@ export async function contabilizarTituloPagar(cpId: string) {
   // Caixa/banco: conta de disponibilidade do banco do título; senão a sintética 1.1.1.
   const caixaCbId = cp.contaBancariaId ?? contaCaixaIdDaEmpresa(cp.empresaId);
   const [contaForn, contaNat, contaDespesaFb, contaCaixaResolved, conta111] = await Promise.all([
-    contaDoFornecedor(cp.empresaId, cp.fornecedorId),
+    cp.fornecedorId ? contaDoFornecedor(cp.empresaId, cp.fornecedorId) : Promise.resolve(null),
     cp.naturezaFinanceiraId ? contaDaNatureza(cp.empresaId, cp.naturezaFinanceiraId) : Promise.resolve(null),
     garantirContaDespesaFallback(cp.empresaId),
     contaDoBanco(cp.empresaId, caixaCbId),
     contaPorCodigo(cp.empresaId, "1.1.1"),
   ]);
+
+  // Pernas de crédito de caixa/banco a partir das baixas (LancamentoFinanceiro),
+  // por banco real; fallback no caixa da empresa. Retorna partidas CREDITO + total.
+  const pernasDeBanco = async (valorBaixa: number) => {
+    const pagtos = await prismaSemEscopo.lancamentoFinanceiro.findMany({
+      where: { contaPagarId: cp.id, tipo: "DESPESA" }, select: { contaBancariaId: true, valor: true },
+    });
+    const porBanco = new Map<string, number>();
+    for (const lf of pagtos) porBanco.set(lf.contaBancariaId, (porBanco.get(lf.contaBancariaId) ?? 0) + decimalToNumber(lf.valor));
+    if (porBanco.size === 0) porBanco.set(caixaCbId, valorBaixa); // legado sem baixa detalhada
+    const partidas: PartidaIn[] = [];
+    let total = 0;
+    for (const [cbId, v] of Array.from(porBanco.entries())) {
+      if (v <= 0.005) continue;
+      const cb = (await contaDoBanco(cp.empresaId, cbId)) ?? contaCaixaResolved ?? conta111;
+      if (!cb) continue;
+      partidas.push({ contaId: cb.id, tipo: "CREDITO", valor: Math.round(v * 100) / 100 });
+      total += v;
+    }
+    return { partidas, total: Math.round(total * 100) / 100 };
+  };
+
+  const pago = decimalToNumber(cp.valorPago);
+
+  // Despesa avulsa SEM fornecedor (vale, combustível, material…) paga direto:
+  // D Despesa (natureza ou Despesas Gerais) / C Caixa/Banco. Só pagamento de
+  // fato, não intragrupo. Sem fornecedor não há perna de competência (COMPRA).
+  if (!cp.fornecedorId) {
+    if (pago <= 0 || cp.intragrupo) return;
+    const contaDesp = contaNat ?? contaDespesaFb;
+    if (!contaDesp) return;
+    const { partidas, total } = await pernasDeBanco(pago);
+    if (total <= 0 || partidas.length === 0) return;
+    partidas.unshift({ contaId: contaDesp.id, tipo: "DEBITO", valor: total });
+    await registrarLancamento({
+      empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
+      historico: `Pagamento — título ${cp.numero}`, origemTipo: "PAGAMENTO", origemId: cp.id,
+      partidas,
+    });
+    return;
+  }
+
   // Sem natureza: empresa de revenda (não industrializa) → compra de mercadoria
   // entra no ESTOQUE (ativo, modelo perpétuo); fábrica → Despesas Gerais.
   let contaDespesa = contaNat;
@@ -264,24 +307,8 @@ export async function contabilizarTituloPagar(cpId: string) {
   }
   // Pagamento: caixa só com pagamento de fato; intragrupo nunca lança caixa.
   // O caixa sai do BANCO REAL de cada baixa (LancamentoFinanceiro), não unificado.
-  const pago = decimalToNumber(cp.valorPago);
   if (pago > 0 && !cp.intragrupo) {
-    const pagtos = await prismaSemEscopo.lancamentoFinanceiro.findMany({
-      where: { contaPagarId: cp.id, tipo: "DESPESA" }, select: { contaBancariaId: true, valor: true },
-    });
-    const porBanco = new Map<string, number>();
-    for (const lf of pagtos) porBanco.set(lf.contaBancariaId, (porBanco.get(lf.contaBancariaId) ?? 0) + decimalToNumber(lf.valor));
-    if (porBanco.size === 0) porBanco.set(caixaCbId, pago); // legado sem baixa detalhada
-    const partidas: PartidaIn[] = [];
-    let total = 0;
-    for (const [cbId, v] of Array.from(porBanco.entries())) {
-      if (v <= 0.005) continue;
-      const cb = (await contaDoBanco(cp.empresaId, cbId)) ?? contaCaixaResolved ?? conta111;
-      if (!cb) continue;
-      partidas.push({ contaId: cb.id, tipo: "CREDITO", valor: Math.round(v * 100) / 100 });
-      total += v;
-    }
-    total = Math.round(total * 100) / 100;
+    const { partidas, total } = await pernasDeBanco(pago);
     if (total > 0 && partidas.length) {
       partidas.unshift({ contaId: contaForn.id, tipo: "DEBITO", valor: total, fornecedorId: cp.fornecedorId });
       await registrarLancamento({
