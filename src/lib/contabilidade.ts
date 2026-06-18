@@ -170,17 +170,34 @@ export async function contabilizarTituloReceber(crId: string) {
       ],
     });
   }
-  // Caixa só com pagamento de fato; intragrupo nunca lança caixa.
+  // Recebimento: caixa só com pagamento de fato; intragrupo nunca lança caixa.
+  // O caixa vai para o BANCO REAL de cada baixa (LancamentoFinanceiro), não unificado.
   const pago = decimalToNumber(cr.valorPago);
-  if (pago > 0 && !cr.intragrupo && contaCaixa) {
-    await registrarLancamento({
-      empresaId: cr.empresaId, data: cr.dataPagamento ?? cr.createdAt,
-      historico: `Recebimento — título ${cr.numero}`, origemTipo: "RECEBIMENTO", origemId: cr.id,
-      partidas: [
-        { contaId: contaCaixa.id, tipo: "DEBITO", valor: pago },
-        { contaId: contaCli.id, tipo: "CREDITO", valor: pago, clienteId: cr.clienteId },
-      ],
+  if (pago > 0 && !cr.intragrupo) {
+    const pagtos = await prismaSemEscopo.lancamentoFinanceiro.findMany({
+      where: { contaReceberId: cr.id, tipo: "RECEITA" }, select: { contaBancariaId: true, valor: true },
     });
+    const porBanco = new Map<string, number>();
+    for (const lf of pagtos) porBanco.set(lf.contaBancariaId, (porBanco.get(lf.contaBancariaId) ?? 0) + decimalToNumber(lf.valor));
+    if (porBanco.size === 0) porBanco.set(caixaCbId, pago); // legado sem baixa detalhada
+    const partidas: PartidaIn[] = [];
+    let total = 0;
+    for (const [cbId, v] of Array.from(porBanco.entries())) {
+      if (v <= 0.005) continue;
+      const cb = (await contaDoBanco(cr.empresaId, cbId)) ?? contaCaixaResolved ?? conta111;
+      if (!cb) continue;
+      partidas.push({ contaId: cb.id, tipo: "DEBITO", valor: Math.round(v * 100) / 100 });
+      total += v;
+    }
+    total = Math.round(total * 100) / 100;
+    if (total > 0 && partidas.length) {
+      partidas.push({ contaId: contaCli.id, tipo: "CREDITO", valor: total, clienteId: cr.clienteId });
+      await registrarLancamento({
+        empresaId: cr.empresaId, data: cr.dataPagamento ?? cr.createdAt,
+        historico: `Recebimento — título ${cr.numero}`, origemTipo: "RECEBIMENTO", origemId: cr.id,
+        partidas,
+      });
+    }
   }
 }
 
@@ -223,17 +240,34 @@ export async function contabilizarTituloPagar(cpId: string) {
       ],
     });
   }
-  // Caixa só com pagamento de fato; intragrupo nunca lança caixa.
+  // Pagamento: caixa só com pagamento de fato; intragrupo nunca lança caixa.
+  // O caixa sai do BANCO REAL de cada baixa (LancamentoFinanceiro), não unificado.
   const pago = decimalToNumber(cp.valorPago);
-  if (pago > 0 && !cp.intragrupo && contaCaixa) {
-    await registrarLancamento({
-      empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
-      historico: `Pagamento — título ${cp.numero}`, origemTipo: "PAGAMENTO", origemId: cp.id,
-      partidas: [
-        { contaId: contaForn.id, tipo: "DEBITO", valor: pago, fornecedorId: cp.fornecedorId },
-        { contaId: contaCaixa.id, tipo: "CREDITO", valor: pago },
-      ],
+  if (pago > 0 && !cp.intragrupo) {
+    const pagtos = await prismaSemEscopo.lancamentoFinanceiro.findMany({
+      where: { contaPagarId: cp.id, tipo: "DESPESA" }, select: { contaBancariaId: true, valor: true },
     });
+    const porBanco = new Map<string, number>();
+    for (const lf of pagtos) porBanco.set(lf.contaBancariaId, (porBanco.get(lf.contaBancariaId) ?? 0) + decimalToNumber(lf.valor));
+    if (porBanco.size === 0) porBanco.set(caixaCbId, pago); // legado sem baixa detalhada
+    const partidas: PartidaIn[] = [];
+    let total = 0;
+    for (const [cbId, v] of Array.from(porBanco.entries())) {
+      if (v <= 0.005) continue;
+      const cb = (await contaDoBanco(cp.empresaId, cbId)) ?? contaCaixaResolved ?? conta111;
+      if (!cb) continue;
+      partidas.push({ contaId: cb.id, tipo: "CREDITO", valor: Math.round(v * 100) / 100 });
+      total += v;
+    }
+    total = Math.round(total * 100) / 100;
+    if (total > 0 && partidas.length) {
+      partidas.unshift({ contaId: contaForn.id, tipo: "DEBITO", valor: total, fornecedorId: cp.fornecedorId });
+      await registrarLancamento({
+        empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
+        historico: `Pagamento — título ${cp.numero}`, origemTipo: "PAGAMENTO", origemId: cp.id,
+        partidas,
+      });
+    }
   }
 }
 
