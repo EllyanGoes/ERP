@@ -11,10 +11,10 @@ export function linkOrigemLancamento(origemTipo: string, origemId: string | null
   switch (origemTipo) {
     case "VENDA":
     case "RECEBIMENTO":
-      return "/contas-receber";
+      return `/contas-receber?focus=${origemId}`;
     case "COMPRA":
     case "PAGAMENTO":
-      return "/contas-pagar";
+      return `/contas-pagar?focus=${origemId}`;
     case "ESTOQUE_ENTRADA":
       return `/suprimentos/conferencias/${origemId}`;
     case "ESTOQUE_SAIDA":

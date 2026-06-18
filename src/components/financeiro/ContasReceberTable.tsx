@@ -69,6 +69,13 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
   const [contasBanco, setContasBanco] = useState<ContaOpt[]>([]);
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [focusId, setFocusId] = useState<string | null>(null);
+
+  // Rastreabilidade: ?focus=<id> destaca o título vindo do Razão/contabilidade.
+  useEffect(() => {
+    const f = new URLSearchParams(window.location.search).get("focus");
+    if (f) setFocusId(f);
+  }, []);
 
   // Dados de apoio (formas de pagamento e contas de destino).
   useEffect(() => {
@@ -181,6 +188,8 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
         data={contasFiltradas}
         columns={columns}
         searchPlaceholder="Buscar por número, cliente ou descrição..."
+        focusId={focusId}
+        getRowId={(c) => c.id}
         onRowClick={(row) => {
           if (row.status !== "PAGA" && row.status !== "CANCELADA") abrir(row);
         }}

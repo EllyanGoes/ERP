@@ -18,17 +18,23 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   // Filtro de busca customizado (ex.: casar CPF/CNPJ ignorando pontuação).
   globalFilterFn?: FilterFn<T>;
+  // Rastreabilidade: id da linha a destacar (rola até ela, vai pra página dela e
+  // pisca o destaque). Requer getRowId para casar a linha pelo id do registro.
+  focusId?: string | null;
+  getRowId?: (row: T) => string;
 }
 
-export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn }: DataTableProps<T>) {
+export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [highlightId, setHighlightId] = useState<string | null>(null);
 
   const table = useReactTable({
     data,
     columns,
     state: { sorting, globalFilter },
     ...(globalFilterFn ? { globalFilterFn } : {}),
+    ...(getRowId ? { getRowId: (orig: T) => getRowId(orig) } : {}),
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
@@ -37,6 +43,23 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize: 20 } },
   });
+
+  // Destaca e rola até a linha alvo (vinda de um link de rastreabilidade).
+  useEffect(() => {
+    if (!focusId || !getRowId) return;
+    const rows = table.getSortedRowModel().rows;
+    const idx = rows.findIndex((r) => r.id === focusId);
+    if (idx < 0) return;
+    const pageSize = table.getState().pagination.pageSize;
+    table.setPageIndex(Math.floor(idx / pageSize));
+    setHighlightId(focusId);
+    const tScroll = setTimeout(() => {
+      document.querySelector(`[data-rowid="${CSS.escape(focusId)}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 120);
+    const tClear = setTimeout(() => setHighlightId(null), 4500);
+    return () => { clearTimeout(tScroll); clearTimeout(tClear); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId, data]);
 
   return (
     <div className="space-y-4">
@@ -87,7 +110,8 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className={`border-b border-gray-50 transition-colors ${onRowClick ? "cursor-pointer hover:bg-blue-50/40" : "hover:bg-gray-50"}`}
+                  data-rowid={row.id}
+                  className={`border-b border-gray-50 transition-colors ${highlightId === row.id ? "bg-blue-100 ring-2 ring-inset ring-blue-400" : onRowClick ? "cursor-pointer hover:bg-blue-50/40" : "hover:bg-gray-50"}`}
                   onClick={onRowClick ? (e) => {
                     if ((e.target as HTMLElement).closest("button, a, input, select, textarea")) return;
                     onRowClick(row.original);
