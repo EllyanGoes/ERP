@@ -42,6 +42,17 @@ export default function LancamentosContabeisPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Destaque do lançamento ao vir do Razão (?focus=<lancamentoId>).
+  const [focusId, setFocusId] = useState<string | null>(null);
+  useEffect(() => {
+    setFocusId(new URLSearchParams(window.location.search).get("focus"));
+  }, []);
+  useEffect(() => {
+    if (!focusId || loading) return;
+    const el = document.getElementById(`lanc-${focusId}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusId, loading, lancs]);
+
   async function gerarRetroativos() {
     setGerando(true); setAviso("");
     try {
@@ -85,7 +96,7 @@ export default function LancamentosContabeisPage() {
             {lancs.map((l) => {
               const totalD = l.partidas.filter((p) => p.tipo === "DEBITO").reduce((s, p) => s + decimalToNumber(p.valor), 0);
               return (
-                <div key={l.id} className="rounded-xl border border-border bg-card overflow-hidden">
+                <div key={l.id} id={`lanc-${l.id}`} className={cn("rounded-xl border bg-card overflow-hidden transition-colors", focusId === l.id ? "border-info ring-2 ring-info/50" : "border-border")}>
                   <div className="flex items-center gap-3 px-5 py-2.5 border-b border-border bg-muted">
                     <span className="text-xs text-muted-foreground w-20 shrink-0">{formatDate(l.data)}</span>
                     <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0", ORIGEM_COR[l.origemTipo] ?? "bg-muted text-muted-foreground")}>

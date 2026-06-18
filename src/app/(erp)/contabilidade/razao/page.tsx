@@ -16,7 +16,7 @@ import { Loader2, BookOpen, FileDown } from "lucide-react";
 
 type FlatConta = { id: string; codigo: string; nome: string };
 type Mov = {
-  data: string; historico: string; origemTipo: string; origemId: string | null; criadoPor: string | null;
+  lancamentoId: string; data: string; historico: string; origemTipo: string; origemId: string | null; criadoPor: string | null;
   contaCodigo: string; contaNome: string;
   contrapartidas: { id: string; codigo: string; nome: string }[];
   debito: number; credito: number; saldo: number;
@@ -183,7 +183,11 @@ export default function RazaoPage() {
                   const href = linkOrigemLancamento(m.origemTipo, m.origemId);
                   return (
                   <tr key={i} className="hover:bg-muted">
-                    <td className="px-4 py-2 text-muted-foreground whitespace-nowrap">{formatDate(m.data)}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      <Link href={`/contabilidade/lancamentos?focus=${m.lancamentoId}`} className="text-muted-foreground hover:text-info hover:underline" title="Ver lançamento no Diário">
+                        {formatDate(m.data)}
+                      </Link>
+                    </td>
                     <td className="px-4 py-2 text-foreground">
                       {href ? (
                         <Link href={href} className="inline-flex items-center gap-1 text-info hover:underline" title="Abrir processo de origem">

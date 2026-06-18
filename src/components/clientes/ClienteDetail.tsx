@@ -12,6 +12,10 @@ import { ExternalLink } from "lucide-react";
 type PedidoRow  = { id: string; numero: string; status: string; dataEmissao: Date | string; valorTotal: unknown };
 type ContaRow   = { id: string; numero: string; descricao: string; status: string; dataVencimento: Date | string; valorOriginal: unknown; valorPago: unknown };
 type ComodatoMov = { id: string; itemId: string; tipo: "SAIDA" | "RETORNO"; quantidade: number; valorUnitario: number; item: { id: string; codigo: string; descricao: string } };
+type ContaContabilResumo = {
+  id: string; codigo: string; nome: string; natureza: "DEVEDORA" | "CREDORA"; grupo: "ATIVO" | "PASSIVO"; saldo: number;
+  movimentos: { data: Date | string; historico: string; debito: number; credito: number; saldo: number }[];
+};
 
 type ClienteDetailProps = {
   cliente: {
@@ -25,6 +29,7 @@ type ClienteDetailProps = {
   };
   comodato: ComodatoMov[];
   contaContabil?: string | null;
+  contasContabeis?: ContaContabilResumo[];
 };
 
 function fmtNum(n: number) {
@@ -61,9 +66,13 @@ const STATUS_CONTA_COLOR: Record<string, string> = {
   PARCIAL:  "bg-warning/15 text-warning",
 };
 
-export default function ClienteDetail({ cliente, comodato, contaContabil }: ClienteDetailProps) {
-  const [tab, setTab] = useState<"dados" | "pedidos" | "contas" | "comodato">("dados");
+export default function ClienteDetail({ cliente, comodato, contaContabil, contasContabeis = [] }: ClienteDetailProps) {
+  const [tab, setTab] = useState<"dados" | "pedidos" | "contas" | "comodato" | "razao">("dados");
   useTabTitle(cliente.nomeFantasia || cliente.razaoSocial);
+
+  const contaReceber = contasContabeis.find((c) => c.grupo === "ATIVO");
+  const contaMaterial = contasContabeis.find((c) => c.grupo === "PASSIVO");
+  const temRazonete = contasContabeis.some((c) => c.movimentos.length > 0);
 
   const endereco = [
     cliente.logradouro,
@@ -95,10 +104,30 @@ export default function ClienteDetail({ cliente, comodato, contaContabil }: Clie
     { key: "pedidos",  label: `Pedidos de Venda (${cliente.pedidosVenda.length})` },
     { key: "contas",   label: `Contas a Receber (${cliente.contasReceber.length})` },
     { key: "comodato", label: `Saldo Comodato (${comodatoSaldos.length})` },
+    ...(temRazonete ? [{ key: "razao", label: "Razão Contábil" }] as const : []),
   ] as const;
 
   return (
     <div>
+      {/* Cards de resumo das contas contábeis do cliente (visão rápida) */}
+      {(contaReceber || contaMaterial) && (
+        <div className="flex flex-wrap gap-3 mb-5">
+          {contaReceber && (
+            <div className="rounded-xl border border-border bg-card px-4 py-3 min-w-[200px]">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Contas a Receber</p>
+              <p className={cn("text-lg font-bold tabular-nums", contaReceber.saldo < -0.005 ? "text-danger" : "text-foreground")}>{formatBRL(contaReceber.saldo)}</p>
+              <p className="font-mono text-[11px] text-muted-foreground">{contaReceber.codigo}</p>
+            </div>
+          )}
+          {contaMaterial && (
+            <div className="rounded-xl border border-border bg-card px-4 py-3 min-w-[200px]">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Material a Entregar</p>
+              <p className={cn("text-lg font-bold tabular-nums", contaMaterial.saldo < -0.005 ? "text-danger" : "text-foreground")}>{formatBRL(contaMaterial.saldo)}</p>
+              <p className="font-mono text-[11px] text-muted-foreground">{contaMaterial.codigo}</p>
+            </div>
+          )}
+        </div>
+      )}
       {/* Tab bar */}
       <div className="border-b border-border mb-6">
         <div className="flex gap-0">
@@ -134,7 +163,8 @@ export default function ClienteDetail({ cliente, comodato, contaContabil }: Clie
               <Field label="Inscrição Estadual" value={cliente.ie} />
             )}
             <Field label="Status" value={cliente.status === "ATIVO" ? "Ativo" : cliente.status === "INATIVO" ? "Inativo" : "Prospecto"} />
-            <Field label="Conta Contábil" value={contaContabil} />
+            <Field label="Conta Contábil (Clientes a Receber)" value={contaReceber ? `${contaReceber.codigo} — ${contaReceber.nome}` : contaContabil} />
+            <Field label="Conta Material a Entregar" value={contaMaterial ? `${contaMaterial.codigo} — ${contaMaterial.nome}` : "—"} />
           </div>
 
           <div className="px-5 py-3 border-t border-b border-border bg-muted">
@@ -268,6 +298,52 @@ export default function ClienteDetail({ cliente, comodato, contaContabil }: Clie
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── RAZÃO CONTÁBIL ────────────────────────────────────────────── */}
+      {tab === "razao" && (
+        <div className="space-y-6">
+          {contasContabeis.filter((c) => c.movimentos.length > 0).map((c) => (
+            <div key={c.id} className="bg-card rounded-xl border border-border overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-border bg-muted flex items-center justify-between">
+                <span className="text-sm font-semibold text-foreground">
+                  <span className="font-mono text-xs text-muted-foreground mr-2">{c.codigo}</span>{c.nome}
+                </span>
+                <Link href={`/contabilidade/razao?contaId=${c.id}`} className="text-xs text-info hover:underline inline-flex items-center gap-1">
+                  Abrir no Razão <ExternalLink className="w-3 h-3" />
+                </Link>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium w-24">Data</th>
+                    <th className="text-left px-4 py-2 font-medium">Descrição</th>
+                    <th className="text-right px-4 py-2 font-medium w-28">Débito</th>
+                    <th className="text-right px-4 py-2 font-medium w-28">Crédito</th>
+                    <th className="text-right px-4 py-2 font-medium w-28">Saldo</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {c.movimentos.map((m, i) => (
+                    <tr key={i} className="hover:bg-info/10">
+                      <td className="px-4 py-1.5 text-muted-foreground whitespace-nowrap">{formatDate(m.data)}</td>
+                      <td className="px-4 py-1.5 text-foreground">{m.historico}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums text-info">{m.debito ? formatBRL(m.debito) : "—"}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums text-warning">{m.credito ? formatBRL(m.credito) : "—"}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums font-medium text-foreground">{formatBRL(m.saldo)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="border-t-2 border-border bg-muted font-semibold">
+                  <tr>
+                    <td className="px-4 py-2 text-foreground" colSpan={4}>Saldo final</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{formatBRL(c.saldo)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ))}
         </div>
       )}
 

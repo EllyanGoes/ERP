@@ -10,7 +10,7 @@ import { decimalToNumber } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export default async function ClienteDetailPage({ params }: { params: { id: string } }) {
-  const [cliente, movimentacoesRaw, contaContabil] = await Promise.all([
+  const [cliente, movimentacoesRaw, contasDoCliente] = await Promise.all([
     prisma.cliente.findUnique({
       where: { id: params.id },
       include: {
@@ -23,10 +23,43 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
       orderBy: { data: "desc" },
       include: { item: { select: { id: true, codigo: true, descricao: true } } },
     }),
-    // Conta contábil do cliente na empresa ativa (escopo do prisma).
-    prisma.contaContabil.findFirst({ where: { clienteId: params.id }, select: { codigo: true, nome: true } }),
+    // Contas contábeis do cliente na empresa ativa: Clientes a Receber (ATIVO,
+    // 1.1.2.x) e Material a Entregar (PASSIVO, 2.1.2.x) — mesmo clienteId, grupos distintos.
+    prisma.contaContabil.findMany({
+      where: { clienteId: params.id, grupo: { in: ["ATIVO", "PASSIVO"] } },
+      select: { id: true, codigo: true, nome: true, natureza: true, grupo: true },
+    }),
   ]);
   if (!cliente) notFound();
+
+  // Razonete (movimentos + saldo) de cada conta contábil do cliente.
+  const contasContabeis = await Promise.all(
+    contasDoCliente
+      .sort((a, b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true }))
+      .map(async (cc) => {
+        const partidas = await prisma.partidaContabil.findMany({
+          where: { contaId: cc.id },
+          select: { tipo: true, valor: true, lancamento: { select: { data: true, historico: true } } },
+          orderBy: { lancamento: { data: "asc" } },
+        });
+        const dev = cc.natureza === "DEVEDORA";
+        let saldo = 0;
+        const movimentos = partidas.map((p) => {
+          const v = decimalToNumber(p.valor);
+          const debito = p.tipo === "DEBITO" ? v : 0;
+          const credito = p.tipo === "CREDITO" ? v : 0;
+          saldo += dev ? debito - credito : credito - debito;
+          return { data: p.lancamento.data, historico: p.lancamento.historico, debito, credito, saldo };
+        });
+        return {
+          id: cc.id, codigo: cc.codigo, nome: cc.nome,
+          natureza: cc.natureza as "DEVEDORA" | "CREDORA",
+          grupo: cc.grupo as "ATIVO" | "PASSIVO",
+          saldo, movimentos,
+        };
+      }),
+  );
+  const contaContabil = contasContabeis.find((c) => c.grupo === "ATIVO");
 
   // Vínculo: este cliente também está cadastrado como fornecedor? (mesmo CPF/CNPJ)
   const cnpjDigits = (cliente.cpfCnpj ?? "").replace(/\D/g, "");
@@ -42,6 +75,10 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
       : null;
 
   const contaContabilLabel = contaContabil ? `${contaContabil.codigo} — ${contaContabil.nome}` : null;
+  const contasResumo = contasContabeis.map((c) => ({
+    id: c.id, codigo: c.codigo, nome: c.nome, natureza: c.natureza, grupo: c.grupo, saldo: c.saldo,
+    movimentos: c.movimentos.map((m) => ({ data: m.data, historico: m.historico, debito: m.debito, credito: m.credito, saldo: m.saldo })),
+  }));
 
   // Movimentações de comodato deste cliente (saldo é calculado no componente).
   const comodato = movimentacoesRaw.map((m) => ({
@@ -73,7 +110,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
         }
       />
       <div className="px-8 pb-8">
-        <ClienteDetail cliente={cliente as any} comodato={comodato} contaContabil={contaContabilLabel} />
+        <ClienteDetail cliente={cliente as any} comodato={comodato} contaContabil={contaContabilLabel} contasContabeis={contasResumo} />
       </div>
     </div>
   );

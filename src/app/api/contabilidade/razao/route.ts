@@ -96,6 +96,7 @@ export async function GET(req: NextRequest) {
         .map((p) => [p.conta.codigo, { id: p.conta.id, codigo: p.conta.codigo, nome: p.conta.nome }]),
     ).values());
     return {
+      lancamentoId: m.lancamentoId,
       data: m.lancamento.data,
       historico: m.lancamento.historico,
       origemTipo: m.lancamento.origemTipo,
