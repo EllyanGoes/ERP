@@ -8,12 +8,23 @@ import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntrada
 // Gera (idempotente) os lançamentos contábeis retroativos a partir dos títulos
 // já existentes — contas a receber (venda + recebimento) e a pagar (compra +
 // pagamento). Reusa os mesmos helpers dos hooks ao vivo.
-export async function POST() {
+export async function POST(req: Request) {
   const auth = await requireModulo("contabilidade");
   if (!auth.ok) return auth.response;
 
   let processados = 0;
   const erros: string[] = [];
+
+  // ?reset=vendas → apaga os lançamentos de venda/entrega/recebimento e os
+  // regrava do zero (necessário ao mudar o modelo: o backlog passou a debitar
+  // "Bens a Entregar" na confirmação e o recebível só nasce na entrega). As
+  // partidas saem em cascata. CMV, compras, pagamentos e abertura ficam intactos.
+  const reset = new URL(req.url).searchParams.get("reset");
+  if (reset === "vendas") {
+    await prismaSemEscopo.lancamentoContabil.deleteMany({
+      where: { origemTipo: { in: ["VENDA", "RECEITA_ENTREGA", "RECEBIMENTO"] } },
+    });
+  }
 
   // 0) Saldo de abertura de estoque por empresa (D Estoque / C Saldos de Abertura)
   //    — antes das saídas, para o estoque contábil não ficar negativo.

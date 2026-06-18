@@ -415,6 +415,34 @@ export async function garantirContaMaterialEntregarCliente(empresaId: string, cl
   });
 }
 
+/** Garante (idempotente) a conta analítica de Clientes a Receber de um cliente (1.1.2.x, ATIVO). */
+export async function garantirContaClienteReceber(empresaId: string, clienteId: string) {
+  const cliente = await prismaSemEscopo.cliente.findUnique({ where: { id: clienteId }, select: { razaoSocial: true } });
+  return garantirEntidadeEmpresa(empresaId, "cliente", clienteId, cliente?.razaoSocial ?? "Cliente");
+}
+
+/**
+ * Garante (idempotente) a conta de controle "Bens a Entregar" (1.1.4, ATIVO).
+ * Contrapartida ATIVA do "Material a Entregar" (passivo) na confirmação do
+ * pedido: o backlog de pedidos confirmados-não-entregues fica visível no balanço
+ * sem inflar "Clientes a Receber" — o recebível só nasce na entrega, com o
+ * título (assim contábil e financeiro convergem). Best-effort.
+ */
+export async function garantirContaBensEntregar(empresaId: string) {
+  const ex = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.4" }, select: { id: true } });
+  if (ex) return ex;
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1" } });
+  if (!pai) return null;
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo: "1.1.4", nome: "Bens a Entregar",
+      grupo: "ATIVO", natureza: "DEVEDORA", tipo: "ANALITICA",
+      nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id, ativo: true,
+    },
+    select: { id: true },
+  });
+}
+
 /** Garante (idempotente) as 4 contas de sistema do estoque na empresa e retorna seus ids. */
 export async function garantirContasSistemaEstoque(empresaId: string) {
   const [sobras, producao, consumo, perdas] = await Promise.all([

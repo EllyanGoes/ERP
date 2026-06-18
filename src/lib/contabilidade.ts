@@ -2,7 +2,7 @@ import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaClienteReceber } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -334,10 +334,12 @@ export async function contabilizarPedidoVenda(pedidoVendaId: string) {
 }
 
 /**
- * Venda pelo PEDIDO: na confirmação (faturado ou não) reconhece o direito a
- * receber e a obrigação de entregar — D Clientes a Receber / C Material a
- * Entregar, pelo valor total do pedido. Receita só na entrega (CPC 47).
- * Idempotente por (empresa, VENDA, pedidoId). Pula orçamento/cancelado/intragrupo.
+ * Venda pelo PEDIDO: na confirmação (faturado ou não) reconhece a obrigação de
+ * entregar e o controle do backlog — D Bens a Entregar (ativo controle) / C
+ * Material a Entregar (passivo), pelo valor total do pedido. O recebível
+ * (Clientes a Receber) e a receita só nascem na ENTREGA (com o título), para o
+ * contábil convergir com o financeiro. Idempotente por (empresa, VENDA,
+ * pedidoId). Pula orçamento/cancelado/intragrupo.
  */
 export async function contabilizarVendaPedido(pedidoVendaId: string) {
   const pedido = await prismaSemEscopo.pedidoVenda.findUnique({
@@ -352,18 +354,18 @@ export async function contabilizarVendaPedido(pedidoVendaId: string) {
   const valor = decimalToNumber(pedido.valorTotal);
   if (valor <= 0) return;
 
-  const [contaCli, contaMat] = await Promise.all([
-    contaDoCliente(pedido.empresaId, pedido.clienteId),
+  const [contaBens, contaMat] = await Promise.all([
+    garantirContaBensEntregar(pedido.empresaId),
     garantirContaMaterialEntregarCliente(pedido.empresaId, pedido.clienteId),
   ]);
-  if (!contaCli || !contaMat) return;
+  if (!contaBens || !contaMat) return;
 
   const resumo = resumoItens(pedido.itens);
   await registrarLancamento({
     empresaId: pedido.empresaId, data: pedido.createdAt,
     historico: `Venda (a entregar) — pedido ${pedido.numero}${resumo ? ` — ${resumo}` : ""}`, origemTipo: "VENDA", origemId: pedido.id,
     partidas: [
-      { contaId: contaCli.id, tipo: "DEBITO", valor, clienteId: pedido.clienteId },
+      { contaId: contaBens.id, tipo: "DEBITO", valor, clienteId: pedido.clienteId },
       { contaId: contaMat.id, tipo: "CREDITO", valor, clienteId: pedido.clienteId },
     ],
   });
@@ -570,12 +572,14 @@ export async function contabilizarCmvMinuta(minutaId: string) {
 
 /**
  * Reconhecimento de receita na entrega (CPC 47): quando a minuta fica ENTREGUE,
- * baixa o passivo "Material a Entregar" pelo valor LÍQUIDO entregue e reconhece a
- * Receita BRUTA, separando o desconto concedido numa conta redutora. Por item, o
- * valor entregue é proporcional à fração entregue (qtd minuta ÷ qtd pedido):
- *   D Material a Entregar (líquido) · D (-) Descontos Concedidos (desconto) · C Receita Bruta (bruto)
+ * nasce o recebível e a receita, e baixa-se o backlog (Bens a Entregar /
+ * Material a Entregar) pela fração entregue. Por item, o valor entregue é
+ * proporcional à fração entregue (qtd minuta ÷ qtd pedido):
+ *   D Clientes a Receber (líquido) · D (-) Descontos Concedidos (desconto) · C Receita Bruta (bruto)
+ *   D Material a Entregar (líquido) · C Bens a Entregar (líquido)   [baixa do backlog]
  * Líquido = valorTotal do item (autoritativo); desconto = valorDesconto; bruto = líquido+desconto.
- * Idempotente por (empresa, RECEITA_ENTREGA, minutaId).
+ * O recebível nasce aqui (não na confirmação) para o contábil convergir com o
+ * financeiro (título gerado na entrega). Idempotente por (empresa, RECEITA_ENTREGA, minutaId).
  */
 export async function contabilizarReceitaMinuta(minutaId: string) {
   const minuta = await prismaSemEscopo.minuta.findUnique({
@@ -605,22 +609,28 @@ export async function contabilizarReceitaMinuta(minutaId: string) {
   if (bruto <= 0.005) return;
 
   const clienteId = minuta.pedidoVenda?.clienteId ?? null;
-  const [contaMat, contaReceita, contaDesc] = await Promise.all([
+  const [contaMat, contaReceita, contaDesc, contaCli, contaBens] = await Promise.all([
     clienteId ? garantirContaMaterialEntregarCliente(minuta.empresaId, clienteId) : garantirContaMaterialEntregar(minuta.empresaId),
     garantirContaReceitaFallback(minuta.empresaId),                 // Receita BRUTA unificada (3.1.9002)
     desconto > 0.005 ? garantirContaDescontoConcedido(minuta.empresaId) : Promise.resolve(null),
+    clienteId ? garantirContaClienteReceber(minuta.empresaId, clienteId) : Promise.resolve(null),
+    garantirContaBensEntregar(minuta.empresaId),
   ]);
-  if (!contaMat || !contaReceita) return;
+  if (!contaMat || !contaReceita || !contaCli || !contaBens) return;
 
   const hist = `Receita na entrega — ${minuta.numero}${resumoItens(minuta.itens) ? ` — ${resumoItens(minuta.itens)}` : ""}`;
+  // Recebível + receita (a receita bruta é creditada; o desconto vira conta
+  // redutora). E baixa do backlog: D Material a Entregar / C Bens a Entregar.
   const partidas: PartidaIn[] = [
-    { contaId: contaMat.id, tipo: "DEBITO", valor: liquido, clienteId },
+    { contaId: contaCli.id, tipo: "DEBITO", valor: liquido, clienteId },
     { contaId: contaReceita.id, tipo: "CREDITO", valor: bruto },
+    { contaId: contaMat.id, tipo: "DEBITO", valor: liquido, clienteId },
+    { contaId: contaBens.id, tipo: "CREDITO", valor: liquido, clienteId },
   ];
   if (desconto > 0.005 && contaDesc) {
     partidas.push({ contaId: contaDesc.id, tipo: "DEBITO", valor: desconto });
   } else if (desconto > 0.005) {
-    // sem conta de desconto resolvida: cai no líquido para não desbalancear
+    // sem conta de desconto resolvida: receita pelo líquido (não desbalancear)
     partidas[1] = { contaId: contaReceita.id, tipo: "CREDITO", valor: liquido };
   }
 
