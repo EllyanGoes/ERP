@@ -193,6 +193,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     ...(creditoUsado > 0 ? ["Crédito"] : []),
   ].join(" + ") || (formaPagamento ?? pedido.formaPagamento ?? null);
 
+  // Compensação por forma (ex.: cartão de crédito = 30 dias): linhas com
+  // diasCompensacao > 0 NÃO entram no caixa na hora — viram conta a receber com
+  // vencimento +N dias. As demais (dinheiro/Pix/débito) são recebidas no ato.
+  const formasComp = await prisma.formaPagamento.findMany({ select: { nome: true, diasCompensacao: true } });
+  const diasDaForma = (forma: string) => formasComp.find((f) => f.nome === forma)?.diasCompensacao ?? 0;
+  const linhasRecebidas = linhasReais.filter((l) => diasDaForma(l.forma) <= 0);
+  const linhasAReceber = linhasReais.filter((l) => diasDaForma(l.forma) > 0);
+  const valorRecebido = round2(linhasRecebidas.reduce((s, l) => s + l.valor, 0));
+  const valorAReceber = round2(linhasAReceber.reduce((s, l) => s + l.valor, 0));
+  const maxDiasComp = linhasAReceber.reduce((m, l) => Math.max(m, diasDaForma(l.forma)), 0);
+
   // Valida o crédito antes da transação (erro limpo).
   if (creditoUsado > 0) {
     if (creditoUsado > valorTotal + 0.001) {
@@ -211,6 +222,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const numeroCR = valorTotal > 0
     ? generateDocNumber("CR", await proximaSequenciaDaEmpresa(pedido.empresaId, "CR"))
     : null;
+  // 2º número para o título a receber (cartão de crédito) numa venda nova.
+  const numeroCR2 = valorAReceber > 0
+    ? generateDocNumber("CR", await proximaSequenciaDaEmpresa(pedido.empresaId, "CR"))
+    : null;
+  const vencCompensacao = new Date(hoje.getTime() + maxDiasComp * 86400000);
 
   try {
     const resultado = await prisma.$transaction(async (tx) => {
@@ -313,6 +329,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       // Recebimento à vista: o dinheiro entra na conta indicada. Se o pedido JÁ
       // tem título(s) em aberto (gerado na confirmação), eles são RECEBIDOS
       // (baixados) — não cria outro. Senão, cria uma conta já PAGA.
+      // Cria os lançamentos de caixa (recebimento de fato) de um conjunto de linhas.
+      const receberLinhas = async (contaId: string, lns: typeof linhasReais) => {
+        for (const l of lns) {
+          await tx.lancamentoFinanceiro.create({
+            data: {
+              empresaId: pedido.empresaId,
+              tipo: "RECEITA",
+              descricao: `Recebimento — venda balcão${linhasReais.length > 1 ? ` (${l.forma})` : ""}`,
+              valor: l.valor,
+              dataLancamento: hoje,
+              contaReceberId: contaId,
+              contaBancariaId: l.contaBancariaId,
+            },
+          });
+        }
+      };
+
       let conta: { id: string; numero: string } | null = null;
       if (valorTotal > 0) {
         const abertos = await tx.contaReceber.findMany({
@@ -321,6 +354,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           select: { id: true, numero: true, valorOriginal: true },
         });
         if (abertos.length > 0) {
+          // Títulos pré-gerados (a prazo): baixa todos e recebe no caixa.
           for (const ab of abertos) {
             await tx.contaReceber.update({
               where: { id: ab.id },
@@ -328,41 +362,36 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             });
           }
           conta = { id: abertos[0].id, numero: abertos[0].numero };
-        } else if (numeroCR) {
-          conta = await tx.contaReceber.create({
-            data: {
-              empresaId: pedido.empresaId,
-              numero: numeroCR,
-              clienteId: pedido.clienteId,
-              pedidoVendaId: pedido.id,
-              descricao: `Venda balcão ${pedido.numero}`,
-              valorOriginal: valorTotal,
-              valorPago: valorTotal,
-              dataVencimento: hoje,
-              dataPagamento: hoje,
-              status: "PAGA",
-              formaPagamento: formasResumo,
-            },
-            select: { id: true, numero: true },
-          });
+          await receberLinhas(conta.id, linhasReais);
+        } else {
+          // Venda nova: o recebido no ato (dinheiro/Pix/débito) baixa o caixa; o
+          // cartão de crédito (diasCompensacao > 0) vira conta A RECEBER (+N dias).
+          if (valorRecebido > 0 && numeroCR) {
+            conta = await tx.contaReceber.create({
+              data: {
+                empresaId: pedido.empresaId, numero: numeroCR, clienteId: pedido.clienteId, pedidoVendaId: pedido.id,
+                descricao: `Venda balcão ${pedido.numero}`, valorOriginal: valorRecebido, valorPago: valorRecebido,
+                dataVencimento: hoje, dataPagamento: hoje, status: "PAGA", formaPagamento: formasResumo,
+              },
+              select: { id: true, numero: true },
+            });
+            await receberLinhas(conta.id, linhasRecebidas);
+          }
+          if (valorAReceber > 0 && numeroCR2) {
+            const formaCred = linhasAReceber.map((l) => l.forma).join(" + ");
+            const crAR = await tx.contaReceber.create({
+              data: {
+                empresaId: pedido.empresaId, numero: numeroCR2, clienteId: pedido.clienteId, pedidoVendaId: pedido.id,
+                descricao: `Venda balcão ${pedido.numero} — ${formaCred} (a receber ${maxDiasComp}d)`,
+                valorOriginal: valorAReceber, valorPago: 0, dataVencimento: vencCompensacao, status: "ABERTA", formaPagamento: formaCred,
+              },
+              select: { id: true, numero: true },
+            });
+            if (!conta) conta = crAR;
+          }
         }
       }
       if (conta) {
-        // Um lançamento por forma de pagamento (cada um na sua conta). A soma
-        // dos lançamentos fecha com o valor da venda (troco já abatido).
-        for (const l of linhasReais) {
-          await tx.lancamentoFinanceiro.create({
-            data: {
-              empresaId: pedido.empresaId,
-              tipo: "RECEITA",
-              descricao: `Recebimento — venda balcão${linhasReais.length > 1 ? ` (${l.forma})` : ""}`,
-              valor: l.valor,
-              dataLancamento: hoje,
-              contaReceberId: conta.id,
-              contaBancariaId: l.contaBancariaId,
-            },
-          });
-        }
 
         // Registra no pedido as formas REAIS recebidas, com a conta de destino
         // (ex.: PIX → Banco X), para o detalhe mostrar onde cada forma caiu.

@@ -10,6 +10,7 @@ const schema = z.object({
   nome: z.string().min(1),
   tipo: z.enum(TIPOS).default("OUTROS"),
   descricao: z.string().optional(),
+  diasCompensacao: z.coerce.number().int().min(0).default(0),
 });
 
 export async function GET() {

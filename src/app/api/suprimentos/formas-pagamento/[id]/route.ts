@@ -11,6 +11,7 @@ const schema = z.object({
   tipo: z.enum(TIPOS).optional(),
   descricao: z.string().optional(),
   ativo: z.boolean().optional(),
+  diasCompensacao: z.coerce.number().int().min(0).optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

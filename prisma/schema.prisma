@@ -953,6 +953,9 @@ model FormaPagamento {
   nome      String
   tipo      TipoFormaPagamento @default(OUTROS)
   descricao String?
+  // Dias até a compensação (ex.: cartão de crédito = 30). > 0 → a venda no balcão
+  // não baixa caixa na hora: gera conta a receber com vencimento +N dias.
+  diasCompensacao Int          @default(0)
   ativo     Boolean            @default(true)
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt

@@ -29,9 +29,10 @@ interface Forma {
   tipo: TipoValue;
   descricao: string | null;
   ativo: boolean;
+  diasCompensacao: number;
 }
 
-const emptyForm = () => ({ nome: "", tipo: "OUTROS" as TipoValue, descricao: "" });
+const emptyForm = () => ({ nome: "", tipo: "OUTROS" as TipoValue, descricao: "", diasCompensacao: 0 });
 
 function TipoBadge({ tipo }: { tipo: TipoValue }) {
   const t = TIPOS.find((x) => x.value === tipo) ?? TIPOS[TIPOS.length - 1];
@@ -62,7 +63,7 @@ export default function FormasPagamentoPage() {
 
   const startNew = () => { setForm(emptyForm()); setEditingId("new"); setError(null); };
   const startEdit = (r: Forma) => {
-    setForm({ nome: r.nome, tipo: r.tipo, descricao: r.descricao ?? "" });
+    setForm({ nome: r.nome, tipo: r.tipo, descricao: r.descricao ?? "", diasCompensacao: r.diasCompensacao ?? 0 });
     setEditingId(r.id); setError(null);
   };
   const cancel = () => { setEditingId(null); setError(null); };
@@ -255,6 +256,18 @@ function FormaForm({ form, setForm, saving, error, onSave, onCancel, isNew }: {
           <Input value={form.descricao}
             onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
             placeholder="Observação opcional" />
+        </div>
+
+        <div className="col-span-2">
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Dias até a compensação</label>
+          <Input type="number" min={0} value={form.diasCompensacao}
+            onChange={(e) => setForm((f) => ({ ...f, diasCompensacao: Number(e.target.value) || 0 }))}
+            placeholder="0" />
+          <p className="text-xs text-muted-foreground mt-1">
+            Prazo (em dias) até o dinheiro cair na conta. Ex.: cartão de crédito = 30.
+            Quando maior que 0, a venda no balcão não baixa o caixa na hora — gera uma conta a receber
+            com vencimento daqui a N dias.
+          </p>
         </div>
       </div>
 
