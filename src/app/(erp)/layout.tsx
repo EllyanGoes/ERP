@@ -34,7 +34,7 @@ export default async function ErpLayout({ children }: { children: React.ReactNod
       <ShortcutsProvider>
       <TabsProvider>
         <DirtyFormProvider>
-          <div className="flex h-screen bg-gray-50">
+          <div className="flex h-screen bg-background">
             <Sidebar />
             <div
               className="flex flex-col flex-1 overflow-hidden transition-[margin-left] duration-200"

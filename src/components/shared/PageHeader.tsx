@@ -17,23 +17,23 @@ export default function PageHeader({ title, subtitle, breadcrumbs, action, actio
     <div className="flex items-start justify-between px-8 pt-8 pb-6">
       <div>
         {breadcrumbs && (
-          <nav className="flex items-center gap-1 text-sm text-gray-400 mb-1">
+          <nav className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
             {breadcrumbs.map((bc, i) => (
               <span key={i} className="flex items-center gap-1">
                 {i > 0 && <ChevronRight className="w-3 h-3" />}
                 {bc.href ? (
-                  <Link href={bc.href} className="hover:text-gray-600 transition-colors">
+                  <Link href={bc.href} className="hover:text-foreground transition-colors">
                     {bc.label}
                   </Link>
                 ) : (
-                  <span className="text-gray-600">{bc.label}</span>
+                  <span className="text-foreground/80">{bc.label}</span>
                 )}
               </span>
             ))}
           </nav>
         )}
-        <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
-        {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+        <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
+        {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
       </div>
       {(action ?? actions) && <div>{action ?? actions}</div>}
     </div>

@@ -57,7 +57,7 @@ export default function TabBar() {
 
   return (
     <div
-      className="flex items-end bg-[#f0f0f0] border-b border-gray-300 select-none shrink-0"
+      className="flex items-end bg-muted border-b border-border select-none shrink-0"
       style={{ minHeight: 36 }}
       onDragOver={(e) => e.preventDefault()}
     >
@@ -93,11 +93,11 @@ export default function TabBar() {
                 className={cn(
                   "group relative flex items-center gap-1.5 px-3 h-9 text-[13px] font-medium",
                   "transition-colors duration-100 focus:outline-none",
-                  "border-r border-gray-300/60",
+                  "border-r border-border/60",
                   isDragging && "opacity-40",
                   isActive
-                    ? "bg-white text-gray-900 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:bg-white"
-                    : "bg-[#f0f0f0] text-gray-500 hover:bg-[#e8e8e8] hover:text-gray-700",
+                    ? "bg-background text-foreground after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:bg-background"
+                    : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground",
                   "cursor-grab active:cursor-grabbing"
                 )}
                 style={{ maxWidth: 200, minWidth: 80 }}
@@ -131,8 +131,8 @@ export default function TabBar() {
                     "flex items-center justify-center w-4 h-4 rounded-full shrink-0",
                     "transition-colors",
                     isActive
-                      ? "text-gray-400 hover:bg-gray-200 hover:text-gray-700"
-                      : "text-transparent group-hover:text-gray-400 group-hover:hover:bg-gray-300 group-hover:hover:text-gray-600"
+                      ? "text-muted-foreground hover:bg-accent hover:text-foreground"
+                      : "text-transparent group-hover:text-muted-foreground group-hover:hover:bg-accent group-hover:hover:text-foreground"
                   )}
                 >
                   <X className="w-3 h-3" strokeWidth={2.5} />

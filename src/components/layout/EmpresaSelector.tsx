@@ -85,21 +85,21 @@ export default function EmpresaSelector() {
         disabled={trocando}
         className={cn(
           "flex items-center gap-1.5 px-2.5 h-7 rounded-md text-[13px] font-medium",
-          "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
-          "focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+          "border border-border bg-card text-foreground hover:bg-muted",
+          "focus:outline-none focus:ring-2 focus:ring-ring/30"
         )}
         title="Empresa ativa"
       >
         {trocando
-          ? <Loader2 size={14} className="animate-spin text-gray-400" />
-          : <Building2 size={14} className={grupo ? "text-purple-600" : "text-blue-600"} />}
+          ? <Loader2 size={14} className="animate-spin text-muted-foreground" />
+          : <Building2 size={14} className={grupo ? "text-purple-600 dark:text-purple-400" : "text-blue-600 dark:text-blue-400"} />}
         <span className="max-w-[140px] truncate">{grupo ? "Todas as empresas" : ativa.nome}</span>
-        <ChevronDown size={13} className="text-gray-400" />
+        <ChevronDown size={13} className="text-muted-foreground" />
       </button>
 
       {aberto && (
-        <div className="absolute right-2 top-full mt-1 z-50 w-64 rounded-md border border-gray-200 bg-white shadow-lg py-1">
-          <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        <div className="absolute right-2 top-full mt-1 z-50 w-64 rounded-md border border-border bg-popover text-popover-foreground shadow-lg py-1">
+          <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Empresa ativa
           </div>
           {empresas.map((e) => (
@@ -108,7 +108,7 @@ export default function EmpresaSelector() {
               onClick={() => trocar(e.id)}
               className={cn(
                 "flex w-full items-center gap-2 px-3 py-1.5 text-[13px] text-left",
-                e.id === ativa.id ? "text-blue-700 font-medium" : "text-gray-700 hover:bg-gray-50"
+                e.id === ativa.id ? "text-primary font-medium" : "text-foreground hover:bg-muted"
               )}
             >
               <span className="flex-1 truncate">{e.nome}</span>
@@ -116,26 +116,26 @@ export default function EmpresaSelector() {
             </button>
           ))}
 
-          <div className="my-1 border-t border-gray-100" />
-          <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          <div className="my-1 border-t border-border" />
+          <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Compras e comercial
           </div>
           <button
             onClick={alternarGrupo}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-[13px] text-left text-gray-700 hover:bg-gray-50"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-[13px] text-left text-foreground hover:bg-muted"
           >
             <span className="flex-1">Ver todas as empresas juntas</span>
             <span
               className={cn(
                 "w-8 h-4.5 rounded-full p-0.5 transition-colors flex items-center",
-                grupo ? "bg-purple-600 justify-end" : "bg-gray-200 justify-start"
+                grupo ? "bg-purple-600 justify-end" : "bg-muted-foreground/40 justify-start"
               )}
               style={{ height: 18, width: 32 }}
             >
               <span className="w-3.5 h-3.5 bg-white rounded-full shadow" />
             </span>
           </button>
-          <p className="px-3 pb-1.5 text-[11px] text-gray-400">
+          <p className="px-3 pb-1.5 text-[11px] text-muted-foreground">
             Os processos novos continuam nascendo na empresa do documento de origem
             ou na escolhida no formulário.
           </p>

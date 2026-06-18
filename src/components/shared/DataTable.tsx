@@ -65,7 +65,7 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={searchPlaceholder}
             value={globalFilter}
@@ -74,21 +74,21 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
           />
         </div>
       </div>
-      <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="rounded-lg border border-border bg-card">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
-              <TableRow key={hg.id} className="hover:bg-transparent border-b border-gray-100">
+              <TableRow key={hg.id} className="hover:bg-transparent border-b border-border">
                 {hg.headers.map((header) => (
-                  <TableHead key={header.id} className="text-xs font-medium text-gray-500 uppercase tracking-wide py-3">
+                  <TableHead key={header.id} className="text-xs font-medium text-muted-foreground uppercase tracking-wide py-3">
                     {header.isPlaceholder ? null : (
                       <button
-                        className="flex items-center gap-1 hover:text-gray-900 transition-colors"
+                        className="flex items-center gap-1 hover:text-foreground transition-colors"
                         onClick={header.column.getToggleSortingHandler()}
                       >
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {header.column.getCanSort() && (
-                          <ArrowUpDown className="h-3 w-3 text-gray-300" />
+                          <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />
                         )}
                       </button>
                     )}
@@ -102,7 +102,7 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
                   {columns.map((_, j) => (
-                    <TableCell key={j}><div className="h-4 bg-gray-100 rounded animate-pulse" /></TableCell>
+                    <TableCell key={j}><div className="h-4 bg-muted rounded animate-pulse" /></TableCell>
                   ))}
                 </TableRow>
               ))
@@ -111,14 +111,14 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
                 <TableRow
                   key={row.id}
                   data-rowid={row.id}
-                  className={`border-b border-gray-50 transition-colors ${highlightId === row.id ? "bg-blue-100 ring-2 ring-inset ring-blue-400" : onRowClick ? "cursor-pointer hover:bg-blue-50/40" : "hover:bg-gray-50"}`}
+                  className={`border-b border-border transition-colors ${highlightId === row.id ? "bg-primary/15 ring-2 ring-inset ring-primary" : onRowClick ? "cursor-pointer hover:bg-primary/5" : "hover:bg-muted"}`}
                   onClick={onRowClick ? (e) => {
                     if ((e.target as HTMLElement).closest("button, a, input, select, textarea")) return;
                     onRowClick(row.original);
                   } : undefined}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-3 text-sm text-gray-700">
+                    <TableCell key={cell.id} className="py-3 text-sm text-foreground/80">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -126,7 +126,7 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="text-center py-12 text-gray-400">
+                <TableCell colSpan={columns.length} className="text-center py-12 text-muted-foreground">
                   Nenhum registro encontrado
                 </TableCell>
               </TableRow>
@@ -135,7 +135,7 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
         </Table>
       </div>
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm text-gray-500">
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>
           {table.getFilteredRowModel().rows.length} registros
         </span>

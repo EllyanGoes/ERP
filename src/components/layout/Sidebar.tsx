@@ -76,6 +76,7 @@ import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
 import { useShortcuts } from "@/lib/shortcuts-context";
 import { routeColor } from "@/lib/route-registry";
+import ThemeToggle from "@/components/shared/ThemeToggle";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -432,7 +433,7 @@ function StripTooltip({ label, children }: { label: string; children: React.Reac
           className="fixed z-[9999] pointer-events-none"
           style={{ top: pos.top, left: pos.left, transform: "translateY(-50%)" }}
         >
-          <div className="bg-white text-gray-800 text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap shadow-[0_4px_16px_rgba(0,0,0,0.10)] border border-gray-100">
+          <div className="bg-popover text-popover-foreground text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap shadow-[0_4px_16px_rgba(0,0,0,0.10)] border border-border">
             {label}
           </div>
         </div>,
@@ -509,22 +510,22 @@ function UserDropdown({
       {mounted && open && createPortal(
         <div
           ref={dropRef}
-          className="fixed z-[9999] w-56 rounded-xl bg-white border border-gray-200 shadow-[0_8px_32px_rgba(0,0,0,0.14)] overflow-hidden"
+          className="fixed z-[9999] w-56 rounded-xl bg-popover text-popover-foreground border border-border shadow-[0_8px_32px_rgba(0,0,0,0.14)] overflow-hidden"
           style={{ top: pos.top, left: pos.left }}
         >
           {/* User info */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
             <div className={cn(
               "w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0",
-              isAdmin ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"
+              isAdmin ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
             )}>
               {userInitials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">{user?.nome ?? "—"}</p>
-              <p className="text-xs text-gray-400 truncate">{user?.email ?? "—"}</p>
+              <p className="text-sm font-semibold text-foreground truncate">{user?.nome ?? "—"}</p>
+              <p className="text-xs text-muted-foreground truncate">{user?.email ?? "—"}</p>
               {isAdmin && (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-600 mt-0.5">
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-primary mt-0.5">
                   <ShieldCheck className="w-3 h-3" /> Admin
                 </span>
               )}
@@ -535,18 +536,18 @@ function UserDropdown({
           <div className="py-1">
             <button
               onClick={() => { setOpen(false); attemptNavigate(() => router.push("/minha-conta")); }}
-              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
             >
-              <User className="w-4 h-4 text-gray-400" />
+              <User className="w-4 h-4 text-muted-foreground" />
               Minha Conta
-              <ChevronRight className="w-3.5 h-3.5 text-gray-300 ml-auto" />
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 ml-auto" />
             </button>
           </div>
 
-          <div className="border-t border-gray-100 py-1">
+          <div className="border-t border-border py-1">
             <button
               onClick={() => { setOpen(false); onLogout(); }}
-              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors"
             >
               <LogOut className="w-4 h-4" />
               Sair
@@ -851,6 +852,11 @@ export default function Sidebar() {
               </button>
             </StripTooltip>
 
+            {/* Alternar tema claro/escuro */}
+            <StripTooltip label="Tema claro / escuro">
+              <ThemeToggle />
+            </StripTooltip>
+
             {/* Atalhos / Ajuda */}
             <StripTooltip label="Atalhos do teclado (?)">
               <button
@@ -890,15 +896,15 @@ export default function Sidebar() {
         {/* ── Flyout panel ───────────────────────────────────────────── */}
         {openId && (
           <div
-            className="h-full bg-white border-r border-gray-200 flex flex-col overflow-hidden relative"
+            className="h-full bg-card border-r border-border flex flex-col overflow-hidden relative"
             style={{ width: panelWidth }}
           >
             {openModule && (
               <>
                 {/* Panel header */}
-                <div className="flex items-center gap-2.5 px-4 h-16 border-b border-gray-100 shrink-0">
-                  <openModule.icon className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span className="font-semibold text-gray-900 text-sm">{openModule.label}</span>
+                <div className="flex items-center gap-2.5 px-4 h-16 border-b border-border shrink-0">
+                  <openModule.icon className="w-4 h-4 text-primary shrink-0" />
+                  <span className="font-semibold text-foreground text-sm">{openModule.label}</span>
                 </div>
 
                 {/* Nav sections */}
@@ -916,14 +922,14 @@ export default function Sidebar() {
                           return (
                             <div
                               key={item.href}
-                              className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-300 cursor-not-allowed"
+                              className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground/60 cursor-not-allowed"
                               title="Em breve"
                             >
-                              <span className="flex shrink-0 items-center justify-center w-5 h-5 rounded-md bg-gray-100">
-                                <Icon className="w-3 h-3 text-gray-200" />
+                              <span className="flex shrink-0 items-center justify-center w-5 h-5 rounded-md bg-muted">
+                                <Icon className="w-3 h-3 text-muted-foreground/50" />
                               </span>
                               <span className="flex-1 truncate">{item.label}</span>
-                              <span className="text-[9px] font-semibold bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">breve</span>
+                              <span className="text-[9px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">breve</span>
                             </div>
                           );
                         }
@@ -934,8 +940,8 @@ export default function Sidebar() {
                             className={cn(
                               "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors",
                               active
-                                ? "bg-blue-50 text-blue-700 font-medium"
-                                : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                                ? "bg-primary/10 text-primary font-medium"
+                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
                             )}
                           >
                             <span className={cn(
@@ -959,22 +965,22 @@ export default function Sidebar() {
 
                 {/* User info footer in panel */}
                 {user && (
-                  <div className="border-t border-gray-100 p-3 space-y-1 shrink-0">
+                  <div className="border-t border-border p-3 space-y-1 shrink-0">
                     <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg">
                       <div className={cn(
                         "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
-                        user.perfil === "ADMIN" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"
+                        user.perfil === "ADMIN" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
                       )}>
                         {userInitials}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-gray-800 truncate">{user.nome}</p>
-                        <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                        <p className="text-xs font-medium text-foreground truncate">{user.nome}</p>
+                        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                       </div>
                     </div>
                     <button
                       onClick={handleLogout}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
                     >
                       <LogOut className="w-3.5 h-3.5" />
                       Sair
@@ -990,8 +996,8 @@ export default function Sidebar() {
               className="group absolute right-0 top-0 h-full w-3 cursor-col-resize flex items-center justify-center z-10"
               title={`Arraste para redimensionar · ${modKey}B para recolher`}
             >
-              <div className="w-0.5 h-8 rounded-full bg-gray-200 group-hover:bg-blue-400 transition-colors" />
-              <GripVertical className="absolute w-3 h-3 text-gray-300 group-hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100" />
+              <div className="w-0.5 h-8 rounded-full bg-border group-hover:bg-primary transition-colors" />
+              <GripVertical className="absolute w-3 h-3 text-muted-foreground/50 group-hover:text-primary transition-colors opacity-0 group-hover:opacity-100" />
             </div>
           </div>
         )}
@@ -1001,14 +1007,14 @@ export default function Sidebar() {
       {notifMounted && notifOpen && createPortal(
         <div
           ref={notifPanelRef}
-          className="fixed z-[9999] w-72 rounded-xl bg-white border border-gray-200 shadow-[0_8px_32px_rgba(0,0,0,0.14)] overflow-hidden"
+          className="fixed z-[9999] w-72 rounded-xl bg-popover text-popover-foreground border border-border shadow-[0_8px_32px_rgba(0,0,0,0.14)] overflow-hidden"
           style={{ top: notifPos.top, left: notifPos.left }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-gray-500" />
-              <span className="text-sm font-semibold text-gray-800">Notificações</span>
+              <Bell className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-semibold text-foreground">Notificações</span>
               {pendingAprov > 0 && (
                 <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
                   {pendingAprov > 99 ? "99+" : pendingAprov}
@@ -1018,7 +1024,7 @@ export default function Sidebar() {
             <button
               onClick={fetchPending}
               title="Atualizar"
-              className="text-gray-400 hover:text-gray-600 transition-colors p-0.5 rounded"
+              className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
@@ -1029,36 +1035,36 @@ export default function Sidebar() {
             {pendingAprov > 0 ? (
               <button
                 onClick={() => { setNotifOpen(false); attemptNavigate(() => router.push("/aprovacoes")); }}
-                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-amber-50 transition-colors text-left border-b border-gray-50"
+                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-warning/10 transition-colors text-left border-b border-border"
               >
-                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
-                  <ThumbsUp className="w-4 h-4 text-amber-600" />
+                <div className="w-8 h-8 rounded-full bg-warning/15 flex items-center justify-center shrink-0 mt-0.5">
+                  <ThumbsUp className="w-4 h-4 text-warning" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800">
+                  <p className="text-sm font-medium text-foreground">
                     {pendingAprov === 1
                       ? "1 aprovação aguardando"
                       : `${pendingAprov} aprovações aguardando`}
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Solicitações de compra pendentes de aprovação
                   </p>
                 </div>
-                <ChevronRight className="w-4 h-4 text-gray-300 shrink-0 mt-1" />
+                <ChevronRight className="w-4 h-4 text-muted-foreground/60 shrink-0 mt-1" />
               </button>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 gap-2 text-center px-4">
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                  <Bell className="w-5 h-5 text-gray-300" />
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                  <Bell className="w-5 h-5 text-muted-foreground/60" />
                 </div>
-                <p className="text-sm text-gray-400">Nenhuma notificação pendente</p>
+                <p className="text-sm text-muted-foreground">Nenhuma notificação pendente</p>
               </div>
             )}
           </div>
 
           {/* Footer */}
           {pendingAprov > 0 && (
-            <div className="border-t border-gray-100 px-4 py-2.5">
+            <div className="border-t border-border px-4 py-2.5">
               <button
                 onClick={() => { setNotifOpen(false); attemptNavigate(() => router.push("/aprovacoes")); }}
                 className="text-xs text-blue-600 hover:text-blue-700 font-medium w-full text-center"
