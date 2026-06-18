@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
   // Seção default por prefixo (para contas sem dreSecaoId).
   const secaoPorPrefixo = (codigo: string) => {
     const nomeAlvo = codigo.startsWith("3.1") ? "Receitas" : codigo.startsWith("3.2") ? "Custos" : "Despesas";
-    return secoes.find((s) => s.nome === nomeAlvo) ?? secoes[0];
+    return secoes.find((s) => s.nome === nomeAlvo) ?? secoes.find((s) => s.operacao !== "SUBTOTAL");
   };
 
   type LinhaConta = { id: string; codigo: string; nome: string; ordemDre: number; meses: number[]; total: number; subgrupoCodigo: string | null; subgrupoNome: string | null };
@@ -95,14 +95,21 @@ export async function GET(req: NextRequest) {
   const secoesOut = Array.from(porSecao.values());
   for (const s of secoesOut) s.contas.sort((a, b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true }));
 
-  // Resultado mês a mês = Σ (operação da seção × subtotal).
-  const resultadoMeses = z();
-  let resultadoTotal = 0;
+  // Cascata: acumula +/− na ordem; cada seção "=" (SUBTOTAL) recebe o acumulado
+  // até o ponto (Receita Líquida, Margem Bruta, EBITDA…). O resultado final é o
+  // último acumulado.
+  const acc = z();
+  let accTotal = 0;
   for (const s of secoesOut) {
+    if (s.operacao === "SUBTOTAL") {
+      s.meses = acc.slice();
+      s.total = accTotal;
+      continue;
+    }
     const sinal = s.operacao === "SUBTRAI" ? -1 : 1;
-    for (let i = 0; i < 12; i++) resultadoMeses[i] = r2(resultadoMeses[i] + sinal * s.meses[i]);
-    resultadoTotal = r2(resultadoTotal + sinal * s.total);
+    for (let i = 0; i < 12; i++) acc[i] = r2(acc[i] + sinal * s.meses[i]);
+    accTotal = r2(accTotal + sinal * s.total);
   }
 
-  return NextResponse.json({ ano, secoes: secoesOut, resultadoMeses, resultadoTotal });
+  return NextResponse.json({ ano, secoes: secoesOut, resultadoMeses: acc, resultadoTotal: accTotal });
 }

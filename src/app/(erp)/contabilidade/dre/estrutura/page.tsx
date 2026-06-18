@@ -9,7 +9,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Trash2, GripVertical, ArrowLeft } from "lucide-react";
 
-type Secao = { id: string; nome: string; operacao: "SOMA" | "SUBTRAI"; ordem: number };
+type Secao = { id: string; nome: string; operacao: "SOMA" | "SUBTRAI" | "SUBTOTAL"; ordem: number };
 type Conta = { id: string; codigo: string; nome: string; dreSecaoId: string | null; ordemDre: number };
 
 // O que está sendo arrastado: uma seção (reordena seções) ou uma conta (reordena
@@ -152,13 +152,18 @@ export default function DreEstruturaPage() {
                     title="Arraste para reordenar a seção"
                   ><GripVertical className="w-4 h-4" /></span>
                   <Input value={s.nome} onChange={(e) => patchSecao(s.id, { nome: e.target.value })} className="h-9 max-w-xs font-semibold" />
-                  <select value={s.operacao} onChange={(e) => patchSecao(s.id, { operacao: e.target.value as "SOMA" | "SUBTRAI" })} className="h-9 rounded-lg border border-border px-2 text-sm bg-card">
+                  <select value={s.operacao} onChange={(e) => patchSecao(s.id, { operacao: e.target.value as Secao["operacao"] })} className="h-9 rounded-lg border border-border px-2 text-sm bg-card">
                     <option value="SOMA">Soma (+)</option>
                     <option value="SUBTRAI">Subtrai (−)</option>
+                    <option value="SUBTOTAL">Resultado (=)</option>
                   </select>
                   <button type="button" onClick={() => delSecao(s.id)} className="ml-auto text-muted-foreground/60 hover:text-red-500" title="Excluir seção"><Trash2 className="w-4 h-4" /></button>
                 </div>
-                <ContasDaSecao contas={contas.filter((c) => c.dreSecaoId === s.id)} secoes={secoes} drag={drag} setDrag={setDrag} onReorder={reordenarConta} onMoveSecao={moverContaSecao} onEndDrag={endDrag} />
+                {s.operacao === "SUBTOTAL" ? (
+                  <div className="px-4 py-3 text-xs text-muted-foreground">Linha de resultado acumulado (=) — soma as seções acima até aqui; não recebe contas.</div>
+                ) : (
+                  <ContasDaSecao contas={contas.filter((c) => c.dreSecaoId === s.id)} secoes={secoes} drag={drag} setDrag={setDrag} onReorder={reordenarConta} onMoveSecao={moverContaSecao} onEndDrag={endDrag} />
+                )}
               </div>
             ))}
             <button type="button" onClick={addSecao} className="inline-flex items-center gap-1.5 text-sm font-medium text-info hover:text-info"><Plus className="w-4 h-4" /> Adicionar seção</button>

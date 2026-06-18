@@ -600,6 +600,7 @@ enum StatusFechamento {
 enum DREOperacao {
   SOMA
   SUBTRAI
+  SUBTOTAL // linha "=" — resultado acumulado até o ponto (ex.: Receita Líquida, EBITDA)
 }
 
 // Seção da DRE gerencial (estrutura editável por empresa): agrupa contas de

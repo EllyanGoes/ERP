@@ -11,7 +11,7 @@ import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
 import { Loader2, FileBarChart, SlidersHorizontal, FileDown } from "lucide-react";
 
 type LinhaConta = { id: string; codigo: string; nome: string; meses: number[]; total: number; subgrupoCodigo: string | null; subgrupoNome: string | null };
-type Secao = { id: string; nome: string; operacao: "SOMA" | "SUBTRAI"; contas: LinhaConta[]; meses: number[]; total: number };
+type Secao = { id: string; nome: string; operacao: "SOMA" | "SUBTRAI" | "SUBTOTAL"; contas: LinhaConta[]; meses: number[]; total: number };
 type Dre = { ano: number; secoes: Secao[]; resultadoMeses: number[]; resultadoTotal: number };
 
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -35,6 +35,10 @@ export default function DrePage() {
     const celMes = (v: number) => (Math.abs(v) < 0.005 ? "" : fmtColuna(v, modo));
     const linhas: LinhaPdf[] = [];
     for (const s of dre.secoes) {
+      if (s.operacao === "SUBTOTAL") {
+        linhas.push({ estilo: "total", celulas: [`= ${s.nome}`, ...s.meses.map(celMes), fmtColuna(s.total, modo)] });
+        continue;
+      }
       linhas.push({ estilo: "secao", celulas: [`${s.nome} (${s.operacao === "SUBTRAI" ? "−" : "+"})`, ...s.meses.map(celMes), celMes(s.total)] });
       const subtotais = subtotaisDoSubgrupo(s.contas);
       let ultimoSub: string | null = null;
@@ -136,6 +140,20 @@ function subtotaisDoSubgrupo(contas: LinhaConta[]) {
 }
 
 function SecaoRows({ secao, ano, modo }: { secao: Secao; ano: number; modo: "contabil" | "real" }) {
+  // Linha "=" (SUBTOTAL): resultado acumulado, sem contas.
+  if (secao.operacao === "SUBTOTAL") {
+    return (
+      <tr className="border-y-2 border-border bg-muted font-bold text-foreground">
+        <td className="px-4 py-2.5 sticky left-0 bg-muted z-10">
+          <span className="text-muted-foreground mr-1.5">=</span>{secao.nome}
+        </td>
+        {secao.meses.map((v, i) => (
+          <td key={i} className={cn("text-right px-3 py-2.5", v < 0 && "text-danger")}>{Math.abs(v) < 0.005 ? "" : fmtColuna(v, modo)}</td>
+        ))}
+        <td className={cn("text-right px-4 py-2.5 bg-muted/80", secao.total < 0 && "text-danger")}>{fmtColuna(secao.total, modo)}</td>
+      </tr>
+    );
+  }
   const subtotais = subtotaisDoSubgrupo(secao.contas);
   let ultimoSub: string | null = null;
   return (
