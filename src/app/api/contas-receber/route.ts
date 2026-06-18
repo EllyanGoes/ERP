@@ -46,6 +46,13 @@ export async function POST(req: NextRequest) {
   const intervaloDias = Math.max(1, Math.floor(Number(body.intervaloDias) || 30));
   const pedidoVendaId = (body.pedidoVendaId as string) ?? null;
 
+  // Regra: o cliente do título segue o cliente do pedido. Quando o título nasce
+  // de um pedido, o cliente do pedido prevalece sobre o informado no corpo.
+  if (pedidoVendaId) {
+    const pedido = await prisma.pedidoVenda.findUnique({ where: { id: pedidoVendaId }, select: { clienteId: true } });
+    if (pedido) parsed.data.clienteId = pedido.clienteId;
+  }
+
   if (parcelas <= 1) {
     const seq = await prisma.sequencia.upsert({
       where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "CR" } },

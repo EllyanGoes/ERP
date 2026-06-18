@@ -370,6 +370,38 @@ export async function contabilizarVendaPedido(pedidoVendaId: string) {
 }
 
 /**
+ * Realinha o contábil de um pedido ao cliente ATUAL após troca de cliente no
+ * pedido (regra: o título segue o cliente do pedido). A idempotência de
+ * `registrarLancamento` só CRIA — então é preciso apagar os lançamentos por
+ * origem antes de regravar, para as partidas pegarem o novo cliente (tanto na
+ * conta de Clientes a Receber/Material a Entregar quanto no razão auxiliar).
+ * As partidas saem em cascata ao apagar o LancamentoContabil. Best-effort.
+ */
+export async function recontabilizarClientePedido(pedidoVendaId: string) {
+  const pedido = await prismaSemEscopo.pedidoVenda.findUnique({
+    where: { id: pedidoVendaId },
+    select: { empresaId: true, contasReceber: { select: { id: true } }, minutas: { select: { id: true } } },
+  });
+  if (!pedido) return;
+  const { empresaId } = pedido;
+
+  // Venda a entregar (origem = pedido)
+  await prismaSemEscopo.lancamentoContabil.deleteMany({ where: { empresaId, origemTipo: "VENDA", origemId: pedidoVendaId } });
+  // Venda avulsa + recebimento (origem = título)
+  for (const cr of pedido.contasReceber) {
+    await prismaSemEscopo.lancamentoContabil.deleteMany({ where: { empresaId, origemTipo: { in: ["VENDA", "RECEBIMENTO"] }, origemId: cr.id } });
+  }
+  // Receita reconhecida na entrega (origem = minuta)
+  for (const m of pedido.minutas) {
+    await prismaSemEscopo.lancamentoContabil.deleteMany({ where: { empresaId, origemTipo: "RECEITA_ENTREGA", origemId: m.id } });
+  }
+
+  // Regrava tudo a partir do estado atual (cliente novo).
+  await contabilizarPedidoVenda(pedidoVendaId).catch(() => null);
+  for (const m of pedido.minutas) await contabilizarReceitaMinuta(m.id).catch(() => null);
+}
+
+/**
  * Saldo de abertura de estoque (perpétuo): contabiliza as movimentações
  * `SALDO-INICIAL` valorando cada item pela regra de custeio (acabado pelo preço
  * médio de venda; demais pelo CMPM). D Estoque (local) / C 2.3.3 Saldos de

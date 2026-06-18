@@ -9,6 +9,7 @@ import { recalcPedidoValorTotal, getItensPendentesEntrega, recomputarStatusPedid
 import { espelharConfirmacaoVenda, cancelarEspelhoVenda } from "@/lib/intragrupo";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
+import { recontabilizarClientePedido } from "@/lib/contabilidade";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const pedido = await prisma.pedidoVenda.findUnique({
@@ -141,9 +142,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   // ordem enquanto não houver entrega. Lido do corpo bruto (o schema descarta).
   const pedidoAtual = await prisma.pedidoVenda.findUnique({
     where: { id: params.id },
-    select: { empresaId: true, estoqueOrigemEmpresaId: true },
+    select: { empresaId: true, estoqueOrigemEmpresaId: true, clienteId: true },
   });
   if (!pedidoAtual) return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
+
+  // Regra: o cliente do título segue o cliente do pedido. Se o cliente do
+  // pedido mudar, propaga para as contas a receber vinculadas e realinha o
+  // contábil (Clientes a Receber / Material a Entregar / recebimentos).
+  const clienteMudou = pedidoData.clienteId != null && pedidoData.clienteId !== pedidoAtual.clienteId;
 
   const novaOrigem: string | null =
     typeof body.estoqueOrigemEmpresaId === "string" && body.estoqueOrigemEmpresaId ? body.estoqueOrigemEmpresaId : null;
@@ -200,6 +206,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           dataEntrega: pedidoData.dataEntrega ? new Date(pedidoData.dataEntrega) : null,
         },
       });
+
+      // Título segue o pedido: propaga o novo cliente para as CRs vinculadas.
+      if (clienteMudou) {
+        await tx.contaReceber.updateMany({
+          where: { pedidoVendaId: params.id },
+          data: { clienteId: pedidoData.clienteId },
+        });
+      }
 
       // Pagamentos previstos: substitui (delete + create), como os itens.
       // MAS só enquanto o pedido NÃO foi recebido — depois do recebimento, os
@@ -350,6 +364,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         include: { cliente: true, itens: { include: { item: true } } },
       });
     });
+
+    // Cliente mudou → realinha o contábil ao novo cliente (best-effort, pós-commit).
+    if (clienteMudou) await recontabilizarClientePedido(params.id).catch(() => {});
 
     return NextResponse.json({ data: pedido });
   } catch (err) {
