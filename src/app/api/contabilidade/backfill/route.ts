@@ -54,8 +54,10 @@ export async function POST() {
     catch (e) { erros.push(`CR ${cr.numero}: ${(e as Error).message}`); }
   }
 
+  // Inclui contas a pagar SEM fornecedor (despesa avulsa paga direto) — o motor
+  // lança D Despesa / C Caixa nesses casos (antes eram puladas).
   const cps = await prismaSemEscopo.contaPagar.findMany({
-    where: { status: { not: "CANCELADA" }, fornecedorId: { not: null } },
+    where: { status: { not: "CANCELADA" } },
     select: { id: true, numero: true },
   });
   for (const cp of cps) {
