@@ -6,6 +6,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtColuna } from "@/lib/formato-contabil";
+import PrintButton from "@/components/shared/PrintButton";
 import { Loader2, FileBarChart, SlidersHorizontal } from "lucide-react";
 
 type LinhaConta = { id: string; codigo: string; nome: string; meses: number[]; total: number };
@@ -39,7 +40,7 @@ export default function DrePage() {
     <div>
       <PageHeader title="DRE" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "DRE" }]} />
       <div className="px-8 pb-8 space-y-4">
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap no-print">
           <label className="flex items-center gap-2 text-sm text-gray-600">
             Exercício
             <select value={ano} onChange={(e) => setAno(parseInt(e.target.value, 10))} className="h-10 rounded-lg border border-gray-300 px-3 text-sm bg-white">
@@ -50,12 +51,13 @@ export default function DrePage() {
             <SlidersHorizontal className="w-4 h-4" /> Editar estrutura
           </Link>
           <FormatoToggle modo={modo} onChange={setModo} />
+          <PrintButton />
         </div>
 
         {loading || !dre ? (
           <div className="flex items-center justify-center py-16 text-gray-400 gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Carregando…</div>
         ) : (
-          <div className="rounded-xl border border-gray-200 bg-white overflow-auto">
+          <div className="rounded-xl border border-gray-200 bg-white overflow-auto print-area">
             <table className="w-full text-sm tabular-nums whitespace-nowrap">
               <thead className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide sticky top-0 z-10">
                 <tr>

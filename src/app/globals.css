@@ -97,3 +97,14 @@ input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* Impressão de relatórios contábeis: imprime só o conteúdo principal,
+   esconde a navegação e os controles marcados como .no-print. */
+@media print {
+  body * { visibility: hidden; }
+  #erp-main, #erp-main * { visibility: visible; }
+  #erp-main { position: absolute; left: 0; top: 0; width: 100%; overflow: visible !important; }
+  .no-print, .no-print * { display: none !important; }
+  .print-area { overflow: visible !important; max-height: none !important; }
+  @page { margin: 1.2cm; }
+}

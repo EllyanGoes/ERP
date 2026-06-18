@@ -7,6 +7,7 @@ import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker"
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtSaldo, fmtColuna, saldoAnormal, type NaturezaConta } from "@/lib/formato-contabil";
+import PrintButton from "@/components/shared/PrintButton";
 import { Loader2, Scale, Check, X, ChevronRight, ChevronDown } from "lucide-react";
 
 type Linha = {
@@ -78,7 +79,7 @@ export default function BalancetePage() {
     <div>
       <PageHeader title="Balancete de Verificação" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "Balancete" }]} />
       <div className="px-8 pb-8 space-y-4">
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap no-print">
           <DateRangePicker value={range} onChange={setRange} />
           <label className="flex items-center gap-2 text-sm text-gray-600">
             <input type="checkbox" checked={soComMov} onChange={(e) => setSoComMov(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-blue-600" />
@@ -87,6 +88,7 @@ export default function BalancetePage() {
           <button type="button" onClick={recolherTudo} className="text-xs font-medium text-gray-500 hover:text-gray-700 px-2.5 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50">Recolher tudo</button>
           <button type="button" onClick={expandirTudo} className="text-xs font-medium text-gray-500 hover:text-gray-700 px-2.5 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50">Expandir tudo</button>
           <FormatoToggle modo={modo} onChange={setModo} />
+          <PrintButton />
           <span className={cn("ml-auto inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg",
             resumo.confere ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")}>
             {resumo.confere ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
@@ -95,7 +97,7 @@ export default function BalancetePage() {
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white">
-          <div className="max-h-[calc(100vh-16rem)] overflow-auto rounded-xl">
+          <div className="max-h-[calc(100vh-16rem)] overflow-auto rounded-xl print-area">
             <div className="grid grid-cols-[1fr_repeat(4,8rem)] gap-2 px-5 py-2.5 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide sticky top-0 z-10">
               <span>Conta</span>
               <span className="text-right">Saldo Ant.</span>

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtSaldo, saldoAnormal, type FormatoModo, type NaturezaConta } from "@/lib/formato-contabil";
+import PrintButton from "@/components/shared/PrintButton";
 import { Loader2, Scale, Check, X } from "lucide-react";
 
 type Linha = { id: string; codigo: string; nome: string; tipo: "SINTETICA" | "ANALITICA"; natureza: NaturezaConta; nivel: number; saldo: number };
@@ -61,7 +62,7 @@ export default function BalancoPage() {
     <div>
       <PageHeader title="Balanço Patrimonial" breadcrumbs={[{ label: "Contabilidade Gerencial" }, { label: "Balanço" }]} />
       <div className="px-8 pb-8 space-y-4">
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap no-print">
           <label className="flex items-center gap-2 text-sm text-gray-600">
             Posição em
             <Input type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-10 w-44 border-gray-300" />
@@ -71,6 +72,7 @@ export default function BalancoPage() {
             Só contas com saldo
           </label>
           <FormatoToggle modo={modo} onChange={setModo} />
+          <PrintButton />
           {bal && (
             <span className={cn("ml-auto inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg",
               bal.confere ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")}>

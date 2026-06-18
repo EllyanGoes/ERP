@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import { linkOrigemLancamento } from "@/lib/origem-link";
+import PrintButton from "@/components/shared/PrintButton";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -14,7 +15,7 @@ import { Loader2, BookOpen } from "lucide-react";
 
 type FlatConta = { id: string; codigo: string; nome: string };
 type Mov = {
-  data: string; historico: string; origemTipo: string; origemId: string | null;
+  data: string; historico: string; origemTipo: string; origemId: string | null; criadoPor: string | null;
   contaCodigo: string; contaNome: string;
   contrapartidas: { id: string; codigo: string; nome: string }[];
   debito: number; credito: number; saldo: number;
@@ -91,7 +92,7 @@ export default function RazaoPage() {
             />
           </div>
           <DateRangePicker value={range} onChange={setRange} />
-          <div className="ml-auto"><FormatoToggle modo={modo} onChange={setModo} /></div>
+          <div className="ml-auto flex items-center gap-2"><FormatoToggle modo={modo} onChange={setModo} /><PrintButton /></div>
         </div>
 
         {!contaId ? (
@@ -137,6 +138,13 @@ export default function RazaoPage() {
                         </Link>
                       ) : m.historico}
                       {razao.conta.tipo === "SINTETICA" && <span className="ml-1.5 font-mono text-[11px] text-gray-400">[{m.contaCodigo}]</span>}
+                      {m.origemTipo === "MANUAL" ? (
+                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-500" title={m.criadoPor ? `Manual — ${m.criadoPor}` : "Manual"}>
+                          manual{m.criadoPor ? ` · ${m.criadoPor}` : ""}
+                        </span>
+                      ) : (
+                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-gray-50 text-gray-400" title="Lançamento automático">auto</span>
+                      )}
                     </td>
                     <td className="px-4 py-2 text-gray-600">
                       {m.contrapartidas.length === 0 ? <span className="text-gray-300">—</span> : (

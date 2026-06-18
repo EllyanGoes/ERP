@@ -29,6 +29,7 @@ export type LancamentoIn = {
   historico: string;
   origemTipo: OrigemIn;
   origemId?: string | null;
+  criadoPor?: string | null;
   partidas: PartidaIn[];
 };
 
@@ -78,7 +79,7 @@ export async function contaDoBanco(empresaId: string, contaBancariaId: string) {
  * duplicar. Lança erro se as partidas não fecharem.
  */
 export async function registrarLancamento(input: LancamentoIn) {
-  const { empresaId, data, historico, origemTipo, origemId = null, partidas } = input;
+  const { empresaId, data, historico, origemTipo, origemId = null, criadoPor = null, partidas } = input;
 
   if (partidas.length < 2) throw new Error("Lançamento exige ao menos 2 partidas");
   const totalD = partidas.filter((p) => p.tipo === "DEBITO").reduce((s, p) => s + p.valor, 0);
@@ -112,6 +113,7 @@ export async function registrarLancamento(input: LancamentoIn) {
       historico,
       origemTipo,
       origemId,
+      criadoPor,
       partidas: {
         create: partidas.map((p) => ({
           empresaId,

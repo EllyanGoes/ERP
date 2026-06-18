@@ -559,6 +559,7 @@ model LancamentoContabil {
   historico   String
   origemTipo  OrigemLancamento
   origemId    String? // id do fato gerador (ContaReceber, ContaPagar…)
+  criadoPor   String? // usuário responsável (lançamentos manuais)
   estornoDeId String?             @unique
   estornoDe   LancamentoContabil? @relation("Estorno", fields: [estornoDeId], references: [id])
   estorno     LancamentoContabil? @relation("Estorno")

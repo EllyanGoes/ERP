@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
       select: {
         tipo: true, valor: true, lancamentoId: true,
         conta: { select: { codigo: true, nome: true } },
-        lancamento: { select: { data: true, historico: true, origemTipo: true, origemId: true } },
+        lancamento: { select: { data: true, historico: true, origemTipo: true, origemId: true, criadoPor: true } },
       },
       orderBy: [{ lancamento: { data: "asc" } }, { id: "asc" }],
     }),
@@ -100,6 +100,7 @@ export async function GET(req: NextRequest) {
       historico: m.lancamento.historico,
       origemTipo: m.lancamento.origemTipo,
       origemId: m.lancamento.origemId,
+      criadoPor: m.lancamento.criadoPor,
       contaCodigo: m.conta.codigo,
       contaNome: m.conta.nome,
       contrapartidas,
