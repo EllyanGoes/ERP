@@ -228,59 +228,77 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           });
         }
       } else if (Array.isArray(pagamentos) && jaRecebido > 0) {
-        // Pedido já recebido: re-sincroniza o financeiro com os valores/formas/
-        // contas editados (decisão do dono: reajustar tudo — o "valor recebido" e
-        // o total acompanham). Só para o recebimento PADRÃO (1 conta a receber
-        // PAGA, não parcelada). Parcelado/baixa manual bloqueia para não corromper.
+        // Há conta(s) a receber vinculada(s). Três casos:
+        //  • título único EM ABERTO (a prazo, nada recebido) → só ajusta o valor
+        //    do título e os pagamentos previstos ao novo total (sem caixa);
+        //  • título único PAGO (balcão/receber, não parcelado) → re-sincroniza o
+        //    financeiro (reconstrói os lançamentos) com os valores/formas/contas;
+        //  • parcelado / parcial / múltiplos / com baixa → bloqueia (estorne antes).
         const crs = await tx.contaReceber.findMany({ where: { pedidoVendaId: params.id } });
-        if (crs.length !== 1 || crs[0].status !== "PAGA" || crs[0].grupoParcelamentoId) {
-          throw new Error("PEDIDO_RECEBIDO_COMPLEXO");
-        }
-        const cr = crs[0];
+        const totalRecebido = crs.reduce((s, c) => s + Number(c.valorPago), 0);
+        const unicoCr = crs.length === 1 ? crs[0] : null;
 
-        // Substitui os pagamentos previstos com os valores/formas/contas editados.
-        await tx.pedidoVendaPagamento.deleteMany({ where: { pedidoVendaId: params.id } });
-        if (pagamentos.length > 0) {
-          await tx.pedidoVendaPagamento.createMany({
-            data: pagamentos.map((p, i) => ({ pedidoVendaId: params.id, forma: p.forma, valor: p.valor, ordem: i, contaBancariaId: p.contaBancariaId ?? null })),
-          });
-        }
+        if (unicoCr && unicoCr.status === "ABERTA" && !unicoCr.grupoParcelamentoId && totalRecebido === 0) {
+          // Título a receber EM ABERTO: nada foi recebido — reajusta o valor do
+          // título e os pagamentos previstos ao novo total, sem lançar no caixa.
+          await tx.pedidoVendaPagamento.deleteMany({ where: { pedidoVendaId: params.id } });
+          if (pagamentos.length > 0) {
+            await tx.pedidoVendaPagamento.createMany({
+              data: pagamentos.map((p, i) => ({ pedidoVendaId: params.id, forma: p.forma, valor: p.valor, ordem: i })),
+            });
+          }
+          await tx.contaReceber.update({ where: { id: unicoCr.id }, data: { valorOriginal: valorTotal } });
+        } else if (unicoCr && unicoCr.status === "PAGA" && !unicoCr.grupoParcelamentoId) {
+          // Recebimento PADRÃO (balcão/receber): re-sincroniza o financeiro
+          // (decisão do dono: reajustar tudo — o "valor recebido" e o total acompanham).
+          const cr = unicoCr;
 
-        // Reconstrói os lançamentos da CR a partir das linhas editadas (uma por
-        // forma, na sua conta) e reajusta a conta a receber ao novo total.
-        const round2 = (n: number) => Math.round(n * 100) / 100;
-        const caixaPadrao = contaCaixaIdDaEmpresa(cr.empresaId);
-        const linhasPag = pagamentos
-          .filter((p) => Number(p.valor) > 0)
-          .map((p) => ({ forma: p.forma, contaBancariaId: p.contaBancariaId || caixaPadrao, valor: round2(Number(p.valor)) }));
+          // Substitui os pagamentos previstos com os valores/formas/contas editados.
+          await tx.pedidoVendaPagamento.deleteMany({ where: { pedidoVendaId: params.id } });
+          if (pagamentos.length > 0) {
+            await tx.pedidoVendaPagamento.createMany({
+              data: pagamentos.map((p, i) => ({ pedidoVendaId: params.id, forma: p.forma, valor: p.valor, ordem: i, contaBancariaId: p.contaBancariaId ?? null })),
+            });
+          }
 
-        const ruim = await formaEletronicaNoCaixa(tx, cr.empresaId, linhasPag.map((l) => ({ forma: l.forma, contaBancariaId: l.contaBancariaId })));
-        if (ruim) throw new Error(`ROTEAMENTO::A forma "${ruim.forma}" não pode ser recebida no Caixa em Dinheiro — selecione a conta bancária de destino.`);
+          // Reconstrói os lançamentos da CR a partir das linhas editadas (uma por
+          // forma, na sua conta) e reajusta a conta a receber ao novo total.
+          const round2 = (n: number) => Math.round(n * 100) / 100;
+          const caixaPadrao = contaCaixaIdDaEmpresa(cr.empresaId);
+          const linhasPag = pagamentos
+            .filter((p) => Number(p.valor) > 0)
+            .map((p) => ({ forma: p.forma, contaBancariaId: p.contaBancariaId || caixaPadrao, valor: round2(Number(p.valor)) }));
 
-        const novaData = pagamentoData ? new Date(`${pagamentoData}T00:00:00.000Z`) : (cr.dataPagamento ?? new Date());
-        await tx.lancamentoFinanceiro.deleteMany({ where: { contaReceberId: cr.id } });
-        for (const l of linhasPag) {
-          await tx.lancamentoFinanceiro.create({
+          const ruim = await formaEletronicaNoCaixa(tx, cr.empresaId, linhasPag.map((l) => ({ forma: l.forma, contaBancariaId: l.contaBancariaId })));
+          if (ruim) throw new Error(`ROTEAMENTO::A forma "${ruim.forma}" não pode ser recebida no Caixa em Dinheiro — selecione a conta bancária de destino.`);
+
+          const novaData = pagamentoData ? new Date(`${pagamentoData}T00:00:00.000Z`) : (cr.dataPagamento ?? new Date());
+          await tx.lancamentoFinanceiro.deleteMany({ where: { contaReceberId: cr.id } });
+          for (const l of linhasPag) {
+            await tx.lancamentoFinanceiro.create({
+              data: {
+                empresaId: cr.empresaId, tipo: "RECEITA",
+                descricao: `Recebimento ${cr.numero}${linhasPag.length > 1 ? ` (${l.forma})` : ""}`,
+                valor: l.valor, dataLancamento: novaData,
+                contaReceberId: cr.id, contaBancariaId: l.contaBancariaId,
+                naturezaFinanceiraId: cr.naturezaFinanceiraId ?? undefined,
+              },
+            });
+          }
+          const somaPag = round2(linhasPag.reduce((s, l) => s + l.valor, 0));
+          await tx.contaReceber.update({
+            where: { id: cr.id },
             data: {
-              empresaId: cr.empresaId, tipo: "RECEITA",
-              descricao: `Recebimento ${cr.numero}${linhasPag.length > 1 ? ` (${l.forma})` : ""}`,
-              valor: l.valor, dataLancamento: novaData,
-              contaReceberId: cr.id, contaBancariaId: l.contaBancariaId,
-              naturezaFinanceiraId: cr.naturezaFinanceiraId ?? undefined,
+              valorOriginal: valorTotal,
+              valorPago: somaPag,
+              status: somaPag >= valorTotal - 0.001 ? "PAGA" : somaPag > 0 ? "PARCIAL" : "ABERTA",
+              dataPagamento: somaPag > 0 ? novaData : null,
+              formaPagamento: Array.from(new Set(linhasPag.map((l) => l.forma))).join(" + ") || null,
             },
           });
+        } else {
+          throw new Error("PEDIDO_RECEBIDO_COMPLEXO");
         }
-        const somaPag = round2(linhasPag.reduce((s, l) => s + l.valor, 0));
-        await tx.contaReceber.update({
-          where: { id: cr.id },
-          data: {
-            valorOriginal: valorTotal,
-            valorPago: somaPag,
-            status: somaPag >= valorTotal - 0.001 ? "PAGA" : somaPag > 0 ? "PARCIAL" : "ABERTA",
-            dataPagamento: somaPag > 0 ? novaData : null,
-            formaPagamento: Array.from(new Set(linhasPag.map((l) => l.forma))).join(" + ") || null,
-          },
-        });
       }
 
       // Reconcile items: update existing rows in place (FK-safe), create new
