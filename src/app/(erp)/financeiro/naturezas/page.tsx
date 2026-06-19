@@ -30,16 +30,19 @@ const GRUPO_LABEL: Record<Grupo, string> = {
 type Tipo = "ENTRADA" | "SAIDA";
 type Subgrupo = { id: string; nome: string; grupo: Grupo };
 type ContaResultado = { id: string; codigo: string; nome: string };
+type ContaPatrimonial = { id: string; codigo: string; nome: string; grupo: "ATIVO" | "PASSIVO" };
 type Natureza = {
   id: string; nome: string; tipo: Tipo; grupo: Grupo;
   subgrupoId: string | null; subgrupo: { id: string; nome: string } | null; ativo: boolean;
   contaContabilId: string | null; contaContabil: ContaResultado | null;
+  contaContrapartidaId: string | null; contaContrapartida: ContaResultado | null;
 };
 
 export default function NaturezasPage() {
   const [rows, setRows] = useState<Natureza[]>([]);
   const [subgrupos, setSubgrupos] = useState<Subgrupo[]>([]);
   const [contasResultado, setContasResultado] = useState<ContaResultado[]>([]);
+  const [contasPatrimoniais, setContasPatrimoniais] = useState<ContaPatrimonial[]>([]);
   const [loading, setLoading] = useState(true);
 
   // null = fechado; objeto vazio = novo; objeto preenchido = edição
@@ -54,6 +57,7 @@ export default function NaturezasPage() {
     ]);
     setRows(n.data ?? []);
     setContasResultado(n.contasResultado ?? []);
+    setContasPatrimoniais(n.contasPatrimoniais ?? []);
     setSubgrupos(s.data ?? []);
     setLoading(false);
   }, []);
@@ -131,6 +135,7 @@ export default function NaturezasPage() {
           editing={natModal === "new" ? null : natModal}
           subgrupos={subgrupos}
           contasResultado={contasResultado}
+          contasPatrimoniais={contasPatrimoniais}
           onClose={() => setNatModal(null)}
           onSaved={() => { setNatModal(null); load(); }}
         />
@@ -234,10 +239,11 @@ function RowShell({ indent, left, faded, onEdit, onDelete }: {
   );
 }
 
-function NaturezaDialog({ editing, subgrupos, contasResultado, onClose, onSaved }: {
+function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniais, onClose, onSaved }: {
   editing: Natureza | null;
   subgrupos: Subgrupo[];
   contasResultado: ContaResultado[];
+  contasPatrimoniais: ContaPatrimonial[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -246,6 +252,7 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, onClose, onSaved 
   const [grupo, setGrupo] = useState<Grupo>(editing?.grupo ?? "DESPESA_OPERACIONAL");
   const [subgrupoId, setSubgrupoId] = useState(editing?.subgrupoId ?? "");
   const [contaContabilId, setContaContabilId] = useState(editing?.contaContabilId ?? "");
+  const [contaContrapartidaId, setContaContrapartidaId] = useState(editing?.contaContrapartidaId ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -258,7 +265,7 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, onClose, onSaved 
     const res = await fetch(url, {
       method: editing ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: nome.trim(), tipo, grupo, subgrupoId: subgrupoId || null, contaContabilId: contaContabilId || null }),
+      body: JSON.stringify({ nome: nome.trim(), tipo, grupo, subgrupoId: subgrupoId || null, contaContabilId: contaContabilId || null, contaContrapartidaId: contaContrapartidaId || null }),
     });
     if (!res.ok) { setError((await res.json()).error ?? "Erro ao salvar"); setSaving(false); return; }
     onSaved();
@@ -304,6 +311,23 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, onClose, onSaved 
               options={contasResultado.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))}
             />
             <p className="text-[11px] text-muted-foreground">Vincula a natureza a uma conta do plano de contas (integração contábil). Em branco usa a conta automática do grupo.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{tipo === "ENTRADA" ? "Conta a receber (contrapartida ativa)" : "Conta a pagar (contrapartida passiva)"}</Label>
+            <ComboboxWithCreate
+              value={contaContrapartidaId}
+              onChange={(v) => setContaContrapartidaId(v)}
+              noneLabel="— Sem contrapartida —"
+              triggerClassName="h-10 rounded-lg"
+              options={contasPatrimoniais
+                .filter((c) => (tipo === "ENTRADA" ? c.grupo === "ATIVO" : c.grupo === "PASSIVO"))
+                .map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              {tipo === "ENTRADA"
+                ? "Direito a receber debitado na provisão e creditado no recebimento (ex.: Outros a Receber, p/ receitas sem cliente)."
+                : "Obrigação a pagar creditada na provisão e debitada na liquidação (ex.: INSS a Recolher, FGTS a Recolher, p/ encargos sem fornecedor)."}
+            </p>
           </div>
           {error && <p className="text-sm text-rose-500">{error}</p>}
         </div>

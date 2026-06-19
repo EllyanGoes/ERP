@@ -14,6 +14,7 @@ const schema = z.object({
   grupo: z.enum(GRUPOS),
   subgrupoId: z.string().optional().nullable().transform((v) => v || null),
   contaContabilId: z.string().optional().nullable().transform((v) => v || null),
+  contaContrapartidaId: z.string().optional().nullable().transform((v) => v || null),
   ativo: z.boolean().optional(),
 });
 
@@ -37,26 +38,37 @@ export async function GET(req: NextRequest) {
     include: {
       subgrupo: { select: { id: true, nome: true } },
       contasContabeis: { select: { id: true, codigo: true, nome: true } },
+      contaContrapartida: { select: { id: true, codigo: true, nome: true } },
     },
     orderBy: [{ tipo: "asc" }, { grupo: "asc" }, { nome: "asc" }],
   });
-  // Vínculo contábil: a conta de resultado ligada à natureza (1 por empresa).
+  // Vínculo contábil: conta de RESULTADO (reversa, 1 por empresa) e CONTRAPARTIDA
+  // patrimonial (ativo a receber p/ ENTRADA, passivo a pagar p/ SAIDA).
   const naturezas = data.map(({ contasContabeis, ...n }) => ({
     ...n,
     contaContabilId: contasContabeis[0]?.id ?? null,
     contaContabil: contasContabeis[0] ?? null,
   }));
 
-  // Contas de resultado (analíticas ativas) p/ o seletor do cadastro de natureza.
-  const contasResultado = searchParams.get("comContas") === "1"
+  // Contas p/ os seletores do cadastro: resultado (receita/despesa) e
+  // patrimoniais (ATIVO a receber / PASSIVO a pagar) para a contrapartida.
+  const comContas = searchParams.get("comContas") === "1";
+  const contasResultado = comContas
     ? await prisma.contaContabil.findMany({
         where: { grupo: "RESULTADO", tipo: "ANALITICA", ativo: true },
         select: { id: true, codigo: true, nome: true },
         orderBy: { codigo: "asc" },
       })
     : undefined;
+  const contasPatrimoniais = comContas
+    ? await prisma.contaContabil.findMany({
+        where: { grupo: { in: ["ATIVO", "PASSIVO"] }, tipo: "ANALITICA", ativo: true },
+        select: { id: true, codigo: true, nome: true, grupo: true },
+        orderBy: { codigo: "asc" },
+      })
+    : undefined;
 
-  return NextResponse.json({ data: naturezas, contasResultado });
+  return NextResponse.json({ data: naturezas, contasResultado, contasPatrimoniais });
 }
 
 export async function POST(req: NextRequest) {
@@ -66,8 +78,8 @@ export async function POST(req: NextRequest) {
   const parsed = schema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos" }, { status: 400 });
 
-  const { contaContabilId, ...natData } = parsed.data;
-  const data = await prisma.naturezaFinanceira.create({ data: natData });
+  const { contaContabilId, contaContrapartidaId, ...natData } = parsed.data;
+  const data = await prisma.naturezaFinanceira.create({ data: { ...natData, contaContrapartidaId } });
   if (contaContabilId) await vincularNaturezaConta(data.empresaId, data.id, contaContabilId).catch(() => null);
   else await garantirContaContabilNatureza(data.id).catch(() => null);
   return NextResponse.json({ data }, { status: 201 });

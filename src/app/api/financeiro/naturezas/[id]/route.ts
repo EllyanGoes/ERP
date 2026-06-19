@@ -13,6 +13,7 @@ const schema = z.object({
   grupo: z.enum(GRUPOS).optional(),
   subgrupoId: z.string().optional().nullable(),
   contaContabilId: z.string().optional().nullable(),
+  contaContrapartidaId: z.string().optional().nullable(),
   ativo: z.boolean().optional(),
 });
 
@@ -23,10 +24,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const parsed = schema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos" }, { status: 400 });
 
-  const { subgrupoId, contaContabilId, ...rest } = parsed.data;
+  const { subgrupoId, contaContabilId, contaContrapartidaId, ...rest } = parsed.data;
   const data = await prisma.naturezaFinanceira.update({
     where: { id: params.id },
-    data: { ...rest, ...(subgrupoId !== undefined ? { subgrupoId: subgrupoId || null } : {}) },
+    data: {
+      ...rest,
+      ...(subgrupoId !== undefined ? { subgrupoId: subgrupoId || null } : {}),
+      ...(contaContrapartidaId !== undefined ? { contaContrapartidaId: contaContrapartidaId || null } : {}),
+    },
   });
   if (contaContabilId) await vincularNaturezaConta(data.empresaId, data.id, contaContabilId).catch(() => null);
   return NextResponse.json({ data });
