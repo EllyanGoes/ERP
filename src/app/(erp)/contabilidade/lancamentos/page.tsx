@@ -19,6 +19,9 @@ type Lancamento = {
 
 const ORIGEM_LABEL: Record<string, string> = {
   VENDA: "Venda", RECEBIMENTO: "Recebimento", COMPRA: "Compra", PAGAMENTO: "Pagamento", MANUAL: "Manual", ESTORNO: "Estorno",
+  RECEITA_ENTREGA: "Receita na entrega", ESTOQUE_ENTRADA: "Entrada de estoque", ESTOQUE_SAIDA: "CMV / saída",
+  ESTOQUE_PRODUCAO: "Produção", ESTOQUE_CONSUMO: "Consumo", ESTOQUE_AJUSTE: "Ajuste de estoque",
+  ESTOQUE_TRANSFERENCIA: "Transferência", DEPRECIACAO: "Depreciação", ENCERRAMENTO: "Encerramento",
 };
 const ORIGEM_COR: Record<string, string> = {
   VENDA: "bg-success/15 text-success", RECEBIMENTO: "bg-info/15 text-info",
@@ -32,6 +35,10 @@ export default function LancamentosContabeisPage() {
   const [loading, setLoading] = useState(true);
   const [gerando, setGerando] = useState(false);
   const [aviso, setAviso] = useState("");
+  // Filtros: classe (manual/auto), origem (tipo) e busca (histórico/código).
+  const [classe, setClasse] = useState<"TODOS" | "AUTO" | "MANUAL">("TODOS");
+  const [origemFiltro, setOrigemFiltro] = useState("TODOS");
+  const [busca, setBusca] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,6 +48,17 @@ export default function LancamentosContabeisPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Origens presentes (para o seletor de filtro por tipo).
+  const origensPresentes = Array.from(new Set(lancs.map((l) => l.origemTipo))).sort();
+  const q = busca.trim().toLowerCase();
+  const lancsFiltrados = lancs.filter((l) => {
+    if (classe === "MANUAL" && l.origemTipo !== "MANUAL") return false;
+    if (classe === "AUTO" && l.origemTipo === "MANUAL") return false;
+    if (origemFiltro !== "TODOS" && l.origemTipo !== origemFiltro) return false;
+    if (q && !(l.historico.toLowerCase().includes(q) || (l.numero ?? "").toLowerCase().includes(q))) return false;
+    return true;
+  });
 
   // Destaque do lançamento ao vir do Razão (?focus=<lancamentoId>).
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -83,6 +101,26 @@ export default function LancamentosContabeisPage() {
       <div className="px-8 pb-8 space-y-4">
         {aviso && <div className="rounded-lg border border-info/30 bg-info/10 px-4 py-2.5 text-sm text-info">{aviso}</div>}
 
+        {/* Filtros */}
+        {!loading && lancs.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1">
+              {([["TODOS", "Todos"], ["AUTO", "Automáticos"], ["MANUAL", "Manuais"]] as [typeof classe, string][]).map(([v, label]) => (
+                <button key={v} type="button" onClick={() => setClasse(v)}
+                  className={cn("text-xs px-2.5 py-1 rounded-full border transition-colors", classe === v ? "border-info bg-info/10 text-info font-medium" : "border-border text-muted-foreground hover:bg-muted")}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <select value={origemFiltro} onChange={(e) => setOrigemFiltro(e.target.value)} className="h-8 rounded-lg border border-border px-2 text-xs bg-card">
+              <option value="TODOS">Todas as origens</option>
+              {origensPresentes.map((o) => <option key={o} value={o}>{ORIGEM_LABEL[o] ?? o}</option>)}
+            </select>
+            <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por histórico ou código..." className="h-8 max-w-xs" />
+            <span className="text-xs text-muted-foreground ml-auto">{lancsFiltrados.length} de {lancs.length}</span>
+          </div>
+        )}
+
         {loading ? (
           <p className="text-sm text-muted-foreground py-10 text-center">Carregando...</p>
         ) : lancs.length === 0 ? (
@@ -91,9 +129,11 @@ export default function LancamentosContabeisPage() {
             <p className="font-medium">Nenhum lançamento contábil</p>
             <p className="text-xs mt-1">Use “Gerar retroativos” para lançar a partir dos títulos existentes.</p>
           </div>
+        ) : lancsFiltrados.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-10 text-center">Nenhum lançamento para o filtro.</p>
         ) : (
           <div className="space-y-3">
-            {lancs.map((l) => {
+            {lancsFiltrados.map((l) => {
               const totalD = l.partidas.filter((p) => p.tipo === "DEBITO").reduce((s, p) => s + decimalToNumber(p.valor), 0);
               return (
                 <div key={l.id} id={`lanc-${l.id}`} className={cn("rounded-xl border bg-card overflow-hidden transition-colors", focusId === l.id ? "border-info ring-2 ring-info/50" : "border-border")}>
@@ -102,6 +142,10 @@ export default function LancamentosContabeisPage() {
                     <span className="text-xs text-muted-foreground w-20 shrink-0">{formatDate(l.data)}</span>
                     <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0", ORIGEM_COR[l.origemTipo] ?? "bg-muted text-muted-foreground")}>
                       {ORIGEM_LABEL[l.origemTipo] ?? l.origemTipo}
+                    </span>
+                    <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0", l.origemTipo === "MANUAL" ? "bg-info/15 text-info" : "bg-muted text-muted-foreground")}
+                      title={l.origemTipo === "MANUAL" ? "Lançamento manual" : "Lançamento automático (gerado pelo sistema)"}>
+                      {l.origemTipo === "MANUAL" ? "manual" : "auto"}
                     </span>
                     <span className="text-sm text-foreground truncate flex-1">
                       {l.historico}
