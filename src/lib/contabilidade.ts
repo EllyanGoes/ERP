@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { decimalToNumber, generateDocNumber } from "@/lib/utils";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -271,7 +271,7 @@ export async function contabilizarTituloReceber(crId: string) {
 export async function contabilizarTituloPagar(cpId: string) {
   const cp = await prismaSemEscopo.contaPagar.findUnique({
     where: { id: cpId },
-    select: { id: true, empresaId: true, fornecedorId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true, empresa: { select: { industrializa: true } } },
+    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true, empresa: { select: { industrializa: true } } },
   });
   if (!cp || cp.status === "CANCELADA") return;
 
@@ -321,10 +321,18 @@ export async function contabilizarTituloPagar(cpId: string) {
     const contaDesp = contaNat ?? contaDespesaFb;
     if (!contaDesp) return;
 
-    // Com PASSIVO definido na natureza (ex.: INSS a Recolher): a despesa passa
-    // pelo passivo. Provisão (competência) D Despesa / C Passivo; liquidação
-    // D Passivo / C Caixa. Pagamento direto = as duas na mesma data (Caso 3).
-    if (contaNatContra) {
+    // Beneficiário COLABORADOR: o passivo vai para a conta do colaborador (sob
+    // Salários a Pagar 2.1.6.x), criada na empresa onde ele está presente. Senão,
+    // usa o passivo da natureza.
+    const contaColab = cp.beneficiarioTipo === "COLABORADOR" && cp.beneficiarioId
+      ? await garantirContaColaboradorNaEmpresa(cp.empresaId, cp.beneficiarioId)
+      : null;
+    const contaPassivo = contaColab ?? contaNatContra;
+
+    // Com PASSIVO (colaborador ou natureza): a despesa passa pelo passivo.
+    // Provisão (competência) D Despesa / C Passivo; liquidação D Passivo / C Caixa.
+    // Pagamento direto = as duas na mesma data (Caso 3).
+    if (contaPassivo) {
       const valorComp = decimalToNumber(cp.valorOriginal);
       if (valorComp > 0) {
         await registrarLancamento({
@@ -332,14 +340,14 @@ export async function contabilizarTituloPagar(cpId: string) {
           historico: `Provisão — título ${cp.numero}`, origemTipo: "COMPRA", origemId: cp.id,
           partidas: [
             { contaId: contaDesp.id, tipo: "DEBITO", valor: valorComp },
-            { contaId: contaNatContra.id, tipo: "CREDITO", valor: valorComp },
+            { contaId: contaPassivo.id, tipo: "CREDITO", valor: valorComp },
           ],
         });
       }
       if (pago > 0) {
         const { partidas, total } = await pernasDeBanco(pago);
         if (total > 0 && partidas.length) {
-          partidas.unshift({ contaId: contaNatContra.id, tipo: "DEBITO", valor: total });
+          partidas.unshift({ contaId: contaPassivo.id, tipo: "DEBITO", valor: total });
           await registrarLancamento({
             empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
             historico: `Pagamento — título ${cp.numero}`, origemTipo: "PAGAMENTO", origemId: cp.id,

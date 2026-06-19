@@ -2,7 +2,10 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from "next/server"
 import { requireModulo } from "@/lib/permissions"
+import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa"
+import { sincronizarContasColaborador } from "@/lib/conta-contabil"
 import { z } from "zod"
 
 const schema = z.object({
@@ -16,6 +19,7 @@ const schema = z.object({
   dataAdmissao: z.string().optional().nullable(),
   dataDemissao: z.string().optional().nullable(),
   filialIds: z.array(z.string()).optional(),
+  empresaIds: z.array(z.string()).optional(),
   usuarioId: z.string().optional().nullable(),
   ativo: z.boolean().optional(),
   observacoes: z.string().optional().nullable(),
@@ -26,6 +30,12 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search")?.trim() ?? ""
   const filialId = searchParams.get("filialId")
   const ativo = searchParams.get("ativo")
+  // Filtro por empresa: explícita (?empresaId) ou a ativa da sessão (?daEmpresaAtiva=1).
+  let empresaId = searchParams.get("empresaId") || null
+  if (!empresaId && searchParams.get("daEmpresaAtiva") === "1") {
+    const session = await getSession()
+    empresaId = session?.activeEmpresaId ?? EMPRESA_PADRAO_ID
+  }
 
   const colaboradores = await prisma.colaborador.findMany({
     where: {
@@ -41,11 +51,13 @@ export async function GET(req: NextRequest) {
             }
           : {},
         filialId ? { filiais: { some: { id: filialId } } } : {},
+        empresaId ? { empresas: { some: { id: empresaId } } } : {},
         ativo !== null && ativo !== "" ? { ativo: ativo === "true" } : {},
       ],
     },
     include: {
       filiais: true,
+      empresas: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
       usuario: { select: { id: true, nome: true, email: true } },
       setor:   { select: { id: true, nome: true } },
     },
@@ -68,7 +80,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { dataAdmissao, dataDemissao, filialIds, ...rest } = body.data
+    const { dataAdmissao, dataDemissao, filialIds, empresaIds, ...rest } = body.data
     const colaborador = await prisma.colaborador.create({
       data: {
         ...rest,
@@ -76,13 +88,17 @@ export async function POST(req: NextRequest) {
         dataAdmissao: dataAdmissao ? new Date(dataAdmissao) : null,
         dataDemissao: dataDemissao ? new Date(dataDemissao) : null,
         filiais: { connect: filialIds?.map((id) => ({ id })) ?? [] },
+        empresas: { connect: empresaIds?.map((id) => ({ id })) ?? [] },
       },
       include: {
         filiais: true,
+        empresas: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
         usuario: { select: { id: true, nome: true, email: true } },
         setor:   { select: { id: true, nome: true } },
       },
     })
+    // Cria a conta contábil do colaborador (Salários a Pagar) nas empresas onde está presente.
+    if (empresaIds?.length) await sincronizarContasColaborador(colaborador.id, empresaIds).catch(() => {})
     return NextResponse.json(colaborador, { status: 201 })
   } catch (err: unknown) {
     const e = err as { code?: string }

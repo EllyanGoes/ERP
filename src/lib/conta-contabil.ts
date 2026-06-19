@@ -28,6 +28,7 @@ async function criarAnaliticaComRetry(
 // (criadas no seed da migration do módulo Contabilidade).
 const COD_CLIENTES = "1.1.2";
 const COD_FORNECEDORES = "2.1.1";
+const COD_COLABORADORES = "2.1.6"; // Salários a Pagar (analíticas por colaborador)
 
 // Próximo código sequencial sob um pai (empresa ativa / escopo atual). Usado pela
 // API de criação manual de contas.
@@ -49,15 +50,16 @@ function montarProximo(paiCodigo: string, codigos: string[]): string {
 // específica. Cross-empresa: usa prismaSemEscopo com empresaId explícito.
 async function garantirEntidadeEmpresa(
   empresaId: string,
-  tipo: "cliente" | "fornecedor",
+  tipo: "cliente" | "fornecedor" | "colaborador",
   entidadeId: string,
   nome: string,
 ) {
-  const chave = tipo === "cliente" ? { clienteId: entidadeId } : { fornecedorId: entidadeId };
-  // Cliente tem várias analíticas com o mesmo clienteId (1.1.2.x Clientes a
-  // Receber e 1.1.4.x Bens a Entregar, ambas ATIVO; 2.1.2.x Material a Entregar,
-  // PASSIVO) — desambigua pelo CÓDIGO do pai, não pelo grupo.
-  const codPai = tipo === "cliente" ? COD_CLIENTES : COD_FORNECEDORES;
+  const chave = tipo === "cliente" ? { clienteId: entidadeId } : tipo === "fornecedor" ? { fornecedorId: entidadeId } : { colaboradorId: entidadeId };
+  // Cada entidade tem sua analítica sob a sintética-pai própria: cliente em
+  // 1.1.2 (ATIVO), fornecedor em 2.1.1 e colaborador em 2.1.6 Salários a Pagar
+  // (PASSIVO). Desambigua pelo CÓDIGO do pai.
+  const ehAtivo = tipo === "cliente";
+  const codPai = tipo === "cliente" ? COD_CLIENTES : tipo === "fornecedor" ? COD_FORNECEDORES : COD_COLABORADORES;
   const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: codPai } });
   if (!pai) return null; // plano da empresa ainda não semeado
 
@@ -67,12 +69,28 @@ async function garantirEntidadeEmpresa(
       const filhos = await prismaSemEscopo.contaContabil.findMany({ where: { empresaId, paiId: pai.id }, select: { codigo: true } });
       return {
         empresaId, codigo: montarProximo(pai.codigo, filhos.map((f) => f.codigo)), nome,
-        grupo: tipo === "cliente" ? "ATIVO" : "PASSIVO",
-        natureza: tipo === "cliente" ? "DEVEDORA" : "CREDORA",
+        grupo: ehAtivo ? "ATIVO" : "PASSIVO",
+        natureza: ehAtivo ? "DEVEDORA" : "CREDORA",
         tipo: "ANALITICA", nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id, ...chave,
       };
     },
   );
+}
+
+/** Conta analítica de um colaborador (sob Salários a Pagar 2.1.6) numa empresa. */
+export async function contaDoColaborador(empresaId: string, colaboradorId: string) {
+  return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, colaboradorId }, select: { id: true } });
+}
+/** Garante (idempotente) a conta do colaborador numa empresa (2.1.6.x). */
+export async function garantirContaColaboradorNaEmpresa(empresaId: string, colaboradorId: string) {
+  const col = await prismaSemEscopo.colaborador.findUnique({ where: { id: colaboradorId }, select: { nome: true } });
+  return garantirEntidadeEmpresa(empresaId, "colaborador", colaboradorId, col?.nome ?? "Colaborador");
+}
+/** Cria a conta do colaborador SÓ nas empresas onde ele está presente. Best-effort. */
+export async function sincronizarContasColaborador(colaboradorId: string, empresaIds: string[]) {
+  for (const empresaId of empresaIds) {
+    await garantirContaColaboradorNaEmpresa(empresaId, colaboradorId).catch(() => null);
+  }
 }
 
 /**

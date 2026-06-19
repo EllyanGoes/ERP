@@ -3,9 +3,11 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { sincronizarContasColaborador } from "@/lib/conta-contabil";
 
 const include = {
   filiais: true,
+  empresas: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
   usuario: { select: { id: true, nome: true, email: true } },
   setor:   { select: { id: true, nome: true } },
 } as const;
@@ -41,19 +43,23 @@ export async function PATCH(
 
   try {
     const body = await req.json();
-    const { dataAdmissao, dataDemissao, filialIds, ...rest } = body;
+    const { dataAdmissao, dataDemissao, filialIds, empresaIds, ...rest } = body;
 
     const data: Record<string, unknown> = { ...rest };
     if (dataAdmissao !== undefined) data.dataAdmissao = dataAdmissao ? new Date(dataAdmissao) : null;
     if (dataDemissao !== undefined) data.dataDemissao = dataDemissao ? new Date(dataDemissao) : null;
     if (rest.cpf !== undefined) data.cpf = rest.cpf?.trim() || null;
     if (filialIds !== undefined) data.filiais = { set: (filialIds as string[]).map((id: string) => ({ id })) };
+    if (empresaIds !== undefined) data.empresas = { set: (empresaIds as string[]).map((id: string) => ({ id })) };
 
     const colaborador = await prisma.colaborador.update({
       where: { id: params.id },
       data,
       include,
     });
+
+    // Garante a conta contábil do colaborador nas empresas onde está presente.
+    if (Array.isArray(empresaIds) && empresaIds.length) await sincronizarContasColaborador(colaborador.id, empresaIds).catch(() => {});
 
     return NextResponse.json(colaborador);
   } catch (err: unknown) {

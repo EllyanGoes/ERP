@@ -15,6 +15,7 @@ import { useCreateFlow } from "@/components/shared/useCreateFlow";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Filial    = { id: string; razaoSocial: string; nomeFantasia: string | null };
+type Empresa   = { id: string; razaoSocial: string; nomeFantasia: string | null };
 type Usuario   = { id: string; nome: string; email: string };
 type SetorOpt  = { id: string; nome: string; ativo: boolean };
 
@@ -39,6 +40,7 @@ function Field({ label, required, hint, children }: {
 
 export default function NovoColaboradorPage() {
   const [filiais,   setFiliais]   = useState<Filial[]>([]);
+  const [empresas,  setEmpresas]  = useState<Empresa[]>([]);
   const [usuarios,  setUsuarios]  = useState<Usuario[]>([]);
   const [setores,   setSetores]   = useState<SetorOpt[]>([]);
 
@@ -51,6 +53,7 @@ export default function NovoColaboradorPage() {
   const [setorId,      setSetorId]      = useState("");
   const [dataAdmissao, setDataAdmissao] = useState("");
   const [filialIds,    setFilialIds]    = useState<string[]>([]);
+  const [empresaIds,   setEmpresaIds]   = useState<string[]>([]);
   const [usuarioId,    setUsuarioId]    = useState("");
   const [ativo,        setAtivo]        = useState(true);
   const [observacoes,  setObservacoes]  = useState("");
@@ -62,7 +65,7 @@ export default function NovoColaboradorPage() {
     entity: "colaborador",
     onNew: () => {
       setNome(""); setCpf(""); setRg(""); setEmail(""); setTelefone(""); setCargo("");
-      setSetorId(""); setDataAdmissao(""); setFilialIds([]); setUsuarioId("");
+      setSetorId(""); setDataAdmissao(""); setFilialIds([]); setEmpresaIds([]); setUsuarioId("");
       setAtivo(true); setObservacoes(""); setError("");
     },
     viewHref: (id) => `/empresa/colaboradores/${id}`,
@@ -81,6 +84,9 @@ export default function NovoColaboradorPage() {
     fetch("/api/empresa/setores")
       .then((r) => r.json())
       .then((j) => setSetores(Array.isArray(j) ? j : []));
+    fetch("/api/empresas")
+      .then((r) => r.json())
+      .then((j) => setEmpresas(Array.isArray(j) ? j : (j.data ?? [])));
   }, []);
 
   async function handleSave() {
@@ -101,6 +107,7 @@ export default function NovoColaboradorPage() {
           setorId:      setorId       || null,
           dataAdmissao: dataAdmissao || null,
           filialIds,
+          empresaIds,
           usuarioId:    usuarioId    || null,
           ativo,
           observacoes:  observacoes.trim() || null,
@@ -245,6 +252,25 @@ export default function NovoColaboradorPage() {
                     </label>
                   ))}
                 </div>
+              </Field>
+              <Field label="Empresas">
+                <div className="space-y-1.5 max-h-40 overflow-y-auto border border-border rounded-lg p-2">
+                  {empresas.length === 0 && (
+                    <p className="text-xs text-muted-foreground px-1">Nenhuma empresa</p>
+                  )}
+                  {empresas.map((e) => (
+                    <label key={e.id} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer hover:bg-muted rounded">
+                      <input
+                        type="checkbox"
+                        checked={empresaIds.includes(e.id)}
+                        onChange={(ev) => setEmpresaIds((prev) => ev.target.checked ? [...prev, e.id] : prev.filter((x) => x !== e.id))}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{e.nomeFantasia || e.razaoSocial}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">Define em quais empresas o colaborador aparece nos lançamentos e onde a conta dele (Salários a Pagar) é criada.</p>
               </Field>
             </div>
 

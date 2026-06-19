@@ -103,7 +103,7 @@ export default function LancamentoForm({
     };
     fetch("/api/clientes?limit=1000").then((r) => r.json()).then((j) => setClientes(norm(j))).catch(() => {});
     fetch("/api/suprimentos/fornecedores?ativo=1").then((r) => r.json()).then((j) => setFornecedores(norm(j))).catch(() => {});
-    fetch("/api/empresa/colaboradores").then((r) => r.json()).then((j) => setColaboradores(norm(j))).catch(() => {});
+    fetch("/api/empresa/colaboradores?ativo=true&daEmpresaAtiva=1").then((r) => r.json()).then((j) => setColaboradores(norm(j))).catch(() => {});
   }, []);
 
   const valorLinha = (s: string) => { const v = parseDecimal(s); return Number.isFinite(v) ? v : 0; };

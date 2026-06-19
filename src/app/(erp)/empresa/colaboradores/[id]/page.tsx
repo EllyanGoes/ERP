@@ -19,6 +19,7 @@ import {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Filial    = { id: string; razaoSocial: string; nomeFantasia: string | null };
+type Empresa   = { id: string; razaoSocial: string; nomeFantasia: string | null };
 type Usuario   = { id: string; nome: string; email: string };
 type SetorOpt  = { id: string; nome: string; ativo: boolean };
 type EtapaInfo = { id: string; ordem: number; nome: string | null; fluxo: { id: string; nome: string } };
@@ -37,6 +38,7 @@ type Colaborador = {
   dataAdmissao:    string | null;
   dataDemissao:    string | null;
   filiais:         Filial[];
+  empresas:        Empresa[];
   usuarioId:       string | null;
   usuario:         Usuario | null;
   ativo:           boolean;
@@ -100,12 +102,14 @@ export default function ColaboradorDetailPage() {
   const [eDataAdmissao, setEDataAdmissao] = useState("");
   const [eDataDemissao, setEDataDemissao] = useState("");
   const [eFilialIds,    setEFilialIds]    = useState<string[]>([]);
+  const [eEmpresaIds,   setEEmpresaIds]   = useState<string[]>([]);
   const [eUsuarioId,    setEUsuarioId]    = useState("");
   const [eAtivo,        setEAtivo]        = useState(true);
   const [eObservacoes,  setEObservacoes]  = useState("");
 
   // Options
   const [filiais,  setFiliais]  = useState<Filial[]>([]);
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [setores,  setSetores]  = useState<SetorOpt[]>([]);
 
@@ -145,6 +149,7 @@ export default function ColaboradorDetailPage() {
     setEDataAdmissao(colaborador.dataAdmissao ? colaborador.dataAdmissao.slice(0, 10) : "");
     setEDataDemissao(colaborador.dataDemissao ? colaborador.dataDemissao.slice(0, 10) : "");
     setEFilialIds(colaborador.filiais.map((f) => f.id));
+    setEEmpresaIds((colaborador.empresas ?? []).map((e) => e.id));
     setEUsuarioId(colaborador.usuarioId ?? "");
     setEAtivo(colaborador.ativo);
     setEObservacoes(colaborador.observacoes ?? "");
@@ -161,6 +166,9 @@ export default function ColaboradorDetailPage() {
         const list: Usuario[] = Array.isArray(j) ? j : (j.data ?? []);
         setUsuarios(list);
       });
+    fetch("/api/empresas")
+      .then((r) => r.json())
+      .then((j) => setEmpresas(Array.isArray(j) ? j : (j.data ?? [])));
     fetch("/api/empresa/setores")
       .then((r) => r.json())
       .then((j) => setSetores(Array.isArray(j) ? j : []));
@@ -186,6 +194,7 @@ export default function ColaboradorDetailPage() {
           dataAdmissao: eDataAdmissao || null,
           dataDemissao: eDataDemissao || null,
           filialIds:    eFilialIds,
+          empresaIds:   eEmpresaIds,
           usuarioId:    eUsuarioId   || null,
           ativo:        eAtivo,
           observacoes:  eObservacoes.trim() || null,
@@ -330,6 +339,24 @@ export default function ColaboradorDetailPage() {
                         className="rounded"
                       />
                       <span className="text-sm">{f.nomeFantasia || f.razaoSocial}</span>
+                    </label>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Empresas" hint="Onde o colaborador aparece nos lançamentos e tem conta (Salários a Pagar)">
+                <div className="space-y-1.5 max-h-40 overflow-y-auto border border-border rounded-lg p-2">
+                  {empresas.length === 0 && (
+                    <p className="text-xs text-muted-foreground px-1">Nenhuma empresa</p>
+                  )}
+                  {empresas.map((e) => (
+                    <label key={e.id} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer hover:bg-muted rounded">
+                      <input
+                        type="checkbox"
+                        checked={eEmpresaIds.includes(e.id)}
+                        onChange={(ev) => setEEmpresaIds((prev) => ev.target.checked ? [...prev, e.id] : prev.filter((x) => x !== e.id))}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{e.nomeFantasia || e.razaoSocial}</span>
                     </label>
                   ))}
                 </div>

@@ -143,6 +143,10 @@ model Colaborador {
   etapasAprovacao            AprovacaoEtapa[]
   usuario                    Usuario?             @relation(fields: [usuarioId], references: [id])
   filiais                    Filial[]
+  // Empresas em que o colaborador está presente — define onde ele aparece nos
+  // lançamentos e onde a conta contábil dele (Salários a Pagar) é criada.
+  empresas                   Empresa[]            @relation("ColaboradorEmpresas")
+  contasContabeis            ContaContabil[]
   setor                      Setor?               @relation(fields: [setorId], references: [id])
   solicitacoesCompra         NecessidadeCompra[]
   requisicoesComoSolicitante RequisicaoMaterial[] @relation("RM_Solicitante")
@@ -517,6 +521,7 @@ model ContaContabil {
   paiId            String?
   clienteId        String? // analítica vinculada a um cliente (uma por empresa)
   fornecedorId     String? // analítica vinculada a um fornecedor (uma por empresa)
+  colaboradorId    String? // analítica vinculada a um colaborador (Salários a Pagar, uma por empresa)
   naturezaFinanceiraId String? // analítica de resultado vinculada a uma natureza
   localEstoqueId   String? // analítica de estoque vinculada a um local
   contaBancariaId  String? // analítica de disponibilidade vinculada a uma conta bancária
@@ -530,6 +535,7 @@ model ContaContabil {
   filhos           ContaContabil[]   @relation("ContaArvore")
   cliente          Cliente?          @relation(fields: [clienteId], references: [id])
   fornecedor       Fornecedor?       @relation(fields: [fornecedorId], references: [id])
+  colaborador      Colaborador?      @relation(fields: [colaboradorId], references: [id])
   naturezaFinanceira NaturezaFinanceira? @relation("NaturezaResultado", fields: [naturezaFinanceiraId], references: [id])
   contrapartidaDeNaturezas NaturezaFinanceira[] @relation("NaturezaContrapartida")
   localEstoque     LocalEstoque?     @relation(fields: [localEstoqueId], references: [id])
@@ -542,6 +548,7 @@ model ContaContabil {
   // Material a Entregar (2.1.2.x), PASSIVO. Uma por conta-pai.
   @@unique([empresaId, paiId, clienteId])
   @@unique([empresaId, fornecedorId])
+  @@unique([empresaId, colaboradorId])
   @@unique([empresaId, naturezaFinanceiraId])
   @@unique([empresaId, localEstoqueId])
   @@unique([empresaId, contaBancariaId])
@@ -860,6 +867,7 @@ model Empresa {
   updatedAt                 DateTime                @updatedAt
   cliente                   Cliente?                @relation(fields: [clienteId], references: [id])
   fornecedor                Fornecedor?             @relation(fields: [fornecedorId], references: [id])
+  colaboradores             Colaborador[]           @relation("ColaboradorEmpresas")
   conferenciaCompras        ConferenciaCompra[]
   conferenciaCompraItems    ConferenciaCompraItem[]
   contaPagars               ContaPagar[]
