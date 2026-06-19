@@ -1,4 +1,5 @@
 import { prismaSemEscopo } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { decimalToNumber, generateDocNumber } from "@/lib/utils";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
@@ -416,9 +417,7 @@ export async function contabilizarVendaPedido(pedidoVendaId: string) {
  * Realinha o contábil de um pedido ao cliente ATUAL após troca de cliente no
  * pedido (regra: o título segue o cliente do pedido). A idempotência de
  * `registrarLancamento` só CRIA — então é preciso apagar os lançamentos por
- * origem antes de regravar, para as partidas pegarem o novo cliente (tanto na
- * conta de Clientes a Receber/Material a Entregar quanto no razão auxiliar).
- * As partidas saem em cascata ao apagar o LancamentoContabil. Best-effort.
+ * origem antes de regravar, para as partidas pegarem o novo cliente. Best-effort.
  */
 export async function recontabilizarClientePedido(pedidoVendaId: string) {
   const pedido = await prismaSemEscopo.pedidoVenda.findUnique({
@@ -427,21 +426,31 @@ export async function recontabilizarClientePedido(pedidoVendaId: string) {
   });
   if (!pedido) return;
   const { empresaId } = pedido;
+  const crIds = pedido.contasReceber.map((c) => c.id);
+  const minutaIds = pedido.minutas.map((m) => m.id);
 
-  // Venda a entregar (origem = pedido)
-  await prismaSemEscopo.lancamentoContabil.deleteMany({ where: { empresaId, origemTipo: "VENDA", origemId: pedidoVendaId } });
-  // Venda avulsa + recebimento (origem = título)
-  for (const cr of pedido.contasReceber) {
-    await prismaSemEscopo.lancamentoContabil.deleteMany({ where: { empresaId, origemTipo: { in: ["VENDA", "RECEBIMENTO"] }, origemId: cr.id } });
-  }
-  // Receita reconhecida na entrega (origem = minuta)
-  for (const m of pedido.minutas) {
-    await prismaSemEscopo.lancamentoContabil.deleteMany({ where: { empresaId, origemTipo: "RECEITA_ENTREGA", origemId: m.id } });
-  }
+  await apagarLancamentosContabeis({ empresaId, origemTipo: "VENDA", origemId: pedidoVendaId }); // venda a entregar (pedido)
+  if (crIds.length) await apagarLancamentosContabeis({ empresaId, origemTipo: { in: ["VENDA", "RECEBIMENTO"] }, origemId: { in: crIds } }); // título
+  if (minutaIds.length) await apagarLancamentosContabeis({ empresaId, origemTipo: "RECEITA_ENTREGA", origemId: { in: minutaIds } }); // entrega
 
   // Regrava tudo a partir do estado atual (cliente novo).
   await contabilizarPedidoVenda(pedidoVendaId).catch(() => null);
   for (const m of pedido.minutas) await contabilizarReceitaMinuta(m.id).catch(() => null);
+}
+
+/**
+ * Apaga lançamentos contábeis E suas PARTIDAS por filtro. PartidaContabil NÃO
+ * tem FK em cascata no banco — apagar só o LancamentoContabil deixa partidas
+ * órfãs que corrompem o balanço. Sempre apagar as partidas ANTES. Retorna a
+ * quantidade de lançamentos removidos.
+ */
+export async function apagarLancamentosContabeis(where: Prisma.LancamentoContabilWhereInput): Promise<number> {
+  const lancs = await prismaSemEscopo.lancamentoContabil.findMany({ where, select: { id: true } });
+  if (!lancs.length) return 0;
+  const ids = lancs.map((l) => l.id);
+  await prismaSemEscopo.partidaContabil.deleteMany({ where: { lancamentoId: { in: ids } } });
+  await prismaSemEscopo.lancamentoContabil.deleteMany({ where: { id: { in: ids } } });
+  return ids.length;
 }
 
 /**

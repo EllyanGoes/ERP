@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
-import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntradaEstoque, contabilizarCmvMinuta, contabilizarReceitaMinuta, contabilizarVendaPedido, contabilizarSaldoInicialEstoque } from "@/lib/contabilidade";
+import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntradaEstoque, contabilizarCmvMinuta, contabilizarReceitaMinuta, contabilizarVendaPedido, contabilizarSaldoInicialEstoque, apagarLancamentosContabeis } from "@/lib/contabilidade";
 
 // POST /api/contabilidade/backfill
 // Gera (idempotente) os lançamentos contábeis retroativos a partir dos títulos
@@ -25,15 +25,17 @@ export async function POST(req: Request) {
   }
 
   try {
-  // ?reset=vendas → apaga os lançamentos de venda/entrega/recebimento e os
-  // regrava do zero (necessário ao mudar o modelo: o backlog passou a debitar
-  // "Bens a Entregar" na confirmação e o recebível só nasce com o título). As
-  // partidas saem em cascata. CMV, compras, pagamentos e abertura ficam intactos.
+  // Limpa partidas órfãs (lançamento já apagado, partida ficou) — sem FK em
+  // cascata no banco, deletes antigos podem ter deixado lixo que corrompe o saldo.
+  await prismaSemEscopo.$executeRaw`DELETE FROM "PartidaContabil" p WHERE NOT EXISTS (SELECT 1 FROM "LancamentoContabil" l WHERE l.id = p."lancamentoId")`;
+
+  // ?reset=vendas → apaga os lançamentos de venda/entrega/recebimento (E suas
+  // partidas) e regrava do zero (modelo: backlog em "Bens a Entregar" na
+  // confirmação; recebível só nasce com o título). CMV, compras, pagamentos e
+  // abertura ficam intactos.
   const reset = new URL(req.url).searchParams.get("reset");
   if (reset === "vendas") {
-    await prismaSemEscopo.lancamentoContabil.deleteMany({
-      where: { origemTipo: { in: ["VENDA", "RECEITA_ENTREGA", "RECEBIMENTO"] } },
-    });
+    await apagarLancamentosContabeis({ origemTipo: { in: ["VENDA", "RECEITA_ENTREGA", "RECEBIMENTO"] } });
   }
 
   // 0) Saldo de abertura de estoque por empresa (D Estoque / C Saldos de Abertura)

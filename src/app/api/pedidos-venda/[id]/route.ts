@@ -488,14 +488,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         });
       }
 
-      // 4) CONTÁBIL: apaga os lançamentos gerados pelo pedido, minutas e títulos
-      //    (partidas saem em cascata). Cancelados não são recontabilizados.
-      await tx.lancamentoContabil.deleteMany({ where: { empresaId: ped.empresaId, origemTipo: "VENDA", origemId: ped.id } });
-      if (crIds.length) {
-        await tx.lancamentoContabil.deleteMany({ where: { empresaId: ped.empresaId, origemTipo: { in: ["VENDA", "RECEBIMENTO"] }, origemId: { in: crIds } } });
-      }
-      if (minutaIds.length) {
-        await tx.lancamentoContabil.deleteMany({ where: { empresaId: ped.empresaId, origemTipo: { in: ["RECEITA_ENTREGA", "ESTOQUE_SAIDA"] }, origemId: { in: minutaIds } } });
+      // 4) CONTÁBIL: apaga os lançamentos gerados pelo pedido, minutas e títulos.
+      //    PartidaContabil NÃO cascateia no banco → apaga as partidas ANTES do
+      //    lançamento (senão ficam órfãs corrompendo o balanço). Cancelados não
+      //    são recontabilizados.
+      const lancsCancelar = await tx.lancamentoContabil.findMany({
+        where: {
+          empresaId: ped.empresaId,
+          OR: [
+            { origemTipo: "VENDA", origemId: ped.id },
+            ...(crIds.length ? [{ origemTipo: { in: ["VENDA", "RECEBIMENTO"] as ("VENDA" | "RECEBIMENTO")[] }, origemId: { in: crIds } }] : []),
+            ...(minutaIds.length ? [{ origemTipo: { in: ["RECEITA_ENTREGA", "ESTOQUE_SAIDA"] as ("RECEITA_ENTREGA" | "ESTOQUE_SAIDA")[] }, origemId: { in: minutaIds } }] : []),
+          ],
+        },
+        select: { id: true },
+      });
+      if (lancsCancelar.length) {
+        const lancIds = lancsCancelar.map((l) => l.id);
+        await tx.partidaContabil.deleteMany({ where: { lancamentoId: { in: lancIds } } });
+        await tx.lancamentoContabil.deleteMany({ where: { id: { in: lancIds } } });
       }
 
       // 5) Status do pedido.
