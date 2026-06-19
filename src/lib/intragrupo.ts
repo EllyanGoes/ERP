@@ -122,7 +122,7 @@ export async function espelharContaReceber(contaReceberId: string): Promise<void
       where: { id: contaReceberId },
       include: { empresa: true, espelhoPagar: true },
     });
-    if (!cr || cr.espelhoPagar) return;
+    if (!cr || cr.espelhoPagar || !cr.clienteId) return;
 
     const compradora = await empresaCompradora(cr.clienteId, cr.empresaId);
     if (!compradora) return;

@@ -291,6 +291,11 @@ model ContaPagar {
   empresaId             String                 @default("emp_tramontin")
   numero                String
   fornecedorId          String?
+  // Beneficiário polimórfico do lançamento de SAÍDA: 'FORNECEDOR' | 'COLABORADOR'
+  // | null (encargo sem vínculo, ex.: INSS patronal/FGTS). Não interfere na
+  // contabilização — quem define as contas é a natureza financeira.
+  beneficiarioTipo      String?
+  beneficiarioId        String?
   descricao             String
   categoria             String?
   centroCustoId         String?
@@ -340,8 +345,13 @@ model ContaReceber {
   id                    String                 @id @default(cuid())
   empresaId             String                 @default("emp_tramontin")
   numero                String
-  clienteId             String
+  clienteId             String?
   pedidoVendaId         String?
+  // Beneficiário polimórfico da ENTRADA: 'CLIENTE' | null (receita sem vínculo,
+  // ex.: rendimento de aplicação, devolução de imposto). Não interfere na
+  // contabilização — quem define as contas é a natureza financeira.
+  beneficiarioTipo      String?
+  beneficiarioId        String?
   descricao             String
   centroCustoId         String?
   contaBancariaId       String?
@@ -363,7 +373,7 @@ model ContaReceber {
   observacoes           String?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
-  cliente               Cliente                @relation(fields: [clienteId], references: [id])
+  cliente               Cliente?               @relation(fields: [clienteId], references: [id])
   pedidoVenda           PedidoVenda?           @relation(fields: [pedidoVendaId], references: [id])
   centroCusto           CentroCusto?           @relation(fields: [centroCustoId], references: [id])
   contaBancaria         ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
@@ -457,7 +467,15 @@ model NaturezaFinanceira {
   conferencias  ConferenciaCompra[]
   lancamentos   LancamentoFinanceiro[]
   recorrencias  Recorrencia[]
-  contasContabeis ContaContabil[]
+  // Conta de RESULTADO (receita p/ ENTRADA, despesa p/ SAIDA): vínculo via
+  // ContaContabil.naturezaFinanceiraId (uma conta por natureza).
+  contasContabeis ContaContabil[]    @relation("NaturezaResultado")
+  // Conta de CONTRAPARTIDA patrimonial: ATIVO (a receber) p/ ENTRADA, PASSIVO
+  // (a pagar/obrigação) p/ SAIDA. Debitada/creditada na provisão e revertida na
+  // liquidação — assim a saída/entrada passa pelo ativo/passivo, não direto no
+  // resultado. Definida no cadastro da natureza.
+  contaContrapartidaId String?
+  contaContrapartida   ContaContabil? @relation("NaturezaContrapartida", fields: [contaContrapartidaId], references: [id])
 
   @@index([empresaId])
   @@index([tipo])
@@ -512,7 +530,8 @@ model ContaContabil {
   filhos           ContaContabil[]   @relation("ContaArvore")
   cliente          Cliente?          @relation(fields: [clienteId], references: [id])
   fornecedor       Fornecedor?       @relation(fields: [fornecedorId], references: [id])
-  naturezaFinanceira NaturezaFinanceira? @relation(fields: [naturezaFinanceiraId], references: [id])
+  naturezaFinanceira NaturezaFinanceira? @relation("NaturezaResultado", fields: [naturezaFinanceiraId], references: [id])
+  contrapartidaDeNaturezas NaturezaFinanceira[] @relation("NaturezaContrapartida")
   localEstoque     LocalEstoque?     @relation(fields: [localEstoqueId], references: [id])
   contaBancaria    ContaBancaria?    @relation(fields: [contaBancariaId], references: [id])
   empresa          Empresa           @relation(fields: [empresaId], references: [id])

@@ -73,6 +73,12 @@ export async function contaDoLocal(empresaId: string, localEstoqueId: string) {
 export async function contaDaNatureza(empresaId: string, naturezaFinanceiraId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, naturezaFinanceiraId }, select: { id: true } });
 }
+// Contrapartida patrimonial da natureza: ATIVO (a receber) p/ ENTRADA, PASSIVO
+// (a pagar) p/ SAIDA. Definida no cadastro da natureza (contaContrapartidaId).
+export async function contaContrapartidaDaNatureza(empresaId: string, naturezaFinanceiraId: string) {
+  const nat = await prismaSemEscopo.naturezaFinanceira.findFirst({ where: { id: naturezaFinanceiraId, empresaId }, select: { contaContrapartidaId: true } });
+  return nat?.contaContrapartidaId ? { id: nat.contaContrapartidaId } : null;
+}
 export async function contaDoBanco(empresaId: string, contaBancariaId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, contaBancariaId }, select: { id: true } });
 }
@@ -194,32 +200,40 @@ export async function contabilizarTituloReceber(crId: string) {
   // Caixa/banco do título, ou o "Caixa em Dinheiro" da empresa como padrão —
   // sempre uma analítica sob 1.1.1 (a sintética é só fallback extremo).
   const caixaCbId = cr.contaBancariaId ?? contaCaixaIdDaEmpresa(cr.empresaId);
-  const [contaCli, contaReceitaFb, contaCaixaResolved, conta111, contaBens] = await Promise.all([
-    garantirContaClienteReceber(cr.empresaId, cr.clienteId),
+  const ehPedido = !!cr.pedidoVendaId;
+  const natId = cr.naturezaFinanceiraId;
+  const [contaCli, contaReceitaFb, contaCaixaResolved, conta111, contaBens, contaNatRes, contaNatContra] = await Promise.all([
+    cr.clienteId ? garantirContaClienteReceber(cr.empresaId, cr.clienteId) : Promise.resolve(null),
     garantirContaReceitaFallback(cr.empresaId),
     contaDoBanco(cr.empresaId, caixaCbId),
     contaPorCodigo(cr.empresaId, "1.1.1"),
-    cr.pedidoVendaId ? garantirContaBensEntregarCliente(cr.empresaId, cr.clienteId) : Promise.resolve(null),
+    ehPedido && cr.clienteId ? garantirContaBensEntregarCliente(cr.empresaId, cr.clienteId) : Promise.resolve(null),
+    natId ? contaDaNatureza(cr.empresaId, natId) : Promise.resolve(null),
+    natId ? contaContrapartidaDaNatureza(cr.empresaId, natId) : Promise.resolve(null),
   ]);
-  // Receita de venda unificada numa única conta "Receita de Vendas" (3.1.9002),
-  // independente da natureza do título (decisão: não dividir receita por natureza).
-  const contaReceita = contaReceitaFb;
-  if (!contaCli) return;
+  // Receita: venda de PEDIDO usa a conta unificada de Receita de Vendas; título
+  // AVULSO usa a conta de resultado da NATUREZA (ex.: receita financeira), senão
+  // o fallback.
+  const contaReceita = ehPedido ? contaReceitaFb : (contaNatRes ?? contaReceitaFb);
+  // ATIVO (recebível) — débito da provisão: com cliente é Clientes a Receber;
+  // sem vínculo é a contrapartida ativa da natureza (ex.: Outros a Receber).
+  const contaAtivo = cr.clienteId ? contaCli : contaNatContra;
+  const cli = cr.clienteId ?? undefined;
+  if (!contaAtivo) return;
 
   // O RECEBÍVEL nasce com o TÍTULO (assim Clientes a Receber contábil = financeiro):
   //  - título de PEDIDO: D Clientes a Receber / C Bens a Entregar (converte o
-  //    backlog-ativo da confirmação em recebível; a receita já foi reconhecida na
-  //    entrega via contabilizarReceitaMinuta).
-  //  - título AVULSO (sem pedido): D Clientes a Receber / C Receita (não há backlog).
+  //    backlog-ativo da confirmação em recebível; receita já reconhecida na entrega).
+  //  - título AVULSO: D Ativo (Clientes ou contrapartida da natureza) / C Receita.
   const valor = decimalToNumber(cr.valorOriginal);
-  const contraVenda = cr.pedidoVendaId ? contaBens : contaReceita;
+  const contraVenda = ehPedido ? contaBens : contaReceita;
   if (valor > 0 && contraVenda) {
     await registrarLancamento({
       empresaId: cr.empresaId, data: cr.dataCompetencia ?? cr.createdAt,
       historico: `Venda — Título ${cr.numero}${refPedido}${cliNome ? ` · ${cliNome}` : ""}`, origemTipo: "VENDA", origemId: cr.id,
       partidas: [
-        { contaId: contaCli.id, tipo: "DEBITO", valor, clienteId: cr.clienteId },
-        { contaId: contraVenda.id, tipo: "CREDITO", valor, clienteId: cr.pedidoVendaId ? cr.clienteId : undefined },
+        { contaId: contaAtivo.id, tipo: "DEBITO", valor, clienteId: cli },
+        { contaId: contraVenda.id, tipo: "CREDITO", valor, clienteId: ehPedido ? cli : undefined },
       ],
     });
   }
@@ -244,7 +258,7 @@ export async function contabilizarTituloReceber(crId: string) {
     }
     total = Math.round(total * 100) / 100;
     if (total > 0 && partidas.length) {
-      partidas.push({ contaId: contaCli.id, tipo: "CREDITO", valor: total, clienteId: cr.clienteId });
+      partidas.push({ contaId: contaAtivo.id, tipo: "CREDITO", valor: total, clienteId: cli });
       await registrarLancamento({
         empresaId: cr.empresaId, data: cr.dataPagamento ?? cr.createdAt,
         historico: `Recebimento — Título ${cr.numero}${refPedido}${cliNome ? ` · ${cliNome}` : ""}`, origemTipo: "RECEBIMENTO", origemId: cr.id,
@@ -272,9 +286,10 @@ export async function contabilizarTituloPagar(cpId: string) {
   // Despesa/custo cai na conta da natureza do título; senão na sintética 3.3.
   // Caixa/banco: conta de disponibilidade do banco do título; senão a sintética 1.1.1.
   const caixaCbId = cp.contaBancariaId ?? contaCaixaIdDaEmpresa(cp.empresaId);
-  const [contaForn, contaNat, contaDespesaFb, contaCaixaResolved, conta111] = await Promise.all([
+  const [contaForn, contaNat, contaNatContra, contaDespesaFb, contaCaixaResolved, conta111] = await Promise.all([
     cp.fornecedorId ? contaDoFornecedor(cp.empresaId, cp.fornecedorId) : Promise.resolve(null),
     cp.naturezaFinanceiraId ? contaDaNatureza(cp.empresaId, cp.naturezaFinanceiraId) : Promise.resolve(null),
+    cp.naturezaFinanceiraId ? contaContrapartidaDaNatureza(cp.empresaId, cp.naturezaFinanceiraId) : Promise.resolve(null),
     garantirContaDespesaFallback(cp.empresaId),
     contaDoBanco(cp.empresaId, caixaCbId),
     contaPorCodigo(cp.empresaId, "1.1.1"),
@@ -303,13 +318,43 @@ export async function contabilizarTituloPagar(cpId: string) {
 
   const pago = decimalToNumber(cp.valorPago);
 
-  // Despesa avulsa SEM fornecedor (vale, combustível, material…) paga direto:
-  // D Despesa (natureza ou Despesas Gerais) / C Caixa/Banco. Só pagamento de
-  // fato, não intragrupo. Sem fornecedor não há perna de competência (COMPRA).
+  // SAÍDA SEM fornecedor (vale, combustível, encargos como INSS patronal/FGTS…).
   if (!cp.fornecedorId) {
-    if (pago <= 0 || cp.intragrupo) return;
+    if (cp.intragrupo) return;
     const contaDesp = contaNat ?? contaDespesaFb;
     if (!contaDesp) return;
+
+    // Com PASSIVO definido na natureza (ex.: INSS a Recolher): a despesa passa
+    // pelo passivo. Provisão (competência) D Despesa / C Passivo; liquidação
+    // D Passivo / C Caixa. Pagamento direto = as duas na mesma data (Caso 3).
+    if (contaNatContra) {
+      const valorComp = decimalToNumber(cp.valorOriginal);
+      if (valorComp > 0) {
+        await registrarLancamento({
+          empresaId: cp.empresaId, data: cp.dataCompetencia ?? cp.createdAt,
+          historico: `Provisão — título ${cp.numero}`, origemTipo: "COMPRA", origemId: cp.id,
+          partidas: [
+            { contaId: contaDesp.id, tipo: "DEBITO", valor: valorComp },
+            { contaId: contaNatContra.id, tipo: "CREDITO", valor: valorComp },
+          ],
+        });
+      }
+      if (pago > 0) {
+        const { partidas, total } = await pernasDeBanco(pago);
+        if (total > 0 && partidas.length) {
+          partidas.unshift({ contaId: contaNatContra.id, tipo: "DEBITO", valor: total });
+          await registrarLancamento({
+            empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
+            historico: `Pagamento — título ${cp.numero}`, origemTipo: "PAGAMENTO", origemId: cp.id,
+            partidas,
+          });
+        }
+      }
+      return;
+    }
+
+    // Sem passivo na natureza (compat): pagamento direto D Despesa / C Caixa.
+    if (pago <= 0) return;
     const { partidas, total } = await pernasDeBanco(pago);
     if (total <= 0 || partidas.length === 0) return;
     partidas.unshift({ contaId: contaDesp.id, tipo: "DEBITO", valor: total });
