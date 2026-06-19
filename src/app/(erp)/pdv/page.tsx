@@ -358,16 +358,28 @@ export default function PdvPage() {
             <div className="flex-1 min-h-0 flex flex-col">
               {/* Itens */}
               <div className="px-5 py-3 border-b border-border flex items-center justify-between">
-                <div>
+                <div className="min-w-0">
                   <p className="font-mono text-sm font-bold text-foreground">{pedido.numero}</p>
                   <p className="text-xs text-muted-foreground">{pedido.cliente.nomeFantasia || pedido.cliente.razaoSocial}</p>
-                  {condPagamentoLabel(pedido) && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      <span className="font-medium text-foreground">Cond. pagamento:</span> {condPagamentoLabel(pedido)}
-                    </p>
-                  )}
+                  {/* Informações de pagamento do pedido */}
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    {pedido.necessidadePagamento && (
+                      <span className={cn(
+                        "inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold",
+                        pedido.necessidadePagamento === "A_VISTA" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
+                      )}>
+                        {pedido.necessidadePagamento === "A_VISTA" ? "À vista" : "A prazo"}
+                      </span>
+                    )}
+                    {pedido.condicaoPagamento && pedido.condicaoPagamento.trim() && (
+                      <span><span className="font-medium text-foreground">Condição:</span> {pedido.condicaoPagamento.trim()}</span>
+                    )}
+                    {pedido.formaPagamento && (
+                      <span><span className="font-medium text-foreground">Forma:</span> {pedido.formaPagamento}</span>
+                    )}
+                  </div>
                 </div>
-                <p className="text-3xl font-bold text-foreground tabular-nums">{formatBRL(total)}</p>
+                <p className="text-3xl font-bold text-foreground tabular-nums shrink-0">{formatBRL(total)}</p>
               </div>
               <div className="flex-1 overflow-y-auto px-5 py-2">
                 <table className="w-full text-sm">
