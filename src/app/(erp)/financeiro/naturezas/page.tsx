@@ -260,6 +260,8 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
 
   async function salvar() {
     if (!nome.trim()) { setError("Informe o nome."); return; }
+    if (!contaContabilId) { setError("Selecione a conta de resultado."); return; }
+    if (!contaContrapartidaId) { setError(tipo === "ENTRADA" ? "Selecione a conta a receber (contrapartida)." : "Selecione a conta a pagar (contrapartida)."); return; }
     setSaving(true); setError(null);
     const url = editing ? `/api/financeiro/naturezas/${editing.id}` : "/api/financeiro/naturezas";
     const res = await fetch(url, {
@@ -302,22 +304,22 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Conta de resultado (contábil)</Label>
+            <Label>Conta de resultado (contábil) *</Label>
             <ComboboxWithCreate
               value={contaContabilId}
               onChange={(v) => setContaContabilId(v)}
-              noneLabel="— Automática (por grupo) —"
+              allowNone={false}
               triggerClassName="h-10 rounded-lg"
               options={contasResultado.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))}
             />
-            <p className="text-[11px] text-muted-foreground">Vincula a natureza a uma conta do plano de contas (integração contábil). Em branco usa a conta automática do grupo.</p>
+            <p className="text-[11px] text-muted-foreground">Conta de receita/despesa do plano de contas (creditada/debitada na competência).</p>
           </div>
           <div className="space-y-1.5">
-            <Label>{tipo === "ENTRADA" ? "Conta a receber (contrapartida ativa)" : "Conta a pagar (contrapartida passiva)"}</Label>
+            <Label>{tipo === "ENTRADA" ? "Conta a receber (contrapartida ativa) *" : "Conta a pagar (contrapartida passiva) *"}</Label>
             <ComboboxWithCreate
               value={contaContrapartidaId}
               onChange={(v) => setContaContrapartidaId(v)}
-              noneLabel="— Sem contrapartida —"
+              allowNone={false}
               triggerClassName="h-10 rounded-lg"
               options={contasPatrimoniais
                 .filter((c) => (tipo === "ENTRADA" ? c.grupo === "ATIVO" : c.grupo === "PASSIVO"))

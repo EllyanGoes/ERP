@@ -54,10 +54,14 @@ export default function NaturezaCombobox({
   const [open, setOpen] = useState(false);
   const [busca, setBusca] = useState("");
 
-  // criação inline
+  // criação inline (exige conta de resultado + contrapartida)
   const [criando, setCriando] = useState(false);
   const [novoNome, setNovoNome] = useState("");
   const [novoGrupo, setNovoGrupo] = useState(GRUPO_PADRAO[defaultTipo]);
+  const [novaContaResultado, setNovaContaResultado] = useState("");
+  const [novaContrapartida, setNovaContrapartida] = useState("");
+  const [contasResultado, setContasResultado] = useState<{ id: string; codigo: string; nome: string }[]>([]);
+  const [contasPatrimoniais, setContasPatrimoniais] = useState<{ id: string; codigo: string; nome: string; grupo: string }[]>([]);
   const [salvandoNova, setSalvandoNova] = useState(false);
   const [erroNova, setErroNova] = useState<string | null>(null);
 
@@ -69,22 +73,32 @@ export default function NaturezaCombobox({
 
   function reset() {
     setBusca(""); setCriando(false); setNovoNome(""); setErroNova(null);
-    setNovoGrupo(GRUPO_PADRAO[defaultTipo]);
+    setNovoGrupo(GRUPO_PADRAO[defaultTipo]); setNovaContaResultado(""); setNovaContrapartida("");
   }
   function selecionar(id: string) {
     onChange(id); setOpen(false); reset();
   }
   function abrirCriar() {
-    setNovoNome(busca.trim()); setNovoGrupo(GRUPO_PADRAO[defaultTipo]); setErroNova(null); setCriando(true);
+    setNovoNome(busca.trim()); setNovoGrupo(GRUPO_PADRAO[defaultTipo]); setErroNova(null);
+    setNovaContaResultado(""); setNovaContrapartida(""); setCriando(true);
+    // Carrega as contas do plano (resultado + patrimoniais) p/ os seletores obrigatórios.
+    if (contasResultado.length === 0) {
+      fetch("/api/financeiro/naturezas?comContas=1").then((r) => r.json()).then((j) => {
+        setContasResultado(j.contasResultado ?? []);
+        setContasPatrimoniais(j.contasPatrimoniais ?? []);
+      }).catch(() => {});
+    }
   }
 
   async function salvarNova() {
     if (!novoNome.trim()) { setErroNova("Informe o nome."); return; }
+    if (!novaContaResultado) { setErroNova("Selecione a conta de resultado."); return; }
+    if (!novaContrapartida) { setErroNova(defaultTipo === "ENTRADA" ? "Selecione a conta a receber." : "Selecione a conta a pagar."); return; }
     setSalvandoNova(true); setErroNova(null);
     try {
       const res = await fetch("/api/financeiro/naturezas", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome: novoNome.trim(), tipo: defaultTipo, grupo: novoGrupo }),
+        body: JSON.stringify({ nome: novoNome.trim(), tipo: defaultTipo, grupo: novoGrupo, contaContabilId: novaContaResultado, contaContrapartidaId: novaContrapartida }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setErroNova(j.error ?? "Erro ao criar."); return; }
@@ -139,6 +153,14 @@ export default function NaturezaCombobox({
             />
             <select value={novoGrupo} onChange={(e) => setNovoGrupo(e.target.value)} className="w-full h-9 rounded-lg border border-border px-2 text-sm bg-card">
               {GRUPO_ORDER.map((g) => <option key={g} value={g}>{GRUPO_LABEL[g]}</option>)}
+            </select>
+            <select value={novaContaResultado} onChange={(e) => setNovaContaResultado(e.target.value)} className="w-full h-9 rounded-lg border border-border px-2 text-sm bg-card">
+              <option value="">Conta de resultado (receita/despesa)…</option>
+              {contasResultado.map((c) => <option key={c.id} value={c.id}>{c.codigo} — {c.nome}</option>)}
+            </select>
+            <select value={novaContrapartida} onChange={(e) => setNovaContrapartida(e.target.value)} className="w-full h-9 rounded-lg border border-border px-2 text-sm bg-card">
+              <option value="">{defaultTipo === "ENTRADA" ? "Conta a receber (contrapartida)…" : "Conta a pagar (contrapartida)…"}</option>
+              {contasPatrimoniais.filter((c) => defaultTipo === "ENTRADA" ? c.grupo === "ATIVO" : c.grupo === "PASSIVO").map((c) => <option key={c.id} value={c.id}>{c.codigo} — {c.nome}</option>)}
             </select>
             {erroNova && <p className="text-xs text-rose-500">{erroNova}</p>}
             <div className="flex justify-end gap-2 pt-0.5">
