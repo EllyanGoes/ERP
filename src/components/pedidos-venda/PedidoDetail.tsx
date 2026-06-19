@@ -403,6 +403,20 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
     }
   }
 
+  // Estorna o recebimento de um título: volta para "em aberto" e remove o
+  // lançamento no caixa/banco.
+  async function estornarTitulo(c: PedidoDetailProps["pedido"]["contasReceber"][number]) {
+    if (!confirm(`Estornar o recebimento do título ${c.numero}? Ele volta para "em aberto" e o lançamento no caixa/banco é removido.`)) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/contas-receber/${c.id}/estorno`, { method: "POST" });
+      if (!res.ok) { alert((await res.json().catch(() => ({}))).error ?? "Não foi possível estornar."); return; }
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   // Comodato (saída) form state
   const [comodatoItemId, setComodatoItemId] = useState("");
   const [comodatoQtd, setComodatoQtd] = useState("");
@@ -863,6 +877,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                   {pedido.contasReceber.map((c) => {
                     const saldo = decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago);
                     const podeReceber = c.status !== "PAGA" && c.status !== "CANCELADA";
+                    const podeEstornar = c.status === "PAGA" || c.status === "PARCIAL";
                     return (
                       <tr key={c.id} className="border-b border-gray-50">
                         <td className="py-2.5 font-mono text-xs text-foreground">{c.numero}</td>
@@ -872,12 +887,20 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                         <td className="py-2.5 text-right tabular-nums text-muted-foreground">{formatBRL(decimalToNumber(c.valorPago))}</td>
                         <td className="py-2.5"><StatusBadge status={c.status} /></td>
                         <td className="py-2.5 text-right">
-                          {podeReceber && (
-                            <Button size="sm" variant="outline" onClick={() => abrirReceberTitulo(c)} disabled={loading}
-                              className="h-7 gap-1 border-success/30 text-success hover:bg-success/10">
-                              Receber{saldo > 0 ? ` ${formatBRL(saldo)}` : ""}
-                            </Button>
-                          )}
+                          <div className="flex justify-end gap-1">
+                            {podeReceber && (
+                              <Button size="sm" variant="outline" onClick={() => abrirReceberTitulo(c)} disabled={loading}
+                                className="h-7 gap-1 border-success/30 text-success hover:bg-success/10">
+                                Receber{saldo > 0 ? ` ${formatBRL(saldo)}` : ""}
+                              </Button>
+                            )}
+                            {podeEstornar && (
+                              <Button size="sm" variant="ghost" onClick={() => estornarTitulo(c)} disabled={loading}
+                                className="h-7 gap-1 text-amber-600 hover:text-amber-700">
+                                Estornar
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

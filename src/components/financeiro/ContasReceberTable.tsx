@@ -119,11 +119,31 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
     {
       id: "actions",
       header: "",
-      cell: ({ row }) => row.original.status !== "PAGA" && row.original.status !== "CANCELADA" ? (
-        <Button variant="outline" size="sm" onClick={() => abrir(row.original)}>Receber</Button>
-      ) : null,
+      cell: ({ row }) => {
+        const s = row.original.status;
+        if (s === "PAGA" || s === "PARCIAL") {
+          return (
+            <div className="flex justify-end gap-1">
+              {s === "PARCIAL" && <Button variant="outline" size="sm" onClick={() => abrir(row.original)}>Receber</Button>}
+              <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700" onClick={() => estornar(row.original)}>Estornar</Button>
+            </div>
+          );
+        }
+        return s !== "CANCELADA"
+          ? <Button variant="outline" size="sm" onClick={() => abrir(row.original)}>Receber</Button>
+          : null;
+      },
     },
   ], [contasBanco]);
+
+  // Estorna o recebimento: o título volta para "em aberto" e o lançamento no
+  // caixa/banco é removido.
+  async function estornar(row: ContaRow) {
+    if (!confirm(`Estornar o recebimento do título ${row.numero}? Ele volta para "em aberto" e o lançamento no caixa/banco é removido.`)) return;
+    const res = await fetch(`/api/contas-receber/${row.id}/estorno`, { method: "POST" });
+    if (!res.ok) { alert((await res.json().catch(() => ({}))).error ?? "Não foi possível estornar."); return; }
+    router.refresh();
+  }
 
   async function handlePagamento() {
     if (!selected) return;
