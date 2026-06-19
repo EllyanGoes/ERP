@@ -202,38 +202,35 @@ export async function contabilizarTituloReceber(crId: string) {
   const caixaCbId = cr.contaBancariaId ?? contaCaixaIdDaEmpresa(cr.empresaId);
   const ehPedido = !!cr.pedidoVendaId;
   const natId = cr.naturezaFinanceiraId;
-  const [contaCli, contaReceitaFb, contaCaixaResolved, conta111, contaBens, contaNatRes, contaNatContra] = await Promise.all([
+  const [contaCli, contaReceitaFb, contaCaixaResolved, conta111, contaNatRes, contaNatContra] = await Promise.all([
     cr.clienteId ? garantirContaClienteReceber(cr.empresaId, cr.clienteId) : Promise.resolve(null),
     garantirContaReceitaFallback(cr.empresaId),
     contaDoBanco(cr.empresaId, caixaCbId),
     contaPorCodigo(cr.empresaId, "1.1.1"),
-    ehPedido && cr.clienteId ? garantirContaBensEntregarCliente(cr.empresaId, cr.clienteId) : Promise.resolve(null),
     natId ? contaDaNatureza(cr.empresaId, natId) : Promise.resolve(null),
     natId ? contaContrapartidaDaNatureza(cr.empresaId, natId) : Promise.resolve(null),
   ]);
-  // Receita: venda de PEDIDO usa a conta unificada de Receita de Vendas; título
-  // AVULSO usa a conta de resultado da NATUREZA (ex.: receita financeira), senão
-  // o fallback.
-  const contaReceita = ehPedido ? contaReceitaFb : (contaNatRes ?? contaReceitaFb);
-  // ATIVO (recebível) — débito da provisão: com cliente é Clientes a Receber;
-  // sem vínculo é a contrapartida ativa da natureza (ex.: Outros a Receber).
+  // Receita do título AVULSO: conta de resultado da NATUREZA (ex.: receita
+  // financeira), senão o fallback unificado de Receita de Vendas.
+  const contaReceita = contaNatRes ?? contaReceitaFb;
+  // ATIVO (recebível): com cliente é Clientes a Receber; sem vínculo é a
+  // contrapartida ativa da natureza (ex.: Outros a Receber).
   const contaAtivo = cr.clienteId ? contaCli : contaNatContra;
   const cli = cr.clienteId ?? undefined;
   if (!contaAtivo) return;
 
-  // O RECEBÍVEL nasce com o TÍTULO (assim Clientes a Receber contábil = financeiro):
-  //  - título de PEDIDO: D Clientes a Receber / C Bens a Entregar (converte o
-  //    backlog-ativo da confirmação em recebível; receita já reconhecida na entrega).
-  //  - título AVULSO: D Ativo (Clientes ou contrapartida da natureza) / C Receita.
+  // Venda de PEDIDO: o recebível já nasceu na CONFIRMAÇÃO (D Clientes a Receber /
+  // C Material a Entregar, em contabilizarVendaPedido) e a receita na ENTREGA —
+  // aqui não se repete. Só a venda AVULSA (CR sem pedido) gera a perna VENDA:
+  // D Ativo (Clientes ou contrapartida da natureza) / C Receita.
   const valor = decimalToNumber(cr.valorOriginal);
-  const contraVenda = ehPedido ? contaBens : contaReceita;
-  if (valor > 0 && contraVenda) {
+  if (!ehPedido && valor > 0 && contaReceita) {
     await registrarLancamento({
       empresaId: cr.empresaId, data: cr.dataCompetencia ?? cr.createdAt,
       historico: `Venda — Título ${cr.numero}${refPedido}${cliNome ? ` · ${cliNome}` : ""}`, origemTipo: "VENDA", origemId: cr.id,
       partidas: [
         { contaId: contaAtivo.id, tipo: "DEBITO", valor, clienteId: cli },
-        { contaId: contraVenda.id, tipo: "CREDITO", valor, clienteId: ehPedido ? cli : undefined },
+        { contaId: contaReceita.id, tipo: "CREDITO", valor },
       ],
     });
   }
@@ -438,12 +435,15 @@ export async function contabilizarVendaPedido(pedidoVendaId: string) {
   const valor = decimalToNumber(pedido.valorTotal);
   if (valor <= 0) return;
 
-  const [contaBens, contaMat] = await Promise.all([
-    garantirContaBensEntregarCliente(pedido.empresaId, pedido.clienteId),
+  const [contaCli, contaMat] = await Promise.all([
+    garantirContaClienteReceber(pedido.empresaId, pedido.clienteId),
     garantirContaMaterialEntregarCliente(pedido.empresaId, pedido.clienteId),
   ]);
-  if (!contaBens || !contaMat) return;
+  if (!contaCli || !contaMat) return;
 
+  // Modelo clássico "venda a entregar": na confirmação reconhece o direito a
+  // receber e a obrigação de entregar — D Clientes a Receber / C Material a
+  // Entregar, pelo valor total. Receita só na entrega (contabilizarReceitaMinuta).
   // Histórico no padrão do razão: pedido · cliente · itens (qtd × produto × preço).
   const detalhe = detalheItens(pedido.itens);
   const cli = pedido.cliente?.razaoSocial ?? "";
@@ -452,7 +452,7 @@ export async function contabilizarVendaPedido(pedidoVendaId: string) {
     empresaId: pedido.empresaId, data: pedido.createdAt,
     historico, origemTipo: "VENDA", origemId: pedido.id,
     partidas: [
-      { contaId: contaBens.id, tipo: "DEBITO", valor, clienteId: pedido.clienteId },
+      { contaId: contaCli.id, tipo: "DEBITO", valor, clienteId: pedido.clienteId },
       { contaId: contaMat.id, tipo: "CREDITO", valor, clienteId: pedido.clienteId },
     ],
   });
