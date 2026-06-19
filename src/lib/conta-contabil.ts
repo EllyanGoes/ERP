@@ -1,4 +1,28 @@
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+
+// Cria uma analítica de entidade/conta tolerando CORRIDA (backfill paralelo):
+// se outra execução criar a mesma analítica ou colidir no código sequencial
+// (P2002), re-busca/re-tenta com o próximo código. `refind` localiza a conta da
+// entidade; `build` monta os dados recalculando o código a cada tentativa.
+async function criarAnaliticaComRetry(
+  refind: () => Promise<{ id: string } | null>,
+  build: () => Promise<Prisma.ContaContabilUncheckedCreateInput | null>,
+) {
+  for (let tent = 0; tent < 6; tent++) {
+    const existente = await refind();
+    if (existente) return existente;
+    const data = await build();
+    if (!data) return null;
+    try {
+      return await prismaSemEscopo.contaContabil.create({ data, select: { id: true } });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") continue; // corrida — re-tenta
+      throw e;
+    }
+  }
+  return refind();
+}
 
 // Códigos das contas sintéticas-pai que recebem as analíticas por entidade
 // (criadas no seed da migration do módulo Contabilidade).
@@ -34,29 +58,21 @@ async function garantirEntidadeEmpresa(
   // Receber e 1.1.4.x Bens a Entregar, ambas ATIVO; 2.1.2.x Material a Entregar,
   // PASSIVO) — desambigua pelo CÓDIGO do pai, não pelo grupo.
   const codPai = tipo === "cliente" ? COD_CLIENTES : COD_FORNECEDORES;
-  const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, ...chave, codigo: { startsWith: codPai + "." } } });
-  if (existente) return existente;
-
   const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: codPai } });
   if (!pai) return null; // plano da empresa ainda não semeado
 
-  const filhos = await prismaSemEscopo.contaContabil.findMany({ where: { empresaId, paiId: pai.id }, select: { codigo: true } });
-  const codigo = montarProximo(pai.codigo, filhos.map((f) => f.codigo));
-
-  return prismaSemEscopo.contaContabil.create({
-    data: {
-      empresaId,
-      codigo,
-      nome,
-      grupo: tipo === "cliente" ? "ATIVO" : "PASSIVO",
-      natureza: tipo === "cliente" ? "DEVEDORA" : "CREDORA",
-      tipo: "ANALITICA",
-      nivel: pai.nivel + 1,
-      aceitaLancamento: true,
-      paiId: pai.id,
-      ...chave,
+  return criarAnaliticaComRetry(
+    () => prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, ...chave, codigo: { startsWith: codPai + "." } }, select: { id: true } }),
+    async () => {
+      const filhos = await prismaSemEscopo.contaContabil.findMany({ where: { empresaId, paiId: pai.id }, select: { codigo: true } });
+      return {
+        empresaId, codigo: montarProximo(pai.codigo, filhos.map((f) => f.codigo)), nome,
+        grupo: tipo === "cliente" ? "ATIVO" : "PASSIVO",
+        natureza: tipo === "cliente" ? "DEVEDORA" : "CREDORA",
+        tipo: "ANALITICA", nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id, ...chave,
+      };
     },
-  });
+  );
 }
 
 /**
@@ -393,26 +409,22 @@ export async function garantirContaMaterialEntregar(empresaId: string) {
  * identifica a analítica de Clientes a Receber, em ATIVO). Best-effort.
  */
 export async function garantirContaMaterialEntregarCliente(empresaId: string, clienteId: string) {
-  const existente = await prismaSemEscopo.contaContabil.findFirst({
-    where: { empresaId, grupo: "PASSIVO", clienteId },
-    select: { id: true },
-  });
-  if (existente) return existente;
   const pai = await garantirContaMaterialEntregar(empresaId);
   if (!pai) return null;
-  const cliente = await prismaSemEscopo.cliente.findUnique({ where: { id: clienteId }, select: { razaoSocial: true } });
   const paiFull = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "2.1.2" }, select: { id: true, codigo: true, nivel: true } });
   if (!paiFull) return null;
-  const filhos = await prismaSemEscopo.contaContabil.findMany({ where: { empresaId, paiId: paiFull.id }, select: { codigo: true } });
-  const codigo = montarProximo(paiFull.codigo, filhos.map((f) => f.codigo));
-  return prismaSemEscopo.contaContabil.create({
-    data: {
-      empresaId, codigo, nome: cliente?.razaoSocial ?? "Cliente",
-      grupo: "PASSIVO", natureza: "CREDORA", tipo: "ANALITICA",
-      nivel: paiFull.nivel + 1, aceitaLancamento: true, paiId: paiFull.id, clienteId,
+  return criarAnaliticaComRetry(
+    () => prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, grupo: "PASSIVO", clienteId }, select: { id: true } }),
+    async () => {
+      const cliente = await prismaSemEscopo.cliente.findUnique({ where: { id: clienteId }, select: { razaoSocial: true } });
+      const filhos = await prismaSemEscopo.contaContabil.findMany({ where: { empresaId, paiId: paiFull.id }, select: { codigo: true } });
+      return {
+        empresaId, codigo: montarProximo(paiFull.codigo, filhos.map((f) => f.codigo)), nome: cliente?.razaoSocial ?? "Cliente",
+        grupo: "PASSIVO", natureza: "CREDORA", tipo: "ANALITICA",
+        nivel: paiFull.nivel + 1, aceitaLancamento: true, paiId: paiFull.id, clienteId,
+      };
     },
-    select: { id: true },
-  });
+  );
 }
 
 /** Garante (idempotente) a conta analítica de Clientes a Receber de um cliente (1.1.2.x, ATIVO). */
