@@ -171,7 +171,7 @@ export default function NaturezaCombobox({
             )}
 
             {/* Lista agrupada */}
-            <div className="max-h-64 overflow-y-auto py-1">
+            <div className="max-h-64 overflow-y-auto pb-1">
               {filtradas.length === 0 ? (
                 <p className="px-3 py-6 text-xs text-muted-foreground text-center">
                   {busca ? "Nenhuma natureza encontrada" : "Nenhuma natureza cadastrada"}
@@ -179,7 +179,7 @@ export default function NaturezaCombobox({
               ) : (
                 gruposPresentes.map((g) => (
                   <div key={g}>
-                    <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted/70">
+                    <div className="sticky top-0 z-10 px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted border-b border-border">
                       {GRUPO_LABEL[g] ?? g}
                     </div>
                     {filtradas.filter((n) => n.grupo === g).map((n) => (
