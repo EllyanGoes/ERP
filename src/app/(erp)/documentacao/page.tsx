@@ -93,6 +93,16 @@ export default function DocumentacaoPage() {
               <h3 className="text-base font-semibold text-foreground">{p.titulo}</h3>
               <p className="text-sm text-muted-foreground leading-relaxed max-w-3xl mt-1 mb-3">{p.texto}</p>
               <ProcessoDiagram grafo={p.grafo} altura={ativo.id === "visao-geral" ? 460 : 360} />
+              {p.detalhes && p.detalhes.length > 0 && (
+                <ul className="mt-3 space-y-1.5 max-w-3xl">
+                  {p.detalhes.map((d, i) => (
+                    <li key={i} className="flex gap-2 text-sm text-muted-foreground leading-relaxed">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                      <span>{d}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           ))}
 

@@ -8,7 +8,7 @@ import { Network, ShoppingCart, Boxes, ClipboardList, Wallet, Factory, Wrench, C
 import type { BpmnGrafo } from "@/components/documentacao/ProcessoDiagram";
 
 export type Tela = { label: string; href: string; descricao: string };
-export type Processo = { titulo: string; texto: string; grafo: BpmnGrafo };
+export type Processo = { titulo: string; texto: string; grafo: BpmnGrafo; detalhes?: string[] };
 export type ModuloDoc = {
   id: string; label: string; icon: LucideIcon; resumo: string;
   telas: Tela[]; processos: Processo[];
@@ -198,6 +198,28 @@ const contabilidadeFluxo: BpmnGrafo = {
   ],
 };
 
+// ── Naturezas financeiras → Contabilidade ─────────────────────────────────────
+const naturezaContabilFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "a",  tipo: "inicio", x: 0,    y: 70,  label: "Entrada/saída de dinheiro" },
+    { id: "b",  tipo: "tarefa", x: 140,  y: 54,  label: "Classificar com a Natureza", sub: "no título ou pedido", cor: "verde" },
+    { id: "n",  tipo: "nota",   x: 150,  y: 160, label: "A natureza traz 2 contas: Resultado (DRE) + Contrapartida (Balanço)" },
+    { id: "g",  tipo: "gateway",x: 380,  y: 58,  label: "Tipo da natureza" },
+    { id: "e1", tipo: "tarefa", x: 500,  y: -40, label: "Provisão (entrada)", sub: "D Ativo a receber / C Receita", cor: "verde" },
+    { id: "e2", tipo: "tarefa", x: 720,  y: -40, label: "Recebimento", sub: "D Caixa/Banco / C Ativo", cor: "verde" },
+    { id: "s1", tipo: "tarefa", x: 500,  y: 130, label: "Provisão (saída)", sub: "D Despesa / C Passivo a pagar", cor: "verde" },
+    { id: "s2", tipo: "tarefa", x: 720,  y: 130, label: "Pagamento", sub: "D Passivo / C Caixa/Banco", cor: "verde" },
+    { id: "z",  tipo: "tarefa", x: 940,  y: 46,  label: "DRE + Balanço", sub: "lançamento automático", cor: "verde" },
+    { id: "f",  tipo: "fim",    x: 1150, y: 62,  label: "Contabilizado" },
+  ],
+  edges: [
+    { from: "a", to: "b" }, { from: "b", to: "n", label: "regra" }, { from: "b", to: "g" },
+    { from: "g", to: "e1", label: "Entrada" }, { from: "e1", to: "e2" }, { from: "e2", to: "z" },
+    { from: "g", to: "s1", label: "Saída" }, { from: "s1", to: "s2" }, { from: "s2", to: "z" },
+    { from: "z", to: "f" },
+  ],
+};
+
 export const MODULOS: ModuloDoc[] = [
   {
     id: "visao-geral", label: "Visão geral", icon: Network,
@@ -254,17 +276,36 @@ export const MODULOS: ModuloDoc[] = [
   },
   {
     id: "financeiro", label: "Financeiro", icon: Wallet,
-    resumo: "Contas a Receber, Contas a Pagar e Caixa. Cada título mostra a conta de contrapartida (onde o dinheiro caiu/sairá) e pode ser filtrado por conta. Uma trava impede que formas eletrônicas (Pix/cartão) sejam lançadas no Caixa em Dinheiro quando há banco cadastrado.",
+    resumo: "Contas a Receber, Contas a Pagar e Caixa. Cada título mostra a conta de contrapartida (onde o dinheiro caiu/sairá) e pode ser filtrado por conta. Uma trava impede que formas eletrônicas (Pix/cartão) sejam lançadas no Caixa em Dinheiro quando há banco cadastrado. As Naturezas Financeiras classificam cada movimento e fazem a ponte automática com a Contabilidade.",
     telas: [
       { label: "Contas a Receber", href: "/contas-receber", descricao: "Receber títulos; coluna e filtro por conta." },
       { label: "Contas a Pagar", href: "/contas-pagar", descricao: "Pagar títulos; conta de contrapartida." },
       { label: "Contas / Caixa", href: "/financeiro/contas", descricao: "Saldos e extrato por conta bancária/caixa." },
+      { label: "Naturezas Financeiras", href: "/financeiro/naturezas", descricao: "Classificação dos movimentos e vínculo com o contábil." },
     ],
-    processos: [{
-      titulo: "Recebimento e baixa",
-      texto: "Vendas e compras geram títulos (a receber/a pagar). Ao baixar, escolhe-se a forma e a conta de destino: dinheiro vai para o Caixa; formas eletrônicas (Pix, cartão) caem na conta bancária — a trava impede o eletrônico de cair no Caixa em Dinheiro. O lançamento move o saldo da conta.",
-      grafo: financeiroFluxo,
-    }],
+    processos: [
+      {
+        titulo: "Recebimento e baixa",
+        texto: "Vendas e compras geram títulos (a receber/a pagar). Ao baixar, escolhe-se a forma e a conta de destino: dinheiro vai para o Caixa; formas eletrônicas (Pix, cartão) caem na conta bancária — a trava impede o eletrônico de cair no Caixa em Dinheiro. O lançamento move o saldo da conta.",
+        grafo: financeiroFluxo,
+      },
+      {
+        titulo: "Naturezas financeiras e o contábil",
+        texto: "A Natureza Financeira é a ponte entre o gerencial (de onde o dinheiro entra/sai, fluxo de caixa) e o contábil (plano de contas, DRE e Balanço). Ao classificar um título com uma natureza, o sistema sabe automaticamente em quais contas contábeis lançar — sem ninguém digitar débito/crédito à mão. Por isso, escolher a natureza certa define de uma vez o relatório gerencial e a contabilidade.",
+        grafo: naturezaContabilFluxo,
+        detalhes: [
+          "Toda natureza tem tipo (Entrada/Saída) e grupo (Receita, Custo, Despesa, Investimento, Financiamento). No cadastro dela ficam duas contas contábeis obrigatórias.",
+          "Conta de RESULTADO (vai para a DRE): Receita para entradas; Despesa/Custo para saídas.",
+          "Conta de CONTRAPARTIDA patrimonial (vai para o Balanço): Ativo a receber para entradas; Passivo a pagar para saídas.",
+          "Entrada — ao gerar o título: D Ativo a receber / C Receita. No recebimento: D Caixa/Banco / C Ativo a receber.",
+          "Saída — ao gerar o título: D Despesa/Custo / C Passivo a pagar. No pagamento: D Passivo a pagar / C Caixa/Banco.",
+          "O Caixa/Banco usa sempre a conta real de cada baixa (a conta onde o dinheiro de fato entrou ou saiu).",
+          "Vendas de pedido: o “a receber” nasce na confirmação e a receita na entrega — o título não duplica isso.",
+          "Intragrupo (ex.: venda à ordem Cimento↔Tramontin) nunca lança caixa automático — é acerto por fora.",
+          "Recado ao financeiro: classificação errada da natureza = DRE e Balanço errados. A natureza é o tradutor entre a linguagem do financeiro e a do contador.",
+        ],
+      },
+    ],
   },
   {
     id: "producao", label: "Produção (PCP)", icon: Factory,
