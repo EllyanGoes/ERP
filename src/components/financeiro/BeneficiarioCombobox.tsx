@@ -103,7 +103,7 @@ export default function BeneficiarioCombobox({
           {tipo === null && value === "" && <Check className="w-3.5 h-3.5 ml-auto shrink-0" />}
         </button>
 
-        <div className="max-h-64 overflow-y-auto py-1">
+        <div className="max-h-64 overflow-y-auto pb-1">
           {(() => {
             const qDig = soDigitos(q);
             const casa = (i: BenOpt) => i.nome.toLowerCase().includes(q) || (qDig.length > 0 && soDigitos(i.doc ?? "").includes(qDig));
