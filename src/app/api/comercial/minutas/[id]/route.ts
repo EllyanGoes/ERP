@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { minutaItensSchema } from "@/lib/validations/minuta";
@@ -53,17 +54,23 @@ const MINUTA_INCLUDE = {
 } as const;
 
 // ── Auto-conclusão do PedidoVenda ────────────────────────────────────────────
-// Chamada após uma Minuta ser marcada como ENTREGUE.
-// Se TODOS os itens do pedido tiverem saldo zero (qty pedida ≤ qty entregue em minutas ENTREGUE),
-// e o pedido estiver em CONFIRMADO, EM_AGENDAMENTO (ou qualquer status não-final),
-// o status do PedidoVenda é atualizado para CONCLUIDO automaticamente.
-async function checkAndConcludePedido(pedidoVendaId: string) {
+// Reavalia a conclusão do pedido a partir das minutas ENTREGUE. É BIDIRECIONAL:
+//  • se TODOS os itens têm saldo zero (pedido ≤ entregue) → CONCLUIDO;
+//  • se NÃO está mais tudo entregue e o pedido estava CONCLUIDO (conclusão
+//    automática) → reverte para EM_AGENDAMENTO (ainda há saldo a entregar).
+// Sempre recomputa statusEntrega/statusFinanceiro. Aceita tx ou prisma global —
+// chamar quando uma minuta é entregue, EDITADA ou EXCLUÍDA (o saldo muda).
+async function checkAndConcludePedido(
+  client: Prisma.TransactionClient | typeof prisma,
+  pedidoVendaId: string,
+) {
   try {
-    const pedido = await prisma.pedidoVenda.findUnique({
+    const pedido = await client.pedidoVenda.findUnique({
       where: { id: pedidoVendaId },
       select: {
         id: true,
         status: true,
+        estoqueOrigemEmpresaId: true,
         itens: {
           select: {
             id: true,
@@ -78,33 +85,31 @@ async function checkAndConcludePedido(pedidoVendaId: string) {
     });
 
     if (!pedido) return;
-    // Só conclui se ainda não está num status final
-    if (pedido.status === "CONCLUIDO" || pedido.status === "CANCELADO" || pedido.status === "ORCAMENTO") return;
+    // Cancelado/orçamento não mexem; venda à ordem conclui pela compra virtual.
+    if (pedido.status === "CANCELADO" || pedido.status === "ORCAMENTO") return;
+    if (pedido.estoqueOrigemEmpresaId) { await recomputarStatusPedido(client, pedidoVendaId); return; }
 
-    // Verifica se todos os itens foram totalmente entregues
-    const todosEntregues = pedido.itens.every((item) => {
+    const todosEntregues = pedido.itens.length > 0 && pedido.itens.every((item) => {
       const qtdPedida   = parseFloat(item.quantidade.toString());
-      const qtdEntregue = item.minutaItens.reduce(
-        (sum, mi) => sum + parseFloat(mi.quantidade.toString()), 0
-      );
+      const qtdEntregue = item.minutaItens.reduce((sum, mi) => sum + parseFloat(mi.quantidade.toString()), 0);
       return qtdEntregue >= qtdPedida;
     });
 
-    if (todosEntregues && pedido.itens.length > 0) {
-      // Conclusão automática carimba a data de hoje (Brasília) como conclusão.
-      const hojeSP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-      const hoje = new Date(`${hojeSP}T00:00:00.000Z`);
-      await prisma.pedidoVenda.update({
-        where: { id: pedidoVendaId },
-        data:  { status: "CONCLUIDO", dataConclusao: hoje },
-      });
-      console.log(`[Minutas] PedidoVenda ${pedidoVendaId} concluído automaticamente.`);
+    if (todosEntregues) {
+      if (pedido.status !== "CONCLUIDO") {
+        const hojeSP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+        const hoje = new Date(`${hojeSP}T00:00:00.000Z`);
+        await client.pedidoVenda.update({ where: { id: pedidoVendaId }, data: { status: "CONCLUIDO", dataConclusao: hoje } });
+        console.log(`[Minutas] PedidoVenda ${pedidoVendaId} concluído automaticamente.`);
+      }
+    } else if (pedido.status === "CONCLUIDO") {
+      // Reverte a conclusão automática: editaram/excluíram minuta e há saldo a entregar.
+      await client.pedidoVenda.update({ where: { id: pedidoVendaId }, data: { status: "EM_AGENDAMENTO", dataConclusao: null } });
+      console.log(`[Minutas] PedidoVenda ${pedidoVendaId} reaberto (não está mais tudo entregue).`);
     }
 
-    // A entrega mudou → recomputa os status (entrega + financeiro) do pedido.
-    // (O contas a receber é gerado na CONFIRMAÇÃO, conforme a condição de
-    // pagamento — não mais na entrega.)
-    await recomputarStatusPedido(prisma, pedidoVendaId);
+    // Recomputa statusEntrega (PENDENTE/PARCIAL/ENTREGUE) e statusFinanceiro.
+    await recomputarStatusPedido(client, pedidoVendaId);
   } catch (err) {
     // Não propaga — a conclusão do pedido é secundária, não deve derrubar o PATCH da minuta
     console.error("[checkAndConcludePedido]", err);
@@ -463,7 +468,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
       // Se a minuta ficou (ou continuou) ENTREGUE, reavalia a conclusão do pedido.
       if (minuta.status === "ENTREGUE" || effectiveStatus === "ENTREGUE") {
-        await checkAndConcludePedido(minuta.pedidoVendaId);
+        await checkAndConcludePedido(prisma, minuta.pedidoVendaId);
         await espelharEntregaMinuta(params.id); // intragrupo: entrada na compradora
         if (entregaAOrdem) await gerarCompraVirtualVendaOrdem(params.id); // venda à ordem: compra virtual + financeiro na empresa da venda
       }
@@ -482,9 +487,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     // ── Auto-conclusão do PedidoVenda quando Minuta vai para ENTREGUE ─────────
     if (newStatus === "ENTREGUE") {
-      await checkAndConcludePedido(minuta.pedidoVendaId);
+      await checkAndConcludePedido(prisma, minuta.pedidoVendaId);
       await espelharEntregaMinuta(params.id); // intragrupo: entrada na compradora
       if (entregaAOrdem) await gerarCompraVirtualVendaOrdem(params.id); // venda à ordem: compra virtual + financeiro na empresa da venda
+    } else if (minuta.status === "ENTREGUE" && newStatus) {
+      // Saiu de ENTREGUE (ex.: cancelada) → o saldo entregue mudou: reavalia o
+      // pedido (pode reverter de Concluído para Em Agendamento).
+      await checkAndConcludePedido(prisma, minuta.pedidoVendaId);
     }
 
     return NextResponse.json({ data: updated });
@@ -560,8 +569,9 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
         await recalcularSaldos(tx, itemId, localId, null);
       }
 
-      // 5) A entrega mudou → recomputa os status do pedido.
-      if (minuta.pedidoVendaId) await recomputarStatusPedido(tx, minuta.pedidoVendaId);
+      // 5) A entrega mudou → reavalia conclusão e recomputa os status do pedido
+      //    (pode reverter de Concluído se a minuta excluída era a que fechava).
+      if (minuta.pedidoVendaId) await checkAndConcludePedido(tx, minuta.pedidoVendaId);
     });
 
     return NextResponse.json({ ok: true });

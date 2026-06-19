@@ -792,12 +792,12 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Entrega</span>
+              <span className="text-muted-foreground">Forma de entrega</span>
               <span className={cn(
                 "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold",
                 pedido.necessidadeEntrega === "RETIRADA" ? "bg-success/15 text-success" : "bg-info/15 text-info",
               )}>
-                {pedido.necessidadeEntrega === "RETIRADA" ? "Retirada" : "Entrega agendada"}
+                {pedido.necessidadeEntrega === "RETIRADA" ? "Cliente retira tudo" : "Minutas manuais"}
               </span>
             </div>
             <div className="flex justify-between"><span className="text-muted-foreground">Vendedor</span><span>{pedido.vendedor?.nome || "—"}</span></div>

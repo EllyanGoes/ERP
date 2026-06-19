@@ -79,13 +79,12 @@ export default function NovoPedidoButton({ onCreated }: { onCreated: () => void 
                 <div className="rounded-xl border border-info/30 bg-info/10 p-4">
                   <div className="flex items-center gap-2 mb-1.5">
                     <CalendarClock className="w-5 h-5 text-info" />
-                    <span className="font-semibold text-foreground">Necessidade de entrega</span>
+                    <span className="font-semibold text-foreground">Forma de entrega</span>
                   </div>
                   <ul className="text-[13px] text-muted-foreground space-y-1 list-disc pl-5">
-                    <li>As duas são feitas por <span className="font-medium">minutas</span> e <span className="font-medium">podem ser parciais</span>; cada minuta marcada como Entregue baixa o estoque.</li>
-                    <li><span className="font-medium text-foreground">Retirada</span>: o cliente retira na loja (minuta de retirada).</li>
-                    <li><span className="font-medium text-foreground">Entrega</span>: levamos ao cliente (minuta de entrega, com motorista/placa).</li>
-                    <li>Quando o cliente leva/recebe tudo de uma vez, use o atalho <span className="font-medium">&quot;Entregar tudo agora&quot;</span> no pedido.</li>
+                    <li><span className="font-medium text-foreground">Cliente retirar tudo</span>: após o pagamento no caixa, o sistema gera uma minuta com a <span className="font-medium">baixa total do estoque</span> e conclui.</li>
+                    <li><span className="font-medium text-foreground">Controle por minutas manuais</span>: após o pagamento, o vendedor cria as <span className="font-medium">minutas manualmente</span> (pode ser parcial) para controlar o saldo a entregar do cliente.</li>
+                    <li>O status fica <span className="font-medium">Pendente/Parcial</span> enquanto houver saldo a entregar e volta automaticamente se uma minuta for editada.</li>
                   </ul>
                 </div>
 

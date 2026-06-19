@@ -1050,19 +1050,19 @@ export default function PedidoForm({
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Entrega</Label>
+              <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Forma de entrega</Label>
               <select
                 value={necessidadeEntrega}
                 onChange={(e) => setNecessidadeEntrega(e.target.value as "RETIRADA" | "ENTREGA")}
                 className="h-10 w-full rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
               >
-                <option value="RETIRADA">Retirada — cliente retira na loja</option>
-                <option value="ENTREGA">Entrega — levamos ao cliente</option>
+                <option value="RETIRADA">Cliente retirar tudo</option>
+                <option value="ENTREGA">Controle por minutas manuais</option>
               </select>
               <p className="text-[11px] text-muted-foreground">
                 {necessidadeEntrega === "RETIRADA"
-                  ? "Saída por minuta(s) de retirada — pode ser parcial."
-                  : "Entrega por minuta(s) — pode ser parcial."}
+                  ? "Após o pagamento, gera uma minuta com a baixa total do estoque."
+                  : "Após o pagamento, o vendedor cria as minutas manualmente (controla o saldo a entregar do cliente)."}
               </p>
             </div>
           </div>

@@ -29,11 +29,14 @@ export async function GET(req: NextRequest) {
       } : {},
       status ? { status } : {},
       // Fila do PDV (caixa): pedidos abertos, sem minutas ativas (quem já tem
-      // minuta segue o fluxo de entrega) e fora do intragrupo.
+      // minuta segue o fluxo de entrega), fora do intragrupo e ainda NÃO
+      // recebidos — um pedido "minutas manuais"/à ordem fica CONFIRMADO após
+      // pagar, então excluímos quem já tem conta a receber PAGA p/ não reaparecer.
       pdv ? {
         status: { in: ["ORCAMENTO", "CONFIRMADO"] },
         intragrupo: false,
         minutas: { none: { status: { not: "CANCELADA" } } },
+        contasReceber: { none: { status: "PAGA" } },
       } : {},
     ],
   };

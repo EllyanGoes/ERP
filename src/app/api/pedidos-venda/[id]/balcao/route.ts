@@ -85,6 +85,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     origemEfetiva = origemBody;
   }
   const triangular = !!origemEfetiva;
+  // "Controle por minutas manuais": o caixa só RECEBE — não baixa estoque nem
+  // cria minuta; o vendedor cria as minutas depois (controla o saldo a entregar).
+  // "Cliente retirar tudo" (RETIRADA) segue baixando tudo na hora.
+  const entregaManual = !triangular && pedido.necessidadeEntrega === "ENTREGA";
+  // Sem baixa imediata no caixa (à ordem usa a origem; manual usa minutas depois).
+  const semBaixa = triangular || entregaManual;
 
   if (pedido.minutas.length > 0) {
     return NextResponse.json({ error: "Este pedido já possui minutas — conclua pelo fluxo de entrega." }, { status: 422 });
@@ -237,11 +243,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         // data confirmada pelo caixa prevalece sobre a previsão do pedido; a
         // forma de pagamento confirmada fica carimbada no pedido (e no cupom)
         data: {
-          // À ordem: o caixa só RECEBE; a venda fica CONFIRMADA (expedição
-          // pendente na origem). Venda normal conclui na hora.
-          status: triangular ? "CONFIRMADO" : "CONCLUIDO",
+          // À ordem e "minutas manuais": o caixa só RECEBE; a venda fica
+          // CONFIRMADA (à ordem: expedição na origem; manual: minutas depois).
+          // "Cliente retirar tudo" conclui na hora.
+          status: semBaixa ? "CONFIRMADO" : "CONCLUIDO",
           dataEntrega: dataRecebimento ? hoje : (pedido.dataEntrega ?? hoje),
-          ...(triangular ? {} : { dataConclusao: hoje }),
+          ...(semBaixa ? {} : { dataConclusao: hoje }),
           ...(formasResumo ? { formaPagamento: formasResumo } : {}),
           // À ordem marcada no caixa: grava a origem (e preço de transferência)
           // p/ o pedido de entrega ser criado na origem (espelharEntregaTriangular).
@@ -254,9 +261,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         throw new Error("CONFLITO: o pedido já foi concluído por outra operação — recarregue a página.");
       }
 
-      // À ordem: NÃO cria minuta na empresa da venda (a entrega/baixa é no pedido
-      // de entrega da origem). Venda normal: minuta de RETIRADA já ENTREGUE.
-      const minuta = triangular ? null : await tx.minuta.create({
+      // Sem baixa imediata (à ordem ou minutas manuais): não cria minuta aqui.
+      // "Cliente retirar tudo": minuta de RETIRADA já ENTREGUE com baixa total.
+      const minuta = semBaixa ? null : await tx.minuta.create({
         data: {
           numero: numeroMin,
           empresaId: pedido.empresaId,
@@ -276,9 +283,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         },
       });
 
-      // Venda à ordem: pula a baixa normal — os movimentos virtuais são gerados
-      // após o commit (gerarMovimentosTriangulares).
-      if (!triangular) {
+      // Pula a baixa normal quando à ordem (movimentos virtuais pós-commit) ou
+      // "minutas manuais" (a baixa virá nas minutas criadas depois).
+      if (!semBaixa) {
         const lote = await tx.loteMovimentacao.create({
           data: {
             empresaId: pedido.empresaId,
