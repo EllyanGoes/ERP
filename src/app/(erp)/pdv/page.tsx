@@ -28,6 +28,8 @@ type FilaPedido = {
   dataEmissao: string;
   valorTotal: unknown;
   formaPagamento: string | null;
+  condicaoPagamento: string | null;
+  necessidadePagamento?: string | null;
   cliente: { razaoSocial: string; nomeFantasia: string | null };
 };
 
@@ -36,6 +38,8 @@ type PedidoCompleto = {
   numero: string;
   valorTotal: unknown;
   formaPagamento: string | null;
+  condicaoPagamento?: string | null;
+  necessidadePagamento?: string | null;
   pagamentos?: { forma: string; valor: unknown }[];
   estoqueOrigemEmpresa?: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
   cliente: { id: string; razaoSocial: string; nomeFantasia: string | null };
@@ -47,6 +51,15 @@ type PedidoCompleto = {
     item: { codigo: string; descricao: string; unidadeMedida: string | null; unidade: { sigla: string } | null };
   }>;
 };
+
+// Rótulo da condição de pagamento: usa a condição cadastrada; senão cai no
+// "À vista / A prazo" derivado da necessidade de pagamento do pedido.
+function condPagamentoLabel(p: { condicaoPagamento?: string | null; necessidadePagamento?: string | null }): string | null {
+  if (p.condicaoPagamento && p.condicaoPagamento.trim()) return p.condicaoPagamento.trim();
+  if (p.necessidadePagamento === "A_VISTA") return "À vista";
+  if (p.necessidadePagamento === "A_PRAZO") return "A prazo";
+  return null;
+}
 
 function hojeInput() {
   const d = new Date();
@@ -305,6 +318,9 @@ export default function PdvPage() {
                   <span className="text-sm font-bold text-foreground tabular-nums">{formatBRL(decimalToNumber(p.valorTotal))}</span>
                 </div>
                 <p className="text-xs text-muted-foreground truncate mt-0.5">{p.cliente.nomeFantasia || p.cliente.razaoSocial}</p>
+                {condPagamentoLabel(p) && (
+                  <p className="text-[11px] text-muted-foreground/80 truncate mt-0.5">{condPagamentoLabel(p)}</p>
+                )}
               </button>
             ))}
           </div>
@@ -345,6 +361,11 @@ export default function PdvPage() {
                 <div>
                   <p className="font-mono text-sm font-bold text-foreground">{pedido.numero}</p>
                   <p className="text-xs text-muted-foreground">{pedido.cliente.nomeFantasia || pedido.cliente.razaoSocial}</p>
+                  {condPagamentoLabel(pedido) && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      <span className="font-medium text-foreground">Cond. pagamento:</span> {condPagamentoLabel(pedido)}
+                    </p>
+                  )}
                 </div>
                 <p className="text-3xl font-bold text-foreground tabular-nums">{formatBRL(total)}</p>
               </div>
