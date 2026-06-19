@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
+import BeneficiarioCombobox, { type BenTipo } from "@/components/financeiro/BeneficiarioCombobox";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { formatBRL, parseDecimal } from "@/lib/utils";
 
@@ -48,7 +49,10 @@ export default function LancamentoForm({
   const [tipoSel, setTipoSel] = useState<"receber" | "pagar">(tipo);
   const isReceber = tipoSel === "receber";
   const [status, setStatus] = useState<"AGENDAMENTO" | "PAGAMENTO">("AGENDAMENTO");
-  const [contatoId, setContatoId] = useState("");
+  // Beneficiário polimórfico: CLIENTE (entrada) / FORNECEDOR/COLABORADOR (saída) / null (sem vínculo).
+  const [benTipo, setBenTipo] = useState<BenTipo | null>(tipo === "receber" ? "CLIENTE" : "FORNECEDOR");
+  const [benId, setBenId] = useState("");
+  const [colaboradores, setColaboradores] = useState<Contato[]>([]);
   const [contaBancariaId, setContaBancariaId] = useState(contaFixa?.id ?? "");
   const [descricao, setDescricao] = useState("");
   const [dataPagamento, setDataPagamento] = useState(hojeInput());
@@ -63,12 +67,11 @@ export default function LancamentoForm({
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
-  const listaContatos = tipoSelecionavel ? (isReceber ? clientes : fornecedores) : contatos;
-
   const { confirmCreated, dialog } = useCreateFlow({
     entity: "lançamento", gender: "m",
     onNew: () => {
-      setTipoSel(tipo); setStatus("AGENDAMENTO"); setContatoId("");
+      setTipoSel(tipo); setStatus("AGENDAMENTO");
+      setBenTipo(tipo === "receber" ? "CLIENTE" : "FORNECEDOR"); setBenId("");
       setContaBancariaId(contaFixa?.id ?? ""); setDescricao("");
       setDataPagamento(hojeInput()); setDataVencimento(hojeInput()); setDataCompetencia(hojeInput());
       setLinhas([novaLinha()]); setErro(null);
@@ -91,16 +94,16 @@ export default function LancamentoForm({
       .then((r) => r.json()).then((j) => setNaturezas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
   }, [isReceber]);
 
-  // Modo conta: carrega clientes e fornecedores (o tipo é escolhido aqui).
+  // Carrega clientes, fornecedores e colaboradores p/ o seletor de beneficiário.
   useEffect(() => {
-    if (!tipoSelecionavel) return;
     const norm = (j: unknown): Contato[] => {
       const lista = Array.isArray(j) ? j : ((j as { data?: unknown[] })?.data ?? []);
-      return (lista as { id: string; razaoSocial: string }[]).map((o) => ({ id: o.id, razaoSocial: o.razaoSocial }));
+      return (lista as { id: string; razaoSocial?: string; nome?: string }[]).map((o) => ({ id: o.id, razaoSocial: o.razaoSocial ?? o.nome ?? "" }));
     };
     fetch("/api/clientes?limit=1000").then((r) => r.json()).then((j) => setClientes(norm(j))).catch(() => {});
     fetch("/api/suprimentos/fornecedores?ativo=1").then((r) => r.json()).then((j) => setFornecedores(norm(j))).catch(() => {});
-  }, [tipoSelecionavel]);
+    fetch("/api/empresa/colaboradores").then((r) => r.json()).then((j) => setColaboradores(norm(j))).catch(() => {});
+  }, []);
 
   const valorLinha = (s: string) => { const v = parseDecimal(s); return Number.isFinite(v) ? v : 0; };
   const total = linhas.reduce((s, l) => s + valorLinha(l.valor), 0);
@@ -113,13 +116,14 @@ export default function LancamentoForm({
   // Alterna Entrada/Saída (modo conta): muda as naturezas e o tipo de contato.
   function trocarTipo(novo: "receber" | "pagar") {
     setTipoSel(novo);
-    setContatoId("");
+    setBenTipo(novo === "receber" ? "CLIENTE" : "FORNECEDOR"); setBenId("");
     setLinhas((prev) => prev.map((l) => ({ ...l, naturezaFinanceiraId: "" })));
   }
 
   async function salvar() {
     setErro(null);
-    if (!contatoId) { setErro(isReceber ? "Selecione o cliente." : "Selecione o fornecedor."); return; }
+    // Beneficiário é opcional (sem vínculo p/ encargos/receitas sem cadastro).
+    if (benTipo && !benId) { setErro("Selecione o beneficiário ou marque 'Sem vínculo'."); return; }
     const linhasValidas = linhas.filter((l) => parseDecimal(l.valor) > 0);
     if (linhasValidas.length === 0) { setErro("Informe ao menos uma natureza com valor."); return; }
     if (linhasValidas.some((l) => !l.naturezaFinanceiraId)) { setErro("Selecione a natureza financeira de todas as linhas com valor."); return; }
@@ -131,7 +135,7 @@ export default function LancamentoForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tipo: tipoSel, status,
-          contatoId: contatoId || null,
+          beneficiarioTipo: benTipo, beneficiarioId: benTipo ? (benId || null) : null,
           contaBancariaId: pago ? contaBancariaId : null,
           descricao: descricao.trim() || null,
           dataPagamento: pago ? dataPagamento : null,
@@ -196,14 +200,15 @@ export default function LancamentoForm({
       {/* Nome + Descrição */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">{isReceber ? "Cliente" : "Fornecedor"} <span className="text-red-500">*</span></Label>
-          <ComboboxWithCreate
-            value={contatoId}
-            onChange={setContatoId}
-            options={listaContatos.map((c) => ({ value: c.id, label: c.razaoSocial }))}
-            placeholder={isReceber ? "Selecione o cliente..." : "Selecione o fornecedor..."}
-            createHref={isReceber ? "/clientes/novo" : "/suprimentos/fornecedores/novo"}
-            createLabel={isReceber ? "cliente" : "fornecedor"}
+          <Label className="text-xs text-muted-foreground">Beneficiário <span className="text-muted-foreground">(opcional)</span></Label>
+          <BeneficiarioCombobox
+            modo={tipoSel}
+            tipo={benTipo}
+            value={benId}
+            onChange={(t, id) => { setBenTipo(t); setBenId(id ?? ""); }}
+            clientes={clientes.map((c) => ({ id: c.id, nome: c.razaoSocial }))}
+            fornecedores={fornecedores.map((c) => ({ id: c.id, nome: c.razaoSocial }))}
+            colaboradores={colaboradores.map((c) => ({ id: c.id, nome: c.razaoSocial }))}
           />
         </div>
         <div className="space-y-1">

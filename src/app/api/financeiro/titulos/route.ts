@@ -10,6 +10,8 @@ import { getSession } from "@/lib/auth";
 import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa, contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { generateDocNumber } from "@/lib/utils";
 import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
+import { contabilizarTituloReceber, contabilizarTituloPagar } from "@/lib/contabilidade";
+import { espelharContaReceber } from "@/lib/intragrupo";
 import { z } from "zod";
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -18,6 +20,8 @@ const schema = z.object({
   tipo: z.enum(["receber", "pagar"]),
   status: z.enum(["PAGAMENTO", "AGENDAMENTO"]),
   contatoId: z.string().optional().nullable().transform((v) => v || null),
+  beneficiarioTipo: z.enum(["CLIENTE", "FORNECEDOR", "COLABORADOR"]).optional().nullable(),
+  beneficiarioId: z.string().optional().nullable().transform((v) => v || null),
   contaBancariaId: z.string().optional().nullable().transform((v) => v || null),
   descricao: z.string().optional().nullable(),
   formaPagamento: z.string().optional().nullable(),
@@ -42,7 +46,13 @@ export async function POST(req: NextRequest) {
   const f = parsed.data;
 
   const isReceber = f.tipo === "receber";
-  if (!f.contatoId) return NextResponse.json({ error: isReceber ? "Informe o cliente." : "Informe o fornecedor." }, { status: 400 });
+  // Beneficiário: compat com contatoId antigo. clienteId/fornecedorId (que guiam a
+  // contabilização) só são preenchidos quando o tipo bate; COLABORADOR/sem vínculo
+  // ficam sem cliente/fornecedor (a natureza define as contas).
+  const benTipo = f.beneficiarioTipo ?? (f.contatoId ? (isReceber ? "CLIENTE" : "FORNECEDOR") : null);
+  const benId = f.beneficiarioId ?? f.contatoId ?? null;
+  const clienteId = isReceber && benTipo === "CLIENTE" ? benId : null;
+  const fornecedorId = !isReceber && benTipo === "FORNECEDOR" ? benId : null;
 
   const session = await getSession();
   const empresaId = session?.activeEmpresaId ?? EMPRESA_PADRAO_ID;
@@ -66,7 +76,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const criados = await prisma.$transaction(async (tx) => {
-      const out: string[] = [];
+      const out: { id: string; numero: string }[] = [];
       for (const l of f.linhas) {
         const numero = generateDocNumber(prefixo, await proximaSequenciaDaEmpresa(empresaId, prefixo));
         const descricao = [f.descricao?.trim(), l.detalhamento?.trim()].filter(Boolean).join(" — ") || "Lançamento avulso";
@@ -75,7 +85,7 @@ export async function POST(req: NextRequest) {
         if (isReceber) {
           const cr = await tx.contaReceber.create({
             data: {
-              empresaId, numero, clienteId: f.contatoId!, descricao,
+              empresaId, numero, clienteId, beneficiarioTipo: benTipo, beneficiarioId: benId, descricao,
               valorOriginal: valor, valorPago: pago ? valor : 0,
               dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia,
               status: pago ? "PAGA" : "ABERTA",
@@ -88,11 +98,11 @@ export async function POST(req: NextRequest) {
               data: { empresaId, tipo: "RECEITA", descricao: `Recebimento ${numero}`, valor, dataLancamento: pagamento!, contaReceberId: cr.id, contaBancariaId: contaBancariaId! },
             });
           }
-          out.push(cr.numero);
+          out.push({ id: cr.id, numero: cr.numero });
         } else {
           const cp = await tx.contaPagar.create({
             data: {
-              empresaId, numero, fornecedorId: f.contatoId, descricao,
+              empresaId, numero, fornecedorId, beneficiarioTipo: benTipo, beneficiarioId: benId, descricao,
               valorOriginal: valor, valorPago: pago ? valor : 0,
               dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia,
               status: pago ? "PAGA" : "ABERTA",
@@ -105,13 +115,20 @@ export async function POST(req: NextRequest) {
               data: { empresaId, tipo: "DESPESA", descricao: `Pagamento ${numero}`, valor, dataLancamento: pagamento!, contaPagarId: cp.id, contaBancariaId: contaBancariaId! },
             });
           }
-          out.push(cp.numero);
+          out.push({ id: cp.id, numero: cp.numero });
         }
       }
       return out;
     });
 
-    return NextResponse.json({ data: { numeros: criados, total: criados.length } }, { status: 201 });
+    // Contabiliza cada título (best-effort, pós-commit) — gera as partidas pela
+    // natureza (resultado + contrapartida ativo/passivo).
+    for (const t of criados) {
+      if (isReceber) { await espelharContaReceber(t.id).catch(() => {}); await contabilizarTituloReceber(t.id).catch(() => {}); }
+      else await contabilizarTituloPagar(t.id).catch(() => {});
+    }
+
+    return NextResponse.json({ data: { numeros: criados.map((t) => t.numero), total: criados.length } }, { status: 201 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro ao criar lançamento";
     console.error("[POST /api/financeiro/titulos]", err);
