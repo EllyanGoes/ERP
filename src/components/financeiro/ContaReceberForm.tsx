@@ -14,14 +14,21 @@ import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 
 type ClienteOption = { id: string; razaoSocial: string };
+type NaturezaOption = { id: string; nome: string };
+type BenTipo = "CLIENTE" | "SEM_VINCULO";
 
-export default function ContaReceberForm({ clientes }: { clientes: ClienteOption[] }) {
+export default function ContaReceberForm({ clientes, naturezas }: { clientes: ClienteOption[]; naturezas: NaturezaOption[] }) {
   const voltar = useVoltarCriacao("/contas-receber");
   const form = useForm<ContaReceberFormData>({
     resolver: zodResolver(contaReceberSchema) as Resolver<ContaReceberFormData>,
     defaultValues: { dataVencimento: new Date().toISOString().split("T")[0] },
   });
 
+  // Beneficiário: Cliente / Sem vínculo (rendimento, devolução de imposto). A
+  // natureza define as contas contábeis.
+  const [benTipo, setBenTipo] = useState<BenTipo>("CLIENTE");
+  const [clienteId, setClienteId] = useState("");
+  const [natureza, setNatureza] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
   const [parcelas, setParcelas] = useState("1");
   const [intervaloDias, setIntervaloDias] = useState("30");
@@ -34,11 +41,20 @@ export default function ContaReceberForm({ clientes }: { clientes: ClienteOption
 
   async function onSubmit(data: ContaReceberFormData) {
     setServerError(null);
+    if (!natureza) { setServerError("Selecione a natureza financeira."); return; }
+    if (benTipo === "CLIENTE" && !clienteId) { setServerError("Selecione o cliente."); return; }
+    const payload = {
+      ...data,
+      naturezaFinanceiraId: natureza,
+      clienteId: benTipo === "CLIENTE" ? clienteId : null,
+      beneficiarioTipo: benTipo === "CLIENTE" ? "CLIENTE" : null,
+      beneficiarioId: benTipo === "CLIENTE" ? clienteId : null,
+    };
     try {
       const res = await fetch("/api/contas-receber", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, parcelas: Number(parcelas) || 1, intervaloDias: Number(intervaloDias) || 30 }),
+        body: JSON.stringify({ ...payload, parcelas: Number(parcelas) || 1, intervaloDias: Number(intervaloDias) || 30 }),
       });
       if (res.ok) {
         const json = await res.json();
@@ -58,22 +74,37 @@ export default function ContaReceberForm({ clientes }: { clientes: ClienteOption
         <Card>
           <CardHeader><CardTitle className="text-base">Dados da Conta</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
-            <FormField control={form.control} name="clienteId" render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Cliente *</FormLabel>
+            <FormItem className="col-span-2">
+              <FormLabel>Natureza financeira *</FormLabel>
+              <ComboboxWithCreate
+                options={naturezas.map((n) => ({ value: n.id, label: n.nome }))}
+                value={natureza} onChange={setNatureza} allowNone={false}
+                placeholder="Selecionar natureza..."
+              />
+              <p className="text-[11px] text-muted-foreground">As contas contábeis (receita e a receber) são derivadas automaticamente da natureza.</p>
+            </FormItem>
+
+            <FormItem className="col-span-2">
+              <FormLabel>Beneficiário</FormLabel>
+              <div className="flex gap-2">
+                {([["CLIENTE","Cliente"],["SEM_VINCULO","Sem vínculo"]] as [BenTipo,string][]).map(([v,label]) => (
+                  <button key={v} type="button" onClick={() => { setBenTipo(v); setClienteId(""); }}
+                    className={`flex-1 h-9 rounded-lg border text-xs font-medium transition-colors ${benTipo===v ? "border-info bg-info/10 text-info" : "border-border text-muted-foreground hover:bg-muted"}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {benTipo === "CLIENTE" ? (
                 <ComboboxWithCreate
                   options={clientes.map((c) => ({ value: c.id, label: c.razaoSocial }))}
-                  value={field.value ?? ""}
-                  onChange={field.onChange}
-                  allowNone={false}
+                  value={clienteId} onChange={setClienteId} allowNone={false}
                   placeholder="Selecione o cliente..."
-                  createHref="/clientes/novo"
-                  createParam="razaoSocial"
-                  createLabel="cliente"
+                  createHref="/clientes/novo" createParam="razaoSocial" createLabel="cliente"
                 />
-                <FormMessage />
-              </FormItem>
-            )} />
+              ) : (
+                <p className="text-[11px] text-muted-foreground">Receita sem vínculo cadastral (ex.: rendimento de aplicação, devolução de imposto). A natureza define as contas.</p>
+              )}
+            </FormItem>
             <FormField control={form.control} name="descricao" render={({ field }) => (
               <FormItem className="col-span-2"><FormLabel>Descrição *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
             )} />

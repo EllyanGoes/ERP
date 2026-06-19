@@ -37,7 +37,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const atualizado = await prisma.contaPagar.update({
     where: { id: params.id },
     data: {
-      fornecedorId: d.fornecedorId,
+      fornecedorId: d.fornecedorId || null,
+      beneficiarioTipo: d.beneficiarioTipo ?? null,
+      beneficiarioId: d.beneficiarioId ?? null,
       descricao: d.descricao,
       valorOriginal: d.valorOriginal,
       dataVencimento: new Date(d.dataVencimento),

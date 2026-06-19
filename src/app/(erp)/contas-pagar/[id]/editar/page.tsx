@@ -7,15 +7,19 @@ import { decimalToNumber } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export default async function EditarContaPagarPage({ params }: { params: { id: string } }) {
-  const [conta, fornecedores] = await Promise.all([
+  const [conta, fornecedores, colaboradores, naturezas] = await Promise.all([
     prisma.contaPagar.findUnique({ where: { id: params.id } }),
     prisma.fornecedor.findMany({ where: { ativo: true }, orderBy: { razaoSocial: "asc" }, select: { id: true, razaoSocial: true } }),
+    prisma.colaborador.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+    prisma.naturezaFinanceira.findMany({ where: { ativo: true, tipo: "SAIDA" }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
   ]);
   if (!conta) notFound();
 
   const editing = {
     id: conta.id,
     fornecedorId: conta.fornecedorId ?? "",
+    beneficiarioTipo: (conta.beneficiarioTipo as "FORNECEDOR" | "COLABORADOR" | null) ?? undefined,
+    beneficiarioId: conta.beneficiarioId ?? "",
     descricao: conta.descricao,
     categoria: conta.categoria ?? "",
     valorOriginal: decimalToNumber(conta.valorOriginal),
@@ -35,7 +39,7 @@ export default async function EditarContaPagarPage({ params }: { params: { id: s
         breadcrumbs={[{ label: "Contas a Pagar", href: "/contas-pagar" }, { label: conta.numero }, { label: "Editar" }]}
       />
       <div className="px-8 pb-8 max-w-2xl">
-        <ContaPagarForm fornecedores={fornecedores} editing={editing} />
+        <ContaPagarForm fornecedores={fornecedores} colaboradores={colaboradores} naturezas={naturezas} editing={editing} />
       </div>
     </div>
   );

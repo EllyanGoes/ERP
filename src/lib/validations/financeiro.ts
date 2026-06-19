@@ -1,7 +1,11 @@
 import { z } from "zod"
 
 export const contaReceberSchema = z.object({
-  clienteId: z.string().min(1, "Cliente é obrigatório"),
+  // Cliente é o beneficiário CLIENTE; receita sem vínculo (rendimento, devolução
+  // de imposto) não tem cliente — quem define as contas é a natureza.
+  clienteId: z.string().optional().nullable(),
+  beneficiarioTipo: z.enum(["CLIENTE"]).optional().nullable(),
+  beneficiarioId: z.string().optional().nullable(),
   descricao: z.string().min(2, "Descrição é obrigatória"),
   valorOriginal: z.coerce.number().min(0.01, "Valor inválido"),
   dataVencimento: z.string().min(1, "Data de vencimento é obrigatória"),
@@ -10,10 +14,14 @@ export const contaReceberSchema = z.object({
   naturezaFinanceiraId: z.string().optional().nullable(),
   centroCustoId: z.string().optional().nullable(),
   contaBancariaId: z.string().optional().nullable(),
-})
+}).refine((d) => d.beneficiarioTipo !== "CLIENTE" || !!d.clienteId, { message: "Selecione o cliente", path: ["clienteId"] })
 
 export const contaPagarSchema = z.object({
-  fornecedorId: z.string().min(1, "Fornecedor é obrigatório"),
+  // Beneficiário polimórfico: FORNECEDOR / COLABORADOR / sem vínculo (null, p/
+  // encargos como INSS patronal/FGTS). fornecedorId só quando tipo=FORNECEDOR.
+  fornecedorId: z.string().optional().nullable(),
+  beneficiarioTipo: z.enum(["FORNECEDOR", "COLABORADOR"]).optional().nullable(),
+  beneficiarioId: z.string().optional().nullable(),
   descricao: z.string().min(2, "Descrição é obrigatória"),
   categoria: z.string().optional().nullable(),
   valorOriginal: z.coerce.number().min(0.01, "Valor inválido"),
@@ -24,7 +32,8 @@ export const contaPagarSchema = z.object({
   naturezaFinanceiraId: z.string().optional().nullable(),
   centroCustoId: z.string().optional().nullable(),
   contaBancariaId: z.string().optional().nullable(),
-})
+}).refine((d) => d.beneficiarioTipo !== "FORNECEDOR" || !!d.fornecedorId, { message: "Selecione o fornecedor", path: ["fornecedorId"] })
+  .refine((d) => d.beneficiarioTipo !== "COLABORADOR" || !!d.beneficiarioId, { message: "Selecione o colaborador", path: ["beneficiarioId"] })
 
 export const pagamentoSchema = z.object({
   // valorPago/forma/conta únicos = baixa de 1 forma (compat). Para múltiplas

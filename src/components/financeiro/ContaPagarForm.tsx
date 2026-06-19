@@ -15,10 +15,18 @@ import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 
 type FornecedorOption = { id: string; razaoSocial: string };
+type ColaboradorOption = { id: string; nome: string };
+type NaturezaOption = { id: string; nome: string };
 type ContaPagarEdit = { id: string } & Partial<ContaPagarFormData>;
 const CATEGORIAS = ["Aluguel","Energia","Água","Internet","Folha de Pagamento","Impostos","Fornecedores","Marketing","Outros"];
+type BenTipo = "FORNECEDOR" | "COLABORADOR" | "SEM_VINCULO";
 
-export default function ContaPagarForm({ fornecedores, editing }: { fornecedores: FornecedorOption[]; editing?: ContaPagarEdit }) {
+export default function ContaPagarForm({ fornecedores, colaboradores, naturezas, editing }: {
+  fornecedores: FornecedorOption[];
+  colaboradores: ColaboradorOption[];
+  naturezas: NaturezaOption[];
+  editing?: ContaPagarEdit;
+}) {
   const voltar = useVoltarCriacao("/contas-pagar");
   const router = useRouter();
   const form = useForm<ContaPagarFormData>({
@@ -27,6 +35,14 @@ export default function ContaPagarForm({ fornecedores, editing }: { fornecedores
       ? { ...editing }
       : { dataVencimento: new Date().toISOString().split("T")[0] },
   });
+
+  // Beneficiário: Fornecedor / Colaborador / Sem vínculo (encargos). O vínculo
+  // não decide a contabilização — quem define as contas é a natureza.
+  const tipoInicial: BenTipo = editing?.beneficiarioTipo === "COLABORADOR" ? "COLABORADOR"
+    : (editing?.fornecedorId || editing?.beneficiarioTipo === "FORNECEDOR") ? "FORNECEDOR" : "SEM_VINCULO";
+  const [benTipo, setBenTipo] = useState<BenTipo>(tipoInicial);
+  const [benId, setBenId] = useState<string>(editing?.fornecedorId || editing?.beneficiarioId || "");
+  const [natureza, setNatureza] = useState<string>(editing?.naturezaFinanceiraId ?? "");
 
   const [serverError, setServerError] = useState<string | null>(null);
   const [parcelas, setParcelas] = useState("1");
@@ -40,6 +56,17 @@ export default function ContaPagarForm({ fornecedores, editing }: { fornecedores
 
   async function onSubmit(data: ContaPagarFormData) {
     setServerError(null);
+    if (!natureza) { setServerError("Selecione a natureza financeira."); return; }
+    if (benTipo === "FORNECEDOR" && !benId) { setServerError("Selecione o fornecedor."); return; }
+    if (benTipo === "COLABORADOR" && !benId) { setServerError("Selecione o colaborador."); return; }
+    const payload = {
+      ...data,
+      naturezaFinanceiraId: natureza,
+      fornecedorId: benTipo === "FORNECEDOR" ? benId : null,
+      beneficiarioTipo: benTipo === "SEM_VINCULO" ? null : benTipo,
+      beneficiarioId: benTipo === "SEM_VINCULO" ? null : (benId || null),
+    };
+    data = payload as ContaPagarFormData;
     try {
       if (editing) {
         const res = await fetch(`/api/contas-pagar/${editing.id}`, {
@@ -75,22 +102,47 @@ export default function ContaPagarForm({ fornecedores, editing }: { fornecedores
         <Card>
           <CardHeader><CardTitle className="text-base">Dados da Conta</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
-            <FormField control={form.control} name="fornecedorId" render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Fornecedor *</FormLabel>
+            <FormItem className="col-span-2">
+              <FormLabel>Natureza financeira *</FormLabel>
+              <ComboboxWithCreate
+                options={naturezas.map((n) => ({ value: n.id, label: n.nome }))}
+                value={natureza}
+                onChange={setNatureza}
+                allowNone={false}
+                placeholder="Selecionar natureza..."
+              />
+              <p className="text-[11px] text-muted-foreground">As contas contábeis (despesa e a pagar) são derivadas automaticamente da natureza.</p>
+            </FormItem>
+
+            <FormItem className="col-span-2">
+              <FormLabel>Beneficiário</FormLabel>
+              <div className="flex gap-2">
+                {([["FORNECEDOR","Fornecedor"],["COLABORADOR","Colaborador"],["SEM_VINCULO","Sem vínculo"]] as [BenTipo,string][]).map(([v,label]) => (
+                  <button key={v} type="button" onClick={() => { setBenTipo(v); setBenId(""); }}
+                    className={`flex-1 h-9 rounded-lg border text-xs font-medium transition-colors ${benTipo===v ? "border-info bg-info/10 text-info" : "border-border text-muted-foreground hover:bg-muted"}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {benTipo === "FORNECEDOR" && (
                 <ComboboxWithCreate
                   options={fornecedores.map((f) => ({ value: f.id, label: f.razaoSocial }))}
-                  value={field.value ?? ""}
-                  onChange={field.onChange}
-                  noneLabel="— Nenhum —"
+                  value={benId} onChange={setBenId} allowNone={false}
                   placeholder="Selecionar fornecedor..."
-                  createHref="/suprimentos/fornecedores/novo"
-                  createParam="nome"
-                  createLabel="fornecedor"
+                  createHref="/suprimentos/fornecedores/novo" createParam="nome" createLabel="fornecedor"
                 />
-                <FormMessage />
-              </FormItem>
-            )} />
+              )}
+              {benTipo === "COLABORADOR" && (
+                <ComboboxWithCreate
+                  options={colaboradores.map((c) => ({ value: c.id, label: c.nome }))}
+                  value={benId} onChange={setBenId} allowNone={false}
+                  placeholder="Selecionar colaborador..."
+                />
+              )}
+              {benTipo === "SEM_VINCULO" && (
+                <p className="text-[11px] text-muted-foreground">Encargo sem vínculo cadastral (ex.: INSS patronal, FGTS). A natureza define as contas.</p>
+              )}
+            </FormItem>
             <FormField control={form.control} name="descricao" render={({ field }) => (
               <FormItem className="col-span-2"><FormLabel>Descrição *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
             )} />
