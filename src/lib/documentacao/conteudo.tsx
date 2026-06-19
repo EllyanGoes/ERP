@@ -297,6 +297,8 @@ export const MODULOS: ModuloDoc[] = [
           "Toda natureza tem tipo (Entrada/Saída) e grupo (Receita, Custo, Despesa, Investimento, Financiamento). No cadastro dela ficam duas contas contábeis obrigatórias.",
           "Conta de RESULTADO (vai para a DRE): Receita para entradas; Despesa/Custo para saídas.",
           "Conta de CONTRAPARTIDA patrimonial (vai para o Balanço): Ativo a receber para entradas; Passivo a pagar para saídas.",
+          "Para Clientes a Receber, Fornecedores e Salários a Pagar, escolha a conta SINTÉTICA marcada “(por beneficiário)”: a analítica de cada cliente/fornecedor/colaborador é resolvida automaticamente pelo beneficiário do título — não se cadastra uma natureza por cliente.",
+          "Use uma analítica direta na contrapartida só para títulos SEM beneficiário (ex.: Outros a Receber, INSS/FGTS a Recolher).",
           "Entrada — ao gerar o título: D Ativo a receber / C Receita. No recebimento: D Caixa/Banco / C Ativo a receber.",
           "Saída — ao gerar o título: D Despesa/Custo / C Passivo a pagar. No pagamento: D Passivo a pagar / C Caixa/Banco.",
           "O Caixa/Banco usa sempre a conta real de cada baixa (a conta onde o dinheiro de fato entrou ou saiu).",
