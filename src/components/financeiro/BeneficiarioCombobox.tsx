@@ -6,7 +6,9 @@ import { ChevronDown, Search, Check, Building2, User, Users, Ban } from "lucide-
 import { cn } from "@/lib/utils";
 
 export type BenTipo = "FORNECEDOR" | "COLABORADOR" | "CLIENTE";
-export type BenOpt = { id: string; nome: string };
+export type BenOpt = { id: string; nome: string; doc?: string | null };
+
+const soDigitos = (s: string) => s.replace(/\D/g, "");
 
 // Seletor de BENEFICIÁRIO no mesmo estilo do NaturezaCombobox: busca + lista
 // agrupada por tipo + opção "Sem vínculo". No modo "receber" mostra Clientes;
@@ -28,6 +30,7 @@ export default function BeneficiarioCombobox({
 }) {
   const [open, setOpen] = useState(false);
   const [busca, setBusca] = useState("");
+  const [filtro, setFiltro] = useState<BenTipo | "TODOS">("TODOS");
 
   const grupos: { tipo: BenTipo; label: string; icon: typeof Building2; itens: BenOpt[] }[] =
     modo === "receber"
@@ -43,11 +46,12 @@ export default function BeneficiarioCombobox({
     : null;
 
   function escolher(t: BenTipo | null, id: string | null) {
-    onChange(t, id); setOpen(false); setBusca("");
+    onChange(t, id); setOpen(false); setBusca(""); setFiltro("TODOS");
   }
+  const gruposVisiveis = filtro === "TODOS" ? grupos : grupos.filter((g) => g.tipo === filtro);
 
   return (
-    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setBusca(""); }}>
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setBusca(""); setFiltro("TODOS"); } }}>
       <PopoverTrigger
         render={
           <button
@@ -70,10 +74,25 @@ export default function BeneficiarioCombobox({
           <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           <input
             autoFocus value={busca} onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar beneficiário..."
+            placeholder="Buscar por nome, CNPJ ou CPF..."
             className="flex-1 text-sm outline-none bg-transparent placeholder:text-muted-foreground"
           />
         </div>
+
+        {/* Filtro por tipo (quando há mais de um grupo, ex.: saída) */}
+        {grupos.length > 1 && (
+          <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border">
+            {([["TODOS", "Todos"], ...grupos.map((g) => [g.tipo, g.label] as [BenTipo, string])] as [BenTipo | "TODOS", string][]).map(([v, label]) => (
+              <button
+                key={v} type="button" onClick={() => setFiltro(v)}
+                className={cn("text-xs px-2.5 py-1 rounded-full border transition-colors",
+                  filtro === v ? "border-info bg-info/10 text-info font-medium" : "border-border text-muted-foreground hover:bg-muted")}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Sem vínculo */}
         <button
@@ -85,16 +104,19 @@ export default function BeneficiarioCombobox({
         </button>
 
         <div className="max-h-64 overflow-y-auto py-1">
-          {grupos.every((g) => g.itens.filter((i) => i.nome.toLowerCase().includes(q)).length === 0) ? (
-            <p className="px-3 py-6 text-xs text-muted-foreground text-center">{busca ? "Nenhum beneficiário encontrado" : "Nenhum cadastro"}</p>
-          ) : (
-            grupos.map((g) => {
-              const itens = g.itens.filter((i) => i.nome.toLowerCase().includes(q));
+          {(() => {
+            const qDig = soDigitos(q);
+            const casa = (i: BenOpt) => i.nome.toLowerCase().includes(q) || (qDig.length > 0 && soDigitos(i.doc ?? "").includes(qDig));
+            if (gruposVisiveis.every((g) => g.itens.filter(casa).length === 0)) {
+              return <p className="px-3 py-6 text-xs text-muted-foreground text-center">{busca ? "Nenhum beneficiário encontrado" : "Nenhum cadastro"}</p>;
+            }
+            return gruposVisiveis.map((g) => {
+              const itens = g.itens.filter(casa);
               if (itens.length === 0) return null;
               const Icon = g.icon;
               return (
                 <div key={g.tipo}>
-                  <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted/70 flex items-center gap-1.5">
+                  <div className="sticky top-0 z-10 px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted border-b border-border flex items-center gap-1.5">
                     <Icon className="w-3 h-3" /> {g.label}
                   </div>
                   {itens.map((i) => (
@@ -103,14 +125,17 @@ export default function BeneficiarioCombobox({
                       className={cn("w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors",
                         value === i.id && tipo === g.tipo ? "bg-info/10 text-info" : "hover:bg-muted text-foreground")}
                     >
-                      <span className="flex-1 truncate leading-snug">{i.nome}</span>
+                      <span className="flex-1 truncate leading-snug">
+                        {i.nome}
+                        {i.doc ? <span className="ml-1.5 text-xs text-muted-foreground font-mono">{i.doc}</span> : null}
+                      </span>
                       {value === i.id && tipo === g.tipo && <Check className="w-3.5 h-3.5 text-info ml-auto shrink-0" />}
                     </button>
                   ))}
                 </div>
               );
-            })
-          )}
+            });
+          })()}
         </div>
       </PopoverContent>
     </Popover>

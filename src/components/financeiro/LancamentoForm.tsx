@@ -11,7 +11,7 @@ import BeneficiarioCombobox, { type BenTipo } from "@/components/financeiro/Bene
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { formatBRL, parseDecimal } from "@/lib/utils";
 
-type Contato = { id: string; razaoSocial: string };
+type Contato = { id: string; razaoSocial: string; doc?: string | null };
 type ContaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean };
 type Linha = { key: string; naturezaFinanceiraId: string; detalhamento: string; valor: string };
 
@@ -98,7 +98,8 @@ export default function LancamentoForm({
   useEffect(() => {
     const norm = (j: unknown): Contato[] => {
       const lista = Array.isArray(j) ? j : ((j as { data?: unknown[] })?.data ?? []);
-      return (lista as { id: string; razaoSocial?: string; nome?: string }[]).map((o) => ({ id: o.id, razaoSocial: o.razaoSocial ?? o.nome ?? "" }));
+      return (lista as { id: string; razaoSocial?: string; nome?: string; cpfCnpj?: string | null; cpf?: string | null }[])
+        .map((o) => ({ id: o.id, razaoSocial: o.razaoSocial ?? o.nome ?? "", doc: o.cpfCnpj ?? o.cpf ?? null }));
     };
     fetch("/api/clientes?limit=1000").then((r) => r.json()).then((j) => setClientes(norm(j))).catch(() => {});
     fetch("/api/suprimentos/fornecedores?ativo=1").then((r) => r.json()).then((j) => setFornecedores(norm(j))).catch(() => {});
@@ -206,9 +207,9 @@ export default function LancamentoForm({
             tipo={benTipo}
             value={benId}
             onChange={(t, id) => { setBenTipo(t); setBenId(id ?? ""); }}
-            clientes={clientes.map((c) => ({ id: c.id, nome: c.razaoSocial }))}
-            fornecedores={fornecedores.map((c) => ({ id: c.id, nome: c.razaoSocial }))}
-            colaboradores={colaboradores.map((c) => ({ id: c.id, nome: c.razaoSocial }))}
+            clientes={clientes.map((c) => ({ id: c.id, nome: c.razaoSocial, doc: c.doc }))}
+            fornecedores={fornecedores.map((c) => ({ id: c.id, nome: c.razaoSocial, doc: c.doc }))}
+            colaboradores={colaboradores.map((c) => ({ id: c.id, nome: c.razaoSocial, doc: c.doc }))}
           />
         </div>
         <div className="space-y-1">
