@@ -60,13 +60,31 @@ export async function GET(req: NextRequest) {
         orderBy: { codigo: "asc" },
       })
     : undefined;
-  const contasPatrimoniais = comContas
+  // Contrapartida da natureza: Clientes a Receber (1.1.2), Fornecedores (2.1.1) e
+  // Salários a Pagar (2.1.6) têm analítica AUTOMÁTICA por beneficiário (uma por
+  // cliente/fornecedor/colaborador) — não dá p/ escolher uma só. Por isso o
+  // seletor mostra a SINTÉTICA desses grupos (a analítica é resolvida pelo
+  // beneficiário no lançamento) + as analíticas que NÃO são por-entidade
+  // (Outros a Receber, INSS/FGTS a Recolher…). Esconde as analíticas por-entidade.
+  const COD_BENEFICIARIO = ["1.1.2", "2.1.1", "2.1.6"];
+  const contasPatrimoniaisRaw = comContas
     ? await prisma.contaContabil.findMany({
-        where: { grupo: { in: ["ATIVO", "PASSIVO"] }, tipo: "ANALITICA", ativo: true },
-        select: { id: true, codigo: true, nome: true, grupo: true },
+        where: {
+          grupo: { in: ["ATIVO", "PASSIVO"] },
+          ativo: true,
+          OR: [
+            { tipo: "ANALITICA", clienteId: null, fornecedorId: null, colaboradorId: null },
+            { tipo: "SINTETICA", codigo: { in: COD_BENEFICIARIO } },
+          ],
+        },
+        select: { id: true, codigo: true, nome: true, grupo: true, tipo: true },
         orderBy: { codigo: "asc" },
       })
     : undefined;
+  const contasPatrimoniais = contasPatrimoniaisRaw?.map((c) => ({
+    id: c.id, codigo: c.codigo, nome: c.nome, grupo: c.grupo,
+    porBeneficiario: c.tipo === "SINTETICA",
+  }));
 
   return NextResponse.json({ data: naturezas, contasResultado, contasPatrimoniais });
 }

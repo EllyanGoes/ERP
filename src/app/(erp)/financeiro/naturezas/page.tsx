@@ -30,7 +30,7 @@ const GRUPO_LABEL: Record<Grupo, string> = {
 type Tipo = "ENTRADA" | "SAIDA";
 type Subgrupo = { id: string; nome: string; grupo: Grupo };
 type ContaResultado = { id: string; codigo: string; nome: string };
-type ContaPatrimonial = { id: string; codigo: string; nome: string; grupo: "ATIVO" | "PASSIVO" };
+type ContaPatrimonial = { id: string; codigo: string; nome: string; grupo: "ATIVO" | "PASSIVO"; porBeneficiario?: boolean };
 type Natureza = {
   id: string; nome: string; tipo: Tipo; grupo: Grupo;
   subgrupoId: string | null; subgrupo: { id: string; nome: string } | null; ativo: boolean;
@@ -323,12 +323,12 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
               triggerClassName="h-10 rounded-lg"
               options={contasPatrimoniais
                 .filter((c) => (tipo === "ENTRADA" ? c.grupo === "ATIVO" : c.grupo === "PASSIVO"))
-                .map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))}
+                .map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}${c.porBeneficiario ? " (por beneficiário)" : ""}` }))}
             />
             <p className="text-[11px] text-muted-foreground">
               {tipo === "ENTRADA"
-                ? "Direito a receber debitado na provisão e creditado no recebimento (ex.: Outros a Receber, p/ receitas sem cliente)."
-                : "Obrigação a pagar creditada na provisão e debitada na liquidação (ex.: INSS a Recolher, FGTS a Recolher, p/ encargos sem fornecedor)."}
+                ? "Para Clientes a Receber, selecione a conta sintética “(por beneficiário)” — a analítica de cada cliente é resolvida automaticamente no lançamento. Use uma analítica direta (ex.: Outros a Receber) só para receitas sem cliente."
+                : "Para Fornecedores ou Salários a Pagar, selecione a conta sintética “(por beneficiário)” — a analítica de cada fornecedor/colaborador é resolvida automaticamente no lançamento. Use uma analítica direta (ex.: INSS/FGTS a Recolher) só para encargos sem beneficiário."}
             </p>
           </div>
           {error && <p className="text-sm text-rose-500">{error}</p>}

@@ -77,7 +77,17 @@ export async function contaDaNatureza(empresaId: string, naturezaFinanceiraId: s
 // (a pagar) p/ SAIDA. Definida no cadastro da natureza (contaContrapartidaId).
 export async function contaContrapartidaDaNatureza(empresaId: string, naturezaFinanceiraId: string) {
   const nat = await prismaSemEscopo.naturezaFinanceira.findFirst({ where: { id: naturezaFinanceiraId, empresaId }, select: { contaContrapartidaId: true } });
-  return nat?.contaContrapartidaId ? { id: nat.contaContrapartidaId } : null;
+  if (!nat?.contaContrapartidaId) return null;
+  // Nunca lança em conta SINTÉTICA: quando a contrapartida cadastrada é a
+  // sintética de um grupo com analítica por beneficiário (Clientes a Receber,
+  // Fornecedores, Salários a Pagar), ela é só a "categoria" — a analítica real é
+  // resolvida ANTES pelo beneficiário (contaCli/contaForn/contaColab). Aqui só
+  // serve como contrapartida direta se for uma analítica que aceita lançamento.
+  const conta = await prismaSemEscopo.contaContabil.findUnique({
+    where: { id: nat.contaContrapartidaId }, select: { id: true, tipo: true, aceitaLancamento: true },
+  });
+  if (!conta || conta.tipo === "SINTETICA" || !conta.aceitaLancamento) return null;
+  return { id: conta.id };
 }
 export async function contaDoBanco(empresaId: string, contaBancariaId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, contaBancariaId }, select: { id: true } });
