@@ -252,11 +252,14 @@ export async function contabilizarTituloReceber(crId: string) {
   const cr = await prismaSemEscopo.contaReceber.findUnique({
     where: { id: crId },
     select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoVendaId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true,
-      cliente: { select: { razaoSocial: true } }, pedidoVenda: { select: { numero: true } } },
+      cliente: { select: { razaoSocial: true } },
+      pedidoVenda: { select: { numero: true, itens: { select: { quantidade: true, precoUnitario: true, item: { select: { descricao: true } } } } } } },
   });
   if (!cr || cr.status === "CANCELADA") return;
   const cliNome = cr.cliente?.razaoSocial ?? "";
   const refPedido = cr.pedidoVenda?.numero ? ` · Pedido ${cr.pedidoVenda.numero}` : "";
+  // Itens do pedido (qtd× produto × R$ unit) p/ detalhar a descrição do recebimento.
+  const detPedido = cr.pedidoVenda?.itens?.length ? detalheItens(cr.pedidoVenda.itens) : "";
   // Histórico contábil usa a descrição do próprio título (mais claro do que só o
   // número); cai no número quando o título não tem descrição.
   const descCr = cr.descricao?.trim();
@@ -325,7 +328,7 @@ export async function contabilizarTituloReceber(crId: string) {
       partidas.push({ contaId: contaAtivo.id, tipo: "CREDITO", valor: total, clienteId: cli });
       await registrarLancamento({
         empresaId: cr.empresaId, data: cr.dataPagamento ?? cr.createdAt,
-        historico: `Recebimento — ${refCr}${cliNome ? ` · ${cliNome}` : ""}`, origemTipo: "RECEBIMENTO", origemId: cr.id,
+        historico: `Recebimento — ${refCr}${cliNome ? ` · ${cliNome}` : ""}${detPedido ? ` · ${detPedido}` : ""}`, origemTipo: "RECEBIMENTO", origemId: cr.id,
         partidas,
       });
     }
