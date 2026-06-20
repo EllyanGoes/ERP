@@ -6,7 +6,7 @@ import { requireAdmin } from "@/lib/auth";
 import { pagamentoSchema, contaPagarSchema } from "@/lib/validations/financeiro";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
-import { contabilizarTituloPagar } from "@/lib/contabilidade";
+import { recontabilizarTituloPagar } from "@/lib/contabilidade";
 import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -63,7 +63,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     await prismaSemEscopo.partidaContabil.deleteMany({ where: { lancamentoId: l.id } });
     await prismaSemEscopo.lancamentoContabil.delete({ where: { id: l.id } });
   }
-  await contabilizarTituloPagar(params.id).catch(() => {});
+  await recontabilizarTituloPagar(params.id).catch(() => {});
 
   return NextResponse.json({ data: atualizado });
 }
@@ -157,6 +157,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (result.erro) return NextResponse.json({ error: result.erro.msg }, { status: result.erro.status });
   // Contabiliza o pagamento (best-effort, pós-commit).
-  await contabilizarTituloPagar(params.id).catch(() => {});
+  await recontabilizarTituloPagar(params.id).catch(() => {});
   return NextResponse.json({ data: result.data });
 }

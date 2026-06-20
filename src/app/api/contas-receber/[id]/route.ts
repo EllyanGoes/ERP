@@ -5,7 +5,7 @@ import { requireModulo } from "@/lib/permissions";
 import { pagamentoSchema } from "@/lib/validations/financeiro";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { recomputarStatusPedido } from "@/lib/pedido-totais";
-import { contabilizarTituloReceber } from "@/lib/contabilidade";
+import { recontabilizarTituloReceber } from "@/lib/contabilidade";
 import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -109,6 +109,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (result.erro) return NextResponse.json({ error: result.erro.msg }, { status: result.erro.status });
   // Contabiliza o recebimento (best-effort, pós-commit).
-  await contabilizarTituloReceber(params.id).catch(() => {});
+  await recontabilizarTituloReceber(params.id).catch(() => {});
   return NextResponse.json({ data: result.data });
 }

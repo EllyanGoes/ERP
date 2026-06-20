@@ -563,6 +563,45 @@ export async function recontabilizarClientePedido(pedidoVendaId: string) {
   for (const m of pedido.minutas) await contabilizarReceitaMinuta(m.id).catch(() => null);
 }
 
+// ── Re-sincronização por processo (apaga e refaz a partir do estado atual) ─────
+// Mesmo mecanismo do recontabilizarClientePedido, para CADA processo ligado à
+// contabilidade. Deve ser chamado na EDIÇÃO de cada documento (best-effort,
+// pós-commit) para o contábil nunca ficar defasado quando o fato de origem muda.
+
+export async function recontabilizarTituloReceber(crId: string) {
+  await apagarLancamentosContabeis({ origemTipo: { in: ["VENDA", "RECEBIMENTO"] }, origemId: crId });
+  await contabilizarTituloReceber(crId).catch(() => null);
+}
+export async function recontabilizarTituloPagar(cpId: string) {
+  await apagarLancamentosContabeis({ origemTipo: { in: ["COMPRA", "PAGAMENTO"] }, origemId: cpId });
+  await contabilizarTituloPagar(cpId).catch(() => null);
+}
+export async function recontabilizarConferencia(conferenciaId: string) {
+  await apagarLancamentosContabeis({ origemTipo: "ESTOQUE_ENTRADA", origemId: conferenciaId });
+  await contabilizarEntradaEstoque(conferenciaId).catch(() => null);
+}
+export async function recontabilizarMinuta(minutaId: string) {
+  await apagarLancamentosContabeis({ origemTipo: { in: ["ESTOQUE_SAIDA", "RECEITA_ENTREGA"] }, origemId: minutaId });
+  await contabilizarCmvMinuta(minutaId).catch(() => null);
+  await contabilizarReceitaMinuta(minutaId).catch(() => null);
+}
+export async function recontabilizarRequisicao(requisicaoId: string) {
+  await apagarLancamentosContabeis({ origemTipo: "ESTOQUE_CONSUMO", origemId: requisicaoId });
+  await contabilizarRequisicao(requisicaoId).catch(() => null);
+}
+export async function recontabilizarOrdemProducao(ordemId: string) {
+  await apagarLancamentosContabeis({ origemTipo: "ESTOQUE_PRODUCAO", origemId: ordemId });
+  await contabilizarProducaoOrdem(ordemId).catch(() => null);
+}
+export async function recontabilizarInventario(inventarioId: string) {
+  await apagarLancamentosContabeis({ origemTipo: "ESTOQUE_AJUSTE", origemId: inventarioId });
+  await contabilizarInventario(inventarioId).catch(() => null);
+}
+export async function recontabilizarLoteMovimentacao(loteId: string) {
+  await apagarLancamentosContabeis({ origemTipo: { in: ["ESTOQUE_TRANSFERENCIA", "ESTOQUE_AJUSTE"] }, origemId: loteId });
+  await contabilizarLoteMovimentacao(loteId).catch(() => null);
+}
+
 /**
  * Apaga lançamentos contábeis E suas PARTIDAS por filtro. PartidaContabil NÃO
  * tem FK em cascata no banco — apagar só o LancamentoContabil deixa partidas

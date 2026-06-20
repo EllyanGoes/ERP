@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { recontabilizarConferencia } from "@/lib/contabilidade";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.conferenciaCompra.findUnique({
@@ -241,6 +242,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       },
     },
   });
+
+  // DE concluída e depois editada → re-sincroniza a contabilidade da entrada de
+  // estoque (apaga e refaz). Best-effort, pós-commit.
+  if (current.status === "CONCLUIDA") {
+    await recontabilizarConferencia(params.id).catch(() => {});
+  }
 
   return NextResponse.json({ data: updated });
 }

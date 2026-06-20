@@ -4,7 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { assertSaldoNaoNegativo, respostaSaldoNegativo, SaldoNegativoError, type ItemSaldoNegativo } from "@/lib/estoque-guard";
-import { contabilizarRequisicao } from "@/lib/contabilidade";
+import { recontabilizarRequisicao } from "@/lib/contabilidade";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.requisicaoMaterial.findUnique({
@@ -192,8 +192,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   // Contabiliza o consumo (D Consumo de Materiais / C Estoque) ao atender.
   // Best-effort, pós-commit.
-  if (body.status === "ATENDIDA") {
-    await contabilizarRequisicao(params.id).catch(() => {});
+  if (record.status === "ATENDIDA") {
+    await recontabilizarRequisicao(params.id).catch(() => {});
   }
 
   return NextResponse.json({ data: record });
