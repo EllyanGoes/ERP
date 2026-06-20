@@ -145,8 +145,8 @@ function Node({ conta, onChanged, flat, collapsed, onToggle }: {
   const auto = !!(conta.clienteId || conta.fornecedorId);
   const temFilhos = conta.filhos.length > 0;
   const recolhido = collapsed.has(conta.id);
-  // Nº de contas dentro desta (todos os descendentes, por prefixo de código).
-  const qtdDentro = flat.filter((x) => x.codigo.startsWith(conta.codigo + ".")).length;
+  // Nº de subcontas do PRÓXIMO nível (filhos diretos), não todos os descendentes.
+  const qtdDentro = conta.filhos.length;
   return (
     <li>
       <div
@@ -175,7 +175,7 @@ function Node({ conta, onChanged, flat, collapsed, onToggle }: {
           {qtdDentro > 0 && (
             <span
               className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-muted text-muted-foreground text-[11px] font-medium shrink-0 tabular-nums"
-              title={`${qtdDentro} ${qtdDentro === 1 ? "conta" : "contas"} dentro`}
+              title={`${qtdDentro} ${qtdDentro === 1 ? "subconta" : "subcontas"} no próximo nível`}
             >
               {qtdDentro}
             </span>
