@@ -48,8 +48,33 @@ export async function GET(req: NextRequest) {
     prisma,
     data.flatMap((l) => l.estoqueItens.map((e) => ({ empresaId: l.empresaId, itemId: e.itemId }))),
   );
+  // Saldo CONTÁBIL de cada local (conta 1.1.3.x vinculada por localEstoqueId) —
+  // o "Custo Total" do local passa a refletir exatamente o razão/balancete.
+  const localIds = data.map((l) => l.id);
+  const contasLocais = localIds.length
+    ? await prisma.contaContabil.findMany({ where: { localEstoqueId: { in: localIds } }, select: { id: true, localEstoqueId: true } })
+    : [];
+  const saldoContabilPorLocal = new Map<string, number>();
+  if (contasLocais.length) {
+    const partidas = await prisma.partidaContabil.groupBy({
+      by: ["contaId", "tipo"],
+      where: { contaId: { in: contasLocais.map((c) => c.id) } },
+      _sum: { valor: true },
+    });
+    const saldoPorConta = new Map<string, number>();
+    for (const pg of partidas) {
+      const v = decimalToNumber(pg._sum.valor ?? 0);
+      saldoPorConta.set(pg.contaId, (saldoPorConta.get(pg.contaId) ?? 0) + (pg.tipo === "DEBITO" ? v : -v));
+    }
+    for (const c of contasLocais) {
+      if (c.localEstoqueId) saldoContabilPorLocal.set(c.localEstoqueId, Math.round((saldoPorConta.get(c.id) ?? 0) * 100) / 100);
+    }
+  }
+
   const comCusto = data.map((l) => ({
     ...l,
+    // Custo total = saldo contábil do local (null quando o local não tem conta).
+    custoContabil: saldoContabilPorLocal.has(l.id) ? saldoContabilPorLocal.get(l.id)! : null,
     estoqueItens: l.estoqueItens.map((e) => {
       const proprio = custos.get(chaveCustoEmpresa(l.empresaId, e.itemId));
       // Valoração por categoria: Produto Acabado pelo preço médio de venda

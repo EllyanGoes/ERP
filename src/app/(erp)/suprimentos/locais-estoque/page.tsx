@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { MapPin, Package, Plus, Pencil, Trash2, Loader2, AlertTriangle, X, Check, Save, Building2, GitBranch } from "lucide-react";
-import { formatBRL } from "@/lib/utils";
+import { formatBRL, cn } from "@/lib/utils";
 import type { CategoriaEstoque } from "@prisma/client";
 import { CATEGORIA_ESTOQUE_VALUES, CATEGORIA_ESTOQUE_LABELS, CATEGORIA_ESTOQUE_DESCRICOES } from "@/lib/categoria-estoque-ui";
 
@@ -24,6 +24,8 @@ type LocalRow = {
   filial: { id: string; razaoSocial: string } | null;
   categoriasAceitas: CategoriaEstoque[];
   _count: { estoqueItens: number };
+  // Custo total = saldo contábil do local (conta 1.1.3.x). null = local sem conta.
+  custoContabil: number | null;
   estoqueItens: Array<{
     quantidadeAtual: unknown;
     item: { precoCusto: unknown } | null;
@@ -192,12 +194,8 @@ export default function LocaisEstoquePage() {
   const filialAtiva = filialFiltro ? filiais.find((f) => f.id === filialFiltro) : null;
 
   const totalProdutos = locais.reduce((s, l) => s + l._count.estoqueItens, 0);
-  const custoTotalGeral = locais.reduce((sum, local) => {
-    return sum + local.estoqueItens.reduce((s, e) => {
-      const custo = e.item?.precoCusto ? toNum(e.item.precoCusto) : 0;
-      return s + custo * toNum(e.quantidadeAtual);
-    }, 0);
-  }, 0);
+  // Custo total geral = soma dos saldos CONTÁBEIS dos locais (reflete o razão).
+  const custoTotalGeral = locais.reduce((sum, local) => sum + (local.custoContabil ?? 0), 0);
 
   const filialNome = (f: Filial | null | undefined) =>
     f ? (f.nomeFantasia || f.razaoSocial) : null;
@@ -248,7 +246,7 @@ export default function LocaisEstoquePage() {
           <div className="px-5 py-3">
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Custo Total Estoque</p>
             <p className="text-lg font-bold text-violet-700 dark:text-violet-300 mt-0.5 tabular-nums leading-tight">
-              {custoTotalGeral > 0 ? formatBRL(custoTotalGeral) : <span className="text-muted-foreground/60">—</span>}
+              {locais.length > 0 ? formatBRL(custoTotalGeral) : <span className="text-muted-foreground/60">—</span>}
             </p>
           </div>
         </div>
@@ -279,10 +277,7 @@ export default function LocaisEstoquePage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {locais.map((local) => {
-                  const custoTotal = local.estoqueItens.reduce((s, e) => {
-                    const custo = e.item?.precoCusto ? toNum(e.item.precoCusto) : 0;
-                    return s + custo * toNum(e.quantidadeAtual);
-                  }, 0);
+                  const custoTotal = local.custoContabil;
                   return (
                     <tr
                       key={local.id}
@@ -321,8 +316,8 @@ export default function LocaisEstoquePage() {
                           {local._count.estoqueItens}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold text-violet-700 dark:text-violet-300">
-                        {custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-muted-foreground/60 font-normal">—</span>}
+                      <td className={cn("px-4 py-3 text-right font-semibold", custoTotal != null && custoTotal < 0 ? "text-danger" : "text-violet-700 dark:text-violet-300")}>
+                        {custoTotal != null ? formatBRL(custoTotal) : <span className="text-muted-foreground/60 font-normal">—</span>}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${local.ativo ? "bg-success/15 text-success border-success/30" : "bg-muted text-muted-foreground border-border"}`}>
