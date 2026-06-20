@@ -1266,6 +1266,10 @@ model MovimentacaoEstoque {
   criadoPor         String?
   pedidoVendaItemId String?
   ordemProducaoId   String?
+  // Data de NEGÓCIO da movimentação (date-only, UTC midnight) — ex.: a dt. de
+  // emissão do documento de entrada. Independe do createdAt (timestamp de
+  // auditoria). Exibida nas Movimentações; cai no createdAt quando ausente.
+  data              DateTime?
   createdAt         DateTime                @default(now())
   conferenciaItemId String?
   localEstoqueId    String?

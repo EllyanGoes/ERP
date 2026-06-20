@@ -60,6 +60,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     let hasDivergencia = false;
     const movimentacoesCriadas: string[] = [];
 
+    // Data de NEGÓCIO da movimentação = data do documento (dt. emissão); na
+    // falta, hoje (dia de São Paulo, à meia-noite UTC). Independe do createdAt.
+    const hojeSPdoc = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    const dataDoc = conferencia.dtEmissao ?? new Date(`${hojeSPdoc}T00:00:00.000Z`);
+
     for (const item of conferencia.itens) {
       const qtdRecebida = parseFloat(String(item.quantidadeRecebida ?? 0));
       const qtdPedida = parseFloat(String(item.quantidadePedida));
@@ -121,6 +126,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             quantidade: qtdRecebida,
             saldoAntes,
             saldoDepois,
+            data: dataDoc,
             documento: conferencia.numero,
             observacoes: docRef,
             conferenciaItemId: item.id,

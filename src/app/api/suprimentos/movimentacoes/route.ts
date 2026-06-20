@@ -323,7 +323,7 @@ export async function GET(req: NextRequest) {
     type LoteOut = {
       id: string; numero: string; tipo: string;
       documento: string | null; observacoes: string | null;
-      createdAt: string;
+      createdAt: string; data: string; // data = data de negócio (ex.: dt. emissão)
       itens: typeof movs;
     };
 
@@ -340,6 +340,7 @@ export async function GET(req: NextRequest) {
             documento:   mov.lote.documento,
             observacoes: mov.lote.observacoes,
             createdAt:   mov.lote.createdAt.toISOString(),
+            data:        (mov.data ?? mov.lote.createdAt).toISOString(),
             itens:       [],
           });
         }
@@ -356,6 +357,7 @@ export async function GET(req: NextRequest) {
           documento:   mov.documento,
           observacoes: mov.observacoes,
           createdAt:   mov.createdAt.toISOString(),
+          data:        (mov.data ?? mov.createdAt).toISOString(),
           itens:       [mov],
         });
       }

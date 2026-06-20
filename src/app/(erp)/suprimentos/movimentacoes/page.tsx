@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
@@ -46,6 +46,7 @@ type Lote = {
   documento: string | null;
   observacoes: string | null;
   createdAt: string;
+  data: string; // data de negócio (ex.: dt. emissão do documento)
   itens: MovItem[];
 };
 
@@ -573,13 +574,11 @@ export default function MovimentacoesPage() {
 
   const filtered = lotes.filter((l) => {
     if (tipoFilter !== "todos" && l.tipo !== tipoFilter) return false;
-    if (dateRange.from) {
-      const d = new Date(l.createdAt);
-      if (d < new Date(dateRange.from + "T00:00:00")) return false;
-    }
-    if (dateRange.to) {
-      const d = new Date(l.createdAt);
-      if (d > new Date(dateRange.to + "T23:59:59")) return false;
+    // Filtra pela data de NEGÓCIO (UTC), comparando os dias YYYY-MM-DD.
+    if (dateRange.from || dateRange.to) {
+      const dia = (l.data ?? l.createdAt).slice(0, 10);
+      if (dateRange.from && dia < dateRange.from) return false;
+      if (dateRange.to && dia > dateRange.to) return false;
     }
     if (localFilter !== "todos") {
       const hasLocal = l.itens.some((i) => (i.localEstoque?.id ?? "__sem_local__") === localFilter);
@@ -832,8 +831,8 @@ export default function MovimentacoesPage() {
                       <span className="text-xs text-muted-foreground truncate max-w-[200px]">{lote.observacoes}</span>
                     )}
 
-                    {/* Date */}
-                    <span className="text-xs text-muted-foreground shrink-0 ml-2">{formatDateTime(lote.createdAt)}</span>
+                    {/* Data de negócio (ex.: dt. emissão do documento) */}
+                    <span className="text-xs text-muted-foreground shrink-0 ml-2">{formatDate(lote.data ?? lote.createdAt)}</span>
                   </button>
 
                   {/* Expanded items */}

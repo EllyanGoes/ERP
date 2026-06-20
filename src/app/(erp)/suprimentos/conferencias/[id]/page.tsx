@@ -218,7 +218,7 @@ export default function DocumentoEntradaDetailPage() {
       setEspDocumento(conf.espDocumento ?? "");
       setNumeroNF(conf.numeroNF ?? "");
       setSerie(conf.serie ?? "");
-      setDtEmissao(conf.dtEmissao ? conf.dtEmissao.slice(0, 10) : new Date().toISOString().slice(0, 10));
+      setDtEmissao(conf.dtEmissao ? conf.dtEmissao.slice(0, 10) : new Date().toLocaleDateString("sv-SE"));
       setUfOrigem(conf.ufOrigem ?? "");
       // Condição do DE: usa a do próprio DE, senão herda a do pedido.
       setCondicaoPagamentoId(conf.condicaoPagamentoId ?? conf.pedido?.condicaoPagamentoId ?? "");

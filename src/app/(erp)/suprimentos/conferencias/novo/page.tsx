@@ -216,7 +216,7 @@ export default function NovoDocumentoEntradaPage() {
   const [tipoDocumento, setTipoDocumento] = useState<"NF" | "SN">("NF");
   const [numeroNF, setNumeroNF]           = useState("");
   const [serie, setSerie]                 = useState("1");
-  const [dtEmissao, setDtEmissao]         = useState(() => new Date().toISOString().slice(0, 10));
+  const [dtEmissao, setDtEmissao]         = useState(() => new Date().toLocaleDateString("sv-SE")); // hoje (dia local/SP), não UTC
   const [ufOrigem, setUfOrigem]           = useState("");
   const [espDocumento, setEspDocumento]   = useState("SPED");
 
