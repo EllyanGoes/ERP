@@ -10,10 +10,12 @@ import { useSession } from "@/lib/session-context";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import ContaContabilCombobox from "@/components/contabilidade/ContaContabilCombobox";
+import RazaoLauncher from "@/components/contabilidade/RazaoLauncher";
+import { useCachedData } from "@/lib/use-cached-data";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatDate, cn } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtSaldo, fmtColuna, saldoAnormal, type NaturezaConta } from "@/lib/formato-contabil";
-import { Loader2, BookOpen, FileDown } from "lucide-react";
+import { Loader2, FileDown } from "lucide-react";
 
 type FlatConta = { id: string; codigo: string; nome: string; paiId: string | null };
 type Mov = {
@@ -45,8 +47,6 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
   const contaId = contaIdProp ?? urlContaId;
 
   const [range, setRange] = useState<DateRange>(defaultRange);
-  const [razao, setRazao] = useState<Razao | null>(null);
-  const [loading, setLoading] = useState(false);
   const [modo, setModo] = useFormatoContabil();
   const rangeRef = useRef(range);
   useEffect(() => { rangeRef.current = range; }, [range]);
@@ -75,20 +75,17 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
     const pai = c.paiId ? byId.get(c.paiId) : undefined;
     return pai ? `${pai.nome} › ${c.nome}` : c.nome;
   }, [byId]);
+  // Cache stale-while-revalidate: reabrir uma conta já vista mostra na hora, sem
+  // recarregar (revalida em segundo plano).
+  const razaoKey = contaId && range.from && range.to ? `razao:${contaId}:${range.from}:${range.to}` : null;
+  const { data: razao, loading } = useCachedData<Razao>(razaoKey, async () => {
+    const j = await fetch(`/api/contabilidade/razao?contaId=${contaId}&from=${range.from}&to=${range.to}`).then((r) => r.json());
+    if (j.error) throw new Error(j.error);
+    return j;
+  });
+
   const titulo = (contaId && tituloDaConta(contaId)) || (razao ? razao.conta.nome : null);
   useTabTitle(titulo ? `Razão · ${titulo}` : "Razão");
-
-  const load = useCallback(async () => {
-    if (!contaId) { setRazao(null); return; }
-    const { from, to } = rangeRef.current;
-    if (!from || !to) { setRazao(null); return; }
-    setLoading(true);
-    try {
-      const j = await fetch(`/api/contabilidade/razao?contaId=${contaId}&from=${from}&to=${to}`).then((r) => r.json());
-      setRazao(j.error ? null : j);
-    } finally { setLoading(false); }
-  }, [contaId]);
-  useEffect(() => { load(); }, [load, range.from, range.to]);
 
   const { user } = useSession();
   const empresaNome = user?.empresas?.find((e) => e.id === user.activeEmpresaId)?.nome ?? null;
@@ -160,11 +157,7 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
         </div>
 
         {!contaId ? (
-          <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
-            <BookOpen className="w-8 h-8 text-muted-foreground/60 mx-auto mb-2" />
-            <p className="text-sm font-medium">Selecione uma conta para abrir o razão</p>
-            <p className="text-xs mt-1">Cada conta abre em uma aba — dá para ter vários razões abertos ao mesmo tempo.</p>
-          </div>
+          <RazaoLauncher contas={contas} range={range} />
         ) : loading || !razao ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Carregando…</div>
         ) : (

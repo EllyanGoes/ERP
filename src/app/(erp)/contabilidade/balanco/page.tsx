@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatDate } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtSaldo, saldoAnormal, type FormatoModo, type NaturezaConta } from "@/lib/formato-contabil";
+import { useCachedData } from "@/lib/use-cached-data";
 import { useSession } from "@/lib/session-context";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
 import { Loader2, Scale, Check, X, FileDown, ChevronRight, ChevronDown } from "lucide-react";
@@ -43,7 +44,7 @@ function LinhaRow({ l, soComSaldo, modo, data, filhos, recolhido, onToggle }: {
             {recolhido ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
         ) : <span className="w-4 shrink-0" />}
-        <Link href={`/contabilidade/razao?contaId=${l.id}&from=${inicioAno(data)}&to=${data}`} className="flex items-center gap-2 min-w-0 hover:text-info" title="Abrir razão">
+        <Link href={`/contabilidade/razao/${l.id}?from=${inicioAno(data)}&to=${data}`} className="flex items-center gap-2 min-w-0 hover:text-info" title="Abrir razão em nova aba">
           <span className="font-mono text-xs text-muted-foreground shrink-0">{l.codigo}</span>
           <span className="truncate">{l.nome}</span>
         </Link>
@@ -56,8 +57,6 @@ function LinhaRow({ l, soComSaldo, modo, data, filhos, recolhido, onToggle }: {
 export default function BalancoPage() {
   useTabTitle("Balanço Patrimonial");
   const [data, setData] = useState(hoje());
-  const [bal, setBal] = useState<Balanco | null>(null);
-  const [loading, setLoading] = useState(true);
   const [soComSaldo, setSoComSaldo] = useState(true);
   const [modo, setModo] = useFormatoContabil();
 
@@ -79,15 +78,11 @@ export default function BalancoPage() {
     });
   }, []);
 
-  const load = useCallback(async (d: string) => {
-    setLoading(true);
-    try {
-      const j = await fetch(`/api/contabilidade/balanco?data=${d}`).then((r) => r.json());
-      setBal(j);
-    } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { if (data) load(data); }, [data, load]);
+  // Cache stale-while-revalidate por data — reabrir não recarrega.
+  const { data: bal, loading } = useCachedData<Balanco>(
+    data ? `balanco:${data}` : null,
+    () => fetch(`/api/contabilidade/balanco?data=${data}`).then((r) => r.json()),
+  );
 
   const { user } = useSession();
   const empresaNome = user?.empresas?.find((e) => e.id === user.activeEmpresaId)?.nome ?? null;

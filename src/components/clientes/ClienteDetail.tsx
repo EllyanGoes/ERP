@@ -310,7 +310,7 @@ export default function ClienteDetail({ cliente, comodato, contaContabil, contas
                 <span className="text-sm font-semibold text-foreground">
                   <span className="font-mono text-xs text-muted-foreground mr-2">{c.codigo}</span>{c.nome}
                 </span>
-                <Link href={`/contabilidade/razao?contaId=${c.id}`} className="text-xs text-info hover:underline inline-flex items-center gap-1">
+                <Link href={`/contabilidade/razao/${c.id}`} className="text-xs text-info hover:underline inline-flex items-center gap-1">
                   Abrir no Razão <ExternalLink className="w-3 h-3" />
                 </Link>
               </div>

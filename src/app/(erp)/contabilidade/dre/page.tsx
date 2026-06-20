@@ -1,8 +1,9 @@
 "use client";
 
-import { Fragment, useEffect, useState, useCallback } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import { useCachedData } from "@/lib/use-cached-data";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtColuna } from "@/lib/formato-contabil";
@@ -24,9 +25,12 @@ function celula(v: number, modo: "contabil" | "real") {
 export default function DrePage() {
   useTabTitle("DRE");
   const [ano, setAno] = useState(new Date().getUTCFullYear());
-  const [dre, setDre] = useState<Dre | null>(null);
-  const [loading, setLoading] = useState(true);
   const [modo, setModo] = useFormatoContabil();
+  // Cache stale-while-revalidate por ano — reabrir não recarrega.
+  const { data: dre, loading } = useCachedData<Dre>(
+    `dre:${ano}`,
+    () => fetch(`/api/contabilidade/dre?ano=${ano}`).then((r) => r.json()),
+  );
   const { user } = useSession();
   const empresaNome = user?.empresas?.find((e) => e.id === user.activeEmpresaId)?.nome ?? null;
 
@@ -64,14 +68,6 @@ export default function DrePage() {
     });
   }
 
-  const load = useCallback(async (a: number) => {
-    setLoading(true);
-    try {
-      const j = await fetch(`/api/contabilidade/dre?ano=${a}`).then((r) => r.json());
-      setDre(j);
-    } finally { setLoading(false); }
-  }, []);
-  useEffect(() => { load(ano); }, [ano, load]);
 
   return (
     <div>
@@ -183,9 +179,9 @@ function SecaoRows({ secao, ano, modo }: { secao: Secao; ano: number; modo: "con
             <tr className="border-b border-gray-50 hover:bg-info/10">
               <td className={cn("px-4 py-1.5 sticky left-0 bg-card z-10", c.subgrupoCodigo && "pl-9")}>
                 <Link
-                  href={`/contabilidade/razao?contaId=${c.id}&from=${ano}-01-01&to=${ano}-12-31`}
+                  href={`/contabilidade/razao/${c.id}?from=${ano}-01-01&to=${ano}-12-31`}
                   className="flex items-center gap-2 hover:text-info"
-                  title="Abrir razão da conta"
+                  title="Abrir razão da conta em nova aba"
                 >
                   <span className="font-mono text-[11px] text-muted-foreground">{c.codigo}</span>
                   <span className="truncate">{c.nome}</span>

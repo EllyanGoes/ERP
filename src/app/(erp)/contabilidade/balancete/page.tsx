@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
@@ -9,6 +9,7 @@ import { cn, formatDate } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtSaldo, fmtColuna, saldoAnormal, type NaturezaConta } from "@/lib/formato-contabil";
 import { useSession } from "@/lib/session-context";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
+import { useCachedData } from "@/lib/use-cached-data";
 import { Loader2, Scale, Check, X, ChevronRight, ChevronDown, FileDown } from "lucide-react";
 
 type Linha = {
@@ -26,14 +27,9 @@ function defaultRange(): DateRange {
 export default function BalancetePage() {
   useTabTitle("Balancete");
   const [range, setRange] = useState<DateRange>(defaultRange);
-  const [linhas, setLinhas] = useState<Linha[]>([]);
-  const [resumo, setResumo] = useState<{ totalDebito: number; totalCredito: number; confere: boolean }>({ totalDebito: 0, totalCredito: 0, confere: true });
-  const [loading, setLoading] = useState(true);
   const [soComMov, setSoComMov] = useState(true);
   const [modo, setModo] = useFormatoContabil();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const rangeRef = useRef(range);
-  useEffect(() => { rangeRef.current = range; }, [range]);
 
   useEffect(() => {
     try { const raw = localStorage.getItem(COLLAPSE_KEY); if (raw) setCollapsed(new Set(JSON.parse(raw) as string[])); } catch { /* ignore */ }
@@ -51,17 +47,13 @@ export default function BalancetePage() {
     });
   }, []);
 
-  const load = useCallback(async () => {
-    const { from, to } = rangeRef.current;
-    if (!from || !to) return;
-    setLoading(true);
-    try {
-      const j = await fetch(`/api/contabilidade/balancete?from=${from}&to=${to}`).then((r) => r.json());
-      setLinhas(j.linhas ?? []);
-      setResumo({ totalDebito: j.totalDebito ?? 0, totalCredito: j.totalCredito ?? 0, confere: j.confere ?? true });
-    } finally { setLoading(false); }
-  }, []);
-  useEffect(() => { if (range.from && range.to) load(); }, [range.from, range.to, load]);
+  // Cache stale-while-revalidate por período — reabrir não recarrega.
+  const { data: resp, loading } = useCachedData<{ linhas: Linha[]; totalDebito: number; totalCredito: number; confere: boolean }>(
+    range.from && range.to ? `balancete:${range.from}:${range.to}` : null,
+    () => fetch(`/api/contabilidade/balancete?from=${range.from}&to=${range.to}`).then((r) => r.json()),
+  );
+  const linhas = useMemo(() => resp?.linhas ?? [], [resp]);
+  const resumo = { totalDebito: resp?.totalDebito ?? 0, totalCredito: resp?.totalCredito ?? 0, confere: resp?.confere ?? true };
 
   const comMov = useMemo(
     () => soComMov ? linhas.filter((l) => l.debito !== 0 || l.credito !== 0 || l.saldoAnterior !== 0 || l.saldoFinal !== 0) : linhas,
@@ -159,7 +151,7 @@ export default function BalancetePage() {
                             {recolhido ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           </button>
                         ) : <span className="w-4 shrink-0" />}
-                        <Link href={`/contabilidade/razao?contaId=${l.id}&from=${range.from}&to=${range.to}`} className="flex items-center gap-2 min-w-0 hover:text-info" title="Abrir razão">
+                        <Link href={`/contabilidade/razao/${l.id}?from=${range.from}&to=${range.to}`} className="flex items-center gap-2 min-w-0 hover:text-info" title="Abrir razão em nova aba">
                           <span className="font-mono text-xs text-muted-foreground shrink-0">{l.codigo}</span>
                           <span className="truncate">{l.nome}</span>
                         </Link>
