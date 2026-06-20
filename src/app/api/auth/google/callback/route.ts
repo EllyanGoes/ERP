@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { signToken, COOKIE_NAME, SessionPayload } from "@/lib/auth";
+import { signToken, COOKIE_NAME, SessionPayload, SESSAO_MAX_AGE_S, parseUserAgent } from "@/lib/auth";
 import { empresasParaSessao } from "@/lib/empresa";
+import { randomUUID } from "crypto";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -69,6 +70,16 @@ export async function GET(req: NextRequest) {
     // 4. Issue JWT cookie (same flow as email/password login)
     // O token carrega só identidade — módulos vêm do banco (evita cookie > 4KB).
     const { activeEmpresaId, empresaIds } = await empresasParaSessao(user.id, user.perfil);
+
+    // Registra a sessão/dispositivo (gestão de dispositivos).
+    const jti = randomUUID();
+    const ua = req.headers.get("user-agent");
+    const ipG = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
+    const { dispositivo, navegador, so } = parseUserAgent(ua);
+    await prisma.usuarioSessao.create({
+      data: { id: jti, usuarioId: user.id, userAgent: ua ?? null, dispositivo, navegador, so, ip: ipG, expiraEm: new Date(Date.now() + SESSAO_MAX_AGE_S * 1000) },
+    }).catch(() => { /* não bloqueia o login */ });
+
     const payload: SessionPayload = {
       sub:    user.id,
       email:  user.email,
@@ -76,6 +87,7 @@ export async function GET(req: NextRequest) {
       perfil: user.perfil,
       activeEmpresaId,
       empresaIds,
+      jti,
     };
 
     const token = signToken(payload);
@@ -85,7 +97,7 @@ export async function GET(req: NextRequest) {
       httpOnly: true,
       secure:   process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge:   60 * 60 * 8,
+      maxAge:   SESSAO_MAX_AGE_S,
       path:     "/",
     });
 

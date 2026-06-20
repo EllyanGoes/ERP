@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyPassword, signToken, COOKIE_NAME, SessionPayload } from "@/lib/auth";
+import { verifyPassword, signToken, COOKIE_NAME, SessionPayload, SESSAO_MAX_AGE_S, parseUserAgent } from "@/lib/auth";
 import { empresasParaSessao } from "@/lib/empresa";
+import { randomUUID } from "crypto";
 
 // ── Rate limit de tentativas falhas (por instância serverless) ───────────────
 // Em memória: cada instância conta sozinha, então o teto efetivo é maior que o
@@ -64,6 +65,21 @@ export async function POST(req: NextRequest) {
     ? ["*"]
     : user.permissoes.map((p) => p.modulo);
 
+  // Registra a sessão/dispositivo (gestão de dispositivos). id = jti do token.
+  const jti = randomUUID();
+  const ua = req.headers.get("user-agent");
+  const { dispositivo, navegador, so } = parseUserAgent(ua);
+  await prisma.usuarioSessao.create({
+    data: {
+      id: jti,
+      usuarioId: user.id,
+      userAgent: ua ?? null,
+      dispositivo, navegador, so,
+      ip,
+      expiraEm: new Date(Date.now() + SESSAO_MAX_AGE_S * 1000),
+    },
+  }).catch(() => { /* não bloqueia o login se o registro falhar */ });
+
   // O token carrega só identidade — módulos vêm do banco (evita cookie > 4KB).
   const { activeEmpresaId, empresaIds, empresas } = await empresasParaSessao(user.id, user.perfil);
   const payload: SessionPayload = {
@@ -73,6 +89,7 @@ export async function POST(req: NextRequest) {
     perfil: user.perfil,
     activeEmpresaId,
     empresaIds,
+    jti,
   };
 
   const token = signToken(payload);
@@ -85,7 +102,7 @@ export async function POST(req: NextRequest) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 60 * 60 * 8, // 8 hours
+    maxAge: SESSAO_MAX_AGE_S, // 24h
     path: "/",
   });
 

@@ -542,6 +542,14 @@ function UserDropdown({
               Minha Conta
               <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 ml-auto" />
             </button>
+            <button
+              onClick={() => { setOpen(false); attemptNavigate(() => router.push("/conta/dispositivos")); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+            >
+              <Monitor className="w-4 h-4 text-muted-foreground" />
+              Dispositivos
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 ml-auto" />
+            </button>
           </div>
 
           <div className="border-t border-border py-1">

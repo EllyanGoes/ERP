@@ -31,17 +31,39 @@ export function SessionProvider({ children, initial }: { children: ReactNode; in
   const [user, setUser] = useState<SessionUser | null>(initial);
   const [loading, setLoading] = useState(false);
 
-  // ── Auto-refresh on mount ─────────────────────────────────────────────────
-  // Silently reissues the JWT cookie with up-to-date permissions from the DB.
-  // This fixes stale tokens when permissions are changed after the user logged in.
+  // ── Auto-refresh: mount + foco da janela + a cada 5 min ───────────────────
+  // Reemite o cookie com permissões atuais e mantém a sessão "viva". Também é o
+  // ponto em que um dispositivo DESLOGADO remotamente percebe a revogação: o
+  // refresh responde 401 → manda para o /login.
   useEffect(() => {
     if (!initial) return; // not logged in — nothing to refresh
-    fetch("/api/auth/refresh", { method: "POST" })
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d?.user) setUser(d.user); })
-      .catch(() => { /* non-blocking — ignore network errors */ });
+    let parado = false;
+    async function doRefresh() {
+      try {
+        const r = await fetch("/api/auth/refresh", { method: "POST" });
+        if (r.status === 401) {
+          // Sessão encerrada (revogada/expirada) → sai deste dispositivo.
+          if (!parado) window.location.href = "/login";
+          return;
+        }
+        const d = await r.json().catch(() => null);
+        if (d?.user && !parado) setUser(d.user);
+      } catch { /* non-blocking — ignore network errors */ }
+    }
+    doRefresh();
+    const onFocus = () => doRefresh();
+    const onVis = () => { if (document.visibilityState === "visible") doRefresh(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+    const id = setInterval(doRefresh, 5 * 60_000);
+    return () => {
+      parado = true;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+      clearInterval(id);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once on mount
+  }, []);
 
   function canAccess(modulo: string): boolean {
     if (!user) return false;

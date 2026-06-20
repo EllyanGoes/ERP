@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession, signToken, COOKIE_NAME, SessionPayload } from "@/lib/auth";
+import { requireSession, signToken, COOKIE_NAME, SessionPayload, SESSAO_MAX_AGE_S } from "@/lib/auth";
 import { empresasParaSessao } from "@/lib/empresa";
 
 // POST /api/auth/switch-empresa — troca a empresa ativa do seletor.
@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
     perfil: session.perfil,
     activeEmpresaId: empresaId,
     empresaIds,
+    jti: session.jti, // mantém a mesma sessão/dispositivo
   };
 
   const res = NextResponse.json({
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 60 * 60 * 8, // 8 hours
+    maxAge: SESSAO_MAX_AGE_S, // 24h
     path: "/",
   });
 

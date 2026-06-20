@@ -1887,6 +1887,27 @@ model Usuario {
   ticketsRespondidos SupportTicket[]  @relation("TicketsRespondidos")
   empresas           UsuarioEmpresa[]
   vendedor           Vendedor?
+  sessoes            UsuarioSessao[]
+}
+
+// Sessão/dispositivo logado de um usuário. id = jti embutido no JWT. Permite
+// listar os dispositivos conectados e revogar (deslogar) cada um remotamente.
+model UsuarioSessao {
+  id             String    @id // = jti (uuid) embutido no token
+  usuarioId      String
+  userAgent      String?
+  dispositivo    String?
+  navegador      String?
+  so             String?
+  ip             String?
+  criadoEm       DateTime  @default(now())
+  ultimoAcessoEm DateTime  @default(now())
+  expiraEm       DateTime
+  revogadoEm     DateTime?
+  usuario        Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@index([revogadoEm])
 }
 
 // Vínculo usuário ↔ empresa (multiempresa, Fase 3). ADMIN enxerga todas as

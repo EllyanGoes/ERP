@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, signToken, COOKIE_NAME, SessionPayload } from "@/lib/auth";
+import { getSession, signToken, COOKIE_NAME, SessionPayload, SESSAO_MAX_AGE_S } from "@/lib/auth";
 import { empresasParaSessao } from "@/lib/empresa";
 
 // POST /api/auth/refresh
@@ -11,9 +11,13 @@ import { empresasParaSessao } from "@/lib/empresa";
 // Called automatically on app mount so stale permission tokens are fixed
 // without requiring a manual logout/login.
 export async function POST() {
+  // getSession já trata sessão revogada (deslogado de outro dispositivo) como
+  // não-logado → limpa o cookie e força re-login.
   const session = await getSession();
   if (!session) {
-    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+    const res = NextResponse.json({ error: "Sessão encerrada" }, { status: 401 });
+    res.cookies.delete(COOKIE_NAME);
+    return res;
   }
 
   // Fetch fresh data from DB
@@ -47,7 +51,16 @@ export async function POST() {
     perfil: user.perfil as "ADMIN" | "USUARIO",
     activeEmpresaId,
     empresaIds,
+    jti:    session.jti, // mantém a mesma sessão/dispositivo
   };
+
+  // Mantém a sessão "viva": último acesso + estende a expiração para +24h.
+  if (session.jti) {
+    await prisma.usuarioSessao.update({
+      where: { id: session.jti },
+      data: { ultimoAcessoEm: new Date(), expiraEm: new Date(Date.now() + SESSAO_MAX_AGE_S * 1000) },
+    }).catch(() => { /* sessão sumiu — o cookie reemitido segue válido até expirar */ });
+  }
 
   const token = signToken(payload);
 
@@ -67,7 +80,7 @@ export async function POST() {
     httpOnly: true,
     secure:   process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge:   60 * 60 * 8, // 8 hours
+    maxAge:   SESSAO_MAX_AGE_S, // 24h
     path:     "/",
   });
 
