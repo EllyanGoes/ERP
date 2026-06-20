@@ -198,12 +198,16 @@ export async function registrarLancamento(input: LancamentoIn) {
 export async function contabilizarTituloReceber(crId: string) {
   const cr = await prismaSemEscopo.contaReceber.findUnique({
     where: { id: crId },
-    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoVendaId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true,
+    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoVendaId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true,
       cliente: { select: { razaoSocial: true } }, pedidoVenda: { select: { numero: true } } },
   });
   if (!cr || cr.status === "CANCELADA") return;
   const cliNome = cr.cliente?.razaoSocial ?? "";
   const refPedido = cr.pedidoVenda?.numero ? ` · Pedido ${cr.pedidoVenda.numero}` : "";
+  // Histórico contábil usa a descrição do próprio título (mais claro do que só o
+  // número); cai no número quando o título não tem descrição.
+  const descCr = cr.descricao?.trim();
+  const refCr = descCr ? `${descCr} (${cr.numero})` : `Título ${cr.numero}${refPedido}`;
 
   // Receita cai na conta da natureza do título; senão na sintética 3.1.
   // Caixa/banco: conta de disponibilidade do banco do título; senão a sintética 1.1.1.
@@ -237,7 +241,7 @@ export async function contabilizarTituloReceber(crId: string) {
   if (!ehPedido && valor > 0 && contaReceita) {
     await registrarLancamento({
       empresaId: cr.empresaId, data: cr.dataCompetencia ?? cr.createdAt,
-      historico: `Venda — Título ${cr.numero}${refPedido}${cliNome ? ` · ${cliNome}` : ""}`, origemTipo: "VENDA", origemId: cr.id,
+      historico: `Venda — ${refCr}${cliNome ? ` · ${cliNome}` : ""}`, origemTipo: "VENDA", origemId: cr.id,
       partidas: [
         { contaId: contaAtivo.id, tipo: "DEBITO", valor, clienteId: cli },
         { contaId: contaReceita.id, tipo: "CREDITO", valor },
@@ -268,7 +272,7 @@ export async function contabilizarTituloReceber(crId: string) {
       partidas.push({ contaId: contaAtivo.id, tipo: "CREDITO", valor: total, clienteId: cli });
       await registrarLancamento({
         empresaId: cr.empresaId, data: cr.dataPagamento ?? cr.createdAt,
-        historico: `Recebimento — Título ${cr.numero}${refPedido}${cliNome ? ` · ${cliNome}` : ""}`, origemTipo: "RECEBIMENTO", origemId: cr.id,
+        historico: `Recebimento — ${refCr}${cliNome ? ` · ${cliNome}` : ""}`, origemTipo: "RECEBIMENTO", origemId: cr.id,
         partidas,
       });
     }
@@ -281,9 +285,14 @@ export async function contabilizarTituloReceber(crId: string) {
 export async function contabilizarTituloPagar(cpId: string) {
   const cp = await prismaSemEscopo.contaPagar.findUnique({
     where: { id: cpId },
-    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, numero: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true, empresa: { select: { industrializa: true } } },
+    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true, empresa: { select: { industrializa: true } } },
   });
   if (!cp || cp.status === "CANCELADA") return;
+
+  // Histórico contábil usa a descrição do próprio título (mais claro do que só o
+  // número); cai no número quando o título não tem descrição.
+  const descCp = cp.descricao?.trim();
+  const refCp = descCp ? `${descCp} (${cp.numero})` : `título ${cp.numero}`;
 
   // Compra de estoque (CP de pedido de compra): a perna COMPRA (despesa) NÃO é
   // gerada — a entrada de estoque (D Estoque / C Fornecedor) credita o
@@ -347,7 +356,7 @@ export async function contabilizarTituloPagar(cpId: string) {
       if (valorComp > 0) {
         await registrarLancamento({
           empresaId: cp.empresaId, data: cp.dataCompetencia ?? cp.createdAt,
-          historico: `Provisão — título ${cp.numero}`, origemTipo: "COMPRA", origemId: cp.id,
+          historico: `Provisão — ${refCp}`, origemTipo: "COMPRA", origemId: cp.id,
           partidas: [
             { contaId: contaDesp.id, tipo: "DEBITO", valor: valorComp },
             { contaId: contaPassivo.id, tipo: "CREDITO", valor: valorComp },
@@ -360,7 +369,7 @@ export async function contabilizarTituloPagar(cpId: string) {
           partidas.unshift({ contaId: contaPassivo.id, tipo: "DEBITO", valor: total });
           await registrarLancamento({
             empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
-            historico: `Pagamento — título ${cp.numero}`, origemTipo: "PAGAMENTO", origemId: cp.id,
+            historico: `Pagamento — ${refCp}`, origemTipo: "PAGAMENTO", origemId: cp.id,
             partidas,
           });
         }
@@ -375,7 +384,7 @@ export async function contabilizarTituloPagar(cpId: string) {
     partidas.unshift({ contaId: contaDesp.id, tipo: "DEBITO", valor: total });
     await registrarLancamento({
       empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
-      historico: `Pagamento — título ${cp.numero}`, origemTipo: "PAGAMENTO", origemId: cp.id,
+      historico: `Pagamento — ${refCp}`, origemTipo: "PAGAMENTO", origemId: cp.id,
       partidas,
     });
     return;
@@ -396,7 +405,7 @@ export async function contabilizarTituloPagar(cpId: string) {
   if (!ehCompraEstoque && valor > 0 && contaDespesa) {
     await registrarLancamento({
       empresaId: cp.empresaId, data: cp.dataCompetencia ?? cp.createdAt,
-      historico: `Compra — título ${cp.numero}`, origemTipo: "COMPRA", origemId: cp.id,
+      historico: `Compra — ${refCp}`, origemTipo: "COMPRA", origemId: cp.id,
       partidas: [
         { contaId: contaDespesa.id, tipo: "DEBITO", valor },
         { contaId: contaForn.id, tipo: "CREDITO", valor, fornecedorId: cp.fornecedorId },
@@ -411,7 +420,7 @@ export async function contabilizarTituloPagar(cpId: string) {
       partidas.unshift({ contaId: contaForn.id, tipo: "DEBITO", valor: total, fornecedorId: cp.fornecedorId });
       await registrarLancamento({
         empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
-        historico: `Pagamento — título ${cp.numero}`, origemTipo: "PAGAMENTO", origemId: cp.id,
+        historico: `Pagamento — ${refCp}`, origemTipo: "PAGAMENTO", origemId: cp.id,
         partidas,
       });
     }
