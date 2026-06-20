@@ -125,6 +125,26 @@ function detalheItens(
   return partes.join("; ") + (resto > 0 ? ` +${resto} item(ns)` : "");
 }
 
+// Agrupa movimentações por item (soma a quantidade, mantém o valor unitário e a
+// descrição) e devolve o detalhe "qtd× produto × R$ unit" — usado no histórico
+// de Entrada de estoque (DE) e Requisição (RM) p/ identificar o que foi movido.
+function agruparItensParaDetalhe(
+  movs: { itemId: string; quantidade: unknown; valorUnitario?: unknown; item?: { descricao?: string | null } | null }[],
+): string {
+  const porItem = new Map<string, { quantidade: number; precoUnitario: number | null; item: { descricao: string | null } }>();
+  for (const m of movs) {
+    const q = decimalToNumber(m.quantidade);
+    const cur = porItem.get(m.itemId);
+    if (cur) cur.quantidade += q;
+    else porItem.set(m.itemId, {
+      quantidade: q,
+      precoUnitario: m.valorUnitario != null ? decimalToNumber(m.valorUnitario) : null,
+      item: { descricao: m.item?.descricao ?? null },
+    });
+  }
+  return detalheItens(Array.from(porItem.values()));
+}
+
 /**
  * Registra um lançamento contábil balanceado (débito = crédito). Idempotente por
  * (empresaId, origemTipo, origemId): se já existir, retorna o existente sem
@@ -596,7 +616,7 @@ export async function contabilizarEntradaEstoque(conferenciaId: string) {
 
   const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
     where: { empresaId: conf.empresaId, documento: conf.numero, tipo: "ENTRADA", localEstoqueId: { not: null }, valorUnitario: { not: null } },
-    select: { localEstoqueId: true, quantidade: true, valorUnitario: true },
+    select: { localEstoqueId: true, itemId: true, quantidade: true, valorUnitario: true, item: { select: { descricao: true } } },
   });
   // Valor por local (qtd × vlrUnitario).
   const porLocal = new Map<string, number>();
@@ -620,9 +640,12 @@ export async function contabilizarEntradaEstoque(conferenciaId: string) {
   if (partidas.length === 0) return;
   partidas.push({ contaId: contaForn.id, tipo: "CREDITO", valor: total, fornecedorId });
 
+  // Detalhe dos itens (qtd× produto × R$ unit) p/ identificar o que entrou.
+  const detItens = agruparItensParaDetalhe(movs);
+
   await registrarLancamento({
     empresaId: conf.empresaId, data: conf.dtEmissao ?? conf.createdAt,
-    historico: `Entrada de estoque — ${conf.numero}`, origemTipo: "ESTOQUE_ENTRADA", origemId: conf.id,
+    historico: `Entrada de estoque — ${conf.numero}${detItens ? ` — ${detItens}` : ""}`, origemTipo: "ESTOQUE_ENTRADA", origemId: conf.id,
     partidas,
   });
 }
@@ -886,14 +909,17 @@ export async function contabilizarRequisicao(requisicaoId: string) {
 
   const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
     where: { documento: req.numero, localEstoqueId: { not: null }, clienteDonoId: null, tipo: { in: ["ENTRADA", "SAIDA"] } },
-    select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true },
+    select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true, valorUnitario: true, item: { select: { descricao: true } } },
   });
   if (movs.length === 0) return;
   const empresaId = movs[0].empresaId;
   const { consumoId } = await garantirContasSistemaEstoque(empresaId);
 
+  // Detalhe dos itens (qtd× produto × R$ unit) p/ identificar o que foi requisitado.
+  const detItens = agruparItensParaDetalhe(movs);
+
   await postMovimentosEstoque({
-    empresaId, data: req.updatedAt, historico: `Requisição — ${req.numero}`,
+    empresaId, data: req.updatedAt, historico: `Requisição — ${req.numero}${detItens ? ` — ${detItens}` : ""}`,
     origemTipo: "ESTOQUE_CONSUMO", origemId: requisicaoId,
     movs, contaPositivoId: consumoId, contaNegativoId: consumoId,
   });

@@ -166,8 +166,9 @@ export default function RazaoPage() {
               </span>
               <span className="text-sm text-muted-foreground">Saldo anterior: <b className="text-foreground tabular-nums">{fmtSaldo(razao.saldoInicial, modo, razao.conta.natureza as NaturezaConta)}</b></span>
             </div>
+            <div className="overflow-auto max-h-[calc(100vh-300px)]">
             <table className="w-full text-sm">
-              <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
+              <thead className="sticky top-0 z-10 border-b border-border text-xs text-muted-foreground uppercase tracking-wide [&>tr>th]:bg-muted">
                 <tr>
                   <th className="text-left px-4 py-2 font-semibold w-24">Data</th>
                   <th className="text-left px-4 py-2 font-semibold w-28">Lançamento</th>
@@ -230,7 +231,7 @@ export default function RazaoPage() {
                   );
                 })}
               </tbody>
-              <tfoot className="border-t-2 border-border bg-muted">
+              <tfoot className="sticky bottom-0 z-10 border-t-2 border-border [&>tr>td]:bg-muted">
                 <tr className="font-bold text-foreground tabular-nums">
                   <td className="px-4 py-2.5" colSpan={4}>Saldo final</td>
                   <td className="px-4 py-2.5 text-right text-info">{fmtColuna(razao.movimentos.reduce((s, m) => s + m.debito, 0), modo)}</td>
@@ -239,6 +240,7 @@ export default function RazaoPage() {
                 </tr>
               </tfoot>
             </table>
+            </div>
           </div>
         )}
       </div>
