@@ -96,7 +96,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (body.edit === true) {
     // Full edit mode: delete all existing items, create new ones, update all fields
-    const itens: Array<{ itemId: string; quantidade: number; precoUnitario: number; desconto?: number | null; situacao?: string }> =
+    const itens: Array<{ itemId: string; quantidade: number; precoUnitario: number; desconto?: number | null; situacao?: string; unidadeId?: string | null }> =
       body.itens ?? [];
 
     const subtotal = itens.reduce((s, it) => {
@@ -126,6 +126,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           return {
             pedidoId,
             itemId:        it.itemId,
+            unidadeId:     it.unidadeId || null,
             quantidade:    qtd,
             precoUnitario: preco,
             valorTotal:    bruto - (bruto * pct) / 100,

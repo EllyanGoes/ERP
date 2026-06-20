@@ -241,6 +241,9 @@ model ConferenciaCompraItem {
   empresaId          String                @default("emp_tramontin")
   conferenciaId      String
   itemId             String
+  // Unidade da COMPRA (herdada do pedido; null = base). quantidadeRecebida e
+  // vlrUnitario ficam nesta unidade; conversão p/ base ao concluir.
+  unidadeId          String?
   quantidadePedida   Decimal               @db.Decimal(15, 3)
   quantidadeRecebida Decimal               @default(0) @db.Decimal(15, 3)
   divergencia        Boolean               @default(false)
@@ -1437,6 +1440,10 @@ model PedidoCompraItem {
   id            String       @id @default(cuid())
   pedidoId      String
   itemId        String
+  // Unidade da COMPRA (null = unidade base do item). quantidade/precoUnitario
+  // ficam nesta unidade; a conversão p/ base (× / ÷ fatorConversao do ItemUnidade)
+  // é aplicada ao dar entrada (concluir conferência).
+  unidadeId     String?
   quantidade    Decimal      @db.Decimal(15, 3)
   precoUnitario Decimal      @db.Decimal(15, 2)
   valorTotal    Decimal      @db.Decimal(15, 2)

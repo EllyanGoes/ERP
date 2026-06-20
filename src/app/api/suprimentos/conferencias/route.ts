@@ -68,6 +68,8 @@ export async function POST(req: NextRequest) {
           itens: {
             create: pedido.itens.map((i) => ({
               itemId: i.itemId,
+              // Herda a unidade da compra do pedido (conversão p/ base na conclusão).
+              unidadeId: i.unidadeId ?? null,
               quantidadePedida: parseFloat(String(i.quantidade)),
               quantidadeRecebida: 0,
             })),
@@ -212,6 +214,7 @@ export async function POST(req: NextRequest) {
         itens: {
           create: itens.map((it: {
             itemId: string;
+            unidadeId?: string | null;
             quantidadePedida: number | string;
             quantidadeRecebida?: number | string;
             vlrUnitario?: number | string | null;
@@ -233,6 +236,7 @@ export async function POST(req: NextRequest) {
               : (vlrUnit != null ? qtdRec * vlrUnit : null);
             return {
               itemId: it.itemId,
+              unidadeId: it.unidadeId || null,
               quantidadePedida: qtdPed,
               quantidadeRecebida: qtdRec,
               vlrUnitario: vlrUnit,

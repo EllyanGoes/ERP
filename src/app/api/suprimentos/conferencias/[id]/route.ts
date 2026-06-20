@@ -110,6 +110,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             data: {
               conferenciaId: params.id,
               itemId: item.itemId,
+              unidadeId: item.unidadeId || null,
               quantidadePedida: qtdPedida,
               quantidadeRecebida: qtdRecebida,
               divergencia,
@@ -142,6 +143,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           data: {
             quantidadeRecebida: qtdRecebida,
             divergencia,
+            ...(item.unidadeId !== undefined ? { unidadeId: item.unidadeId || null } : {}),
             ...(item.observacao !== undefined ? { observacao: item.observacao || null } : {}),
             ...(vlrUnit !== undefined ? { vlrUnitario: vlrUnit } : {}),
             ...(vlrTot !== undefined ? { vlrTotal: vlrTot } : {}),

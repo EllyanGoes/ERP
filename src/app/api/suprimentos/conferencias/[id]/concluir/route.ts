@@ -74,6 +74,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
 
       if (qtdRecebida > 0) {
+        // Conversão p/ a unidade BASE do item. A compra pode estar numa unidade
+        // alternativa (item.unidadeId): fator = quantos da base cabem em 1 dela
+        // (ex.: UN→100 MT ⇒ fator 100). Estoque/custo são SEMPRE na base:
+        //   qtdBase = qtdRecebida × fator ; custoBase = vlrUnitario ÷ fator.
+        let fator = 1;
+        if (item.unidadeId) {
+          const iu = await tx.itemUnidade.findFirst({
+            where: { itemId: item.itemId, unidadeId: item.unidadeId },
+            select: { fatorConversao: true, isPrincipal: true },
+          });
+          if (iu && !iu.isPrincipal && iu.fatorConversao != null) {
+            const f = parseFloat(String(iu.fatorConversao));
+            if (Number.isFinite(f) && f > 0) fator = f;
+          }
+        }
+        const qtdBase = qtdRecebida * fator;
+
         // Use item-specific localEstoqueId if set, otherwise fall back to the
         // conferência's default local, then to null (global stock)
         const targetLocalEstoqueId = item.localEstoqueId ?? conferencia.localEstoqueId ?? null;
@@ -92,38 +109,40 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         if (estoqueItem) {
           const atualizado = await tx.estoqueItem.update({
             where: { id: estoqueItem.id },
-            data:  { quantidadeAtual: { increment: qtdRecebida } },
+            data:  { quantidadeAtual: { increment: qtdBase } },
           });
           saldoDepois = parseFloat(String(atualizado.quantidadeAtual));
         } else {
-          saldoDepois = qtdRecebida;
+          saldoDepois = qtdBase;
           await tx.estoqueItem.create({
             data: {
               empresaId: conferencia.empresaId,
               clienteDonoId: null,
               itemId: item.itemId,
-              quantidadeAtual: qtdRecebida,
+              quantidadeAtual: qtdBase,
               quantidadeMin: 0,
               localEstoqueId: targetLocalEstoqueId,
             },
           });
         }
-        const saldoAntes = saldoDepois - qtdRecebida;
+        const saldoAntes = saldoDepois - qtdBase;
 
         // Determine document reference
         const docRef = conferencia.pedido?.numero
           ? `Recebimento ${conferencia.pedido.numero}`
           : `Recebimento ${conferencia.numero}`;
 
+        // Preço por unidade de compra → custo por unidade BASE (÷ fator).
         const vlrUnitario = item.vlrUnitario ? parseFloat(String(item.vlrUnitario)) : null;
+        const custoBase = vlrUnitario != null ? vlrUnitario / fator : null;
 
-        // Create stock movement
+        // Create stock movement (sempre na unidade base)
         const mov = await tx.movimentacaoEstoque.create({
           data: {
             empresaId: conferencia.empresaId,
             itemId: item.itemId,
             tipo: "ENTRADA",
-            quantidade: qtdRecebida,
+            quantidade: qtdBase,
             saldoAntes,
             saldoDepois,
             data: dataDoc,
@@ -131,30 +150,29 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             observacoes: docRef,
             conferenciaItemId: item.id,
             localEstoqueId: targetLocalEstoqueId,
-            valorUnitario: vlrUnitario ?? null,
+            valorUnitario: custoBase ?? null,
           },
         });
 
         movimentacoesCriadas.push(mov.id);
         // (o estoque já foi atualizado/criado atomicamente acima)
 
-        // ── Custo Médio Ponderado Móvel (CMPM) ───────────────────────────────
-        // Atualiza precoCusto no Item quando o item da conferência tem vlrUnitario
-        if (vlrUnitario && vlrUnitario > 0) {
+        // ── Custo Médio Ponderado Móvel (CMPM) — na unidade BASE ──────────────
+        if (custoBase && custoBase > 0) {
           const currentItem = await tx.item.findUnique({
             where: { id: item.itemId },
             select: { precoCusto: true },
           });
           const oldCusto = currentItem?.precoCusto ? parseFloat(String(currentItem.precoCusto)) : 0;
 
-          // Soma todo o estoque atual (já atualizado) e subtrai a qtd recebida para obter o saldo antes
+          // Soma todo o estoque atual (já atualizado) e subtrai a qtd base recebida p/ o saldo antes
           const allEstoque = await tx.estoqueItem.findMany({ where: { itemId: item.itemId, clienteDonoId: null } });
           const estoqueTotal = allEstoque.reduce((s, e) => s + parseFloat(String(e.quantidadeAtual)), 0);
-          const baseSaldo = Math.max(estoqueTotal - qtdRecebida, 0);
+          const baseSaldo = Math.max(estoqueTotal - qtdBase, 0);
 
           const novoCusto = baseSaldo > 0
-            ? (baseSaldo * oldCusto + qtdRecebida * vlrUnitario) / (baseSaldo + qtdRecebida)
-            : vlrUnitario;
+            ? (baseSaldo * oldCusto + qtdBase * custoBase) / (baseSaldo + qtdBase)
+            : custoBase;
 
           await tx.item.update({
             where: { id: item.itemId },
@@ -162,7 +180,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           });
 
           // CMPM próprio da empresa dona da conferência (custo por empresa).
-          await aplicarCmpmEmpresa(tx, conferencia.empresaId, item.itemId, qtdRecebida, vlrUnitario);
+          await aplicarCmpmEmpresa(tx, conferencia.empresaId, item.itemId, qtdBase, custoBase);
         }
 
         // Mark divergencia on item

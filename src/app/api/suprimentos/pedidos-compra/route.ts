@@ -147,8 +147,10 @@ export async function POST(req: NextRequest) {
   const pedido = await prisma.$transaction(async (tx) => {
     const numero = numeroPC;
 
-    const parsedItens = itens.map((i: { itemId: string; quantidade: number; precoUnitario: number }) => ({
+    const parsedItens = itens.map((i: { itemId: string; quantidade: number; precoUnitario: number; unidadeId?: string | null }) => ({
       itemId:       i.itemId,
+      // Unidade da compra (null = base). Conversão p/ base é feita na entrada.
+      unidadeId:    i.unidadeId || null,
       quantidade:   parseFloat(String(i.quantidade)),
       precoUnitario: parseFloat(String(i.precoUnitario)),
       valorTotal:   parseFloat(String(i.quantidade)) * parseFloat(String(i.precoUnitario)),
