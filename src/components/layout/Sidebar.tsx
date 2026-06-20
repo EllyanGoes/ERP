@@ -281,6 +281,7 @@ const mainModules: Module[] = [
           { href: "/contabilidade/balancete", label: "Balancete", icon: Calculator },
           { href: "/contabilidade/dre", label: "DRE", icon: BarChart3 },
           { href: "/contabilidade/balanco", label: "Balanço Patrimonial", icon: Calculator },
+          { href: "/contabilidade/diagnostico", label: "Diagnóstico", icon: Activity },
         ],
       },
     ],
