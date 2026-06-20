@@ -383,8 +383,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       });
     });
 
-    // Cliente mudou → realinha o contábil ao novo cliente (best-effort, pós-commit).
-    if (clienteMudou) await recontabilizarClientePedido(params.id).catch(() => {});
+    // Toda edição do pedido (valor, itens, cliente…) realinha a contabilidade ao
+    // estado atual — apaga e refaz venda/título/entrega (best-effort, pós-commit).
+    // Antes só rodava quando o cliente mudava, deixando o contábil defasado quando
+    // o valor era editado depois de já contabilizado.
+    await recontabilizarClientePedido(params.id).catch(() => {});
 
     return NextResponse.json({ data: pedido });
   } catch (err) {

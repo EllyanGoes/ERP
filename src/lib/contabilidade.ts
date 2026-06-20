@@ -132,10 +132,25 @@ function agruparItensParaDetalhe(
   return detalheItens(Array.from(porItem.values()));
 }
 
+// Compara as partidas persistidas com as recalculadas (multiset por
+// conta/tipo/valor/cliente/fornecedor) para decidir se há mudança a re-sincronizar.
+function mesmasPartidas(
+  persistidas: { contaId: string; tipo: string; valor: unknown; clienteId: string | null; fornecedorId: string | null }[],
+  novas: PartidaIn[],
+): boolean {
+  if (persistidas.length !== novas.length) return false;
+  const k = (contaId: string, tipo: string, valor: number, cli?: string | null, forn?: string | null) =>
+    `${contaId}|${tipo}|${Math.round(valor * 100)}|${cli ?? ""}|${forn ?? ""}`;
+  const a = persistidas.map((p) => k(p.contaId, p.tipo, decimalToNumber(p.valor), p.clienteId, p.fornecedorId)).sort();
+  const b = novas.map((p) => k(p.contaId, p.tipo, p.valor, p.clienteId, p.fornecedorId)).sort();
+  return a.every((x, i) => x === b[i]);
+}
+
 /**
- * Registra um lançamento contábil balanceado (débito = crédito). Idempotente por
- * (empresaId, origemTipo, origemId): se já existir, retorna o existente sem
- * duplicar. Lança erro se as partidas não fecharem.
+ * Registra um lançamento contábil balanceado (débito = crédito). Por
+ * (empresaId, origemTipo, origemId): se já existir e estiver igual, retorna o
+ * existente; se o fato de origem mudou, RE-SINCRONIZA as partidas no mesmo
+ * lançamento (mantém número). Lança erro se as partidas não fecharem.
  */
 export async function registrarLancamento(input: LancamentoIn) {
   const { empresaId, data, historico, origemTipo, origemId = null, criadoPor = null, partidas } = input;
@@ -156,13 +171,44 @@ export async function registrarLancamento(input: LancamentoIn) {
     if (fechadoAte && data <= fechadoAte) throw new PeriodoFechadoError(fechadoAte);
   }
 
-  // Idempotência por origem (quando há origem).
+  // Idempotência + RE-SYNC por origem: se já existe um lançamento desta origem,
+  // compara com as partidas/histórico/data recalculados. Iguais → retorna (idempotente).
+  // Diferentes (ex.: o pedido foi editado depois de contabilizado) → re-sincroniza
+  // as partidas no MESMO lançamento, mantendo o número. Assim a contabilidade nunca
+  // fica desatualizada quando o fato de origem muda.
   if (origemId) {
     const existente = await prismaSemEscopo.lancamentoContabil.findFirst({
       where: { empresaId, origemTipo, origemId },
-      select: { id: true },
+      select: {
+        id: true, data: true, historico: true,
+        partidas: { select: { contaId: true, tipo: true, valor: true, clienteId: true, fornecedorId: true } },
+      },
     });
-    if (existente) return existente;
+    if (existente) {
+      if (
+        existente.historico === historico &&
+        existente.data.getTime() === data.getTime() &&
+        mesmasPartidas(existente.partidas, partidas)
+      ) {
+        return { id: existente.id };
+      }
+      await prismaSemEscopo.$transaction([
+        prismaSemEscopo.partidaContabil.deleteMany({ where: { lancamentoId: existente.id } }),
+        prismaSemEscopo.lancamentoContabil.update({
+          where: { id: existente.id },
+          data: {
+            data, historico,
+            partidas: {
+              create: partidas.map((p) => ({
+                empresaId, contaId: p.contaId, tipo: p.tipo, valor: p.valor,
+                clienteId: p.clienteId ?? null, fornecedorId: p.fornecedorId ?? null,
+              })),
+            },
+          },
+        }),
+      ]);
+      return { id: existente.id };
+    }
   }
 
   // Código sequencial do lançamento (LC-AAAA-NNNN), por empresa — identifica o
