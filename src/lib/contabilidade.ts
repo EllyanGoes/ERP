@@ -93,19 +93,6 @@ export async function contaDoBanco(empresaId: string, contaBancariaId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, contaBancariaId }, select: { id: true } });
 }
 
-// Resumo curto dos itens (ex.: "100× Bloco de Vedação, 50× Cimento +2") para
-// enriquecer o histórico/descrição dos lançamentos de venda/entrega.
-function resumoItens(itens: { quantidade: unknown; item?: { descricao?: string | null } | null }[], max = 3): string {
-  if (!itens.length) return "";
-  const partes = itens.slice(0, max).map((it) => {
-    const q = decimalToNumber(it.quantidade);
-    const qStr = Number.isInteger(q) ? String(q) : q.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
-    return `${qStr}× ${it.item?.descricao ?? "item"}`;
-  });
-  const resto = itens.length - max;
-  return partes.join(", ") + (resto > 0 ? ` +${resto}` : "");
-}
-
 // Detalhe dos itens p/ o histórico no padrão do razão: "120× Areia × R$ 85,00;
 // 28× Brita 0 × R$ 260,00" — quantidade, produto e preço unitário por item.
 function detalheItens(
@@ -662,7 +649,8 @@ export async function contabilizarCmvMinuta(minutaId: string) {
     select: {
       id: true, empresaId: true, numero: true, dataEntrega: true, dataEmissao: true, createdAt: true,
       empresa: { select: { industrializa: true } },
-      itens: { select: { quantidade: true, item: { select: { descricao: true } } } },
+      pedidoVenda: { select: { numero: true } },
+      itens: { select: { quantidade: true, item: { select: { descricao: true } }, pedidoVendaItem: { select: { precoUnitario: true } } } },
     },
   });
   if (!minuta) return;
@@ -708,9 +696,14 @@ export async function contabilizarCmvMinuta(minutaId: string) {
     partidas.push({ contaId: cl.id, tipo: "CREDITO", valor: v });
   }
 
+  // Histórico no padrão do razão: minuta · pedido de venda · itens (qtd× produto × R$).
+  const detItens = detalheItens(minuta.itens.map((it) => ({
+    quantidade: it.quantidade, precoUnitario: it.pedidoVendaItem?.precoUnitario, item: it.item,
+  })));
+  const pedNum = minuta.pedidoVenda?.numero;
   await registrarLancamento({
     empresaId: minuta.empresaId, data: minuta.dataEntrega ?? minuta.dataEmissao ?? minuta.createdAt,
-    historico: `Custo da venda — saída ${minuta.numero}${resumoItens(minuta.itens) ? ` — ${resumoItens(minuta.itens)}` : ""}`, origemTipo: "ESTOQUE_SAIDA", origemId: minuta.id,
+    historico: `Custo da venda — saída ${minuta.numero}${pedNum ? ` · Pedido ${pedNum}` : ""}${detItens ? ` — ${detItens}` : ""}`, origemTipo: "ESTOQUE_SAIDA", origemId: minuta.id,
     partidas,
   });
 }
