@@ -9,7 +9,7 @@ import { linkOrigemLancamento } from "@/lib/origem-link";
 import { useSession } from "@/lib/session-context";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
-import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import ContaContabilCombobox from "@/components/contabilidade/ContaContabilCombobox";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatDate, cn } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtSaldo, fmtColuna, saldoAnormal, type NaturezaConta } from "@/lib/formato-contabil";
@@ -75,11 +75,6 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
     const pai = c.paiId ? byId.get(c.paiId) : undefined;
     return pai ? `${pai.nome} › ${c.nome}` : c.nome;
   }, [byId]);
-  const options = useMemo(() => contas.map((c) => {
-    const pai = c.paiId ? byId.get(c.paiId) : undefined;
-    return { value: c.id, label: `${c.codigo} — ${pai ? pai.nome + " › " : ""}${c.nome}` };
-  }), [contas, byId]);
-
   const titulo = (contaId && tituloDaConta(contaId)) || (razao ? razao.conta.nome : null);
   useTabTitle(titulo ? `Razão · ${titulo}` : "Razão");
 
@@ -148,12 +143,10 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
       <div className="px-8 pb-8 space-y-4">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="w-[34rem] max-w-full">
-            <ComboboxWithCreate
+            <ContaContabilCombobox
               value={contaIdProp ?? contaId ?? ""}
               onChange={(id) => abrir(id)}
-              placeholder="Abrir conta no razão..."
-              triggerClassName="h-10 rounded-lg"
-              options={options}
+              contas={contas}
             />
           </div>
           <DateRangePicker value={range} onChange={setRange} />
