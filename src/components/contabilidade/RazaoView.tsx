@@ -139,13 +139,17 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
       <PageHeader title="Razão" breadcrumbs={[{ label: "Contabilidade" }, { label: "Razão" }]} />
       <div className="px-8 pb-8 space-y-4">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="w-[34rem] max-w-full">
-            <ContaContabilCombobox
-              value={contaIdProp ?? contaId ?? ""}
-              onChange={(id) => abrir(id)}
-              contas={contas}
-            />
-          </div>
+          {/* O seletor de cima só aparece na aba de uma conta — na tela de
+              abertura o lançador abaixo já tem busca. */}
+          {contaId && (
+            <div className="w-[34rem] max-w-full">
+              <ContaContabilCombobox
+                value={contaId}
+                onChange={(id) => abrir(id)}
+                contas={contas}
+              />
+            </div>
+          )}
           <DateRangePicker value={range} onChange={setRange} />
           <div className="ml-auto flex items-center gap-2">
             <FormatoToggle modo={modo} onChange={setModo} />
