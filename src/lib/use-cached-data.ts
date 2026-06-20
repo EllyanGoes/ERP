@@ -7,10 +7,14 @@ import { useEffect, useRef, useState } from "react";
 // conta/relatório já visto, mostra o dado em cache NA HORA (sem recarregar) e
 // revalida em segundo plano, atualizando quando a resposta nova chega.
 const cache = new Map<string, unknown>();
+// Momento (ms) em que cada chave foi gravada — usado pelo TTL opcional para
+// evitar revalidar de novo a cada reabertura de aba (ver `ttlMs`).
+const cacheTime = new Map<string, number>();
 
 export function useCachedData<T>(
   key: string | null,
   fetcher: () => Promise<T>,
+  opts?: { ttlMs?: number },
 ): { data: T | null; loading: boolean; refetch: () => void } {
   const [data, setData] = useState<T | null>(() => (key ? ((cache.get(key) as T) ?? null) : null));
   const [loading, setLoading] = useState<boolean>(() => (key ? !cache.has(key) : false));
@@ -23,9 +27,16 @@ export function useCachedData<T>(
     const cached = cache.has(key) ? (cache.get(key) as T) : undefined;
     if (cached !== undefined) { setData(cached); setLoading(false); }   // mostra o cache na hora
     else { setData(null); setLoading(true); }
+    // TTL opcional: se o cache ainda é "fresco", não revalida — evita o piscar/
+    // recarregar dos dados a cada vez que se sai e volta para a aba. Sem ttlMs,
+    // o comportamento segue sendo revalidar sempre (compat com os outros usos).
+    const fresco =
+      cached !== undefined && opts?.ttlMs != null &&
+      Date.now() - (cacheTime.get(key) ?? 0) < opts.ttlMs;
+    if (fresco) return;
     let cancelado = false;
     fetcherRef.current()
-      .then((res) => { if (cancelado) return; cache.set(key, res); setData(res); setLoading(false); })
+      .then((res) => { if (cancelado) return; cache.set(key, res); cacheTime.set(key, Date.now()); setData(res); setLoading(false); })
       .catch(() => { if (!cancelado) setLoading(false); });
     return () => { cancelado = true; };
   }, [key, tick]);

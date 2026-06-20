@@ -82,7 +82,7 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
     const j = await fetch(`/api/contabilidade/razao?contaId=${contaId}&from=${range.from}&to=${range.to}`).then((r) => r.json());
     if (j.error) throw new Error(j.error);
     return j;
-  });
+  }, { ttlMs: 60_000 }); // não revalida a cada reabertura de aba dentro de 1 min (evita "recarregar" os títulos)
 
   const titulo = (contaId && tituloDaConta(contaId)) || (razao ? razao.conta.nome : null);
   useTabTitle(titulo ? `Razão · ${titulo}` : "Razão");
