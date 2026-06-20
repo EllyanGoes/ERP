@@ -373,7 +373,31 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             });
           }
           conta = { id: abertos[0].id, numero: abertos[0].numero };
-          await receberLinhas(conta.id, linhasReais);
+          // Distribui o recebimento POR PARCELA: cada título ganha lançamento(s) de
+          // caixa pelo seu próprio valor — NUNCA concentra o total na 1ª parcela
+          // (senão o caixa e a contabilidade por título saem divergentes). Preenche
+          // cada CR com as linhas de pagamento em ordem (cobre pagamento misto).
+          let li = 0;
+          let restanteLinha = linhasReais[0]?.valor ?? 0;
+          for (const ab of abertos) {
+            let restanteCR = parseFloat(ab.valorOriginal.toString());
+            while (restanteCR > 0.001 && li < linhasReais.length) {
+              const usar = round2(Math.min(restanteCR, restanteLinha));
+              if (usar > 0.001) {
+                await tx.lancamentoFinanceiro.create({
+                  data: {
+                    empresaId: pedido.empresaId, tipo: "RECEITA",
+                    descricao: `Recebimento — venda balcão${linhasReais.length > 1 ? ` (${linhasReais[li].forma})` : ""}`,
+                    valor: usar, dataLancamento: hoje,
+                    contaReceberId: ab.id, contaBancariaId: linhasReais[li].contaBancariaId,
+                  },
+                });
+              }
+              restanteCR = round2(restanteCR - usar);
+              restanteLinha = round2(restanteLinha - usar);
+              if (restanteLinha <= 0.001) { li++; restanteLinha = linhasReais[li]?.valor ?? 0; }
+            }
+          }
         } else {
           // Venda nova: o recebido no ato (dinheiro/Pix/débito) baixa o caixa; o
           // cartão de crédito (diasCompensacao > 0) vira conta A RECEBER (+N dias).
