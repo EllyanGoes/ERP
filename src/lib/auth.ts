@@ -105,16 +105,15 @@ export function parseUserAgent(ua: string | null | undefined): { dispositivo: st
   return { dispositivo, navegador, so };
 }
 
-// Server-side: read session from cookies (for Server Components and Route Handlers)
+// Server-side: read session from cookies (for Server Components and Route Handlers).
+// NÃO consulta o banco — a revogação de dispositivo é verificada no
+// /api/auth/refresh (modelo eventual: vale no mount/foco/intervalo do app),
+// evitando uma query por request em todo render de página.
 export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
   if (!token) return null;
-  const payload = verifyToken(token);
-  if (!payload) return null;
-  // Sessão revogada (deslogado de outro dispositivo) → trata como não logado.
-  if (payload.jti && !(await sessaoAtiva(payload.jti))) return null;
-  return payload;
+  return verifyToken(token);
 }
 
 export type RequireSessionResult =

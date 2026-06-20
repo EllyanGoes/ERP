@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, signToken, COOKIE_NAME, SessionPayload, SESSAO_MAX_AGE_S } from "@/lib/auth";
+import { getSession, signToken, COOKIE_NAME, SessionPayload, SESSAO_MAX_AGE_S, sessaoAtiva } from "@/lib/auth";
 import { empresasParaSessao } from "@/lib/empresa";
 
 // POST /api/auth/refresh
@@ -11,10 +11,10 @@ import { empresasParaSessao } from "@/lib/empresa";
 // Called automatically on app mount so stale permission tokens are fixed
 // without requiring a manual logout/login.
 export async function POST() {
-  // getSession já trata sessão revogada (deslogado de outro dispositivo) como
-  // não-logado → limpa o cookie e força re-login.
+  // Ponto de verificação da revogação de dispositivo (modelo eventual): se a
+  // sessão foi encerrada em outro dispositivo, limpa o cookie e força re-login.
   const session = await getSession();
-  if (!session) {
+  if (!session || (session.jti && !(await sessaoAtiva(session.jti)))) {
     const res = NextResponse.json({ error: "Sessão encerrada" }, { status: 401 });
     res.cookies.delete(COOKIE_NAME);
     return res;
