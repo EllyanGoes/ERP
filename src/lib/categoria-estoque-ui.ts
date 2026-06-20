@@ -8,6 +8,7 @@ export const CATEGORIA_ESTOQUE_VALUES = [
   "MERCADORIA",
   "WIP",
   "INSUMO",
+  "EMBALAGEM",
   "ALMOXARIFADO",
 ] as const satisfies readonly CategoriaEstoque[];
 
@@ -16,6 +17,7 @@ export const CATEGORIA_ESTOQUE_LABELS: Record<CategoriaEstoque, string> = {
   MERCADORIA: "Mercadoria (revenda)",
   WIP: "Produtos em processo (WIP)",
   INSUMO: "Insumo / Matéria-prima",
+  EMBALAGEM: "Embalagem",
   ALMOXARIFADO: "Almoxarifado",
 };
 
@@ -25,6 +27,7 @@ export const CATEGORIA_ESTOQUE_DESCRICOES: Record<CategoriaEstoque, string> = {
   MERCADORIA: "Produtos de compra (revenda)",
   WIP: "Produtos em processo",
   INSUMO: "Matéria-prima e insumos para queima",
+  EMBALAGEM: "Pallets, fitas, filmes e materiais de embalagem",
   ALMOXARIFADO: "Diversos (exceto as demais categorias)",
 };
 

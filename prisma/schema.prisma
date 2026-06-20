@@ -2422,6 +2422,7 @@ enum CategoriaEstoque {
   MERCADORIA
   WIP
   INSUMO
+  EMBALAGEM
   ALMOXARIFADO
 }
 

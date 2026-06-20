@@ -4,7 +4,7 @@ export const itemSchema = z.object({
   codigo: z.string().min(1, "Código é obrigatório"),
   descricao: z.string().min(2, "Descrição é obrigatória"),
   tipo: z.enum(["PRODUTO", "SERVICO", "MATERIA_PRIMA"]),
-  categoriaEstoque: z.enum(["PRODUTO_ACABADO", "MERCADORIA", "WIP", "INSUMO", "ALMOXARIFADO"]).optional().nullable(),
+  categoriaEstoque: z.enum(["PRODUTO_ACABADO", "MERCADORIA", "WIP", "INSUMO", "EMBALAGEM", "ALMOXARIFADO"]).optional().nullable(),
   unidadeMedida: z.enum(["UN", "KG", "LT", "MT", "CX", "PC", "HR"]),
   ncm: z.string().optional().nullable(),
   cest: z.string().optional().nullable(),
