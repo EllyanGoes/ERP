@@ -48,7 +48,12 @@ type ConferenciaItem = {
   localEstoqueId: string | null;
   localEstoque: LocalEstoque;
   desconto: unknown;
-  item: { id: string; codigo: string; descricao: string; unidadeMedida: string };
+  unidadeId: string | null;
+  item: {
+    id: string; codigo: string; descricao: string; unidadeMedida: string;
+    unidade?: { id: string; sigla: string } | null;
+    itemUnidades?: { unidadeId: string; fatorConversao: unknown; isPrincipal: boolean; unidade: { sigla: string } }[];
+  };
 };
 
 type FornecedorInfo = {
@@ -96,6 +101,9 @@ type Conferencia = {
   itens: ConferenciaItem[];
 };
 
+// Opção de unidade de compra de um item (base + alternativas) com o fator.
+type UnidadeOpc = { unidadeId: string; sigla: string; fator: number; base: boolean };
+
 type EditItem = {
   id: string;
   quantidadeRecebida: string;
@@ -109,6 +117,9 @@ type EditItem = {
   tpOper: string;
   localEstoqueId: string;
   desconto: string;
+  unidadeId: string;          // unidade de compra escolhida ("" = base)
+  unidades: UnidadeOpc[];     // opções (base + alternativas) do item
+  baseSigla: string;          // sigla da unidade base (p/ o hint convertido)
 };
 
 type LocalEstoqueOption = { id: string; nome: string };
@@ -236,20 +247,32 @@ export default function DocumentoEntradaDetailPage() {
       const resolvedModo = conf.modoLocalEstoque === "GLOBAL" ? "GLOBAL" : "POR_ITEM";
       const globalLocalId = conf.localEstoqueId ?? "";
       setEditItems(
-        conf.itens.map((i) => ({
-          id: i.id,
-          quantidadeRecebida: decimalToNumber(i.quantidadeRecebida).toString(),
-          observacao: i.observacao ?? "",
-          vlrUnitario: decimalToNumber(i.vlrUnitario) > 0 ? String(decimalToNumber(i.vlrUnitario)) : "",
-          vlrTotal: decimalToNumber(i.vlrTotal) > 0 ? String(decimalToNumber(i.vlrTotal)) : "",
-          vlrIPI: decimalToNumber(i.vlrIPI) > 0 ? String(decimalToNumber(i.vlrIPI)) : "",
-          vlrICMS: decimalToNumber(i.vlrICMS) > 0 ? String(decimalToNumber(i.vlrICMS)) : "",
-          tipoEntrada: i.tipoEntrada ?? "",
-          codFiscal: i.codFiscal ?? "",
-          tpOper: i.tpOper ?? "",
-          localEstoqueId: resolvedModo === "GLOBAL" ? globalLocalId : (i.localEstoqueId ?? ""),
-          desconto: decimalToNumber(i.desconto) > 0 ? String(decimalToNumber(i.desconto)) : "",
-        }))
+        conf.itens.map((i) => {
+          // Unidades de compra: base (sigla do item) + alternativas (fator).
+          const baseSigla = i.item.unidade?.sigla ?? i.item.unidadeMedida ?? "un";
+          const alternativas: UnidadeOpc[] = (i.item.itemUnidades ?? [])
+            .filter((iu) => !iu.isPrincipal && iu.fatorConversao != null)
+            .map((iu) => ({ unidadeId: iu.unidadeId, sigla: iu.unidade.sigla, fator: decimalToNumber(iu.fatorConversao), base: false }))
+            .filter((u) => u.fator > 0);
+          const unidades: UnidadeOpc[] = [{ unidadeId: "", sigla: baseSigla, fator: 1, base: true }, ...alternativas];
+          return {
+            id: i.id,
+            quantidadeRecebida: decimalToNumber(i.quantidadeRecebida).toString(),
+            observacao: i.observacao ?? "",
+            vlrUnitario: decimalToNumber(i.vlrUnitario) > 0 ? String(decimalToNumber(i.vlrUnitario)) : "",
+            vlrTotal: decimalToNumber(i.vlrTotal) > 0 ? String(decimalToNumber(i.vlrTotal)) : "",
+            vlrIPI: decimalToNumber(i.vlrIPI) > 0 ? String(decimalToNumber(i.vlrIPI)) : "",
+            vlrICMS: decimalToNumber(i.vlrICMS) > 0 ? String(decimalToNumber(i.vlrICMS)) : "",
+            tipoEntrada: i.tipoEntrada ?? "",
+            codFiscal: i.codFiscal ?? "",
+            tpOper: i.tpOper ?? "",
+            localEstoqueId: resolvedModo === "GLOBAL" ? globalLocalId : (i.localEstoqueId ?? ""),
+            desconto: decimalToNumber(i.desconto) > 0 ? String(decimalToNumber(i.desconto)) : "",
+            unidadeId: i.unidadeId ?? "",
+            unidades,
+            baseSigla,
+          };
+        })
       );
     } catch {
       setError("Erro ao carregar documento");
@@ -431,6 +454,7 @@ export default function DocumentoEntradaDetailPage() {
           itens: [
             ...editItems.map((i) => ({
               id: i.id,
+              unidadeId: i.unidadeId || null,
               quantidadeRecebida: parseFloat(i.quantidadeRecebida) || 0,
               observacao: i.observacao || null,
               vlrUnitario: i.vlrUnitario ? parseFloat(i.vlrUnitario) : null,
@@ -1270,17 +1294,40 @@ export default function DocumentoEntradaDetailPage() {
                           {qtdPedida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                         </td>
 
-                        {/* Qtd. Recebida */}
+                        {/* Qtd. Recebida (+ unidade de compra, se houver) */}
                         <td className="px-3 py-2">
                           {itemsEditable && ei ? (
-                            <Input
-                              type="number"
-                              step="0.001"
-                              min="0"
-                              className="w-24 ml-auto text-right h-7 text-xs"
-                              value={ei.quantidadeRecebida}
-                              onChange={(e) => updateItemAndCalc(item.id, "quantidadeRecebida", e.target.value)}
-                            />
+                            <div className="flex flex-col items-end gap-1">
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  step="0.001"
+                                  min="0"
+                                  className="w-24 text-right h-7 text-xs"
+                                  value={ei.quantidadeRecebida}
+                                  onChange={(e) => updateItemAndCalc(item.id, "quantidadeRecebida", e.target.value)}
+                                />
+                                {ei.unidades.length > 1 && (
+                                  <select
+                                    value={ei.unidadeId}
+                                    onChange={(e) => setEditItems((prev) => prev.map((x) => x.id === item.id ? { ...x, unidadeId: e.target.value } : x))}
+                                    className="h-7 rounded border border-border bg-card px-1 text-xs"
+                                    title="Unidade da compra"
+                                  >
+                                    {ei.unidades.map((u) => (
+                                      <option key={u.unidadeId || "base"} value={u.unidadeId}>{u.sigla}{u.base ? "" : ` (×${u.fator})`}</option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+                              {(() => {
+                                const u = ei.unidades.find((x) => x.unidadeId === ei.unidadeId);
+                                const fator = u && !u.base ? u.fator : 1;
+                                if (fator === 1) return null;
+                                const base = (parseFloat(ei.quantidadeRecebida) || 0) * fator;
+                                return <span className="text-[10px] text-muted-foreground">= {base.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {ei.baseSigla}</span>;
+                              })()}
+                            </div>
                           ) : (
                             <span className="block text-right text-xs text-foreground">
                               {decimalToNumber(item.quantidadeRecebida).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
@@ -1288,17 +1335,26 @@ export default function DocumentoEntradaDetailPage() {
                           )}
                         </td>
 
-                        {/* Vlr. Unit */}
+                        {/* Vlr. Unit (por unidade de compra; mostra o custo na base) */}
                         <td className="px-3 py-2">
                           {itemsEditable && ei ? (
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              className="w-24 ml-auto text-right h-7 text-xs"
-                              value={ei.vlrUnitario}
-                              onChange={(e) => updateItemAndCalc(item.id, "vlrUnitario", e.target.value)}
-                            />
+                            <div className="flex flex-col items-end gap-1">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                className="w-24 text-right h-7 text-xs"
+                                value={ei.vlrUnitario}
+                                onChange={(e) => updateItemAndCalc(item.id, "vlrUnitario", e.target.value)}
+                              />
+                              {(() => {
+                                const u = ei.unidades.find((x) => x.unidadeId === ei.unidadeId);
+                                const fator = u && !u.base ? u.fator : 1;
+                                if (fator === 1) return null;
+                                const custoBase = (parseFloat(ei.vlrUnitario) || 0) / fator;
+                                return <span className="text-[10px] text-muted-foreground">{formatBRL(custoBase)}/{ei.baseSigla}</span>;
+                              })()}
+                            </div>
                           ) : (
                             <span className="block text-right text-xs text-foreground">
                               {decimalToNumber(item.vlrUnitario) > 0

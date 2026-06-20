@@ -35,7 +35,14 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       localEstoque: { select: { id: true, nome: true } },
       itens: {
         include: {
-          item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } },
+          item: {
+            select: {
+              id: true, codigo: true, descricao: true, unidadeMedida: true,
+              // Unidades alternativas (p/ escolher a unidade de compra e converter).
+              unidade: { select: { id: true, sigla: true } },
+              itemUnidades: { select: { unidadeId: true, fatorConversao: true, isPrincipal: true, unidade: { select: { sigla: true } } } },
+            },
+          },
           localEstoque: { select: { id: true, nome: true } },
           movimentacoes: { select: { id: true, tipo: true, quantidade: true, createdAt: true } },
         },
