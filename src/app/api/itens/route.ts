@@ -27,7 +27,12 @@ export async function GET(req: NextRequest) {
   const [data, total] = await Promise.all([
     prisma.item.findMany({
       where,
-      include: { estoqueItems: { include: { localEstoque: true } } },
+      include: {
+        estoqueItems: { include: { localEstoque: true } },
+        // Unidades alternativas (p/ escolher a unidade de compra e converter custo).
+        unidade: { select: { sigla: true } },
+        itemUnidades: { select: { unidadeId: true, fatorConversao: true, isPrincipal: true, unidade: { select: { sigla: true } } } },
+      },
       orderBy: { codigo: "asc" },
       skip: (page - 1) * limit,
       take: limit,

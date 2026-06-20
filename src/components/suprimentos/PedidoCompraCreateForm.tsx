@@ -25,14 +25,30 @@ type Fornecedor = {
   id: string; razaoSocial: string; nomeFantasia: string | null;
   cpfCnpj: string | null; contato: string | null; email: string | null;
 };
-type ItemOption = { id: string; codigo: string; descricao: string; unidadeMedida: string };
+type ItemUnidadeOpt = { unidadeId: string; fatorConversao: unknown; isPrincipal: boolean; unidade: { sigla: string } };
+type ItemOption = {
+  id: string; codigo: string; descricao: string; unidadeMedida: string;
+  unidade?: { sigla: string } | null;
+  itemUnidades?: ItemUnidadeOpt[];
+};
 
 type ItemRow = {
   itemId: string;
   quantidade: string;
   precoUnitario: string;
   situacao: "CONSIDERA" | "NAO_CONSIDERA";
+  unidadeId?: string;   // unidade de compra ("" = base do item)
 };
+
+// Opções de unidade de um item (base + alternativas) com o fator de conversão.
+function unidadesDoItem(opt: ItemOption | undefined): { unidadeId: string; sigla: string; fator: number; base: boolean }[] {
+  const baseSigla = opt?.unidade?.sigla ?? opt?.unidadeMedida ?? "un";
+  const alt = (opt?.itemUnidades ?? [])
+    .filter((iu) => !iu.isPrincipal && iu.fatorConversao != null)
+    .map((iu) => ({ unidadeId: iu.unidadeId, sigla: iu.unidade.sigla, fator: parseFloat(String(iu.fatorConversao)), base: false }))
+    .filter((u) => Number.isFinite(u.fator) && u.fator > 0);
+  return [{ unidadeId: "", sigla: baseSigla, fator: 1, base: true }, ...alt];
+}
 
 type FormSnapshot = {
   fornecedorId: string;
@@ -367,7 +383,7 @@ export default function PedidoCompraCreateForm() {
     await doSubmit(validItens);
   }
 
-  async function doSubmit(validItens?: { itemId: string; quantidade: string; precoUnitario: string; situacao: string }[]) {
+  async function doSubmit(validItens?: { itemId: string; quantidade: string; precoUnitario: string; situacao: string; unidadeId?: string }[]) {
     setVinculoPopup(null);
     if (!validItens) {
       validItens = itens.filter((row) => row.itemId && parseDecimal(row.quantidade) > 0);
@@ -395,6 +411,7 @@ export default function PedidoCompraCreateForm() {
           confirmAvulso:       avulsoConfirmed,
           itens: validItens.map((row) => ({
             itemId:       row.itemId,
+            unidadeId:    row.unidadeId || null,
             quantidade:   parseDecimal(row.quantidade),
             precoUnitario: parseDecimal(row.precoUnitario) || 0,
           })),
@@ -750,7 +767,31 @@ export default function PedidoCompraCreateForm() {
                           createLabel="produto"
                         />
                       </td>
-                      <td className="px-4 py-2 text-muted-foreground text-xs">{opt?.unidadeMedida ?? "—"}</td>
+                      <td className="px-4 py-2 text-muted-foreground text-xs">
+                        {(() => {
+                          const uns = unidadesDoItem(opt);
+                          if (uns.length <= 1) return <span>{opt?.unidade?.sigla ?? opt?.unidadeMedida ?? "—"}</span>;
+                          const sel = uns.find((u) => u.unidadeId === (row.unidadeId ?? "")) ?? uns[0];
+                          const qtdBase = (parseDecimal(row.quantidade) || 0) * sel.fator;
+                          return (
+                            <div className="flex flex-col gap-0.5">
+                              <select
+                                value={row.unidadeId ?? ""}
+                                onChange={(e) => updateRow(i, "unidadeId", e.target.value)}
+                                className="h-8 rounded border border-border bg-card px-1 text-xs"
+                                title="Unidade da compra"
+                              >
+                                {uns.map((u) => (
+                                  <option key={u.unidadeId || "base"} value={u.unidadeId}>{u.sigla}{u.base ? "" : ` (×${u.fator})`}</option>
+                                ))}
+                              </select>
+                              {!sel.base && (
+                                <span className="text-[10px] text-muted-foreground">= {qtdBase.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {uns[0].sigla}</span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td className="px-4 py-2">
                         <Select
                           value={row.situacao}
