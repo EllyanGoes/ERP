@@ -18,7 +18,22 @@ type Fornecedor = {
   id: string; razaoSocial: string; nomeFantasia: string | null;
   cpfCnpj: string | null; contato: string | null; email: string | null;
 };
-type ItemOption = { id: string; codigo: string; descricao: string; unidadeMedida: string };
+type ItemUnidadeOpt = { unidadeId: string; fatorConversao: unknown; isPrincipal: boolean; unidade: { sigla: string } };
+type ItemOption = {
+  id: string; codigo: string; descricao: string; unidadeMedida: string;
+  unidade?: { sigla: string } | null;
+  itemUnidades?: ItemUnidadeOpt[];
+};
+
+// Opções de unidade (base + alternativas) com o fator de conversão.
+function unidadesDoItem(opt: ItemOption | undefined): { unidadeId: string; sigla: string; fator: number; base: boolean }[] {
+  const baseSigla = opt?.unidade?.sigla ?? opt?.unidadeMedida ?? "un";
+  const alt = (opt?.itemUnidades ?? [])
+    .filter((iu) => !iu.isPrincipal && iu.fatorConversao != null)
+    .map((iu) => ({ unidadeId: iu.unidadeId, sigla: iu.unidade.sigla, fator: parseFloat(String(iu.fatorConversao)), base: false }))
+    .filter((u) => Number.isFinite(u.fator) && u.fator > 0);
+  return [{ unidadeId: "", sigla: baseSigla, fator: 1, base: true }, ...alt];
+}
 
 type ItemRow = {
   itemId: string;
@@ -26,6 +41,7 @@ type ItemRow = {
   precoUnitario: string;
   desconto: string;
   situacao: "CONSIDERA" | "NAO_CONSIDERA";
+  unidadeId?: string;
 };
 
 type FormSnapshot = {
@@ -167,12 +183,14 @@ export default function EditarPedidoCompraPage() {
             precoUnitario: unknown;
             desconto?: unknown;
             situacao?: string;
+            unidadeId?: string | null;
           }) => ({
             itemId:        it.item.id,
             quantidade:    String(decimalToNumber(it.quantidade)),
             precoUnitario: String(decimalToNumber(it.precoUnitario)),
             desconto:      it.desconto != null ? String(decimalToNumber(it.desconto)) : "",
             situacao:      (it.situacao === "NAO_CONSIDERA" ? "NAO_CONSIDERA" : "CONSIDERA") as ItemRow["situacao"],
+            unidadeId:     it.unidadeId ?? "",
           })));
         }
       }
@@ -184,12 +202,13 @@ export default function EditarPedidoCompraPage() {
       const baseDespesasNum     = cf ? decimalToNumber(cf.despesas) : 0;
       const baseSeguroNum       = cf ? decimalToNumber(cf.seguro)   : 0;
       const baselineItens = Array.isArray(pedido.itens) && pedido.itens.length > 0
-        ? pedido.itens.map((it: { item: { id: string }; quantidade: unknown; precoUnitario: unknown; desconto?: unknown; situacao?: string }) => ({
+        ? pedido.itens.map((it: { item: { id: string }; quantidade: unknown; precoUnitario: unknown; desconto?: unknown; situacao?: string; unidadeId?: string | null }) => ({
             itemId:        it.item.id,
             quantidade:    String(decimalToNumber(it.quantidade)),
             precoUnitario: String(decimalToNumber(it.precoUnitario)),
             desconto:      it.desconto != null ? String(decimalToNumber(it.desconto)) : "",
             situacao:      (it.situacao === "NAO_CONSIDERA" ? "NAO_CONSIDERA" : "CONSIDERA") as ItemRow["situacao"],
+            unidadeId:     it.unidadeId ?? "",
           }))
         : [{ itemId: "", quantidade: "1", precoUnitario: "", desconto: "", situacao: "CONSIDERA" as ItemRow["situacao"] }];
       baselineRef.current = JSON.stringify({
@@ -291,6 +310,7 @@ export default function EditarPedidoCompraPage() {
           observacoes:        observacoes        || null,
           itens: validItens.map((row) => ({
             itemId:        row.itemId,
+            unidadeId:     row.unidadeId || null,
             quantidade:    parseFloat(row.quantidade),
             precoUnitario: parseFloat(row.precoUnitario) || 0,
             desconto:      parseFloat(row.desconto) || null,
@@ -546,7 +566,31 @@ export default function EditarPedidoCompraPage() {
                         />
                       </td>
                       <td className="px-4 py-2 text-muted-foreground text-xs">{opt?.descricao ?? "—"}</td>
-                      <td className="px-4 py-2 text-muted-foreground text-xs">{opt?.unidadeMedida ?? "—"}</td>
+                      <td className="px-4 py-2 text-muted-foreground text-xs">
+                        {(() => {
+                          const uns = unidadesDoItem(opt);
+                          if (uns.length <= 1) return <span>{opt?.unidade?.sigla ?? opt?.unidadeMedida ?? "—"}</span>;
+                          const sel = uns.find((u) => u.unidadeId === (row.unidadeId ?? "")) ?? uns[0];
+                          const qtdBase = (parseFloat(row.quantidade) || 0) * sel.fator;
+                          return (
+                            <div className="flex flex-col gap-0.5">
+                              <select
+                                value={row.unidadeId ?? ""}
+                                onChange={(e) => updateRow(i, "unidadeId", e.target.value)}
+                                className="h-8 rounded border border-border bg-card px-1 text-xs"
+                                title="Unidade da compra"
+                              >
+                                {uns.map((u) => (
+                                  <option key={u.unidadeId || "base"} value={u.unidadeId}>{u.sigla}{u.base ? "" : ` (×${u.fator})`}</option>
+                                ))}
+                              </select>
+                              {!sel.base && (
+                                <span className="text-[10px] text-muted-foreground">= {qtdBase.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {uns[0].sigla}</span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td className="px-4 py-2">
                         <Select
                           value={row.situacao}
