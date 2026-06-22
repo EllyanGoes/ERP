@@ -45,6 +45,14 @@ export const MODULOS: ModuloDef[] = [
     ],
   },
   {
+    key: "marketing",
+    label: "Marketing",
+    group: "Marketing",
+    recursos: [
+      { key: "painel", label: "Painel de Marketing", acoes: ["ver"] },
+    ],
+  },
+  {
     key: "comercial",
     label: "Faturamento",
     group: "Faturamento",
