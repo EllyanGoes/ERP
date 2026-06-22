@@ -32,6 +32,7 @@ export default function NovaEngenhariaDialog({ open, onOpenChange, fluxoId, perm
   const [q, setQ] = useState("");
   const [item, setItem] = useState<ProdLite | null>(null);
   const [descricaoNova, setDescricaoNova] = useState("");
+  const [novoCategoria, setNovoCategoria] = useState<"PRODUTO_ACABADO" | "WIP">("PRODUTO_ACABADO");
   const [busy, setBusy] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -45,7 +46,7 @@ export default function NovaEngenhariaDialog({ open, onOpenChange, fluxoId, perm
 
   // Reseta a cada abertura.
   useEffect(() => {
-    if (open) { setModo("existente"); setItem(null); setDescricaoNova(""); setQ(""); setErro(null); setBusy(false); setFluxoSel(fluxoId ?? ""); }
+    if (open) { setModo("existente"); setItem(null); setDescricaoNova(""); setNovoCategoria("PRODUTO_ACABADO"); setQ(""); setErro(null); setBusy(false); setFluxoSel(fluxoId ?? ""); }
   }, [open, fluxoId]);
 
   // Carrega fluxos (quando não é fixo) e a lista de produtos acabados.
@@ -86,7 +87,7 @@ export default function NovaEngenhariaDialog({ open, onOpenChange, fluxoId, perm
         const rp = await fetch("/api/suprimentos/produtos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ descricao: descricaoNova.trim(), tipo: "PRODUTO", categoriaEstoque: "PRODUTO_ACABADO", vendavel: true }),
+          body: JSON.stringify({ descricao: descricaoNova.trim(), tipo: "PRODUTO", categoriaEstoque: novoCategoria, vendavel: novoCategoria === "PRODUTO_ACABADO" }),
         });
         const jp = await rp.json();
         if (!rp.ok) throw new Error(jp?.error ?? "Erro ao criar o produto");
@@ -170,10 +171,19 @@ export default function NovaEngenhariaDialog({ open, onOpenChange, fluxoId, perm
               </div>
             </div>
           ) : (
-            <div>
-              <label className={labelCls}>Descrição do produto novo *</label>
-              <input className={inputCls} value={descricaoNova} onChange={(e) => setDescricaoNova(e.target.value)} placeholder="ex.: BV 09X19X29" autoFocus />
-              <p className="text-[11px] text-muted-foreground mt-1">O código é gerado automaticamente (PROD-XXXX) e a categoria fica como Produto acabado.</p>
+            <div className="space-y-2">
+              <div>
+                <label className={labelCls}>Categoria do produto novo</label>
+                <div className="inline-flex rounded-lg border border-border p-0.5 text-xs">
+                  <button type="button" onClick={() => setNovoCategoria("PRODUTO_ACABADO")} className={`px-2.5 py-1 rounded-md ${novoCategoria === "PRODUTO_ACABADO" ? "bg-cyan-600 text-white" : "text-muted-foreground hover:bg-muted"}`}>Produto acabado</button>
+                  <button type="button" onClick={() => setNovoCategoria("WIP")} className={`px-2.5 py-1 rounded-md ${novoCategoria === "WIP" ? "bg-cyan-600 text-white" : "text-muted-foreground hover:bg-muted"}`}>Produto em processo</button>
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Descrição do produto novo *</label>
+                <input className={inputCls} value={descricaoNova} onChange={(e) => setDescricaoNova(e.target.value)} placeholder="ex.: BV 09X19X29" autoFocus />
+                <p className="text-[11px] text-muted-foreground mt-1">O código é gerado automaticamente (PROD-XXXX).</p>
+              </div>
             </div>
           )}
 

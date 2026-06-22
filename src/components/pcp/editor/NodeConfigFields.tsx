@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import CategoriaEstoqueSelect from "@/components/shared/CategoriaEstoqueSelect";
+import { cn } from "@/lib/utils";
+import { CATEGORIA_ESTOQUE_ICONS, CATEGORIA_ESTOQUE_CORES } from "@/lib/categoria-estoque-ui";
 import type { FlowNodeData, NodeKind } from "@/lib/pcp/types";
 
 export interface CentroOpt { id: string; nome: string; }
@@ -12,6 +14,22 @@ export interface LocalOpt { id: string; nome: string; categoriasAceitas?: string
 export function locaisDaCategoria(locais: LocalOpt[], categoria: string | null | undefined): LocalOpt[] {
   if (!categoria) return locais;
   return locais.filter((l) => !l.categoriasAceitas || l.categoriasAceitas.length === 0 || l.categoriasAceitas.includes(categoria));
+}
+
+// Opções do combobox de local com o ícone da categoria (ex.: WIP = Produto em Processo).
+function localOptions(locais: LocalOpt[], categoria: string | null | undefined) {
+  const Icon = categoria ? CATEGORIA_ESTOQUE_ICONS[categoria as keyof typeof CATEGORIA_ESTOQUE_ICONS] : null;
+  const cor = categoria ? CATEGORIA_ESTOQUE_CORES[categoria as keyof typeof CATEGORIA_ESTOQUE_CORES] : "";
+  return locaisDaCategoria(locais, categoria).map((l) => ({
+    value: l.id,
+    label: l.nome,
+    render: Icon ? () => (
+      <span className="flex items-center gap-2">
+        <Icon className={cn("w-4 h-4 shrink-0", cor)} />
+        <span className="truncate">{l.nome}</span>
+      </span>
+    ) : undefined,
+  }));
 }
 
 const inputCls = "w-full rounded-lg border border-border px-2.5 py-1.5 text-sm bg-card focus:outline-none focus:ring-1 focus:ring-cyan-500";
@@ -106,7 +124,7 @@ export default function NodeConfigFields({ kind, data, centros, locais, onChange
                 onChange={(v) => onChange({ localEstoqueId: v || null })}
                 noneLabel="—"
                 triggerClassName="h-9 rounded-lg"
-                options={locaisDaCategoria(locais, data.categoriaEstoque as string).map((l) => ({ value: l.id, label: l.nome }))}
+                options={localOptions(locais, data.categoriaEstoque as string)}
               />
             )}
           </div>
@@ -143,7 +161,7 @@ export default function NodeConfigFields({ kind, data, centros, locais, onChange
               onChange={(v) => onChange({ localEstoqueId: v || null })}
               noneLabel="—"
               triggerClassName="h-9 rounded-lg"
-              options={locaisDaCategoria(locais, bufferCategoria).map((l) => ({ value: l.id, label: l.nome }))}
+              options={localOptions(locais, bufferCategoria)}
             />
           </div>
           <div>
