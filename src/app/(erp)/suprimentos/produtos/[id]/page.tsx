@@ -15,13 +15,14 @@ import {
   ClipboardList, FileText, PackageCheck, ExternalLink, Info as InfoIcon, Star, Activity, Ruler,
 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
-import { TipoProdutoQuickCreate, UnidadeQuickCreate, LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
+import { UnidadeQuickCreate, LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
+import CategoriaEstoqueSelect from "@/components/shared/CategoriaEstoqueSelect";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import { cn, formatBRL, decimalToNumber, formatDate } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import type { CategoriaEstoque } from "@prisma/client";
-import { CATEGORIA_ESTOQUE_VALUES, CATEGORIA_ESTOQUE_LABELS, rotuloCategoria } from "@/lib/categoria-estoque-ui";
+import { rotuloCategoria } from "@/lib/categoria-estoque-ui";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Movimentacao = {
@@ -63,6 +64,7 @@ type Item = {
   favorito: boolean;
   vendavel: boolean;
   comodato: boolean;
+  consumivel: boolean;
   estoqueMinimo: unknown;
   estoqueMaximo: unknown;
   pontoReposicao: unknown;
@@ -96,7 +98,6 @@ type Item = {
 
 type Fornecedor    = { id: string; razaoSocial: string; nomeFantasia: string | null; cpfCnpj: string | null };
 type UnidadeOpt   = { id: string; sigla: string; nome: string };
-type TipoProdOpt  = { id: string; nome: string };
 
 type ComprasData = {
   necessidades: Array<{
@@ -155,7 +156,6 @@ export default function ProdutoDetailPage() {
 
   // Lookup lists for edit dropdowns
   const [unidades, setUnidades]     = useState<UnidadeOpt[]>([]);
-  const [tiposProd, setTiposProd]   = useState<TipoProdOpt[]>([]);
 
   // Fornecedor add
   const [fornList, setFornList] = useState<Fornecedor[]>([]);
@@ -493,11 +493,9 @@ export default function ProdutoDetailPage() {
     Promise.all([
       fetch("/api/suprimentos/fornecedores").then((r) => r.json()),
       fetch("/api/suprimentos/unidades").then((r) => r.json()),
-      fetch("/api/suprimentos/tipos-produto").then((r) => r.json()),
-    ]).then(([forn, un, tp]) => {
+    ]).then(([forn, un]) => {
       setFornList(Array.isArray(forn) ? forn : (forn.data ?? []));
       setUnidades(Array.isArray(un) ? un : (un.data ?? []));
-      setTiposProd(Array.isArray(tp) ? tp : (tp.data ?? []));
     });
   }, []);
 
@@ -1064,33 +1062,13 @@ export default function ProdutoDetailPage() {
                         <span className="ml-auto text-[10px] font-semibold text-blue-500 bg-info/10 px-1.5 py-0.5 rounded">auto</span>
                       </div>
                     </Field>
-                    <Field label="Tipo de Produto">
-                      <ComboboxWithCreate
-                        options={tiposProd.map((tp) => ({ value: tp.id, label: tp.nome }))}
-                        value={(form.tipoProdutoId as string) || ""}
-                        onChange={(v) => setForm((p) => ({ ...p, tipoProdutoId: v || null }))}
-                        noneLabel="Nenhum"
-                        placeholder="Selecionar tipo..."
-                        createHref="/suprimentos/tipos-produto"
-                        createParam="nome"
-                        createLabel="tipo de produto"
-                        renderCreateModal={(args) => <TipoProdutoQuickCreate {...args} />}
+                    <Field label="Categoria">
+                      <CategoriaEstoqueSelect
+                        value={(form.categoriaEstoque as string) || ""}
+                        onChange={(v) => setForm((p) => ({ ...p, categoriaEstoque: v || null }))}
+                        allowNone
                       />
-                    </Field>
-                    <Field label="Categoria de estoque">
-                      <Select
-                        value={((form.categoriaEstoque as string) || "") || "__none"}
-                        onValueChange={(v) => setForm((p) => ({ ...p, categoriaEstoque: v === "__none" ? null : v }))}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Não classificado" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none">Não classificado</SelectItem>
-                          {CATEGORIA_ESTOQUE_VALUES.map((c) => (
-                            <SelectItem key={c} value={c}>{CATEGORIA_ESTOQUE_LABELS[c]}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[11px] text-muted-foreground mt-1">Define em quais locais de estoque o produto pode entrar.</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">Natureza do produto — define em quais locais de estoque ele pode entrar.</p>
                     </Field>
                     <Field label="Descrição" colSpan>
                       <Input value={(form.descricao as string) ?? ""} onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))} />
@@ -1171,12 +1149,36 @@ export default function ProdutoDetailPage() {
                         </div>
                       </label>
                     </div>
+
+                    {/* Consumível — edit */}
+                    <div className="md:col-span-2">
+                      <label className="flex items-start gap-3 cursor-pointer select-none group">
+                        <div className="relative mt-0.5">
+                          <input
+                            type="checkbox"
+                            checked={form.consumivel !== false}
+                            onChange={(e) => setForm((p) => ({ ...p, consumivel: e.target.checked }))}
+                            className="sr-only peer"
+                          />
+                          <div className="w-5 h-5 rounded border-2 border-border bg-card peer-checked:bg-cyan-500 peer-checked:border-cyan-500 transition-colors group-hover:border-cyan-400 flex items-center justify-center">
+                            {form.consumivel !== false && (
+                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">Item consumível</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Marcado: dá baixa no estoque ao ser consumido. Desmarcado: item permanente (ex.: ferramentas), requisitado e devolvido ao almoxarifado.</p>
+                        </div>
+                      </label>
+                    </div>
                   </>
                 ) : (
                   <>
                     <Info label="Código" value={item.codigo} mono />
-                    <Info label="Tipo de Produto" value={item.tipoProduto?.nome} />
-                    <Info label="Categoria de estoque" value={item.categoriaEstoque ? rotuloCategoria(item.categoriaEstoque) : undefined} />
+                    <Info label="Categoria" value={item.categoriaEstoque ? rotuloCategoria(item.categoriaEstoque) : undefined} />
                     <Info label="Descrição" value={item.descricao} colSpan />
 
                     {/* Unidade de Estoque — campo rico com referência às conversões */}

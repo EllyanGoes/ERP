@@ -9,17 +9,15 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
-import { TipoProdutoQuickCreate, UnidadeQuickCreate } from "@/components/shared/QuickCreateDialogs";
+import { UnidadeQuickCreate } from "@/components/shared/QuickCreateDialogs";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
-import { CATEGORIA_ESTOQUE_VALUES, CATEGORIA_ESTOQUE_LABELS } from "@/lib/categoria-estoque-ui";
+import CategoriaEstoqueSelect from "@/components/shared/CategoriaEstoqueSelect";
 
-type TipoProduto = { id: string; nome: string };
 type Unidade     = { id: string; sigla: string; nome: string };
 
 type FormData = {
   descricao: string;
-  tipo: "PRODUTO" | "MATERIA_PRIMA" | "SERVICO";
-  tipoProdutoId: string;
+  tipo: "PRODUTO" | "SERVICO";
   categoriaEstoque: string;
   unidadeId: string;
   ncm: string;
@@ -28,12 +26,12 @@ type FormData = {
   estoqueMax: string;
   vendavel: boolean;
   comodato: boolean;
+  consumivel: boolean;
 };
 
 const INITIAL: FormData = {
   descricao: "",
   tipo: "PRODUTO",
-  tipoProdutoId: "",
   categoriaEstoque: "",
   unidadeId: "",
   ncm: "",
@@ -42,6 +40,7 @@ const INITIAL: FormData = {
   estoqueMax: "",
   vendavel: false,
   comodato: false,
+  consumivel: true,
 };
 
 export default function NovoProdutoPage() {
@@ -62,15 +61,10 @@ export default function NovoProdutoPage() {
     viewHref: (id) => `/suprimentos/produtos/${id}`,
   });
 
-  const [tiposProduto, setTiposProduto] = useState<TipoProduto[]>([]);
   const [unidades, setUnidades] = useState<Unidade[]>([]);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/suprimentos/tipos-produto").then((r) => r.json()),
-      fetch("/api/suprimentos/unidades").then((r) => r.json()),
-    ]).then(([tp, un]) => {
-      setTiposProduto(Array.isArray(tp) ? tp : tp.data ?? []);
+    fetch("/api/suprimentos/unidades").then((r) => r.json()).then((un) => {
       setUnidades(Array.isArray(un) ? un : un.data ?? []);
     });
   }, []);
@@ -83,7 +77,6 @@ export default function NovoProdutoPage() {
   function validate(): boolean {
     const newErrors: Partial<Record<keyof FormData, string>> = {};
     if (!form.descricao.trim()) newErrors.descricao = "Descrição é obrigatória";
-    if (!form.tipoProdutoId) newErrors.tipoProdutoId = "Tipo de Produto é obrigatório";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
@@ -103,8 +96,8 @@ export default function NovoProdutoPage() {
         estoqueMax: form.estoqueMax ? parseFloat(form.estoqueMax) : null,
         vendavel: form.vendavel,
         comodato: form.comodato,
+        consumivel: form.consumivel,
       };
-      if (form.tipoProdutoId) payload.tipoProdutoId = form.tipoProdutoId;
       if (form.categoriaEstoque) payload.categoriaEstoque = form.categoriaEstoque;
       if (form.unidadeId)    payload.unidadeId    = form.unidadeId;
 
@@ -159,14 +152,13 @@ export default function NovoProdutoPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Categoria</Label>
+              <Label>Tipo</Label>
               <Select value={form.tipo} onValueChange={(v) => set("tipo", v as FormData["tipo"])}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PRODUTO">Produto</SelectItem>
-                  <SelectItem value="MATERIA_PRIMA">Matéria-prima</SelectItem>
                   <SelectItem value="SERVICO">Serviço</SelectItem>
                 </SelectContent>
               </Select>
@@ -185,35 +177,9 @@ export default function NovoProdutoPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Tipo de Produto <span className="text-red-500">*</span></Label>
-              <ComboboxWithCreate
-                options={tiposProduto.map((tp) => ({ value: tp.id, label: tp.nome }))}
-                value={form.tipoProdutoId}
-                onChange={(v) => set("tipoProdutoId", v)}
-                placeholder="Selecionar tipo..."
-                createHref="/suprimentos/tipos-produto"
-                createParam="nome"
-                createLabel="tipo de produto"
-                renderCreateModal={(args) => <TipoProdutoQuickCreate {...args} />}
-                triggerClassName={errors.tipoProdutoId ? "border-red-300 focus:ring-red-400" : undefined}
-              />
-              {errors.tipoProdutoId && <p className="text-red-500 text-xs">{errors.tipoProdutoId}</p>}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Categoria de estoque</Label>
-              <Select value={form.categoriaEstoque || "__none"} onValueChange={(v) => set("categoriaEstoque", v === "__none" ? "" : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Não classificado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">Não classificado</SelectItem>
-                  {CATEGORIA_ESTOQUE_VALUES.map((c) => (
-                    <SelectItem key={c} value={c}>{CATEGORIA_ESTOQUE_LABELS[c]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[10px] text-muted-foreground">Define em quais locais de estoque o produto pode entrar.</p>
+              <Label>Categoria</Label>
+              <CategoriaEstoqueSelect value={form.categoriaEstoque} onChange={(v) => set("categoriaEstoque", v)} allowNone />
+              <p className="text-[10px] text-muted-foreground">Natureza do produto — define em quais locais de estoque ele pode entrar.</p>
             </div>
 
             <div className="space-y-1.5">
@@ -289,6 +255,33 @@ export default function NovoProdutoPage() {
                   <p className="text-sm font-medium text-foreground">Item de comodato (vasilhame retornável)</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Pallets, engradados e outros itens emprestados ao cliente que devem retornar. Aparece na tela de Comodato.
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {/* Consumível */}
+            <div className="md:col-span-2">
+              <label className="flex items-start gap-3 cursor-pointer select-none group">
+                <div className="relative mt-0.5">
+                  <input
+                    type="checkbox"
+                    checked={form.consumivel}
+                    onChange={(e) => setForm((prev) => ({ ...prev, consumivel: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-5 h-5 rounded border-2 border-border bg-card peer-checked:bg-cyan-500 peer-checked:border-cyan-500 transition-colors group-hover:border-cyan-400 flex items-center justify-center">
+                    {form.consumivel && (
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Item consumível</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Marcado: dá baixa no estoque ao ser consumido. Desmarcado: item permanente (ex.: ferramentas), requisitado e devolvido ao almoxarifado.
                   </p>
                 </div>
               </label>

@@ -18,8 +18,8 @@ import { cn } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
-
-type TipoProduto = { id: string; nome: string };
+import { CATEGORIA_ESTOQUE_VALUES, CATEGORIA_ESTOQUE_LABELS, CATEGORIA_ESTOQUE_ICONS, CATEGORIA_ESTOQUE_CORES } from "@/lib/categoria-estoque-ui";
+import type { CategoriaEstoque } from "@prisma/client";
 
 type Produto = {
   id: string;
@@ -30,7 +30,7 @@ type Produto = {
   precoCusto: unknown;
   unidadeMedida: string;
   unidade: { sigla: string } | null;
-  tipoProduto: { id: string; nome: string } | null;
+  categoriaEstoque: CategoriaEstoque | null;
   estoqueItems: Array<{ quantidadeAtual: unknown; localEstoque: { nome: string } | null }>;
 };
 
@@ -55,14 +55,20 @@ const COLS: ColDef<Produto>[] = [
     render: (item) => _prodSearch ? <Highlight text={item.descricao} query={_prodSearch} /> : item.descricao,
   },
   {
-    id: "tipoProduto",
-    label: "Tipo de Produto",
+    id: "categoria",
+    label: "Categoria",
     thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3 text-muted-foreground",
-    render: (item) =>
-      item.tipoProduto
-        ? <span className="px-2 py-0.5 bg-info/10 text-info text-xs font-medium rounded-md">{item.tipoProduto.nome}</span>
-        : <span className="text-muted-foreground">—</span>,
+    render: (item) => {
+      if (!item.categoriaEstoque) return <span className="text-muted-foreground">—</span>;
+      const Icon = CATEGORIA_ESTOQUE_ICONS[item.categoriaEstoque];
+      return (
+        <span className="inline-flex items-center gap-1.5 text-xs">
+          <Icon className={cn("w-3.5 h-3.5 shrink-0", CATEGORIA_ESTOQUE_CORES[item.categoriaEstoque])} />
+          {CATEGORIA_ESTOQUE_LABELS[item.categoriaEstoque]}
+        </span>
+      );
+    },
   },
   {
     id: "unidade",
@@ -136,9 +142,8 @@ export default function ProdutosPage() {
   const [items, setItems]           = useState<Produto[]>([]);
   const [loading, setLoading]       = useState(true);
   const [search, setSearch]         = useState("");
-  const [tipoProdutoId, setTipoProdutoId] = useState("todos");
+  const [categoria, setCategoria]   = useState("todos");
   const [ativo, setAtivo]           = useState<AtivoFilter>("todos");
-  const [tiposProduto, setTiposProduto] = useState<TipoProduto[]>([]);
   const debounceRef                 = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Delete state
@@ -146,18 +151,11 @@ export default function ProdutosPage() {
   const [deleting, setDeleting]       = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // Load tipos de produto for the filter
-  useEffect(() => {
-    fetch("/api/suprimentos/tipos-produto")
-      .then((r) => r.json())
-      .then((j) => setTiposProduto(Array.isArray(j) ? j : (j.data ?? [])));
-  }, []);
-
-  const load = useCallback(async (q: string, tpId: string, at: AtivoFilter) => {
+  const load = useCallback(async (q: string, cat: string, at: AtivoFilter) => {
     setLoading(true);
     const params = new URLSearchParams();
     if (q.trim())       params.set("q", q.trim());
-    if (tpId !== "todos") params.set("tipoProdutoId", tpId);
+    if (cat !== "todos") params.set("categoria", cat);
     if (at !== "todos") params.set("ativo", at === "ativos" ? "true" : "false");
     const res  = await fetch(`/api/suprimentos/produtos?${params}`);
     const json = await res.json();
@@ -171,11 +169,11 @@ export default function ProdutosPage() {
   function handleSearch(val: string) {
     setSearch(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => load(val, tipoProdutoId, ativo), 300);
+    debounceRef.current = setTimeout(() => load(val, categoria, ativo), 300);
   }
 
-  function handleTipoProduto(val: string) {
-    setTipoProdutoId(val);
+  function handleCategoria(val: string) {
+    setCategoria(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     load(search, val, ativo);
   }
@@ -184,16 +182,16 @@ export default function ProdutosPage() {
     const at = val as AtivoFilter;
     setAtivo(at);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    load(search, tipoProdutoId, at);
+    load(search, categoria, at);
   }
 
   function clearFilters() {
-    setSearch(""); setTipoProdutoId("todos"); setAtivo("todos");
+    setSearch(""); setCategoria("todos"); setAtivo("todos");
     if (debounceRef.current) clearTimeout(debounceRef.current);
     load("", "todos", "todos");
   }
 
-  const hasFilters   = search || tipoProdutoId !== "todos" || ativo !== "todos";
+  const hasFilters   = search || categoria !== "todos" || ativo !== "todos";
   const deletingItem = items.find((i) => i.id === deleteId);
 
   // Column order
@@ -202,10 +200,9 @@ export default function ProdutosPage() {
   const [colVis, setColVis, showAllCols] = useColumnVisibility("produtos", COLS.map((c) => c.id));
   const orderedCols = colOrder.map((id) => COLS.find((c) => c.id === id)).filter((c): c is ColDef<Produto> => c !== undefined && colVis[c.id] !== false);
 
-  // Build tipo produto filter options dynamically
-  const tipoProdutoOptions: FilterOption[] = [
-    { key: "todos", label: "Todos", color: "bg-muted text-muted-foreground" },
-    ...tiposProduto.map((tp) => ({ key: tp.id, label: tp.nome, color: "bg-info/15 text-info" })),
+  const categoriaOptions: FilterOption[] = [
+    { key: "todos", label: "Todas", color: "bg-muted text-muted-foreground" },
+    ...CATEGORIA_ESTOQUE_VALUES.map((c) => ({ key: c, label: CATEGORIA_ESTOQUE_LABELS[c], color: "bg-info/15 text-info" })),
   ];
 
   async function handleDelete() {
@@ -218,7 +215,7 @@ export default function ProdutosPage() {
         return;
       }
       setDeleteId(null);
-      await load(search, tipoProdutoId, ativo);
+      await load(search, categoria, ativo);
     } catch {
       setDeleteError("Erro de conexão");
     } finally {
@@ -296,17 +293,15 @@ export default function ProdutosPage() {
             )}
           </div>
 
-          {/* Tipo de Produto dropdown — only if tipos exist */}
-          {tiposProduto.length > 0 && (
-            <FilterDropdown
-              label="Tipo de Produto"
-              options={tipoProdutoOptions}
-              value={tipoProdutoId}
-              onChange={handleTipoProduto}
-              allKey="todos"
-              placeholder="Selecione o tipo..."
-            />
-          )}
+          {/* Categoria dropdown */}
+          <FilterDropdown
+            label="Categoria"
+            options={categoriaOptions}
+            value={categoria}
+            onChange={handleCategoria}
+            allKey="todos"
+            placeholder="Selecione a categoria..."
+          />
 
           {/* Status dropdown */}
           <FilterDropdown

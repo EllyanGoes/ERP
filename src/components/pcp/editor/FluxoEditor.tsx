@@ -11,6 +11,8 @@ import {
   useNodesState,
   useEdgesState,
   useReactFlow,
+  MarkerType,
+  ConnectionLineType,
   type Node,
   type Edge,
   type Connection,
@@ -20,7 +22,8 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, Rocket, CheckCircle2, AlertTriangle, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { nodeTypes, PALETTE, NODE_STYLE } from "./nodes";
-import NodeConfigSheet from "./NodeConfigSheet";
+import NodeModal from "./OperacaoModal";
+import { edgeTypes } from "./edges";
 import { validarFluxo } from "@/lib/pcp/fluxo-validate";
 import { KIND_LABEL, type FlowNodeData, type NodeKind, type FlowGraph } from "@/lib/pcp/types";
 
@@ -55,7 +58,7 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
     (initial.nodes ?? []).map((n) => ({ id: n.id, type: n.type, position: n.position, data: n.data })) as Node[],
   );
   const [edges, setEdges, onEdgesChange] = useEdgesState(
-    (initial.edges ?? []).map((e) => ({ id: e.id, source: e.source, target: e.target })) as Edge[],
+    (initial.edges ?? []).map((e) => ({ id: e.id, source: e.source, target: e.target, type: "flow" })) as Edge[],
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [centros, setCentros] = useState<CentroOpt[]>([]);
@@ -63,14 +66,37 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
   const [status, setStatus] = useState<string>(fluxo.versaoAtual?.status ?? "RASCUNHO");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [nome, setNome] = useState(fluxo.nome);
+  const [editandoNome, setEditandoNome] = useState(false);
+
+  async function salvarNome() {
+    const novo = nome.trim();
+    setEditandoNome(false);
+    if (!novo || novo === fluxo.nome) { setNome(fluxo.nome); return; }
+    try {
+      const r = await fetch(`/api/pcp/fluxos/${fluxo.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome: novo }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j?.error ?? "Erro ao renomear");
+      fluxo.nome = j.data.nome;
+      setNome(j.data.nome);
+      setMsg({ kind: "ok", text: "Nome atualizado." });
+    } catch (e) {
+      setNome(fluxo.nome);
+      setMsg({ kind: "err", text: e instanceof Error ? e.message : "Erro ao renomear" });
+    }
+  }
 
   useEffect(() => {
     fetch("/api/pcp/centros-trabalho").then((r) => r.json()).then((j) => setCentros(j.data ?? [])).catch(() => {});
-    fetch("/api/suprimentos/locais-estoque").then((r) => r.json()).then((j) => setLocais(j.data ?? [])).catch(() => {});
+    fetch("/api/suprimentos/locais-estoque?ativo=true").then((r) => r.json()).then((j) => setLocais(Array.isArray(j) ? j : j.data ?? [])).catch(() => {});
   }, []);
 
   const onConnect = useCallback(
-    (c: Connection) => setEdges((eds) => addEdge({ ...c, id: newId("e") }, eds)),
+    (c: Connection) => setEdges((eds) => addEdge({ ...c, id: newId("e"), type: "flow" }, eds)),
     [setEdges],
   );
 
@@ -182,7 +208,27 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate">{fluxo.nome}</p>
+          {editandoNome ? (
+            <input
+              autoFocus
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              onBlur={salvarNome}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") salvarNome();
+                else if (e.key === "Escape") { setNome(fluxo.nome); setEditandoNome(false); }
+              }}
+              className="text-sm font-semibold text-foreground bg-transparent border-b border-primary outline-none w-48"
+            />
+          ) : (
+            <button
+              onClick={() => setEditandoNome(true)}
+              title="Clique para renomear"
+              className="text-sm font-semibold text-foreground truncate hover:text-primary text-left max-w-[12rem] truncate"
+            >
+              {nome}
+            </button>
+          )}
           <p className="text-[11px] text-muted-foreground">
             Versão {fluxo.versaoAtual?.versao ?? 1} · {status === "PUBLICADA" ? "publicada" : status === "ARQUIVADA" ? "arquivada" : "rascunho"}
           </p>
@@ -250,7 +296,12 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
             onNodeClick={(_, n) => setSelectedId(n.id)}
             onPaneClick={() => setSelectedId(null)}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            defaultEdgeOptions={{ type: "flow", markerEnd: { type: MarkerType.ArrowClosed, color: "#94a3b8", width: 18, height: 18 } }}
+            connectionLineType={ConnectionLineType.SmoothStep}
+            connectionRadius={36}
             fitView
+            proOptions={{ hideAttribution: true }}
           >
             <Background />
             <Controls />
@@ -258,9 +309,12 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
           </ReactFlow>
 
           {selected && (
-            <NodeConfigSheet
-              kind={(selected.data as FlowNodeData).kind}
+            <NodeModal
               data={selected.data as FlowNodeData}
+              graph={graph}
+              nodeId={selected.id}
+              kind={(selected.data as FlowNodeData).kind}
+              fluxoId={fluxo.id}
               centros={centros}
               locais={locais}
               onChange={patchSelected}

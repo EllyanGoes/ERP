@@ -11,7 +11,7 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { MapPin, Package, Plus, Pencil, Trash2, Loader2, AlertTriangle, X, Check, Save, Building2, GitBranch } from "lucide-react";
 import { formatBRL, cn } from "@/lib/utils";
 import type { CategoriaEstoque } from "@prisma/client";
-import { CATEGORIA_ESTOQUE_VALUES, CATEGORIA_ESTOQUE_LABELS, CATEGORIA_ESTOQUE_DESCRICOES } from "@/lib/categoria-estoque-ui";
+import { CATEGORIA_ESTOQUE_VALUES, CATEGORIA_ESTOQUE_LABELS, CATEGORIA_ESTOQUE_DESCRICOES, iconeLocalPorCategoria } from "@/lib/categoria-estoque-ui";
 
 type Filial = { id: string; razaoSocial: string; nomeFantasia: string | null };
 
@@ -285,19 +285,28 @@ export default function LocaisEstoquePage() {
                       onClick={() => router.push(`/suprimentos/locais-estoque/${local.id}`)}
                     >
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span className="font-medium text-foreground">{local.nome}</span>
-                        </div>
-                        {local.categoriasAceitas?.length > 0 && (
-                          <div className="mt-1 flex flex-wrap gap-1 pl-6">
-                            {local.categoriasAceitas.map((c) => (
-                              <span key={c} className="inline-flex items-center rounded-full bg-indigo-50 dark:bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:text-indigo-300 border border-indigo-100">
-                                {CATEGORIA_ESTOQUE_LABELS[c]}
+                        <div className="flex items-start gap-3">
+                          {(() => {
+                            const { Icon, cor } = iconeLocalPorCategoria(local.categoriasAceitas);
+                            return (
+                              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 ${cor}`}>
+                                <Icon className="w-[18px] h-[18px]" />
                               </span>
-                            ))}
+                            );
+                          })()}
+                          <div className="min-w-0 pt-0.5">
+                            <span className="font-medium text-foreground">{local.nome}</span>
+                            {local.categoriasAceitas?.length > 0 && (
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {local.categoriasAceitas.map((c) => (
+                                  <span key={c} className="inline-flex items-center rounded-full bg-indigo-50 dark:bg-indigo-500/15 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/30">
+                                    {CATEGORIA_ESTOQUE_LABELS[c]}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         {local.filial ? (

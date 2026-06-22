@@ -1069,6 +1069,9 @@ model Item {
   favorito               Boolean                  @default(false)
   vendavel               Boolean                  @default(false)
   comodato               Boolean                  @default(false)
+  // Item consumível (baixa no consumo) vs. permanente (ferramentas: requisitadas
+  // e devolvidas ao almoxarifado, sem baixa de estoque no uso).
+  consumivel             Boolean                  @default(true)
   estoqueMinimo          Decimal?                 @db.Decimal(15, 3)
   estoqueMaximo          Decimal?                 @db.Decimal(15, 3)
   pontoReposicao         Decimal?                 @db.Decimal(15, 3)
@@ -2428,8 +2431,12 @@ enum CategoriaEstoque {
   PRODUTO_ACABADO
   MERCADORIA
   WIP
+  MATERIA_PRIMA
   INSUMO
+  COMBUSTIVEL
   EMBALAGEM
+  FERRAMENTAS
+  RESIDUO_PRODUCAO
   ALMOXARIFADO
 }
 

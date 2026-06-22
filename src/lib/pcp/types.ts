@@ -35,6 +35,7 @@ export interface FlowNodeData {
   kind: NodeKind;
   label: string;
   // estoque/insumo & produto acabado
+  categoriaEstoque?: string | null;
   itemId?: string | null;
   itemDescricao?: string | null;
   localEstoqueId?: string | null;
@@ -59,6 +60,8 @@ export interface FlowNodeData {
   // subproduto/resíduo gerado pela operação (ex.: caco) que volta ao estoque como insumo
   subprodutoItemId?: string | null;
   subprodutoDescricao?: string | null;
+  // produtos possíveis da operação (saída), estruturados conforme a engenharia do produto
+  produtosPossiveis?: { itemId: string; codigo?: string; descricao: string }[];
   // marcação calculada pelo validador (não persiste como verdade)
   isBottleneck?: boolean;
 }
@@ -82,7 +85,7 @@ export interface FlowGraph {
 }
 
 export const KIND_LABEL: Record<NodeKind, string> = {
-  ESTOQUE_INSUMO: "Estoque / Insumo",
+  ESTOQUE_INSUMO: "Local de estoque",
   OPERACAO: "Operação",
   TRANSPORTE: "Transporte",
   BUFFER_WIP: "Buffer de WIP",

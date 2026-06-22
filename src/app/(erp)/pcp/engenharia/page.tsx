@@ -2,12 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
-import ItemSearch, { type ItemLite } from "@/components/pcp/ItemSearch";
+import NovaEngenhariaDialog from "@/components/pcp/NovaEngenhariaDialog";
 import { cn } from "@/lib/utils";
-import { ClipboardList, Plus, RefreshCw, X, Check, FlaskConical } from "lucide-react";
+import { ClipboardList, Plus, RefreshCw, FlaskConical } from "lucide-react";
 
 interface EngRow {
   id: string;
@@ -16,29 +15,22 @@ interface EngRow {
   fluxo: { id: string; nome: string } | null;
   totalInsumos: number;
 }
-interface FluxoOpt { id: string; nome: string; versaoAtivaId: string | null; }
-
-const inputCls = "w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500";
-
 export default function EngenhariaPage() {
   useTabTitle("Engenharia do Produto");
   const router = useRouter();
   const [engs, setEngs] = useState<EngRow[]>([]);
-  const [fluxos, setFluxos] = useState<FluxoOpt[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
-  const [novo, setNovo] = useState<{ item: ItemLite | null; fluxoId: string } | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [novoOpen, setNovoOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setErro(null);
     try {
-      const [re, rf] = await Promise.all([fetch("/api/pcp/engenharia"), fetch("/api/pcp/fluxos")]);
-      const [je, jf] = await Promise.all([re.json(), rf.json()]);
+      const re = await fetch("/api/pcp/engenharia");
+      const je = await re.json();
       if (!re.ok) throw new Error(je?.error ?? "Erro ao carregar");
       setEngs(je.data ?? []);
-      setFluxos(jf.data ?? []);
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Erro ao carregar");
     } finally {
@@ -47,25 +39,6 @@ export default function EngenhariaPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  async function criar() {
-    if (!novo?.item || !novo.fluxoId) { setErro("Escolha o produto e o fluxo"); return; }
-    setBusy(true);
-    setErro(null);
-    try {
-      const r = await fetch("/api/pcp/engenharia", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId: novo.item.id, fluxoId: novo.fluxoId }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j?.error ?? "Erro ao criar");
-      router.push(`/pcp/engenharia/${j.data.id}`);
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : "Erro ao criar");
-      setBusy(false);
-    }
-  }
 
   return (
     <div className="flex flex-col h-full">
@@ -76,7 +49,7 @@ export default function EngenhariaPage() {
         action={
           <button
             type="button"
-            onClick={() => setNovo({ item: null, fluxoId: fluxos[0]?.id ?? "" })}
+            onClick={() => setNovoOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700"
           >
             <Plus className="w-4 h-4" /> Nova engenharia
@@ -87,41 +60,12 @@ export default function EngenhariaPage() {
       <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8">
         {erro && <div className="mb-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</div>}
 
-        {novo && (
-          <div className="mb-4 rounded-xl border border-cyan-200 dark:border-cyan-500/30 bg-cyan-50/40 p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Produto acabado *</label>
-                {novo.item ? (
-                  <div className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm">
-                    <span><span className="font-mono text-muted-foreground text-xs mr-2">{novo.item.codigo}</span>{novo.item.descricao}</span>
-                    <button onClick={() => setNovo({ ...novo, item: null })}><X className="w-4 h-4 text-muted-foreground/60 hover:text-muted-foreground" /></button>
-                  </div>
-                ) : (
-                  <ItemSearch onSelect={(it) => setNovo({ ...novo, item: it })} placeholder="Buscar o produto…" />
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Fluxo de produção *</label>
-                <ComboboxWithCreate
-                  value={novo.fluxoId}
-                  onChange={(v) => setNovo({ ...novo, fluxoId: v })}
-                  noneLabel="—"
-                  triggerClassName="h-9 rounded-lg"
-                  options={fluxos.map((f) => ({ value: f.id, label: f.nome }))}
-                />
-              </div>
-            </div>
-            <div className="mt-3 flex items-center justify-end gap-2">
-              <button onClick={() => setNovo(null)} className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-                <X className="w-4 h-4" /> Cancelar
-              </button>
-              <button onClick={criar} disabled={busy || !novo.item || !novo.fluxoId} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
-                {busy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Criar e abrir
-              </button>
-            </div>
-          </div>
-        )}
+        <NovaEngenhariaDialog
+          open={novoOpen}
+          onOpenChange={setNovoOpen}
+          permitirNovoProduto
+          onCreated={({ engenhariaId }) => router.push(`/pcp/engenharia/${engenhariaId}`)}
+        />
 
         {loading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground gap-2 text-sm"><RefreshCw className="w-4 h-4 animate-spin" /> Carregando…</div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Search, X } from "lucide-react";
 
 export interface ItemLite {
@@ -12,15 +13,22 @@ export interface ItemLite {
 export default function ItemSearch({
   onSelect,
   placeholder,
+  categoria,
 }: {
   onSelect: (it: ItemLite) => void;
   placeholder?: string;
+  categoria?: string | null;
 }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<ItemLite[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (q.trim().length < 2) {
@@ -30,7 +38,7 @@ export default function ItemSearch({
     const t = setTimeout(async () => {
       setLoading(true);
       try {
-        const r = await fetch(`/api/itens?q=${encodeURIComponent(q)}&limit=15`);
+        const r = await fetch(`/api/itens?q=${encodeURIComponent(q)}&limit=15${categoria ? `&categoria=${encodeURIComponent(categoria)}` : ""}`);
         const j = await r.json();
         setResults(
           (j.data ?? []).map((it: { id: string; codigo: string; descricao: string }) => ({
@@ -47,15 +55,42 @@ export default function ItemSearch({
       }
     }, 250);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, categoria]);
+
+  // Posição do dropdown (portal, fixed) — evita recorte por ancestral com overflow.
+  function calcPos() {
+    if (!boxRef.current) return;
+    const rect = boxRef.current.getBoundingClientRect();
+    const MAX_H = 224;
+    const MARGIN = 8;
+    const spaceBelow = window.innerHeight - rect.bottom - MARGIN;
+    setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width, maxHeight: Math.min(MAX_H, Math.max(120, spaceBelow)) });
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    calcPos();
+    const onScroll = () => calcPos();
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [open, results.length]);
 
   useEffect(() => {
     function onDown(e: MouseEvent) {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      // Não fechar ao clicar no próprio campo nem dentro do dropdown (portal).
+      if (boxRef.current?.contains(t) || dropdownRef.current?.contains(t)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
+
+  const showDropdown = open && (loading || results.length > 0 || q.trim().length >= 2);
 
   return (
     <div ref={boxRef} className="relative">
@@ -64,25 +99,29 @@ export default function ItemSearch({
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          onFocus={() => results.length && setOpen(true)}
+          onFocus={() => { if (results.length) { setOpen(true); calcPos(); } }}
           placeholder={placeholder ?? "Buscar item (código ou descrição)…"}
           className="flex-1 text-sm outline-none bg-transparent min-w-0"
         />
         {q && (
-          <button type="button" onClick={() => { setQ(""); setResults([]); }} className="shrink-0">
+          <button type="button" onClick={() => { setQ(""); setResults([]); setOpen(false); }} className="shrink-0">
             <X className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-muted-foreground" />
           </button>
         )}
       </div>
-      {open && (loading || results.length > 0 || q.trim().length >= 2) && (
-        <div className="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-border bg-card shadow-lg">
+      {mounted && showDropdown && pos && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxHeight }}
+          className="z-[9999] overflow-y-auto rounded-lg border border-border bg-card shadow-lg"
+        >
           {loading && <div className="px-3 py-2 text-xs text-muted-foreground">Buscando…</div>}
           {results.map((it) => (
             <button
               key={it.id}
               type="button"
               onClick={() => { onSelect(it); setQ(""); setResults([]); setOpen(false); }}
-              className="w-full text-left px-3 py-2 hover:bg-cyan-50 dark:bg-cyan-500/15 text-sm"
+              className="w-full text-left px-3 py-2 hover:bg-muted text-sm"
             >
               <span className="font-mono text-muted-foreground text-xs mr-2">{it.codigo}</span>
               {it.descricao}
@@ -91,7 +130,8 @@ export default function ItemSearch({
           {!loading && results.length === 0 && q.trim().length >= 2 && (
             <div className="px-3 py-2 text-xs text-muted-foreground">Nada encontrado</div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

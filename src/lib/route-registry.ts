@@ -21,8 +21,9 @@ import {
   UserCog, ShieldCheck,
   Settings2, Plug,
   Building2, Clock,
-  Wrench, Database, MessageCircle, Workflow, Boxes, FlaskConical, ListChecks, Calculator, BookOpen,
+  Wrench, Database, MessageCircle, Workflow, Boxes, FlaskConical, ListChecks, Calculator, BookOpen, Factory,
   Landmark, Wallet, FolderTree, Repeat, CalendarClock, FileCheck2,
+  Megaphone,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -79,7 +80,6 @@ export const ROUTES: RouteEntry[] = [
   { href: "/clientes",                             label: "Clientes",                group: "Empresa",        section: "Geral",            icon: Users },
 
   { href: "/suprimentos/produtos",                 label: "Produtos",                group: "Empresa",        section: "Almoxarifado",     icon: Package },
-  { href: "/suprimentos/tipos-produto",            label: "Tipos de Produto",        group: "Empresa",        section: "Almoxarifado",     icon: Tag },
   { href: "/suprimentos/unidades",                 label: "Unidades de Medida",      group: "Empresa",        section: "Almoxarifado",     icon: Ruler },
   { href: "/suprimentos/locais-estoque",           label: "Locais de Estoque",       group: "Almoxarifado",   section: "Estoque",          icon: MapPin },
 
@@ -87,6 +87,8 @@ export const ROUTES: RouteEntry[] = [
   { href: "/suprimentos/condicoes-pagamento",      label: "Condições de Pagamento",  group: "Empresa",        section: "Compras",          icon: CalendarDays },
   { href: "/suprimentos/formas-pagamento",         label: "Formas de Pagamento",     group: "Empresa",        section: "Compras",          icon: CreditCard },
   { href: "/empresa/centros-custo",                label: "Centros de Custo",        group: "Empresa",        section: "Financeiro",       icon: CircleDot },
+
+  { href: "/marketing",                            label: "Painel de Marketing",     group: "Marketing",        section: "Geral",            icon: Megaphone,      keywords: "marketing campanha campanhas lead leads divulgação publicidade" },
 
   { href: "/comercial/tabelas-preco",              label: "Tabelas de Preço",        group: "Faturamento",      section: "Cadastros",        icon: Tag,            keywords: "tabela preço lista precos" },
   { href: "/comercial/produtos-venda",             label: "Produtos para Venda",     group: "Faturamento",      section: "Cadastros",        icon: Package,        keywords: "produto vendável catálogo" },
@@ -147,15 +149,16 @@ export const ROUTES: RouteEntry[] = [
   { href: "/pcm/quadro-os",                        label: "Quadro de O.S.",          group: "PCM",            section: "Manutenção",       icon: ClipboardList,  keywords: "quadro os setor executante pendente kanban responsavel" },
   { href: "/pcm/planos",                           label: "Planos de Manutenção",    group: "PCM",            section: "Manutenção",       icon: CalendarClock,  keywords: "planos manutencao preventiva execucao aderencia pmp" },
 
-  { href: "/pcp/dashboard",                        label: "Dashboard do PCP",        group: "PCP",            section: "Produção",         icon: BarChart3,      keywords: "pcp dashboard indicadores forno wip biomassa perdas simulação" },
-  { href: "/pcp/ordens",                           label: "Ordens de Produção",      group: "PCP",            section: "Produção",         icon: ClipboardList,  keywords: "pcp ordem produção op apontamento etapa" },
-  { href: "/pcp/operacoes",                        label: "Operações (fila)",        group: "PCP",            section: "Produção",         icon: ListChecks,     keywords: "pcp operação fila chão etapa centro trabalho apontar" },
-  { href: "/pcp/planejamento",                     label: "Planejamento (MPS/MRP)",  group: "PCP",            section: "Produção",         icon: Calculator,     keywords: "pcp mps mrp planejamento demanda necessidade insumo plano mestre" },
-  { href: "/pcp/sequenciamento",                   label: "Sequenciamento (forno)",  group: "PCP",            section: "Produção",         icon: CalendarClock,  keywords: "pcp sequenciamento forno gargalo cronograma capacidade finita programação" },
-  { href: "/pcp/ajuda",                            label: "Como usar o PCP",         group: "PCP",            section: "Produção",         icon: BookOpen,       keywords: "pcp ajuda guia documentação como usar tutorial manual" },
-  { href: "/pcp/engenharia",                       label: "Engenharia do Produto",   group: "PCP",            section: "Produção",         icon: FlaskConical,   keywords: "pcp engenharia estrutura bom insumo embalagem produto" },
-  { href: "/pcp/fluxos",                           label: "Fluxos de Produção",      group: "PCP",            section: "Produção",         icon: Workflow,       keywords: "pcp produção fluxo roteiro editor n8n" },
-  { href: "/pcp/centros-trabalho",                 label: "Centros de Trabalho",     group: "PCP",            section: "Produção",         icon: Boxes,          keywords: "pcp centro trabalho recurso forno secagem" },
+  { href: "/pcp/centros-trabalho",                 label: "Centros de Trabalho",     group: "PCP",            section: "Estrutura",        icon: Boxes,          keywords: "pcp centro trabalho recurso forno secagem" },
+  { href: "/pcp/fluxos",                           label: "Fluxos de Produção",      group: "PCP",            section: "Estrutura",        icon: Workflow,       keywords: "pcp produção fluxo roteiro editor n8n" },
+  { href: "/pcp/engenharia",                       label: "Engenharia do Produto",   group: "PCP",            section: "Estrutura",        icon: FlaskConical,   keywords: "pcp engenharia estrutura bom insumo embalagem produto" },
+  { href: "/pcp/chao",                             label: "Chão de Fábrica",         group: "PCP",            section: "Planejamento/Apontamento",     icon: Factory,        keywords: "pcp chão fábrica produção apontamento" },
+  { href: "/pcp/ordens",                           label: "Ordens de Produção",      group: "PCP",            section: "Planejamento/Apontamento",     icon: ClipboardList,  keywords: "pcp ordem produção op apontamento etapa" },
+  { href: "/pcp/operacoes",                        label: "Operações (fila)",        group: "PCP",            section: "Planejamento/Apontamento",     icon: ListChecks,     keywords: "pcp operação fila chão etapa centro trabalho apontar" },
+  { href: "/pcp/planejamento",                     label: "Planejamento (MPS/MRP)",  group: "PCP",            section: "Planejamento/Apontamento",     icon: Calculator,     keywords: "pcp mps mrp planejamento demanda necessidade insumo plano mestre" },
+  { href: "/pcp/dashboard",                        label: "Dashboard do PCP",        group: "PCP",            section: "Outros",           icon: BarChart3,      keywords: "pcp dashboard indicadores forno wip biomassa perdas simulação" },
+  { href: "/pcp/sequenciamento",                   label: "Sequenciamento (forno)",  group: "PCP",            section: "Outros",           icon: CalendarClock,  keywords: "pcp sequenciamento forno gargalo cronograma capacidade finita programação" },
+  { href: "/pcp/ajuda",                            label: "Como usar o PCP",         group: "PCP",            section: "Outros",           icon: BookOpen,       keywords: "pcp ajuda guia documentação como usar tutorial manual" },
 
   { href: "/configuracoes/aprovacoes",             label: "Aprovações",              group: "Configurações",  section: "Configurações",    icon: Settings2 },
   { href: "/configuracoes/integracoes",            label: "Integrações",             group: "Configurações",  section: "Configurações",    icon: Plug },

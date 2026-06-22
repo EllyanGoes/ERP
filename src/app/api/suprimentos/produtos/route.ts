@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   const ativoParam     = searchParams.get("ativo");
   const vendavelParam  = searchParams.get("vendavel");
   const tipoProdutoId  = searchParams.get("tipoProdutoId") || undefined;
+  const categoria      = searchParams.get("categoria") || undefined;
 
   const ativoFilter    = ativoParam    === "true" ? true : ativoParam    === "false" ? false : undefined;
   const vendavelFilter = vendavelParam === "true" ? true : vendavelParam === "false" ? false : undefined;
@@ -20,6 +21,7 @@ export async function GET(req: NextRequest) {
   if (ativoFilter    !== undefined) andClauses.push({ ativo:    ativoFilter });
   if (vendavelFilter !== undefined) andClauses.push({ vendavel: vendavelFilter });
   if (tipoProdutoId) andClauses.push({ tipoProdutoId });
+  if (categoria) andClauses.push({ categoriaEstoque: categoria as never });
   if (q) {
     andClauses.push({
       OR: [
@@ -106,6 +108,7 @@ export async function POST(req: NextRequest) {
           precoVenda: parseFloat(body.precoVenda) || 0,
           vendavel: body.vendavel === true,
           comodato: body.comodato === true,
+          consumivel: body.consumivel !== false,
         },
       });
 

@@ -20,6 +20,8 @@ function useModKey() {
 export default function HelpPanel() {
   const { open, openShortcuts, closeShortcuts } = useShortcuts();
   const mod = useModKey();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const SHORTCUT_SECTIONS = [
     {
@@ -60,7 +62,7 @@ export default function HelpPanel() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, openShortcuts, closeShortcuts]);
 
-  if (typeof window === "undefined") return null;
+  if (!mounted) return null;
 
   return createPortal(
     <>

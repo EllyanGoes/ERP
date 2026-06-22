@@ -71,6 +71,7 @@ import {
   CalendarClock,
   FileCheck2,
   Monitor,
+  Megaphone,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -88,7 +89,7 @@ interface NavItem {
 }
 
 interface SubSection {
-  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações" | "Aprovações" | "Manutenção" | "Geral" | "Produção";
+  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações" | "Aprovações" | "Manutenção" | "Geral" | "Produção" | "Estrutura" | "Planejamento/Apontamento" | "Outros";
   items: NavItem[];
 }
 
@@ -120,7 +121,6 @@ const mainModules: Module[] = [
         kind: "Estoque",
         items: [
           { href: "/suprimentos/produtos",       label: "Produtos",           icon: Package },
-          { href: "/suprimentos/tipos-produto",  label: "Tipos de Produto",   icon: Tag },
           { href: "/suprimentos/unidades",       label: "Unidades de Medida", icon: Ruler },
         ],
       },
@@ -136,6 +136,19 @@ const mainModules: Module[] = [
         kind: "Financeiro",
         items: [
           { href: "/empresa/centros-custo", label: "Centros de Custo", icon: CircleDot },
+        ],
+      },
+    ],
+  },
+  {
+    id: "marketing",
+    label: "Marketing",
+    icon: Megaphone,
+    sections: [
+      {
+        kind: "Geral",
+        items: [
+          { href: "/marketing", label: "Painel de Marketing", icon: Megaphone },
         ],
       },
     ],
@@ -316,17 +329,27 @@ const mainModules: Module[] = [
     icon: Factory,
     sections: [
       {
-        kind: "Produção" as SubSection["kind"],
+        kind: "Estrutura" as SubSection["kind"],
+        items: [
+          { href: "/pcp/centros-trabalho", label: "Centros de Trabalho",  icon: Boxes },
+          { href: "/pcp/fluxos",           label: "Fluxos de Produção",   icon: Workflow },
+          { href: "/pcp/engenharia",       label: "Engenharia do Produto", icon: FlaskConical },
+        ],
+      },
+      {
+        kind: "Planejamento/Apontamento" as SubSection["kind"],
         items: [
           { href: "/pcp/chao",             label: "Chão de Fábrica",      icon: Factory },
-          { href: "/pcp/dashboard",        label: "Dashboard",            icon: BarChart3 },
           { href: "/pcp/ordens",           label: "Ordens de Produção",   icon: ClipboardList },
           { href: "/pcp/operacoes",        label: "Operações (fila)",      icon: ListChecks },
           { href: "/pcp/planejamento",     label: "Planejamento (MPS/MRP)", icon: Calculator },
+        ],
+      },
+      {
+        kind: "Outros" as SubSection["kind"],
+        items: [
+          { href: "/pcp/dashboard",        label: "Dashboard",            icon: BarChart3 },
           { href: "/pcp/sequenciamento",   label: "Sequenciamento (forno)", icon: CalendarClock },
-          { href: "/pcp/engenharia",       label: "Engenharia do Produto", icon: FlaskConical },
-          { href: "/pcp/fluxos",           label: "Fluxos de Produção",   icon: Workflow },
-          { href: "/pcp/centros-trabalho", label: "Centros de Trabalho",  icon: Boxes },
           { href: "/pcp/ajuda",            label: "Como usar",            icon: BookOpen },
         ],
       },
@@ -400,6 +423,9 @@ const kindStyle: Record<SubSection["kind"], string> = {
   "Aprovações":       "text-emerald-600 dark:text-emerald-400",
   "Manutenção":       "text-orange-500 dark:text-orange-400",
   "Produção":         "text-cyan-500 dark:text-cyan-400",
+  "Estrutura":        "text-indigo-500 dark:text-indigo-400",
+  "Planejamento/Apontamento":     "text-cyan-500 dark:text-cyan-400",
+  "Outros":           "text-gray-400 dark:text-muted-foreground",
 };
 
 // ── Tooltip wrapper (portal-based) ────────────────────────────────────────────
@@ -635,18 +661,17 @@ export default function Sidebar() {
     return active?.id ?? null;
   });
 
-  const [panelWidth, setPanelWidth] = useState<number>(() => {
-    if (typeof window === "undefined") return PANEL_DEFAULT;
-    return parseInt(localStorage.getItem("sidebar-panel-w") ?? "") || PANEL_DEFAULT;
-  });
-
-  const [stripCollapsed, setStripCollapsed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("sidebar-collapsed") === "1";
-  });
+  // Defaults idênticos no servidor e no 1º render do cliente (evita mismatch de
+  // hidratação). As preferências salvas são lidas após montar, no efeito abaixo.
+  const [panelWidth, setPanelWidth] = useState<number>(PANEL_DEFAULT);
+  const [stripCollapsed, setStripCollapsed] = useState<boolean>(false);
+  const [hydrated, setHydrated] = useState(false);
   const [modKey, setModKey] = useState("⌘");
 
   useEffect(() => {
+    setPanelWidth(parseInt(localStorage.getItem("sidebar-panel-w") ?? "") || PANEL_DEFAULT);
+    setStripCollapsed(localStorage.getItem("sidebar-collapsed") === "1");
+    setHydrated(true);
     if (!/Mac|iPhone|iPad|iPod/.test(navigator.platform)) setModKey("Ctrl");
   }, []);
 
@@ -665,9 +690,9 @@ export default function Sidebar() {
     document.documentElement.dataset.sidebarExpanded = (!stripCollapsed && !!openId) ? "1" : "0";
   }, [openId, panelWidth, stripCollapsed]);
 
-  // Persist settings
-  useEffect(() => { localStorage.setItem("sidebar-panel-w", String(panelWidth)); }, [panelWidth]);
-  useEffect(() => { localStorage.setItem("sidebar-collapsed", stripCollapsed ? "1" : "0"); }, [stripCollapsed]);
+  // Persist settings (só depois de carregar as preferências, p/ não sobrescrever)
+  useEffect(() => { if (hydrated) localStorage.setItem("sidebar-panel-w", String(panelWidth)); }, [panelWidth, hydrated]);
+  useEffect(() => { if (hydrated) localStorage.setItem("sidebar-collapsed", stripCollapsed ? "1" : "0"); }, [stripCollapsed, hydrated]);
 
   // ⌘B shortcut
   useEffect(() => {

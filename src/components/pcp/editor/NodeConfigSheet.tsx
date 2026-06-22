@@ -1,19 +1,126 @@
 "use client";
 
-import { X, Trash2, Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { X, Trash2, Plus, ChevronDown, Check } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { cn } from "@/lib/utils";
 import type { FlowNodeData, NodeKind, InsumoVinculo } from "@/lib/pcp/types";
 import { NODE_STYLE } from "./nodes";
 import ItemSearch from "@/components/pcp/ItemSearch";
+import { CATEGORIA_ESTOQUE_VALUES, CATEGORIA_ESTOQUE_LABELS, CATEGORIA_ESTOQUE_ICONS, CATEGORIA_ESTOQUE_CORES } from "@/lib/categoria-estoque-ui";
+
+// Dropdown de categoria com ícone por opção (o <select> nativo não renderiza ícones).
+function CategoriaEstoqueSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+  const SelIcon = value ? CATEGORIA_ESTOQUE_ICONS[value as keyof typeof CATEGORIA_ESTOQUE_ICONS] : null;
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-1.5 text-sm bg-card focus:outline-none focus:ring-1 focus:ring-cyan-500"
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          {SelIcon ? (
+            <>
+              <SelIcon className={cn("w-4 h-4 shrink-0", CATEGORIA_ESTOQUE_CORES[value as keyof typeof CATEGORIA_ESTOQUE_CORES])} />
+              <span className="truncate text-foreground">{CATEGORIA_ESTOQUE_LABELS[value as keyof typeof CATEGORIA_ESTOQUE_LABELS]}</span>
+            </>
+          ) : (
+            <span className="text-muted-foreground">Selecionar…</span>
+          )}
+        </span>
+        <ChevronDown className="w-4 h-4 text-muted-foreground/60 shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 w-full max-h-64 overflow-y-auto rounded-lg border border-border bg-card shadow-lg py-1">
+          {CATEGORIA_ESTOQUE_VALUES.map((c) => {
+            const Icon = CATEGORIA_ESTOQUE_ICONS[c];
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => { onChange(c); setOpen(false); }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-sm text-left hover:bg-muted"
+              >
+                <Icon className={cn("w-4 h-4 shrink-0", CATEGORIA_ESTOQUE_CORES[c])} />
+                <span className="truncate text-foreground">{CATEGORIA_ESTOQUE_LABELS[c]}</span>
+                {value === c && <Check className="w-3.5 h-3.5 ml-auto text-cyan-500 shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Dropdown de item filtrado pela categoria (lista os itens da categoria — o
+// produto aparece direto, sem precisar digitar; o combobox tem busca embutida).
+function ItemCategoriaPicker({ categoria, itemId, itemDescricao, onSelect, onClear }: {
+  categoria: string;
+  itemId: string | null;
+  itemDescricao: string | null;
+  onSelect: (it: { id: string; codigo: string; descricao: string }) => void;
+  onClear: () => void;
+}) {
+  const [items, setItems] = useState<{ id: string; codigo: string; descricao: string }[]>([]);
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/itens?categoria=${encodeURIComponent(categoria)}&limit=300`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!active) return;
+        setItems((j.data ?? []).map((it: { id: string; codigo: string; descricao: string }) => ({ id: it.id, codigo: it.codigo, descricao: it.descricao })));
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [categoria]);
+
+  const options = items.map((it) => ({ value: it.id, label: it.descricao, code: it.codigo }));
+  // mantém o item já selecionado visível mesmo que não venha na lista atual
+  if (itemId && !options.some((o) => o.value === itemId)) {
+    options.unshift({ value: itemId, label: itemDescricao ?? "item", code: "" });
+  }
+
+  return (
+    <ComboboxWithCreate
+      value={itemId ?? ""}
+      onChange={(id) => {
+        if (!id) { onClear(); return; }
+        const it = items.find((x) => x.id === id);
+        if (it) onSelect(it);
+      }}
+      noneLabel="—"
+      placeholder={items.length ? "Selecionar item…" : "Nenhum item nesta categoria"}
+      triggerClassName="h-9 rounded-lg"
+      options={options}
+    />
+  );
+}
 
 interface CentroOpt { id: string; nome: string; }
+interface LocalOpt { id: string; nome: string; categoriasAceitas?: string[]; }
+
+// Locais que aceitam a categoria (vazio/legado = aceita qualquer).
+function locaisDaCategoria(locais: LocalOpt[], categoria: string | null | undefined): LocalOpt[] {
+  if (!categoria) return locais;
+  return locais.filter((l) => !l.categoriasAceitas || l.categoriasAceitas.length === 0 || l.categoriasAceitas.includes(categoria));
+}
 
 interface Props {
   kind: NodeKind;
   data: FlowNodeData;
   centros: CentroOpt[];
-  locais: CentroOpt[];
+  locais: LocalOpt[];
   onChange: (patch: Partial<FlowNodeData>) => void;
   onClose: () => void;
   onDelete: () => void;
@@ -45,6 +152,10 @@ export default function NodeConfigSheet({ kind, data, centros, locais, onChange,
   const isBuffer = kind === "BUFFER_WIP";
   const isInspecao = kind === "INSPECAO";
   const isEstoque = kind === "ESTOQUE_INSUMO" || kind === "ESTOCAGEM_PA";
+  // Buffer de WIP é sempre da categoria Produto em Processo (WIP).
+  const bufferCategoria = "WIP";
+  const catKey = (data.categoriaEstoque as string) as keyof typeof CATEGORIA_ESTOQUE_ICONS | undefined;
+  const HeaderIcon = isEstoque && catKey && CATEGORIA_ESTOQUE_ICONS[catKey] ? CATEGORIA_ESTOQUE_ICONS[catKey] : s.icon;
 
   const insumos: InsumoVinculo[] = data.insumos ?? [];
   function setInsumo(i: number, patch: Partial<InsumoVinculo>) {
@@ -59,7 +170,7 @@ export default function NodeConfigSheet({ kind, data, centros, locais, onChange,
       <div className="flex items-center justify-between px-4 h-14 border-b border-border shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <span className={cn("flex w-6 h-6 items-center justify-center rounded-md", s.chipBg, s.chipText)}>
-            <s.icon className="w-3.5 h-3.5" />
+            <HeaderIcon className="w-3.5 h-3.5" />
           </span>
           <span className="text-sm font-semibold text-foreground truncate">{s.label}</span>
         </div>
@@ -77,30 +188,39 @@ export default function NodeConfigSheet({ kind, data, centros, locais, onChange,
         {isEstoque && (
           <>
             <div>
-              <label className={labelCls}>Item / material (real)</label>
-              {data.itemId ? (
-                <div className="flex items-center justify-between rounded-lg border border-border px-2.5 py-1.5 text-sm bg-card">
-                  <span className="truncate text-foreground">{data.itemDescricao ?? "item"}</span>
-                  <button type="button" onClick={() => onChange({ itemId: null, itemDescricao: null })} title="Trocar">
-                    <X className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-muted-foreground shrink-0" />
-                  </button>
-                </div>
+              <label className={labelCls}>Categoria de estoque</label>
+              <CategoriaEstoqueSelect
+                value={(data.categoriaEstoque as string) ?? ""}
+                onChange={(v) => onChange({ categoriaEstoque: v || null, itemId: null, itemDescricao: null })}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Local de estoque</label>
+              {!data.categoriaEstoque ? (
+                <p className="text-[11px] text-muted-foreground py-1">Selecione a categoria primeiro.</p>
               ) : (
-                <ItemSearch
-                  onSelect={(it) => onChange({ itemId: it.id, itemDescricao: it.descricao, label: data.label || it.descricao })}
-                  placeholder="Buscar item real…"
+                <ComboboxWithCreate
+                  value={data.localEstoqueId ?? ""}
+                  onChange={(v) => onChange({ localEstoqueId: v || null })}
+                  noneLabel="—"
+                  triggerClassName="h-9 rounded-lg"
+                  options={locaisDaCategoria(locais, data.categoriaEstoque as string).map((l) => ({ value: l.id, label: l.nome }))}
                 />
               )}
             </div>
             <div>
-              <label className={labelCls}>Local de estoque</label>
-              <ComboboxWithCreate
-                value={data.localEstoqueId ?? ""}
-                onChange={(v) => onChange({ localEstoqueId: v || null })}
-                noneLabel="—"
-                triggerClassName="h-9 rounded-lg"
-                options={locais.map((l) => ({ value: l.id, label: l.nome }))}
-              />
+              <label className={labelCls}>Item / material (real)</label>
+              {!data.categoriaEstoque ? (
+                <p className="text-[11px] text-muted-foreground py-1">Selecione a categoria primeiro.</p>
+              ) : (
+                <ItemCategoriaPicker
+                  categoria={data.categoriaEstoque as string}
+                  itemId={data.itemId ?? null}
+                  itemDescricao={data.itemDescricao ?? null}
+                  onSelect={(it) => onChange({ itemId: it.id, itemDescricao: it.descricao, label: data.label || it.descricao })}
+                  onClear={() => onChange({ itemId: null, itemDescricao: null })}
+                />
+              )}
             </div>
           </>
         )}
@@ -115,13 +235,23 @@ export default function NodeConfigSheet({ kind, data, centros, locais, onChange,
               </select>
             </div>
             <div>
-              <label className={labelCls}>Local de estoque (fase)</label>
+              <label className={labelCls}>Local de estoque (Produto em Processo)</label>
               <ComboboxWithCreate
                 value={data.localEstoqueId ?? ""}
                 onChange={(v) => onChange({ localEstoqueId: v || null })}
                 noneLabel="—"
                 triggerClassName="h-9 rounded-lg"
-                options={locais.map((l) => ({ value: l.id, label: l.nome }))}
+                options={locaisDaCategoria(locais, bufferCategoria).map((l) => ({ value: l.id, label: l.nome }))}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Item / material (real) — Produto em Processo</label>
+              <ItemCategoriaPicker
+                categoria={bufferCategoria}
+                itemId={data.itemId ?? null}
+                itemDescricao={data.itemDescricao ?? null}
+                onSelect={(it) => onChange({ itemId: it.id, itemDescricao: it.descricao, label: data.label || it.descricao })}
+                onClear={() => onChange({ itemId: null, itemDescricao: null })}
               />
             </div>
           </>

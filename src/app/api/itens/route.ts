@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
   const tipo = searchParams.get("tipo") || undefined;
+  const categoria = searchParams.get("categoria") || undefined;
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
 
@@ -21,6 +22,11 @@ export async function GET(req: NextRequest) {
         ],
       } : {},
       tipo ? { tipo: tipo as any } : {},
+      categoria
+        ? (categoria.includes(",")
+            ? { categoriaEstoque: { in: categoria.split(",").map((c) => c.trim()).filter(Boolean) as any } }
+            : { categoriaEstoque: categoria as any })
+        : {},
     ],
   };
 

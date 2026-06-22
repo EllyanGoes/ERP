@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { Boxes, Plus, Pencil, Trash2, RefreshCw, X, Check } from "lucide-react";
 
@@ -147,55 +148,61 @@ export default function CentrosTrabalhoPage() {
           <div className="mb-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</div>
         )}
 
-        {form && (
-          <div className="mb-4 rounded-xl border border-cyan-200 dark:border-cyan-500/30 bg-cyan-50/40 p-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Código *</label>
-                <input className={inputCls} value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} placeholder="ex.: FORNO-01" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Nome *</label>
-                <input className={inputCls} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="ex.: Forno de Queima" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Tipo</label>
-                <select className={inputCls} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value as Tipo | "" })}>
-                  <option value="">—</option>
-                  {TIPOS.map((t) => <option key={t} value={t}>{TIPO_LABEL[t]}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Ativo Engeman (codApl)</label>
-                <input className={inputCls} inputMode="numeric" value={form.codApl} onChange={(e) => setForm({ ...form, codApl: e.target.value })} placeholder="opcional" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Capacidade</label>
-                  <input className={inputCls} inputMode="decimal" value={form.capacidadePadrao} onChange={(e) => setForm({ ...form, capacidadePadrao: e.target.value })} placeholder="ex.: 20" />
+        <Dialog open={!!form} onOpenChange={(o) => { if (!o) setForm(null); }}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{form?.id ? "Editar centro de trabalho" : "Novo centro de trabalho"}</DialogTitle>
+            </DialogHeader>
+            {form && (
+              <div className="space-y-3">
+                {erro && <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</div>}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Código *</label>
+                    <input className={inputCls} value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} placeholder="ex.: FORNO-01" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Nome *</label>
+                    <input className={inputCls} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="ex.: Forno de Queima" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Tipo</label>
+                    <select className={inputCls} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value as Tipo | "" })}>
+                      <option value="">—</option>
+                      {TIPOS.map((t) => <option key={t} value={t}>{TIPO_LABEL[t]}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Ativo Engeman (codApl)</label>
+                    <input className={inputCls} inputMode="numeric" value={form.codApl} onChange={(e) => setForm({ ...form, codApl: e.target.value })} placeholder="opcional" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Capacidade</label>
+                      <input className={inputCls} inputMode="decimal" value={form.capacidadePadrao} onChange={(e) => setForm({ ...form, capacidadePadrao: e.target.value })} placeholder="ex.: 20" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Unidade</label>
+                      <input className={inputCls} value={form.unidadeCapacidade} onChange={(e) => setForm({ ...form, unidadeCapacidade: e.target.value })} placeholder="milheiro/ciclo" />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Unidade</label>
-                  <input className={inputCls} value={form.unidadeCapacidade} onChange={(e) => setForm({ ...form, unidadeCapacidade: e.target.value })} placeholder="milheiro/ciclo" />
-                </div>
+                <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                  <input type="checkbox" checked={form.ativo} onChange={(e) => setForm({ ...form, ativo: e.target.checked })} />
+                  Ativo
+                </label>
               </div>
-            </div>
-            <div className="mt-3 flex items-center justify-between">
-              <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                <input type="checkbox" checked={form.ativo} onChange={(e) => setForm({ ...form, ativo: e.target.checked })} />
-                Ativo
-              </label>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setForm(null)} className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-                  <X className="w-4 h-4" /> Cancelar
-                </button>
-                <button type="button" onClick={salvar} disabled={saving} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
-                  {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Salvar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+            )}
+            <DialogFooter>
+              <button type="button" onClick={() => setForm(null)} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                <X className="w-4 h-4" /> Cancelar
+              </button>
+              <button type="button" onClick={salvar} disabled={saving} className="inline-flex items-center justify-center gap-1 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
+                {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Salvar
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {loading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground gap-2 text-sm">

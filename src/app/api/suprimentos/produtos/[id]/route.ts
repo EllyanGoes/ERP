@@ -97,6 +97,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.favorito    !== undefined) updateData.favorito    = Boolean(body.favorito);
   if (body.vendavel    !== undefined) updateData.vendavel    = Boolean(body.vendavel);
   if (body.comodato   !== undefined) updateData.comodato   = Boolean(body.comodato);
+  if (body.consumivel !== undefined) updateData.consumivel = Boolean(body.consumivel);
   if (body.estoqueMinimo  !== undefined) updateData.estoqueMinimo  = body.estoqueMinimo  != null ? parseFloat(body.estoqueMinimo)  : null;
   if (body.estoqueMaximo  !== undefined) updateData.estoqueMaximo  = body.estoqueMaximo  != null ? parseFloat(body.estoqueMaximo)  : null;
   if (body.pontoReposicao !== undefined) updateData.pontoReposicao = body.pontoReposicao != null ? parseFloat(body.pontoReposicao) : null;
