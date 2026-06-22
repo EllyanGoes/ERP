@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import CategoriaEstoqueSelect from "@/components/shared/CategoriaEstoqueSelect";
+import { CentroTrabalhoQuickCreate } from "@/components/shared/QuickCreateDialogs";
 import { cn } from "@/lib/utils";
 import { CATEGORIA_ESTOQUE_ICONS, CATEGORIA_ESTOQUE_CORES } from "@/lib/categoria-estoque-ui";
-import type { FlowNodeData, NodeKind } from "@/lib/pcp/types";
+import { nodeItens, type FlowNodeData, type NodeKind } from "@/lib/pcp/types";
+
+type ItemRef = { itemId: string; descricao: string };
 
 export interface CentroOpt { id: string; nome: string; }
 export interface LocalOpt { id: string; nome: string; categoriasAceitas?: string[]; }
@@ -45,14 +49,13 @@ function strv(v: number | null | undefined): string {
   return v == null ? "" : String(v);
 }
 
-// Dropdown de item filtrado pela categoria (e opcionalmente por estado WIP).
-function ItemCategoriaPicker({ categoria, estadoWip, itemId, itemDescricao, onSelect, onClear }: {
+// Multi-select de produtos filtrado pela categoria (e opcionalmente por estado WIP):
+// uma etapa de estoque/WIP pode conter mais de um produto.
+function ItensMultiPicker({ categoria, estadoWip, itens, onChange }: {
   categoria: string;
   estadoWip?: string | null;
-  itemId: string | null;
-  itemDescricao: string | null;
-  onSelect: (it: { id: string; codigo: string; descricao: string }) => void;
-  onClear: () => void;
+  itens: ItemRef[];
+  onChange: (itens: ItemRef[]) => void;
 }) {
   const [items, setItems] = useState<{ id: string; codigo: string; descricao: string }[]>([]);
   useEffect(() => {
@@ -64,19 +67,31 @@ function ItemCategoriaPicker({ categoria, estadoWip, itemId, itemDescricao, onSe
     return () => { active = false; };
   }, [categoria, estadoWip]);
 
-  const options = items.map((it) => ({ value: it.id, label: it.descricao, code: it.codigo }));
-  if (itemId && !options.some((o) => o.value === itemId)) {
-    options.unshift({ value: itemId, label: itemDescricao ?? "item", code: "" });
-  }
+  const selecionados = new Set(itens.map((i) => i.itemId));
+  const options = items.filter((it) => !selecionados.has(it.id)).map((it) => ({ value: it.id, label: it.descricao, code: it.codigo }));
+
   return (
-    <ComboboxWithCreate
-      value={itemId ?? ""}
-      onChange={(id) => { if (!id) { onClear(); return; } const it = items.find((x) => x.id === id); if (it) onSelect(it); }}
-      noneLabel="—"
-      placeholder={items.length ? "Selecionar item…" : "Nenhum item nesta categoria"}
-      triggerClassName="h-9 rounded-lg"
-      options={options}
-    />
+    <div className="space-y-1.5">
+      <ComboboxWithCreate
+        value=""
+        onChange={(id) => { const it = items.find((x) => x.id === id); if (it) onChange([...itens, { itemId: it.id, descricao: it.descricao }]); }}
+        allowNone={false}
+        noneLabel="—"
+        placeholder={items.length ? "Adicionar produto…" : "Nenhum item nesta categoria"}
+        triggerClassName="h-9 rounded-lg"
+        options={options}
+      />
+      {itens.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {itens.map((i) => (
+            <span key={i.itemId} className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-0.5 text-[11px] text-foreground">
+              {i.descricao}
+              <button type="button" onClick={() => onChange(itens.filter((x) => x.itemId !== i.itemId))}><X className="w-3 h-3 text-muted-foreground/60 hover:text-red-500" /></button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -109,7 +124,7 @@ export default function NodeConfigFields({ kind, data, centros, locais, estadosW
             <label className={labelCls}>Categoria de estoque</label>
             <CategoriaEstoqueSelect
               value={(data.categoriaEstoque as string) ?? ""}
-              onChange={(v) => onChange({ categoriaEstoque: v || null, itemId: null, itemDescricao: null })}
+              onChange={(v) => onChange({ categoriaEstoque: v || null, itens: [], itemId: null, itemDescricao: null })}
             />
           </div>
           <div>
@@ -127,16 +142,14 @@ export default function NodeConfigFields({ kind, data, centros, locais, estadosW
             )}
           </div>
           <div>
-            <label className={labelCls}>Item / material (real)</label>
+            <label className={labelCls}>Produtos / materiais</label>
             {!data.categoriaEstoque ? (
               <p className="text-[11px] text-muted-foreground py-1">Selecione a categoria primeiro.</p>
             ) : (
-              <ItemCategoriaPicker
+              <ItensMultiPicker
                 categoria={data.categoriaEstoque as string}
-                itemId={data.itemId ?? null}
-                itemDescricao={data.itemDescricao ?? null}
-                onSelect={(it) => onChange({ itemId: it.id, itemDescricao: it.descricao, label: data.label || it.descricao })}
-                onClear={() => onChange({ itemId: null, itemDescricao: null })}
+                itens={nodeItens(data)}
+                onChange={(itens) => onChange({ itens, itemId: itens[0]?.itemId ?? null, itemDescricao: itens[0]?.descricao ?? null, label: data.label || itens[0]?.descricao || "" })}
               />
             )}
           </div>
@@ -147,7 +160,7 @@ export default function NodeConfigFields({ kind, data, centros, locais, estadosW
         <>
           <div>
             <label className={labelCls}>Estado do WIP</label>
-            <select className={inputCls} value={data.estadoWip ?? ""} onChange={(e) => onChange({ estadoWip: (e.target.value || null) as FlowNodeData["estadoWip"], itemId: null, itemDescricao: null })}>
+            <select className={inputCls} value={data.estadoWip ?? ""} onChange={(e) => onChange({ estadoWip: (e.target.value || null) as FlowNodeData["estadoWip"], itens: [], itemId: null, itemDescricao: null })}>
               <option value="">—</option>
               {estadosWip.map((o) => <option key={o.codigo} value={o.codigo}>{o.nome}</option>)}
             </select>
@@ -163,17 +176,15 @@ export default function NodeConfigFields({ kind, data, centros, locais, estadosW
             />
           </div>
           <div>
-            <label className={labelCls}>Item / material (real) — Produto em Processo</label>
+            <label className={labelCls}>Produtos em processo (nesta fase)</label>
             {!data.estadoWip ? (
               <p className="text-[11px] text-muted-foreground py-1">Selecione o estado do WIP primeiro.</p>
             ) : (
-              <ItemCategoriaPicker
+              <ItensMultiPicker
                 categoria={bufferCategoria}
                 estadoWip={data.estadoWip as string}
-                itemId={data.itemId ?? null}
-                itemDescricao={data.itemDescricao ?? null}
-                onSelect={(it) => onChange({ itemId: it.id, itemDescricao: it.descricao, label: data.label || it.descricao })}
-                onClear={() => onChange({ itemId: null, itemDescricao: null })}
+                itens={nodeItens(data)}
+                onChange={(itens) => onChange({ itens, itemId: itens[0]?.itemId ?? null, itemDescricao: itens[0]?.descricao ?? null, label: data.label || itens[0]?.descricao || "" })}
               />
             )}
           </div>
@@ -187,11 +198,13 @@ export default function NodeConfigFields({ kind, data, centros, locais, estadosW
             value={data.centroTrabalhoId ?? ""}
             onChange={(v) => {
               const id = v || null;
-              const nome = centros.find((c) => c.id === id)?.nome ?? null;
+              const nome = id ? (centros.find((c) => c.id === id)?.nome ?? null) : null;
               onChange({ centroTrabalhoId: id, centroTrabalhoNome: nome });
             }}
             noneLabel="—"
             triggerClassName="h-9 rounded-lg"
+            createLabel="centro de trabalho"
+            renderCreateModal={(args) => <CentroTrabalhoQuickCreate {...args} />}
             options={centros.map((c) => ({ value: c.id, label: c.nome }))}
           />
         </div>

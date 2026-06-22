@@ -149,6 +149,51 @@ export function TipoProdutoQuickCreate({ initialValue, onCreated, onClose }: Cre
   );
 }
 
+// ── Centro de Trabalho ────────────────────────────────────────────────────────
+export function CentroTrabalhoQuickCreate({ initialValue, onCreated, onClose }: CreateModalArgs) {
+  const [nome, setNome] = useState(initialValue);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSave() {
+    if (!nome.trim()) return;
+    setSaving(true);
+    setError("");
+    try {
+      const codigo = nome.trim().normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      const res = await fetch("/api/pcp/centros-trabalho", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo: codigo || nome.trim(), nome: nome.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error || "Erro ao salvar"); return; }
+      onCreated(json.data.id, json.data.nome);
+    } catch { setError("Erro de conexão"); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <DialogShell title="Novo Centro de Trabalho" onClose={onClose}>
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <Label>Nome <span className="text-red-500">*</span></Label>
+          <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Conformação" autoFocus onKeyDown={(e) => e.key === "Enter" && handleSave()} />
+          <p className="text-[11px] text-muted-foreground">O código é gerado automaticamente a partir do nome.</p>
+        </div>
+        {error && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{error}</p>}
+      </div>
+      <div className="flex gap-2 justify-end">
+        <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancelar</Button>
+        <Button size="sm" onClick={handleSave} disabled={saving || !nome.trim()}>
+          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+          Salvar
+        </Button>
+      </div>
+    </DialogShell>
+  );
+}
+
 // ── Unidade de Medida ─────────────────────────────────────────────────────────
 
 export function UnidadeQuickCreate({ initialValue, onCreated, onClose }: CreateModalArgs) {

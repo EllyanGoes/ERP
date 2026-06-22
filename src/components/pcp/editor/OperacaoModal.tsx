@@ -8,7 +8,7 @@ import NovaEngenhariaDialog from "@/components/pcp/NovaEngenhariaDialog";
 import { NODE_STYLE } from "./nodes";
 import NodeConfigFields, { type CentroOpt, type LocalOpt, type EstadoWipOpt } from "./NodeConfigFields";
 import type { FlowNodeData, NodeKind, InsumoVinculo, FlowGraph } from "@/lib/pcp/types";
-import { SOURCE_KINDS, SINK_KINDS } from "@/lib/pcp/types";
+import { SOURCE_KINDS, SINK_KINDS, nodeItens } from "@/lib/pcp/types";
 
 interface Props {
   data: FlowNodeData;
@@ -23,11 +23,12 @@ interface Props {
   onPatchNode: (nodeId: string, patch: Partial<FlowNodeData>) => void;
   onSave: () => Promise<string | null>;
   saving: boolean;
+  dirty: boolean;
   onClose: () => void;
   onDelete: () => void;
 }
 
-interface ProdutoEng { itemId: string; codigo?: string; descricao: string; }
+interface ProdutoEng { itemId: string; codigo?: string; descricao: string; insumoItemIds: string[]; }
 
 const inputCls = "w-full rounded-lg border border-border px-2.5 py-1.5 text-sm bg-card focus:outline-none focus:ring-1 focus:ring-cyan-500";
 const labelCls = "block text-[11px] font-medium text-muted-foreground mb-1";
@@ -55,7 +56,7 @@ function NodeChip({ kind, label, sub }: { kind: NodeKind; label: string; sub?: s
   );
 }
 
-export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros, locais, estadosWip, onChange, onPatchNode, onSave, saving, onClose, onDelete }: Props) {
+export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros, locais, estadosWip, onChange, onPatchNode, onSave, saving, dirty, onClose, onDelete }: Props) {
   const [mounted, setMounted] = useState(false);
   const [engProdutos, setEngProdutos] = useState<ProdutoEng[]>([]);
   const [novoEngOpen, setNovoEngOpen] = useState(false);
@@ -78,7 +79,7 @@ export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros,
         if (!active) return;
         const lista = (j.data ?? [])
           .filter((e: { fluxo?: { id: string }; ativo: boolean }) => e.ativo && e.fluxo?.id === fluxoId)
-          .map((e: { item: { id: string; codigo: string; descricao: string } }) => ({ itemId: e.item.id, codigo: e.item.codigo, descricao: e.item.descricao }));
+          .map((e: { item: { id: string; codigo: string; descricao: string }; insumoItemIds?: string[] }) => ({ itemId: e.item.id, codigo: e.item.codigo, descricao: e.item.descricao, insumoItemIds: e.insumoItemIds ?? [] }));
         setEngProdutos(lista);
       })
       .catch(() => {});
@@ -94,15 +95,26 @@ export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros,
   function addInsumo() { onChange({ insumos: [...insumos, { itemId: "", descricao: "", consumoPorMilheiro: null }] }); }
   function rmInsumo(i: number) { onChange({ insumos: insumos.filter((_, idx) => idx !== i) }); }
 
+  // Itens que entram nesta etapa (produtos/insumos dos nós a montante).
+  const entradaItemIds = new Set<string>(entradas.flatMap((n) => nodeItens(n.data).map((i) => i.itemId)));
+  // Produtos possíveis = têm engenharia no fluxo E todos os insumos da BOM estão entre as entradas.
+  const produtosPossiveisVisiveis = engProdutos.filter(
+    (p) => p.insumoItemIds.length > 0 && p.insumoItemIds.every((id) => entradaItemIds.has(id)),
+  );
+  // Estado WIP de saída (do buffer a jusante), p/ a tag informativa.
+  const estadoSaidaCodigo = (saidas.find((n) => n.data.kind === "BUFFER_WIP")?.data.estadoWip as string | undefined) ?? null;
+  const estadoSaidaNome = estadoSaidaCodigo ? (estadosWip.find((e) => e.codigo === estadoSaidaCodigo)?.nome ?? estadoSaidaCodigo) : null;
+
   const produtos = data.produtosPossiveis ?? [];
   function toggleProduto(p: ProdutoEng) {
     const exists = produtos.some((x) => x.itemId === p.itemId);
     onChange({ produtosPossiveis: exists ? produtos.filter((x) => x.itemId !== p.itemId) : [...produtos, { itemId: p.itemId, codigo: p.codigo, descricao: p.descricao }] });
-    // A saída da etapa é o conteúdo do estoque seguinte: preenche o item do nó a jusante.
+    // A saída da etapa vai para o estoque seguinte (que aceita vários produtos).
     const estoqueSaidas = saidas.filter((n) => n.data.kind === "BUFFER_WIP" || n.data.kind === "ESTOCAGEM_PA");
     for (const n of estoqueSaidas) {
-      if (!exists) onPatchNode(n.id, { itemId: p.itemId, itemDescricao: p.descricao });
-      else if (n.data.itemId === p.itemId) onPatchNode(n.id, { itemId: null, itemDescricao: null });
+      const atuais = nodeItens(n.data);
+      const novos = exists ? atuais.filter((x) => x.itemId !== p.itemId) : (atuais.some((x) => x.itemId === p.itemId) ? atuais : [...atuais, { itemId: p.itemId, descricao: p.descricao }]);
+      onPatchNode(n.id, { itens: novos, itemId: novos[0]?.itemId ?? null, itemDescricao: novos[0]?.descricao ?? null });
     }
   }
 
@@ -122,7 +134,7 @@ export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros,
       </p>
       <div className="space-y-1.5">
         {entradas.length === 0 && <p className="text-[11px] text-muted-foreground">Nenhuma etapa conectada à entrada.</p>}
-        {entradas.map((n) => (<NodeChip key={n.id} kind={n.data.kind} label={n.data.label} sub={n.data.itemDescricao ?? null} />))}
+        {entradas.map((n) => (<NodeChip key={n.id} kind={n.data.kind} label={n.data.label} sub={nodeItens(n.data).map((i) => i.descricao).join(", ") || null} />))}
       </div>
       {isOperacao && (
         <div>
@@ -150,9 +162,16 @@ export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros,
       <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground flex items-center justify-end gap-1.5">
         Saídas <ArrowRight className="w-3.5 h-3.5" />
       </p>
+      {isOperacao && estadoSaidaNome && (
+        <div className="flex justify-end">
+          <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 dark:bg-cyan-500/15 border border-cyan-200 dark:border-cyan-500/30 px-2 py-0.5 text-[10px] font-medium text-cyan-700 dark:text-cyan-300">
+            Saída em WIP: {estadoSaidaNome}
+          </span>
+        </div>
+      )}
       <div className="space-y-1.5">
         {saidas.length === 0 && <p className="text-[11px] text-muted-foreground">Nenhuma etapa conectada à saída.</p>}
-        {saidas.map((n) => (<NodeChip key={n.id} kind={n.data.kind} label={n.data.label} sub={n.data.itemDescricao ?? null} />))}
+        {saidas.map((n) => (<NodeChip key={n.id} kind={n.data.kind} label={n.data.label} sub={nodeItens(n.data).map((i) => i.descricao).join(", ") || null} />))}
       </div>
       {isOperacao && (
         <>
@@ -169,17 +188,17 @@ export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros,
               fluxoId={fluxoId}
               permitirNovoProduto
               onCreated={({ item }) => {
-                setEngProdutos((prev) => prev.some((p) => p.itemId === item.id) ? prev : [...prev, { itemId: item.id, codigo: item.codigo, descricao: item.descricao }]);
+                setEngProdutos((prev) => prev.some((p) => p.itemId === item.id) ? prev : [...prev, { itemId: item.id, codigo: item.codigo, descricao: item.descricao, insumoItemIds: [] }]);
                 if (!produtos.some((x) => x.itemId === item.id)) {
                   onChange({ produtosPossiveis: [...produtos, { itemId: item.id, codigo: item.codigo, descricao: item.descricao }] });
                 }
               }}
             />
-            {engProdutos.length === 0 ? (
-              <p className="text-[11px] text-muted-foreground">Nenhum produto com engenharia neste fluxo. Use “+ novo” ou cadastre na Engenharia do Produto.</p>
+            {produtosPossiveisVisiveis.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">{entradaItemIds.size === 0 ? "Conecte as entradas para ver os produtos possíveis." : "Nenhum produto fazível com as entradas atuais (a BOM da engenharia deve usar só os itens que entram nesta etapa)."}</p>
             ) : (
               <div className="space-y-1">
-                {engProdutos.map((p) => {
+                {produtosPossiveisVisiveis.map((p) => {
                   const checked = produtos.some((x) => x.itemId === p.itemId);
                   return (
                     <button key={p.itemId} type="button" onClick={() => toggleProduto(p)} className={`w-full flex items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-sm transition-colors ${checked ? "border-cyan-400 bg-cyan-50 dark:bg-cyan-500/15" : "border-border bg-card hover:bg-muted"}`}>
@@ -228,9 +247,11 @@ export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros,
             />
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => onSave()} disabled={saving} title="Salvar fluxo" className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
-              {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar
-            </button>
+            {(dirty || saving) && (
+              <button onClick={() => onSave()} disabled={saving} title="Salvar fluxo" className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
+                {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar
+              </button>
+            )}
             <button onClick={onDelete} title="Remover etapa" className="p-1.5 rounded-lg text-danger hover:bg-danger/10"><Trash2 className="w-4 h-4" /></button>
             <button onClick={onClose} title="Fechar" className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted"><X className="w-4 h-4" /></button>
           </div>

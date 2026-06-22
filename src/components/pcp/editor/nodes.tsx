@@ -3,7 +3,7 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Boxes, Cog, Truck, Layers, SearchCheck, PackageCheck, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { NodeKind, FlowNodeData } from "@/lib/pcp/types";
+import { nodeItens, type NodeKind, type FlowNodeData } from "@/lib/pcp/types";
 import { CATEGORIA_ESTOQUE_ICONS } from "@/lib/categoria-estoque-ui";
 
 interface KindStyle {
@@ -43,8 +43,8 @@ function NodeCard({ kind, data, selected }: { kind: NodeKind; data: FlowNodeData
       .filter(Boolean).join(" · ") || null;
   } else if (kind === "BUFFER_WIP" && data.estadoWip) {
     sub = `WIP ${WIP_LABEL[data.estadoWip] ?? data.estadoWip}`;
-  } else if ((kind === "ESTOQUE_INSUMO" || kind === "ESTOCAGEM_PA") && data.itemDescricao) {
-    sub = data.itemDescricao;
+  } else if (kind === "ESTOQUE_INSUMO" || kind === "ESTOCAGEM_PA") {
+    sub = nodeItens(data).map((i) => i.descricao).join(", ") || null;
   }
 
   return (

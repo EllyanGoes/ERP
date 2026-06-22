@@ -38,6 +38,8 @@ export interface FlowNodeData {
   categoriaEstoque?: string | null;
   itemId?: string | null;
   itemDescricao?: string | null;
+  // múltiplos produtos numa etapa de estoque/WIP (a fonte de verdade nos nós de estoque)
+  itens?: { itemId: string; descricao: string }[];
   localEstoqueId?: string | null;
   // operação / transporte / inspeção
   centroTrabalhoId?: string | null;
@@ -99,4 +101,11 @@ export const SINK_KINDS: NodeKind[] = ["ESTOCAGEM_PA"];
 
 export function emptyGraph(): FlowGraph {
   return { nodes: [], edges: [] };
+}
+
+// Produtos de um nó de estoque/WIP (múltiplos). Fallback no itemId legado (1 item).
+export function nodeItens(data: FlowNodeData): { itemId: string; descricao: string }[] {
+  if (data.itens && data.itens.length) return data.itens;
+  if (data.itemId) return [{ itemId: data.itemId, descricao: (data.itemDescricao as string) ?? "item" }];
+  return [];
 }

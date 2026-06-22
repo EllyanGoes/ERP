@@ -14,6 +14,7 @@ export async function GET() {
     include: {
       item: { select: { id: true, codigo: true, descricao: true } },
       fluxo: { select: { id: true, nome: true } },
+      insumos: { select: { insumoItemId: true } },
       _count: { select: { insumos: true } },
     },
   });
@@ -22,6 +23,7 @@ export async function GET() {
     ativo: e.ativo,
     item: e.item,
     fluxo: e.fluxo,
+    insumoItemIds: e.insumos.map((i) => i.insumoItemId),
     totalInsumos: e._count.insumos,
     updatedAt: e.updatedAt,
   }));

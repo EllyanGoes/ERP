@@ -66,6 +66,7 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
   const [estadosWip, setEstadosWip] = useState<{ codigo: string; nome: string }[]>([]);
   const [status, setStatus] = useState<string>(fluxo.versaoAtual?.status ?? "RASCUNHO");
   const [saving, setSaving] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [nome, setNome] = useState(fluxo.nome);
   const [editandoNome, setEditandoNome] = useState(false);
@@ -128,6 +129,14 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
   );
   const validation = useMemo(() => validarFluxo(graph), [graph]);
 
+  // Snapshot do grafo p/ detectar alterações não salvas (dirty).
+  const currentSnapshot = useMemo(() => JSON.stringify({
+    nodes: nodes.map((n) => ({ id: n.id, type: n.type, position: n.position, data: cleanData(n.data as FlowNodeData) })),
+    edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+  }), [nodes, edges]);
+  useEffect(() => { if (savedSnapshot === null) setSavedSnapshot(currentSnapshot); }, [currentSnapshot, savedSnapshot]);
+  const dirty = savedSnapshot !== null && currentSnapshot !== savedSnapshot;
+
   const nodesView = useMemo(
     () =>
       nodes.map((n) => ({
@@ -173,6 +182,7 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error ?? "Erro ao salvar");
       setStatus(j.data.status);
+      setSavedSnapshot(JSON.stringify(grafo));
       setMsg({ kind: "ok", text: "Salvo." });
       return j.data.id as string;
     } catch (e) {
@@ -329,6 +339,7 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
               onPatchNode={patchNode}
               onSave={salvar}
               saving={saving}
+              dirty={dirty}
               onClose={() => setSelectedId(null)}
               onDelete={deleteSelected}
             />
