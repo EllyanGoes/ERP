@@ -101,10 +101,24 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const qtd = parseFloat(String(item.quantidade));
         if (qtd <= 0) continue;
 
-        const estoqueItem = await tx.estoqueItem.findFirst({
+        let estoqueItem = await tx.estoqueItem.findFirst({
           where: { itemId: item.itemId, localEstoqueId, clienteDonoId: null },
-          select: { id: true, quantidadeAtual: true },
+          select: { id: true, quantidadeAtual: true, localEstoqueId: true },
         });
+        // SAÍDA sem registro no local da requisição: o item pode ter sido
+        // reclassificado/transferido para outro local. Baixa de onde ele
+        // realmente está (local com maior saldo) — senão a saída sairia
+        // "fantasma" (saldo 0→0 sem baixar nada, como vinha ocorrendo).
+        if (!estoqueItem && isSaida) {
+          estoqueItem = await tx.estoqueItem.findFirst({
+            where: { itemId: item.itemId, empresaId: updated.empresaId, clienteDonoId: null, quantidadeAtual: { gt: 0 } },
+            orderBy: { quantidadeAtual: "desc" },
+            select: { id: true, quantidadeAtual: true, localEstoqueId: true },
+          });
+        }
+        // Local efetivo de onde a baixa sai (= onde o item está, com fallback
+        // para o local da requisição quando não há estoque em lugar nenhum).
+        const localEfetivo = estoqueItem?.localEstoqueId ?? localEstoqueId;
 
         // increment/decrement atômico: requisições concorrentes do mesmo item
         // não perdem atualização; os saldos da linha derivam do valor pós-update.
@@ -123,22 +137,30 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           if (isSaida && saldoDepois < 0) {
             negativos.push({ itemId: item.itemId, descricao: item.item.descricao, saldoAtual: saldoAntes, saldoDepois });
           }
-        } else if (!isSaida) {
-          // Para devoluções, cria o registro de estoque se não existir
-          saldoDepois = qtd;
+        } else {
+          // Sem estoque do item em nenhum local: SAÍDA cria saldo NEGATIVO no
+          // local da requisição (consumo real — o saldo se ajusta depois);
+          // devolução cria saldo positivo. Nunca mais uma saída fantasma 0→0.
+          saldoDepois = isSaida ? -qtd : qtd;
+          saldoAntes = 0;
           await tx.estoqueItem.create({
             data: {
+              empresaId: updated.empresaId,
               itemId: item.itemId,
               clienteDonoId: null,
-              quantidadeAtual: qtd,
+              quantidadeAtual: saldoDepois,
               quantidadeMin: 0,
-              localEstoqueId,
+              localEstoqueId: localEfetivo,
             },
           });
+          if (isSaida) {
+            negativos.push({ itemId: item.itemId, descricao: item.item.descricao, saldoAtual: 0, saldoDepois });
+          }
         }
 
         await tx.movimentacaoEstoque.create({
           data: {
+            empresaId:    updated.empresaId,
             itemId:       item.itemId,
             tipo:         movTipo,
             quantidade:   qtd,
@@ -146,7 +168,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             saldoDepois,
             documento:    updated.numero,
             observacoes:  `${isSaida ? "Requisição" : "Devolução"} de Material ${updated.numero}`,
-            localEstoqueId,
+            localEstoqueId: localEfetivo,
           },
         });
       }
