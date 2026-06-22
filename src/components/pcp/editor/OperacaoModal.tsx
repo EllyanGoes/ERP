@@ -1,12 +1,12 @@
 "use client";
 
-import { X, Trash2, Plus, ArrowRight } from "lucide-react";
+import { X, Trash2, Plus, ArrowRight, Save, RefreshCw } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import ItemSearch from "@/components/pcp/ItemSearch";
 import NovaEngenhariaDialog from "@/components/pcp/NovaEngenhariaDialog";
 import { NODE_STYLE } from "./nodes";
-import NodeConfigFields, { type CentroOpt, type LocalOpt } from "./NodeConfigFields";
+import NodeConfigFields, { type CentroOpt, type LocalOpt, type EstadoWipOpt } from "./NodeConfigFields";
 import type { FlowNodeData, NodeKind, InsumoVinculo, FlowGraph } from "@/lib/pcp/types";
 import { SOURCE_KINDS, SINK_KINDS } from "@/lib/pcp/types";
 
@@ -18,7 +18,11 @@ interface Props {
   fluxoId: string;
   centros: CentroOpt[];
   locais: LocalOpt[];
+  estadosWip: EstadoWipOpt[];
   onChange: (patch: Partial<FlowNodeData>) => void;
+  onPatchNode: (nodeId: string, patch: Partial<FlowNodeData>) => void;
+  onSave: () => Promise<string | null>;
+  saving: boolean;
   onClose: () => void;
   onDelete: () => void;
 }
@@ -51,7 +55,7 @@ function NodeChip({ kind, label, sub }: { kind: NodeKind; label: string; sub?: s
   );
 }
 
-export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros, locais, onChange, onClose, onDelete }: Props) {
+export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros, locais, estadosWip, onChange, onPatchNode, onSave, saving, onClose, onDelete }: Props) {
   const [mounted, setMounted] = useState(false);
   const [engProdutos, setEngProdutos] = useState<ProdutoEng[]>([]);
   const [novoEngOpen, setNovoEngOpen] = useState(false);
@@ -94,6 +98,12 @@ export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros,
   function toggleProduto(p: ProdutoEng) {
     const exists = produtos.some((x) => x.itemId === p.itemId);
     onChange({ produtosPossiveis: exists ? produtos.filter((x) => x.itemId !== p.itemId) : [...produtos, { itemId: p.itemId, codigo: p.codigo, descricao: p.descricao }] });
+    // A saída da etapa é o conteúdo do estoque seguinte: preenche o item do nó a jusante.
+    const estoqueSaidas = saidas.filter((n) => n.data.kind === "BUFFER_WIP" || n.data.kind === "ESTOCAGEM_PA");
+    for (const n of estoqueSaidas) {
+      if (!exists) onPatchNode(n.id, { itemId: p.itemId, itemDescricao: p.descricao });
+      else if (n.data.itemId === p.itemId) onPatchNode(n.id, { itemId: null, itemDescricao: null });
+    }
   }
 
   // Início = sem entrada (fonte); Fim = sem saída (sink). Layout adapta o nº de painéis.
@@ -217,7 +227,10 @@ export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros,
               className="text-sm font-semibold text-foreground bg-transparent outline-none border-b border-transparent focus:border-cyan-500 min-w-0"
             />
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
+            <button onClick={() => onSave()} disabled={saving} title="Salvar fluxo" className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
+              {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar
+            </button>
             <button onClick={onDelete} title="Remover etapa" className="p-1.5 rounded-lg text-danger hover:bg-danger/10"><Trash2 className="w-4 h-4" /></button>
             <button onClick={onClose} title="Fechar" className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted"><X className="w-4 h-4" /></button>
           </div>
@@ -228,7 +241,7 @@ export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros,
           {hasInput && painelEntradas}
           <div className={`overflow-y-auto p-4 space-y-3 ${hasOutput ? "border-r border-border" : ""}`}>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Configuração da etapa</p>
-            <NodeConfigFields kind={kind} data={data} centros={centros} locais={locais} onChange={onChange} />
+            <NodeConfigFields kind={kind} data={data} centros={centros} locais={locais} estadosWip={estadosWip} onChange={onChange} />
           </div>
           {hasOutput && painelSaidas}
         </div>

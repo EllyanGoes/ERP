@@ -5,8 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
-import ItemSearch, { type ItemLite } from "@/components/pcp/ItemSearch";
 import { ArrowLeft, RefreshCw, Save, Trash2, AlertTriangle, Check } from "lucide-react";
+
+interface ItemLite { id: string; codigo: string; descricao: string; }
 
 interface Linha {
   insumoItemId: string;
@@ -53,6 +54,14 @@ export default function EngenhariaDetalhePage() {
   const [erro, setErro] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [okMsg, setOkMsg] = useState(false);
+  const [itens, setItens] = useState<ItemLite[]>([]);
+
+  useEffect(() => {
+    fetch("/api/itens?limit=1000")
+      .then((r) => r.json())
+      .then((j) => setItens((j.data ?? []).map((it: ItemLite) => ({ id: it.id, codigo: it.codigo, descricao: it.descricao }))))
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -159,7 +168,18 @@ export default function EngenhariaDetalhePage() {
         <div className="rounded-xl border border-border bg-card p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-foreground">Insumos (estrutura do produto)</h3>
-            <div className="w-72"><ItemSearch onSelect={addInsumo} placeholder="Adicionar insumo…" /></div>
+            <div className="w-72">
+              <ComboboxWithCreate
+                value=""
+                onChange={(id) => { const it = itens.find((x) => x.id === id); if (it) addInsumo(it); }}
+                allowNone={false}
+                placeholder="Adicionar insumo…"
+                triggerClassName="h-9 rounded-lg"
+                options={itens
+                  .filter((it) => !linhas.some((l) => l.insumoItemId === it.id))
+                  .map((it) => ({ value: it.id, label: it.descricao, code: it.codigo }))}
+              />
+            </div>
           </div>
 
           {linhas.length === 0 ? (

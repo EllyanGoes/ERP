@@ -332,6 +332,7 @@ const mainModules: Module[] = [
         kind: "Estrutura" as SubSection["kind"],
         items: [
           { href: "/pcp/centros-trabalho", label: "Centros de Trabalho",  icon: Boxes },
+          { href: "/pcp/estados-wip",      label: "Estados de WIP",       icon: Layers },
           { href: "/pcp/fluxos",           label: "Fluxos de Produção",   icon: Workflow },
           { href: "/pcp/engenharia",       label: "Engenharia do Produto", icon: FlaskConical },
         ],

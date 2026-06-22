@@ -63,6 +63,7 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [centros, setCentros] = useState<CentroOpt[]>([]);
   const [locais, setLocais] = useState<CentroOpt[]>([]);
+  const [estadosWip, setEstadosWip] = useState<{ codigo: string; nome: string }[]>([]);
   const [status, setStatus] = useState<string>(fluxo.versaoAtual?.status ?? "RASCUNHO");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -93,6 +94,7 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
   useEffect(() => {
     fetch("/api/pcp/centros-trabalho").then((r) => r.json()).then((j) => setCentros(j.data ?? [])).catch(() => {});
     fetch("/api/suprimentos/locais-estoque?ativo=true").then((r) => r.json()).then((j) => setLocais(Array.isArray(j) ? j : j.data ?? [])).catch(() => {});
+    fetch("/api/pcp/estados-wip").then((r) => r.json()).then((j) => setEstadosWip((j.data ?? []).filter((e: { ativo: boolean }) => e.ativo).map((e: { codigo: string; nome: string }) => ({ codigo: e.codigo, nome: e.nome })))).catch(() => {});
   }, []);
 
   const onConnect = useCallback(
@@ -141,6 +143,11 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
     if (!selectedId) return;
     setNodes((nds) =>
       nds.map((n) => (n.id === selectedId ? { ...n, data: { ...(n.data as FlowNodeData), ...patch } } : n)),
+    );
+  }
+  function patchNode(nodeId: string, patch: Partial<FlowNodeData>) {
+    setNodes((nds) =>
+      nds.map((n) => (n.id === nodeId ? { ...n, data: { ...(n.data as FlowNodeData), ...patch } } : n)),
     );
   }
   function deleteSelected() {
@@ -317,7 +324,11 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
               fluxoId={fluxo.id}
               centros={centros}
               locais={locais}
+              estadosWip={estadosWip}
               onChange={patchSelected}
+              onPatchNode={patchNode}
+              onSave={salvar}
+              saving={saving}
               onClose={() => setSelectedId(null)}
               onDelete={deleteSelected}
             />

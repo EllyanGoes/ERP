@@ -150,6 +150,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/pcm/planos",                           label: "Planos de Manutenção",    group: "PCM",            section: "Manutenção",       icon: CalendarClock,  keywords: "planos manutencao preventiva execucao aderencia pmp" },
 
   { href: "/pcp/centros-trabalho",                 label: "Centros de Trabalho",     group: "PCP",            section: "Estrutura",        icon: Boxes,          keywords: "pcp centro trabalho recurso forno secagem" },
+  { href: "/pcp/estados-wip",                      label: "Estados de WIP",          group: "PCP",            section: "Estrutura",        icon: Layers,         keywords: "pcp wip estado fase úmido seco queimado acabado produto em processo" },
   { href: "/pcp/fluxos",                           label: "Fluxos de Produção",      group: "PCP",            section: "Estrutura",        icon: Workflow,       keywords: "pcp produção fluxo roteiro editor n8n" },
   { href: "/pcp/engenharia",                       label: "Engenharia do Produto",   group: "PCP",            section: "Estrutura",        icon: FlaskConical,   keywords: "pcp engenharia estrutura bom insumo embalagem produto" },
   { href: "/pcp/chao",                             label: "Chão de Fábrica",         group: "PCP",            section: "Planejamento/Apontamento",     icon: Factory,        keywords: "pcp chão fábrica produção apontamento" },

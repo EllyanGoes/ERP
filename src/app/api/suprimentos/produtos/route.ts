@@ -109,6 +109,7 @@ export async function POST(req: NextRequest) {
           vendavel: body.vendavel === true,
           comodato: body.comodato === true,
           consumivel: body.consumivel !== false,
+          estadosWip: Array.isArray(body.estadosWip) ? body.estadosWip.filter((s: unknown) => typeof s === "string") : [],
         },
       });
 

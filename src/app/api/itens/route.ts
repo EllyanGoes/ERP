@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get("q") || "";
   const tipo = searchParams.get("tipo") || undefined;
   const categoria = searchParams.get("categoria") || undefined;
+  const estadoWip = searchParams.get("estadoWip") || undefined;
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
 
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
             ? { categoriaEstoque: { in: categoria.split(",").map((c) => c.trim()).filter(Boolean) as any } }
             : { categoriaEstoque: categoria as any })
         : {},
+      estadoWip ? { estadosWip: { has: estadoWip } } : {},
     ],
   };
 

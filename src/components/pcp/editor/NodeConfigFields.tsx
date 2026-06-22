@@ -35,12 +35,6 @@ function localOptions(locais: LocalOpt[], categoria: string | null | undefined) 
 const inputCls = "w-full rounded-lg border border-border px-2.5 py-1.5 text-sm bg-card focus:outline-none focus:ring-1 focus:ring-cyan-500";
 const labelCls = "block text-[11px] font-medium text-muted-foreground mb-1";
 
-const WIP_OPCOES = [
-  { v: "UMIDO", l: "Úmido" },
-  { v: "SECO", l: "Seco" },
-  { v: "QUEIMADO", l: "Queimado" },
-  { v: "ACABADO", l: "Acabado" },
-];
 
 function num(v: string): number | null {
   if (v.trim() === "") return null;
@@ -51,9 +45,10 @@ function strv(v: number | null | undefined): string {
   return v == null ? "" : String(v);
 }
 
-// Dropdown de item filtrado pela categoria (lista os itens; busca embutida).
-function ItemCategoriaPicker({ categoria, itemId, itemDescricao, onSelect, onClear }: {
+// Dropdown de item filtrado pela categoria (e opcionalmente por estado WIP).
+function ItemCategoriaPicker({ categoria, estadoWip, itemId, itemDescricao, onSelect, onClear }: {
   categoria: string;
+  estadoWip?: string | null;
   itemId: string | null;
   itemDescricao: string | null;
   onSelect: (it: { id: string; codigo: string; descricao: string }) => void;
@@ -62,12 +57,12 @@ function ItemCategoriaPicker({ categoria, itemId, itemDescricao, onSelect, onCle
   const [items, setItems] = useState<{ id: string; codigo: string; descricao: string }[]>([]);
   useEffect(() => {
     let active = true;
-    fetch(`/api/itens?categoria=${encodeURIComponent(categoria)}&limit=300`)
+    fetch(`/api/itens?categoria=${encodeURIComponent(categoria)}${estadoWip ? `&estadoWip=${encodeURIComponent(estadoWip)}` : ""}&limit=300`)
       .then((r) => r.json())
       .then((j) => { if (active) setItems((j.data ?? []).map((it: { id: string; codigo: string; descricao: string }) => ({ id: it.id, codigo: it.codigo, descricao: it.descricao }))); })
       .catch(() => {});
     return () => { active = false; };
-  }, [categoria]);
+  }, [categoria, estadoWip]);
 
   const options = items.map((it) => ({ value: it.id, label: it.descricao, code: it.codigo }));
   if (itemId && !options.some((o) => o.value === itemId)) {
@@ -85,17 +80,20 @@ function ItemCategoriaPicker({ categoria, itemId, itemDescricao, onSelect, onCle
   );
 }
 
+export interface EstadoWipOpt { codigo: string; nome: string; }
+
 interface Props {
   kind: NodeKind;
   data: FlowNodeData;
   centros: CentroOpt[];
   locais: LocalOpt[];
+  estadosWip: EstadoWipOpt[];
   onChange: (patch: Partial<FlowNodeData>) => void;
 }
 
 // Campos de configuração ("Parameters") de cada tipo de nó — usados no meio do modal.
 // Setup/Ciclo saíram: são calculados pelos apontamentos de produção.
-export default function NodeConfigFields({ kind, data, centros, locais, onChange }: Props) {
+export default function NodeConfigFields({ kind, data, centros, locais, estadosWip, onChange }: Props) {
   const isOperacao = kind === "OPERACAO";
   const isTransporte = kind === "TRANSPORTE";
   const isInspecao = kind === "INSPECAO";
@@ -149,9 +147,9 @@ export default function NodeConfigFields({ kind, data, centros, locais, onChange
         <>
           <div>
             <label className={labelCls}>Estado do WIP</label>
-            <select className={inputCls} value={data.estadoWip ?? ""} onChange={(e) => onChange({ estadoWip: (e.target.value || null) as FlowNodeData["estadoWip"] })}>
+            <select className={inputCls} value={data.estadoWip ?? ""} onChange={(e) => onChange({ estadoWip: (e.target.value || null) as FlowNodeData["estadoWip"], itemId: null, itemDescricao: null })}>
               <option value="">—</option>
-              {WIP_OPCOES.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+              {estadosWip.map((o) => <option key={o.codigo} value={o.codigo}>{o.nome}</option>)}
             </select>
           </div>
           <div>
@@ -166,13 +164,18 @@ export default function NodeConfigFields({ kind, data, centros, locais, onChange
           </div>
           <div>
             <label className={labelCls}>Item / material (real) — Produto em Processo</label>
-            <ItemCategoriaPicker
-              categoria={bufferCategoria}
-              itemId={data.itemId ?? null}
-              itemDescricao={data.itemDescricao ?? null}
-              onSelect={(it) => onChange({ itemId: it.id, itemDescricao: it.descricao, label: data.label || it.descricao })}
-              onClear={() => onChange({ itemId: null, itemDescricao: null })}
-            />
+            {!data.estadoWip ? (
+              <p className="text-[11px] text-muted-foreground py-1">Selecione o estado do WIP primeiro.</p>
+            ) : (
+              <ItemCategoriaPicker
+                categoria={bufferCategoria}
+                estadoWip={data.estadoWip as string}
+                itemId={data.itemId ?? null}
+                itemDescricao={data.itemDescricao ?? null}
+                onSelect={(it) => onChange({ itemId: it.id, itemDescricao: it.descricao, label: data.label || it.descricao })}
+                onClear={() => onChange({ itemId: null, itemDescricao: null })}
+              />
+            )}
           </div>
         </>
       )}
@@ -225,7 +228,7 @@ export default function NodeConfigFields({ kind, data, centros, locais, onChange
               <label className={labelCls}>Estado entrada</label>
               <select className={inputCls} value={data.estadoWip ?? ""} onChange={(e) => onChange({ estadoWip: (e.target.value || null) as FlowNodeData["estadoWip"] })}>
                 <option value="">—</option>
-                {WIP_OPCOES.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+                {estadosWip.map((o) => <option key={o.codigo} value={o.codigo}>{o.nome}</option>)}
               </select>
             </div>
             <div>

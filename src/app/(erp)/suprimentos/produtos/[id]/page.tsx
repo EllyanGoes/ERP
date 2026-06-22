@@ -17,6 +17,7 @@ import {
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { UnidadeQuickCreate, LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
 import CategoriaEstoqueSelect from "@/components/shared/CategoriaEstoqueSelect";
+import EstadosWipMultiSelect from "@/components/shared/EstadosWipMultiSelect";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import { cn, formatBRL, decimalToNumber, formatDate } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -1070,6 +1071,12 @@ export default function ProdutoDetailPage() {
                       />
                       <p className="text-[11px] text-muted-foreground mt-1">Natureza do produto — define em quais locais de estoque ele pode entrar.</p>
                     </Field>
+                    {(form.categoriaEstoque === "PRODUTO_ACABADO" || form.categoriaEstoque === "WIP") && (
+                      <Field label="Estados de WIP atendidos" colSpan>
+                        <EstadosWipMultiSelect value={(form.estadosWip as string[]) ?? []} onChange={(v) => setForm((p) => ({ ...p, estadosWip: v }))} />
+                        <p className="text-[11px] text-muted-foreground mt-1">Fases que este produto atende; usado para filtrar os produtos nos blocos de WIP do fluxo.</p>
+                      </Field>
+                    )}
                     <Field label="Descrição" colSpan>
                       <Input value={(form.descricao as string) ?? ""} onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))} />
                     </Field>

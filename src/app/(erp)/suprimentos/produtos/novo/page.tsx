@@ -12,6 +12,7 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { UnidadeQuickCreate } from "@/components/shared/QuickCreateDialogs";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import CategoriaEstoqueSelect from "@/components/shared/CategoriaEstoqueSelect";
+import EstadosWipMultiSelect from "@/components/shared/EstadosWipMultiSelect";
 
 type Unidade     = { id: string; sigla: string; nome: string };
 
@@ -19,6 +20,7 @@ type FormData = {
   descricao: string;
   tipo: "PRODUTO" | "SERVICO";
   categoriaEstoque: string;
+  estadosWip: string[];
   unidadeId: string;
   ncm: string;
   precoVenda: string;
@@ -33,6 +35,7 @@ const INITIAL: FormData = {
   descricao: "",
   tipo: "PRODUTO",
   categoriaEstoque: "",
+  estadosWip: [],
   unidadeId: "",
   ncm: "",
   precoVenda: "",
@@ -99,6 +102,7 @@ export default function NovoProdutoPage() {
         consumivel: form.consumivel,
       };
       if (form.categoriaEstoque) payload.categoriaEstoque = form.categoriaEstoque;
+      payload.estadosWip = form.estadosWip;
       if (form.unidadeId)    payload.unidadeId    = form.unidadeId;
 
       const res = await fetch("/api/suprimentos/produtos", {
@@ -181,6 +185,14 @@ export default function NovoProdutoPage() {
               <CategoriaEstoqueSelect value={form.categoriaEstoque} onChange={(v) => set("categoriaEstoque", v)} allowNone />
               <p className="text-[10px] text-muted-foreground">Natureza do produto — define em quais locais de estoque ele pode entrar.</p>
             </div>
+
+            {(form.categoriaEstoque === "PRODUTO_ACABADO" || form.categoriaEstoque === "WIP") && (
+              <div className="space-y-1.5 md:col-span-2">
+                <Label>Estados de WIP atendidos</Label>
+                <EstadosWipMultiSelect value={form.estadosWip} onChange={(v) => setForm((p) => ({ ...p, estadosWip: v }))} />
+                <p className="text-[10px] text-muted-foreground">Fases que este produto atende (ex.: úmido, seco, queimado). Usado para filtrar os produtos nos blocos de WIP do fluxo.</p>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label>Unidade de Medida</Label>

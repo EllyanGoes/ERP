@@ -1082,6 +1082,8 @@ model Item {
   tipoProdutoId          String?
   // Natureza de armazenagem — valida em que locais o produto pode entrar.
   categoriaEstoque       CategoriaEstoque?
+  // Estados WIP que o produto atende (códigos de EstadoWip) — só p/ PA/WIP.
+  estadosWip             String[]                 @default([])
   unidadeId              String?
   conferenciaCompraItens ConferenciaCompraItem[]
   cotacaoFornecedorItens CotacaoFornecedorItem[]
@@ -2080,6 +2082,20 @@ enum EstadoWIP {
   SECO
   QUEIMADO
   ACABADO
+}
+
+// Catálogo configurável de estados de WIP (úmido, seco, queimado, acabado, …).
+// O produto declara quais atende (Item.estadosWip) e o bloco de WIP do fluxo
+// filtra os produtos por esse estado. Independente do enum EstadoWIP (legado de
+// apontamento/estoque), que segue valendo para os 4 estados base.
+model EstadoWip {
+  id        String   @id @default(cuid())
+  codigo    String   @unique
+  nome      String
+  ordem     Int      @default(0)
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Ordem de produção — executa uma versão publicada de um fluxo. As etapas são
