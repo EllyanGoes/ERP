@@ -1162,7 +1162,7 @@ export default function PedidoForm({
                       <span>Qtd.</span><span>Unitária</span>
                     </span>
                   </th>
-                  <th className="text-right px-3 py-3 font-bold w-28">Preço Unit.</th>
+                  <th className="text-right px-3 py-3 font-bold w-32">Preço Unit.</th>
                   <th className="text-right px-3 py-3 font-bold w-24">% Desconto</th>
                   <th className="text-right px-3 py-3 font-bold w-28">Vlr. Desconto</th>
                   <th className="text-right px-3 py-3 font-bold w-28">Valor Total</th>
