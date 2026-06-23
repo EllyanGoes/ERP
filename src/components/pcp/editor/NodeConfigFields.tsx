@@ -49,10 +49,11 @@ function strv(v: number | null | undefined): string {
   return v == null ? "" : String(v);
 }
 
-// Multi-select de produtos filtrado pela categoria (e opcionalmente por estado WIP):
-// uma etapa de estoque/WIP pode conter mais de um produto.
+// Multi-select de produtos filtrado por categoria e/ou por estado WIP.
+// No buffer de WIP filtramos só pelo estado: o mesmo produto acabado (BV) é WIP
+// enquanto úmido/seco/queimado, então não dá para travar em categoria=WIP.
 function ItensMultiPicker({ categoria, estadoWip, itens, onChange }: {
-  categoria: string;
+  categoria?: string;
   estadoWip?: string | null;
   itens: ItemRef[];
   onChange: (itens: ItemRef[]) => void;
@@ -62,7 +63,9 @@ function ItensMultiPicker({ categoria, estadoWip, itens, onChange }: {
   useEffect(() => {
     let active = true;
     setFallbackSemEstado(false);
-    const base = `/api/itens?categoria=${encodeURIComponent(categoria)}&limit=300`;
+    const params = new URLSearchParams({ limit: "300" });
+    if (categoria) params.set("categoria", categoria);
+    const base = `/api/itens?${params.toString()}`;
     const mapItens = (j: { data?: { id: string; codigo: string; descricao: string }[] }) => (j.data ?? []).map((it) => ({ id: it.id, codigo: it.codigo, descricao: it.descricao }));
     fetch(estadoWip ? `${base}&estadoWip=${encodeURIComponent(estadoWip)}` : base)
       .then((r) => r.json())
@@ -97,7 +100,7 @@ function ItensMultiPicker({ categoria, estadoWip, itens, onChange }: {
         options={options}
       />
       {fallbackSemEstado && (
-        <p className="text-[11px] text-amber-600 dark:text-amber-400">Nenhum produto atende este estado WIP. Mostrando todos os WIP — configure os estados no cadastro do produto.</p>
+        <p className="text-[11px] text-amber-600 dark:text-amber-400">Nenhum produto declara este estado WIP. Mostrando todos os produtos — configure os estados no cadastro do produto.</p>
       )}
       {itens.length > 0 && (
         <div className="flex flex-wrap gap-1">
@@ -199,7 +202,6 @@ export default function NodeConfigFields({ kind, data, centros, locais, estadosW
               <p className="text-[11px] text-muted-foreground py-1">Selecione o estado do WIP primeiro.</p>
             ) : (
               <ItensMultiPicker
-                categoria={bufferCategoria}
                 estadoWip={data.estadoWip as string}
                 itens={nodeItens(data)}
                 onChange={(itens) => onChange({ itens, itemId: itens[0]?.itemId ?? null, itemDescricao: itens[0]?.descricao ?? null, label: data.label || itens[0]?.descricao || "" })}
