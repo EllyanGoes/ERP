@@ -1032,6 +1032,104 @@ export async function contabilizarInventario(inventarioId: string) {
   });
 }
 
+// Categorias governadas pelo PCP (custo por absorção): ficam de fora da
+// reconciliação ao físico — o valor delas é construído pelas transformações
+// (matéria-prima → WIP → produto acabado), não pelo CMPM.
+const CATEGORIAS_PCP = new Set(["PRODUTO_ACABADO", "WIP"]);
+
+export type ReconciliacaoEstoqueLocal = {
+  localId: string;
+  localNome: string;
+  fisico: number;
+  contabilAntes: number;
+  ajuste: number; // diff aplicado (físico − contábil); 0 = nada a fazer
+  tipo: "sobra" | "perda" | "ok";
+};
+
+/**
+ * Reconcilia o saldo CONTÁBIL de cada local de estoque ao FÍSICO (Σ qtd × CMPM),
+ * postando um ESTOQUE_AJUSTE por local: sobra D Estoque / C Sobras (3.1.9001);
+ * perda D Perdas (3.3.9002) / C Estoque. Locais de Produto Acabado / WIP ficam de
+ * fora (custeio por absorção via PCP). Idempotente por dia (origemId com a data):
+ * re-rodar no mesmo dia não duplica; após nova divergência, re-sincroniza o delta.
+ */
+export async function reconciliarEstoqueAoFisico(
+  empresaId: string,
+  opts?: { soLocalId?: string; data?: Date; criadoPor?: string | null },
+): Promise<ReconciliacaoEstoqueLocal[]> {
+  const data = opts?.data ?? new Date();
+  const ymd = `${data.getFullYear()}${String(data.getMonth() + 1).padStart(2, "0")}${String(data.getDate()).padStart(2, "0")}`;
+
+  const locais = await prismaSemEscopo.localEstoque.findMany({
+    where: { empresaId, ativo: true, ...(opts?.soLocalId ? { id: opts.soLocalId } : {}) },
+    select: { id: true, nome: true, categoriasAceitas: true },
+  });
+  if (locais.length === 0) return [];
+
+  const contas = await prismaSemEscopo.contaContabil.findMany({
+    where: { empresaId, localEstoqueId: { in: locais.map((l) => l.id) } },
+    select: { id: true, localEstoqueId: true },
+  });
+  const contaPorLocal = new Map(contas.map((c) => [c.localEstoqueId!, c.id]));
+  const { sobrasId, perdasId } = await garantirContasSistemaEstoque(empresaId);
+
+  const resultados: ReconciliacaoEstoqueLocal[] = [];
+  for (const local of locais) {
+    const contaId = contaPorLocal.get(local.id);
+    if (!contaId) continue; // sem conta vinculada → não reconcilia
+    // Pula locais governados pelo PCP (Produto Acabado / WIP).
+    if (local.categoriasAceitas.some((c) => CATEGORIAS_PCP.has(c))) continue;
+
+    // Físico = Σ qtd × valor unitário (custo); ignora itens de categoria PCP.
+    const estoques = await prismaSemEscopo.estoqueItem.findMany({
+      where: { empresaId, localEstoqueId: local.id, clienteDonoId: null },
+      select: { itemId: true, quantidadeAtual: true },
+    });
+    const valores = await valoresEstoqueDaEmpresa(empresaId, estoques.map((e) => e.itemId));
+    let fisico = 0;
+    for (const e of estoques) {
+      const vi = valores.get(e.itemId);
+      if (!vi || (vi.categoria && CATEGORIAS_PCP.has(vi.categoria))) continue;
+      fisico += decimalToNumber(e.quantidadeAtual) * vi.valorUnitario;
+    }
+    fisico = Math.round(fisico * 100) / 100;
+
+    // Contábil = saldo atual da conta (débito − crédito).
+    const grupos = await prismaSemEscopo.partidaContabil.groupBy({
+      by: ["tipo"], where: { contaId }, _sum: { valor: true },
+    });
+    let contabil = 0;
+    for (const g of grupos) {
+      const v = decimalToNumber(g._sum.valor ?? 0);
+      contabil += g.tipo === "DEBITO" ? v : -v;
+    }
+    contabil = Math.round(contabil * 100) / 100;
+
+    const diff = Math.round((fisico - contabil) * 100) / 100;
+    if (Math.abs(diff) <= 0.01) {
+      resultados.push({ localId: local.id, localNome: local.nome, fisico, contabilAntes: contabil, ajuste: 0, tipo: "ok" });
+      continue;
+    }
+
+    // Sobra (físico > contábil): D Estoque / C Sobras. Perda: D Perdas / C Estoque.
+    if (diff > 0 && !sobrasId) continue;
+    if (diff < 0 && !perdasId) continue;
+    const partidas: PartidaIn[] = diff > 0
+      ? [{ contaId, tipo: "DEBITO", valor: diff }, { contaId: sobrasId!, tipo: "CREDITO", valor: diff }]
+      : [{ contaId: perdasId!, tipo: "DEBITO", valor: -diff }, { contaId, tipo: "CREDITO", valor: -diff }];
+
+    await registrarLancamento({
+      empresaId, data,
+      historico: `Reconciliação do estoque ao físico — ${local.nome} (${diff > 0 ? "sobra" : "perda"} de R$ ${Math.abs(diff).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`,
+      origemTipo: "ESTOQUE_AJUSTE", origemId: `reconc-estoque-${local.id}-${ymd}`,
+      criadoPor: opts?.criadoPor ?? null,
+      partidas,
+    });
+    resultados.push({ localId: local.id, localNome: local.nome, fisico, contabilAntes: contabil, ajuste: diff, tipo: diff > 0 ? "sobra" : "perda" });
+  }
+  return resultados;
+}
+
 /**
  * Lote de movimentação manual: ENTRADA → sobra (C 3.1.9001); SAIDA → perda
  * (D 3.3.9002); lote TRANSFERENCIA → entre contas de local (sem resultado).

@@ -71,11 +71,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const comCusto = data.map((l) => ({
-    ...l,
-    // Custo total = saldo contábil do local (null quando o local não tem conta).
-    custoContabil: saldoContabilPorLocal.has(l.id) ? saldoContabilPorLocal.get(l.id)! : null,
-    estoqueItens: l.estoqueItens.map((e) => {
+  const comCusto = data.map((l) => {
+    let custoFisico = 0;
+    const estoqueItens = l.estoqueItens.map((e) => {
       const proprio = custos.get(chaveCustoEmpresa(l.empresaId, e.itemId));
       // Valoração por categoria: Produto Acabado pelo preço médio de venda
       // (custo de produção virá do PCP); demais pelo CMPM próprio da empresa.
@@ -83,9 +81,20 @@ export async function GET(req: NextRequest) {
       const valorUnit = ehAcabado
         ? (e.item.precoVendaMedio != null ? decimalToNumber(e.item.precoVendaMedio) : (e.item.precoVenda != null ? decimalToNumber(e.item.precoVenda) : null))
         : (proprio != null ? proprio : null);
+      custoFisico += decimalToNumber(e.quantidadeAtual) * (valorUnit ?? 0);
       return { ...e, item: { ...e.item, precoCusto: valorUnit } };
-    }),
-  }));
+    });
+    return {
+      ...l,
+      // Custo total FÍSICO = Σ(qtd × valor unitário) — é o valor exibido (o contábil
+      // deve seguir o físico; reconciliação em /reconciliar alinha o razão).
+      custoFisico: Math.round(custoFisico * 100) / 100,
+      // Saldo CONTÁBIL do local (null quando não tem conta) — mantido p/ visibilidade
+      // da divergência enquanto não reconciliado.
+      custoContabil: saldoContabilPorLocal.has(l.id) ? saldoContabilPorLocal.get(l.id)! : null,
+      estoqueItens,
+    };
+  });
   return NextResponse.json(comCusto);
 }
 

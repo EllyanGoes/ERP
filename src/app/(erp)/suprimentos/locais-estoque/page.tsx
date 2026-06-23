@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
-import { MapPin, Package, Plus, Pencil, Trash2, Loader2, AlertTriangle, X, Check, Save, Building2, GitBranch } from "lucide-react";
+import { MapPin, Package, Plus, Pencil, Trash2, Loader2, AlertTriangle, X, Check, Save, Building2, GitBranch, Scale } from "lucide-react";
 import { formatBRL, cn } from "@/lib/utils";
+import { useSession } from "@/lib/session-context";
 import type { CategoriaEstoque } from "@prisma/client";
 import { CATEGORIA_ESTOQUE_VALUES, CATEGORIA_ESTOQUE_LABELS, CATEGORIA_ESTOQUE_DESCRICOES, iconeLocalPorCategoria } from "@/lib/categoria-estoque-ui";
 
@@ -24,7 +25,10 @@ type LocalRow = {
   filial: { id: string; razaoSocial: string } | null;
   categoriasAceitas: CategoriaEstoque[];
   _count: { estoqueItens: number };
-  // Custo total = saldo contábil do local (conta 1.1.3.x). null = local sem conta.
+  // Custo total FÍSICO = Σ(qtd × CMPM) — é o valor exibido.
+  custoFisico: number;
+  // Saldo CONTÁBIL do local (conta 1.1.3.x). null = local sem conta. Mantido p/
+  // mostrar a divergência até a reconciliação alinhar o razão ao físico.
   custoContabil: number | null;
   estoqueItens: Array<{
     quantidadeAtual: unknown;
@@ -79,10 +83,16 @@ export default function LocaisEstoquePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const filialFiltro = searchParams.get("filialId") ?? "";
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
 
   const [locais, setLocais] = useState<LocalRow[]>([]);
   const [filiais, setFiliais] = useState<Filial[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Reconciliação contábil → físico
+  const [reconc, setReconc] = useState(false);
+  const [reconcResumo, setReconcResumo] = useState<string | null>(null);
 
   // Create modal
   const [showCreate, setShowCreate] = useState(false);
@@ -117,6 +127,25 @@ export default function LocaisEstoquePage() {
       .then((r) => r.json())
       .then((j) => setFiliais(Array.isArray(j) ? j : []));
   }, [load]);
+
+  async function reconciliar() {
+    if (!confirm("Reconciliar o saldo contábil de cada local ao físico (qtd × custo)? Lança sobra/perda por local. Produto Acabado/WIP ficam de fora (PCP).")) return;
+    setReconc(true); setReconcResumo(null);
+    try {
+      const res = await fetch("/api/suprimentos/locais-estoque/reconciliar", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) { setReconcResumo(json.error || "Falha ao reconciliar"); return; }
+      const { locaisAjustados, totalAjuste } = json.resumo ?? {};
+      setReconcResumo(
+        locaisAjustados > 0
+          ? `${locaisAjustados} local(is) ajustado(s) · efeito líquido ${formatBRL(totalAjuste ?? 0)}`
+          : "Tudo já estava reconciliado — nenhum ajuste necessário.",
+      );
+      await load();
+    } finally {
+      setReconc(false);
+    }
+  }
 
   function openCreate() {
     setCreateForm({ nome: "", descricao: "", filialId: "", categoriasAceitas: [] });
@@ -194,8 +223,8 @@ export default function LocaisEstoquePage() {
   const filialAtiva = filialFiltro ? filiais.find((f) => f.id === filialFiltro) : null;
 
   const totalProdutos = locais.reduce((s, l) => s + l._count.estoqueItens, 0);
-  // Custo total geral = soma dos saldos CONTÁBEIS dos locais (reflete o razão).
-  const custoTotalGeral = locais.reduce((sum, local) => sum + (local.custoContabil ?? 0), 0);
+  // Custo total geral = soma do FÍSICO dos locais (o contábil deve seguir o físico).
+  const custoTotalGeral = locais.reduce((sum, local) => sum + (local.custoFisico ?? 0), 0);
 
   const filialNome = (f: Filial | null | undefined) =>
     f ? (f.nomeFantasia || f.razaoSocial) : null;
@@ -206,10 +235,18 @@ export default function LocaisEstoquePage() {
         title="Locais de Estoque"
         breadcrumbs={[{ label: "Suprimentos" }, { label: "Estoque" }, { label: "Locais de Estoque" }]}
         action={
-          <Button onClick={openCreate}>
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Local
-          </Button>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button variant="outline" onClick={reconciliar} disabled={reconc} title="Ajusta o saldo contábil de cada local ao físico (sobra/perda). Produto Acabado/WIP ficam de fora.">
+                {reconc ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Scale className="w-4 h-4 mr-2" />}
+                Reconciliar contábil ao físico
+              </Button>
+            )}
+            <Button onClick={openCreate}>
+              <Plus className="w-4 h-4 mr-2" />
+              Novo Local
+            </Button>
+          </div>
         }
       />
 
@@ -230,6 +267,14 @@ export default function LocaisEstoquePage() {
             >
               Ver todos
             </Link>
+          </div>
+        )}
+
+        {reconcResumo && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-success/10 border border-success/30 rounded-xl text-sm">
+            <Scale className="w-4 h-4 text-success shrink-0" />
+            <span className="text-success font-medium">{reconcResumo}</span>
+            <button onClick={() => setReconcResumo(null)} className="ml-auto text-success/70 hover:text-success"><X className="w-4 h-4" /></button>
           </div>
         )}
 
@@ -277,7 +322,9 @@ export default function LocaisEstoquePage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {locais.map((local) => {
-                  const custoTotal = local.custoContabil;
+                  const custoTotal = local.custoFisico;
+                  // Divergência contábil × físico (só mostra enquanto não reconciliado).
+                  const diverge = local.custoContabil != null && Math.abs(local.custoContabil - local.custoFisico) > 0.01;
                   return (
                     <tr
                       key={local.id}
@@ -325,8 +372,15 @@ export default function LocaisEstoquePage() {
                           {local._count.estoqueItens}
                         </span>
                       </td>
-                      <td className={cn("px-4 py-3 text-right font-semibold", custoTotal != null && custoTotal < 0 ? "text-danger" : "text-violet-700 dark:text-violet-300")}>
-                        {custoTotal != null ? formatBRL(custoTotal) : <span className="text-muted-foreground/60 font-normal">—</span>}
+                      <td className="px-4 py-3 text-right">
+                        <span className={cn("font-semibold", custoTotal < 0 ? "text-danger" : "text-violet-700 dark:text-violet-300")}>
+                          {formatBRL(custoTotal)}
+                        </span>
+                        {diverge && (
+                          <span className="block text-[11px] text-warning mt-0.5" title="Saldo contábil do razão — diverge do físico até reconciliar">
+                            contábil: {formatBRL(local.custoContabil!)}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${local.ativo ? "bg-success/15 text-success border-success/30" : "bg-muted text-muted-foreground border-border"}`}>
