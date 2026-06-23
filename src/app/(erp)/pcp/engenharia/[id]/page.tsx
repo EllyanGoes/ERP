@@ -7,7 +7,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { ArrowLeft, RefreshCw, Save, Trash2, AlertTriangle, Check } from "lucide-react";
 
-interface ItemLite { id: string; codigo: string; descricao: string; }
+interface ItemLite { id: string; codigo: string; descricao: string; unidadeSigla: string; categoriaEstoque: string | null; }
 
 interface Linha {
   insumoItemId: string;
@@ -16,22 +16,17 @@ interface Linha {
   quantidade: string;
   base: string;
   categoria: string;
+  unidadeSigla: string;
 }
 interface Eng {
   id: string;
   item: { codigo: string; descricao: string } | null;
   fluxo: { id: string; nome: string } | null;
   ativo: boolean;
-  insumos: { insumoItemId: string; quantidade: string | number; base: string; categoria: string; insumoItem: { codigo: string; descricao: string } }[];
+  insumos: { insumoItemId: string; quantidade: string | number; base: string; categoria: string; insumoItem: { codigo: string; descricao: string; unidadeMedida: string; categoriaEstoque: string | null; unidade: { sigla: string } | null } }[];
 }
 interface FluxoOpt { id: string; nome: string; }
 
-const BASES = [
-  { v: "POR_MILHEIRO", l: "por milheiro" },
-  { v: "POR_UNIDADE", l: "por unidade" },
-  { v: "POR_CICLO", l: "por ciclo" },
-  { v: "POR_VAGAO", l: "por vagão" },
-];
 const CATEGORIAS = [
   { v: "MATERIA_PRIMA", l: "Matéria-prima" },
   { v: "MISTURA", l: "Mistura" },
@@ -39,6 +34,17 @@ const CATEGORIAS = [
   { v: "ENERGIA", l: "Energia" },
   { v: "OUTRO", l: "Outro" },
 ];
+// Categoria do insumo puxada da categoria de estoque do produto.
+function categoriaInsumoDoProduto(cat: string | null | undefined): string {
+  switch (cat) {
+    case "MATERIA_PRIMA": return "MATERIA_PRIMA";
+    case "WIP": return "MISTURA";
+    case "COMBUSTIVEL":
+    case "INSUMO": return "ENERGIA";
+    case "EMBALAGEM": return "EMBALAGEM";
+    default: return "OUTRO";
+  }
+}
 const selCls = "rounded border border-border px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500";
 
 export default function EngenhariaDetalhePage() {
@@ -59,7 +65,11 @@ export default function EngenhariaDetalhePage() {
   useEffect(() => {
     fetch("/api/itens?limit=1000")
       .then((r) => r.json())
-      .then((j) => setItens((j.data ?? []).map((it: ItemLite) => ({ id: it.id, codigo: it.codigo, descricao: it.descricao }))))
+      .then((j) => setItens((j.data ?? []).map((it: { id: string; codigo: string; descricao: string; unidadeMedida?: string; categoriaEstoque?: string | null; unidade?: { sigla: string } | null }) => ({
+        id: it.id, codigo: it.codigo, descricao: it.descricao,
+        unidadeSigla: it.unidade?.sigla ?? it.unidadeMedida ?? "un",
+        categoriaEstoque: it.categoriaEstoque ?? null,
+      }))))
       .catch(() => {});
   }, []);
 
@@ -80,6 +90,7 @@ export default function EngenhariaDetalhePage() {
           quantidade: String(i.quantidade),
           base: i.base,
           categoria: i.categoria,
+          unidadeSigla: i.insumoItem.unidade?.sigla ?? i.insumoItem.unidadeMedida ?? "un",
         })),
       );
     } catch (e) {
@@ -91,7 +102,7 @@ export default function EngenhariaDetalhePage() {
 
   function addInsumo(it: ItemLite) {
     if (linhas.some((l) => l.insumoItemId === it.id)) return;
-    setLinhas((prev) => [...prev, { insumoItemId: it.id, codigo: it.codigo, descricao: it.descricao, quantidade: "", base: "POR_MILHEIRO", categoria: "MATERIA_PRIMA" }]);
+    setLinhas((prev) => [...prev, { insumoItemId: it.id, codigo: it.codigo, descricao: it.descricao, quantidade: "", base: "POR_MILHEIRO", categoria: categoriaInsumoDoProduto(it.categoriaEstoque), unidadeSigla: it.unidadeSigla }]);
   }
   function setLinha(i: number, patch: Partial<Linha>) {
     setLinhas((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
@@ -189,8 +200,7 @@ export default function EngenhariaDetalhePage() {
               <thead className="text-xs text-muted-foreground uppercase tracking-wider">
                 <tr>
                   <th className="text-left font-medium py-1.5">Insumo</th>
-                  <th className="text-right font-medium py-1.5 w-28">Quantidade</th>
-                  <th className="text-left font-medium py-1.5 w-32">Base</th>
+                  <th className="text-right font-medium py-1.5 w-40">Quantidade</th>
                   <th className="text-left font-medium py-1.5 w-36">Categoria</th>
                   <th className="w-10" />
                 </tr>
@@ -200,12 +210,10 @@ export default function EngenhariaDetalhePage() {
                   <tr key={l.insumoItemId}>
                     <td className="py-1.5 text-foreground"><span className="font-mono text-muted-foreground text-xs mr-2">{l.codigo}</span>{l.descricao}</td>
                     <td className="py-1.5 text-right">
-                      <input className={selCls + " w-24 text-right tabular-nums"} inputMode="decimal" value={l.quantidade} onChange={(e) => setLinha(i, { quantidade: e.target.value })} />
-                    </td>
-                    <td className="py-1.5">
-                      <select className={selCls} value={l.base} onChange={(e) => setLinha(i, { base: e.target.value })}>
-                        {BASES.map((b) => <option key={b.v} value={b.v}>{b.l}</option>)}
-                      </select>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <input className={selCls + " w-20 text-right tabular-nums"} inputMode="decimal" value={l.quantidade} onChange={(e) => setLinha(i, { quantidade: e.target.value })} />
+                        <span className="text-xs text-muted-foreground w-10 text-left">{l.unidadeSigla}</span>
+                      </div>
                     </td>
                     <td className="py-1.5">
                       <select className={selCls} value={l.categoria} onChange={(e) => setLinha(i, { categoria: e.target.value })}>

@@ -20,7 +20,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       fluxo: { select: { id: true, nome: true } },
       insumos: {
         orderBy: { createdAt: "asc" },
-        include: { insumoItem: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } } },
+        include: { insumoItem: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, categoriaEstoque: true, unidade: { select: { sigla: true } } } } },
       },
     },
   });
