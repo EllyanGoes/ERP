@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Plus, CheckCircle2, AlertCircle, X, ArrowUpRight, ArrowDownLeft } from "lucide-react";
@@ -140,6 +140,19 @@ export default function ComodatoClient({
       .filter((s) => Math.abs(s.qtd) > 0.0001 || Math.abs(s.valor) > 0.0001)
       .sort((a, b) => a.clienteNome.localeCompare(b.clienteNome) || a.itemNome.localeCompare(b.itemNome));
   }, [movimentos]);
+
+  // Agrupado por cliente (um cabeçalho por cliente + itens aninhados e subtotal).
+  const gruposPorCliente = useMemo(() => {
+    const map = new Map<string, { clienteId: string; clienteNome: string; itens: typeof saldos; totalQtd: number; totalValor: number }>();
+    for (const s of saldos) {
+      const g = map.get(s.clienteId) ?? { clienteId: s.clienteId, clienteNome: s.clienteNome, itens: [], totalQtd: 0, totalValor: 0 };
+      g.itens.push(s);
+      g.totalQtd += s.qtd;
+      g.totalValor += s.valor;
+      map.set(s.clienteId, g);
+    }
+    return Array.from(map.values());
+  }, [saldos]);
 
   const totais = useMemo(() => {
     const clientesComSaldo = new Set(saldos.map((s) => s.clienteId)).size;
@@ -332,15 +345,24 @@ export default function ComodatoClient({
               </tr>
             </thead>
             <tbody>
-              {saldos.map((s) => (
-                <tr key={`${s.clienteId}|${s.itemId}`} className="border-b border-gray-50">
-                  <td className="px-6 py-3 font-medium text-foreground">{s.clienteNome}</td>
-                  <td className="px-6 py-3 text-muted-foreground">{s.itemNome}</td>
-                  <td className="px-6 py-3 text-right font-semibold tabular-nums">
-                    {s.qtd.toLocaleString("pt-BR")}
-                  </td>
-                  <td className="px-6 py-3 text-right tabular-nums">{formatBRL(s.valor)}</td>
-                </tr>
+              {gruposPorCliente.map((g) => (
+                <Fragment key={g.clienteId}>
+                  {/* Cabeçalho do cliente + subtotal */}
+                  <tr className="border-b border-border bg-muted/40">
+                    <td className="px-6 py-2.5 font-semibold text-foreground" colSpan={2}>{g.clienteNome}</td>
+                    <td className="px-6 py-2.5 text-right font-semibold tabular-nums">{g.totalQtd.toLocaleString("pt-BR")}</td>
+                    <td className="px-6 py-2.5 text-right font-semibold tabular-nums">{formatBRL(g.totalValor)}</td>
+                  </tr>
+                  {/* Itens do cliente */}
+                  {g.itens.map((s) => (
+                    <tr key={`${s.clienteId}|${s.itemId}`} className="border-b border-gray-50">
+                      <td className="px-6 py-2"></td>
+                      <td className="px-6 py-2 pl-10 text-muted-foreground">{s.itemNome}</td>
+                      <td className="px-6 py-2 text-right tabular-nums">{s.qtd.toLocaleString("pt-BR")}</td>
+                      <td className="px-6 py-2 text-right tabular-nums">{formatBRL(s.valor)}</td>
+                    </tr>
+                  ))}
+                </Fragment>
               ))}
             </tbody>
           </table>
