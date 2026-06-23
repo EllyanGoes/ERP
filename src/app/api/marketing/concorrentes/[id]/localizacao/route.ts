@@ -9,6 +9,7 @@ import { z } from "zod";
 const schema = z.object({
   latitude: z.coerce.number().min(-90).max(90),
   longitude: z.coerce.number().min(-180).max(180),
+  referencia: z.string().max(2000).optional().nullable(),
 });
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
@@ -23,8 +24,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const atualizado = await prisma.concorrente.update({
     where: { id: params.id },
-    data: { latitude: parsed.data.latitude, longitude: parsed.data.longitude, geoManual: true },
-    select: { id: true, latitude: true, longitude: true, geoManual: true },
+    data: {
+      latitude: parsed.data.latitude,
+      longitude: parsed.data.longitude,
+      geoManual: true,
+      geoReferencia: parsed.data.referencia?.trim() || `${parsed.data.latitude}, ${parsed.data.longitude}`,
+    },
+    select: { id: true, latitude: true, longitude: true, geoManual: true, geoReferencia: true },
   });
 
   return NextResponse.json({ data: atualizado });

@@ -2739,6 +2739,9 @@ model Concorrente {
   // Quando true, as coordenadas foram fixadas manualmente (pino arrastado ou
   // coladas do Google Maps) — o geocoding automático não as sobrescreve.
   geoManual     Boolean  @default(false)
+  // Referência crua do ajuste manual: a URL do Google Maps ou o "lat, lng"
+  // informado/arrastado. Mantida para conferência e reuso.
+  geoReferencia String?
 
   observacoes   String?
   ativo         Boolean  @default(true)

@@ -52,36 +52,42 @@ export default function ConcorrenteLocalizacao({
   latitude,
   longitude,
   geoManual,
+  geoReferencia,
   onChange,
 }: {
   concorrenteId: string;
   latitude: number | null;
   longitude: number | null;
   geoManual: boolean;
-  onChange?: (lat: number, lng: number, manual: boolean) => void;
+  geoReferencia?: string | null;
+  onChange?: (lat: number, lng: number, manual: boolean, referencia: string) => void;
 }) {
   const [pos, setPos] = useState<[number, number] | null>(
     latitude != null && longitude != null ? [latitude, longitude] : null,
   );
   const [manual, setManual] = useState(geoManual);
-  const [paste, setPaste] = useState("");
+  // Mantém visível a referência salva (URL do Google ou "lat, lng").
+  const [paste, setPaste] = useState(
+    geoReferencia ?? (latitude != null && longitude != null ? `${latitude}, ${longitude}` : ""),
+  );
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  async function salvar(lat: number, lng: number) {
+  async function salvar(lat: number, lng: number, referencia: string) {
     setSaving(true);
     setMsg(null);
     try {
       const res = await fetch(`/api/marketing/concorrentes/${concorrenteId}/localizacao`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ latitude: lat, longitude: lng }),
+        body: JSON.stringify({ latitude: lat, longitude: lng, referencia }),
       });
       if (res.ok) {
         setPos([lat, lng]);
         setManual(true);
-        setMsg("Localização ajustada manualmente.");
-        onChange?.(lat, lng, true);
+        setPaste(referencia);
+        setMsg("Localização salva (ajuste manual).");
+        onChange?.(lat, lng, true, referencia);
       } else {
         setMsg("Erro ao salvar a localização.");
       }
@@ -98,8 +104,8 @@ export default function ConcorrenteLocalizacao({
       setMsg('Não reconheci as coordenadas. Cole no formato "lat, lng" ou a URL do Google Maps.');
       return;
     }
-    setPaste("");
-    salvar(c.lat, c.lng);
+    // Mantém a URL salva quando o usuário colou um link; senão salva as coords.
+    salvar(c.lat, c.lng, paste.trim());
   }
 
   return (
@@ -141,7 +147,7 @@ export default function ConcorrenteLocalizacao({
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <Recenter pos={pos} />
-            <ClickHandler onPick={(lat, lng) => salvar(lat, lng)} />
+            <ClickHandler onPick={(lat, lng) => salvar(lat, lng, `${lat.toFixed(6)}, ${lng.toFixed(6)}`)} />
             {pos && (
               <Marker
                 position={pos}
@@ -150,7 +156,7 @@ export default function ConcorrenteLocalizacao({
                 eventHandlers={{
                   dragend: (e) => {
                     const ll = (e.target as L.Marker).getLatLng();
-                    salvar(ll.lat, ll.lng);
+                    salvar(ll.lat, ll.lng, `${ll.lat.toFixed(6)}, ${ll.lng.toFixed(6)}`);
                   },
                 }}
               />

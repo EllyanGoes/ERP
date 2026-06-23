@@ -26,8 +26,8 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
 
   const atualizado = await prisma.concorrente.update({
     where: { id: params.id },
-    // Volta ao modo automático (limpa o pino manual).
-    data: { latitude: geo.latitude, longitude: geo.longitude, geoManual: false },
+    // Volta ao modo automático (limpa o pino e a referência manual).
+    data: { latitude: geo.latitude, longitude: geo.longitude, geoManual: false, geoReferencia: null },
     select: { id: true, latitude: true, longitude: true, geoManual: true },
   });
 
