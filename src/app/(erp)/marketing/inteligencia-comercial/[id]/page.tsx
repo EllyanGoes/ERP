@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, MapPin, Crosshair, Trash2, Pencil, Building2, Store, Handshake } from "lucide-react";
 
 // Leaflet depende de `window` — carrega só no cliente.
-const ConcorrenteLocalizacao = dynamic(() => import("@/components/marketing/ConcorrenteLocalizacao"), {
+const LocalizacaoMapa = dynamic(() => import("@/components/shared/LocalizacaoMapa"), {
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center h-40 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>
@@ -185,8 +185,8 @@ export default function ConcorrenteDetailPage() {
             </div>
             {geoMsg && <div className="rounded-lg border border-border bg-muted px-4 py-2 text-sm text-muted-foreground">{geoMsg}</div>}
 
-            <ConcorrenteLocalizacao
-              concorrenteId={data.id}
+            <LocalizacaoMapa
+              endpoint={`/api/marketing/concorrentes/${data.id}/localizacao`}
               latitude={data.latitude}
               longitude={data.longitude}
               geoManual={data.geoManual}

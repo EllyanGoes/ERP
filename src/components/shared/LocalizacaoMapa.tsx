@@ -47,15 +47,16 @@ function ClickHandler({ onPick }: { onPick: (lat: number, lng: number) => void }
   return null;
 }
 
-export default function ConcorrenteLocalizacao({
-  concorrenteId,
+export default function LocalizacaoMapa({
+  endpoint,
   latitude,
   longitude,
   geoManual,
   geoReferencia,
   onChange,
 }: {
-  concorrenteId: string;
+  /** URL do PUT que grava lat/lng/geoManual/geoReferencia (ex.: /api/.../localizacao). */
+  endpoint: string;
   latitude: number | null;
   longitude: number | null;
   geoManual: boolean;
@@ -66,7 +67,6 @@ export default function ConcorrenteLocalizacao({
     latitude != null && longitude != null ? [latitude, longitude] : null,
   );
   const [manual, setManual] = useState(geoManual);
-  // Mantém visível a referência salva (URL do Google ou "lat, lng").
   const [paste, setPaste] = useState(
     geoReferencia ?? (latitude != null && longitude != null ? `${latitude}, ${longitude}` : ""),
   );
@@ -77,7 +77,7 @@ export default function ConcorrenteLocalizacao({
     setSaving(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/marketing/concorrentes/${concorrenteId}/localizacao`, {
+      const res = await fetch(endpoint, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ latitude: lat, longitude: lng, referencia }),
@@ -104,7 +104,6 @@ export default function ConcorrenteLocalizacao({
       setMsg('Não reconheci as coordenadas. Cole no formato "lat, lng" ou a URL do Google Maps.');
       return;
     }
-    // Mantém a URL salva quando o usuário colou um link; senão salva as coords.
     salvar(c.lat, c.lng, paste.trim());
   }
 
@@ -121,7 +120,6 @@ export default function ConcorrenteLocalizacao({
       </div>
 
       <div className="p-4 space-y-3">
-        {/* Colar coordenadas do Google Maps */}
         <div className="flex items-end gap-2">
           <div className="flex-1">
             <label className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center gap-1">

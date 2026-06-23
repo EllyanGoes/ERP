@@ -5,6 +5,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
 import ClienteDetail from "@/components/clientes/ClienteDetail";
 import EditarTabButton from "@/components/shared/EditarTabButton";
+import ImportarParaConcorrente from "@/components/clientes/ImportarParaConcorrente";
 import { decimalToNumber } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -90,6 +91,12 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
     item: m.item,
   }));
 
+  // Este cliente já foi importado como concorrente?
+  const concorrenteVinc = await prisma.concorrente.findFirst({
+    where: { clienteId: params.id },
+    select: { id: true },
+  });
+
   return (
     <div>
       <PageHeader
@@ -97,6 +104,17 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
         breadcrumbs={[{ label: "Clientes", href: "/clientes" }, { label: cliente.razaoSocial }]}
         action={
           <div className="flex items-center gap-2">
+            {concorrenteVinc ? (
+              <Link
+                href={`/marketing/inteligencia-comercial/${concorrenteVinc.id}`}
+                className="rounded-full border border-fuchsia-300 bg-fuchsia-50 dark:bg-fuchsia-500/15 px-3 py-1 text-xs font-medium text-fuchsia-700 dark:text-fuchsia-300 hover:bg-fuchsia-100"
+                title="Este cliente já está cadastrado como concorrente"
+              >
+                Já é concorrente ↗
+              </Link>
+            ) : (
+              <ImportarParaConcorrente clienteId={cliente.id} />
+            )}
             {fornecedorVinculo && (
               <Link href={`/suprimentos/fornecedores/${fornecedorVinculo.id}`}
                 className="rounded-full border border-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 px-3 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:bg-indigo-500/25"

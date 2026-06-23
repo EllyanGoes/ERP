@@ -1,13 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useTabTitle } from "@/lib/tabs-context";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { formatCPFCNPJ, formatDate, formatBRL, decimalToNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, MapPin, Crosshair, Loader2 } from "lucide-react";
+
+// Leaflet depende de `window` — carrega só no cliente.
+const LocalizacaoMapa = dynamic(() => import("@/components/shared/LocalizacaoMapa"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-40 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>
+  ),
+});
 
 type PedidoRow  = { id: string; numero: string; status: string; dataEmissao: Date | string; valorTotal: unknown };
 type ContaRow   = { id: string; numero: string; descricao: string; status: string; dataVencimento: Date | string; valorOriginal: unknown; valorPago: unknown };
@@ -24,6 +33,7 @@ type ClienteDetailProps = {
     status: string; observacoes: string | null;
     cep: string | null; logradouro: string | null; numero: string | null;
     complemento: string | null; bairro: string | null; cidade: string | null; estado: string | null;
+    latitude: number | null; longitude: number | null; geoManual: boolean; geoReferencia: string | null;
     pedidosVenda: PedidoRow[];
     contasReceber: ContaRow[];
   };
@@ -67,8 +77,33 @@ const STATUS_CONTA_COLOR: Record<string, string> = {
 };
 
 export default function ClienteDetail({ cliente, comodato, contaContabil, contasContabeis = [] }: ClienteDetailProps) {
-  const [tab, setTab] = useState<"dados" | "pedidos" | "contas" | "comodato" | "razao">("dados");
+  const [tab, setTab] = useState<"dados" | "local" | "pedidos" | "contas" | "comodato" | "razao">("dados");
   useTabTitle(cliente.nomeFantasia || cliente.razaoSocial);
+
+  // Localização (geomarketing)
+  const [geo, setGeo] = useState({
+    latitude: cliente.latitude,
+    longitude: cliente.longitude,
+    geoManual: cliente.geoManual,
+    geoReferencia: cliente.geoReferencia,
+  });
+  const [geocoding, setGeocoding] = useState(false);
+  const [geoMsg, setGeoMsg] = useState<string | null>(null);
+  const temGeo = geo.latitude != null && geo.longitude != null;
+
+  async function geocodificar() {
+    setGeocoding(true);
+    setGeoMsg(null);
+    const res = await fetch(`/api/clientes/${cliente.id}/geocodificar`, { method: "POST" });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setGeo((g) => ({ ...g, latitude: json.data.latitude, longitude: json.data.longitude, geoManual: false, geoReferencia: null }));
+      setGeoMsg(`Localizado: ${json.displayName ?? "coordenadas atualizadas"}`);
+    } else {
+      setGeoMsg(json.error ?? "Não foi possível localizar o endereço.");
+    }
+    setGeocoding(false);
+  }
 
   const contaReceber = contasContabeis.find((c) => c.grupo === "ATIVO");
   const contaMaterial = contasContabeis.find((c) => c.grupo === "PASSIVO");
@@ -101,6 +136,7 @@ export default function ClienteDetail({ cliente, comodato, contaContabil, contas
 
   const TABS = [
     { key: "dados",    label: "Dados Cadastrais" },
+    { key: "local",    label: "Localização" },
     { key: "pedidos",  label: `Pedidos de Venda (${cliente.pedidosVenda.length})` },
     { key: "contas",   label: `Contas a Receber (${cliente.contasReceber.length})` },
     { key: "comodato", label: `Saldo Comodato (${comodatoSaldos.length})` },
@@ -197,6 +233,38 @@ export default function ClienteDetail({ cliente, comodato, contaContabil, contas
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* ── LOCALIZAÇÃO ───────────────────────────────────────────────── */}
+      {tab === "local" && (
+        <div className="space-y-5 max-w-3xl">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-sm">
+              <MapPin className={temGeo ? "h-4 w-4 text-emerald-500" : "h-4 w-4 text-muted-foreground/50"} />
+              {temGeo ? (
+                <span className="text-muted-foreground">
+                  Georreferenciado ({geo.latitude!.toFixed(5)}, {geo.longitude!.toFixed(5)})
+                  {geo.geoManual ? " · ajuste manual" : " · automático"}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Sem localização — preencha o endereço e clique em “Localizar no mapa”, ou ajuste o pino abaixo.</span>
+              )}
+            </div>
+            <Button variant="outline" onClick={geocodificar} disabled={geocoding} className="gap-2 shrink-0">
+              {geocoding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />}
+              {temGeo ? "Recalcular (automático)" : "Localizar no mapa"}
+            </Button>
+          </div>
+          {geoMsg && <div className="rounded-lg border border-border bg-muted px-4 py-2 text-sm text-muted-foreground">{geoMsg}</div>}
+          <LocalizacaoMapa
+            endpoint={`/api/clientes/${cliente.id}/localizacao`}
+            latitude={geo.latitude}
+            longitude={geo.longitude}
+            geoManual={geo.geoManual}
+            geoReferencia={geo.geoReferencia}
+            onChange={(lat, lng, manual, referencia) => setGeo({ latitude: lat, longitude: lng, geoManual: manual, geoReferencia: referencia })}
+          />
         </div>
       )}
 

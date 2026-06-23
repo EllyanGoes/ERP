@@ -107,6 +107,12 @@ model Cliente {
   bairro                 String?
   cidade                 String?
   estado                 String?
+  // Geolocalização (geomarketing). Preenchida por geocodificação (Nominatim/OSM)
+  // ou ajuste manual (pino/URL do Google Maps). geoManual trava o automático.
+  latitude               Float?
+  longitude              Float?
+  geoManual              Boolean                @default(false)
+  geoReferencia          String?
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
   contasReceber          ContaReceber[]

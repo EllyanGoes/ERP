@@ -69,14 +69,39 @@ export default function ConcorrenteForm({
   const [clienteSel, setClienteSel] = useState(concorrente?.clienteId ?? "");
 
   useEffect(() => {
-    fetch("/api/clientes?limit=500")
+    // Só clientes ainda não vinculados a um concorrente (mantém o já ligado a este).
+    const url = concorrente
+      ? `/api/marketing/concorrentes/clientes-disponiveis?exceto=${concorrente.id}`
+      : "/api/marketing/concorrentes/clientes-disponiveis";
+    fetch(url)
       .then((r) => r.json())
       .then((j) => {
         const lista: any[] = j.data ?? [];
-        setClientes(lista.map((c) => ({ value: c.id, label: c.nomeFantasia || c.razaoSocial, code: c.cpfCnpj || undefined })));
+        setClientes(
+          lista.map((c) => {
+            const nome = c.nomeFantasia || c.razaoSocial;
+            const pj = c.tipoPessoa === "JURIDICA";
+            return {
+              value: c.id,
+              label: nome,
+              render: () => (
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="truncate">{nome}</span>
+                  <span className={cn(
+                    "text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0",
+                    pj ? "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400"
+                       : "bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400",
+                  )}>
+                    {pj ? "PJ" : "PF"}
+                  </span>
+                </span>
+              ),
+            };
+          }),
+        );
       })
       .catch(() => {});
-  }, []);
+  }, [concorrente]);
 
   async function importarCliente(clienteId: string) {
     setClienteSel(clienteId);
