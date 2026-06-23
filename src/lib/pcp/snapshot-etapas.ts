@@ -5,6 +5,12 @@
 import { validarFluxo } from "./fluxo-validate";
 import type { FlowGraph, FlowNodeData, NodeKind } from "./types";
 
+export interface EtapaInsumoSnapshot {
+  itemId: string;
+  descricao: string | null;
+  consumoPorMilheiro: number | null;
+}
+
 export interface EtapaSnapshot {
   nodeId: string;
   sequencia: number;
@@ -15,6 +21,7 @@ export interface EtapaSnapshot {
   tempoCicloHoras: number | null;
   subprodutoItemId: string | null;
   subprodutoDescricao: string | null;
+  insumos: EtapaInsumoSnapshot[]; // insumos consumidos na etapa (custeio por fase)
 }
 
 const ETAPA_KINDS = new Set<NodeKind>(["OPERACAO", "TRANSPORTE", "INSPECAO"]);
@@ -34,6 +41,13 @@ export function snapshotEtapas(grafo: FlowGraph): EtapaSnapshot[] {
     const d = n.data as FlowNodeData;
     if (!ETAPA_KINDS.has(d.kind)) continue;
     seq += 1;
+    const insumos: EtapaInsumoSnapshot[] = (d.insumos ?? [])
+      .filter((i) => i && typeof i.itemId === "string" && i.itemId)
+      .map((i) => ({
+        itemId: i.itemId,
+        descricao: i.descricao ?? null,
+        consumoPorMilheiro: i.consumoPorMilheiro ?? null,
+      }));
     etapas.push({
       nodeId: id,
       sequencia: seq,
@@ -44,6 +58,7 @@ export function snapshotEtapas(grafo: FlowGraph): EtapaSnapshot[] {
       tempoCicloHoras: (d.tempoCicloHoras as number) ?? null,
       subprodutoItemId: (d.subprodutoItemId as string) ?? null,
       subprodutoDescricao: (d.subprodutoDescricao as string) ?? null,
+      insumos,
     });
   }
   return etapas;

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import type { KindNo, EstadoWIP } from "@prisma/client";
+import type { KindNo, EstadoWIP, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateDocNumber } from "@/lib/utils";
 import { snapshotEtapas } from "@/lib/pcp/snapshot-etapas";
@@ -99,6 +99,7 @@ export async function POST(req: NextRequest) {
             tempoCicloHoras: e.tempoCicloHoras,
             subprodutoItemId: e.subprodutoItemId,
             subprodutoDescricao: e.subprodutoDescricao,
+            insumos: e.insumos as unknown as Prisma.InputJsonValue,
           })),
         },
       },
