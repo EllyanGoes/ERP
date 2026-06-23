@@ -88,6 +88,9 @@ interface NavItem {
   label: string;
   icon?: LucideIcon;
   soon?: boolean;
+  /** Quando true, só fica ativo na rota exata (não em sub-rotas). Usado quando
+   *  o href é prefixo de outros itens do menu (ex.: /marketing). */
+  exact?: boolean;
 }
 
 interface SubSection {
@@ -150,7 +153,7 @@ const mainModules: Module[] = [
       {
         kind: "Geral",
         items: [
-          { href: "/marketing", label: "Painel de Marketing", icon: Megaphone },
+          { href: "/marketing", label: "Painel de Marketing", icon: Megaphone, exact: true },
         ],
       },
       {
@@ -414,6 +417,7 @@ function moduleIsActive(mod: Module, pathname: string) {
 
 function itemIsActive(item: NavItem, pathname: string) {
   if (item.soon) return false;
+  if (item.exact) return pathname === item.href;
   return pathname === item.href || pathname.startsWith(item.href + "/");
 }
 

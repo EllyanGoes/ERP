@@ -62,11 +62,14 @@ export default function ConcorrenteForm({ concorrente }: { concorrente?: Concorr
     setSaved(false);
     const url = concorrente ? `/api/marketing/concorrentes/${concorrente.id}` : "/api/marketing/concorrentes";
     const method = concorrente ? "PUT" : "POST";
+    // Não enviamos lat/lng: o servidor recalcula a localização pelo endereço a
+    // cada save, então atualizar o endereço move o ponto no mapa.
+    const { latitude: _lat, longitude: _lng, ...payload } = data;
     try {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         const json = await res.json();
