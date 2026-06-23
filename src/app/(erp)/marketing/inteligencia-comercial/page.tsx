@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Plus, Search, MapPin, Map as MapIcon, Building2, Store, Tag, Loader2, ChevronRight } from "lucide-react";
+import { Plus, Search, MapPin, Map as MapIcon, Building2, Store, Tag, Loader2, ChevronRight, Crosshair } from "lucide-react";
 
 type Concorrente = {
   id: string;
@@ -39,6 +39,8 @@ export default function InteligenciaComercialPage() {
   const [q, setQ] = useState("");
   const [categoria, setCategoria] = useState("");
   const [openDrawer, setOpenDrawer] = useState(false);
+  const [geoBusy, setGeoBusy] = useState(false);
+  const [geoMsg, setGeoMsg] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -56,6 +58,54 @@ export default function InteligenciaComercialPage() {
     return () => clearTimeout(t);
   }, [carregar]);
 
+  async function localizarTodos() {
+    setGeoBusy(true);
+    setGeoMsg("Localizando concorrentes pelo endereço...");
+    const acc = { localizados: 0, falhas: 0, semEndereco: 0, processados: 0 };
+    let cursor: string | null = null;
+    try {
+      do {
+        const res = await fetch("/api/marketing/concorrentes/geocodificar-todos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cursor }),
+        });
+        if (!res.ok) {
+          setGeoMsg("Erro ao geocodificar. Tente novamente.");
+          return;
+        }
+        const j: {
+          processados: number;
+          localizados: number;
+          falhas: number;
+          semEndereco: number;
+          proximoCursor: string | null;
+        } = await res.json();
+        acc.localizados += j.localizados;
+        acc.falhas += j.falhas;
+        acc.semEndereco += j.semEndereco;
+        acc.processados += j.processados;
+        cursor = j.proximoCursor;
+      } while (cursor);
+
+      if (acc.processados === 0) {
+        setGeoMsg("Nenhum concorrente pendente de localização.");
+      } else {
+        setGeoMsg(
+          `${acc.localizados} localizado(s)` +
+            (acc.falhas ? `, ${acc.falhas} sem correspondência` : "") +
+            (acc.semEndereco ? `, ${acc.semEndereco} sem endereço` : "") +
+            ".",
+        );
+      }
+      carregar();
+    } catch {
+      setGeoMsg("Erro de conexão durante a geocodificação.");
+    } finally {
+      setGeoBusy(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -63,6 +113,9 @@ export default function InteligenciaComercialPage() {
         subtitle="Concorrentes de mercado, categoria, endereço e mapeamento de preços"
         actions={
           <div className="flex gap-2">
+            <Button variant="outline" onClick={localizarTodos} disabled={geoBusy} className="gap-2">
+              {geoBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />} Localizar todos
+            </Button>
             <Link href="/marketing/inteligencia-comercial/mapa">
               <Button variant="outline" className="gap-2"><MapIcon className="h-4 w-4" /> Mapa (geomarketing)</Button>
             </Link>
@@ -72,6 +125,12 @@ export default function InteligenciaComercialPage() {
       />
 
       <div className="px-8 pb-8">
+        {geoMsg && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-muted px-4 py-2.5 text-sm text-muted-foreground">
+            {geoBusy && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
+            {geoMsg}
+          </div>
+        )}
         {/* Filtros */}
         <div className="flex items-center gap-3 mb-4">
           <div className="relative flex-1 max-w-md">
