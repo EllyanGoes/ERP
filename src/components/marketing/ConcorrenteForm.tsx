@@ -62,13 +62,13 @@ export default function ConcorrenteForm({
   const [serverError, setServerError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  // Importar de cliente (só no cadastro novo): preenche os dados a partir de um
-  // cliente já cadastrado que também é concorrente.
+  // Vincular a um cliente: no cadastro novo preenche os dados; na edição apenas
+  // cria o vínculo (marca como Parceiro) sem sobrescrever o que já está preenchido.
+  const editando = !!concorrente;
   const [clientes, setClientes] = useState<ComboboxOption[]>([]);
-  const [clienteSel, setClienteSel] = useState("");
+  const [clienteSel, setClienteSel] = useState(concorrente?.clienteId ?? "");
 
   useEffect(() => {
-    if (concorrente) return;
     fetch("/api/clientes?limit=500")
       .then((r) => r.json())
       .then((j) => {
@@ -76,7 +76,7 @@ export default function ConcorrenteForm({
         setClientes(lista.map((c) => ({ value: c.id, label: c.nomeFantasia || c.razaoSocial, code: c.cpfCnpj || undefined })));
       })
       .catch(() => {});
-  }, [concorrente]);
+  }, []);
 
   async function importarCliente(clienteId: string) {
     setClienteSel(clienteId);
@@ -88,22 +88,28 @@ export default function ConcorrenteForm({
     if (!res.ok) return;
     const { data: cli } = await res.json();
     form.setValue("clienteId", clienteId, { shouldDirty: true });
-    if (cli.tipoPessoa === "FISICA" || cli.tipoPessoa === "JURIDICA") form.setValue("tipoPessoa", cli.tipoPessoa);
-    const set = (k: keyof ConcorrenteFormData, v: string | null) =>
-      form.setValue(k, (v ?? "") as any, { shouldDirty: true });
-    set("razaoSocial", cli.razaoSocial);
-    set("nomeFantasia", cli.nomeFantasia);
-    set("cpfCnpj", cli.cpfCnpj);
-    set("email", cli.email);
-    set("telefone", cli.telefone);
-    set("celular", cli.celular);
-    set("cep", cli.cep);
-    set("logradouro", cli.logradouro);
-    set("numero", cli.numero);
-    set("complemento", cli.complemento);
-    set("bairro", cli.bairro);
-    set("cidade", cli.cidade);
-    set("estado", cli.estado);
+    // Na edição, não sobrescreve campos já preenchidos — só completa vazios.
+    const aplica = (k: keyof ConcorrenteFormData, v: string | null) => {
+      if (!v) return;
+      if (editando && String(form.getValues(k) ?? "").trim() !== "") return;
+      form.setValue(k, v as any, { shouldDirty: true });
+    };
+    if ((cli.tipoPessoa === "FISICA" || cli.tipoPessoa === "JURIDICA") && !editando) {
+      form.setValue("tipoPessoa", cli.tipoPessoa);
+    }
+    aplica("razaoSocial", cli.razaoSocial);
+    aplica("nomeFantasia", cli.nomeFantasia);
+    aplica("cpfCnpj", cli.cpfCnpj);
+    aplica("email", cli.email);
+    aplica("telefone", cli.telefone);
+    aplica("celular", cli.celular);
+    aplica("cep", cli.cep);
+    aplica("logradouro", cli.logradouro);
+    aplica("numero", cli.numero);
+    aplica("complemento", cli.complemento);
+    aplica("bairro", cli.bairro);
+    aplica("cidade", cli.cidade);
+    aplica("estado", cli.estado);
   }
 
   const { confirmCreated, dialog } = useCreateFlow({
@@ -151,26 +157,26 @@ export default function ConcorrenteForm({
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 gap-6">
 
-        {/* ── Importar de cliente (apenas no cadastro novo) ──────────────── */}
-        {!concorrente && (
-          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-            <SectionTitle>
-              <span className="inline-flex items-center gap-2"><UserPlus className="h-4 w-4" /> Importar de um cliente</span>
-            </SectionTitle>
-            <div className="p-5">
-              <p className="text-xs text-muted-foreground mb-2">
-                Esse concorrente também é seu cliente? Selecione para preencher os dados automaticamente (você ajusta a categoria abaixo).
-              </p>
-              <ComboboxWithCreate
-                options={clientes}
-                value={clienteSel}
-                onChange={importarCliente}
-                placeholder="Buscar cliente cadastrado..."
-                noneLabel="Não importar"
-              />
-            </div>
+        {/* ── Vínculo com cliente (Parceiro) ─────────────────────────────── */}
+        <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+          <SectionTitle>
+            <span className="inline-flex items-center gap-2"><UserPlus className="h-4 w-4" /> {editando ? "Vínculo com cliente (Parceiro)" : "Importar de um cliente"}</span>
+          </SectionTitle>
+          <div className="p-5">
+            <p className="text-xs text-muted-foreground mb-2">
+              {editando
+                ? "Se este concorrente é atendido por uma empresa do grupo (está na nossa base de clientes), vincule ao cliente para marcá-lo como Parceiro. Não sobrescreve os dados já preenchidos."
+                : "Esse concorrente também é seu cliente? Selecione para preencher os dados automaticamente (você ajusta a categoria abaixo). Ao vincular, ele ganha a tag Parceiro."}
+            </p>
+            <ComboboxWithCreate
+              options={clientes}
+              value={clienteSel}
+              onChange={importarCliente}
+              placeholder="Buscar cliente cadastrado..."
+              noneLabel="Sem vínculo (não é parceiro)"
+            />
           </div>
-        )}
+        </div>
 
         {/* ── Categoria ──────────────────────────────────────────────────── */}
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">

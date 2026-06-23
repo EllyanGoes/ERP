@@ -8,7 +8,7 @@ import { geocodificarEndereco } from "@/lib/geocode";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
-  const categoria = searchParams.get("categoria") || undefined; // fornecedor | revendedor
+  const categoria = searchParams.get("categoria") || undefined; // fornecedor | revendedor | parceiro
   const ativo = searchParams.get("ativo");
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
@@ -26,6 +26,8 @@ export async function GET(req: NextRequest) {
         : {},
       categoria === "fornecedor" ? { ehFornecedor: true } : {},
       categoria === "revendedor" ? { ehRevendedor: true } : {},
+      // Parceiro = está na nossa base de clientes (atendido por empresa do grupo).
+      categoria === "parceiro" ? { clienteId: { not: null } } : {},
       ativo === "false" ? {} : { ativo: true },
     ],
   };
