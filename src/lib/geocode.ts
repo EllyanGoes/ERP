@@ -55,6 +55,31 @@ async function consultar(params: Record<string, string>): Promise<GeocodeResulta
   }
 }
 
+// Fallback: Photon (komoot), também baseado em OSM e sem chave. Útil quando o
+// Nominatim bloqueia/limita requisições vindas de IPs de datacenter (Vercel).
+async function consultarPhoton(q: string): Promise<GeocodeResultado | null> {
+  if (!q) return null;
+  const url = new URL("https://photon.komoot.io/api/");
+  url.searchParams.set("q", q);
+  url.searchParams.set("limit", "1");
+  url.searchParams.set("lang", "default");
+  try {
+    const res = await fetch(url.toString(), { headers: HEADERS, cache: "no-store" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { features?: Array<{ geometry?: { coordinates?: [number, number] }; properties?: Record<string, string> }> };
+    const f = data.features?.[0];
+    const coords = f?.geometry?.coordinates;
+    if (!coords || coords.length < 2) return null;
+    const [lon, lat] = coords; // GeoJSON: [lon, lat]
+    if (Number.isNaN(lat) || Number.isNaN(lon)) return null;
+    const p = f?.properties ?? {};
+    const nome = [p.name, p.city, p.state, p.country].filter(Boolean).join(", ");
+    return { latitude: lat, longitude: lon, displayName: nome || q };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Geocodifica um endereço, tentando do mais preciso ao mais genérico. Retorna
  * null só quando não há dados suficientes nem o município é encontrável.
@@ -106,6 +131,16 @@ export async function geocodificarEndereco(
 
   for (const params of tentativas) {
     const r = await consultar(params);
+    if (r) return r;
+  }
+
+  // Fallback final: Photon (caso o Nominatim esteja bloqueado/limitado).
+  const queriesPhoton = [
+    livre,
+    [cidade, estado, "Brasil"].filter((p) => limpo(p).length > 0).join(", "),
+  ].filter(Boolean);
+  for (const q of queriesPhoton) {
+    const r = await consultarPhoton(q);
     if (r) return r;
   }
   return null;
