@@ -31,7 +31,9 @@ export type ItemValoravel = {
  */
 export function valorUnitarioEstoque(item: ItemValoravel, custoEmpresa?: number | null, empresaRevende = false): number {
   if (item.categoriaEstoque === "PRODUTO_ACABADO") {
-    if (empresaRevende && custoEmpresa != null) return custoEmpresa; // revenda: custo de compra
+    // Custo da empresa quando existe: de compra (revenda) ou de produção (PCP já
+    // custeou o acabado). Sem custo registrado, cai no preço médio de venda.
+    if (custoEmpresa != null) return custoEmpresa;
     return item.precoVendaMedio ?? item.precoVenda ?? 0;
   }
   return custoEmpresa ?? item.precoCusto ?? 0;

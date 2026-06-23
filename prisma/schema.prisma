@@ -1080,6 +1080,8 @@ model Item {
   // Item consumível (baixa no consumo) vs. permanente (ferramentas: requisitadas
   // e devolvidas ao almoxarifado, sem baixa de estoque no uso).
   consumivel             Boolean                  @default(true)
+  // Insumo que compõe custo/saldo de produção. false = ignorado no PCP (ex.: água).
+  compoeCusto            Boolean                  @default(true)
   estoqueMinimo          Decimal?                 @db.Decimal(15, 3)
   estoqueMaximo          Decimal?                 @db.Decimal(15, 3)
   pontoReposicao         Decimal?                 @db.Decimal(15, 3)

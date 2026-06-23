@@ -6,6 +6,7 @@ import type { Prisma, EstadoWIP, TipoMovimentacaoEstoque } from "@prisma/client"
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 const LOCAL_WIP_NOME = "Produção (WIP)";
+const LOCAL_PA_NOME = "Estoque de Produto Acabado";
 
 const ESTADO_LABEL: Record<EstadoWIP, string> = {
   UMIDO: "úmido",
@@ -14,15 +15,27 @@ const ESTADO_LABEL: Record<EstadoWIP, string> = {
   ACABADO: "acabado",
 };
 
-/** Local de estoque único onde o WIP de produção fica (get-or-create por nome). */
-export async function getOrCreateLocalProducao(tx: Prisma.TransactionClient): Promise<string> {
-  const existente = await tx.localEstoque.findFirst({ where: { nome: LOCAL_WIP_NOME }, select: { id: true } });
+/** Get-or-create de um local de estoque por nome. */
+async function getOrCreateLocalNome(tx: Prisma.TransactionClient, nome: string, descricao: string): Promise<string> {
+  const existente = await tx.localEstoque.findFirst({ where: { nome }, select: { id: true } });
   if (existente) return existente.id;
-  const novo = await tx.localEstoque.create({
-    data: { nome: LOCAL_WIP_NOME, descricao: "Estoque de produto em processo (gerado pela produção)" },
-    select: { id: true },
-  });
+  const novo = await tx.localEstoque.create({ data: { nome, descricao }, select: { id: true } });
   return novo.id;
+}
+
+/** Local genérico de WIP (subproduto/resíduo sem estado). */
+export async function getOrCreateLocalProducao(tx: Prisma.TransactionClient): Promise<string> {
+  return getOrCreateLocalNome(tx, LOCAL_WIP_NOME, "Estoque de produto em processo (gerado pela produção)");
+}
+
+/**
+ * Local de estoque por estado do WIP — cada estado é uma conta de estoque distinta,
+ * para o razão refletir o fluxo úmido→seco→queimado→acabado (D/C por fase).
+ * ACABADO cai num local de produto acabado (sellável).
+ */
+export async function getOrCreateLocalEstado(tx: Prisma.TransactionClient, estado: EstadoWIP): Promise<string> {
+  if (estado === "ACABADO") return getOrCreateLocalNome(tx, LOCAL_PA_NOME, "Estoque de produto acabado (produção)");
+  return getOrCreateLocalNome(tx, `Produção — WIP ${ESTADO_LABEL[estado] ?? estado}`, "Estoque de produto em processo (produção)");
 }
 
 function slug(s: string): string {
@@ -60,6 +73,22 @@ export async function getOrCreateWipItem(
   return novo.id;
 }
 
+/**
+ * Local de onde um insumo é consumido: o local próprio com maior saldo.
+ * Sem estoque em local nenhum, cai no local genérico de produção.
+ */
+export async function resolveLocalInsumo(tx: Prisma.TransactionClient, itemId: string): Promise<string> {
+  const linhas = await tx.estoqueItem.findMany({
+    where: { itemId, clienteDonoId: null, localEstoqueId: { not: null } },
+    select: { localEstoqueId: true, quantidadeAtual: true },
+  });
+  if (linhas.length) {
+    linhas.sort((a, b) => parseFloat(b.quantidadeAtual.toString()) - parseFloat(a.quantidadeAtual.toString()));
+    return linhas[0].localEstoqueId as string;
+  }
+  return getOrCreateLocalProducao(tx);
+}
+
 /** Cria um lote de movimentação (agrupa a saída + entrada de uma transição). */
 export async function getOrCreateLoteProducao(
   tx: Prisma.TransactionClient,
@@ -92,6 +121,7 @@ export async function postMovimento(
     documento: string;
     observacoes: string;
     loteId?: string | null;
+    valorUnitario?: number | null; // custo unitário da movimentação (custeio por fase)
   },
 ): Promise<void> {
   let estoque = await tx.estoqueItem.findFirst({
@@ -114,6 +144,7 @@ export async function postMovimento(
       quantidade: args.quantidade,
       saldoAntes,
       saldoDepois,
+      valorUnitario: args.valorUnitario ?? null,
       documento: args.documento,
       observacoes: args.observacoes,
       ordemProducaoId: args.ordemProducaoId,

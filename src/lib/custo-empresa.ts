@@ -94,11 +94,14 @@ export async function aplicarCmpmEmpresa(
   itemId: string,
   quantidade: number,
   valorUnitario: number,
+  opts?: { incluirAcabado?: boolean },
 ): Promise<number> {
-  // Produto Acabado não tem CMPM: o custo virá do PCP; valoração é por preço
-  // médio de venda. Não recalcula (mantém em branco).
-  const it = await tx.item.findUnique({ where: { id: itemId }, select: { categoriaEstoque: true } });
-  if (it && String(it.categoriaEstoque) === "PRODUTO_ACABADO") return 0;
+  // Produto Acabado normalmente não tem CMPM (valoração por preço médio de venda).
+  // O PCP é a exceção: a produção fornece o custo, então passa incluirAcabado.
+  if (!opts?.incluirAcabado) {
+    const it = await tx.item.findUnique({ where: { id: itemId }, select: { categoriaEstoque: true } });
+    if (it && String(it.categoriaEstoque) === "PRODUTO_ACABADO") return 0;
+  }
 
   const atual = await tx.itemCustoEmpresa.findUnique({ where: { empresaId_itemId: { empresaId, itemId } } });
   const custoAtual = num(atual?.precoCusto) ?? 0;

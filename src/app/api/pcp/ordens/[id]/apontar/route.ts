@@ -4,8 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import type { Prisma, StatusEtapaOP, StatusOrdemProducao } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateLocalProducao, getOrCreateWipItem, getOrCreateLoteProducao, postMovimento } from "@/lib/pcp/wip-estoque";
+import { getOrCreateLocalProducao, getOrCreateLocalEstado, getOrCreateWipItem, getOrCreateLoteProducao, postMovimento, resolveLocalInsumo } from "@/lib/pcp/wip-estoque";
 import { contabilizarProducaoOrdem } from "@/lib/contabilidade";
+import { custosDaEmpresa, aplicarCmpmEmpresa } from "@/lib/custo-empresa";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import type { EtapaInsumoSnapshot } from "@/lib/pcp/snapshot-etapas";
 
 function numOrNull(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -100,44 +103,99 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       orderBy: { sequencia: "asc" },
     });
 
-    // ── Movimentação de WIP no estoque (baixa do estágio anterior + entrada no próximo) ──
+    // ── Movimentação + custeio por fase ──
+    // Consome os insumos da etapa (MP) e o WIP do estado anterior, soma o custo e
+    // dá entrada no WIP/acabado do estado de saída com o custo unitário acumulado.
     if (concluindoAgora && etapa.estadoSaida && qtdSaidaNum != null && qtdSaidaNum > 0) {
       const base = ordem.item
         ? { codigo: ordem.item.codigo, descricao: ordem.item.descricao }
         : { codigo: ordem.numero, descricao: ordem.fluxoVersao?.fluxo?.nome ?? ordem.numero };
-      const localId = await getOrCreateLocalProducao(tx);
       const toEstado = etapa.estadoSaida;
       const anteriores = etapas.filter((e) => e.sequencia < etapa.sequencia && e.estadoSaida);
       const fromEstado = anteriores.length ? anteriores[anteriores.length - 1].estadoSaida : null;
       const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Produção ${ordem.numero} — ${etapa.nome}`);
+      const localDest = await getOrCreateLocalEstado(tx, toEstado);
+
+      const qtdProduzida = qtdSaidaNum;
+      const qtdConsumidaWip = qtdEntradaNum ?? qtdSaidaNum;
 
       // Destino: item acabado real (se houver) quando ACABADO; senão item de WIP do estado.
       const destItemId =
         toEstado === "ACABADO" && ordem.itemId ? ordem.itemId : await getOrCreateWipItem(tx, base, toEstado);
 
+      // 1. Consumo dos insumos da etapa (MP) — ignora os que não compõem custo (água).
+      const insumosEtapa: EtapaInsumoSnapshot[] = Array.isArray(etapa.insumos)
+        ? (etapa.insumos as unknown as EtapaInsumoSnapshot[])
+        : [];
+      let custoInsumos = 0;
+      if (insumosEtapa.length) {
+        const ids = Array.from(new Set(insumosEtapa.map((i) => i.itemId).filter(Boolean)));
+        const itens = await tx.item.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, descricao: true, compoeCusto: true, precoCusto: true },
+        });
+        const itemById = new Map(itens.map((i) => [i.id, i]));
+        const custos = await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, ids);
+        for (const ins of insumosEtapa) {
+          const meta = itemById.get(ins.itemId);
+          if (!meta || meta.compoeCusto === false) continue; // água: não compõe custo nem saldo
+          const consumo = (ins.consumoPorMilheiro ?? 0) * qtdProduzida;
+          if (consumo <= 0) continue;
+          const custoUnit = custos.get(ins.itemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
+          const localIns = await resolveLocalInsumo(tx, ins.itemId);
+          await postMovimento(tx, {
+            itemId: ins.itemId,
+            localEstoqueId: localIns,
+            tipo: "SAIDA",
+            quantidade: consumo,
+            ordemProducaoId: params.id,
+            documento: ordem.numero,
+            observacoes: `Consumo ${meta.descricao} — ${etapa.nome}`,
+            loteId,
+            valorUnitario: custoUnit,
+          });
+          custoInsumos += consumo * custoUnit;
+        }
+      }
+
+      // 2. Consumo do WIP do estado anterior (transfere o custo acumulado).
+      let custoWipEntrada = 0;
       if (fromEstado) {
         const srcItemId = await getOrCreateWipItem(tx, base, fromEstado);
+        const localFrom = await getOrCreateLocalEstado(tx, fromEstado);
+        const custoWipFrom = (await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, [srcItemId])).get(srcItemId) ?? 0;
         await postMovimento(tx, {
           itemId: srcItemId,
-          localEstoqueId: localId,
+          localEstoqueId: localFrom,
           tipo: "SAIDA",
-          quantidade: qtdEntradaNum ?? qtdSaidaNum,
+          quantidade: qtdConsumidaWip,
           ordemProducaoId: params.id,
           documento: ordem.numero,
           observacoes: `Consumo WIP ${fromEstado} — ${etapa.nome}`,
           loteId,
+          valorUnitario: custoWipFrom,
         });
+        custoWipEntrada = qtdConsumidaWip * custoWipFrom;
       }
+
+      // 3. Entrada do destino com o custo unitário da fase (insumos + WIP anterior).
+      const custoTotal = custoInsumos + custoWipEntrada;
+      const custoUnitDest = qtdProduzida > 0 ? custoTotal / qtdProduzida : 0;
       await postMovimento(tx, {
         itemId: destItemId,
-        localEstoqueId: localId,
+        localEstoqueId: localDest,
         tipo: "ENTRADA",
-        quantidade: qtdSaidaNum,
+        quantidade: qtdProduzida,
         ordemProducaoId: params.id,
         documento: ordem.numero,
         observacoes: `Produção ${toEstado} — ${etapa.nome}`,
         loteId,
+        valorUnitario: custoUnitDest,
       });
+      // Roça o CMPM do destino (WIP ou acabado) com o custo desta produção.
+      if (custoUnitDest > 0) {
+        await aplicarCmpmEmpresa(tx, EMPRESA_PADRAO_ID, destItemId, qtdProduzida, custoUnitDest, { incluirAcabado: true });
+      }
     }
 
     // ── Subproduto/resíduo gerado pela etapa → entrada no estoque (volta como insumo) ──

@@ -949,10 +949,11 @@ async function postMovimentosEstoque(opts: {
 }
 
 /**
- * Entrada de produção (PCP): D Estoque (local) / C Custo de Produção (3.2.9001),
- * ao CMPM do produto acabado. Só contabiliza quando a ordem está CONCLUIDA (todas
- * as entradas de acabado já existem). Itens WIP têm CMPM ≈ 0 e não geram valor.
- * Idempotente por (empresa, ESTOQUE_PRODUCAO, ordemId).
+ * Produção (PCP): transformação entre contas de ESTOQUE (matéria-prima → WIP por
+ * estado → produto acabado). Não toca resultado — o P&L só aparece no CPV da venda.
+ * Lança como transferência: D conta do local que recebe / C do local que cede, ao
+ * CMPM de cada item (WIP/acabado já custeados fase a fase pelo apontamento).
+ * Só ao concluir a ordem. Idempotente por (empresa, ESTOQUE_PRODUCAO, ordemId).
  */
 export async function contabilizarProducaoOrdem(ordemId: string) {
   const ordem = await prismaSemEscopo.ordemProducao.findUnique({
@@ -962,17 +963,16 @@ export async function contabilizarProducaoOrdem(ordemId: string) {
   if (!ordem || ordem.status !== "CONCLUIDA") return;
 
   const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
-    where: { ordemProducaoId: ordemId, tipo: "ENTRADA", localEstoqueId: { not: null }, clienteDonoId: null },
+    where: { ordemProducaoId: ordemId, localEstoqueId: { not: null }, clienteDonoId: null, tipo: { in: ["ENTRADA", "SAIDA"] } },
     select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true },
   });
   if (movs.length === 0) return;
   const empresaId = movs[0].empresaId;
-  const { producaoId } = await garantirContasSistemaEstoque(empresaId);
 
   await postMovimentosEstoque({
     empresaId, data: ordem.updatedAt, historico: `Produção — ${ordem.numero}`,
     origemTipo: "ESTOQUE_PRODUCAO", origemId: ordemId,
-    movs, contaPositivoId: producaoId,
+    movs, semContrapartida: true,
   });
 }
 
