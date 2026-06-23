@@ -28,7 +28,17 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 const labelCls = "text-xs font-semibold text-foreground uppercase tracking-wide";
 
-export default function ConcorrenteForm({ concorrente }: { concorrente?: ConcorrenteData }) {
+export default function ConcorrenteForm({
+  concorrente,
+  onSaved,
+  onCancel,
+}: {
+  concorrente?: ConcorrenteData;
+  /** Edição: chamado após salvar com sucesso (ex.: voltar à visão read-only). */
+  onSaved?: () => void;
+  /** Edição: chamado ao cancelar (ex.: voltar à visão read-only). */
+  onCancel?: () => void;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   useTabTitle(concorrente ? (concorrente.nomeFantasia || concorrente.razaoSocial) : null);
@@ -74,8 +84,12 @@ export default function ConcorrenteForm({ concorrente }: { concorrente?: Concorr
       if (res.ok) {
         const json = await res.json();
         if (concorrente) {
-          setSaved(true);
-          router.refresh();
+          if (onSaved) {
+            onSaved();
+          } else {
+            setSaved(true);
+            router.refresh();
+          }
         } else {
           confirmCreated(json.data.id);
         }
@@ -313,8 +327,8 @@ export default function ConcorrenteForm({ concorrente }: { concorrente?: Concorr
           <Button type="submit" disabled={form.formState.isSubmitting} className="font-semibold">
             {form.formState.isSubmitting ? "Salvando..." : concorrente ? "Salvar Alterações" : "Cadastrar Concorrente"}
           </Button>
-          {!concorrente && (
-            <Button type="button" variant="outline" onClick={() => router.back()} className="border-border text-muted-foreground">
+          {(onCancel || !concorrente) && (
+            <Button type="button" variant="outline" onClick={() => (onCancel ? onCancel() : router.back())} className="border-border text-muted-foreground">
               Cancelar
             </Button>
           )}

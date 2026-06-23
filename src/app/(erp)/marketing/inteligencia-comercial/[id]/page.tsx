@@ -5,10 +5,11 @@ import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import ConcorrenteForm from "@/components/marketing/ConcorrenteForm";
+import ConcorrenteDadosView from "@/components/marketing/ConcorrenteDadosView";
 import ConcorrentePrecos, { type PrecoConcorrente } from "@/components/marketing/ConcorrentePrecos";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, MapPin, Crosshair, Trash2, FileText, Map as MapIcon, Tag } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Loader2, MapPin, Crosshair, Trash2, Pencil, Building2, Store } from "lucide-react";
 
 // Leaflet depende de `window` — carrega só no cliente.
 const ConcorrenteLocalizacao = dynamic(() => import("@/components/marketing/ConcorrenteLocalizacao"), {
@@ -20,6 +21,11 @@ const ConcorrenteLocalizacao = dynamic(() => import("@/components/marketing/Conc
 
 type Concorrente = {
   id: string;
+  razaoSocial: string;
+  nomeFantasia: string | null;
+  ehFornecedor: boolean;
+  ehRevendedor: boolean;
+  ativo: boolean;
   latitude: number | null;
   longitude: number | null;
   geoManual: boolean;
@@ -28,6 +34,8 @@ type Concorrente = {
   [k: string]: any;
 };
 
+type Aba = "dados" | "localizacao" | "precos";
+
 export default function ConcorrenteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -35,7 +43,8 @@ export default function ConcorrenteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [geocoding, setGeocoding] = useState(false);
   const [geoMsg, setGeoMsg] = useState<string | null>(null);
-  const [aba, setAba] = useState("dados");
+  const [aba, setAba] = useState<Aba>("dados");
+  const [editando, setEditando] = useState(false);
 
   const carregar = useCallback(async () => {
     const res = await fetch(`/api/marketing/concorrentes/${id}`);
@@ -74,6 +83,12 @@ export default function ConcorrenteDetailPage() {
 
   const temGeo = data.latitude != null && data.longitude != null;
 
+  const TABS: { key: Aba; label: string }[] = [
+    { key: "dados", label: "Dados Cadastrais" },
+    { key: "localizacao", label: "Localização" },
+    { key: "precos", label: `Preços (${data.precos.length})` },
+  ];
+
   return (
     <div>
       <PageHeader
@@ -84,7 +99,19 @@ export default function ConcorrenteDetailPage() {
           { label: data.nomeFantasia || data.razaoSocial },
         ]}
         actions={
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            {data.ehFornecedor && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"><Building2 className="h-3 w-3" /> Fornecedor</span>
+            )}
+            {data.ehRevendedor && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400"><Store className="h-3 w-3" /> Revendedor</span>
+            )}
+            <span className={cn("text-[11px] font-medium px-2 py-1 rounded-full", data.ativo ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
+              {data.ativo ? "Ativo" : "Inativo"}
+            </span>
+            {aba === "dados" && !editando && (
+              <Button variant="outline" onClick={() => setEditando(true)} className="gap-2"><Pencil className="h-4 w-4" /> Editar</Button>
+            )}
             <Button variant="outline" onClick={excluir} className="gap-2 text-danger border-danger/30 hover:bg-danger/10">
               <Trash2 className="h-4 w-4" /> Inativar
             </Button>
@@ -93,23 +120,43 @@ export default function ConcorrenteDetailPage() {
       />
 
       <div className="px-8 pb-10">
-        <Tabs value={aba} onValueChange={(v) => setAba(v as string)} className="gap-6">
-          <TabsList variant="line" className="h-9">
-            <TabsTrigger value="dados" className="gap-1.5"><FileText className="h-4 w-4" /> Dados cadastrais</TabsTrigger>
-            <TabsTrigger value="localizacao" className="gap-1.5">
-              <MapIcon className="h-4 w-4" /> Localização
-              {temGeo && <span className={`ml-1 h-1.5 w-1.5 rounded-full ${data.geoManual ? "bg-fuchsia-500" : "bg-emerald-500"}`} />}
-            </TabsTrigger>
-            <TabsTrigger value="precos" className="gap-1.5"><Tag className="h-4 w-4" /> Preços ({data.precos.length})</TabsTrigger>
-          </TabsList>
+        {/* Tab bar (estilo ClienteDetail) */}
+        <div className="border-b border-border mb-6">
+          <div className="flex gap-0">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setAba(t.key)}
+                className={cn(
+                  "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap flex items-center gap-1.5",
+                  aba === t.key ? "border-blue-600 text-info" : "border-transparent text-muted-foreground hover:text-foreground hover:border-border",
+                )}
+              >
+                {t.label}
+                {t.key === "localizacao" && temGeo && (
+                  <span className={cn("h-1.5 w-1.5 rounded-full", data.geoManual ? "bg-fuchsia-500" : "bg-emerald-500")} />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
 
-          {/* ── Dados cadastrais ──────────────────────────────────────────── */}
-          <TabsContent value="dados">
-            <ConcorrenteForm concorrente={data as any} />
-          </TabsContent>
+        {/* ── DADOS CADASTRAIS ──────────────────────────────────────────── */}
+        {aba === "dados" && (
+          editando ? (
+            <ConcorrenteForm
+              concorrente={data as any}
+              onSaved={() => { setEditando(false); carregar(); }}
+              onCancel={() => setEditando(false)}
+            />
+          ) : (
+            <ConcorrenteDadosView c={data as any} />
+          )
+        )}
 
-          {/* ── Localização ───────────────────────────────────────────────── */}
-          <TabsContent value="localizacao" className="space-y-5">
+        {/* ── LOCALIZAÇÃO ───────────────────────────────────────────────── */}
+        {aba === "localizacao" && (
+          <div className="space-y-5">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-2 text-sm">
                 <MapPin className={temGeo ? "h-4 w-4 text-emerald-500" : "h-4 w-4 text-muted-foreground/50"} />
@@ -139,13 +186,11 @@ export default function ConcorrenteDetailPage() {
                 setData((d) => (d ? { ...d, latitude: lat, longitude: lng, geoManual: manual, geoReferencia: referencia } : d))
               }
             />
-          </TabsContent>
+          </div>
+        )}
 
-          {/* ── Preços ────────────────────────────────────────────────────── */}
-          <TabsContent value="precos">
-            <ConcorrentePrecos concorrenteId={data.id} precosIniciais={data.precos} />
-          </TabsContent>
-        </Tabs>
+        {/* ── PREÇOS ────────────────────────────────────────────────────── */}
+        {aba === "precos" && <ConcorrentePrecos concorrenteId={data.id} precosIniciais={data.precos} />}
       </div>
     </div>
   );
