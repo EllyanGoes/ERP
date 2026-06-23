@@ -36,6 +36,7 @@ interface Linha {
   base: string;
   categoria: string;
   unidadeId: string | null;
+  estadoConsumo: string | null;
   units: UnitOpt[];
   baseSigla: string;
 }
@@ -44,7 +45,7 @@ interface Eng {
   item: { codigo: string; descricao: string } | null;
   fluxo: { id: string; nome: string } | null;
   ativo: boolean;
-  insumos: { insumoItemId: string; quantidade: string | number; base: string; categoria: string; unidadeId: string | null; insumoItem: RawItem }[];
+  insumos: { insumoItemId: string; quantidade: string | number; base: string; categoria: string; unidadeId: string | null; estadoConsumo: string | null; insumoItem: RawItem }[];
 }
 interface FluxoOpt { id: string; nome: string; }
 
@@ -54,6 +55,14 @@ const CATEGORIAS = [
   { v: "EMBALAGEM", l: "Embalagem" },
   { v: "ENERGIA", l: "Energia" },
   { v: "OUTRO", l: "Outro" },
+];
+// Fase/estado em que o insumo é consumido (custeio por fase). "" = primeira etapa.
+const FASES = [
+  { v: "", l: "Primeira fase" },
+  { v: "UMIDO", l: "Úmido" },
+  { v: "SECO", l: "Seco" },
+  { v: "QUEIMADO", l: "Queimado" },
+  { v: "ACABADO", l: "Acabado" },
 ];
 // Categoria do insumo puxada da categoria de estoque do produto.
 function categoriaInsumoDoProduto(cat: string | null | undefined): string {
@@ -113,6 +122,7 @@ export default function EngenhariaDetalhePage() {
             base: i.base,
             categoria: i.categoria,
             unidadeId: i.unidadeId ?? principalId,
+            estadoConsumo: i.estadoConsumo ?? null,
             units,
             baseSigla: i.insumoItem.unidade?.sigla ?? i.insumoItem.unidadeMedida ?? "un",
           };
@@ -127,7 +137,7 @@ export default function EngenhariaDetalhePage() {
 
   function addInsumo(it: ItemLite) {
     if (linhas.some((l) => l.insumoItemId === it.id)) return;
-    setLinhas((prev) => [...prev, { insumoItemId: it.id, codigo: it.codigo, descricao: it.descricao, quantidade: "", base: "POR_UNIDADE", categoria: categoriaInsumoDoProduto(it.categoriaEstoque), unidadeId: it.principalId, units: it.units, baseSigla: it.units[0]?.sigla ?? "un" }]);
+    setLinhas((prev) => [...prev, { insumoItemId: it.id, codigo: it.codigo, descricao: it.descricao, quantidade: "", base: "POR_UNIDADE", categoria: categoriaInsumoDoProduto(it.categoriaEstoque), unidadeId: it.principalId, estadoConsumo: null, units: it.units, baseSigla: it.units[0]?.sigla ?? "un" }]);
   }
   function setLinha(i: number, patch: Partial<Linha>) {
     setLinhas((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
@@ -145,6 +155,7 @@ export default function EngenhariaDetalhePage() {
         base: l.base,
         categoria: l.categoria,
         unidadeId: l.unidadeId,
+        estadoConsumo: l.estadoConsumo,
       }));
       const r = await fetch(`/api/pcp/engenharia/${id}`, {
         method: "PATCH",
@@ -228,6 +239,7 @@ export default function EngenhariaDetalhePage() {
                   <th className="text-left font-medium py-1.5">Insumo</th>
                   <th className="text-right font-medium py-1.5 w-40">Quantidade</th>
                   <th className="text-left font-medium py-1.5 w-36">Categoria</th>
+                  <th className="text-left font-medium py-1.5 w-32">Fase consumo</th>
                   <th className="w-10" />
                 </tr>
               </thead>
@@ -250,6 +262,11 @@ export default function EngenhariaDetalhePage() {
                     <td className="py-1.5">
                       <select className={selCls} value={l.categoria} onChange={(e) => setLinha(i, { categoria: e.target.value })}>
                         {CATEGORIAS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
+                      </select>
+                    </td>
+                    <td className="py-1.5">
+                      <select className={selCls} value={l.estadoConsumo ?? ""} onChange={(e) => setLinha(i, { estadoConsumo: e.target.value || null })}>
+                        {FASES.map((f) => <option key={f.v} value={f.v}>{f.l}</option>)}
                       </select>
                     </td>
                     <td className="py-1.5 text-right">

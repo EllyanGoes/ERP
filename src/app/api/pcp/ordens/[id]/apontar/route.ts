@@ -8,7 +8,6 @@ import { getOrCreateLocalProducao, getOrCreateLocalEstado, getOrCreateWipItem, g
 import { contabilizarProducaoOrdem } from "@/lib/contabilidade";
 import { custosDaEmpresa, aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
-import type { EtapaInsumoSnapshot } from "@/lib/pcp/snapshot-etapas";
 
 function numOrNull(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -118,33 +117,57 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
       const qtdProduzida = qtdSaidaNum;
       const qtdConsumidaWip = qtdEntradaNum ?? qtdSaidaNum;
+      // Estado da 1ª etapa de produção — insumos sem fase definida caem aqui.
+      const firstEstado = etapas.find((e) => e.estadoSaida)?.estadoSaida ?? null;
 
       // Destino: item acabado real (se houver) quando ACABADO; senão item de WIP do estado.
       const destItemId =
         toEstado === "ACABADO" && ordem.itemId ? ordem.itemId : await getOrCreateWipItem(tx, base, toEstado);
 
-      // 1. Consumo dos insumos da etapa (MP) — ignora os que não compõem custo (água).
-      const insumosEtapa: EtapaInsumoSnapshot[] = Array.isArray(etapa.insumos)
-        ? (etapa.insumos as unknown as EtapaInsumoSnapshot[])
-        : [];
+      // 1. Consumo dos insumos da BOM do produto cuja fase é esta etapa (custeio por fase).
+      //    Quantidade por produto vem da engenharia; ignora os que não compõem custo (água).
       let custoInsumos = 0;
-      if (insumosEtapa.length) {
-        const ids = Array.from(new Set(insumosEtapa.map((i) => i.itemId).filter(Boolean)));
-        const itens = await tx.item.findMany({
-          where: { id: { in: ids } },
-          select: { id: true, descricao: true, compoeCusto: true, precoCusto: true },
-        });
-        const itemById = new Map(itens.map((i) => [i.id, i]));
+      const eng = ordem.itemId
+        ? await tx.engenhariaProduto.findUnique({
+            where: { itemId: ordem.itemId },
+            include: {
+              insumos: {
+                include: {
+                  insumoItem: {
+                    select: {
+                      id: true, descricao: true, compoeCusto: true, precoCusto: true,
+                      itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } },
+                    },
+                  },
+                },
+              },
+            },
+          })
+        : null;
+      const insumosDaFase = (eng?.insumos ?? []).filter((i) => (i.estadoConsumo ?? firstEstado) === toEstado);
+      if (insumosDaFase.length) {
+        const ids = Array.from(new Set(insumosDaFase.map((i) => i.insumoItemId)));
         const custos = await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, ids);
-        for (const ins of insumosEtapa) {
-          const meta = itemById.get(ins.itemId);
+        for (const ins of insumosDaFase) {
+          const meta = ins.insumoItem;
           if (!meta || meta.compoeCusto === false) continue; // água: não compõe custo nem saldo
-          const consumo = (ins.consumoPorMilheiro ?? 0) * qtdProduzida;
+          // Converte a quantidade da unidade da linha p/ a unidade-base do insumo (igual ao MRP).
+          let fatorUnidade = 1;
+          if (ins.unidadeId) {
+            const iu = meta.itemUnidades.find((u) => u.unidadeId === ins.unidadeId);
+            if (iu && !iu.isPrincipal && iu.fatorConversao != null) {
+              const f = Number(iu.fatorConversao);
+              if (Number.isFinite(f) && f > 0) fatorUnidade = f;
+            }
+          }
+          // base POR_UNIDADE = por peça (×1000 p/ milheiro); demais bases ×1.
+          const baseFator = ins.base === "POR_UNIDADE" ? 1000 : 1;
+          const consumo = Number(ins.quantidade) * fatorUnidade * baseFator * qtdProduzida;
           if (consumo <= 0) continue;
-          const custoUnit = custos.get(ins.itemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
-          const localIns = await resolveLocalInsumo(tx, ins.itemId);
+          const custoUnit = custos.get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
+          const localIns = await resolveLocalInsumo(tx, ins.insumoItemId);
           await postMovimento(tx, {
-            itemId: ins.itemId,
+            itemId: ins.insumoItemId,
             localEstoqueId: localIns,
             tipo: "SAIDA",
             quantidade: consumo,

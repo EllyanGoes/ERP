@@ -2,11 +2,12 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import type { BaseConsumo, CategoriaInsumo } from "@prisma/client";
+import type { BaseConsumo, CategoriaInsumo, EstadoWIP } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const BASES: BaseConsumo[] = ["POR_MILHEIRO", "POR_UNIDADE", "POR_CICLO", "POR_VAGAO"];
 const CATEGORIAS: CategoriaInsumo[] = ["MATERIA_PRIMA", "MISTURA", "EMBALAGEM", "ENERGIA", "OUTRO"];
+const ESTADOS: EstadoWIP[] = ["UMIDO", "SECO", "QUEIMADO", "ACABADO"];
 
 // GET — engenharia + insumos (com item de cada insumo)
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -51,7 +52,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           const base = (BASES as string[]).includes(String(r.base)) ? (r.base as BaseConsumo) : "POR_UNIDADE";
           const categoria = (CATEGORIAS as string[]).includes(String(r.categoria)) ? (r.categoria as CategoriaInsumo) : "MATERIA_PRIMA";
           const unidadeId = typeof r.unidadeId === "string" && r.unidadeId ? r.unidadeId : null;
-          return { insumoItemId, quantidade, base, categoria, unidadeId, observacao: typeof r.observacao === "string" ? r.observacao.trim() || null : null };
+          const estadoConsumo = (ESTADOS as string[]).includes(String(r.estadoConsumo)) ? (r.estadoConsumo as EstadoWIP) : null;
+          return { insumoItemId, quantidade, base, categoria, unidadeId, estadoConsumo, observacao: typeof r.observacao === "string" ? r.observacao.trim() || null : null };
         })
         .filter((x) => x.insumoItemId && Number.isFinite(x.quantidade) && x.quantidade >= 0)
     : [];

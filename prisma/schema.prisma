@@ -2239,6 +2239,8 @@ model EngenhariaInsumo {
   categoria    CategoriaInsumo   @default(MATERIA_PRIMA)
   // Unidade em que a quantidade está expressa (id de Unidade); null = unidade-base do item.
   unidadeId    String?
+  // Fase/estado em que o insumo é consumido (custeio por fase); null = primeira etapa.
+  estadoConsumo EstadoWIP?
   observacao   String?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
