@@ -40,9 +40,11 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ ...user, senha: undefined }, { status: 201 });
   } catch (err: unknown) {
+    // P2002 = unique constraint violation (email). O código do Prisma fica em
+    // `err.code` — checar só a mensagem deixava o duplicado cair no 500 genérico.
+    const code = err && typeof err === "object" && "code" in err ? (err as { code?: string }).code : undefined;
     const msg = err instanceof Error ? err.message : String(err);
-    // P2002 = unique constraint violation (email)
-    if (typeof msg === "string" && msg.includes("P2002")) {
+    if (code === "P2002" || msg.includes("P2002")) {
       return NextResponse.json({ error: "E-mail já cadastrado" }, { status: 409 });
     }
     console.error("[POST /api/admin/usuarios]", err);
