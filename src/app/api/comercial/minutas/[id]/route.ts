@@ -10,6 +10,7 @@ import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { espelharEntregaMinuta } from "@/lib/intragrupo";
 import { gerarCompraVirtualVendaOrdem } from "@/lib/venda-ordem";
 import { recontabilizarMinuta } from "@/lib/contabilidade";
+import { resolverLocaisSaida } from "@/lib/local-saida";
 
 // Lançado dentro das transações quando outra requisição mexeu na minuta no meio
 // do caminho (duplo clique, duas abas). Aborta a transação e vira HTTP 409.
@@ -237,15 +238,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           },
         });
 
+        // Cada item sai do SEU local (pela categoria/saldo); o local escolhido na
+        // minuta é só fallback. Evita baixar tudo no mesmo local e estourar saldo
+        // (e a conta contábil) de itens que não pertencem àquele local.
+        const locaisPorItem = await resolverLocaisSaida(
+          tx, minuta.empresaId, minuta.itens.map((i) => i.itemId), localEstoqueId,
+        );
+
         for (const item of minuta.itens) {
           const quantidade = parseFloat(item.quantidade.toString());
+          const itemLocal = locaisPorItem.get(item.itemId) ?? localEstoqueId;
 
           let estoque = await tx.estoqueItem.findFirst({
-            where: { empresaId: minuta.empresaId, itemId: item.itemId, localEstoqueId, clienteDonoId: null },
+            where: { empresaId: minuta.empresaId, itemId: item.itemId, localEstoqueId: itemLocal, clienteDonoId: null },
           });
           if (!estoque) {
             estoque = await tx.estoqueItem.create({
-              data: { empresaId: minuta.empresaId, itemId: item.itemId, localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null },
+              data: { empresaId: minuta.empresaId, itemId: item.itemId, localEstoqueId: itemLocal, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null },
             });
           }
 
@@ -262,7 +271,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             data: {
               empresaId:    minuta.empresaId,
               itemId:       item.itemId,
-              localEstoqueId,
+              localEstoqueId: itemLocal,
               unidadeId:    item.unidadeId ?? null,
               loteId:       lote.id,
               pedidoVendaItemId: item.pedidoVendaItemId,
@@ -397,21 +406,26 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
         // 2) Aplica a saída nova: baixa o estoque e grava/atualiza 1 movimentação por item.
         if (newOut && newLocal) {
+          // Cada item sai do SEU local (categoria/saldo); newLocal é só fallback.
+          const locaisPorItem = await resolverLocaisSaida(
+            tx, minuta.empresaId, Array.from(desejado.keys()), newLocal,
+          );
           for (const d of Array.from(desejado.values())) {
             if (!(d.qty > 0)) continue;
-            let estoque = await tx.estoqueItem.findFirst({ where: { empresaId: minuta.empresaId, itemId: d.itemId, localEstoqueId: newLocal, clienteDonoId: null } });
+            const loc = locaisPorItem.get(d.itemId) ?? newLocal;
+            let estoque = await tx.estoqueItem.findFirst({ where: { empresaId: minuta.empresaId, itemId: d.itemId, localEstoqueId: loc, clienteDonoId: null } });
             if (!estoque) {
-              estoque = await tx.estoqueItem.create({ data: { empresaId: minuta.empresaId, itemId: d.itemId, localEstoqueId: newLocal, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null } });
+              estoque = await tx.estoqueItem.create({ data: { empresaId: minuta.empresaId, itemId: d.itemId, localEstoqueId: loc, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null } });
             }
             await tx.estoqueItem.update({ where: { id: estoque.id }, data: { quantidadeAtual: { decrement: d.qty } } });
-            marca(d.itemId, newLocal);
+            marca(d.itemId, loc);
 
             const reusedId = reusaveis.get(d.itemId);
             if (reusedId) {
               await tx.movimentacaoEstoque.update({
                 where: { id: reusedId },
                 data: {
-                  localEstoqueId:    newLocal,
+                  localEstoqueId:    loc,
                   unidadeId:         d.unidadeId,
                   pedidoVendaItemId: d.pedidoVendaItemId,
                   tipo:              "SAIDA",
@@ -431,7 +445,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
                 data: {
                   empresaId:         minuta.empresaId,
                   itemId:            d.itemId,
-                  localEstoqueId:    newLocal,
+                  localEstoqueId:    loc,
                   unidadeId:         d.unidadeId,
                   pedidoVendaItemId: d.pedidoVendaItemId,
                   loteId:            saidaLoteId,

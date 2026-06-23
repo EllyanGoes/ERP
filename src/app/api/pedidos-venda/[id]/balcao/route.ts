@@ -15,6 +15,7 @@ import { saldoCreditoCliente, consumirCreditoCliente } from "@/lib/credito-clien
 import { generateDocNumber, generateSimpleDocNumber } from "@/lib/utils";
 import { pedidoPrintData } from "@/lib/print-pedido-server";
 import { contabilizarPedidoVenda, contabilizarCmvMinuta, contabilizarReceitaMinuta } from "@/lib/contabilidade";
+import { resolverLocaisSaida } from "@/lib/local-saida";
 import { z } from "zod";
 
 const pagamentoSchema = z.object({
@@ -300,15 +301,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           },
         });
 
+        // Cada item sai do SEU local (categoria/saldo); o local da retirada é
+        // só fallback. Evita baixar tudo num único local e estourar saldo (e a
+        // conta contábil) de itens que não pertencem àquele local.
+        const locaisPorItem = await resolverLocaisSaida(
+          tx, pedido.empresaId, pedido.itens.map((i) => i.itemId), localEstoqueId,
+        );
+
         for (const item of pedido.itens) {
           const quantidade = parseFloat(item.quantidade.toString());
+          const itemLocal = locaisPorItem.get(item.itemId) ?? localEstoqueId;
 
           let estoque = await tx.estoqueItem.findFirst({
-            where: { empresaId: pedido.empresaId, itemId: item.itemId, localEstoqueId, clienteDonoId: null },
+            where: { empresaId: pedido.empresaId, itemId: item.itemId, localEstoqueId: itemLocal, clienteDonoId: null },
           });
           if (!estoque) {
             estoque = await tx.estoqueItem.create({
-              data: { empresaId: pedido.empresaId, itemId: item.itemId, localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null },
+              data: { empresaId: pedido.empresaId, itemId: item.itemId, localEstoqueId: itemLocal, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null },
             });
           }
 
@@ -323,7 +332,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             data: {
               empresaId: pedido.empresaId,
               itemId: item.itemId,
-              localEstoqueId,
+              localEstoqueId: itemLocal,
               loteId: lote.id,
               pedidoVendaItemId: item.id,
               tipo: "SAIDA",
