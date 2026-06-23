@@ -57,9 +57,9 @@ function NodeCard({ kind, data, selected }: { kind: NodeKind; data: FlowNodeData
       )}
     >
       {hasTarget && <Handle type="target" position={Position.Left} className="!w-3 !h-3 !bg-gray-400 !border-2 !border-white hover:!bg-cyan-500 transition-colors" />}
-      {/* Handles extras (topo/base) — em modo de conexão flexível, ligam por qualquer lado. */}
-      <Handle type="target" id="top" position={Position.Top} className="!w-3 !h-3 !bg-gray-400 !border-2 !border-white hover:!bg-cyan-500 transition-colors" />
-      <Handle type="source" id="bottom" position={Position.Bottom} className="!w-3 !h-3 !bg-gray-400 !border-2 !border-white hover:!bg-cyan-500 transition-colors" />
+      {/* Entradas extras (topo/base) — a saída fica só na lateral direita (fluxo natural). */}
+      {hasTarget && <Handle type="target" id="top" position={Position.Top} className="!w-3 !h-3 !bg-gray-400 !border-2 !border-white hover:!bg-cyan-500 transition-colors" />}
+      {hasTarget && <Handle type="target" id="bottom" position={Position.Bottom} className="!w-3 !h-3 !bg-gray-400 !border-2 !border-white hover:!bg-cyan-500 transition-colors" />}
       <div className="flex items-center gap-2">
         <span className={cn("flex w-6 h-6 shrink-0 items-center justify-center rounded-md", s.chipBg, s.chipText)}>
           <Icon className="w-3.5 h-3.5" />
