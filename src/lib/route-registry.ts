@@ -91,6 +91,7 @@ export const ROUTES: RouteEntry[] = [
 
   { href: "/marketing",                            label: "Painel de Marketing",     group: "Marketing",        section: "Geral",            icon: Megaphone,      keywords: "marketing campanha campanhas lead leads divulgação publicidade" },
   { href: "/marketing/inteligencia-comercial",      label: "Concorrentes",            group: "Marketing",        section: "Inteligência Comercial", icon: Target,  keywords: "inteligencia comercial ic concorrente concorrentes mercado preço precos fornecedor revendedor" },
+  { href: "/marketing/inteligencia-comercial/relatorio-precos", label: "Preço de Mercado", group: "Marketing",   section: "Inteligência Comercial", icon: BarChart3, keywords: "preço médio mercado concorrente relatório comparativo ic inteligencia comercial precos" },
   { href: "/marketing/inteligencia-comercial/mapa", label: "Geomarketing",            group: "Marketing",        section: "Inteligência Comercial", icon: MapIcon, keywords: "geomarketing mapa concorrentes localização leaflet ic inteligencia comercial" },
 
   { href: "/comercial/tabelas-preco",              label: "Tabelas de Preço",        group: "Faturamento",      section: "Cadastros",        icon: Tag,            keywords: "tabela preço lista precos" },

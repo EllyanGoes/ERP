@@ -159,8 +159,9 @@ const mainModules: Module[] = [
       {
         kind: "Inteligência Comercial" as SubSection["kind"],
         items: [
-          { href: "/marketing/inteligencia-comercial",      label: "Concorrentes",  icon: Target },
-          { href: "/marketing/inteligencia-comercial/mapa", label: "Geomarketing",  icon: MapIcon },
+          { href: "/marketing/inteligencia-comercial",                 label: "Concorrentes",     icon: Target, exact: true },
+          { href: "/marketing/inteligencia-comercial/relatorio-precos", label: "Preço de Mercado", icon: BarChart3 },
+          { href: "/marketing/inteligencia-comercial/mapa",            label: "Geomarketing",     icon: MapIcon },
         ],
       },
     ],

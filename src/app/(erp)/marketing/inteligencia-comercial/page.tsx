@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Plus, Search, MapPin, Map as MapIcon, Building2, Store, Tag, Loader2, ChevronRight, Crosshair } from "lucide-react";
+import { Plus, Search, MapPin, Map as MapIcon, Building2, Store, Tag, Loader2, ChevronRight, Crosshair, BarChart3 } from "lucide-react";
 
 type Concorrente = {
   id: string;
@@ -116,6 +116,9 @@ export default function InteligenciaComercialPage() {
             <Button variant="outline" onClick={localizarTodos} disabled={geoBusy} className="gap-2">
               {geoBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />} Localizar todos
             </Button>
+            <Link href="/marketing/inteligencia-comercial/relatorio-precos">
+              <Button variant="outline" className="gap-2"><BarChart3 className="h-4 w-4" /> Preço de Mercado</Button>
+            </Link>
             <Link href="/marketing/inteligencia-comercial/mapa">
               <Button variant="outline" className="gap-2"><MapIcon className="h-4 w-4" /> Mapa (geomarketing)</Button>
             </Link>
