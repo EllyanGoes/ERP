@@ -45,6 +45,8 @@ export const concorrentePrecoSchema = z.object({
   produtoNome: z.string().min(1, "Informe o produto"),
   preco: z.coerce.number().nonnegative("Preço inválido"),
   unidade: z.string().optional().nullable(),
+  condicaoPagamento: z.string().optional().nullable(),
+  modalidade: z.enum(["ENTREGA", "RETIRADA"]).optional().nullable().or(z.literal("")),
   dataColeta: z.string().optional().nullable(),
   observacao: z.string().optional().nullable(),
 });

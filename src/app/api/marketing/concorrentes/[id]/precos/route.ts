@@ -36,6 +36,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       produtoNome,
       preco: d.preco,
       unidade: d.unidade || null,
+      condicaoPagamento: d.condicaoPagamento?.trim() || null,
+      modalidade: d.modalidade || null,
       dataColeta: d.dataColeta ? new Date(d.dataColeta) : undefined,
       observacao: d.observacao || null,
     },

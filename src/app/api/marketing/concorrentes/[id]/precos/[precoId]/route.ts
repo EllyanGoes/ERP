@@ -34,6 +34,8 @@ export async function PUT(
       produtoNome,
       preco: d.preco,
       unidade: d.unidade || null,
+      condicaoPagamento: d.condicaoPagamento?.trim() || null,
+      modalidade: d.modalidade || null,
       dataColeta: d.dataColeta ? new Date(d.dataColeta) : undefined,
       observacao: d.observacao || null,
     },

@@ -2773,6 +2773,9 @@ model ConcorrentePreco {
 
   preco          Decimal  @db.Decimal(15, 2)
   unidade        String?
+  // Condições que fazem o preço variar — permitem mais de um preço por produto.
+  condicaoPagamento String?          // ex.: "À vista", "30 dias", "30/60/90"
+  modalidade        String?          // "ENTREGA" | "RETIRADA" | null (indiferente)
   dataColeta     DateTime @default(now())
   observacao     String?
   createdAt      DateTime @default(now())
