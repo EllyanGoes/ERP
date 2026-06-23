@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ColumnDef, type FilterFn } from "@tanstack/react-table";
 import DataTable from "@/components/shared/DataTable";
@@ -7,10 +7,11 @@ import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Edit } from "lucide-react";
-import { formatCPFCNPJ } from "@/lib/utils";
+import { formatCPFCNPJ, cn } from "@/lib/utils";
 
 type ClienteRow = {
   id: string;
+  tipoPessoa: string;
   razaoSocial: string;
   nomeFantasia: string | null;
   cpfCnpj: string | null;
@@ -30,18 +31,41 @@ const filtroCliente: FilterFn<ClienteRow> = (row, _col, value) => {
   return qDigits.length > 0 && (c.cpfCnpj ?? "").replace(/\D/g, "").includes(qDigits);
 };
 
+const TIPOS = [
+  { value: "", label: "Todos" },
+  { value: "JURIDICA", label: "Pessoa Jurídica (PJ)" },
+  { value: "FISICA", label: "Pessoa Física (PF)" },
+] as const;
+
 export default function ClientesTable({ clientes }: { clientes: ClienteRow[] }) {
   const router = useRouter();
+  const [tipo, setTipo] = useState<"" | "JURIDICA" | "FISICA">("");
+
+  const dados = useMemo(
+    () => (tipo ? clientes.filter((c) => c.tipoPessoa === tipo) : clientes),
+    [clientes, tipo],
+  );
+
   const columns = useMemo<ColumnDef<ClienteRow>[]>(() => [
     {
       accessorKey: "razaoSocial",
       header: "Razão Social",
       cell: ({ row }) => (
-        <div>
-          <p className="font-medium text-foreground">{row.original.razaoSocial}</p>
-          {row.original.nomeFantasia && (
-            <p className="text-xs text-muted-foreground">{row.original.nomeFantasia}</p>
-          )}
+        <div className="flex items-center gap-2">
+          <div>
+            <p className="font-medium text-foreground">{row.original.razaoSocial}</p>
+            {row.original.nomeFantasia && (
+              <p className="text-xs text-muted-foreground">{row.original.nomeFantasia}</p>
+            )}
+          </div>
+          <span className={cn(
+            "text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0",
+            row.original.tipoPessoa === "JURIDICA"
+              ? "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400"
+              : "bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400",
+          )}>
+            {row.original.tipoPessoa === "JURIDICA" ? "PJ" : "PF"}
+          </span>
         </div>
       ),
     },
@@ -77,12 +101,33 @@ export default function ClientesTable({ clientes }: { clientes: ClienteRow[] }) 
   ], []);
 
   return (
-    <DataTable
-      data={clientes}
-      columns={columns}
-      globalFilterFn={filtroCliente}
-      searchPlaceholder="Buscar por nome, CPF ou CNPJ..."
-      onRowClick={(row) => router.push(`/clientes/${row.id}`)}
-    />
+    <div className="space-y-3">
+      {/* Filtro PF / PJ */}
+      <div className="flex items-center gap-3">
+        <div className="flex gap-1 rounded-lg border border-border p-1">
+          {TIPOS.map((t) => (
+            <button
+              key={t.value}
+              onClick={() => setTipo(t.value)}
+              className={cn(
+                "px-3 py-1.5 text-sm rounded-md transition-colors",
+                tipo === t.value ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <span className="text-xs text-muted-foreground">{dados.length} cliente{dados.length !== 1 ? "s" : ""}</span>
+      </div>
+
+      <DataTable
+        data={dados}
+        columns={columns}
+        globalFilterFn={filtroCliente}
+        searchPlaceholder="Buscar por nome, CPF ou CNPJ..."
+        onRowClick={(row) => router.push(`/clientes/${row.id}`)}
+      />
+    </div>
   );
 }
