@@ -2713,6 +2713,10 @@ model Concorrente {
   nomeFantasia  String?
   cpfCnpj       String?
 
+  // Vínculo opcional: concorrente que também é um cliente cadastrado. Apenas
+  // referência (sem FK forte) para registrar a origem e exibir o selo cruzado.
+  clienteId     String?
+
   // Categoria — um concorrente pode atuar como fornecedor e/ou revendedor.
   ehFornecedor  Boolean  @default(false)
   ehRevendedor  Boolean  @default(false)
@@ -2754,6 +2758,7 @@ model Concorrente {
   @@index([empresaId])
   @@index([cidade])
   @@index([ativo])
+  @@index([clienteId])
 }
 
 model ConcorrentePreco {

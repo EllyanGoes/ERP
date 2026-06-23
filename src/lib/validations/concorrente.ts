@@ -5,6 +5,7 @@ export const concorrenteSchema = z.object({
   razaoSocial: z.string().min(2, "Nome / Razão Social é obrigatório"),
   nomeFantasia: z.string().optional().nullable(),
   cpfCnpj: z.string().max(18, "CPF/CNPJ inválido").optional().nullable(),
+  clienteId: z.string().optional().nullable(),
 
   ehFornecedor: z.boolean(),
   ehRevendedor: z.boolean(),

@@ -9,7 +9,7 @@ import ConcorrenteDadosView from "@/components/marketing/ConcorrenteDadosView";
 import ConcorrentePrecos, { type PrecoConcorrente } from "@/components/marketing/ConcorrentePrecos";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Loader2, MapPin, Crosshair, Trash2, Pencil, Building2, Store } from "lucide-react";
+import { Loader2, MapPin, Crosshair, Trash2, Pencil, Building2, Store, Users } from "lucide-react";
 
 // Leaflet depende de `window` — carrega só no cliente.
 const ConcorrenteLocalizacao = dynamic(() => import("@/components/marketing/ConcorrenteLocalizacao"), {
@@ -100,6 +100,11 @@ export default function ConcorrenteDetailPage() {
         ]}
         actions={
           <div className="flex items-center gap-2">
+            {data.clienteId && (
+              <a href={`/clientes/${data.clienteId}`} className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400 hover:underline">
+                <Users className="h-3 w-3" /> Também é cliente
+              </a>
+            )}
             {data.ehFornecedor && (
               <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"><Building2 className="h-3 w-3" /> Fornecedor</span>
             )}

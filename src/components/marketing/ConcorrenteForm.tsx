@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import ComboboxWithCreate, { type ComboboxOption } from "@/components/shared/ComboboxWithCreate";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Building2, Store } from "lucide-react";
+import { Building2, Store, UserPlus } from "lucide-react";
 
 type ConcorrenteData = { id: string } & ConcorrenteFormData;
 
@@ -61,6 +62,50 @@ export default function ConcorrenteForm({
   const [serverError, setServerError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  // Importar de cliente (só no cadastro novo): preenche os dados a partir de um
+  // cliente já cadastrado que também é concorrente.
+  const [clientes, setClientes] = useState<ComboboxOption[]>([]);
+  const [clienteSel, setClienteSel] = useState("");
+
+  useEffect(() => {
+    if (concorrente) return;
+    fetch("/api/clientes?limit=500")
+      .then((r) => r.json())
+      .then((j) => {
+        const lista: any[] = j.data ?? [];
+        setClientes(lista.map((c) => ({ value: c.id, label: c.nomeFantasia || c.razaoSocial, code: c.cpfCnpj || undefined })));
+      })
+      .catch(() => {});
+  }, [concorrente]);
+
+  async function importarCliente(clienteId: string) {
+    setClienteSel(clienteId);
+    if (!clienteId) {
+      form.setValue("clienteId", null, { shouldDirty: true });
+      return;
+    }
+    const res = await fetch(`/api/clientes/${clienteId}`);
+    if (!res.ok) return;
+    const { data: cli } = await res.json();
+    form.setValue("clienteId", clienteId, { shouldDirty: true });
+    if (cli.tipoPessoa === "FISICA" || cli.tipoPessoa === "JURIDICA") form.setValue("tipoPessoa", cli.tipoPessoa);
+    const set = (k: keyof ConcorrenteFormData, v: string | null) =>
+      form.setValue(k, (v ?? "") as any, { shouldDirty: true });
+    set("razaoSocial", cli.razaoSocial);
+    set("nomeFantasia", cli.nomeFantasia);
+    set("cpfCnpj", cli.cpfCnpj);
+    set("email", cli.email);
+    set("telefone", cli.telefone);
+    set("celular", cli.celular);
+    set("cep", cli.cep);
+    set("logradouro", cli.logradouro);
+    set("numero", cli.numero);
+    set("complemento", cli.complemento);
+    set("bairro", cli.bairro);
+    set("cidade", cli.cidade);
+    set("estado", cli.estado);
+  }
+
   const { confirmCreated, dialog } = useCreateFlow({
     entity: "concorrente",
     onNew: () => form.reset({ tipoPessoa: "JURIDICA", ehFornecedor: false, ehRevendedor: true, ativo: true }),
@@ -105,6 +150,27 @@ export default function ConcorrenteForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 gap-6">
+
+        {/* ── Importar de cliente (apenas no cadastro novo) ──────────────── */}
+        {!concorrente && (
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+            <SectionTitle>
+              <span className="inline-flex items-center gap-2"><UserPlus className="h-4 w-4" /> Importar de um cliente</span>
+            </SectionTitle>
+            <div className="p-5">
+              <p className="text-xs text-muted-foreground mb-2">
+                Esse concorrente também é seu cliente? Selecione para preencher os dados automaticamente (você ajusta a categoria abaixo).
+              </p>
+              <ComboboxWithCreate
+                options={clientes}
+                value={clienteSel}
+                onChange={importarCliente}
+                placeholder="Buscar cliente cadastrado..."
+                noneLabel="Não importar"
+              />
+            </div>
+          </div>
+        )}
 
         {/* ── Categoria ──────────────────────────────────────────────────── */}
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
