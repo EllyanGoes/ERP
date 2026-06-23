@@ -149,7 +149,12 @@ export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros,
           <div className="space-y-1.5">
             {insumos.map((ins, i) => (
               <div key={i} className="flex items-center gap-1.5">
-                <input className={inputCls + " flex-1"} value={ins.descricao ?? ""} onChange={(e) => setInsumo(i, { descricao: e.target.value })} placeholder="insumo" />
+                <div className="flex-1 min-w-0">
+                  <ItemSearch
+                    onSelect={(it) => setInsumo(i, { itemId: it.id, descricao: it.descricao })}
+                    placeholder={ins.descricao || "buscar insumo (argila, biomassa…)"}
+                  />
+                </div>
                 <input className={inputCls + " w-16"} inputMode="decimal" value={ins.consumoPorMilheiro == null ? "" : String(ins.consumoPorMilheiro)} onChange={(e) => setInsumo(i, { consumoPorMilheiro: num(e.target.value) })} placeholder="qtd" />
                 <button onClick={() => rmInsumo(i)} className="p-1 text-muted-foreground/60 hover:text-red-500" title="Remover"><X className="w-3.5 h-3.5" /></button>
               </div>
