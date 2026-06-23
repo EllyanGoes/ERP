@@ -54,6 +54,7 @@ const MODELOS_ESCOPADOS = new Set<string>([
   "ContaPagar", "ContaReceber", "ContaBancaria", "LancamentoFinanceiro", "Recorrencia", "ImportacaoOFX",
   "NaturezaFinanceira", "NaturezaSubgrupo", "ContaContabil", "LancamentoContabil", "PartidaContabil",
   "Imobilizado", "DepreciacaoLancamento", "FechamentoContabil", "DRESecao",
+  "Concorrente", "ConcorrentePreco",
   "Sequencia", "Filial",
 ])
 

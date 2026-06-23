@@ -72,6 +72,8 @@ import {
   FileCheck2,
   Monitor,
   Megaphone,
+  Target,
+  Map as MapIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -89,7 +91,7 @@ interface NavItem {
 }
 
 interface SubSection {
-  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações" | "Aprovações" | "Manutenção" | "Geral" | "Produção" | "Estrutura" | "Planejamento/Apontamento" | "Outros";
+  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações" | "Aprovações" | "Manutenção" | "Geral" | "Produção" | "Estrutura" | "Planejamento/Apontamento" | "Outros" | "Inteligência Comercial";
   items: NavItem[];
 }
 
@@ -149,6 +151,13 @@ const mainModules: Module[] = [
         kind: "Geral",
         items: [
           { href: "/marketing", label: "Painel de Marketing", icon: Megaphone },
+        ],
+      },
+      {
+        kind: "Inteligência Comercial" as SubSection["kind"],
+        items: [
+          { href: "/marketing/inteligencia-comercial",      label: "Concorrentes",  icon: Target },
+          { href: "/marketing/inteligencia-comercial/mapa", label: "Geomarketing",  icon: MapIcon },
         ],
       },
     ],
@@ -427,6 +436,7 @@ const kindStyle: Record<SubSection["kind"], string> = {
   "Estrutura":        "text-indigo-500 dark:text-indigo-400",
   "Planejamento/Apontamento":     "text-cyan-500 dark:text-cyan-400",
   "Outros":           "text-gray-400 dark:text-muted-foreground",
+  "Inteligência Comercial": "text-fuchsia-500 dark:text-fuchsia-400",
 };
 
 // ── Tooltip wrapper (portal-based) ────────────────────────────────────────────

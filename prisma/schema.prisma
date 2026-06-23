@@ -910,6 +910,8 @@ model Empresa {
   contasContabeis           ContaContabil[]
   lancamentosContabeis      LancamentoContabil[]
   partidasContabeis         PartidaContabil[]
+  concorrentes              Concorrente[]
+  concorrentePrecos         ConcorrentePreco[]
 }
 
 model EnderecoEstoque {
@@ -1108,6 +1110,7 @@ model Item {
   planosMestre           PlanoMestre[]
   metasProducaoDiaria    MetaProducaoDiaria[]
   custosEmpresa          ItemCustoEmpresa[]
+  concorrentePrecos      ConcorrentePreco[]
 
   @@index([codigo])
   @@index([tipo])
@@ -2689,4 +2692,84 @@ enum PrioridadeTicket {
   MEDIA
   ALTA
   CRITICA
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Inteligência Comercial (IC) — Marketing
+//
+// Cadastro de concorrentes de mercado: categoria (fornecedor e/ou revendedor),
+// endereço, geolocalização (geomarketing) e mapeamento dos preços praticados
+// por produto. Preços referenciam o nosso catálogo (Item) quando possível, com
+// fallback de produto avulso por texto livre.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Concorrente {
+  id            String   @id @default(cuid())
+  empresaId     String   @default("emp_tramontin")
+  tipoPessoa    TipoPessoa @default(JURIDICA)
+  razaoSocial   String
+  nomeFantasia  String?
+  cpfCnpj       String?
+
+  // Categoria — um concorrente pode atuar como fornecedor e/ou revendedor.
+  ehFornecedor  Boolean  @default(false)
+  ehRevendedor  Boolean  @default(false)
+
+  // Contato
+  email         String?
+  telefone      String?
+  celular       String?
+  site          String?
+
+  // Endereço (mesma decomposição de Cliente/Fornecedor)
+  cep           String?
+  logradouro    String?
+  numero        String?
+  complemento   String?
+  bairro        String?
+  cidade        String?
+  estado        String?
+
+  // Geolocalização (geomarketing). Preenchida por geocodificação (Nominatim/OSM)
+  // ou ajuste manual. Float p/ chegar ao front como número puro.
+  latitude      Float?
+  longitude     Float?
+
+  observacoes   String?
+  ativo         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  empresa       Empresa  @relation(fields: [empresaId], references: [id])
+  precos        ConcorrentePreco[]
+
+  @@index([empresaId])
+  @@index([cidade])
+  @@index([ativo])
+}
+
+model ConcorrentePreco {
+  id             String   @id @default(cuid())
+  empresaId      String   @default("emp_tramontin")
+  concorrenteId  String
+
+  // Vínculo opcional com o nosso catálogo. Quando nulo, é produto avulso
+  // identificado apenas por produtoNome.
+  itemId         String?
+  produtoNome    String
+
+  preco          Decimal  @db.Decimal(15, 2)
+  unidade        String?
+  dataColeta     DateTime @default(now())
+  observacao     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  empresa        Empresa     @relation(fields: [empresaId], references: [id])
+  concorrente    Concorrente @relation(fields: [concorrenteId], references: [id], onDelete: Cascade)
+  item           Item?       @relation(fields: [itemId], references: [id])
+
+  @@index([empresaId])
+  @@index([concorrenteId])
+  @@index([itemId])
 }

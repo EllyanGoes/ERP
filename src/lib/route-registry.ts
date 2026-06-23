@@ -23,7 +23,7 @@ import {
   Building2, Clock,
   Wrench, Database, MessageCircle, Workflow, Boxes, FlaskConical, ListChecks, Calculator, BookOpen, Factory,
   Landmark, Wallet, FolderTree, Repeat, CalendarClock, FileCheck2,
-  Megaphone,
+  Megaphone, Target, Map as MapIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -54,6 +54,7 @@ export const SECTION_COLORS: Record<string, IconColor> = {
   "Cadastros":          { bg: "bg-violet-50 dark:bg-violet-500/15", text: "text-violet-600 dark:text-violet-400",   selBg: "bg-violet-100 dark:bg-violet-500/25",   selText: "text-violet-700 dark:text-violet-300"  },
   "Relatórios Compras": { bg: "bg-rose-50 dark:bg-rose-500/15",     text: "text-rose-600 dark:text-rose-400",       selBg: "bg-rose-100 dark:bg-rose-500/25",       selText: "text-rose-700 dark:text-rose-300"    },
   "Produção":           { bg: "bg-cyan-50 dark:bg-cyan-500/15",     text: "text-cyan-600 dark:text-cyan-400",       selBg: "bg-cyan-100 dark:bg-cyan-500/25",       selText: "text-cyan-700 dark:text-cyan-300"     },
+  "Inteligência Comercial": { bg: "bg-fuchsia-50 dark:bg-fuchsia-500/15", text: "text-fuchsia-600 dark:text-fuchsia-400", selBg: "bg-fuchsia-100 dark:bg-fuchsia-500/25", selText: "text-fuchsia-700 dark:text-fuchsia-300" },
 };
 
 export const DEFAULT_COLOR: IconColor = {
@@ -89,6 +90,8 @@ export const ROUTES: RouteEntry[] = [
   { href: "/empresa/centros-custo",                label: "Centros de Custo",        group: "Empresa",        section: "Financeiro",       icon: CircleDot },
 
   { href: "/marketing",                            label: "Painel de Marketing",     group: "Marketing",        section: "Geral",            icon: Megaphone,      keywords: "marketing campanha campanhas lead leads divulgação publicidade" },
+  { href: "/marketing/inteligencia-comercial",      label: "Concorrentes",            group: "Marketing",        section: "Inteligência Comercial", icon: Target,  keywords: "inteligencia comercial ic concorrente concorrentes mercado preço precos fornecedor revendedor" },
+  { href: "/marketing/inteligencia-comercial/mapa", label: "Geomarketing",            group: "Marketing",        section: "Inteligência Comercial", icon: MapIcon, keywords: "geomarketing mapa concorrentes localização leaflet ic inteligencia comercial" },
 
   { href: "/comercial/tabelas-preco",              label: "Tabelas de Preço",        group: "Faturamento",      section: "Cadastros",        icon: Tag,            keywords: "tabela preço lista precos" },
   { href: "/comercial/produtos-venda",             label: "Produtos para Venda",     group: "Faturamento",      section: "Cadastros",        icon: Package,        keywords: "produto vendável catálogo" },

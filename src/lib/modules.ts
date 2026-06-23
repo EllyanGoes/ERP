@@ -49,7 +49,9 @@ export const MODULOS: ModuloDef[] = [
     label: "Marketing",
     group: "Marketing",
     recursos: [
-      { key: "painel", label: "Painel de Marketing", acoes: ["ver"] },
+      { key: "painel",       label: "Painel de Marketing",        acoes: ["ver"] },
+      { key: "concorrentes", label: "Concorrentes (IC)",          acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "geomarketing", label: "Geomarketing",               acoes: ["ver"] },
     ],
   },
   {

@@ -1,0 +1,323 @@
+"use client";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter, useSearchParams } from "next/navigation";
+import { concorrenteSchema, type ConcorrenteFormData } from "@/lib/validations/concorrente";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { useCreateFlow } from "@/components/shared/useCreateFlow";
+import { useTabTitle } from "@/lib/tabs-context";
+import { cn } from "@/lib/utils";
+import { Building2, Store } from "lucide-react";
+
+type ConcorrenteData = { id: string } & ConcorrenteFormData;
+
+const UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-5 py-3 border-b border-border bg-muted">
+      <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">{children}</h2>
+    </div>
+  );
+}
+
+const labelCls = "text-xs font-semibold text-foreground uppercase tracking-wide";
+
+export default function ConcorrenteForm({ concorrente }: { concorrente?: ConcorrenteData }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  useTabTitle(concorrente ? (concorrente.nomeFantasia || concorrente.razaoSocial) : null);
+  const initialNome = !concorrente ? (searchParams.get("nome") ?? "") : "";
+
+  const form = useForm<ConcorrenteFormData>({
+    resolver: zodResolver(concorrenteSchema),
+    defaultValues: concorrente ?? {
+      tipoPessoa: "JURIDICA",
+      ehFornecedor: false,
+      ehRevendedor: true,
+      ativo: true,
+      ...(initialNome ? { razaoSocial: initialNome, nomeFantasia: initialNome } : {}),
+    },
+  });
+
+  const tipoPessoa = form.watch("tipoPessoa");
+  const ehFornecedor = form.watch("ehFornecedor");
+  const ehRevendedor = form.watch("ehRevendedor");
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const { confirmCreated, dialog } = useCreateFlow({
+    entity: "concorrente",
+    onNew: () => form.reset({ tipoPessoa: "JURIDICA", ehFornecedor: false, ehRevendedor: true, ativo: true }),
+    viewHref: (id) => `/marketing/inteligencia-comercial/${id}`,
+  });
+
+  async function onSubmit(data: ConcorrenteFormData) {
+    setServerError(null);
+    setSaved(false);
+    const url = concorrente ? `/api/marketing/concorrentes/${concorrente.id}` : "/api/marketing/concorrentes";
+    const method = concorrente ? "PUT" : "POST";
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (concorrente) {
+          setSaved(true);
+          router.refresh();
+        } else {
+          confirmCreated(json.data.id);
+        }
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setServerError(json.error ?? "Erro ao salvar concorrente. Tente novamente.");
+      }
+    } catch {
+      setServerError("Erro de conexão. Tente novamente.");
+    }
+  }
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 gap-6">
+
+        {/* ── Categoria ──────────────────────────────────────────────────── */}
+        <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+          <SectionTitle>Categoria do Concorrente</SectionTitle>
+          <div className="p-5">
+            <p className="text-xs text-muted-foreground mb-3">Marque como o concorrente atua. Pode ser ambos.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => form.setValue("ehFornecedor", !ehFornecedor, { shouldDirty: true })}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg border p-3 text-left transition-colors",
+                  ehFornecedor ? "border-amber-400 bg-amber-50 dark:bg-amber-500/15" : "border-border hover:bg-muted",
+                )}
+              >
+                <span className={cn("flex h-9 w-9 items-center justify-center rounded-md", ehFornecedor ? "bg-amber-100 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400" : "bg-muted text-muted-foreground")}>
+                  <Building2 className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Fornecedor</p>
+                  <p className="text-xs text-muted-foreground">Fornece insumos/produtos ao mercado</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => form.setValue("ehRevendedor", !ehRevendedor, { shouldDirty: true })}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg border p-3 text-left transition-colors",
+                  ehRevendedor ? "border-blue-400 bg-blue-50 dark:bg-blue-500/15" : "border-border hover:bg-muted",
+                )}
+              >
+                <span className={cn("flex h-9 w-9 items-center justify-center rounded-md", ehRevendedor ? "bg-blue-100 text-blue-600 dark:bg-blue-500/25 dark:text-blue-400" : "bg-muted text-muted-foreground")}>
+                  <Store className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Revendedor</p>
+                  <p className="text-xs text-muted-foreground">Revende produtos ao consumidor</p>
+                </div>
+              </button>
+            </div>
+            {form.formState.errors.ehFornecedor && (
+              <p className="text-xs text-danger mt-2">{form.formState.errors.ehFornecedor.message as string}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-6 items-stretch">
+          {/* ── Dados cadastrais ─────────────────────────────────────────── */}
+          <div className="col-span-2 bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+            <SectionTitle>Dados Cadastrais</SectionTitle>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="tipoPessoa" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={labelCls}>Tipo de Pessoa</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl><SelectTrigger className="h-10 border-border"><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="JURIDICA">Pessoa Jurídica</SelectItem>
+                        <SelectItem value="FISICA">Pessoa Física</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="cpfCnpj" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={labelCls}>{tipoPessoa === "FISICA" ? "CPF" : "CNPJ"}</FormLabel>
+                    <FormControl><Input {...field} value={field.value ?? ""} className="h-10 border-border" placeholder={tipoPessoa === "FISICA" ? "000.000.000-00" : "00.000.000/0001-00"} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+
+              <FormField control={form.control} name="razaoSocial" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={labelCls}>{tipoPessoa === "FISICA" ? "Nome Completo" : "Razão Social"} *</FormLabel>
+                  <FormControl><Input {...field} className="h-10 border-border" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="nomeFantasia" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={labelCls}>{tipoPessoa === "FISICA" ? "Apelido" : "Nome Fantasia"}</FormLabel>
+                  <FormControl><Input {...field} value={field.value ?? ""} className="h-10 border-border" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="email" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={labelCls}>E-mail</FormLabel>
+                    <FormControl><Input type="email" {...field} value={field.value ?? ""} className="h-10 border-border" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="site" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={labelCls}>Site</FormLabel>
+                    <FormControl><Input {...field} value={field.value ?? ""} className="h-10 border-border" placeholder="https://" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="telefone" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={labelCls}>Telefone</FormLabel>
+                    <FormControl><Input {...field} value={field.value ?? ""} className="h-10 border-border" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="celular" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={labelCls}>Celular</FormLabel>
+                    <FormControl><Input {...field} value={field.value ?? ""} className="h-10 border-border" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Endereço ─────────────────────────────────────────────────── */}
+          <div className="col-span-1 flex flex-col gap-6">
+            <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+              <SectionTitle>Endereço</SectionTitle>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-5 gap-3">
+                  <FormField control={form.control} name="cep" render={({ field }) => (
+                    <FormItem className="col-span-2">
+                      <FormLabel className={labelCls}>CEP</FormLabel>
+                      <FormControl><Input {...field} value={field.value ?? ""} placeholder="00000-000" className="h-10 border-border" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="logradouro" render={({ field }) => (
+                    <FormItem className="col-span-3">
+                      <FormLabel className={labelCls}>Logradouro</FormLabel>
+                      <FormControl><Input {...field} value={field.value ?? ""} className="h-10 border-border" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField control={form.control} name="numero" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className={labelCls}>Número</FormLabel>
+                      <FormControl><Input {...field} value={field.value ?? ""} className="h-10 border-border" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="complemento" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className={labelCls}>Complemento</FormLabel>
+                      <FormControl><Input {...field} value={field.value ?? ""} className="h-10 border-border" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+                <FormField control={form.control} name="bairro" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={labelCls}>Bairro</FormLabel>
+                    <FormControl><Input {...field} value={field.value ?? ""} className="h-10 border-border" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <div className="grid grid-cols-3 gap-3">
+                  <FormField control={form.control} name="cidade" render={({ field }) => (
+                    <FormItem className="col-span-2">
+                      <FormLabel className={labelCls}>Cidade</FormLabel>
+                      <FormControl><Input {...field} value={field.value ?? ""} className="h-10 border-border" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="estado" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className={labelCls}>UF</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value ?? ""}>
+                        <FormControl><SelectTrigger className="h-10 border-border"><SelectValue placeholder="UF" /></SelectTrigger></FormControl>
+                        <SelectContent>{UFS.map((uf) => <SelectItem key={uf} value={uf}>{uf}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  A localização no mapa é calculada automaticamente pelo endereço (cidade/CEP) ao salvar.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden flex flex-col flex-1">
+              <SectionTitle>Observações</SectionTitle>
+              <div className="p-5 flex-1 flex flex-col">
+                <FormField control={form.control} name="observacoes" render={({ field }) => (
+                  <FormItem className="flex-1 flex flex-col">
+                    <FormControl className="flex-1">
+                      <Textarea {...field} value={field.value ?? ""} placeholder="Observações sobre o concorrente..." className="resize-none border-border h-full min-h-[80px]" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {serverError && (
+          <div className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{serverError}</div>
+        )}
+        {saved && (
+          <div className="rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-500/15 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">Alterações salvas.</div>
+        )}
+
+        <div className="flex gap-3 pt-1">
+          <Button type="submit" disabled={form.formState.isSubmitting} className="font-semibold">
+            {form.formState.isSubmitting ? "Salvando..." : concorrente ? "Salvar Alterações" : "Cadastrar Concorrente"}
+          </Button>
+          {!concorrente && (
+            <Button type="button" variant="outline" onClick={() => router.back()} className="border-border text-muted-foreground">
+              Cancelar
+            </Button>
+          )}
+        </div>
+      </form>
+      {dialog}
+    </Form>
+  );
+}
