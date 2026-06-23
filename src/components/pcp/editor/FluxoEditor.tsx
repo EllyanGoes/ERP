@@ -13,6 +13,7 @@ import {
   useReactFlow,
   MarkerType,
   ConnectionLineType,
+  ConnectionMode,
   type Node,
   type Edge,
   type Connection,
@@ -316,6 +317,7 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
             edgeTypes={edgeTypes}
             defaultEdgeOptions={{ type: "flow", markerEnd: { type: MarkerType.ArrowClosed, color: "#94a3b8", width: 18, height: 18 } }}
             connectionLineType={ConnectionLineType.SmoothStep}
+            connectionMode={ConnectionMode.Loose}
             connectionRadius={36}
             fitView
             proOptions={{ hideAttribution: true }}

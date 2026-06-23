@@ -95,11 +95,14 @@ export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros,
   function addInsumo() { onChange({ insumos: [...insumos, { itemId: "", descricao: "", consumoPorMilheiro: null }] }); }
   function rmInsumo(i: number) { onChange({ insumos: insumos.filter((_, idx) => idx !== i) }); }
 
-  // Itens que entram nesta etapa (produtos/insumos dos nós a montante).
-  const entradaItemIds = new Set<string>(entradas.flatMap((n) => nodeItens(n.data).map((i) => i.itemId)));
-  // Produtos possíveis = têm engenharia no fluxo E todos os insumos da BOM estão entre as entradas.
+  // Itens reais que entram nesta etapa (produtos/insumos dos nós a montante).
+  const entradaItemIds = new Set<string>(entradas.flatMap((n) => nodeItens(n.data).map((i) => i.itemId)).filter(Boolean));
+  // Só dá para filtrar pela BOM se as entradas têm itens reais vinculados.
+  const podeFiltrarPorEntradas = entradaItemIds.size > 0;
+  // Produto aparece se (entradas sem item vinculado → mostra todos) OU todos os insumos da
+  // engenharia dele estão entre as entradas (BOM vazia passa por vacuidade).
   const produtosPossiveisVisiveis = engProdutos.filter(
-    (p) => p.insumoItemIds.length > 0 && p.insumoItemIds.every((id) => entradaItemIds.has(id)),
+    (p) => !podeFiltrarPorEntradas || p.insumoItemIds.every((id) => entradaItemIds.has(id)),
   );
   // Estado WIP de saída (do buffer a jusante), p/ a tag informativa.
   const estadoSaidaCodigo = (saidas.find((n) => n.data.kind === "BUFFER_WIP")?.data.estadoWip as string | undefined) ?? null;
@@ -195,7 +198,7 @@ export default function NodeModal({ data, graph, nodeId, kind, fluxoId, centros,
               }}
             />
             {produtosPossiveisVisiveis.length === 0 ? (
-              <p className="text-[11px] text-muted-foreground">{entradaItemIds.size === 0 ? "Conecte as entradas para ver os produtos possíveis." : "Nenhum produto fazível com as entradas atuais (a BOM da engenharia deve usar só os itens que entram nesta etapa)."}</p>
+              <p className="text-[11px] text-muted-foreground">{engProdutos.length === 0 ? "Nenhum produto com engenharia neste fluxo. Use “+ novo” ou cadastre na Engenharia do Produto." : "Nenhum produto fazível com as entradas. Vincule os itens reais nos nós de entrada e cadastre a BOM (Engenharia do Produto)."}</p>
             ) : (
               <div className="space-y-1">
                 {produtosPossiveisVisiveis.map((p) => {
