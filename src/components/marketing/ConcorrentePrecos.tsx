@@ -53,11 +53,19 @@ export default function ConcorrentePrecos({
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/itens?limit=500")
+    // Só produtos acabados e mercadorias para revenda, agrupados no combobox.
+    fetch("/api/itens?limit=500&categoria=PRODUTO_ACABADO,MERCADORIA")
       .then((r) => r.json())
       .then((j) => {
         const lista: any[] = j.data ?? j ?? [];
-        setItens(lista.map((it) => ({ value: it.id, label: it.descricao, code: it.codigo })));
+        setItens(
+          lista.map((it) => ({
+            value: it.id,
+            label: it.descricao,
+            code: it.codigo,
+            group: it.categoriaEstoque === "MERCADORIA" ? "Mercadorias para Revenda" : "Produtos Acabados",
+          })),
+        );
         const m: Record<string, number> = {};
         for (const it of lista) {
           const pv = toNum(it.precoVenda);

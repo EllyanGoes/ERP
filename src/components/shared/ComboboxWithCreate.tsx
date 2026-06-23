@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 export interface ComboboxOption {
   value: string;
   label: string;
+  /** Optional: agrupa as opções sob um cabeçalho (ex.: "Produtos Acabados"). */
+  group?: string;
   /** Optional: bold code prefix displayed separately (e.g. "PROD-0001") */
   code?: string;
   /** Optional: stock balance shown in blue */
@@ -306,6 +308,24 @@ export default function ComboboxWithCreate({
                 );
               };
 
+              // Agrupa as disponíveis por `group` (na ordem de 1ª aparição) quando houver.
+              const renderAvailable = () => {
+                if (!availableOpts.some((o) => o.group)) return availableOpts.map(renderOpt);
+                const ordem: string[] = [];
+                const porGrupo = new Map<string, ComboboxOption[]>();
+                for (const o of availableOpts) {
+                  const g = o.group ?? "Outros";
+                  if (!porGrupo.has(g)) { porGrupo.set(g, []); ordem.push(g); }
+                  porGrupo.get(g)!.push(o);
+                }
+                return ordem.map((g) => (
+                  <div key={g}>
+                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">{g}</div>
+                    {porGrupo.get(g)!.map(renderOpt)}
+                  </div>
+                ));
+              };
+
               return (
                 <>
                   {disabledOpts.map(renderOpt)}
@@ -316,7 +336,7 @@ export default function ComboboxWithCreate({
                       <div className="flex-1 h-px bg-muted" />
                     </div>
                   )}
-                  {availableOpts.map(renderOpt)}
+                  {renderAvailable()}
                 </>
               );
             })()}
