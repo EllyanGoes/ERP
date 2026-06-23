@@ -56,7 +56,7 @@ function NodeCard({ kind, data, selected }: { kind: NodeKind; data: FlowNodeData
         data.isBottleneck && "!border-red-500 ring-2 ring-red-300",
       )}
     >
-      {hasTarget && <Handle type="target" position={Position.Left} className="!w-3 !h-3 !bg-gray-400 !border-2 !border-white hover:!bg-cyan-500 transition-colors" />}
+      {hasTarget && <Handle type="target" id="left" position={Position.Left} className="!w-3 !h-3 !bg-gray-400 !border-2 !border-white hover:!bg-cyan-500 transition-colors" />}
       {/* Entradas extras (topo/base) — a saída fica só na lateral direita (fluxo natural). */}
       {hasTarget && <Handle type="target" id="top" position={Position.Top} className="!w-3 !h-3 !bg-gray-400 !border-2 !border-white hover:!bg-cyan-500 transition-colors" />}
       {hasTarget && <Handle type="target" id="bottom" position={Position.Bottom} className="!w-3 !h-3 !bg-gray-400 !border-2 !border-white hover:!bg-cyan-500 transition-colors" />}
@@ -82,7 +82,7 @@ function NodeCard({ kind, data, selected }: { kind: NodeKind; data: FlowNodeData
           {data.isBottleneck && <span className="text-[10px] font-semibold text-danger">⚠ gargalo</span>}
         </div>
       )}
-      {hasSource && <Handle type="source" position={Position.Right} className="!w-3 !h-3 !bg-gray-400 !border-2 !border-white hover:!bg-cyan-500 transition-colors" />}
+      {hasSource && <Handle type="source" id="right" position={Position.Right} className="!w-3 !h-3 !bg-gray-400 !border-2 !border-white hover:!bg-cyan-500 transition-colors" />}
     </div>
   );
 }

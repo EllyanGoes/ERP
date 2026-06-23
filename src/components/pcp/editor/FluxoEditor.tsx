@@ -58,7 +58,7 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
     (initial.nodes ?? []).map((n) => ({ id: n.id, type: n.type, position: n.position, data: n.data })) as Node[],
   );
   const [edges, setEdges, onEdgesChange] = useEdgesState(
-    (initial.edges ?? []).map((e) => ({ id: e.id, source: e.source, target: e.target, type: "flow" })) as Edge[],
+    (initial.edges ?? []).map((e) => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? "right", targetHandle: e.targetHandle ?? "left", type: "flow" })) as Edge[],
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [centros, setCentros] = useState<CentroOpt[]>([]);
@@ -132,7 +132,7 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
   // Snapshot do grafo p/ detectar alterações não salvas (dirty).
   const currentSnapshot = useMemo(() => JSON.stringify({
     nodes: nodes.map((n) => ({ id: n.id, type: n.type, position: n.position, data: cleanData(n.data as FlowNodeData) })),
-    edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+    edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? null, targetHandle: e.targetHandle ?? null })),
   }), [nodes, edges]);
   useEffect(() => { if (savedSnapshot === null) setSavedSnapshot(currentSnapshot); }, [currentSnapshot, savedSnapshot]);
   const dirty = savedSnapshot !== null && currentSnapshot !== savedSnapshot;
@@ -172,7 +172,7 @@ function EditorInner({ fluxo }: { fluxo: FluxoEditorData }) {
     try {
       const grafo = {
         nodes: nodes.map((n) => ({ id: n.id, type: n.type, position: n.position, data: cleanData(n.data as FlowNodeData) })),
-        edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+        edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? null, targetHandle: e.targetHandle ?? null })),
       };
       const r = await fetch(`/api/pcp/fluxos/${fluxo.id}/versoes`, {
         method: "POST",

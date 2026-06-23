@@ -79,6 +79,9 @@ export interface FlowEdge {
   id: string;
   source: string;
   target: string;
+  // handles de origem/destino (lado do quadrado). Default: saída pela direita, entrada pela esquerda.
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
 }
 
 export interface FlowGraph {
