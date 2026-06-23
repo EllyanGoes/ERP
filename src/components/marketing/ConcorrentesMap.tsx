@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip } from "react-leaflet";
-import { Building2, Store, Loader2 } from "lucide-react";
+import { Building2, Store, Handshake, Loader2 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
 type Ponto = {
@@ -12,6 +12,7 @@ type Ponto = {
   nomeFantasia: string | null;
   ehFornecedor: boolean;
   ehRevendedor: boolean;
+  clienteId: string | null;
   cidade: string | null;
   estado: string | null;
   latitude: number;
@@ -19,10 +20,17 @@ type Ponto = {
   _count: { precos: number };
 };
 
-// Cor por categoria: fornecedor=âmbar, revendedor=azul, ambos=violeta.
+// Parceiro = está na nossa base de clientes (clienteId vinculado).
+function ehParceiro(p: Ponto): boolean {
+  return !!p.clienteId;
+}
+
+// Cor por categoria: fornecedor=âmbar, ambos=violeta, revendedor parceiro=verde,
+// revendedor (não parceiro)=azul.
 function corDe(p: Ponto): string {
   if (p.ehFornecedor && p.ehRevendedor) return "#8b5cf6";
   if (p.ehFornecedor) return "#f59e0b";
+  if (p.ehRevendedor && ehParceiro(p)) return "#10b981";
   return "#3b82f6";
 }
 
@@ -70,10 +78,11 @@ export default function ConcorrentesMap() {
               <div className="space-y-1">
                 <p className="font-semibold text-sm">{p.nomeFantasia || p.razaoSocial}</p>
                 <p className="text-xs text-gray-600">{[p.cidade, p.estado].filter(Boolean).join("/") || "—"}</p>
-                <div className="flex gap-1 text-[11px]">
+                <div className="flex flex-wrap gap-1 text-[11px]">
                   {p.ehFornecedor && <span className="inline-flex items-center gap-0.5 text-amber-700">Fornecedor</span>}
                   {p.ehFornecedor && p.ehRevendedor && <span>·</span>}
                   {p.ehRevendedor && <span className="inline-flex items-center gap-0.5 text-blue-700">Revendedor</span>}
+                  {ehParceiro(p) && <span className="inline-flex items-center gap-0.5 text-emerald-700">· Parceiro</span>}
                 </div>
                 <p className="text-xs text-gray-600">{p._count.precos} preço(s) mapeado(s)</p>
                 <Link href={`/marketing/inteligencia-comercial/${p.id}`} className="text-xs text-blue-600 font-medium">Abrir cadastro →</Link>
@@ -88,6 +97,7 @@ export default function ConcorrentesMap() {
         <p className="font-semibold text-foreground mb-1">Legenda</p>
         <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: "#f59e0b" }} /> <Building2 className="h-3 w-3" /> Fornecedor</div>
         <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: "#3b82f6" }} /> <Store className="h-3 w-3" /> Revendedor</div>
+        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: "#10b981" }} /> <Handshake className="h-3 w-3" /> Revendedor parceiro</div>
         <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: "#8b5cf6" }} /> Ambos</div>
       </div>
 

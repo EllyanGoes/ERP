@@ -17,6 +17,7 @@ export async function GET(_: NextRequest) {
       nomeFantasia: true,
       ehFornecedor: true,
       ehRevendedor: true,
+      clienteId: true,
       cidade: true,
       estado: true,
       latitude: true,
