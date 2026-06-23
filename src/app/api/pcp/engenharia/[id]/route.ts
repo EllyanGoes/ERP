@@ -20,7 +20,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       fluxo: { select: { id: true, nome: true } },
       insumos: {
         orderBy: { createdAt: "asc" },
-        include: { insumoItem: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, categoriaEstoque: true, unidade: { select: { sigla: true } } } } },
+        include: { insumoItem: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, categoriaEstoque: true, unidadeId: true, unidade: { select: { id: true, sigla: true } }, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true, unidade: { select: { id: true, sigla: true } } } } } } },
       },
     },
   });
@@ -48,9 +48,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           const r = raw as Record<string, unknown>;
           const insumoItemId = typeof r.insumoItemId === "string" ? r.insumoItemId : "";
           const quantidade = Number(r.quantidade);
-          const base = (BASES as string[]).includes(String(r.base)) ? (r.base as BaseConsumo) : "POR_MILHEIRO";
+          const base = (BASES as string[]).includes(String(r.base)) ? (r.base as BaseConsumo) : "POR_UNIDADE";
           const categoria = (CATEGORIAS as string[]).includes(String(r.categoria)) ? (r.categoria as CategoriaInsumo) : "MATERIA_PRIMA";
-          return { insumoItemId, quantidade, base, categoria, observacao: typeof r.observacao === "string" ? r.observacao.trim() || null : null };
+          const unidadeId = typeof r.unidadeId === "string" && r.unidadeId ? r.unidadeId : null;
+          return { insumoItemId, quantidade, base, categoria, unidadeId, observacao: typeof r.observacao === "string" ? r.observacao.trim() || null : null };
         })
         .filter((x) => x.insumoItemId && Number.isFinite(x.quantidade) && x.quantidade >= 0)
     : [];

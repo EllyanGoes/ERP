@@ -7,7 +7,26 @@ import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { ArrowLeft, RefreshCw, Save, Trash2, AlertTriangle, Check } from "lucide-react";
 
-interface ItemLite { id: string; codigo: string; descricao: string; unidadeSigla: string; categoriaEstoque: string | null; }
+type UnitOpt = { id: string; sigla: string };
+interface RawItem {
+  id: string; codigo: string; descricao: string;
+  unidadeMedida?: string; categoriaEstoque?: string | null;
+  unidade?: { id?: string; sigla: string } | null;
+  itemUnidades?: { unidadeId: string; isPrincipal: boolean; unidade: { id: string; sigla: string } }[];
+}
+// Unidades disponíveis de um item (principal + alternativas) e a principal (default).
+function unitsOf(it: RawItem): { units: UnitOpt[]; principalId: string | null } {
+  const ius = it.itemUnidades ?? [];
+  if (ius.length) {
+    const units = ius.map((iu) => ({ id: iu.unidade.id, sigla: iu.unidade.sigla }));
+    const principal = ius.find((iu) => iu.isPrincipal) ?? ius[0];
+    return { units, principalId: principal.unidade.id };
+  }
+  if (it.unidade?.id) return { units: [{ id: it.unidade.id, sigla: it.unidade.sigla }], principalId: it.unidade.id };
+  return { units: [], principalId: null };
+}
+
+interface ItemLite { id: string; codigo: string; descricao: string; categoriaEstoque: string | null; units: UnitOpt[]; principalId: string | null; }
 
 interface Linha {
   insumoItemId: string;
@@ -16,14 +35,16 @@ interface Linha {
   quantidade: string;
   base: string;
   categoria: string;
-  unidadeSigla: string;
+  unidadeId: string | null;
+  units: UnitOpt[];
+  baseSigla: string;
 }
 interface Eng {
   id: string;
   item: { codigo: string; descricao: string } | null;
   fluxo: { id: string; nome: string } | null;
   ativo: boolean;
-  insumos: { insumoItemId: string; quantidade: string | number; base: string; categoria: string; insumoItem: { codigo: string; descricao: string; unidadeMedida: string; categoriaEstoque: string | null; unidade: { sigla: string } | null } }[];
+  insumos: { insumoItemId: string; quantidade: string | number; base: string; categoria: string; unidadeId: string | null; insumoItem: RawItem }[];
 }
 interface FluxoOpt { id: string; nome: string; }
 
@@ -65,11 +86,10 @@ export default function EngenhariaDetalhePage() {
   useEffect(() => {
     fetch("/api/itens?limit=1000")
       .then((r) => r.json())
-      .then((j) => setItens((j.data ?? []).map((it: { id: string; codigo: string; descricao: string; unidadeMedida?: string; categoriaEstoque?: string | null; unidade?: { sigla: string } | null }) => ({
-        id: it.id, codigo: it.codigo, descricao: it.descricao,
-        unidadeSigla: it.unidade?.sigla ?? it.unidadeMedida ?? "un",
-        categoriaEstoque: it.categoriaEstoque ?? null,
-      }))))
+      .then((j) => setItens((j.data ?? []).map((it: RawItem) => {
+        const { units, principalId } = unitsOf(it);
+        return { id: it.id, codigo: it.codigo, descricao: it.descricao, categoriaEstoque: it.categoriaEstoque ?? null, units, principalId };
+      })))
       .catch(() => {});
   }, []);
 
@@ -83,15 +103,20 @@ export default function EngenhariaDetalhePage() {
       setFluxoId(e.fluxo?.id ?? "");
       setFluxos(jf.data ?? []);
       setLinhas(
-        e.insumos.map((i) => ({
-          insumoItemId: i.insumoItemId,
-          codigo: i.insumoItem.codigo,
-          descricao: i.insumoItem.descricao,
-          quantidade: String(i.quantidade),
-          base: i.base,
-          categoria: i.categoria,
-          unidadeSigla: i.insumoItem.unidade?.sigla ?? i.insumoItem.unidadeMedida ?? "un",
-        })),
+        e.insumos.map((i) => {
+          const { units, principalId } = unitsOf(i.insumoItem);
+          return {
+            insumoItemId: i.insumoItemId,
+            codigo: i.insumoItem.codigo,
+            descricao: i.insumoItem.descricao,
+            quantidade: String(i.quantidade),
+            base: i.base,
+            categoria: i.categoria,
+            unidadeId: i.unidadeId ?? principalId,
+            units,
+            baseSigla: i.insumoItem.unidade?.sigla ?? i.insumoItem.unidadeMedida ?? "un",
+          };
+        }),
       );
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Erro ao carregar");
@@ -102,7 +127,7 @@ export default function EngenhariaDetalhePage() {
 
   function addInsumo(it: ItemLite) {
     if (linhas.some((l) => l.insumoItemId === it.id)) return;
-    setLinhas((prev) => [...prev, { insumoItemId: it.id, codigo: it.codigo, descricao: it.descricao, quantidade: "", base: "POR_MILHEIRO", categoria: categoriaInsumoDoProduto(it.categoriaEstoque), unidadeSigla: it.unidadeSigla }]);
+    setLinhas((prev) => [...prev, { insumoItemId: it.id, codigo: it.codigo, descricao: it.descricao, quantidade: "", base: "POR_UNIDADE", categoria: categoriaInsumoDoProduto(it.categoriaEstoque), unidadeId: it.principalId, units: it.units, baseSigla: it.units[0]?.sigla ?? "un" }]);
   }
   function setLinha(i: number, patch: Partial<Linha>) {
     setLinhas((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
@@ -119,6 +144,7 @@ export default function EngenhariaDetalhePage() {
         quantidade: l.quantidade === "" ? 0 : Number(l.quantidade),
         base: l.base,
         categoria: l.categoria,
+        unidadeId: l.unidadeId,
       }));
       const r = await fetch(`/api/pcp/engenharia/${id}`, {
         method: "PATCH",
@@ -212,7 +238,13 @@ export default function EngenhariaDetalhePage() {
                     <td className="py-1.5 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <input className={selCls + " w-20 text-right tabular-nums"} inputMode="decimal" value={l.quantidade} onChange={(e) => setLinha(i, { quantidade: e.target.value })} />
-                        <span className="text-xs text-muted-foreground w-10 text-left">{l.unidadeSigla}</span>
+                        {l.units.length > 1 ? (
+                          <select className={selCls + " w-16"} value={l.unidadeId ?? ""} onChange={(e) => setLinha(i, { unidadeId: e.target.value || null })}>
+                            {l.units.map((u) => <option key={u.id} value={u.id}>{u.sigla}</option>)}
+                          </select>
+                        ) : (
+                          <span className="text-xs text-muted-foreground w-16 text-left">{l.units[0]?.sigla ?? l.baseSigla}</span>
+                        )}
                       </div>
                     </td>
                     <td className="py-1.5">

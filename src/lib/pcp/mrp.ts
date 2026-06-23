@@ -55,7 +55,7 @@ export async function calcularMrp(periodo?: string): Promise<ResultadoMrp> {
   // 2. Engenharias (BOM) dos produtos demandados
   const engs = await prisma.engenhariaProduto.findMany({
     where: { itemId: { in: Array.from(demandaPorProduto.keys()) } },
-    include: { insumos: { include: { insumoItem: { select: { codigo: true, descricao: true } } } } },
+    include: { insumos: { include: { insumoItem: { select: { codigo: true, descricao: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } } } } },
   });
   const engByItem = new Map(engs.map((e) => [e.itemId, e]));
 
@@ -69,7 +69,16 @@ export async function calcularMrp(periodo?: string): Promise<ResultadoMrp> {
       continue;
     }
     for (const ins of eng.insumos) {
-      const bruta = Number(ins.quantidade) * qtd * baseFator(ins.base);
+      // Converte a quantidade da unidade da linha p/ a unidade-base do insumo.
+      let fatorUnidade = 1;
+      if (ins.unidadeId) {
+        const iu = ins.insumoItem.itemUnidades.find((u) => u.unidadeId === ins.unidadeId);
+        if (iu && !iu.isPrincipal && iu.fatorConversao != null) {
+          const f = Number(iu.fatorConversao);
+          if (Number.isFinite(f) && f > 0) fatorUnidade = f;
+        }
+      }
+      const bruta = Number(ins.quantidade) * fatorUnidade * qtd * baseFator(ins.base);
       const cur = bruto.get(ins.insumoItemId) ?? {
         codigo: ins.insumoItem.codigo,
         descricao: ins.insumoItem.descricao,
