@@ -202,13 +202,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Apenas a ação rápida do detalhe (só `status`). Pela tela de edição (com `itens`)
     // a saída é tratada na reconciliação abaixo, evitando baixa em dobro.
     if (newStatus === "SAIU_PARA_ENTREGA" && !Array.isArray(body.itens)) {
-      const localEstoqueId = body.localEstoqueId || minuta.localEstoqueId;
-      if (!localEstoqueId) {
-        return NextResponse.json(
-          { error: "Informe o Local de Estoque para registrar a saída" },
-          { status: 400 }
-        );
-      }
+      // Local agora é resolvido por item (categoria/saldo); o local da minuta é só
+      // fallback. Pode ser null — só falha se algum item não tiver local resolvível.
+      const localEstoqueId = body.localEstoqueId || minuta.localEstoqueId || null;
 
       await prisma.$transaction(async (tx) => {
         // Trava a transição: só UMA requisição move PENDENTE→SAIU_PARA_ENTREGA.
@@ -244,6 +240,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const locaisPorItem = await resolverLocaisSaida(
           tx, minuta.empresaId, minuta.itens.map((i) => i.itemId), localEstoqueId,
         );
+        const semLocal = minuta.itens.filter((i) => !(locaisPorItem.get(i.itemId) ?? localEstoqueId));
+        if (semLocal.length > 0) {
+          throw new ConflictError("Não foi possível determinar o local de saída de algum item (sem categoria/saldo). Cadastre o local do produto e tente de novo.");
+        }
 
         for (const item of minuta.itens) {
           const quantidade = parseFloat(item.quantidade.toString());
@@ -325,14 +325,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       // A reconciliação abaixo reverte as movimentações atuais da minuta e reaplica
       // a saída conforme o status efetivo (newOut), atualizando as linhas no lugar
       // (sem lançar "Ajuste"). Saiu/Entregue → baixa; Pendente/Cancelada → devolve.
+      // Local agora é resolvido por item (categoria/saldo); newLocal é só fallback
+      // e pode ser null. A validação de "sem local" é por item, no passo 2.
       const newOut = effectiveStatus === "SAIU_PARA_ENTREGA" || effectiveStatus === "ENTREGUE";
-      if (newOut && !newLocal) {
-        return NextResponse.json({ error: "Informe o Local de Estoque para registrar a saída" }, { status: 400 });
-      }
 
       // Estado desejado de SAÍDA por item (no local efetivo), somando linhas do mesmo item.
       const desejado = new Map<string, { itemId: string; qty: number; unidadeId: string | null; pedidoVendaItemId: string | null }>();
-      if (newOut && newLocal) {
+      if (newOut) {
         for (const it of novosItens) {
           const cur = desejado.get(it.itemId) ?? { itemId: it.itemId, qty: 0, unidadeId: it.unidadeId ?? null, pedidoVendaItemId: it.pedidoVendaItemId ?? null };
           cur.qty += Number(it.quantidade) || 0;
@@ -396,7 +395,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             });
             marca(mv.itemId, mv.localEstoqueId);
           }
-          const reaproveita = newOut && !!newLocal && desejado.has(mv.itemId) && mv.tipo === "SAIDA" && !reusaveis.has(mv.itemId);
+          const reaproveita = newOut && desejado.has(mv.itemId) && mv.tipo === "SAIDA" && !reusaveis.has(mv.itemId);
           if (reaproveita) {
             reusaveis.set(mv.itemId, mv.id);
           } else {
@@ -405,11 +404,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         }
 
         // 2) Aplica a saída nova: baixa o estoque e grava/atualiza 1 movimentação por item.
-        if (newOut && newLocal) {
+        if (newOut) {
           // Cada item sai do SEU local (categoria/saldo); newLocal é só fallback.
           const locaisPorItem = await resolverLocaisSaida(
             tx, minuta.empresaId, Array.from(desejado.keys()), newLocal,
           );
+          const semLocal = Array.from(desejado.values()).filter((d) => d.qty > 0 && !(locaisPorItem.get(d.itemId) ?? newLocal));
+          if (semLocal.length > 0) {
+            throw new ConflictError("Não foi possível determinar o local de saída de algum item (sem categoria/saldo). Cadastre o local do produto e tente de novo.");
+          }
           for (const d of Array.from(desejado.values())) {
             if (!(d.qty > 0)) continue;
             const loc = locaisPorItem.get(d.itemId) ?? newLocal;

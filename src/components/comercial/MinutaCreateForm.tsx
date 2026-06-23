@@ -50,12 +50,6 @@ type PedidoVenda = {
   itens: PedidoVendaItem[];
 };
 
-type LocalEstoque = {
-  id: string;
-  nome: string;
-  estoqueItens: { itemId: string }[];
-};
-
 type Motorista = { id: string; nome: string };
 
 type ItemRow = {
@@ -97,12 +91,10 @@ export default function MinutaCreateForm() {
   const SESSION_KEY = "nova-minuta:pedidoVendaId";
   const [pedidoVendaId, setPedidoVendaId] = useState(pedidoVendaIdParam ?? "");
   const [pedido, setPedido] = useState<PedidoVenda | null>(null);
-  const [locais, setLocais] = useState<LocalEstoque[]>([]);
   const [motoristas, setMotoristas] = useState<Motorista[]>([]);
 
   // Form fields
   const [tipo, setTipo] = useState<"ENTREGA" | "RETIRADA">("ENTREGA");
-  const [localEstoqueId, setLocalEstoqueId] = useState("");
   const [motoristaId, setMotoristaId] = useState("");
   const [dataEntrega, setDataEntrega] = useState(() => {
     const d = new Date();
@@ -112,6 +104,9 @@ export default function MinutaCreateForm() {
   const [numeroFisico, setNumeroFisico] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [rows, setRows] = useState<ItemRow[]>([]);
+  // Local de saída resolvido automaticamente por item (categoria/saldo) — exibido
+  // ao lado de cada item; substitui a escolha de um local único na logística.
+  const [localSaida, setLocalSaida] = useState<Record<string, string | null>>({});
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -149,25 +144,12 @@ export default function MinutaCreateForm() {
     }
   }, [pedidoVendaIdParam]);
 
-  // Load locais de estoque + motoristas
+  // Load motoristas
   useEffect(() => {
-    fetch("/api/suprimentos/locais-estoque?ativo=true")
-      .then(r => r.json())
-      .then(j => setLocais(Array.isArray(j) ? j : []));
     fetch("/api/comercial/motoristas?ativo=true")
       .then(r => r.json())
       .then(j => setMotoristas(Array.isArray(j) ? j : []));
   }, []);
-
-  // Auto-select local de estoque when there's only one option
-  useEffect(() => {
-    if (localEstoqueId) return; // already selected
-    const itemIds = new Set(rows.map(r => r.itemId));
-    const filtrados = pedido && itemIds.size > 0
-      ? locais.filter(l => l.estoqueItens.some(e => itemIds.has(e.itemId)))
-      : locais;
-    if (filtrados.length === 1) setLocalEstoqueId(filtrados[0].id);
-  }, [locais, rows, pedido, localEstoqueId]);
 
   // Load selected pedido
   const loadPedido = useCallback(async (id: string) => {
@@ -211,6 +193,21 @@ export default function MinutaCreateForm() {
     if (pedidoVendaId) loadPedido(pedidoVendaId);
   }, [pedidoVendaId, loadPedido]);
 
+  // Local de saída automático por item (mesma regra da baixa real).
+  useEffect(() => {
+    if (!pedidoVendaId) { setLocalSaida({}); return; }
+    fetch(`/api/comercial/minutas/locais-saida?pedidoVendaId=${pedidoVendaId}`)
+      .then(r => r.json())
+      .then(j => {
+        const mapa: Record<string, string | null> = {};
+        for (const e of (j.data ?? []) as { itemId: string; localNome: string | null }[]) {
+          mapa[e.itemId] = e.localNome;
+        }
+        setLocalSaida(mapa);
+      })
+      .catch(() => setLocalSaida({}));
+  }, [pedidoVendaId]);
+
   function updateRow(idx: number, field: keyof ItemRow, value: string) {
     setRows(prev => {
       const next = [...prev];
@@ -234,7 +231,8 @@ export default function MinutaCreateForm() {
     if (!pedidoVendaId) { setError("Selecione um pedido de venda"); return; }
     const validRows = rows.filter(r => parseDecimal(r.quantidade || "0") > 0);
     if (validRows.length === 0) { setError("Informe ao menos um item com quantidade"); return; }
-    if (!localEstoqueId) { setError("Selecione o Local de Estoque (de onde a saída será baixada quando a minuta sair para entrega)"); return; }
+    // Local não é mais escolhido aqui: cada item sai do seu próprio local
+    // (resolvido automaticamente na baixa). Ver coluna "Local (saída)".
 
     setSaving(true); setError("");
     try {
@@ -274,7 +272,7 @@ export default function MinutaCreateForm() {
           pedidoVendaId,
           numeroFisico:   numeroFisico.trim() || null,
           tipo,
-          localEstoqueId: localEstoqueId || null,
+          localEstoqueId: null,
           motoristaId:    motoristaId || null,
           dataEntrega:    dataEntrega || null,
           placa:          placa || null,
@@ -364,6 +362,7 @@ export default function MinutaCreateForm() {
                   <thead>
                     <tr className="bg-muted border-b border-border">
                       <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-muted-foreground">Produto</th>
+                      <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-muted-foreground w-44">Local (saída)</th>
                       <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-muted-foreground w-32">Saldo</th>
                       <th className="px-4 py-3 text-right font-semibold uppercase tracking-wider text-xs text-muted-foreground w-40">Qtd. {tipo === "RETIRADA" ? "Retirada" : "Entrega"}</th>
                       <th className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs text-muted-foreground w-32">Unidade</th>
@@ -375,6 +374,15 @@ export default function MinutaCreateForm() {
                         <td className="px-4 py-3 align-middle">
                           <div className="font-medium text-foreground">{r.descricao}</div>
                           <div className="text-xs text-muted-foreground">{r.codigo}</div>
+                        </td>
+                        <td className="px-4 py-3 align-middle">
+                          {localSaida[r.itemId] ? (
+                            <span className="text-sm text-foreground">{localSaida[r.itemId]}</span>
+                          ) : localSaida[r.itemId] === null ? (
+                            <span className="text-xs text-warning inline-flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" /> sem local</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">…</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right align-middle text-muted-foreground tabular-nums">
                           {fmtQty(r.saldoDisponivel)} <span className="text-muted-foreground text-xs">{r.unidadeBase}</span>
@@ -453,29 +461,6 @@ export default function MinutaCreateForm() {
                 </Select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Local de Estoque <span className="text-red-500">*</span></label>
-                {(() => {
-                  const itemIds = new Set(rows.map(r => r.itemId));
-                  const locaisFiltrados = pedido && itemIds.size > 0
-                    ? locais.filter(l => l.estoqueItens.some(e => itemIds.has(e.itemId)))
-                    : locais;
-                  return (
-                    <Select value={localEstoqueId} onValueChange={setLocalEstoqueId}>
-                      <SelectTrigger className="h-10 border-border">
-                        <SelectValue placeholder="Selecione..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {locaisFiltrados.length === 0 ? (
-                          <div className="px-3 py-2 text-xs text-muted-foreground italic">Nenhum local com estoque</div>
-                        ) : locaisFiltrados.map(l => (
-                          <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  );
-                })()}
-              </div>
-              <div>
                 <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Data de {tipo === "RETIRADA" ? "Retirada" : "Entrega"}</label>
                 <Input
                   type="date"
@@ -541,7 +526,7 @@ export default function MinutaCreateForm() {
 
       {/* Actions */}
       <div className="flex gap-3">
-        <Button onClick={handleSave} disabled={saving || !pedidoVendaId || !localEstoqueId} className="font-semibold">
+        <Button onClick={handleSave} disabled={saving || !pedidoVendaId} className="font-semibold">
           {saving ? "Criando..." : "Criar Minuta"}
         </Button>
         <Button variant="outline" onClick={voltar} className="border-border text-muted-foreground">
