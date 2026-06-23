@@ -1043,7 +1043,9 @@ export type ReconciliacaoEstoqueLocal = {
   fisico: number;
   contabilAntes: number;
   ajuste: number; // diff aplicado (físico − contábil); 0 = nada a fazer
-  tipo: "sobra" | "perda" | "ok";
+  // "revisar" = divergência acima do limite automático (não lançada — sinalizada
+  // para conferência humana; em geral indica deslocação/erro estrutural, não drift).
+  tipo: "sobra" | "perda" | "ok" | "revisar";
 };
 
 /**
@@ -1055,7 +1057,7 @@ export type ReconciliacaoEstoqueLocal = {
  */
 export async function reconciliarEstoqueAoFisico(
   empresaId: string,
-  opts?: { soLocalId?: string; data?: Date; criadoPor?: string | null },
+  opts?: { soLocalId?: string; data?: Date; criadoPor?: string | null; limiteAuto?: number },
 ): Promise<ReconciliacaoEstoqueLocal[]> {
   const data = opts?.data ?? new Date();
   const ymd = `${data.getFullYear()}${String(data.getMonth() + 1).padStart(2, "0")}${String(data.getDate()).padStart(2, "0")}`;
@@ -1108,6 +1110,13 @@ export async function reconciliarEstoqueAoFisico(
     const diff = Math.round((fisico - contabil) * 100) / 100;
     if (Math.abs(diff) <= 0.01) {
       resultados.push({ localId: local.id, localNome: local.nome, fisico, contabilAntes: contabil, ajuste: 0, tipo: "ok" });
+      continue;
+    }
+    // Trava do modo automático: divergência grande não é lançada às cegas —
+    // costuma ser deslocação/erro estrutural (ex.: valor na conta errada), não
+    // drift de custeio. Sinaliza p/ revisão humana.
+    if (opts?.limiteAuto != null && Math.abs(diff) > opts.limiteAuto) {
+      resultados.push({ localId: local.id, localNome: local.nome, fisico, contabilAntes: contabil, ajuste: diff, tipo: "revisar" });
       continue;
     }
 
