@@ -2228,6 +2228,8 @@ model EngenhariaInsumo {
   quantidade   Decimal           @db.Decimal(15, 3)
   base         BaseConsumo       @default(POR_MILHEIRO)
   categoria    CategoriaInsumo   @default(MATERIA_PRIMA)
+  // Unidade em que a quantidade está expressa (id de Unidade); null = unidade-base do item.
+  unidadeId    String?
   observacao   String?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
@@ -2734,6 +2736,9 @@ model Concorrente {
   // ou ajuste manual. Float p/ chegar ao front como número puro.
   latitude      Float?
   longitude     Float?
+  // Quando true, as coordenadas foram fixadas manualmente (pino arrastado ou
+  // coladas do Google Maps) — o geocoding automático não as sobrescreve.
+  geoManual     Boolean  @default(false)
 
   observacoes   String?
   ativo         Boolean  @default(true)

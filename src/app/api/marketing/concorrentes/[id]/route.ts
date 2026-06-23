@@ -33,15 +33,28 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   const d = parsed.data;
-  let { latitude, longitude } = d;
 
-  // Re-geocodifica quando não há coordenadas manuais (ex.: endereço mudou).
-  if (latitude == null || longitude == null) {
+  const existente = await prisma.concorrente.findUnique({
+    where: { id: params.id },
+    select: { latitude: true, longitude: true, geoManual: true },
+  });
+
+  let latitude = d.latitude ?? null;
+  let longitude = d.longitude ?? null;
+  let geoManual = existente?.geoManual ?? false;
+
+  if (geoManual && existente?.latitude != null && existente?.longitude != null) {
+    // Coordenadas fixadas manualmente — preserva (não re-geocodifica).
+    latitude = existente.latitude;
+    longitude = existente.longitude;
+  } else if (latitude == null || longitude == null) {
+    // Modo automático: recalcula pelo endereço atual.
     const geo = await geocodificarEndereco(d);
     if (geo) {
       latitude = geo.latitude;
       longitude = geo.longitude;
     }
+    geoManual = false;
   }
 
   const concorrente = await prisma.concorrente.update({
@@ -52,6 +65,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       cpfCnpj: d.cpfCnpj?.trim() || null,
       latitude: latitude ?? null,
       longitude: longitude ?? null,
+      geoManual,
     },
   });
 
