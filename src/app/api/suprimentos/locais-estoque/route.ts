@@ -4,6 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
 import { garantirContaContabilLocalEstoque } from "@/lib/conta-contabil";
+import { valorUnitarioEstoque } from "@/lib/valor-estoque";
 import { decimalToNumber } from "@/lib/utils";
 import { CategoriaEstoque } from "@prisma/client";
 import { z } from "zod";
@@ -75,13 +76,19 @@ export async function GET(req: NextRequest) {
     let custoFisico = 0;
     const estoqueItens = l.estoqueItens.map((e) => {
       const proprio = custos.get(chaveCustoEmpresa(l.empresaId, e.itemId));
-      // Valoração por categoria: Produto Acabado pelo preço médio de venda
-      // (custo de produção virá do PCP); demais pelo CMPM próprio da empresa.
-      const ehAcabado = e.item.categoriaEstoque === "PRODUTO_ACABADO";
-      const valorUnit = ehAcabado
-        ? (e.item.precoVendaMedio != null ? decimalToNumber(e.item.precoVendaMedio) : (e.item.precoVenda != null ? decimalToNumber(e.item.precoVenda) : null))
-        : (proprio != null ? proprio : null);
-      custoFisico += decimalToNumber(e.quantidadeAtual) * (valorUnit ?? 0);
+      // Mesma regra de custeio do motor contábil (valorUnitarioEstoque): custo da
+      // empresa quando houver; senão acabado pelo preço médio de venda e demais
+      // pelo CMPM global. Mantém a tela de Locais alinhada ao razão/balancete.
+      const valorUnit = valorUnitarioEstoque(
+        {
+          categoriaEstoque: e.item.categoriaEstoque,
+          precoVendaMedio: e.item.precoVendaMedio != null ? decimalToNumber(e.item.precoVendaMedio) : null,
+          precoVenda: e.item.precoVenda != null ? decimalToNumber(e.item.precoVenda) : null,
+          precoCusto: e.item.precoCusto != null ? decimalToNumber(e.item.precoCusto) : null,
+        },
+        proprio ?? null,
+      );
+      custoFisico += decimalToNumber(e.quantidadeAtual) * valorUnit;
       return { ...e, item: { ...e.item, precoCusto: valorUnit } };
     });
     return {
