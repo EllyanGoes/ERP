@@ -34,6 +34,7 @@ type ContaPatrimonial = { id: string; codigo: string; nome: string; grupo: "ATIV
 type Natureza = {
   id: string; nome: string; tipo: Tipo; grupo: Grupo;
   subgrupoId: string | null; subgrupo: { id: string; nome: string } | null; ativo: boolean;
+  cif: boolean;
   contaContabilId: string | null; contaContabil: ContaResultado | null;
   contaContrapartidaId: string | null; contaContrapartida: ContaResultado | null;
 };
@@ -253,6 +254,7 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
   const [subgrupoId, setSubgrupoId] = useState(editing?.subgrupoId ?? "");
   const [contaContabilId, setContaContabilId] = useState(editing?.contaContabilId ?? "");
   const [contaContrapartidaId, setContaContrapartidaId] = useState(editing?.contaContrapartidaId ?? "");
+  const [cif, setCif] = useState(editing?.cif ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -260,14 +262,18 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
 
   async function salvar() {
     if (!nome.trim()) { setError("Informe o nome."); return; }
-    if (!contaContabilId) { setError("Selecione a conta de resultado."); return; }
-    if (!contaContrapartidaId) { setError(tipo === "ENTRADA" ? "Selecione a conta a receber (contrapartida)." : "Selecione a conta a pagar (contrapartida)."); return; }
+    // CIF não usa conta de resultado nem contrapartida: o débito vai para
+    // "CIF a Apropriar" (1.1.4.0001) e o crédito é fornecedor/estoque.
+    if (!cif) {
+      if (!contaContabilId) { setError("Selecione a conta de resultado."); return; }
+      if (!contaContrapartidaId) { setError(tipo === "ENTRADA" ? "Selecione a conta a receber (contrapartida)." : "Selecione a conta a pagar (contrapartida)."); return; }
+    }
     setSaving(true); setError(null);
     const url = editing ? `/api/financeiro/naturezas/${editing.id}` : "/api/financeiro/naturezas";
     const res = await fetch(url, {
       method: editing ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: nome.trim(), tipo, grupo, subgrupoId: subgrupoId || null, contaContabilId: contaContabilId || null, contaContrapartidaId: contaContrapartidaId || null }),
+      body: JSON.stringify({ nome: nome.trim(), tipo, grupo, cif, subgrupoId: subgrupoId || null, contaContabilId: cif ? null : (contaContabilId || null), contaContrapartidaId: cif ? null : (contaContrapartidaId || null) }),
     });
     if (!res.ok) { setError((await res.json()).error ?? "Erro ao salvar"); setSaving(false); return; }
     onSaved();
@@ -303,6 +309,14 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
               options={subsDoGrupo.map((s) => ({ value: s.id, label: s.nome }))}
             />
           </div>
+          <label className="flex items-start gap-2 rounded-lg border border-border p-2.5 cursor-pointer">
+            <input type="checkbox" checked={cif} onChange={(e) => setCif(e.target.checked)} className="mt-0.5" />
+            <span className="text-sm text-foreground">
+              Custo Indireto de Fabricação (CIF)
+              <span className="block text-[11px] text-muted-foreground">O débito vai para “CIF a Apropriar” (1.1.4.0001) e o crédito é fornecedor/estoque — sem conta de resultado nem contrapartida.</span>
+            </span>
+          </label>
+          {!cif && (<>
           <div className="space-y-1.5">
             <Label>Conta de resultado (contábil) *</Label>
             <ComboboxWithCreate
@@ -331,6 +345,7 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
                 : "Para Fornecedores ou Salários a Pagar, selecione a conta sintética “(por beneficiário)” — a analítica de cada fornecedor/colaborador é resolvida automaticamente no lançamento. Use uma analítica direta (ex.: INSS/FGTS a Recolher) só para encargos sem beneficiário."}
             </p>
           </div>
+          </>)}
           {error && <p className="text-sm text-rose-500">{error}</p>}
         </div>
         <DialogFooter>

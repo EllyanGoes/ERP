@@ -16,6 +16,7 @@ const schema = z.object({
   contaContabilId: z.string().optional().nullable().transform((v) => v || null),
   contaContrapartidaId: z.string().optional().nullable().transform((v) => v || null),
   ativo: z.boolean().optional(),
+  cif: z.boolean().optional(),
 });
 
 // GET /api/financeiro/naturezas?tipo=ENTRADA|SAIDA&ativo=1
@@ -98,7 +99,9 @@ export async function POST(req: NextRequest) {
 
   const { contaContabilId, contaContrapartidaId, ...natData } = parsed.data;
   const data = await prisma.naturezaFinanceira.create({ data: { ...natData, contaContrapartidaId } });
+  // Natureza CIF não tem conta de resultado própria: o débito vai para
+  // "CIF a Apropriar" (1.1.4.0001). Não cria analítica de resultado (plano intacto).
   if (contaContabilId) await vincularNaturezaConta(data.empresaId, data.id, contaContabilId).catch(() => null);
-  else await garantirContaContabilNatureza(data.id).catch(() => null);
+  else if (!data.cif) await garantirContaContabilNatureza(data.id).catch(() => null);
   return NextResponse.json({ data }, { status: 201 });
 }

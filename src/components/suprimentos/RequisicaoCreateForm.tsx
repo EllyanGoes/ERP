@@ -428,6 +428,7 @@ export default function RequisicaoCreateForm() {
   const [data,           setData]           = useState(() => new Date().toLocaleDateString("sv-SE"));
   const [os,             setOs]             = useState("");
   const [centroCustoId,  setCentroCustoId]  = useState("");
+  const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState("");
   const [contaContabil,  setContaContabil]  = useState("");
   const [observacoes,    setObservacoes]    = useState("");
   const [rows,           setRows]           = useState<ItemRow[]>([emptyRow()]);
@@ -436,6 +437,7 @@ export default function RequisicaoCreateForm() {
   const [colaboradores, setColaboradores] = useState<ColaboradorOpt[]>([]);
   const [setores,       setSetores]       = useState<SetorOpt[]>([]);
   const [centros,       setCentros]       = useState<CentroCustoOpt[]>([]);
+  const [naturezas,     setNaturezas]     = useState<{ id: string; nome: string; cif?: boolean }[]>([]);
   const [itensCat,      setItensCat]      = useState<ItemOpt[]>([]);
 
   const [submitted, setSubmitted] = useState(false);
@@ -452,12 +454,13 @@ export default function RequisicaoCreateForm() {
       } catch { return null; }
     }
 
-    const [lData, cData, sData, ccData, itData] = await Promise.all([
+    const [lData, cData, sData, ccData, itData, nData] = await Promise.all([
       safeFetch("/api/suprimentos/locais-estoque?ativo=true"),
       safeFetch("/api/empresa/colaboradores?ativo=true"),
       safeFetch("/api/empresa/setores?ativo=true"),
       safeFetch("/api/empresa/centros-custo?ativo=true"),
       safeFetch("/api/suprimentos/produtos"),
+      safeFetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1"),
     ]);
 
     if (lData  != null) setLocais(       Array.isArray(lData)  ? lData  : lData.data  ?? []);
@@ -465,6 +468,7 @@ export default function RequisicaoCreateForm() {
     if (sData  != null) setSetores(      Array.isArray(sData)  ? sData  : sData.data  ?? []);
     if (ccData != null) setCentros(      Array.isArray(ccData) ? ccData : ccData.data ?? []);
     if (itData != null) setItensCat(     Array.isArray(itData) ? itData : itData.data ?? []);
+    if (nData  != null) setNaturezas(    Array.isArray(nData)  ? nData  : nData.data  ?? []);
   }, []);
 
   useEffect(() => { loadOptions(); }, [loadOptions]);
@@ -501,6 +505,7 @@ export default function RequisicaoCreateForm() {
           almoxarifeId:   almoxarifeId   || null,
           os:             os             || null,
           centroCustoId:  centroCustoId  || null,
+          naturezaFinanceiraId: naturezaFinanceiraId || null,
           contaContabil:  contaContabil  || null,
           data, observacoes: observacoes || null,
           itens: validRows.map((r) => ({
@@ -643,6 +648,16 @@ export default function RequisicaoCreateForm() {
                     onChange={setCentroCustoId}
                     placeholder="Selecionar centro de custo..."
                     getLabel={(c) => `${c.codigo} — ${c.nome}`}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Natureza financeira</Label>
+                  <PortalSelect
+                    options={naturezas}
+                    value={naturezaFinanceiraId}
+                    onChange={setNaturezaFinanceiraId}
+                    placeholder="Selecionar natureza..."
+                    getLabel={(n) => `${n.nome}${n.cif ? " · CIF" : ""}`}
                   />
                 </div>
                 <div className="space-y-1.5">

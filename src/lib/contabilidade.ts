@@ -908,6 +908,7 @@ async function postMovimentosEstoque(opts: {
   movs: MovIn[];
   contaPositivoId?: string | null; // creditada quando o estoque sobe
   contaNegativoId?: string | null; // debitada quando o estoque desce
+  naturezaContrapartidaId?: string | null; // dimensão natureza na contrapartida (ex.: CIF)
   semContrapartida?: boolean; // transferência: estoque ↔ estoque
 }) {
   const { empresaId, movs } = opts;
@@ -948,11 +949,11 @@ async function postMovimentosEstoque(opts: {
   if (!opts.semContrapartida) {
     if (totalPos > 0.005) {
       if (!opts.contaPositivoId) return;
-      partidas.push({ contaId: opts.contaPositivoId, tipo: "CREDITO", valor: totalPos });
+      partidas.push({ contaId: opts.contaPositivoId, tipo: "CREDITO", valor: totalPos, naturezaId: opts.naturezaContrapartidaId ?? undefined });
     }
     if (totalNeg > 0.005) {
       if (!opts.contaNegativoId) return;
-      partidas.push({ contaId: opts.contaNegativoId, tipo: "DEBITO", valor: totalNeg });
+      partidas.push({ contaId: opts.contaNegativoId, tipo: "DEBITO", valor: totalNeg, naturezaId: opts.naturezaContrapartidaId ?? undefined });
     }
   }
 
@@ -1108,7 +1109,7 @@ export async function apropriarCifAoPep(input: {
 export async function contabilizarRequisicao(requisicaoId: string) {
   const req = await prismaSemEscopo.requisicaoMaterial.findUnique({
     where: { id: requisicaoId },
-    select: { id: true, numero: true, status: true, updatedAt: true },
+    select: { id: true, numero: true, status: true, updatedAt: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } } },
   });
   if (!req || req.status !== "ATENDIDA") return;
 
@@ -1120,13 +1121,21 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   const empresaId = movs[0].empresaId;
   const { consumoId } = await garantirContasSistemaEstoque(empresaId);
 
+  // CIF: se a natureza da RM é indireta, a saída vai para "CIF a Apropriar"
+  // (1.1.4.0001, ativo de staging) com a natureza como dimensão, em vez de
+  // Consumo de Materiais (3.3.9001). Senão, segue o consumo normal.
+  const ehCif = req.naturezaFinanceira?.cif === true;
+  const cifAprop = ehCif ? await contaPorCodigo(empresaId, "1.1.4.0001") : null;
+  const contraId = ehCif && cifAprop ? cifAprop.id : consumoId;
+
   // Detalhe dos itens (qtd× produto × R$ unit) p/ identificar o que foi requisitado.
   const detItens = agruparItensParaDetalhe(movs);
 
   await postMovimentosEstoque({
-    empresaId, data: req.updatedAt, historico: `Requisição — ${req.numero}${detItens ? ` — ${detItens}` : ""}`,
+    empresaId, data: req.updatedAt, historico: `Requisição — ${req.numero}${ehCif ? " (CIF)" : ""}${detItens ? ` — ${detItens}` : ""}`,
     origemTipo: "ESTOQUE_CONSUMO", origemId: requisicaoId,
-    movs, contaPositivoId: consumoId, contaNegativoId: consumoId,
+    movs, contaPositivoId: contraId, contaNegativoId: contraId,
+    naturezaContrapartidaId: ehCif ? req.naturezaFinanceiraId : null,
   });
 }
 

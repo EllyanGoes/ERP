@@ -44,6 +44,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (body.almoxarifeId  !== undefined) updateData.almoxarifeId  = body.almoxarifeId  || null;
     if (body.os            !== undefined) updateData.os            = body.os?.trim()    || null;
     if (body.centroCustoId !== undefined) updateData.centroCustoId = body.centroCustoId || null;
+    if (body.naturezaFinanceiraId !== undefined) updateData.naturezaFinanceiraId = body.naturezaFinanceiraId || null;
     if (body.contaContabil !== undefined) updateData.contaContabil = body.contaContabil?.trim() || null;
     if (body.data          !== undefined) updateData.data          = body.data ? new Date(body.data) : null;
     if (body.observacoes   !== undefined) updateData.observacoes   = body.observacoes?.trim() || null;

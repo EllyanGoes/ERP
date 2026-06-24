@@ -502,6 +502,7 @@ model NaturezaFinanceira {
   conferencias  ConferenciaCompra[]
   lancamentos   LancamentoFinanceiro[]
   recorrencias  Recorrencia[]
+  requisicoes   RequisicaoMaterial[] // natureza da saída de estoque (ex.: CIF)
   partidasContabeis PartidaContabil[] // dimensão natureza nas partidas (ex.: CIF)
   // Conta de RESULTADO (receita p/ ENTRADA, despesa p/ SAIDA): vínculo via
   // ContaContabil.naturezaFinanceiraId (uma conta por natureza).
@@ -2578,6 +2579,8 @@ model RequisicaoMaterial {
   almoxarifeId   String?
   os             String?
   centroCustoId  String?
+  // Natureza financeira da saída (ex.: CIF → consumo vai p/ "CIF a Apropriar").
+  naturezaFinanceiraId String?
   contaContabil  String?
   data           DateTime                 @default(now())
   observacoes    String?
@@ -2588,6 +2591,7 @@ model RequisicaoMaterial {
   setor          Setor?                   @relation(fields: [setorId], references: [id])
   almoxarife     Colaborador?             @relation("RM_Almoxarife", fields: [almoxarifeId], references: [id])
   centroCusto    CentroCusto?             @relation(fields: [centroCustoId], references: [id])
+  naturezaFinanceira NaturezaFinanceira?  @relation(fields: [naturezaFinanceiraId], references: [id])
   itens          RequisicaoMaterialItem[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])

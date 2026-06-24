@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
           almoxarifeId:  body.almoxarifeId   || null,
           os:            body.os?.trim()     || null,
           centroCustoId: body.centroCustoId  || null,
+          naturezaFinanceiraId: body.naturezaFinanceiraId || null,
           contaContabil: body.contaContabil?.trim() || null,
           data:          body.data ? new Date(body.data) : new Date(),
           observacoes:   body.observacoes?.trim() || null,

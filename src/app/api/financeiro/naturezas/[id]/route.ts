@@ -15,6 +15,7 @@ const schema = z.object({
   contaContabilId: z.string().optional().nullable(),
   contaContrapartidaId: z.string().optional().nullable(),
   ativo: z.boolean().optional(),
+  cif: z.boolean().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
