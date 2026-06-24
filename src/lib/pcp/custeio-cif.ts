@@ -38,17 +38,30 @@ export interface CusteioResult {
   volumeTotalMilheiros: number;
   cifRate: number; // R$/milheiro (predeterminada)
   modRate: number; // R$/milheiro
+  composicao: Composicao;
   produtos: CusteioProduto[];
 }
 
-/** Custo de material (R$/milheiro) de um produto pela engenharia × CMPM (ignora compoeCusto=false). */
+export interface ColunaComposicao {
+  total: number; // R$/milheiro
+  itens: { nome: string; valorMilheiro: number }[];
+}
+export interface Composicao {
+  md: ColunaComposicao;
+  cif: ColunaComposicao;
+  mod: ColunaComposicao;
+  custoTotalMilheiro: number;
+}
+
+/** Custo de material (R$/milheiro) de um produto pela engenharia × CMPM, com a quebra por insumo. */
 async function materialPorMilheiro(empresaId: string, eng: {
   insumos: { insumoItemId: string; quantidade: unknown; base: string; unidadeId: string | null;
-    insumoItem: { compoeCusto: boolean; precoCusto: unknown; itemUnidades: { unidadeId: string; isPrincipal: boolean; fatorConversao: unknown }[] } }[];
-}): Promise<number> {
+    insumoItem: { descricao: string; compoeCusto: boolean; precoCusto: unknown; itemUnidades: { unidadeId: string; isPrincipal: boolean; fatorConversao: unknown }[] } }[];
+}): Promise<{ total: number; itens: { nome: string; valorMilheiro: number }[] }> {
   const ids = Array.from(new Set(eng.insumos.map((i) => i.insumoItemId)));
   const custos = await custosDaEmpresa(prismaSemEscopo, empresaId, ids);
   let total = 0;
+  const itens: { nome: string; valorMilheiro: number }[] = [];
   for (const ins of eng.insumos) {
     if (ins.insumoItem.compoeCusto === false) continue; // água
     let fator = 1;
@@ -61,9 +74,11 @@ async function materialPorMilheiro(empresaId: string, eng: {
     }
     const baseFator = ins.base === "POR_UNIDADE" ? 1000 : 1; // por peça → por milheiro
     const custoUnit = custos.get(ins.insumoItemId) ?? num(ins.insumoItem.precoCusto);
-    total += num(ins.quantidade) * fator * baseFator * custoUnit;
+    const v = num(ins.quantidade) * fator * baseFator * custoUnit;
+    total += v;
+    itens.push({ nome: ins.insumoItem.descricao, valorMilheiro: v });
   }
-  return total;
+  return { total, itens };
 }
 
 /**
@@ -90,7 +105,8 @@ export async function calcularCusteio(empresaId: string, competencia: Date): Pro
   const entradas = localIds.length
     ? await prismaSemEscopo.movimentacaoEstoque.groupBy({
         by: ["itemId"],
-        where: { tipo: "ENTRADA", ordemProducaoId: null, clienteDonoId: null, localEstoqueId: { in: localIds } },
+        // Só produtos de FABRICAÇÃO (acabado próprio) entram no rateio — não revenda.
+        where: { tipo: "ENTRADA", ordemProducaoId: null, clienteDonoId: null, localEstoqueId: { in: localIds }, item: { categoriaEstoque: "PRODUTO_ACABADO" } },
         _sum: { quantidade: true },
       })
     : [];
@@ -113,7 +129,7 @@ export async function calcularCusteio(empresaId: string, competencia: Date): Pro
               insumos: {
                 select: {
                   insumoItemId: true, quantidade: true, base: true, unidadeId: true,
-                  insumoItem: { select: { compoeCusto: true, precoCusto: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } },
+                  insumoItem: { select: { descricao: true, compoeCusto: true, precoCusto: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } },
                 },
               },
             },
@@ -123,19 +139,37 @@ export async function calcularCusteio(empresaId: string, competencia: Date): Pro
     : [];
 
   const produtos: CusteioProduto[] = [];
+  const mdAcumItem = new Map<string, number>(); // nome → Σ(volMi × valor/mi)  (p/ média ponderada)
   for (const it of itens) {
     const volumeUn = volPorItem.get(it.id) ?? 0;
+    const volMi = volumeUn / 1000;
     const eng = it.engenhariaProduto;
-    const materialMilheiro = eng ? await materialPorMilheiro(empresaId, eng) : 0;
-    const custoMilheiro = materialMilheiro + modRate + cifRate;
+    const mat = eng ? await materialPorMilheiro(empresaId, eng) : { total: 0, itens: [] };
+    const custoMilheiro = mat.total + modRate + cifRate;
+    for (const mi of mat.itens) mdAcumItem.set(mi.nome, (mdAcumItem.get(mi.nome) ?? 0) + volMi * mi.valorMilheiro);
     produtos.push({
       itemId: it.id, codigo: it.codigo, descricao: it.descricao,
-      volumeUn, volumeMilheiros: r4(volumeUn / 1000),
-      materialMilheiro: r2(materialMilheiro), modMilheiro: r2(modRate), cifMilheiro: r2(cifRate),
+      volumeUn, volumeMilheiros: r4(volMi),
+      materialMilheiro: r2(mat.total), modMilheiro: r2(modRate), cifMilheiro: r2(cifRate),
       custoMilheiro: r2(custoMilheiro), custoUnitario: r4(custoMilheiro / 1000),
     });
   }
   produtos.sort((a, b) => b.volumeUn - a.volumeUn);
+
+  // Composição (R$/milheiro) — MD é média ponderada pelo volume; CIF/MOD são as taxas.
+  const vt = volumeTotalMilheiros;
+  const mdItens = Array.from(mdAcumItem.entries()).map(([nome, acum]) => ({ nome, valorMilheiro: r2(vt > 0 ? acum / vt : 0) }));
+  const mdTotal = mdItens.reduce((s, i) => s + i.valorMilheiro, 0);
+  const composicao = {
+    md: { total: r2(mdTotal), itens: mdItens },
+    cif: { total: r2(cifRate), itens: [
+      { nome: "Biomassa", valorMilheiro: r2(vt > 0 ? biomassaMes / vt : 0) },
+      { nome: "Energia elétrica", valorMilheiro: r2(vt > 0 ? energiaMes / vt : 0) },
+      { nome: "Combustível", valorMilheiro: r2(vt > 0 ? combustivelMes / vt : 0) },
+    ] },
+    mod: { total: r2(modRate), itens: [{ nome: "Folha de pagamento", valorMilheiro: r2(modRate) }] },
+    custoTotalMilheiro: r2(mdTotal + cifRate + modRate),
+  };
 
   return {
     competencia: competencia.toISOString().slice(0, 7),
@@ -144,6 +178,7 @@ export async function calcularCusteio(empresaId: string, competencia: Date): Pro
     cifPoolMes: r2(cifPoolMes), folhaMes: r2(folhaMes),
     volumeTotalMilheiros: r4(volumeTotalMilheiros),
     cifRate: r2(cifRate), modRate: r2(modRate),
+    composicao,
     produtos,
   };
 }

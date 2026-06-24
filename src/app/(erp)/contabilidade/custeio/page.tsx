@@ -13,11 +13,14 @@ type Produto = {
   materialMilheiro: number; modMilheiro: number; cifMilheiro: number;
   custoMilheiro: number; custoUnitario: number;
 };
+type Coluna = { total: number; itens: { nome: string; valorMilheiro: number }[] };
+type Composicao = { md: Coluna; cif: Coluna; mod: Coluna; custoTotalMilheiro: number };
 type Result = {
   competencia: string;
   biomassaMes: number; combustivelMes: number; energiaMes: number;
   cifPoolMes: number; folhaMes: number;
   volumeTotalMilheiros: number; cifRate: number; modRate: number;
+  composicao: Composicao;
   produtos: Produto[];
   params: { biomassaDia: number; energiaMes: number; combustivelDia: number; folhaMes: number; diasTrabalhados: number } | null;
 };
@@ -41,6 +44,7 @@ export default function CusteioPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [aplicando, setAplicando] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(async (comp: string) => {
@@ -98,8 +102,22 @@ export default function CusteioPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-foreground flex items-center gap-2"><Calculator className="w-5 h-5" /> Custeio — taxa de CIF/MOD</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-semibold text-foreground flex items-center gap-2"><Calculator className="w-5 h-5" /> Custeio — taxa de CIF/MOD</h1>
+          <button type="button" onClick={() => setShowInfo((v) => !v)} title="O que é a taxa predeterminada?"
+            className={`flex items-center justify-center w-6 h-6 rounded-md border transition-colors ${showInfo ? "border-sky-400 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400" : "border-border text-muted-foreground hover:text-sky-600 hover:border-sky-300"}`}>
+            <Info className="w-4 h-4" />
+          </button>
+        </div>
         <p className="text-sm text-muted-foreground">Parâmetros indiretos (biomassa, energia, combustível) e mão de obra para derivar a taxa predeterminada por milheiro e valorar o estoque de acabado.</p>
+        {showInfo && (
+          <div className="mt-2 flex gap-2 rounded-lg border border-sky-200 dark:border-sky-900 bg-sky-50/60 dark:bg-sky-950/30 px-3 py-2.5 text-sm">
+            <Info className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
+            <div className="text-foreground/90">
+              <span className="font-medium">Para que serve a taxa predeterminada?</span> Permite que cada milheiro produzido já <b>absorva</b> a mão de obra (MOD) e os custos indiretos (CIF) <b>em tempo real</b>, sem esperar o fechamento do mês. Ela é derivada do <b>custo do período ÷ volume produzido</b>. No fechamento, compara-se o <b>aplicado</b> (taxa × milheiros) com o <b>real</b> e a diferença (sub/super-absorção) é ajustada.
+            </div>
+          </div>
+        )}
       </div>
 
       <Card>
@@ -131,38 +149,21 @@ export default function CusteioPage() {
       ) : result && (
         <>
           <Card>
-            <CardHeader><CardTitle className="text-base">Taxa predeterminada (competência {result.competencia})</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2 rounded-lg border border-sky-200 dark:border-sky-900 bg-sky-50/60 dark:bg-sky-950/30 px-3 py-2.5 text-sm">
-                <Info className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
-                <div className="text-foreground/90">
-                  <span className="font-medium">Para que serve a taxa predeterminada?</span> Permite que cada milheiro produzido já <b>absorva</b> a mão de obra (MOD) e os custos indiretos (CIF) <b>em tempo real</b>, sem esperar o fechamento do mês. Ela é derivada do <b>custo do período ÷ volume produzido</b>. No fechamento, compara-se o <b>aplicado</b> (taxa × milheiros) com o <b>real</b> e a diferença (sub/super-absorção) é ajustada.
+            <CardHeader><CardTitle className="text-base">Composição do custo (R$/milheiro) — competência {result.competencia}</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <ColunaComp titulo="Material Direto" cor="amber" coluna={result.composicao.md} />
+                <ColunaComp titulo="Custo Indireto (CIF)" cor="violet" op="+" coluna={result.composicao.cif} />
+                <ColunaComp titulo="Mão de Obra (MOD)" cor="sky" op="+" coluna={result.composicao.mod} />
+                <div className="rounded-lg border-2 border-foreground/20 bg-muted/40 p-3 flex flex-col justify-center">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">= Custo Total</p>
+                  <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{brl(result.composicao.custoTotalMilheiro)}</p>
+                  <p className="text-[11px] text-muted-foreground">por milheiro · {brl(result.composicao.custoTotalMilheiro / 1000)}/un</p>
                 </div>
               </div>
-
-              {/* Derivação didática das taxas */}
-              <div className="grid md:grid-cols-2 gap-3">
-                <div className="rounded-lg border border-violet-200 dark:border-violet-900 p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400 font-medium">Taxa CIF (custo indireto)</p>
-                  <p className="text-[12px] text-muted-foreground mt-1">
-                    ( biomassa {brl(result.biomassaMes)} + energia {brl(result.energiaMes)} + combustível {brl(result.combustivelMes)} ) ÷ {mil(result.volumeTotalMilheiros)} mi
-                  </p>
-                  <p className="text-lg font-semibold text-foreground mt-1">{brl(result.cifRate)}<span className="text-sm font-normal text-muted-foreground">/milheiro</span></p>
-                </div>
-                <div className="rounded-lg border border-sky-200 dark:border-sky-900 p-3">
-                  <p className="text-[11px] uppercase tracking-wide text-sky-600 dark:text-sky-400 font-medium">Taxa MOD (mão de obra direta)</p>
-                  <p className="text-[12px] text-muted-foreground mt-1">
-                    folha {brl(result.folhaMes)} ÷ {mil(result.volumeTotalMilheiros)} mi
-                  </p>
-                  <p className="text-lg font-semibold text-foreground mt-1">{brl(result.modRate)}<span className="text-sm font-normal text-muted-foreground">/milheiro</span></p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                <Stat label="Volume produzido" value={`${mil(result.volumeTotalMilheiros)} mi`} hint="entradas manuais no estoque de PA" />
-                <Stat label="Pool CIF / mês" value={brl(result.cifPoolMes)} hint="biomassa + energia + combustível" />
-                <Stat label="Folha (MOD) / mês" value={brl(result.folhaMes)} hint="base de mão de obra" />
-              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Volume: <b>{mil(result.volumeTotalMilheiros)} milheiros</b> (só produtos de fabricação). Material Direto é a média ponderada pelo volume (varia por produto — ver tabela); CIF e MOD são as taxas predeterminadas (custo do mês ÷ volume).
+              </p>
             </CardContent>
           </Card>
 
@@ -193,8 +194,8 @@ export default function CusteioPage() {
                       <th className="text-left py-2">Produto</th>
                       <th className="text-right py-2">Volume (mi)</th>
                       <th className="text-right py-2 text-amber-600 dark:text-amber-400">Material Direto</th>
-                      <th className="text-right py-2 text-sky-600 dark:text-sky-400">+ MOD</th>
                       <th className="text-right py-2 text-violet-600 dark:text-violet-400">+ CIF</th>
+                      <th className="text-right py-2 text-sky-600 dark:text-sky-400">+ MOD</th>
                       <th className="text-right py-2">= Custo/mi</th>
                       <th className="text-right py-2">Custo/un</th>
                     </tr>
@@ -205,8 +206,8 @@ export default function CusteioPage() {
                         <td className="py-2"><span className="text-muted-foreground">{p.codigo}</span> {p.descricao}</td>
                         <td className="text-right tabular-nums">{mil(p.volumeMilheiros)}</td>
                         <td className="text-right tabular-nums text-amber-700 dark:text-amber-300">{brl(p.materialMilheiro)}</td>
-                        <td className="text-right tabular-nums text-sky-700 dark:text-sky-300">{brl(p.modMilheiro)}</td>
                         <td className="text-right tabular-nums text-violet-700 dark:text-violet-300">{brl(p.cifMilheiro)}</td>
+                        <td className="text-right tabular-nums text-sky-700 dark:text-sky-300">{brl(p.modMilheiro)}</td>
                         <td className="text-right tabular-nums font-semibold">{brl(p.custoMilheiro)}</td>
                         <td className="text-right tabular-nums font-semibold">{brl(p.custoUnitario)}</td>
                       </tr>
@@ -225,12 +226,27 @@ export default function CusteioPage() {
   );
 }
 
-function Stat({ label, value, hint, strong }: { label: string; value: string; hint?: string; strong?: boolean }) {
+const CORES: Record<string, { borda: string; texto: string }> = {
+  amber:  { borda: "border-amber-200 dark:border-amber-900",   texto: "text-amber-600 dark:text-amber-400" },
+  violet: { borda: "border-violet-200 dark:border-violet-900", texto: "text-violet-600 dark:text-violet-400" },
+  sky:    { borda: "border-sky-200 dark:border-sky-900",       texto: "text-sky-600 dark:text-sky-400" },
+};
+
+function ColunaComp({ titulo, cor, op, coluna }: { titulo: string; cor: string; op?: string; coluna: Coluna }) {
+  const c = CORES[cor] ?? CORES.amber;
   return (
-    <div className="rounded-lg border border-border p-3">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={`mt-0.5 ${strong ? "text-lg font-semibold text-foreground" : "text-base font-medium text-foreground"}`}>{value}</p>
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+    <div className={`rounded-lg border p-3 ${c.borda}`}>
+      <p className={`text-[11px] uppercase tracking-wide font-medium ${c.texto}`}>{op && <span className="mr-1">{op}</span>}{titulo}</p>
+      <p className="text-lg font-semibold text-foreground mt-0.5 tabular-nums">{brl(coluna.total)}<span className="text-xs font-normal text-muted-foreground">/mi</span></p>
+      <div className="mt-2 border-t border-border pt-2 space-y-1">
+        {coluna.itens.map((it) => (
+          <div key={it.nome} className="flex justify-between gap-2 text-[12px]">
+            <span className="text-muted-foreground truncate">{it.nome}</span>
+            <span className="tabular-nums shrink-0">{brl(it.valorMilheiro)}</span>
+          </div>
+        ))}
+        {coluna.itens.length === 0 && <p className="text-[11px] text-muted-foreground italic">—</p>}
+      </div>
     </div>
   );
 }
