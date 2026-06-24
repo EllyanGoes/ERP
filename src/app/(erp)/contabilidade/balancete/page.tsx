@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatDate } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtSaldo, fmtColuna, saldoAnormal, type NaturezaConta } from "@/lib/formato-contabil";
@@ -18,43 +19,23 @@ type Linha = {
 };
 
 const COLLAPSE_KEY = "contabilidade:balancete:collapsed";
-const RANGE_KEY = "contabilidade:balancete:range";
-const SOMOV_KEY = "contabilidade:balancete:soComMov";
 
 function defaultRange(): DateRange {
   const h = new Date();
   return { from: new Date(h.getFullYear(), 0, 1).toISOString().slice(0, 10), to: h.toISOString().slice(0, 10) };
 }
 
-// Lê o filtro salvo já no 1º render (lazy initializer) — sem flash do default
-// nem busca dupla. No servidor (sem window) cai no padrão.
-function rangeInicial(): DateRange {
-  if (typeof window !== "undefined") {
-    try { const r = localStorage.getItem(RANGE_KEY); if (r) { const p = JSON.parse(r) as DateRange; if (p?.from && p?.to) return p; } } catch { /* ignore */ }
-  }
-  return defaultRange();
-}
-function soMovInicial(): boolean {
-  if (typeof window !== "undefined") {
-    try { const s = localStorage.getItem(SOMOV_KEY); if (s != null) return s === "1"; } catch { /* ignore */ }
-  }
-  return true;
-}
-
 export default function BalancetePage() {
   useTabTitle("Balancete");
-  // Filtros persistidos: lidos já no 1º render (sobrevivem a trocar de aba e voltar).
-  const [range, setRange] = useState<DateRange>(rangeInicial);
-  const [soComMov, setSoComMov] = useState<boolean>(soMovInicial);
+  // Filtros persistidos (padrão do sistema: lidos no 1º render, sem flash).
+  const [range, setRange] = usePersistedState<DateRange>("contabilidade:balancete:range", defaultRange);
+  const [soComMov, setSoComMov] = usePersistedState<boolean>("contabilidade:balancete:soComMov", true);
   const [modo, setModo] = useFormatoContabil();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     try { const raw = localStorage.getItem(COLLAPSE_KEY); if (raw) setCollapsed(new Set(JSON.parse(raw) as string[])); } catch { /* ignore */ }
   }, []);
-  // Persiste a cada mudança (o valor inicial já é o salvo, então regravar é inócuo).
-  useEffect(() => { try { localStorage.setItem(RANGE_KEY, JSON.stringify(range)); } catch { /* ignore */ } }, [range]);
-  useEffect(() => { try { localStorage.setItem(SOMOV_KEY, soComMov ? "1" : "0"); } catch { /* ignore */ } }, [soComMov]);
   const persist = useCallback((next: Set<string>) => {
     setCollapsed(next);
     try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }

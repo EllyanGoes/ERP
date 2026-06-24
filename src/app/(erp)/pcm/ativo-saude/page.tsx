@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import Link from "next/link";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
@@ -50,7 +51,7 @@ export default function AtivoSaudePage() {
   const now = new Date();
   const [de, setDe] = useState(compStr(new Date(now.getFullYear(), now.getMonth() - 11, 1)));
   const [ate, setAte] = useState(compStr(now));
-  const [filtro, setFiltro] = useState<Filtro>("all");
+  const [filtro, setFiltro] = usePersistedState<Filtro>("pcm:ativo-saude:filtro", "all");
   const [codApl, setCodApl] = useState<number | null>(null);
   const [ativoOpts, setAtivoOpts] = useState<{ codApl: number; descricao: string; tag: string }[]>([]);
 

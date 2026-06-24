@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import CriticidadeBadge from "@/components/pcm/CriticidadeBadge";
@@ -281,8 +282,8 @@ export default function AtivosPage() {
   const [erroCarga, setErroCarga] = useState<string | null>(null);
   const [erroSalvar, setErroSalvar] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState<Filtro>("all");
+  const [busca, setBusca] = usePersistedState("pcm:ativos:busca", "");
+  const [filtro, setFiltro] = usePersistedState<Filtro>("pcm:ativos:filtro", "all");
   const [savingCodApl, setSavingCodApl] = useState<number | null>(null);
 
   const load = useCallback(async () => {
