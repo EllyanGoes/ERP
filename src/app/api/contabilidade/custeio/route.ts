@@ -13,9 +13,22 @@ export function parseCompetencia(s: string | null | undefined): Date {
   const mo = m ? Number(m[2]) - 1 : now.getUTCMonth();
   return new Date(Date.UTC(y, mo, 1));
 }
+// Aceita número ou string em formato BR ("1.035,36"), US ("1035.36") e simples.
 const num = (v: unknown): number => {
-  const x = Number(v);
-  return Number.isFinite(x) ? x : 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  let s = String(v ?? "").trim().replace(/[^\d.,-]/g, "");
+  if (!s) return 0;
+  const hasComma = s.includes(",");
+  const hasDot = s.includes(".");
+  if (hasComma && hasDot) s = s.replace(/\./g, "").replace(",", "."); // 1.035,36 → 1035.36
+  else if (hasComma) s = s.replace(",", ".");                          // 1035,36 → 1035.36
+  else if (hasDot) {
+    const parts = s.split(".");
+    // dois+ pontos OU grupo final de 3 dígitos = milhar (110.000); senão decimal
+    if (parts.length > 2 || parts[parts.length - 1].length === 3) s = s.replace(/\./g, "");
+  }
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
 };
 
 export async function GET(req: NextRequest) {
