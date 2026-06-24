@@ -104,6 +104,7 @@ export const MODULOS: ModuloDef[] = [
     recursos: [
       { key: "plano-contas", label: "Plano de Contas Contábil", acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "lancamentos",  label: "Diário Contábil",          acoes: ["ver", "inserir"] },
+      { key: "custeio",      label: "Custeio (CIF/MOD)",        acoes: ["ver", "editar"] },
       { key: "razao",        label: "Razão",                    acoes: ["ver"] },
       { key: "balancete",    label: "Balancete",                acoes: ["ver"] },
       { key: "dre",          label: "DRE",                      acoes: ["ver"] },
@@ -132,7 +133,6 @@ export const MODULOS: ModuloDef[] = [
       { key: "engenharia",       label: "Engenharia do Produto", acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "fluxos",           label: "Fluxos de Produção",   acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "centros-trabalho", label: "Centros de Trabalho",  acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "custeio",          label: "Custeio (CIF/MOD)",     acoes: ["ver", "editar"] },
     ],
   },
   {

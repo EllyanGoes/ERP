@@ -19,7 +19,7 @@ const num = (v: unknown): number => {
 };
 
 export async function GET(req: NextRequest) {
-  const auth = await requireModulo("pcp");
+  const auth = await requireModulo("contabilidade");
   if (!auth.ok) return auth.response;
   const comp = parseCompetencia(new URL(req.url).searchParams.get("competencia"));
   const data = await calcularCusteio(EMPRESA_PADRAO_ID, comp);
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const auth = await requireModulo("pcp");
+  const auth = await requireModulo("contabilidade");
   if (!auth.ok) return auth.response;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const comp = parseCompetencia(typeof body.competencia === "string" ? body.competencia : null);

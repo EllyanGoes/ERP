@@ -46,7 +46,7 @@ export default function CusteioPage() {
   const load = useCallback(async (comp: string) => {
     setLoading(true);
     try {
-      const r = await fetch(`/api/pcp/custeio?competencia=${comp}`);
+      const r = await fetch(`/api/contabilidade/custeio?competencia=${comp}`);
       const j = await r.json();
       const d: Result = j.data;
       setResult(d);
@@ -65,7 +65,7 @@ export default function CusteioPage() {
   async function salvar() {
     setSaving(true); setMsg(null);
     try {
-      const r = await fetch("/api/pcp/custeio", {
+      const r = await fetch("/api/contabilidade/custeio", {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ competencia, biomassaDia, energiaMes, combustivelDia, folhaMes, diasTrabalhados }),
       });
@@ -82,7 +82,7 @@ export default function CusteioPage() {
     if (!confirm("Gravar o custo calculado (material + MOD + CIF) no estoque de produto acabado? Isso passa a valorar PA e CPV por esse custo.")) return;
     setAplicando(true); setMsg(null);
     try {
-      const r = await fetch("/api/pcp/custeio/aplicar", {
+      const r = await fetch("/api/contabilidade/custeio/aplicar", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ competencia }),
       });
@@ -153,16 +153,28 @@ export default function CusteioPage() {
               </Button>
             </CardHeader>
             <CardContent>
+              <div className="mb-4 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
+                <span className="font-semibold text-foreground">Custo Total</span>
+                {" = "}
+                <span className="text-amber-600 dark:text-amber-400 font-medium">Material Direto</span>
+                {" + "}
+                <span className="text-sky-600 dark:text-sky-400 font-medium">Mão de Obra Direta (MOD)</span>
+                {" + "}
+                <span className="text-violet-600 dark:text-violet-400 font-medium">Custo Indireto de Fabricação (CIF)</span>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Material da engenharia (BOM × CMPM) por produto; MOD e CIF rateados por milheiro produzido (taxa predeterminada). Valores por milheiro; o custo unitário é ÷ 1.000.
+                </p>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-xs text-muted-foreground uppercase tracking-wide">
                     <tr className="border-b border-border">
                       <th className="text-left py-2">Produto</th>
                       <th className="text-right py-2">Volume (mi)</th>
-                      <th className="text-right py-2">Material/mi</th>
-                      <th className="text-right py-2">MOD/mi</th>
-                      <th className="text-right py-2">CIF/mi</th>
-                      <th className="text-right py-2">Custo/mi</th>
+                      <th className="text-right py-2 text-amber-600 dark:text-amber-400">Material Direto</th>
+                      <th className="text-right py-2 text-sky-600 dark:text-sky-400">+ MOD</th>
+                      <th className="text-right py-2 text-violet-600 dark:text-violet-400">+ CIF</th>
+                      <th className="text-right py-2">= Custo/mi</th>
                       <th className="text-right py-2">Custo/un</th>
                     </tr>
                   </thead>
@@ -171,10 +183,10 @@ export default function CusteioPage() {
                       <tr key={p.itemId} className="border-b border-border/50">
                         <td className="py-2"><span className="text-muted-foreground">{p.codigo}</span> {p.descricao}</td>
                         <td className="text-right tabular-nums">{mil(p.volumeMilheiros)}</td>
-                        <td className="text-right tabular-nums">{brl(p.materialMilheiro)}</td>
-                        <td className="text-right tabular-nums">{brl(p.modMilheiro)}</td>
-                        <td className="text-right tabular-nums">{brl(p.cifMilheiro)}</td>
-                        <td className="text-right tabular-nums font-medium">{brl(p.custoMilheiro)}</td>
+                        <td className="text-right tabular-nums text-amber-700 dark:text-amber-300">{brl(p.materialMilheiro)}</td>
+                        <td className="text-right tabular-nums text-sky-700 dark:text-sky-300">{brl(p.modMilheiro)}</td>
+                        <td className="text-right tabular-nums text-violet-700 dark:text-violet-300">{brl(p.cifMilheiro)}</td>
+                        <td className="text-right tabular-nums font-semibold">{brl(p.custoMilheiro)}</td>
                         <td className="text-right tabular-nums font-semibold">{brl(p.custoUnitario)}</td>
                       </tr>
                     ))}
