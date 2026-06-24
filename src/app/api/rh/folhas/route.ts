@@ -29,7 +29,17 @@ export async function POST(req: NextRequest) {
   if (!ehPdf) return NextResponse.json({ error: "O arquivo deve ser PDF" }, { status: 415 });
   if (file.size > 25 * 1024 * 1024) return NextResponse.json({ error: "Arquivo muito grande (máx. 25 MB)" }, { status: 413 });
 
-  const blob = await put(`rh/folhas/${empresaId}/${Date.now()}-${file.name}`, file, { access: "public" });
+  let blob: { url: string };
+  try {
+    blob = await put(`rh/folhas/${empresaId}/${Date.now()}-${file.name}`, file, { access: "public" });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const semToken = /token|BLOB_READ_WRITE_TOKEN|store/i.test(msg);
+    return NextResponse.json(
+      { error: semToken ? "Armazenamento de arquivos não configurado (Vercel Blob). Conecte um Blob Store no projeto e refaça o deploy." : `Falha ao subir o arquivo: ${msg}` },
+      { status: 500 },
+    );
+  }
 
   // Competência provisória (agora) — a extração ajusta para o 1º dia da competência real.
   const folha = await prisma.folhaPagamento.create({
