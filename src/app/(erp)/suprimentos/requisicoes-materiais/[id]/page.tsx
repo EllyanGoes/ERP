@@ -23,7 +23,6 @@ type ItemRow = {
   unidade:      string;
   localizacao:  string;
   centroCustoId: string;
-  contaContabil: string;
   os:           string;
   requisicaoRef: string;
   item: { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null } | null;
@@ -38,7 +37,6 @@ type Req = {
   data: string;
   os: string | null;
   centroCustoId: string | null;
-  contaContabil: string | null;
   observacoes: string | null;
   localEstoque: { id: string; nome: string } | null;
   colaborador:  { id: string; nome: string } | null;
@@ -71,7 +69,6 @@ function emptyEditRow(base?: Partial<ItemRow>): ItemRow {
     unidade: base?.unidade ?? "",
     localizacao: base?.localizacao ?? "",
     centroCustoId: base?.centroCustoId ?? "",
-    contaContabil: base?.contaContabil ?? "",
     os: base?.os ?? "",
     requisicaoRef: base?.requisicaoRef ?? "",
     item: base?.item ?? null,
@@ -91,7 +88,7 @@ export default function RequisicaoDetailPage() {
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState({
     colaboradorId: "", setorId: "", almoxarifeId: "",
-    os: "", centroCustoId: "", contaContabil: "", data: "", observacoes: "",
+    os: "", centroCustoId: "", data: "", observacoes: "",
   });
   const [editRows, setEditRows] = useState<ItemRow[]>([]);
   const [saving, setSaving]     = useState(false);
@@ -143,7 +140,6 @@ export default function RequisicaoDetailPage() {
       almoxarifeId:  req.almoxarife?.id  ?? "",
       os:            req.os              ?? "",
       centroCustoId: req.centroCusto?.id ?? "",
-      contaContabil: req.contaContabil   ?? "",
       data:          req.data.split("T")[0],
       observacoes:   req.observacoes     ?? "",
     });
@@ -170,7 +166,6 @@ export default function RequisicaoDetailPage() {
           unidade:       r.unidade      || null,
           localizacao:   r.localizacao  || null,
           centroCustoId: r.centroCustoId || null,
-          contaContabil: r.contaContabil || null,
           os:            r.os           || null,
           requisicaoRef: r.requisicaoRef || null,
         })),
@@ -341,10 +336,6 @@ export default function RequisicaoDetailPage() {
                     noneLabel="—" triggerClassName="h-8 rounded-md"
                     options={centros.map((c) => ({ value: c.id, label: `${c.codigo} — ${c.nome}` }))} />
                 </div>
-                <div>
-                  <Label className="text-xs mb-1 block">Conta Contábil</Label>
-                  <Input value={editForm.contaContabil} onChange={(e) => setEditForm(p => ({ ...p, contaContabil: e.target.value }))} className="h-8 text-sm" />
-                </div>
               </>}
               <div className="col-span-full">
                 <Label className="text-xs mb-1 block">Observações</Label>
@@ -362,7 +353,6 @@ export default function RequisicaoDetailPage() {
               {req.tipo === "REQUISICAO" && <>
                 <div><dt className="text-xs text-muted-foreground font-medium">O.S.</dt><dd className="text-foreground mt-0.5">{req.os ?? "—"}</dd></div>
                 <div><dt className="text-xs text-muted-foreground font-medium">Centro de Custo</dt><dd className="text-foreground mt-0.5">{req.centroCusto ? `${req.centroCusto.codigo} — ${req.centroCusto.nome}` : "—"}</dd></div>
-                <div><dt className="text-xs text-muted-foreground font-medium">Conta Contábil</dt><dd className="text-foreground mt-0.5">{req.contaContabil ?? "—"}</dd></div>
               </>}
               {req.observacoes && <div className="col-span-full"><dt className="text-xs text-muted-foreground font-medium">Observações</dt><dd className="text-foreground mt-0.5">{req.observacoes}</dd></div>}
             </dl>
@@ -390,7 +380,6 @@ export default function RequisicaoDetailPage() {
                     <th className="text-left px-3 py-2 font-medium w-24">Qtde</th>
                     {req.tipo === "REQUISICAO" && <>
                       <th className="text-left px-3 py-2 font-medium w-36">Centro de Custo</th>
-                      <th className="text-left px-3 py-2 font-medium w-28">Conta Contábil</th>
                       <th className="text-left px-3 py-2 font-medium w-24">O.S.</th>
                     </>}
                     <th className="text-left px-3 py-2 font-medium w-28">Localização</th>
@@ -443,9 +432,6 @@ export default function RequisicaoDetailPage() {
                               options={centros.map((c) => ({ value: c.id, label: c.codigo }))} />
                           </td>
                           <td className="px-3 py-2">
-                            <Input value={row.contaContabil} onChange={(e) => updateEditRow(idx, "contaContabil", e.target.value)} className="h-7 text-xs" />
-                          </td>
-                          <td className="px-3 py-2">
                             <Input value={row.os} onChange={(e) => updateEditRow(idx, "os", e.target.value)} className="h-7 text-xs" />
                           </td>
                         </>}
@@ -478,7 +464,6 @@ export default function RequisicaoDetailPage() {
                   <th className="text-left px-4 py-2.5 font-medium">Un.</th>
                   {req.tipo === "REQUISICAO" && <>
                     <th className="text-left px-4 py-2.5 font-medium">Centro de Custo</th>
-                    <th className="text-left px-4 py-2.5 font-medium">Conta Contábil</th>
                     <th className="text-left px-4 py-2.5 font-medium">O.S.</th>
                   </>}
                   <th className="text-left px-4 py-2.5 font-medium">Localização</th>
@@ -493,7 +478,6 @@ export default function RequisicaoDetailPage() {
                     <td className="px-4 py-2.5 text-muted-foreground">{it.unidade || it.item?.unidade?.sigla || it.item?.unidadeMedida || "—"}</td>
                     {req.tipo === "REQUISICAO" && <>
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.centroCusto ? `${it.centroCusto.codigo}` : "—"}</td>
-                      <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.contaContabil ?? "—"}</td>
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.os ?? "—"}</td>
                     </>}
                     <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.localizacao ?? "—"}</td>

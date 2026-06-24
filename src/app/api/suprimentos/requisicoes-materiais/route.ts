@@ -40,6 +40,11 @@ export async function POST(req: NextRequest) {
     if (!body.localEstoqueId) {
       return NextResponse.json({ error: "Almoxarifado é obrigatório" }, { status: 400 });
     }
+    // Natureza financeira é obrigatória na requisição (define p/ onde o consumo
+    // vai no resultado). Devolução não tem natureza de saída.
+    if ((body.tipo ?? "REQUISICAO") !== "DEVOLUCAO" && !body.naturezaFinanceiraId) {
+      return NextResponse.json({ error: "Natureza financeira é obrigatória" }, { status: 400 });
+    }
 
     const record = await prisma.$transaction(async (tx) => {
       const prefix = body.tipo === "DEVOLUCAO" ? "DV" : "RM";
@@ -62,13 +67,12 @@ export async function POST(req: NextRequest) {
           os:            body.os?.trim()     || null,
           centroCustoId: body.centroCustoId  || null,
           naturezaFinanceiraId: body.naturezaFinanceiraId || null,
-          contaContabil: body.contaContabil?.trim() || null,
           data:          body.data ? new Date(body.data) : new Date(),
           observacoes:   body.observacoes?.trim() || null,
           itens: body.itens?.length > 0 ? {
             create: body.itens.map((it: {
               itemId: string; quantidade: number; unidade?: string;
-              localizacao?: string; centroCustoId?: string; contaContabil?: string;
+              localizacao?: string; centroCustoId?: string;
               os?: string; requisicaoRef?: string;
             }) => ({
               itemId:       it.itemId,
@@ -76,7 +80,6 @@ export async function POST(req: NextRequest) {
               unidade:      it.unidade?.trim()       || null,
               localizacao:  it.localizacao?.trim()   || null,
               centroCustoId: it.centroCustoId        || null,
-              contaContabil: it.contaContabil?.trim() || null,
               os:           it.os?.trim()            || null,
               requisicaoRef: it.requisicaoRef?.trim() || null,
             })),

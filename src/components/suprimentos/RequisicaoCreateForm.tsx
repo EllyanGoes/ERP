@@ -28,7 +28,6 @@ type ItemRow = {
   unidade:      string;
   localizacao:  string;
   centroCustoId: string;
-  contaContabil: string;
   os:           string;
   requisicaoRef: string;
 };
@@ -41,7 +40,6 @@ function emptyRow(): ItemRow {
     unidade:      "",
     localizacao:  "",
     centroCustoId: "",
-    contaContabil: "",
     os:           "",
     requisicaoRef: "",
   };
@@ -429,7 +427,6 @@ export default function RequisicaoCreateForm() {
   const [os,             setOs]             = useState("");
   const [centroCustoId,  setCentroCustoId]  = useState("");
   const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState("");
-  const [contaContabil,  setContaContabil]  = useState("");
   const [observacoes,    setObservacoes]    = useState("");
   const [rows,           setRows]           = useState<ItemRow[]>([emptyRow()]);
 
@@ -491,6 +488,7 @@ export default function RequisicaoCreateForm() {
   async function handleSave(statusFinal: "RASCUNHO" | "ABERTA") {
     setSubmitted(true);
     if (!localEstoqueId) { setSaveError("Almoxarifado é obrigatório"); return; }
+    if (tipo === "REQUISICAO" && !naturezaFinanceiraId) { setSaveError("Natureza financeira é obrigatória"); return; }
     const validRows = rows.filter((r) => r.itemId && r.quantidade);
     if (validRows.length === 0) { setSaveError("Adicione pelo menos um item"); return; }
     setSaving(true); setSaveError("");
@@ -506,12 +504,11 @@ export default function RequisicaoCreateForm() {
           os:             os             || null,
           centroCustoId:  centroCustoId  || null,
           naturezaFinanceiraId: naturezaFinanceiraId || null,
-          contaContabil:  contaContabil  || null,
           data, observacoes: observacoes || null,
           itens: validRows.map((r) => ({
             itemId: r.itemId, quantidade: parseFloat(r.quantidade),
             unidade: r.unidade || null, localizacao: r.localizacao || null,
-            centroCustoId: r.centroCustoId || null, contaContabil: r.contaContabil || null,
+            centroCustoId: r.centroCustoId || null,
             os: r.os || null, requisicaoRef: r.requisicaoRef || null,
           })),
         }),
@@ -651,18 +648,16 @@ export default function RequisicaoCreateForm() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Natureza financeira</Label>
+                  <Label>Natureza financeira <span className="text-red-500">*</span></Label>
                   <PortalSelect
                     options={naturezas}
                     value={naturezaFinanceiraId}
                     onChange={setNaturezaFinanceiraId}
                     placeholder="Selecionar natureza..."
                     getLabel={(n) => `${n.nome}${n.cif ? " · CIF" : ""}`}
+                    error={submitted}
                   />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Conta Contábil</Label>
-                  <Input value={contaContabil} onChange={(e) => setContaContabil(e.target.value)} placeholder="Conta contábil" />
+                  {submitted && !naturezaFinanceiraId && <p className="text-xs text-red-500">Natureza financeira é obrigatória</p>}
                 </div>
               </div>
             )}
@@ -698,7 +693,6 @@ export default function RequisicaoCreateForm() {
                     <th className="text-left px-3 py-2.5 w-28">Qtde</th>
                     {tipo === "REQUISICAO" && <>
                       <th className="text-left px-3 py-2.5 min-w-[140px]">Centro de Custo</th>
-                      <th className="text-left px-3 py-2.5 w-28">Conta Contábil</th>
                       <th className="text-left px-3 py-2.5 w-24">O.S.</th>
                       <th className="text-left px-3 py-2.5 w-24">Requisição</th>
                     </>}
@@ -724,9 +718,6 @@ export default function RequisicaoCreateForm() {
                           <ComboboxWithCreate value={row.centroCustoId} onChange={(v) => updateRow(row._key, "centroCustoId", v)}
                             placeholder="—" noneLabel="—" triggerClassName="h-8 rounded-md text-xs"
                             options={centros.map((c) => ({ value: c.id, label: c.codigo }))} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <Input value={row.contaContabil} onChange={(e) => updateRow(row._key, "contaContabil", e.target.value)} className="h-8 text-xs" />
                         </td>
                         <td className="px-3 py-2">
                           <Input value={row.os} onChange={(e) => updateRow(row._key, "os", e.target.value)} className="h-8 text-xs" />

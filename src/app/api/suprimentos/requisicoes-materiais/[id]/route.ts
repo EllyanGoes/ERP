@@ -45,7 +45,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (body.os            !== undefined) updateData.os            = body.os?.trim()    || null;
     if (body.centroCustoId !== undefined) updateData.centroCustoId = body.centroCustoId || null;
     if (body.naturezaFinanceiraId !== undefined) updateData.naturezaFinanceiraId = body.naturezaFinanceiraId || null;
-    if (body.contaContabil !== undefined) updateData.contaContabil = body.contaContabil?.trim() || null;
     if (body.data          !== undefined) updateData.data          = body.data ? new Date(body.data) : null;
     if (body.observacoes   !== undefined) updateData.observacoes   = body.observacoes?.trim() || null;
 
@@ -54,7 +53,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       updateData.itens = {
         create: body.itens.map((it: {
           itemId: string; quantidade: number; unidade?: string;
-          localizacao?: string; centroCustoId?: string; contaContabil?: string;
+          localizacao?: string; centroCustoId?: string;
           os?: string; requisicaoRef?: string;
         }) => ({
           itemId:       it.itemId,
@@ -62,7 +61,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           unidade:      it.unidade?.trim()        || null,
           localizacao:  it.localizacao?.trim()    || null,
           centroCustoId: it.centroCustoId         || null,
-          contaContabil: it.contaContabil?.trim() || null,
           os:           it.os?.trim()             || null,
           requisicaoRef: it.requisicaoRef?.trim() || null,
         })),
