@@ -45,6 +45,8 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
           select: {
             id: true, numero: true, status: true,
             dataConferencia: true, createdAt: true,
+            // Fornecedor direto da conferência (recebimentos avulsos, sem pedido).
+            fornecedor: { select: { razaoSocial: true, nomeFantasia: true } },
             pedido: {
               select: {
                 numero: true,

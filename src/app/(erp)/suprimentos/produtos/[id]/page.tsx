@@ -115,6 +115,7 @@ type ComprasData = {
   conferencias: Array<{
     id: string; numero: string; status: string;
     dataConferencia: string | null; createdAt: string;
+    fornecedor: { razaoSocial: string; nomeFantasia: string | null } | null;
     pedido: { numero: string; fornecedor: { razaoSocial: string; nomeFantasia: string | null } } | null;
     quantidadePedida: unknown; quantidadeRecebida: unknown; divergencia: boolean;
   }>;
@@ -2231,9 +2232,10 @@ export default function ProdutoDetailPage() {
                                 {c.pedido ? c.pedido.numero : <span className="text-muted-foreground">—</span>}
                               </td>
                               <td className="px-4 py-3 text-foreground text-xs font-medium">
-                                {c.pedido
-                                  ? (c.pedido.fornecedor.nomeFantasia || c.pedido.fornecedor.razaoSocial)
-                                  : <span className="text-muted-foreground">—</span>}
+                                {(() => {
+                                  const f = c.pedido?.fornecedor ?? c.fornecedor;
+                                  return f ? (f.nomeFantasia || f.razaoSocial) : <span className="text-muted-foreground">—</span>;
+                                })()}
                               </td>
                               <td className="px-4 py-3 text-right font-semibold text-foreground">
                                 {decimalToNumber(c.quantidadePedida).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
