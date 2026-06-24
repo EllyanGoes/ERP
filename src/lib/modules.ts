@@ -132,6 +132,7 @@ export const MODULOS: ModuloDef[] = [
       { key: "engenharia",       label: "Engenharia do Produto", acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "fluxos",           label: "Fluxos de Produção",   acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "centros-trabalho", label: "Centros de Trabalho",  acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "custeio",          label: "Custeio (CIF/MOD)",     acoes: ["ver", "editar"] },
     ],
   },
   {

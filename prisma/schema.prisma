@@ -1025,6 +1025,7 @@ model Empresa {
   partidasContabeis         PartidaContabil[]
   concorrentes              Concorrente[]
   concorrentePrecos         ConcorrentePreco[]
+  parametrosCusteio         ParametroCusteio[]
 }
 
 model EnderecoEstoque {
@@ -2215,6 +2216,27 @@ model EstadoWip {
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Parâmetros de custeio por competência: insumos indiretos (biomassa, energia,
+// combustível) e mão de obra (folha) usados para derivar a taxa predeterminada de
+// CIF e MOD por milheiro. O volume vem das entradas (manuais) no estoque de PA.
+model ParametroCusteio {
+  id              String   @id @default(cuid())
+  empresaId       String   @default("emp_tramontin")
+  competencia     DateTime // 1º dia do mês de referência
+  biomassaDia     Decimal  @default(0) @db.Decimal(15, 2)
+  energiaMes      Decimal  @default(0) @db.Decimal(15, 2)
+  combustivelDia  Decimal  @default(0) @db.Decimal(15, 2)
+  folhaMes        Decimal  @default(0) @db.Decimal(15, 2) // mão de obra (base)
+  diasTrabalhados Int      @default(26)
+  observacao      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  empresa         Empresa  @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, competencia])
+  @@index([empresaId])
 }
 
 // Ordem de produção — executa uma versão publicada de um fluxo. As etapas são
