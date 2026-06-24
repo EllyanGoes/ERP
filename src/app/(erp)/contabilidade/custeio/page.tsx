@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, Save, BadgeCheck, Calculator } from "lucide-react";
+import { Loader2, Save, BadgeCheck, Calculator, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -132,16 +132,37 @@ export default function CusteioPage() {
         <>
           <Card>
             <CardHeader><CardTitle className="text-base">Taxa predeterminada (competência {result.competencia})</CardTitle></CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <Stat label="Volume produzido" value={`${mil(result.volumeTotalMilheiros)} mi`} hint="entradas no PA" />
-                <Stat label="Pool CIF / mês" value={brl(result.cifPoolMes)} hint="biomassa + energia + combustível" />
-                <Stat label="Taxa CIF" value={`${brl(result.cifRate)}/mi`} hint="predeterminada" strong />
-                <Stat label="Taxa MOD" value={`${brl(result.modRate)}/mi`} hint={`folha ${brl(result.folhaMes)}`} />
+            <CardContent className="space-y-4">
+              <div className="flex gap-2 rounded-lg border border-sky-200 dark:border-sky-900 bg-sky-50/60 dark:bg-sky-950/30 px-3 py-2.5 text-sm">
+                <Info className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
+                <div className="text-foreground/90">
+                  <span className="font-medium">Para que serve a taxa predeterminada?</span> Permite que cada milheiro produzido já <b>absorva</b> a mão de obra (MOD) e os custos indiretos (CIF) <b>em tempo real</b>, sem esperar o fechamento do mês. Ela é derivada do <b>custo do período ÷ volume produzido</b>. No fechamento, compara-se o <b>aplicado</b> (taxa × milheiros) com o <b>real</b> e a diferença (sub/super-absorção) é ajustada.
+                </div>
               </div>
-              <p className="text-[11px] text-muted-foreground mt-3">
-                CIF/mês = biomassa {brl(result.biomassaMes)} + energia {brl(result.energiaMes)} + combustível {brl(result.combustivelMes)}.
-              </p>
+
+              {/* Derivação didática das taxas */}
+              <div className="grid md:grid-cols-2 gap-3">
+                <div className="rounded-lg border border-violet-200 dark:border-violet-900 p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400 font-medium">Taxa CIF (custo indireto)</p>
+                  <p className="text-[12px] text-muted-foreground mt-1">
+                    ( biomassa {brl(result.biomassaMes)} + energia {brl(result.energiaMes)} + combustível {brl(result.combustivelMes)} ) ÷ {mil(result.volumeTotalMilheiros)} mi
+                  </p>
+                  <p className="text-lg font-semibold text-foreground mt-1">{brl(result.cifRate)}<span className="text-sm font-normal text-muted-foreground">/milheiro</span></p>
+                </div>
+                <div className="rounded-lg border border-sky-200 dark:border-sky-900 p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-sky-600 dark:text-sky-400 font-medium">Taxa MOD (mão de obra direta)</p>
+                  <p className="text-[12px] text-muted-foreground mt-1">
+                    folha {brl(result.folhaMes)} ÷ {mil(result.volumeTotalMilheiros)} mi
+                  </p>
+                  <p className="text-lg font-semibold text-foreground mt-1">{brl(result.modRate)}<span className="text-sm font-normal text-muted-foreground">/milheiro</span></p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                <Stat label="Volume produzido" value={`${mil(result.volumeTotalMilheiros)} mi`} hint="entradas manuais no estoque de PA" />
+                <Stat label="Pool CIF / mês" value={brl(result.cifPoolMes)} hint="biomassa + energia + combustível" />
+                <Stat label="Folha (MOD) / mês" value={brl(result.folhaMes)} hint="base de mão de obra" />
+              </div>
             </CardContent>
           </Card>
 
