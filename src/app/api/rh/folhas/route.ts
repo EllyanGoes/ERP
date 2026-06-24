@@ -31,7 +31,8 @@ export async function POST(req: NextRequest) {
 
   let blob: { url: string };
   try {
-    blob = await put(`rh/folhas/${empresaId}/${Date.now()}-${file.name}`, file, { access: "public" });
+    // Privado: a folha tem salários. Lido depois pelo SDK (token), nunca por URL pública.
+    blob = await put(`rh/folhas/${empresaId}/${Date.now()}-${file.name}`, file, { access: "private", addRandomSuffix: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const semToken = /token|BLOB_READ_WRITE_TOKEN|store/i.test(msg);

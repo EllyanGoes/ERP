@@ -103,7 +103,7 @@ export default function FolhaDetalhePage() {
         breadcrumbs={[{ label: "RH" }, { label: "Folhas", href: "/rh/folhas" }, { label: compLabel(folha.competencia) }]}
         action={
           <div className="flex items-center gap-2">
-            {folha.arquivoUrl && <a href={folha.arquivoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-info hover:underline"><FileText className="w-4 h-4" /> PDF</a>}
+            {folha.arquivoUrl && <a href={`/api/rh/folhas/${id}/arquivo`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-info hover:underline"><FileText className="w-4 h-4" /> PDF</a>}
             {editavel && (
               <Button variant="outline" onClick={extrair} disabled={extraindo}>
                 {extraindo ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}

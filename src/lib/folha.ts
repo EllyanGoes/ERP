@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { get } from "@vercel/blob";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber, generateSimpleDocNumber } from "@/lib/utils";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
@@ -270,6 +271,14 @@ async function extrairViaParser(pdfBuf: Buffer): Promise<FolhaExtraida> {
   return parseFolhaSenior(Array.isArray(text) ? text.join("\n") : text);
 }
 
+// Lê o PDF (privado) do Vercel Blob via SDK. O pathname é derivado da URL salva.
+export async function lerPdfDaFolha(arquivoUrl: string): Promise<Buffer> {
+  const pathname = new URL(arquivoUrl).pathname.replace(/^\//, "");
+  const res = await get(pathname, { access: "private" });
+  if (!res) throw new Error("Arquivo da folha não encontrado no armazenamento.");
+  return Buffer.from(await new Response(res.stream).arrayBuffer());
+}
+
 /**
  * Extrai a folha do PDF (Claude) e (re)popula os FolhaItem + cabeçalho/totais.
  * Casa cada item a um Colaborador pelo nome (exato, ignorando caixa) e herda a
@@ -283,7 +292,7 @@ export async function extrairFolhaPdf(folhaId: string) {
   if (folha.status === "FECHADA") throw new Error("Folha já fechada — não pode reextrair.");
   if (!folha.arquivoUrl) throw new Error("Folha sem arquivo PDF.");
 
-  const pdfBuf = Buffer.from(await (await fetch(folha.arquivoUrl)).arrayBuffer());
+  const pdfBuf = await lerPdfDaFolha(folha.arquivoUrl);
   // Com a chave da IA usa o Claude; senão (ou se a IA falhar) cai no parser
   // determinístico da folha Senior.
   let dados: FolhaExtraida;
