@@ -1327,7 +1327,7 @@ export default function ProdutoDetailPage() {
                       {ehAcabado ? (precoVendaMedioNum > 0 ? formatBRL(precoVendaMedioNum) : "—") : (custoUnit > 0 ? formatBRL(custoUnit) : "—")}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {ehAcabado ? "custo de produção: a definir (PCP)" : (custoUnit > 0 ? "CMPM por entradas" : "")}
+                      {ehAcabado ? (custoUnit > 0 ? `custo de produção: ${formatBRL(custoUnit)} (PCP)` : "custo de produção: a definir (PCP)") : (custoUnit > 0 ? "CMPM por entradas" : "")}
                     </p>
                   </div>
                   {/* Valor Total em Estoque */}
@@ -1342,15 +1342,17 @@ export default function ProdutoDetailPage() {
                       </p>
                     )}
                   </div>
-                  {/* Custo médio dos fornecedores (média do último preço de cada fornecedor) */}
+                  {/* Fabricado: Custo Médio de Produção (PCP). Comprado: média dos fornecedores. */}
                   <div className="rounded-xl bg-violet-50 dark:bg-violet-500/15 px-4 py-3">
-                    <p className="text-xs text-violet-600 dark:text-violet-400 font-medium mb-1">Custo Médio (fornecedores)</p>
+                    <p className="text-xs text-violet-600 dark:text-violet-400 font-medium mb-1">{ehAcabado ? "Custo Médio de Produção" : "Custo Médio (fornecedores)"}</p>
                     <p className="text-xl font-bold text-violet-800 dark:text-violet-300">
-                      {custoMedio > 0 ? formatBRL(custoMedio) : "—"}
+                      {ehAcabado ? (custoUnit > 0 ? formatBRL(custoUnit) : "—") : (custoMedio > 0 ? formatBRL(custoMedio) : "—")}
                     </p>
-                    {item.fornecedores.filter((f) => decimalToNumber(f.precoUltimo) > 0).length > 0 && (
-                      <p className="text-xs text-violet-400 mt-0.5">média dos fornecedores</p>
-                    )}
+                    {ehAcabado
+                      ? <p className="text-xs text-violet-400 mt-0.5">material + MOD + CIF (Custeio)</p>
+                      : item.fornecedores.filter((f) => decimalToNumber(f.precoUltimo) > 0).length > 0 && (
+                        <p className="text-xs text-violet-400 mt-0.5">média dos fornecedores</p>
+                      )}
                   </div>
                   {/* Preço de Venda (com margem sobre o custo) */}
                   <div className="rounded-xl bg-success/10 px-4 py-3">

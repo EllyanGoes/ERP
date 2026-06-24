@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
-import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntradaEstoque, contabilizarCmvMinuta, contabilizarReceitaMinuta, contabilizarVendaPedido, contabilizarSaldoInicialEstoque, apagarLancamentosContabeis } from "@/lib/contabilidade";
+import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntradaEstoque, contabilizarCmvMinuta, contabilizarReceitaMinuta, contabilizarVendaPedido, contabilizarSaldoInicialEstoque, contabilizarLoteMovimentacao, apagarLancamentosContabeis } from "@/lib/contabilidade";
 
 // POST /api/contabilidade/backfill
 // Gera (idempotente) os lançamentos contábeis retroativos a partir dos títulos
@@ -75,6 +75,12 @@ export async function POST(req: Request) {
   // 2) CMV + Receita na entrega (minutas com saída de estoque).
   const minutas = await prismaSemEscopo.minuta.findMany({ where: { status: { in: ["SAIU_PARA_ENTREGA", "ENTREGUE"] } }, select: { id: true, numero: true } });
   await emLotes(minutas, (m) => `Minuta ${m.numero}`, async (m) => { await contabilizarCmvMinuta(m.id); await contabilizarReceitaMinuta(m.id); });
+
+  // 3) Lotes de movimentação manual (entradas/transferências/ajustes) — re-sincroniza
+  // ao custo ATUAL (ex.: produção lançada na mão no PA, agora avaliada ao custo de
+  // produção em vez do preço de venda). Idempotente por lote.
+  const lotes = await prismaSemEscopo.loteMovimentacao.findMany({ select: { id: true, numero: true } });
+  await emLotes(lotes, (l) => `Lote ${l.numero}`, (l) => contabilizarLoteMovimentacao(l.id));
 
   return NextResponse.json({ ok: true, processados, erros: erros.slice(0, 20) });
   } finally {
