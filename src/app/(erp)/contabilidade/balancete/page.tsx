@@ -26,34 +26,35 @@ function defaultRange(): DateRange {
   return { from: new Date(h.getFullYear(), 0, 1).toISOString().slice(0, 10), to: h.toISOString().slice(0, 10) };
 }
 
+// Lê o filtro salvo já no 1º render (lazy initializer) — sem flash do default
+// nem busca dupla. No servidor (sem window) cai no padrão.
+function rangeInicial(): DateRange {
+  if (typeof window !== "undefined") {
+    try { const r = localStorage.getItem(RANGE_KEY); if (r) { const p = JSON.parse(r) as DateRange; if (p?.from && p?.to) return p; } } catch { /* ignore */ }
+  }
+  return defaultRange();
+}
+function soMovInicial(): boolean {
+  if (typeof window !== "undefined") {
+    try { const s = localStorage.getItem(SOMOV_KEY); if (s != null) return s === "1"; } catch { /* ignore */ }
+  }
+  return true;
+}
+
 export default function BalancetePage() {
   useTabTitle("Balancete");
-  const [range, setRange] = useState<DateRange>(defaultRange);
-  const [soComMov, setSoComMov] = useState(true);
+  // Filtros persistidos: lidos já no 1º render (sobrevivem a trocar de aba e voltar).
+  const [range, setRange] = useState<DateRange>(rangeInicial);
+  const [soComMov, setSoComMov] = useState<boolean>(soMovInicial);
   const [modo, setModo] = useFormatoContabil();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  // Filtros persistidos (sobrevivem a trocar de aba e voltar).
-  const [filtrosCarregados, setFiltrosCarregados] = useState(false);
 
   useEffect(() => {
     try { const raw = localStorage.getItem(COLLAPSE_KEY); if (raw) setCollapsed(new Set(JSON.parse(raw) as string[])); } catch { /* ignore */ }
-    try {
-      const r = localStorage.getItem(RANGE_KEY);
-      if (r) { const p = JSON.parse(r) as DateRange; if (p?.from && p?.to) setRange(p); }
-      const s = localStorage.getItem(SOMOV_KEY);
-      if (s != null) setSoComMov(s === "1");
-    } catch { /* ignore */ }
-    setFiltrosCarregados(true);
   }, []);
-  // Grava só depois de carregar, p/ não sobrescrever com o default no 1º render.
-  useEffect(() => {
-    if (!filtrosCarregados) return;
-    try { localStorage.setItem(RANGE_KEY, JSON.stringify(range)); } catch { /* ignore */ }
-  }, [range, filtrosCarregados]);
-  useEffect(() => {
-    if (!filtrosCarregados) return;
-    try { localStorage.setItem(SOMOV_KEY, soComMov ? "1" : "0"); } catch { /* ignore */ }
-  }, [soComMov, filtrosCarregados]);
+  // Persiste a cada mudança (o valor inicial já é o salvo, então regravar é inócuo).
+  useEffect(() => { try { localStorage.setItem(RANGE_KEY, JSON.stringify(range)); } catch { /* ignore */ } }, [range]);
+  useEffect(() => { try { localStorage.setItem(SOMOV_KEY, soComMov ? "1" : "0"); } catch { /* ignore */ } }, [soComMov]);
   const persist = useCallback((next: Set<string>) => {
     setCollapsed(next);
     try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
