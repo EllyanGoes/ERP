@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Produto = {
   itemId: string; codigo: string; descricao: string;
@@ -31,6 +32,35 @@ const mil = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 
 function mesCorrente() {
   const d = new Date();
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+type Params = { biomassaDia: number; energiaMes: number; combustivelDia: number; folhaMes: number; diasTrabalhados: number } | null;
+
+// Balão de origem do dado ao passar o mouse sobre o valor.
+function Val({ origem, children, className }: { origem: string; children: React.ReactNode; className?: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span className={`cursor-help underline decoration-dotted decoration-muted-foreground/40 underline-offset-2 ${className ?? ""}`} />}>
+        {children}
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[270px] text-xs leading-snug">{origem}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function origemDoItem(nome: string, p: Params, vol: number): string {
+  const dias = p?.diasTrabalhados ?? 26;
+  const v = `rateado por ${mil(vol)} milheiros produzidos`;
+  if (nome === "Biomassa") return `Biomassa do forno: ${brl(p?.biomassaDia ?? 0)}/dia × ${dias} dias = ${brl((p?.biomassaDia ?? 0) * dias)}/mês, ${v}.`;
+  if (nome === "Energia elétrica") return `Energia elétrica (parcela fabril): ${brl(p?.energiaMes ?? 0)}/mês, ${v}.`;
+  if (nome === "Combustível") return `Combustível das máquinas: ${brl(p?.combustivelDia ?? 0)}/dia × ${dias} dias = ${brl((p?.combustivelDia ?? 0) * dias)}/mês, ${v}.`;
+  if (nome === "Folha de pagamento") return `Folha de pagamento (mão de obra): ${brl(p?.folhaMes ?? 0)}/mês, ${v}.`;
+  return `${nome}: consumo na engenharia do produto (BOM) × custo médio (CMPM), média ponderada pelo volume de cada produto.`;
+}
+function origemDaColuna(cor: string): string {
+  if (cor === "violet") return "CIF (custos indiretos de fabricação): biomassa + energia + combustível, rateados por milheiro produzido — taxa predeterminada.";
+  if (cor === "sky") return "MOD (mão de obra direta): folha de pagamento ÷ volume produzido — taxa predeterminada.";
+  return "Material direto: média ponderada do consumo da engenharia (BOM) × custo médio (CMPM), pelo volume de cada produto.";
 }
 
 export default function CusteioPage() {
@@ -101,6 +131,7 @@ export default function CusteioPage() {
   }
 
   return (
+    <TooltipProvider delay={150}>
     <div className="p-6 max-w-5xl mx-auto space-y-5">
       <div>
         <div className="flex items-center gap-2">
@@ -168,12 +199,14 @@ export default function CusteioPage() {
                 const ctMi = result.composicao.custoTotalMilheiro;
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <ColunaComp titulo="Material Direto" cor="amber" coluna={result.composicao.md} total={total} vol={vol} />
-                    <ColunaComp titulo="Custo Indireto (CIF)" cor="violet" op="+" coluna={result.composicao.cif} total={total} vol={vol} />
-                    <ColunaComp titulo="Mão de Obra (MOD)" cor="sky" op="+" coluna={result.composicao.mod} total={total} vol={vol} />
+                    <ColunaComp titulo="Material Direto" cor="amber" coluna={result.composicao.md} total={total} vol={vol} params={result.params} />
+                    <ColunaComp titulo="Custo Indireto (CIF)" cor="violet" op="+" coluna={result.composicao.cif} total={total} vol={vol} params={result.params} />
+                    <ColunaComp titulo="Mão de Obra (MOD)" cor="sky" op="+" coluna={result.composicao.mod} total={total} vol={vol} params={result.params} />
                     <div className="rounded-lg border-2 border-foreground/20 bg-muted/40 p-3 flex flex-col justify-center">
                       <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">= Custo Total</p>
-                      <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{brl(total ? ctMi * vol : ctMi)}</p>
+                      <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">
+                        <Val origem="Custo Total = Material Direto + CIF + MOD (soma das três parcelas por milheiro).">{brl(total ? ctMi * vol : ctMi)}</Val>
+                      </p>
                       <p className="text-[11px] text-muted-foreground">{total ? `${brl(ctMi)}/milheiro · ${brl(ctMi / 1000)}/un` : `por milheiro · ${brl(ctMi / 1000)}/un`}</p>
                     </div>
                   </div>
@@ -241,6 +274,7 @@ export default function CusteioPage() {
         </>
       )}
     </div>
+    </TooltipProvider>
   );
 }
 
@@ -250,20 +284,22 @@ const CORES: Record<string, { borda: string; texto: string }> = {
   sky:    { borda: "border-sky-200 dark:border-sky-900",       texto: "text-sky-600 dark:text-sky-400" },
 };
 
-function ColunaComp({ titulo, cor, op, coluna, total, vol }: { titulo: string; cor: string; op?: string; coluna: Coluna; total: boolean; vol: number }) {
+function ColunaComp({ titulo, cor, op, coluna, total, vol, params }: { titulo: string; cor: string; op?: string; coluna: Coluna; total: boolean; vol: number; params: Params }) {
   const c = CORES[cor] ?? CORES.amber;
   const colVal = total ? coluna.total * vol : coluna.total;
   return (
     <div className={`rounded-lg border p-3 ${c.borda}`}>
       <p className={`text-[11px] uppercase tracking-wide font-medium ${c.texto}`}>{op && <span className="mr-1">{op}</span>}{titulo}</p>
-      <p className="text-lg font-semibold text-foreground mt-0.5 tabular-nums">{brl(colVal)}{!total && <span className="text-xs font-normal text-muted-foreground">/mi</span>}</p>
+      <p className="text-lg font-semibold text-foreground mt-0.5 tabular-nums">
+        <Val origem={origemDaColuna(cor)}>{brl(colVal)}</Val>{!total && <span className="text-xs font-normal text-muted-foreground">/mi</span>}
+      </p>
       {total && <p className="text-[11px] text-muted-foreground tabular-nums">{brl(coluna.total)}/mi</p>}
       <div className="mt-2 border-t border-border pt-2 space-y-1.5">
         {coluna.itens.map((it) => (
           <div key={it.nome} className="flex justify-between gap-2 text-[12px]">
             <span className="text-muted-foreground truncate pt-0.5">{it.nome}</span>
             <span className="shrink-0 text-right">
-              <span className="tabular-nums">{brl(total ? it.valorMilheiro * vol : it.valorMilheiro)}</span>
+              <Val origem={origemDoItem(it.nome, params, vol)} className="tabular-nums">{brl(total ? it.valorMilheiro * vol : it.valorMilheiro)}</Val>
               {total && <span className="block text-[10px] text-muted-foreground tabular-nums">{brl(it.valorMilheiro)}/mi</span>}
             </span>
           </div>
