@@ -59,8 +59,6 @@ import {
   Wrench,
   Users2,
   Layers,
-  Bell,
-  RefreshCw,
   Activity,
   Clock,
   Route,
@@ -620,14 +618,9 @@ export default function Sidebar() {
   const { user, canAccess } = useSession();
   const { openShortcuts } = useShortcuts();
 
-  // ── Pending approvals badge + notification panel ─────────────────────────
+  // ── Badge de aprovações pendentes (alimenta o item "Minhas Aprovações") ──
+  // O sino/painel de notificações migrou p/ o topo (NotificationCenter no TabBar).
   const [pendingAprov, setPendingAprov] = useState(0);
-  const [notifOpen, setNotifOpen]       = useState(false);
-  const notifBtnRef = useRef<HTMLButtonElement>(null);
-  const notifPanelRef = useRef<HTMLDivElement>(null);
-  const [notifPos, setNotifPos] = useState({ top: 0, left: 0 });
-  const [notifMounted, setNotifMounted] = useState(false);
-  useEffect(() => { setNotifMounted(true); }, []);
 
   const fetchPending = useCallback(async () => {
     try {
@@ -644,29 +637,6 @@ export default function Sidebar() {
     const timer = setInterval(fetchPending, 60_000); // poll every 60s
     return () => clearInterval(timer);
   }, [fetchPending]);
-
-  // Close notification panel on outside click
-  useEffect(() => {
-    if (!notifOpen) return;
-    function onDown(e: MouseEvent) {
-      if (
-        notifPanelRef.current && !notifPanelRef.current.contains(e.target as Node) &&
-        notifBtnRef.current   && !notifBtnRef.current.contains(e.target as Node)
-      ) setNotifOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [notifOpen]);
-
-  function handleNotifToggle() {
-    if (!notifBtnRef.current) return;
-    const r = notifBtnRef.current.getBoundingClientRect();
-    setNotifPos({ top: r.top, left: r.right + 8 });
-    setNotifOpen((p) => {
-      if (!p) fetchPending(); // refetch ao abrir para evitar estado stale
-      return !p;
-    });
-  }
 
   // Visible main modules (exclude admin)
   const visibleMain  = mainModules.filter((mod) => canAccess(mod.id));
@@ -879,28 +849,8 @@ export default function Sidebar() {
               </button>
             </StripTooltip>
 
-            {/* Notificações */}
-            <StripTooltip label={pendingAprov > 0 ? `Notificações (${pendingAprov} pendentes)` : "Notificações"}>
-              <button
-                ref={notifBtnRef}
-                onClick={handleNotifToggle}
-                className={cn(
-                  "relative flex items-center justify-center w-9 h-9 rounded-xl transition-colors",
-                  notifOpen
-                    ? "bg-gray-700 text-white"
-                    : pendingAprov > 0
-                    ? "text-amber-400 hover:bg-gray-800"
-                    : "text-gray-500 hover:bg-gray-800 hover:text-gray-200"
-                )}
-              >
-                <Bell className="w-4 h-4" />
-                {pendingAprov > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
-                    {pendingAprov > 99 ? "99+" : pendingAprov}
-                  </span>
-                )}
-              </button>
-            </StripTooltip>
+            {/* Notificações migraram para o topo (NotificationCenter, ao lado do
+                seletor de empresa no TabBar). */}
 
             {/* Alternar tema claro/escuro */}
             <StripTooltip label="Tema claro / escuro">
@@ -1054,78 +1004,6 @@ export default function Sidebar() {
       </aside>
 
       {/* ── Notification panel (portal) ─────────────────────────────────────── */}
-      {notifMounted && notifOpen && createPortal(
-        <div
-          ref={notifPanelRef}
-          className="fixed z-[9999] w-72 rounded-xl bg-popover text-popover-foreground border border-border shadow-[0_8px_32px_rgba(0,0,0,0.14)] overflow-hidden"
-          style={{ top: notifPos.top, left: notifPos.left }}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <div className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-semibold text-foreground">Notificações</span>
-              {pendingAprov > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
-                  {pendingAprov > 99 ? "99+" : pendingAprov}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={fetchPending}
-              title="Atualizar"
-              className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Body */}
-          <div className="max-h-72 overflow-y-auto">
-            {pendingAprov > 0 ? (
-              <button
-                onClick={() => { setNotifOpen(false); attemptNavigate(() => router.push("/aprovacoes")); }}
-                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-warning/10 transition-colors text-left border-b border-border"
-              >
-                <div className="w-8 h-8 rounded-full bg-warning/15 flex items-center justify-center shrink-0 mt-0.5">
-                  <ThumbsUp className="w-4 h-4 text-warning" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">
-                    {pendingAprov === 1
-                      ? "1 aprovação aguardando"
-                      : `${pendingAprov} aprovações aguardando`}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Solicitações de compra pendentes de aprovação
-                  </p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground/60 shrink-0 mt-1" />
-              </button>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-8 gap-2 text-center px-4">
-                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                  <Bell className="w-5 h-5 text-muted-foreground/60" />
-                </div>
-                <p className="text-sm text-muted-foreground">Nenhuma notificação pendente</p>
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          {pendingAprov > 0 && (
-            <div className="border-t border-border px-4 py-2.5">
-              <button
-                onClick={() => { setNotifOpen(false); attemptNavigate(() => router.push("/aprovacoes")); }}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium w-full text-center"
-              >
-                Ver todas as aprovações
-              </button>
-            </div>
-          )}
-        </div>,
-        document.body
-      )}
     </>
   );
 }
