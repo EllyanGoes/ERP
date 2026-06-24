@@ -136,6 +136,21 @@ export async function calcularCusteio(empresaId: string, competencia: Date): Pro
               },
             },
           },
+          // Segunda qualidade: usa a engenharia do produto base (mesmo custo).
+          produtoBase: {
+            select: {
+              engenhariaProduto: {
+                select: {
+                  insumos: {
+                    select: {
+                      insumoItemId: true, quantidade: true, base: true, unidadeId: true,
+                      insumoItem: { select: { descricao: true, compoeCusto: true, precoCusto: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       })
     : [];
@@ -145,7 +160,7 @@ export async function calcularCusteio(empresaId: string, competencia: Date): Pro
   for (const it of itens) {
     const volumeUn = volPorItem.get(it.id) ?? 0;
     const volMi = volumeUn / 1000;
-    const eng = it.engenhariaProduto;
+    const eng = it.engenhariaProduto ?? it.produtoBase?.engenhariaProduto ?? null;
     const mat = eng ? await materialPorMilheiro(empresaId, eng) : { total: 0, itens: [] };
     const custoMilheiro = mat.total + modRate + cifRate;
     for (const mi of mat.itens) mdAcumItem.set(mi.nome, (mdAcumItem.get(mi.nome) ?? 0) + volMi * mi.valorMilheiro);
