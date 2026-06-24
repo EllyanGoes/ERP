@@ -292,6 +292,44 @@ export async function garantirContaResultadoAcumulado(empresaId: string) {
   });
 }
 
+// Get-or-create de uma analítica por NOME sob um pai (idempotente; evita colidir
+// códigos quando o pai já tem filhos — usa o próximo código sequencial).
+async function garantirAnaliticaPorNome(
+  empresaId: string, paiCodigo: string, nome: string,
+  grupo: "ATIVO" | "PASSIVO" | "RESULTADO" | "PATRIMONIO_LIQUIDO", natureza: "DEVEDORA" | "CREDORA",
+) {
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: paiCodigo } });
+  if (!pai) return null;
+  const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, paiId: pai.id, nome }, select: { id: true } });
+  if (existente) return existente;
+  const filhos = await prismaSemEscopo.contaContabil.findMany({ where: { empresaId, paiId: pai.id }, select: { codigo: true } });
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo: montarProximo(pai.codigo, filhos.map((f) => f.codigo)), nome,
+      grupo, natureza, tipo: "ANALITICA", nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id,
+    },
+    select: { id: true },
+  });
+}
+
+/**
+ * Garante (idempotente) as contas de passivo da folha de pagamento e retorna ids:
+ * INSS/IRRF/FGTS a Recolher (sob 2.1.5 Impostos a Pagar) e Outros a Repassar
+ * (2.1.8 Outras Obrigações, ou novo sob 2.1). Salários a Pagar é por colaborador
+ * (2.1.6.x via garantirContaColaboradorNaEmpresa).
+ */
+export async function garantirContasFolha(empresaId: string) {
+  const [inss, irrf, fgts] = await Promise.all([
+    garantirAnaliticaPorNome(empresaId, "2.1.5", "INSS a Recolher", "PASSIVO", "CREDORA"),
+    garantirAnaliticaPorNome(empresaId, "2.1.5", "IRRF a Recolher", "PASSIVO", "CREDORA"),
+    garantirAnaliticaPorNome(empresaId, "2.1.5", "FGTS a Recolher", "PASSIVO", "CREDORA"),
+  ]);
+  const outrosExistente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "2.1.8" }, select: { id: true } });
+  const outros = outrosExistente ?? await garantirAnaliticaPorNome(empresaId, "2.1", "Consignados e Outros a Repassar", "PASSIVO", "CREDORA");
+  const cif = await garantirContaCifApropriar(empresaId);
+  return { inssId: inss?.id ?? null, irrfId: irrf?.id ?? null, fgtsId: fgts?.id ?? null, outrosId: outros?.id ?? null, cifApropriarId: cif?.id ?? null };
+}
+
 /** Garante (idempotente) as contas compartilhadas do imobilizado e retorna seus ids. */
 export async function garantirContasImobilizado(empresaId: string) {
   const [deprAcum, despesa] = await Promise.all([
@@ -468,6 +506,30 @@ export async function garantirContaBensEntregar(empresaId: string) {
       empresaId, codigo: "1.1.4", nome: "Bens a Entregar",
       grupo: "ATIVO", natureza: "DEVEDORA", tipo: "SINTETICA",
       nivel: pai.nivel + 1, aceitaLancamento: false, paiId: pai.id, ativo: true,
+    },
+    select: { id: true },
+  });
+}
+
+/**
+ * Garante (idempotente) a conta "CIF a Apropriar" (1.1.4.0001, ativo de staging) —
+ * destino da mão de obra indireta (MOI) na folha e do CIF real, apropriada depois
+ * ao PEP-CIF. Reserva o código 1.1.4.0001 (analíticas de cliente vão a 1.1.4.0002+).
+ */
+export async function garantirContaCifApropriar(empresaId: string) {
+  const ex = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.4.0001" }, select: { id: true } });
+  if (ex) return ex;
+  let pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.4" }, select: { id: true, nivel: true } });
+  if (!pai) {
+    await garantirContaBensEntregar(empresaId);
+    pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.4" }, select: { id: true, nivel: true } });
+  }
+  if (!pai) return null;
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo: "1.1.4.0001", nome: "CIF a Apropriar",
+      grupo: "ATIVO", natureza: "DEVEDORA", tipo: "ANALITICA",
+      nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id,
     },
     select: { id: true },
   });

@@ -158,6 +158,8 @@ model Colaborador {
   telegramChatId             String?
   cargo                      String?
   setorId                    String?
+  // Classificação de custo para o fechamento da folha (rateio MOD/MOI/admin).
+  classificacaoCusto         ClassificacaoCusto?
   dataAdmissao               DateTime?
   dataDemissao               DateTime?
   usuarioId                  String?              @unique
@@ -166,6 +168,7 @@ model Colaborador {
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
   etapasAprovacao            AprovacaoEtapa[]
+  folhaItens                 FolhaItem[]
   usuario                    Usuario?             @relation(fields: [usuarioId], references: [id])
   filiais                    Filial[]
   // Empresas em que o colaborador está presente — define onde ele aparece nos
@@ -177,6 +180,71 @@ model Colaborador {
   requisicoesComoSolicitante RequisicaoMaterial[] @relation("RM_Solicitante")
   requisicoesComoAlmoxarife  RequisicaoMaterial[] @relation("RM_Almoxarife")
   inventarios                InventarioMaterial[]
+}
+
+// Classificação de custo do colaborador para o fechamento da folha:
+// MOD → PEP-MOD; MOI → CIF a Apropriar; ADMIN → Despesa.
+enum ClassificacaoCusto {
+  MOD
+  MOI
+  ADMIN
+}
+
+enum StatusFolha {
+  EM_REVISAO
+  FECHADA
+  CANCELADA
+}
+
+// Folha de pagamento de uma competência: o PDF é subido, a IA extrai os itens, o
+// usuário classifica (MOD/MOI/admin) e o fechamento apropria + gera Contas a Pagar.
+model FolhaPagamento {
+  id                String      @id @default(cuid())
+  empresaId         String      @default("emp_tramontin")
+  competencia       DateTime // 1º dia do mês de competência
+  dataPagamento     DateTime?
+  dataVencimento    DateTime?
+  arquivoUrl        String?
+  arquivoNome       String?
+  status            StatusFolha @default(EM_REVISAO)
+  totalBruto        Decimal     @default(0) @db.Decimal(15, 2)
+  totalLiquido      Decimal     @default(0) @db.Decimal(15, 2)
+  totalInssRetido   Decimal     @default(0) @db.Decimal(15, 2)
+  totalInssPatronal Decimal     @default(0) @db.Decimal(15, 2)
+  totalIrrf         Decimal     @default(0) @db.Decimal(15, 2)
+  totalFgts         Decimal     @default(0) @db.Decimal(15, 2)
+  lancamentoId      String? // lançamento de apropriação gerado no fechamento
+  criadoPor         String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  empresa           Empresa     @relation(fields: [empresaId], references: [id])
+  itens             FolhaItem[]
+
+  @@unique([empresaId, competencia])
+  @@index([empresaId, status])
+}
+
+model FolhaItem {
+  id              String             @id @default(cuid())
+  folhaId         String
+  colaboradorId   String?
+  matricula       String?
+  nome            String
+  cargo           String?
+  classificacao   ClassificacaoCusto @default(ADMIN)
+  bruto           Decimal            @default(0) @db.Decimal(15, 2)
+  liquido         Decimal            @default(0) @db.Decimal(15, 2)
+  inssRetido      Decimal            @default(0) @db.Decimal(15, 2)
+  inssPatronal    Decimal            @default(0) @db.Decimal(15, 2)
+  irrf            Decimal            @default(0) @db.Decimal(15, 2)
+  fgts            Decimal            @default(0) @db.Decimal(15, 2)
+  outrosDescontos Decimal            @default(0) @db.Decimal(15, 2)
+  rubricas        Json? // detalhamento bruto da IA (proventos/descontos por código)
+  folha           FolhaPagamento     @relation(fields: [folhaId], references: [id], onDelete: Cascade)
+  colaborador     Colaborador?       @relation(fields: [colaboradorId], references: [id])
+
+  @@index([folhaId])
+  @@index([colaboradorId])
 }
 
 model Setor {
@@ -348,6 +416,13 @@ model ContaPagar {
   formaPagamento        String?
   notaFiscal            String?
   intragrupo            Boolean                @default(false)
+  // Folha de pagamento: quando true, a provisão já foi feita pela apropriação da
+  // folha — a contabilização do título posta SÓ a liquidação (D passivo / C banco).
+  semProvisao           Boolean                @default(false)
+  folhaId               String?
+  // Conta de passivo a debitar na liquidação (folha: INSS/IRRF/FGTS a Recolher).
+  // Quando null, o passivo vem do colaborador/natureza (comportamento padrão).
+  contaPassivoId        String?
   contaReceberEspelhoId String?                @unique
   observacoes           String?
   createdAt             DateTime               @default(now())
@@ -607,6 +682,7 @@ enum OrigemLancamento {
   DEPRECIACAO // depreciação do imobilizado (D Despesa / C Depreciação Acumulada)
   ENCERRAMENTO // encerramento do exercício (zera Resultado contra o PL)
   RECEITA_ENTREGA // reconhecimento de receita na entrega (D Material a Entregar / C Receita)
+  FOLHA_PAGAMENTO // apropriação da folha (D PEP-MOD/CIF/Despesa / C Salários, INSS, IRRF, FGTS)
   MANUAL
   ESTORNO
 }
@@ -911,6 +987,7 @@ model Empresa {
   conferenciaCompraItems    ConferenciaCompraItem[]
   contaPagars               ContaPagar[]
   contaRecebers             ContaReceber[]
+  folhasPagamento           FolhaPagamento[]
   naturezasFinanceiras      NaturezaFinanceira[]
   naturezaSubgrupos         NaturezaSubgrupo[]
   contaBancarias            ContaBancaria[]
