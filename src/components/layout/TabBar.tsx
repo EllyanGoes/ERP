@@ -149,7 +149,6 @@ export default function TabBar() {
         })}
       </div>
       <div className="flex items-center gap-1 pr-1.5 pb-1 shrink-0">
-        <EmpresaSelector />
         <button
           onClick={() => window.dispatchEvent(new Event("command-palette:open"))}
           className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -159,6 +158,7 @@ export default function TabBar() {
           <Search className="w-[18px] h-[18px]" />
         </button>
         <NotificationCenter />
+        <EmpresaSelector />
       </div>
     </div>
   );
