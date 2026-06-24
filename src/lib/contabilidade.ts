@@ -963,16 +963,18 @@ async function postMovimentosEstoque(opts: {
 }
 
 /**
- * Produção (PCP): transformação entre contas de ESTOQUE (matéria-prima → WIP por
- * estado → produto acabado). Não toca resultado — o P&L só aparece no CPV da venda.
- * Lança como transferência: D conta do local que recebe / C do local que cede, ao
- * CMPM de cada item (WIP/acabado já custeados fase a fase pelo apontamento).
- * Só ao concluir a ordem. Idempotente por (empresa, ESTOQUE_PRODUCAO, ordemId).
+ * Produção (PCP): material flui matéria-prima → PEP → produto acabado. Não toca
+ * resultado (o P&L só aparece no CPV da venda). Os locais de WIP por fase rolam
+ * TODOS para a conta PEP-MD (1.1.3.0005.0001): assim a TRANSIÇÃO entre estágios
+ * (entra e sai do mesmo PEP) se anula e NÃO gera partida — o estágio é DIMENSÃO,
+ * nunca conta. Sobra o líquido: D PA / C MP (ou D PEP-MD residual / C MP se a OP
+ * não chegou ao acabado). Só ao concluir a ordem; idempotente por (empresa,
+ * ESTOQUE_PRODUCAO, ordemId).
  */
 export async function contabilizarProducaoOrdem(ordemId: string) {
   const ordem = await prismaSemEscopo.ordemProducao.findUnique({
     where: { id: ordemId },
-    select: { id: true, numero: true, status: true, updatedAt: true },
+    select: { id: true, numero: true, status: true, updatedAt: true, estadoAtual: true },
   });
   if (!ordem || ordem.status !== "CONCLUIDA") return;
 
@@ -983,10 +985,47 @@ export async function contabilizarProducaoOrdem(ordemId: string) {
   if (movs.length === 0) return;
   const empresaId = movs[0].empresaId;
 
-  await postMovimentosEstoque({
+  // Valoração por CMPM + resolução da conta de cada local (WIP → PEP-MD).
+  const itemIds = Array.from(new Set(movs.map((m) => m.itemId)));
+  const localIds = Array.from(new Set(movs.map((m) => m.localEstoqueId).filter((x): x is string => !!x)));
+  const [valores, locais, pepMd] = await Promise.all([
+    valoresEstoqueDaEmpresa(empresaId, itemIds),
+    prismaSemEscopo.localEstoque.findMany({ where: { id: { in: localIds } }, select: { id: true, categoriasAceitas: true } }),
+    contaPorCodigo(empresaId, "1.1.3.0005.0001"),
+  ]);
+  const contaPorLocal = new Map<string, string>();
+  for (const l of locais) {
+    const ehWip = ((l.categoriasAceitas as string[] | null) ?? []).includes("WIP");
+    const conta = ehWip ? pepMd : await garantirContaLocalNaEmpresa(empresaId, l.id);
+    if (conta) contaPorLocal.set(l.id, conta.id);
+  }
+  const pepMdId = pepMd?.id ?? null;
+
+  // Variação de valor por CONTA (transições intra-PEP se anulam).
+  const porConta = new Map<string, number>();
+  for (const m of movs) {
+    if (!m.localEstoqueId) continue;
+    const contaId = contaPorLocal.get(m.localEstoqueId);
+    if (!contaId) continue;
+    const custo = valores.get(m.itemId)?.valorUnitario ?? 0;
+    if (!custo) continue;
+    const v = (m.tipo === "ENTRADA" ? 1 : -1) * decimalToNumber(m.quantidade) * custo;
+    porConta.set(contaId, (porConta.get(contaId) ?? 0) + v);
+  }
+
+  const partidas: PartidaIn[] = [];
+  for (const [contaId, v] of Array.from(porConta.entries())) {
+    if (Math.abs(v) < EPS) continue; // estágio↔estágio no mesmo PEP-MD → sem partida
+    const estagio = contaId === pepMdId ? ordem.estadoAtual : undefined; // resíduo de WIP leva o estágio
+    partidas.push(v > 0
+      ? { contaId, tipo: "DEBITO", valor: Math.round(v * 100) / 100, estagio }
+      : { contaId, tipo: "CREDITO", valor: Math.round(-v * 100) / 100, estagio });
+  }
+  if (partidas.length < 2) return; // nada líquido a lançar (tudo se anulou)
+
+  await registrarLancamento({
     empresaId, data: ordem.updatedAt, historico: `Produção — ${ordem.numero}`,
-    origemTipo: "ESTOQUE_PRODUCAO", origemId: ordemId,
-    movs, semContrapartida: true,
+    origemTipo: "ESTOQUE_PRODUCAO", origemId: ordemId, partidas,
   });
 }
 

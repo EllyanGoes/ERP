@@ -2,7 +2,7 @@
 // Reaproveita a maquinaria de estoque existente (EstoqueItem + MovimentacaoEstoque),
 // criando automaticamente os itens de WIP (por produto × estado) e um local "Produção".
 
-import type { Prisma, EstadoWIP, TipoMovimentacaoEstoque } from "@prisma/client";
+import type { Prisma, EstadoWIP, TipoMovimentacaoEstoque, CategoriaEstoque } from "@prisma/client";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 const LOCAL_WIP_NOME = "Produção (WIP)";
@@ -16,10 +16,10 @@ const ESTADO_LABEL: Record<EstadoWIP, string> = {
 };
 
 /** Get-or-create de um local de estoque por nome. */
-async function getOrCreateLocalNome(tx: Prisma.TransactionClient, nome: string, descricao: string): Promise<string> {
+async function getOrCreateLocalNome(tx: Prisma.TransactionClient, nome: string, descricao: string, categoriasAceitas?: CategoriaEstoque[]): Promise<string> {
   const existente = await tx.localEstoque.findFirst({ where: { nome }, select: { id: true } });
   if (existente) return existente.id;
-  const novo = await tx.localEstoque.create({ data: { nome, descricao }, select: { id: true } });
+  const novo = await tx.localEstoque.create({ data: { nome, descricao, categoriasAceitas: categoriasAceitas ?? [] }, select: { id: true } });
   return novo.id;
 }
 
@@ -35,7 +35,9 @@ export async function getOrCreateLocalProducao(tx: Prisma.TransactionClient): Pr
  */
 export async function getOrCreateLocalEstado(tx: Prisma.TransactionClient, estado: EstadoWIP): Promise<string> {
   if (estado === "ACABADO") return getOrCreateLocalNome(tx, LOCAL_PA_NOME, "Estoque de produto acabado (produção)");
-  return getOrCreateLocalNome(tx, `Produção — WIP ${ESTADO_LABEL[estado] ?? estado}`, "Estoque de produto em processo (produção)");
+  // Categoria WIP: na contabilidade todos os locais de fase rolam para a conta
+  // PEP-MD (estágio é dimensão, não conta) — ver contabilizarProducaoOrdem.
+  return getOrCreateLocalNome(tx, `Produção — WIP ${ESTADO_LABEL[estado] ?? estado}`, "Estoque de produto em processo (produção)", ["WIP"]);
 }
 
 function slug(s: string): string {
