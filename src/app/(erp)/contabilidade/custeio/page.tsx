@@ -138,7 +138,7 @@ export default function CusteioPage() {
     <div className="p-6 max-w-7xl mx-auto space-y-5">
       <div>
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold text-foreground flex items-center gap-2"><Calculator className="w-5 h-5" /> Custeio — taxa de CIF/MOD</h1>
+          <h1 className="text-xl font-semibold text-foreground flex items-center gap-2"><Calculator className="w-5 h-5" /> CPV — Custo dos Produtos Vendidos</h1>
           <button type="button" onClick={() => setShowInfo((v) => !v)} title="O que é a taxa predeterminada?"
             className={`flex items-center justify-center w-6 h-6 rounded-md border transition-colors ${showInfo ? "border-sky-400 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400" : "border-border text-muted-foreground hover:text-sky-600 hover:border-sky-300"}`}>
             <Info className="w-4 h-4" />
