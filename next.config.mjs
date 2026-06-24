@@ -8,6 +8,12 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  async redirects() {
+    return [
+      // Rota renomeada: /contabilidade/custeio → /contabilidade/cpv (links antigos).
+      { source: "/contabilidade/custeio", destination: "/contabilidade/cpv", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

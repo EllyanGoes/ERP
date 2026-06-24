@@ -295,7 +295,7 @@ const mainModules: Module[] = [
         kind: "Processos",
         items: [
           { href: "/contabilidade/lancamentos", label: "Diário Contábil", icon: BarChart3 },
-          { href: "/contabilidade/custeio", label: "CPV", icon: Calculator },
+          { href: "/contabilidade/cpv", label: "CPV", icon: Calculator },
           { href: "/contabilidade/fechamento", label: "Encerramento do Exercício", icon: CalendarClock },
         ],
       },
