@@ -77,6 +77,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       });
     }
 
+    // Aprende a matrícula: grava no cadastro do colaborador vinculado (se ainda
+    // não tiver), p/ casar automaticamente nas próximas competências.
+    const vinculados = await tx.folhaItem.findMany({
+      where: { folhaId: params.id, colaboradorId: { not: null }, matricula: { not: null } },
+      select: { colaboradorId: true, matricula: true },
+    });
+    for (const v of vinculados) {
+      await tx.colaborador.updateMany({
+        where: { id: v.colaboradorId!, OR: [{ matricula: null }, { matricula: "" }] },
+        data: { matricula: v.matricula },
+      });
+    }
+
     // Recalcula os totais da folha a partir dos itens.
     const todos = await tx.folhaItem.findMany({ where: { folhaId: params.id }, select: { bruto: true, liquido: true, inssRetido: true, inssPatronal: true, irrf: true, fgts: true } });
     const soma = (k: "bruto" | "liquido" | "inssRetido" | "inssPatronal" | "irrf" | "fgts") =>

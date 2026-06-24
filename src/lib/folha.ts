@@ -304,15 +304,17 @@ export async function extrairFolhaPdf(folhaId: string) {
   }
   if (!dados?.colaboradores?.length) throw new Error("Não foi possível extrair colaboradores do PDF.");
 
-  // Colaboradores da empresa p/ casar por nome.
+  // Colaboradores da empresa p/ casar por MATRÍCULA (estável) e depois por nome.
   const colabs = await prismaSemEscopo.colaborador.findMany({
     where: { empresas: { some: { id: folha.empresaId } } },
-    select: { id: true, nome: true, classificacaoCusto: true },
+    select: { id: true, nome: true, matricula: true, classificacaoCusto: true },
   });
+  const porMatricula = new Map(colabs.filter((c) => c.matricula).map((c) => [c.matricula!.trim(), c]));
   const porNome = new Map(colabs.map((c) => [c.nome.trim().toLowerCase(), c]));
 
   const itensData = dados.colaboradores.map((c) => {
-    const match = porNome.get((c.nome ?? "").trim().toLowerCase()) ?? null;
+    const match = (c.matricula ? porMatricula.get(c.matricula.trim()) : null)
+      ?? porNome.get((c.nome ?? "").trim().toLowerCase()) ?? null;
     return {
       folhaId: folha.id,
       colaboradorId: match?.id ?? null,

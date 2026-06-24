@@ -152,6 +152,9 @@ model Colaborador {
   id                         String               @id @default(cuid())
   nome                       String
   cpf                        String?              @unique
+  // Matrícula na folha — casa a folha ao colaborador automaticamente (aprendida
+  // no 1º vínculo, reusada nas próximas competências).
+  matricula                  String?
   rg                         String?
   email                      String?
   telefone                   String?
@@ -1223,6 +1226,11 @@ model Item {
   ordensProducao         OrdemProducao[]
   engenhariaProduto      EngenhariaProduto?       @relation("EngenhariaProdutoItem")
   insumosEngenharia      EngenhariaInsumo[]       @relation("EngenhariaInsumoItem")
+  // Item de SEGUNDA qualidade: mesma engenharia/custo do produto base; muda só o
+  // preço de venda. O custeio usa a engenharia do base quando a segunda não tem.
+  produtoBaseId          String?
+  produtoBase            Item?                    @relation("ProdutoSegunda", fields: [produtoBaseId], references: [id])
+  segundas               Item[]                   @relation("ProdutoSegunda")
   planosMestre           PlanoMestre[]
   metasProducaoDiaria    MetaProducaoDiaria[]
   custosEmpresa          ItemCustoEmpresa[]

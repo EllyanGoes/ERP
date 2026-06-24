@@ -34,6 +34,7 @@ type Colaborador = {
   telegramChatId:  string | null;
   cargo:           string | null;
   classificacaoCusto: "MOD" | "MOI" | "ADMIN" | null;
+  matricula:       string | null;
   setorId:         string | null;
   setor:           { id: string; nome: string } | null;
   dataAdmissao:    string | null;
@@ -101,6 +102,7 @@ export default function ColaboradorDetailPage() {
   const [eCargo,        setECargo]        = useState("");
   const [eSetorId,      setESetorId]      = useState("");
   const [eClassificacaoCusto, setEClassificacaoCusto] = useState("");
+  const [eMatricula, setEMatricula] = useState("");
   const [eDataAdmissao, setEDataAdmissao] = useState("");
   const [eDataDemissao, setEDataDemissao] = useState("");
   const [eFilialIds,    setEFilialIds]    = useState<string[]>([]);
@@ -149,6 +151,7 @@ export default function ColaboradorDetailPage() {
     setECargo(colaborador.cargo ?? "");
     setESetorId(colaborador.setorId ?? "");
     setEClassificacaoCusto(colaborador.classificacaoCusto ?? "");
+    setEMatricula(colaborador.matricula ?? "");
     setEDataAdmissao(colaborador.dataAdmissao ? colaborador.dataAdmissao.slice(0, 10) : "");
     setEDataDemissao(colaborador.dataDemissao ? colaborador.dataDemissao.slice(0, 10) : "");
     setEFilialIds(colaborador.filiais.map((f) => f.id));
@@ -194,6 +197,7 @@ export default function ColaboradorDetailPage() {
           telegramChatId: eTelegramChatId.trim() || null,
           cargo:          eCargo.trim()   || null,
           classificacaoCusto: eClassificacaoCusto || null,
+          matricula:      eMatricula.trim() || null,
           setorId:      eSetorId       || null,
           dataAdmissao: eDataAdmissao || null,
           dataDemissao: eDataDemissao || null,
@@ -327,6 +331,9 @@ export default function ColaboradorDetailPage() {
                     <option value="MOI">MOI — Mão de obra indireta</option>
                     <option value="ADMIN">Administrativo / Comercial</option>
                   </select>
+                </Field>
+                <Field label="Matrícula (folha)">
+                  <Input value={eMatricula} onChange={(e) => setEMatricula(e.target.value)} placeholder="Ex: 010543" />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-4">

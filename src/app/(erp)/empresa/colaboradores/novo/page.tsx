@@ -52,6 +52,7 @@ export default function NovoColaboradorPage() {
   const [cargo,        setCargo]        = useState("");
   const [setorId,      setSetorId]      = useState("");
   const [classificacaoCusto, setClassificacaoCusto] = useState("");
+  const [matricula, setMatricula] = useState("");
   const [dataAdmissao, setDataAdmissao] = useState("");
   const [filialIds,    setFilialIds]    = useState<string[]>([]);
   const [empresaIds,   setEmpresaIds]   = useState<string[]>([]);
@@ -107,6 +108,7 @@ export default function NovoColaboradorPage() {
           cargo:        cargo.trim()   || null,
           setorId:      setorId       || null,
           classificacaoCusto: classificacaoCusto || null,
+          matricula:    matricula.trim() || null,
           dataAdmissao: dataAdmissao || null,
           filialIds,
           empresaIds,
@@ -235,6 +237,9 @@ export default function NovoColaboradorPage() {
                   <option value="MOI">MOI — Mão de obra indireta</option>
                   <option value="ADMIN">Administrativo / Comercial</option>
                 </select>
+              </Field>
+              <Field label="Matrícula (folha)">
+                <Input value={matricula} onChange={(e) => setMatricula(e.target.value)} placeholder="Ex: 010543" />
               </Field>
             </div>
 

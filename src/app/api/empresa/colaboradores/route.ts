@@ -11,6 +11,7 @@ import { z } from "zod"
 const schema = z.object({
   nome: z.string().min(1),
   cpf: z.string().optional().nullable(),
+  matricula: z.string().optional().nullable(),
   rg: z.string().optional().nullable(),
   email: z.string().optional().nullable(),
   telefone: z.string().optional().nullable(),
