@@ -121,6 +121,16 @@ type ComprasData = {
   }>;
 };
 
+type CustoHistRow = {
+  competencia: string;
+  materialMilheiro: number;
+  modMilheiro: number;
+  cifMilheiro: number;
+  custoMilheiro: number;
+  custoUnitario: number;
+  atualizadoEm: string;
+};
+
 const TIPO_LABEL: Record<string, string> = {
   PRODUTO: "Produto",
   MATERIA_PRIMA: "Matéria-prima",
@@ -146,7 +156,7 @@ export default function ProdutoDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
-  const [tab, setTab] = useState<"dados" | "fornecedores" | "estoques" | "movimentacoes" | "compras" | "relatorio" | "unidades">("dados");
+  const [tab, setTab] = useState<"dados" | "fornecedores" | "estoques" | "movimentacoes" | "compras" | "relatorio" | "unidades" | "custo-producao">("dados");
   const [empresaEstoqueId, setEmpresaEstoqueId] = useState(""); // "" = todas as empresas
   const [periodoDias, setPeriodoDias] = useState<30 | 90 | 180 | 365>(90);
   const [item, setItem] = useState<Item | null>(null);
@@ -296,6 +306,10 @@ export default function ProdutoDetailPage() {
   const [comprasLoading, setComprasLoading] = useState(false);
   const [comprasLoaded, setComprasLoaded]   = useState(false);
 
+  const [custoHist, setCustoHist] = useState<CustoHistRow[] | null>(null);
+  const [custoHistLoading, setCustoHistLoading] = useState(false);
+  const [custoHistLoaded, setCustoHistLoaded]   = useState(false);
+
   function loadCompras() {
     if (comprasLoaded) return;
     setComprasLoading(true);
@@ -303,6 +317,15 @@ export default function ProdutoDetailPage() {
       .then((r) => r.json())
       .then((d) => { setCompras(d); setComprasLoaded(true); })
       .finally(() => setComprasLoading(false));
+  }
+
+  function loadCustoHist() {
+    if (custoHistLoaded) return;
+    setCustoHistLoading(true);
+    fetch(`/api/suprimentos/produtos/${id}/custo-historico`)
+      .then((r) => r.json())
+      .then((d) => { setCustoHist(d.historico ?? []); setCustoHistLoaded(true); })
+      .finally(() => setCustoHistLoading(false));
   }
 
   function openEstoqueEdit(e: { id: string; quantidadeAtual: unknown; localizacao: string | null }) {
@@ -945,6 +968,7 @@ export default function ProdutoDetailPage() {
     { key: "compras",        label: totalCompras !== null ? `Compras (${totalCompras})` : "Compras" },
     { key: "unidades",       label: `Unidades${itemUnidades.length > 0 ? ` (${itemUnidades.length})` : ""}` },
     { key: "relatorio",      label: "Relatório" },
+    ...(ehAcabado ? [{ key: "custo-producao", label: "Custo de Produção" } as const] : []),
   ] as const;
 
   return (
@@ -1032,6 +1056,7 @@ export default function ProdutoDetailPage() {
               onClick={() => {
                 setTab(t.key);
                 if (t.key === "compras") loadCompras();
+                if (t.key === "custo-producao") loadCustoHist();
                 if (t.key === "unidades" && !unidadesLoaded) loadItemUnidades();
               }}
               className={cn(
@@ -2556,6 +2581,96 @@ export default function ProdutoDetailPage() {
             </div>
           );
         })()}
+
+        {/* ── CUSTO DE PRODUÇÃO ──────────────────────────────────────────── */}
+        {tab === "custo-producao" && (
+          <div className="max-w-4xl space-y-4">
+            <div className="flex items-baseline justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Custo de Produção ao longo do tempo</h2>
+                <p className="text-sm text-muted-foreground">Custo médio (Material direto + MOD + CIF) por milheiro, gravado a cada aplicação do Custeio.</p>
+              </div>
+            </div>
+
+            {custoHistLoading ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">Carregando…</div>
+            ) : !custoHist || custoHist.length === 0 ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                Nenhum custo de produção registrado ainda. Aplique o Custeio em Contabilidade → Custeio para gerar o histórico.
+              </div>
+            ) : (() => {
+              const ult = custoHist[custoHist.length - 1];
+              const ant = custoHist.length > 1 ? custoHist[custoHist.length - 2] : null;
+              const varPct = ant && ant.custoMilheiro > 0 ? ((ult.custoMilheiro - ant.custoMilheiro) / ant.custoMilheiro) * 100 : null;
+              const maxCusto = Math.max(...custoHist.map((h) => h.custoMilheiro), 1);
+              return (
+                <>
+                  {/* Resumo da última competência */}
+                  <div className="grid grid-cols-4 gap-3">
+                    <div className="rounded-lg border border-border bg-card p-3">
+                      <div className="text-xs text-muted-foreground">Custo atual / milheiro</div>
+                      <div className="text-lg font-bold text-foreground tabular-nums">{formatBRL(ult.custoMilheiro)}</div>
+                      {varPct !== null && (
+                        <div className={cn("text-xs font-medium", varPct > 0 ? "text-danger" : varPct < 0 ? "text-success" : "text-muted-foreground")}>
+                          {varPct > 0 ? "▲" : varPct < 0 ? "▼" : ""} {Math.abs(varPct).toFixed(1)}% vs. anterior
+                        </div>
+                      )}
+                    </div>
+                    <div className="rounded-lg border border-border bg-card p-3">
+                      <div className="text-xs text-muted-foreground">Material direto</div>
+                      <div className="text-base font-semibold text-foreground tabular-nums">{formatBRL(ult.materialMilheiro)}</div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-card p-3">
+                      <div className="text-xs text-muted-foreground">Mão de obra direta</div>
+                      <div className="text-base font-semibold text-foreground tabular-nums">{formatBRL(ult.modMilheiro)}</div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-card p-3">
+                      <div className="text-xs text-muted-foreground">CIF</div>
+                      <div className="text-base font-semibold text-foreground tabular-nums">{formatBRL(ult.cifMilheiro)}</div>
+                    </div>
+                  </div>
+
+                  {/* Série temporal */}
+                  <div className="overflow-x-auto rounded-lg border border-border">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/50 text-muted-foreground">
+                          <th className="px-3 py-2 text-left font-medium">Competência</th>
+                          <th className="px-3 py-2 text-right font-medium">Material</th>
+                          <th className="px-3 py-2 text-right font-medium">MOD</th>
+                          <th className="px-3 py-2 text-right font-medium">CIF</th>
+                          <th className="px-3 py-2 text-right font-medium">Custo / milheiro</th>
+                          <th className="px-3 py-2 text-right font-medium">Custo / un.</th>
+                          <th className="px-3 py-2 text-left font-medium w-32">Evolução</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...custoHist].reverse().map((h) => {
+                          const comp = new Date(h.competencia).toLocaleDateString("pt-BR", { month: "short", year: "numeric", timeZone: "UTC" });
+                          return (
+                            <tr key={h.competencia} className="border-b border-border last:border-0">
+                              <td className="px-3 py-2 capitalize text-foreground">{comp}</td>
+                              <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatBRL(h.materialMilheiro)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatBRL(h.modMilheiro)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatBRL(h.cifMilheiro)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums font-semibold text-foreground">{formatBRL(h.custoMilheiro)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatBRL(h.custoUnitario)}</td>
+                              <td className="px-3 py-2">
+                                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                  <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.max(4, (h.custoMilheiro / maxCusto) * 100)}%` }} />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        )}
 
         {/* ── UNIDADES ───────────────────────────────────────────────────── */}
         {tab === "unidades" && (() => {

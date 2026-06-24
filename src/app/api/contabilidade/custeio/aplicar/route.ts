@@ -25,6 +25,19 @@ export async function POST(req: NextRequest) {
     // Custo da empresa (CMPM por empresa) + cadastro global (Custo Médio do produto).
     await definirCustoEmpresa(prismaSemEscopo, EMPRESA_PADRAO_ID, p.itemId, p.custoUnitario);
     await prismaSemEscopo.item.update({ where: { id: p.itemId }, data: { precoCusto: p.custoUnitario } });
+    // Histórico do custo de produção (por competência) — alimenta a aba "Custo de Produção" do produto.
+    await prismaSemEscopo.itemCustoHistorico.upsert({
+      where: { empresaId_itemId_competencia: { empresaId: EMPRESA_PADRAO_ID, itemId: p.itemId, competencia: comp } },
+      create: {
+        empresaId: EMPRESA_PADRAO_ID, itemId: p.itemId, competencia: comp,
+        materialMilheiro: p.materialMilheiro, modMilheiro: p.modMilheiro,
+        cifMilheiro: p.cifMilheiro, custoUnitario: p.custoUnitario,
+      },
+      update: {
+        materialMilheiro: p.materialMilheiro, modMilheiro: p.modMilheiro,
+        cifMilheiro: p.cifMilheiro, custoUnitario: p.custoUnitario,
+      },
+    });
     aplicados += 1;
   }
   return NextResponse.json({ data, aplicados });

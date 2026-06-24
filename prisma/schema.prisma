@@ -2248,6 +2248,24 @@ model ParametroCusteio {
   @@index([empresaId])
 }
 
+// Histórico do custo de produção de um produto por competência (gravado ao aplicar
+// o custeio): acompanha a evolução de material + MOD + CIF ao longo do tempo.
+model ItemCustoHistorico {
+  id               String   @id @default(cuid())
+  empresaId        String   @default("emp_tramontin")
+  itemId           String
+  competencia      DateTime
+  materialMilheiro Decimal  @default(0) @db.Decimal(15, 4)
+  modMilheiro      Decimal  @default(0) @db.Decimal(15, 4)
+  cifMilheiro      Decimal  @default(0) @db.Decimal(15, 4)
+  custoUnitario    Decimal  @default(0) @db.Decimal(15, 4)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([empresaId, itemId, competencia])
+  @@index([itemId])
+}
+
 // Ordem de produção — executa uma versão publicada de um fluxo. As etapas são
 // um snapshot (em ordem topológica) das operações do grafo no momento da criação.
 model OrdemProducao {
