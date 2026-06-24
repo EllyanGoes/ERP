@@ -15,6 +15,7 @@ export type OrigemIn =
   | "ESTOQUE_ENTRADA" | "ESTOQUE_SAIDA"
   | "ESTOQUE_PRODUCAO" | "ESTOQUE_CONSUMO" | "ESTOQUE_AJUSTE" | "ESTOQUE_TRANSFERENCIA"
   | "DEPRECIACAO" | "ENCERRAMENTO" | "RECEITA_ENTREGA"
+  | "FOLHA_PAGAMENTO"
   | "MANUAL" | "ESTORNO";
 
 export type PartidaIn = {
@@ -348,7 +349,7 @@ export async function contabilizarTituloReceber(crId: string) {
 export async function contabilizarTituloPagar(cpId: string) {
   const cp = await prismaSemEscopo.contaPagar.findUnique({
     where: { id: cpId },
-    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } }, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true, empresa: { select: { industrializa: true } } },
+    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } }, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true, semProvisao: true, contaPassivoId: true, empresa: { select: { industrializa: true } } },
   });
   if (!cp || cp.status === "CANCELADA") return;
 
@@ -415,14 +416,18 @@ export async function contabilizarTituloPagar(cpId: string) {
     const contaColab = cp.beneficiarioTipo === "COLABORADOR" && cp.beneficiarioId
       ? await garantirContaColaboradorNaEmpresa(cp.empresaId, cp.beneficiarioId)
       : null;
-    const contaPassivo = contaColab ?? contaNatContra;
+    // Folha: o passivo a liquidar pode ser uma conta específica (INSS/IRRF/FGTS a
+    // Recolher) carimbada no título.
+    const contaPassivoForcada = cp.contaPassivoId ? { id: cp.contaPassivoId } : null;
+    const contaPassivo = contaColab ?? contaPassivoForcada ?? contaNatContra;
 
     // Com PASSIVO (colaborador ou natureza): a despesa passa pelo passivo.
     // Provisão (competência) D Despesa / C Passivo; liquidação D Passivo / C Caixa.
-    // Pagamento direto = as duas na mesma data (Caso 3).
+    // Pagamento direto = as duas na mesma data (Caso 3). semProvisao=true (folha):
+    // a provisão já foi feita pela apropriação — só liquida.
     if (contaPassivo) {
       const valorComp = decimalToNumber(cp.valorOriginal);
-      if (valorComp > 0) {
+      if (valorComp > 0 && !cp.semProvisao) {
         await registrarLancamento({
           empresaId: cp.empresaId, data: cp.dataCompetencia ?? cp.createdAt,
           historico: `Provisão — ${refCp}`, origemTipo: "COMPRA", origemId: cp.id,
