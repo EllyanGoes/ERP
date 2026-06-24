@@ -311,6 +311,25 @@ const mainModules: Module[] = [
     ],
   },
   {
+    id: "rh",
+    label: "RH",
+    icon: Users,
+    sections: [
+      {
+        kind: "Cadastros",
+        items: [
+          { href: "/empresa/colaboradores", label: "Colaboradores", icon: UserCog },
+        ],
+      },
+      {
+        kind: "Processos",
+        items: [
+          { href: "/rh/folhas", label: "Folhas de Pagamento", icon: FileText },
+        ],
+      },
+    ],
+  },
+  {
     id: "pcm",
     label: "PCM",
     icon: Wrench,
