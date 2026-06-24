@@ -33,6 +33,7 @@ type Colaborador = {
   telefone:        string | null;
   telegramChatId:  string | null;
   cargo:           string | null;
+  classificacaoCusto: "MOD" | "MOI" | "ADMIN" | null;
   setorId:         string | null;
   setor:           { id: string; nome: string } | null;
   dataAdmissao:    string | null;
@@ -99,6 +100,7 @@ export default function ColaboradorDetailPage() {
   const [eTelegramChatId,  setETelegramChatId]  = useState("");
   const [eCargo,        setECargo]        = useState("");
   const [eSetorId,      setESetorId]      = useState("");
+  const [eClassificacaoCusto, setEClassificacaoCusto] = useState("");
   const [eDataAdmissao, setEDataAdmissao] = useState("");
   const [eDataDemissao, setEDataDemissao] = useState("");
   const [eFilialIds,    setEFilialIds]    = useState<string[]>([]);
@@ -146,6 +148,7 @@ export default function ColaboradorDetailPage() {
     setETelegramChatId(colaborador.telegramChatId ?? "");
     setECargo(colaborador.cargo ?? "");
     setESetorId(colaborador.setorId ?? "");
+    setEClassificacaoCusto(colaborador.classificacaoCusto ?? "");
     setEDataAdmissao(colaborador.dataAdmissao ? colaborador.dataAdmissao.slice(0, 10) : "");
     setEDataDemissao(colaborador.dataDemissao ? colaborador.dataDemissao.slice(0, 10) : "");
     setEFilialIds(colaborador.filiais.map((f) => f.id));
@@ -190,6 +193,7 @@ export default function ColaboradorDetailPage() {
           telefone:       eTelefone.trim() || null,
           telegramChatId: eTelegramChatId.trim() || null,
           cargo:          eCargo.trim()   || null,
+          classificacaoCusto: eClassificacaoCusto || null,
           setorId:      eSetorId       || null,
           dataAdmissao: eDataAdmissao || null,
           dataDemissao: eDataDemissao || null,
@@ -309,6 +313,20 @@ export default function ColaboradorDetailPage() {
                     triggerClassName="h-9 rounded-lg"
                     options={setores.filter((s) => s.ativo).map((s) => ({ value: s.id, label: s.nome }))}
                   />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Classificação de custo (folha)">
+                  <select
+                    value={eClassificacaoCusto}
+                    onChange={(e) => setEClassificacaoCusto(e.target.value)}
+                    className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm"
+                  >
+                    <option value="">— não classificado —</option>
+                    <option value="MOD">MOD — Mão de obra direta</option>
+                    <option value="MOI">MOI — Mão de obra indireta</option>
+                    <option value="ADMIN">Administrativo / Comercial</option>
+                  </select>
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-4">

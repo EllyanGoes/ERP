@@ -51,6 +51,7 @@ export default function NovoColaboradorPage() {
   const [telefone,     setTelefone]     = useState("");
   const [cargo,        setCargo]        = useState("");
   const [setorId,      setSetorId]      = useState("");
+  const [classificacaoCusto, setClassificacaoCusto] = useState("");
   const [dataAdmissao, setDataAdmissao] = useState("");
   const [filialIds,    setFilialIds]    = useState<string[]>([]);
   const [empresaIds,   setEmpresaIds]   = useState<string[]>([]);
@@ -105,6 +106,7 @@ export default function NovoColaboradorPage() {
           telefone:     telefone.trim() || null,
           cargo:        cargo.trim()   || null,
           setorId:      setorId       || null,
+          classificacaoCusto: classificacaoCusto || null,
           dataAdmissao: dataAdmissao || null,
           filialIds,
           empresaIds,
@@ -218,6 +220,21 @@ export default function NovoColaboradorPage() {
                   triggerClassName="h-9 rounded-lg"
                   options={setores.filter((s) => s.ativo).map((s) => ({ value: s.id, label: s.nome }))}
                 />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Classificação de custo (folha)">
+                <select
+                  value={classificacaoCusto}
+                  onChange={(e) => setClassificacaoCusto(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm"
+                >
+                  <option value="">— não classificado —</option>
+                  <option value="MOD">MOD — Mão de obra direta</option>
+                  <option value="MOI">MOI — Mão de obra indireta</option>
+                  <option value="ADMIN">Administrativo / Comercial</option>
+                </select>
               </Field>
             </div>
 

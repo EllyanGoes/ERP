@@ -16,6 +16,7 @@ const schema = z.object({
   telefone: z.string().optional().nullable(),
   cargo: z.string().optional().nullable(),
   setorId: z.string().optional().nullable(),
+  classificacaoCusto: z.enum(["MOD", "MOI", "ADMIN"]).optional().nullable(),
   dataAdmissao: z.string().optional().nullable(),
   dataDemissao: z.string().optional().nullable(),
   filialIds: z.array(z.string()).optional(),
