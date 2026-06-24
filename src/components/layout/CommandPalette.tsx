@@ -82,24 +82,33 @@ export default function CommandPalette() {
     saveRecent(pathname);
   }, [pathname]);
 
-  // ── Keyboard listener ──────────────────────────────────────────────────────
+  // ── Keyboard listener + abertura externa (lupa do topo) ─────────────────────
   useEffect(() => {
+    function toggle() {
+      setOpen((o) => {
+        if (!o) {
+          setQuery("");
+          setSelected(0);
+          setRecents(loadRecents());
+        }
+        return !o;
+      });
+    }
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        setOpen((o) => {
-          if (!o) {
-            setQuery("");
-            setSelected(0);
-            setRecents(loadRecents());
-          }
-          return !o;
-        });
+        toggle();
       }
       if (e.key === "Escape") setOpen(false);
     }
+    // A lupa no TabBar dispara este evento (mesmo efeito do Cmd+K).
+    function onAbrir() { setQuery(""); setSelected(0); setRecents(loadRecents()); setOpen(true); }
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("command-palette:open", onAbrir);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("command-palette:open", onAbrir);
+    };
   }, []);
 
   useEffect(() => {
