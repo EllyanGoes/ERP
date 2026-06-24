@@ -50,6 +50,8 @@ export async function PUT(req: NextRequest) {
     combustivelDia: num(body.combustivelDia),
     folhaMes: num(body.folhaMes),
     folhaMoiMes: num(body.folhaMoiMes),
+    depreciacaoMes: num(body.depreciacaoMes),
+    diaristasMes: num(body.diaristasMes),
     diasTrabalhados: Math.trunc(num(body.diasTrabalhados)) || 26,
     observacao: typeof body.observacao === "string" ? body.observacao.trim() || null : null,
   };

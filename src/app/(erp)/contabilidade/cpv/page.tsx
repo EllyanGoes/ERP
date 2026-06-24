@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useTabTitle } from "@/lib/tabs-context";
 
 type Produto = {
   itemId: string; codigo: string; descricao: string;
@@ -15,7 +16,7 @@ type Produto = {
   custoMilheiro: number; custoUnitario: number;
 };
 type Coluna = { total: number; itens: { nome: string; valorMilheiro: number }[] };
-type Composicao = { md: Coluna; cif: Coluna; mod: Coluna; custoTotalMilheiro: number };
+type Composicao = { materiaPrima: Coluna; embalagem: Coluna; md: Coluna; cif: Coluna; mod: Coluna; custoTotalMilheiro: number };
 type Result = {
   competencia: string;
   biomassaMes: number; combustivelMes: number; energiaMes: number;
@@ -34,7 +35,7 @@ function mesCorrente() {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-type Params = { biomassaDia: number; energiaMes: number; combustivelDia: number; folhaMes: number; folhaMoiMes: number; diasTrabalhados: number } | null;
+type Params = { biomassaDia: number; energiaMes: number; combustivelDia: number; folhaMes: number; folhaMoiMes: number; diasTrabalhados: number; depreciacaoMes: number; diaristasMes: number } | null;
 
 // Balão de origem do dado ao passar o mouse sobre o valor.
 function Val({ origem, children, className }: { origem: string; children: React.ReactNode; className?: string }) {
@@ -56,21 +57,27 @@ function origemDoItem(nome: string, p: Params, vol: number): string {
   if (nome === "Combustível") return `Combustível das máquinas: ${brl(p?.combustivelDia ?? 0)}/dia × ${dias} dias = ${brl((p?.combustivelDia ?? 0) * dias)}/mês, ${v}.`;
   if (nome === "Folha de pagamento") return `Folha de pagamento — mão de obra direta (MOD): ${brl(p?.folhaMes ?? 0)}/mês, ${v}.`;
   if (nome === "Mão de obra indireta (MOI)") return `Mão de obra indireta (MOI): ${brl(p?.folhaMoiMes ?? 0)}/mês (parte da folha que não é direta), ${v}.`;
+  if (nome === "Depreciação e amortização") return `Depreciação/amortização fabril: ${brl(p?.depreciacaoMes ?? 0)}/mês, ${v}.`;
+  if (nome === "Diaristas (diretos)") return `Diaristas diretos (lançamento de diaristas): ${brl(p?.diaristasMes ?? 0)}/mês, ${v}.`;
   return `${nome}: consumo na engenharia do produto (BOM) × custo médio (CMPM), média ponderada pelo volume de cada produto.`;
 }
 function origemDaColuna(cor: string): string {
-  if (cor === "violet") return "CIF (custos indiretos de fabricação): biomassa + energia + combustível, rateados por milheiro produzido — taxa predeterminada.";
-  if (cor === "sky") return "MOD (mão de obra direta): folha de pagamento ÷ volume produzido — taxa predeterminada.";
-  return "Material direto: média ponderada do consumo da engenharia (BOM) × custo médio (CMPM), pelo volume de cada produto.";
+  if (cor === "violet") return "CIF (custos indiretos de fabricação): biomassa + energia + combustível + MOI + depreciação, rateados por milheiro produzido — taxa predeterminada.";
+  if (cor === "sky") return "MOD (mão de obra direta): folha de pagamento + diaristas diretos ÷ volume produzido — taxa predeterminada.";
+  if (cor === "orange") return "Embalagem: fita, selo, palete e demais materiais de embalagem da engenharia (BOM × CMPM), média ponderada pelo volume.";
+  return "Matéria-prima: consumo da engenharia (BOM) × custo médio (CMPM), pelo volume de cada produto (sem embalagem).";
 }
 
 export default function CusteioPage() {
+  useTabTitle("CPV");
   const [competencia, setCompetencia] = useState(mesCorrente());
   const [biomassaDia, setBiomassaDia] = useState("");
   const [energiaMes, setEnergiaMes] = useState("");
   const [combustivelDia, setCombustivelDia] = useState("");
   const [folhaMes, setFolhaMes] = useState("");
   const [folhaMoiMes, setFolhaMoiMes] = useState("");
+  const [depreciacaoMes, setDepreciacaoMes] = useState("");
+  const [diaristasMes, setDiaristasMes] = useState("");
   const [diasTrabalhados, setDiasTrabalhados] = useState("26");
   const [result, setResult] = useState<Result | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,6 +100,8 @@ export default function CusteioPage() {
         setCombustivelDia(String(d.params.combustivelDia));
         setFolhaMes(String(d.params.folhaMes));
         setFolhaMoiMes(String(d.params.folhaMoiMes));
+        setDepreciacaoMes(String(d.params.depreciacaoMes ?? 0));
+        setDiaristasMes(String(d.params.diaristasMes ?? 0));
         setDiasTrabalhados(String(d.params.diasTrabalhados));
       }
     } finally { setLoading(false); }
@@ -105,7 +114,7 @@ export default function CusteioPage() {
     try {
       const r = await fetch("/api/contabilidade/custeio", {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ competencia, biomassaDia, energiaMes, combustivelDia, folhaMes, folhaMoiMes, diasTrabalhados }),
+        body: JSON.stringify({ competencia, biomassaDia, energiaMes, combustivelDia, folhaMes, folhaMoiMes, depreciacaoMes, diaristasMes, diasTrabalhados }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error ?? "Erro ao salvar");
@@ -171,6 +180,10 @@ export default function CusteioPage() {
               <Input inputMode="decimal" value={folhaMes} onChange={(e) => setFolhaMes(e.target.value)} placeholder="116280,50" /></div>
             <div className="space-y-1.5"><Label>Mão de obra INDIRETA — MOI (R$/mês)</Label>
               <Input inputMode="decimal" value={folhaMoiMes} onChange={(e) => setFolhaMoiMes(e.target.value)} placeholder="0,00" /></div>
+            <div className="space-y-1.5"><Label>Depreciação/amortização — CIF (R$/mês)</Label>
+              <Input inputMode="decimal" value={depreciacaoMes} onChange={(e) => setDepreciacaoMes(e.target.value)} placeholder="0,00" /></div>
+            <div className="space-y-1.5"><Label>Diaristas diretos — MOD (R$/mês)</Label>
+              <Input inputMode="decimal" value={diaristasMes} onChange={(e) => setDiaristasMes(e.target.value)} placeholder="0,00" /></div>
             <div className="space-y-1.5"><Label>Dias trabalhados/mês</Label>
               <Input inputMode="numeric" value={diasTrabalhados} onChange={(e) => setDiasTrabalhados(e.target.value)} /></div>
           </div>
@@ -203,8 +216,9 @@ export default function CusteioPage() {
                 const total = view === "total";
                 const ctMi = result.composicao.custoTotalMilheiro;
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <ColunaComp titulo="Material Direto" cor="amber" coluna={result.composicao.md} total={total} vol={vol} params={result.params} />
+                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                    <ColunaComp titulo="Matéria-Prima" cor="amber" coluna={result.composicao.materiaPrima} total={total} vol={vol} params={result.params} />
+                    <ColunaComp titulo="Embalagem" cor="orange" op="+" coluna={result.composicao.embalagem} total={total} vol={vol} params={result.params} />
                     <ColunaComp titulo="Custo Indireto (CIF)" cor="violet" op="+" coluna={result.composicao.cif} total={total} vol={vol} params={result.params} />
                     <ColunaComp titulo="Mão de Obra (MOD)" cor="sky" op="+" coluna={result.composicao.mod} total={total} vol={vol} params={result.params} />
                     <div className="rounded-lg border-2 border-foreground/20 bg-muted/40 p-3 flex flex-col justify-center">
@@ -218,7 +232,7 @@ export default function CusteioPage() {
                 );
               })()}
               <p className="text-[11px] text-muted-foreground">
-                Volume: <b>{mil(result.volumeTotalMilheiros)} milheiros</b> (só produtos de fabricação). Material Direto é a média ponderada pelo volume (varia por produto — ver tabela); CIF e MOD são as taxas predeterminadas (custo do mês ÷ volume).
+                Volume: <b>{mil(result.volumeTotalMilheiros)} milheiros</b> (só produtos de fabricação). Matéria-prima e embalagem são a média ponderada pelo volume (variam por produto — ver tabela); CIF e MOD são as taxas predeterminadas (custo do mês ÷ volume).
               </p>
             </CardContent>
           </Card>
@@ -285,6 +299,7 @@ export default function CusteioPage() {
 
 const CORES: Record<string, { borda: string; texto: string }> = {
   amber:  { borda: "border-amber-200 dark:border-amber-900",   texto: "text-amber-600 dark:text-amber-400" },
+  orange: { borda: "border-orange-200 dark:border-orange-900", texto: "text-orange-600 dark:text-orange-400" },
   violet: { borda: "border-violet-200 dark:border-violet-900", texto: "text-violet-600 dark:text-violet-400" },
   sky:    { borda: "border-sky-200 dark:border-sky-900",       texto: "text-sky-600 dark:text-sky-400" },
 };

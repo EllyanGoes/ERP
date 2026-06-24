@@ -2238,6 +2238,8 @@ model ParametroCusteio {
   combustivelDia  Decimal  @default(0) @db.Decimal(15, 2)
   folhaMes        Decimal  @default(0) @db.Decimal(15, 2) // mão de obra DIRETA (MOD)
   folhaMoiMes     Decimal  @default(0) @db.Decimal(15, 2) // mão de obra INDIRETA (MOI) → entra no CIF
+  depreciacaoMes  Decimal  @default(0) @db.Decimal(15, 2) // depreciação/amortização fabril → entra no CIF
+  diaristasMes    Decimal  @default(0) @db.Decimal(15, 2) // diaristas diretos → entra no MOD
   diasTrabalhados Int      @default(26)
   observacao      String?
   createdAt       DateTime @default(now())
