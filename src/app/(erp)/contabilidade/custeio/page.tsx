@@ -45,6 +45,7 @@ export default function CusteioPage() {
   const [saving, setSaving] = useState(false);
   const [aplicando, setAplicando] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [view, setView] = useState<"total" | "milheiro">("total");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(async (comp: string) => {
@@ -149,18 +150,35 @@ export default function CusteioPage() {
       ) : result && (
         <>
           <Card>
-            <CardHeader><CardTitle className="text-base">Composição do custo (R$/milheiro) — competência {result.competencia}</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <ColunaComp titulo="Material Direto" cor="amber" coluna={result.composicao.md} />
-                <ColunaComp titulo="Custo Indireto (CIF)" cor="violet" op="+" coluna={result.composicao.cif} />
-                <ColunaComp titulo="Mão de Obra (MOD)" cor="sky" op="+" coluna={result.composicao.mod} />
-                <div className="rounded-lg border-2 border-foreground/20 bg-muted/40 p-3 flex flex-col justify-center">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">= Custo Total</p>
-                  <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{brl(result.composicao.custoTotalMilheiro)}</p>
-                  <p className="text-[11px] text-muted-foreground">por milheiro · {brl(result.composicao.custoTotalMilheiro / 1000)}/un</p>
-                </div>
+            <CardHeader className="flex flex-row items-center justify-between gap-3">
+              <CardTitle className="text-base">Composição do custo — competência {result.competencia}</CardTitle>
+              <div className="flex rounded-lg border border-border p-0.5 text-xs shrink-0">
+                {([["total", "Totais"], ["milheiro", "Por milheiro"]] as const).map(([k, lbl]) => (
+                  <button key={k} type="button" onClick={() => setView(k)}
+                    className={`px-2.5 py-1 rounded-md transition-colors ${view === k ? "bg-foreground text-background font-medium" : "text-muted-foreground hover:text-foreground"}`}>
+                    {lbl}
+                  </button>
+                ))}
               </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {(() => {
+                const vol = result.volumeTotalMilheiros;
+                const total = view === "total";
+                const ctMi = result.composicao.custoTotalMilheiro;
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <ColunaComp titulo="Material Direto" cor="amber" coluna={result.composicao.md} total={total} vol={vol} />
+                    <ColunaComp titulo="Custo Indireto (CIF)" cor="violet" op="+" coluna={result.composicao.cif} total={total} vol={vol} />
+                    <ColunaComp titulo="Mão de Obra (MOD)" cor="sky" op="+" coluna={result.composicao.mod} total={total} vol={vol} />
+                    <div className="rounded-lg border-2 border-foreground/20 bg-muted/40 p-3 flex flex-col justify-center">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">= Custo Total</p>
+                      <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{brl(total ? ctMi * vol : ctMi)}</p>
+                      <p className="text-[11px] text-muted-foreground">{total ? `${brl(ctMi)}/milheiro · ${brl(ctMi / 1000)}/un` : `por milheiro · ${brl(ctMi / 1000)}/un`}</p>
+                    </div>
+                  </div>
+                );
+              })()}
               <p className="text-[11px] text-muted-foreground">
                 Volume: <b>{mil(result.volumeTotalMilheiros)} milheiros</b> (só produtos de fabricação). Material Direto é a média ponderada pelo volume (varia por produto — ver tabela); CIF e MOD são as taxas predeterminadas (custo do mês ÷ volume).
               </p>
@@ -232,17 +250,22 @@ const CORES: Record<string, { borda: string; texto: string }> = {
   sky:    { borda: "border-sky-200 dark:border-sky-900",       texto: "text-sky-600 dark:text-sky-400" },
 };
 
-function ColunaComp({ titulo, cor, op, coluna }: { titulo: string; cor: string; op?: string; coluna: Coluna }) {
+function ColunaComp({ titulo, cor, op, coluna, total, vol }: { titulo: string; cor: string; op?: string; coluna: Coluna; total: boolean; vol: number }) {
   const c = CORES[cor] ?? CORES.amber;
+  const colVal = total ? coluna.total * vol : coluna.total;
   return (
     <div className={`rounded-lg border p-3 ${c.borda}`}>
       <p className={`text-[11px] uppercase tracking-wide font-medium ${c.texto}`}>{op && <span className="mr-1">{op}</span>}{titulo}</p>
-      <p className="text-lg font-semibold text-foreground mt-0.5 tabular-nums">{brl(coluna.total)}<span className="text-xs font-normal text-muted-foreground">/mi</span></p>
-      <div className="mt-2 border-t border-border pt-2 space-y-1">
+      <p className="text-lg font-semibold text-foreground mt-0.5 tabular-nums">{brl(colVal)}{!total && <span className="text-xs font-normal text-muted-foreground">/mi</span>}</p>
+      {total && <p className="text-[11px] text-muted-foreground tabular-nums">{brl(coluna.total)}/mi</p>}
+      <div className="mt-2 border-t border-border pt-2 space-y-1.5">
         {coluna.itens.map((it) => (
           <div key={it.nome} className="flex justify-between gap-2 text-[12px]">
-            <span className="text-muted-foreground truncate">{it.nome}</span>
-            <span className="tabular-nums shrink-0">{brl(it.valorMilheiro)}</span>
+            <span className="text-muted-foreground truncate pt-0.5">{it.nome}</span>
+            <span className="shrink-0 text-right">
+              <span className="tabular-nums">{brl(total ? it.valorMilheiro * vol : it.valorMilheiro)}</span>
+              {total && <span className="block text-[10px] text-muted-foreground tabular-nums">{brl(it.valorMilheiro)}/mi</span>}
+            </span>
           </div>
         ))}
         {coluna.itens.length === 0 && <p className="text-[11px] text-muted-foreground italic">—</p>}
