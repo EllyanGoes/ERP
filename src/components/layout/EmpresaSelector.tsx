@@ -12,6 +12,16 @@ function lerEscopoGrupo(): boolean {
   return document.cookie.split("; ").some((c) => c === `${COOKIE_ESCOPO}=grupo`);
 }
 
+// Sigla da empresa: iniciais das palavras significativas (ignora conectivos).
+// "Ceramica Tramontin" → "CT"; "Cimento e Mix" → "CM"; "Atlas" → "A".
+const CONECTIVOS = new Set(["e", "de", "da", "do", "das", "dos", "&"]);
+function siglaEmpresa(nome: string): string {
+  const palavras = nome.trim().split(/\s+/).filter((p) => p && !CONECTIVOS.has(p.toLowerCase()));
+  if (palavras.length === 0) return nome.slice(0, 2).toUpperCase();
+  if (palavras.length === 1) return palavras[0].slice(0, 1).toUpperCase();
+  return palavras.map((p) => p[0]).join("").toUpperCase();
+}
+
 /**
  * Seletor de empresa ativa (multiempresa). Fica no topo, ao lado das abas.
  * Só aparece quando o usuário pode ativar mais de uma empresa.
@@ -84,16 +94,16 @@ export default function EmpresaSelector() {
         onClick={() => setAberto((v) => !v)}
         disabled={trocando}
         className={cn(
-          "flex items-center gap-1.5 px-2.5 h-7 rounded-md text-[13px] font-medium",
+          "flex items-center gap-1 px-1.5 h-7 rounded-md text-[13px] font-semibold",
           "border border-border bg-card text-foreground hover:bg-muted",
           "focus:outline-none focus:ring-2 focus:ring-ring/30"
         )}
-        title="Empresa ativa"
+        title={grupo ? "Todas as empresas" : ativa.nome}
       >
         {trocando
           ? <Loader2 size={14} className="animate-spin text-muted-foreground" />
           : <Building2 size={14} className={grupo ? "text-purple-600 dark:text-purple-400" : "text-info dark:text-blue-400"} />}
-        <span className="max-w-[140px] truncate">{grupo ? "Todas as empresas" : ativa.nome}</span>
+        <span className="tracking-wide">{grupo ? "Grupo" : siglaEmpresa(ativa.nome)}</span>
         <ChevronDown size={13} className="text-muted-foreground" />
       </button>
 
