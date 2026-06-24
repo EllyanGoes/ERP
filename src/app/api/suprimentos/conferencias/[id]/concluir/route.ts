@@ -59,6 +59,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     let hasDivergencia = false;
     const movimentacoesCriadas: string[] = [];
+    // Preço de compra (custo na unidade base) e qtd recebida por item — usados
+    // para atualizar o "último preço" do fornecedor no auto-vínculo abaixo.
+    const compraPorItem = new Map<string, { custoBase: number; qtdRecebida: number }>();
 
     // Data de NEGÓCIO da movimentação = data do documento (dt. emissão); na
     // falta, hoje (dia de São Paulo, à meia-noite UTC). Independe do createdAt.
@@ -135,6 +138,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         // Preço por unidade de compra → custo por unidade BASE (÷ fator).
         const vlrUnitario = item.vlrUnitario ? parseFloat(String(item.vlrUnitario)) : null;
         const custoBase = vlrUnitario != null ? vlrUnitario / fator : null;
+        if (custoBase != null && custoBase > 0) compraPorItem.set(item.itemId, { custoBase, qtdRecebida });
 
         // Create stock movement (sempre na unidade base)
         const mov = await tx.movimentacaoEstoque.create({
@@ -388,19 +392,29 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     }
 
-    // ── Auto-link items to supplier ───────────────────────────────────────────
+    // ── Auto-vincula o item ao fornecedor e atualiza o ÚLTIMO PREÇO ───────────
+    // Toda compra recebida atualiza o preço (custo na unidade base), a data e a
+    // quantidade da última compra do fornecedor — alimenta a aba Fornecedores e
+    // o "custo médio dos fornecedores" do produto.
     const fornecedorId = conferencia.pedido?.fornecedorId ?? conferencia.fornecedorId;
     const autoVinculos: string[] = [];
     if (fornecedorId) {
       for (const item of conferencia.itens) {
         const qtdRecebida = parseFloat(String(item.quantidadeRecebida ?? 0));
         if (qtdRecebida <= 0) continue;
+        const compra = compraPorItem.get(item.itemId);
+        const dadosPreco = compra
+          ? { precoUltimo: compra.custoBase, qtdeUltimaCompra: compra.qtdRecebida, dataUltimaCompra: dataDoc }
+          : {};
         const already = await tx.produtoFornecedor.findFirst({
           where: { itemId: item.itemId, fornecedorId },
+          select: { id: true },
         });
-        if (!already) {
+        if (already) {
+          if (compra) await tx.produtoFornecedor.update({ where: { id: already.id }, data: dadosPreco });
+        } else {
           await tx.produtoFornecedor.create({
-            data: { itemId: item.itemId, fornecedorId },
+            data: { itemId: item.itemId, fornecedorId, ...dadosPreco },
           });
           autoVinculos.push(item.item.descricao);
         }

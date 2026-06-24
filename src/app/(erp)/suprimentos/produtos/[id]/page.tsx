@@ -1341,9 +1341,9 @@ export default function ProdutoDetailPage() {
                       </p>
                     )}
                   </div>
-                  {/* Custo Médio */}
+                  {/* Custo médio dos fornecedores (média do último preço de cada fornecedor) */}
                   <div className="rounded-xl bg-violet-50 dark:bg-violet-500/15 px-4 py-3">
-                    <p className="text-xs text-violet-600 dark:text-violet-400 font-medium mb-1">Custo Médio</p>
+                    <p className="text-xs text-violet-600 dark:text-violet-400 font-medium mb-1">Custo Médio (fornecedores)</p>
                     <p className="text-xl font-bold text-violet-800 dark:text-violet-300">
                       {custoMedio > 0 ? formatBRL(custoMedio) : "—"}
                     </p>
@@ -1351,11 +1351,11 @@ export default function ProdutoDetailPage() {
                       <p className="text-xs text-violet-400 mt-0.5">média dos fornecedores</p>
                     )}
                   </div>
-                  {/* Custo Médio */}
+                  {/* Preço de Venda (com margem sobre o custo) */}
                   <div className="rounded-xl bg-success/10 px-4 py-3">
-                    <p className="text-xs text-success font-medium mb-1">Custo Médio</p>
+                    <p className="text-xs text-success font-medium mb-1">Preço de Venda</p>
                     <p className="text-xl font-bold text-success">
-                      {formatBRL(decimalToNumber(item.precoVenda))}
+                      {decimalToNumber(item.precoVenda) > 0 ? formatBRL(decimalToNumber(item.precoVenda)) : "—"}
                     </p>
                     {custoUnit > 0 && decimalToNumber(item.precoVenda) > 0 && (
                       <p className="text-xs text-emerald-500 mt-0.5">
@@ -1926,6 +1926,7 @@ export default function ProdutoDetailPage() {
                       <th className="text-left px-4 py-3 font-semibold">Unidade</th>
                       <th className="text-right px-4 py-3 font-semibold">Saldo Antes</th>
                       <th className="text-right px-4 py-3 font-semibold">Saldo Depois</th>
+                      <th className="text-right px-4 py-3 font-semibold">Valor Unit.</th>
                       <th className="text-left px-4 py-3 font-semibold">Origem</th>
                       <th className="text-left px-4 py-3 font-semibold">Documento</th>
                       <th className="text-left px-4 py-3 font-semibold">Minuta Física</th>
@@ -1965,6 +1966,9 @@ export default function ProdutoDetailPage() {
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-foreground">
                           {decimalToNumber(m.saldoDepois).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
+                          {m.valorUnitario != null && decimalToNumber(m.valorUnitario) > 0 ? formatBRL(decimalToNumber(m.valorUnitario)) : "—"}
                         </td>
                         <td className="px-4 py-3">
                           {(m.pedidoVendaItemId || m.conferenciaItemId) ? (
