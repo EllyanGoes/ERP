@@ -2228,7 +2228,8 @@ model ParametroCusteio {
   biomassaDia     Decimal  @default(0) @db.Decimal(15, 2)
   energiaMes      Decimal  @default(0) @db.Decimal(15, 2)
   combustivelDia  Decimal  @default(0) @db.Decimal(15, 2)
-  folhaMes        Decimal  @default(0) @db.Decimal(15, 2) // mão de obra (base)
+  folhaMes        Decimal  @default(0) @db.Decimal(15, 2) // mão de obra DIRETA (MOD)
+  folhaMoiMes     Decimal  @default(0) @db.Decimal(15, 2) // mão de obra INDIRETA (MOI) → entra no CIF
   diasTrabalhados Int      @default(26)
   observacao      String?
   createdAt       DateTime @default(now())

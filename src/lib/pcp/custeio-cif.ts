@@ -29,12 +29,13 @@ export interface CusteioProduto {
 
 export interface CusteioResult {
   competencia: string;
-  params: { biomassaDia: number; energiaMes: number; combustivelDia: number; folhaMes: number; diasTrabalhados: number } | null;
+  params: { biomassaDia: number; energiaMes: number; combustivelDia: number; folhaMes: number; folhaMoiMes: number; diasTrabalhados: number } | null;
   biomassaMes: number;
   combustivelMes: number;
   energiaMes: number;
   cifPoolMes: number;
   folhaMes: number;
+  folhaMoiMes: number;
   volumeTotalMilheiros: number;
   cifRate: number; // R$/milheiro (predeterminada)
   modRate: number; // R$/milheiro
@@ -94,8 +95,9 @@ export async function calcularCusteio(empresaId: string, competencia: Date): Pro
   const biomassaMes = num(params?.biomassaDia) * dias;
   const combustivelMes = num(params?.combustivelDia) * dias;
   const energiaMes = num(params?.energiaMes);
-  const folhaMes = num(params?.folhaMes);
-  const cifPoolMes = biomassaMes + combustivelMes + energiaMes;
+  const folhaMes = num(params?.folhaMes);       // mão de obra DIRETA (MOD)
+  const folhaMoiMes = num(params?.folhaMoiMes); // mão de obra INDIRETA (MOI) → CIF
+  const cifPoolMes = biomassaMes + combustivelMes + energiaMes + folhaMoiMes;
 
   // Volume por produto: entradas manuais (sem OP) no(s) local(is) de produto acabado.
   const locaisPA = await prismaSemEscopo.localEstoque.findMany({
@@ -166,6 +168,7 @@ export async function calcularCusteio(empresaId: string, competencia: Date): Pro
       { nome: "Biomassa", valorMilheiro: r2(vt > 0 ? biomassaMes / vt : 0) },
       { nome: "Energia elétrica", valorMilheiro: r2(vt > 0 ? energiaMes / vt : 0) },
       { nome: "Combustível", valorMilheiro: r2(vt > 0 ? combustivelMes / vt : 0) },
+      { nome: "Mão de obra indireta (MOI)", valorMilheiro: r2(vt > 0 ? folhaMoiMes / vt : 0) },
     ] },
     mod: { total: r2(modRate), itens: [{ nome: "Folha de pagamento", valorMilheiro: r2(modRate) }] },
     custoTotalMilheiro: r2(mdTotal + cifRate + modRate),
@@ -173,9 +176,9 @@ export async function calcularCusteio(empresaId: string, competencia: Date): Pro
 
   return {
     competencia: competencia.toISOString().slice(0, 7),
-    params: params ? { biomassaDia: num(params.biomassaDia), energiaMes: num(params.energiaMes), combustivelDia: num(params.combustivelDia), folhaMes: num(params.folhaMes), diasTrabalhados: dias } : null,
+    params: params ? { biomassaDia: num(params.biomassaDia), energiaMes: num(params.energiaMes), combustivelDia: num(params.combustivelDia), folhaMes: num(params.folhaMes), folhaMoiMes: num(params.folhaMoiMes), diasTrabalhados: dias } : null,
     biomassaMes: r2(biomassaMes), combustivelMes: r2(combustivelMes), energiaMes: r2(energiaMes),
-    cifPoolMes: r2(cifPoolMes), folhaMes: r2(folhaMes),
+    cifPoolMes: r2(cifPoolMes), folhaMes: r2(folhaMes), folhaMoiMes: r2(folhaMoiMes),
     volumeTotalMilheiros: r4(volumeTotalMilheiros),
     cifRate: r2(cifRate), modRate: r2(modRate),
     composicao,

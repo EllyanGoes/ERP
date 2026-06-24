@@ -49,6 +49,7 @@ export async function PUT(req: NextRequest) {
     energiaMes: num(body.energiaMes),
     combustivelDia: num(body.combustivelDia),
     folhaMes: num(body.folhaMes),
+    folhaMoiMes: num(body.folhaMoiMes),
     diasTrabalhados: Math.trunc(num(body.diasTrabalhados)) || 26,
     observacao: typeof body.observacao === "string" ? body.observacao.trim() || null : null,
   };

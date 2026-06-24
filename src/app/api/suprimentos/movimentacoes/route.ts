@@ -163,32 +163,37 @@ export async function POST(req: NextRequest) {
         if (tipo === "ENTRADA" && !clienteDonoId && valorUnitario && valorUnitario > 0) {
           const currentItem = await tx.item.findUnique({
             where: { id: itemId },
-            select: { precoCusto: true },
+            select: { precoCusto: true, categoriaEstoque: true },
           });
-          const oldCusto = currentItem?.precoCusto
-            ? parseFloat(currentItem.precoCusto.toString())
-            : 0;
-          // Sum all stock across locations for weighted average
-          const allEstoque = await tx.estoqueItem.findMany({ where: { itemId, clienteDonoId: null } });
-          const estoqueTotal = allEstoque.reduce(
-            (s, e) => s + parseFloat(e.quantidadeAtual.toString()),
-            0
-          );
-          // Use total stock before this movement (subtract the new qty already added)
-          const baseSaldo = Math.max(estoqueTotal - quantidade, 0);
-          const novoCusto = baseSaldo > 0
-            ? (baseSaldo * oldCusto + quantidade * valorUnitario) / (baseSaldo + quantidade)
-            : valorUnitario;
+          // Produto Acabado: o custo é governado pelo PCP/Custeio (material + MOD +
+          // CIF), NÃO pela entrada manual — senão a produção lançada a custo baixo
+          // dilui o custo de produção. Pula o rolamento de CMPM para PA.
+          if (currentItem?.categoriaEstoque !== "PRODUTO_ACABADO") {
+            const oldCusto = currentItem?.precoCusto
+              ? parseFloat(currentItem.precoCusto.toString())
+              : 0;
+            // Sum all stock across locations for weighted average
+            const allEstoque = await tx.estoqueItem.findMany({ where: { itemId, clienteDonoId: null } });
+            const estoqueTotal = allEstoque.reduce(
+              (s, e) => s + parseFloat(e.quantidadeAtual.toString()),
+              0
+            );
+            // Use total stock before this movement (subtract the new qty already added)
+            const baseSaldo = Math.max(estoqueTotal - quantidade, 0);
+            const novoCusto = baseSaldo > 0
+              ? (baseSaldo * oldCusto + quantidade * valorUnitario) / (baseSaldo + quantidade)
+              : valorUnitario;
 
-          await tx.item.update({
-            where: { id: itemId },
-            data:  { precoCusto: novoCusto },
-          });
+            await tx.item.update({
+              where: { id: itemId },
+              data:  { precoCusto: novoCusto },
+            });
 
-          // CMPM próprio da empresa dona do estoque — o cadastro do produto é
-          // compartilhado no grupo, mas o custo não (fabricação numa empresa,
-          // compra noutra).
-          await aplicarCmpmEmpresa(tx, atualizado.empresaId, itemId, quantidade, valorUnitario);
+            // CMPM próprio da empresa dona do estoque — o cadastro do produto é
+            // compartilhado no grupo, mas o custo não (fabricação numa empresa,
+            // compra noutra).
+            await aplicarCmpmEmpresa(tx, atualizado.empresaId, itemId, quantidade, valorUnitario);
+          }
         }
 
         await tx.movimentacaoEstoque.create({

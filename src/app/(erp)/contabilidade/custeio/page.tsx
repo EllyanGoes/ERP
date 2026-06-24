@@ -23,7 +23,7 @@ type Result = {
   volumeTotalMilheiros: number; cifRate: number; modRate: number;
   composicao: Composicao;
   produtos: Produto[];
-  params: { biomassaDia: number; energiaMes: number; combustivelDia: number; folhaMes: number; diasTrabalhados: number } | null;
+  params: Params;
 };
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -34,7 +34,7 @@ function mesCorrente() {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-type Params = { biomassaDia: number; energiaMes: number; combustivelDia: number; folhaMes: number; diasTrabalhados: number } | null;
+type Params = { biomassaDia: number; energiaMes: number; combustivelDia: number; folhaMes: number; folhaMoiMes: number; diasTrabalhados: number } | null;
 
 // Balão de origem do dado ao passar o mouse sobre o valor.
 function Val({ origem, children, className }: { origem: string; children: React.ReactNode; className?: string }) {
@@ -54,7 +54,8 @@ function origemDoItem(nome: string, p: Params, vol: number): string {
   if (nome === "Biomassa") return `Biomassa do forno: ${brl(p?.biomassaDia ?? 0)}/dia × ${dias} dias = ${brl((p?.biomassaDia ?? 0) * dias)}/mês, ${v}.`;
   if (nome === "Energia elétrica") return `Energia elétrica (parcela fabril): ${brl(p?.energiaMes ?? 0)}/mês, ${v}.`;
   if (nome === "Combustível") return `Combustível das máquinas: ${brl(p?.combustivelDia ?? 0)}/dia × ${dias} dias = ${brl((p?.combustivelDia ?? 0) * dias)}/mês, ${v}.`;
-  if (nome === "Folha de pagamento") return `Folha de pagamento (mão de obra): ${brl(p?.folhaMes ?? 0)}/mês, ${v}.`;
+  if (nome === "Folha de pagamento") return `Folha de pagamento — mão de obra direta (MOD): ${brl(p?.folhaMes ?? 0)}/mês, ${v}.`;
+  if (nome === "Mão de obra indireta (MOI)") return `Mão de obra indireta (MOI): ${brl(p?.folhaMoiMes ?? 0)}/mês (parte da folha que não é direta), ${v}.`;
   return `${nome}: consumo na engenharia do produto (BOM) × custo médio (CMPM), média ponderada pelo volume de cada produto.`;
 }
 function origemDaColuna(cor: string): string {
@@ -69,6 +70,7 @@ export default function CusteioPage() {
   const [energiaMes, setEnergiaMes] = useState("");
   const [combustivelDia, setCombustivelDia] = useState("");
   const [folhaMes, setFolhaMes] = useState("");
+  const [folhaMoiMes, setFolhaMoiMes] = useState("");
   const [diasTrabalhados, setDiasTrabalhados] = useState("26");
   const [result, setResult] = useState<Result | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,6 +92,7 @@ export default function CusteioPage() {
         setEnergiaMes(String(d.params.energiaMes));
         setCombustivelDia(String(d.params.combustivelDia));
         setFolhaMes(String(d.params.folhaMes));
+        setFolhaMoiMes(String(d.params.folhaMoiMes));
         setDiasTrabalhados(String(d.params.diasTrabalhados));
       }
     } finally { setLoading(false); }
@@ -102,7 +105,7 @@ export default function CusteioPage() {
     try {
       const r = await fetch("/api/contabilidade/custeio", {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ competencia, biomassaDia, energiaMes, combustivelDia, folhaMes, diasTrabalhados }),
+        body: JSON.stringify({ competencia, biomassaDia, energiaMes, combustivelDia, folhaMes, folhaMoiMes, diasTrabalhados }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error ?? "Erro ao salvar");
@@ -164,8 +167,10 @@ export default function CusteioPage() {
               <Input inputMode="decimal" value={energiaMes} onChange={(e) => setEnergiaMes(e.target.value)} placeholder="110000" /></div>
             <div className="space-y-1.5"><Label>Combustível (R$/dia)</Label>
               <Input inputMode="decimal" value={combustivelDia} onChange={(e) => setCombustivelDia(e.target.value)} placeholder="2050" /></div>
-            <div className="space-y-1.5"><Label>Mão de obra / folha (R$/mês)</Label>
+            <div className="space-y-1.5"><Label>Mão de obra DIRETA — MOD (R$/mês)</Label>
               <Input inputMode="decimal" value={folhaMes} onChange={(e) => setFolhaMes(e.target.value)} placeholder="116280,50" /></div>
+            <div className="space-y-1.5"><Label>Mão de obra INDIRETA — MOI (R$/mês)</Label>
+              <Input inputMode="decimal" value={folhaMoiMes} onChange={(e) => setFolhaMoiMes(e.target.value)} placeholder="0,00" /></div>
             <div className="space-y-1.5"><Label>Dias trabalhados/mês</Label>
               <Input inputMode="numeric" value={diasTrabalhados} onChange={(e) => setDiasTrabalhados(e.target.value)} /></div>
           </div>

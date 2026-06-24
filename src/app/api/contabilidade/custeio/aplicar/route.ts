@@ -22,7 +22,9 @@ export async function POST(req: NextRequest) {
   let aplicados = 0;
   for (const p of data.produtos) {
     if (p.custoUnitario <= 0) continue;
+    // Custo da empresa (CMPM por empresa) + cadastro global (Custo Médio do produto).
     await definirCustoEmpresa(prismaSemEscopo, EMPRESA_PADRAO_ID, p.itemId, p.custoUnitario);
+    await prismaSemEscopo.item.update({ where: { id: p.itemId }, data: { precoCusto: p.custoUnitario } });
     aplicados += 1;
   }
   return NextResponse.json({ data, aplicados });
