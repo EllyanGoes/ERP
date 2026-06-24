@@ -111,7 +111,7 @@ export async function gerarContasPagarFolha(folhaId: string) {
     where: { id: folhaId },
     select: {
       id: true, empresaId: true, competencia: true, dataVencimento: true, dataPagamento: true,
-      itens: { select: { colaboradorId: true, nome: true, liquido: true, inssRetido: true, inssPatronal: true, irrf: true, fgts: true } },
+      itens: { select: { colaboradorId: true, nome: true, bruto: true, liquido: true, inssRetido: true, inssPatronal: true, irrf: true, fgts: true } },
     },
   });
   if (!folha) throw new Error("Folha não encontrada");
@@ -121,17 +121,18 @@ export async function gerarContasPagarFolha(folhaId: string) {
   const empresaId = folha.empresaId;
   const venc = folha.dataVencimento ?? folha.dataPagamento ?? folha.competencia;
   const mesAno = mesAnoDe(folha.competencia);
-  const { inssId, irrfId, fgtsId } = await garantirContasFolha(empresaId);
+  const { inssId, irrfId, fgtsId, outrosId } = await garantirContasFolha(empresaId);
 
   type Titulo = { descricao: string; valor: number; beneficiarioId?: string; contaPassivoId?: string | null };
   const titulos: Titulo[] = [];
 
   const liqPorColab = new Map<string, { liq: number; nome: string }>();
-  let totInss = 0, totIrrf = 0, totFgts = 0;
+  let totInss = 0, totIrrf = 0, totFgts = 0, totOutros = 0;
   for (const it of folha.itens) {
     totInss += n(it.inssRetido) + n(it.inssPatronal);
     totIrrf += n(it.irrf);
     totFgts += n(it.fgts);
+    totOutros += round(n(it.bruto) - n(it.liquido) - n(it.inssRetido) - n(it.irrf));
     if (it.colaboradorId) {
       const cur = liqPorColab.get(it.colaboradorId) ?? { liq: 0, nome: it.nome };
       cur.liq += n(it.liquido);
@@ -144,6 +145,7 @@ export async function gerarContasPagarFolha(folhaId: string) {
   if (round(totInss) > 0 && inssId) titulos.push({ descricao: `INSS ${mesAno}`, valor: round(totInss), contaPassivoId: inssId });
   if (round(totIrrf) > 0 && irrfId) titulos.push({ descricao: `IRRF ${mesAno}`, valor: round(totIrrf), contaPassivoId: irrfId });
   if (round(totFgts) > 0 && fgtsId) titulos.push({ descricao: `FGTS ${mesAno}`, valor: round(totFgts), contaPassivoId: fgtsId });
+  if (round(totOutros) > 0 && outrosId) titulos.push({ descricao: `Retenções/consignados ${mesAno}`, valor: round(totOutros), contaPassivoId: outrosId });
 
   for (const t of titulos) {
     const numero = generateSimpleDocNumber("CP", await proximaSequenciaDaEmpresa(empresaId, "CP"));
@@ -205,21 +207,8 @@ function extrairJson(texto: string): unknown {
   return JSON.parse(limpo.slice(ini, fim + 1));
 }
 
-/**
- * Extrai a folha do PDF (Claude) e (re)popula os FolhaItem + cabeçalho/totais.
- * Casa cada item a um Colaborador pelo nome (exato, ignorando caixa) e herda a
- * classificação do cadastro; sem match fica null (o usuário vincula na revisão).
- */
-export async function extrairFolhaPdf(folhaId: string) {
-  const folha = await prismaSemEscopo.folhaPagamento.findUnique({
-    where: { id: folhaId }, select: { id: true, empresaId: true, arquivoUrl: true, status: true },
-  });
-  if (!folha) throw new Error("Folha não encontrada");
-  if (folha.status === "FECHADA") throw new Error("Folha já fechada — não pode reextrair.");
-  if (!folha.arquivoUrl) throw new Error("Folha sem arquivo PDF.");
-  if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY não configurada.");
-
-  const pdfBuf = Buffer.from(await (await fetch(folha.arquivoUrl)).arrayBuffer());
+// Extração via IA (Claude): manda o PDF e recebe o JSON estruturado.
+async function extrairViaIA(pdfBuf: Buffer): Promise<FolhaExtraida> {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const resp = await client.messages.create({
     model: MODELO_EXTRACAO,
@@ -233,8 +222,78 @@ export async function extrairFolhaPdf(folhaId: string) {
     }],
   });
   const texto = resp.content.filter((c) => c.type === "text").map((c) => (c as { text: string }).text).join("\n");
-  const dados = extrairJson(texto) as FolhaExtraida;
-  if (!dados?.colaboradores?.length) throw new Error("A IA não encontrou colaboradores no PDF.");
+  return extrairJson(texto) as FolhaExtraida;
+}
+
+// Parser determinístico da folha Senior (fallback sem IA). Usa âncoras estáveis
+// (TOTAL DE PROVENTOS, SALÁRIO LÍQUIDO, FGTS A RECOLHER MÊS) — bruto/líquido/FGTS
+// por colaborador. As demais retenções (INSS/IRRF) entram em "Outros a Repassar"
+// (o balanço fecha); a IA faz a separação fina quando disponível.
+function parseFolhaSenior(text: string): FolhaExtraida {
+  const num = (s?: string) => s ? parseFloat(s.replace(/\./g, "").replace(",", ".")) : 0;
+  const competencia = text.match(/COMPET[ÊE]NCIA\s*:?\s*(\d{1,2}\/\d{4})/)?.[1];
+  const dp = text.match(/DATA DO PAGAMENTO\s*:?\s*(\d{2})\/(\d{2})\/(\d{4})/);
+  const dataPagamento = dp ? `${dp[3]}-${dp[2]}-${dp[1]}` : undefined;
+
+  // Âncoras de nome: NOME (maiúsculas) seguido da matrícula (5-6 dígitos).
+  const nomeRe = /([A-ZÀ-Ý][A-ZÀ-Ý '.\-]{4,}?)\s?(\d{5,6})(?=\s|$)/g;
+  const nomes: { idx: number; nome: string; matricula: string }[] = [];
+  let mn: RegExpExecArray | null;
+  while ((mn = nomeRe.exec(text))) nomes.push({ idx: mn.index, nome: mn[1].trim().replace(/\s+/g, " "), matricula: mn[2] });
+
+  // Bloco do FGTS: rótulos agrupados e os valores depois (FGTS a recolher = 2º).
+  const fgtsRe = /BASE DO FGTS\s+FGTS A RECOLHER M[ÊE]S\s+BASE DO FGTS M[ÊE]S\s+ASSINATURA\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})/;
+  const liqRe = /SAL[ÁA]RIO L[ÍI]QUIDO\s*:?\s*([\d.]+,\d{2})/g;
+  const colaboradores: ColaboradorExtraido[] = [];
+  let ml: RegExpExecArray | null;
+  while ((ml = liqRe.exec(text))) {
+    const liquido = num(ml[1]);
+    const janela = text.slice(ml.index, ml.index + 700);
+    const bruto = num(janela.match(/TOTAL DE PROVENTOS\s*:?\s*([\d.]+,\d{2})/)?.[1]);
+    const fgts = num(janela.match(fgtsRe)?.[2]);
+    let nomeAnt: { idx: number; nome: string; matricula: string } | undefined;
+    for (const nm of nomes) { if (nm.idx < ml.index) nomeAnt = nm; else break; }
+    const perto = nomeAnt && (ml.index - nomeAnt.idx) < 2500;
+    // Sanidade: descarta linhas de resumo (líquido > bruto) e blocos sem nome próximo.
+    if (bruto > 0 && liquido <= bruto + 0.01 && perto) {
+      colaboradores.push({ nome: nomeAnt!.nome, matricula: nomeAnt!.matricula, bruto, liquido, inssRetido: 0, irrf: 0, fgts, inssPatronal: 0 });
+    }
+  }
+  return { competencia, dataPagamento, colaboradores };
+}
+
+// Extração via parser (sem IA): extrai o texto do PDF com unpdf e aplica o parser.
+async function extrairViaParser(pdfBuf: Buffer): Promise<FolhaExtraida> {
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  const pdf = await getDocumentProxy(new Uint8Array(pdfBuf));
+  const { text } = await extractText(pdf, { mergePages: true });
+  return parseFolhaSenior(Array.isArray(text) ? text.join("\n") : text);
+}
+
+/**
+ * Extrai a folha do PDF (Claude) e (re)popula os FolhaItem + cabeçalho/totais.
+ * Casa cada item a um Colaborador pelo nome (exato, ignorando caixa) e herda a
+ * classificação do cadastro; sem match fica null (o usuário vincula na revisão).
+ */
+export async function extrairFolhaPdf(folhaId: string) {
+  const folha = await prismaSemEscopo.folhaPagamento.findUnique({
+    where: { id: folhaId }, select: { id: true, empresaId: true, arquivoUrl: true, status: true },
+  });
+  if (!folha) throw new Error("Folha não encontrada");
+  if (folha.status === "FECHADA") throw new Error("Folha já fechada — não pode reextrair.");
+  if (!folha.arquivoUrl) throw new Error("Folha sem arquivo PDF.");
+
+  const pdfBuf = Buffer.from(await (await fetch(folha.arquivoUrl)).arrayBuffer());
+  // Com a chave da IA usa o Claude; senão (ou se a IA falhar) cai no parser
+  // determinístico da folha Senior.
+  let dados: FolhaExtraida;
+  if (process.env.ANTHROPIC_API_KEY) {
+    try { dados = await extrairViaIA(pdfBuf); }
+    catch { dados = await extrairViaParser(pdfBuf); }
+  } else {
+    dados = await extrairViaParser(pdfBuf);
+  }
+  if (!dados?.colaboradores?.length) throw new Error("Não foi possível extrair colaboradores do PDF.");
 
   // Colaboradores da empresa p/ casar por nome.
   const colabs = await prismaSemEscopo.colaborador.findMany({
