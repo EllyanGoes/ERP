@@ -348,7 +348,7 @@ export async function contabilizarTituloReceber(crId: string) {
 export async function contabilizarTituloPagar(cpId: string) {
   const cp = await prismaSemEscopo.contaPagar.findUnique({
     where: { id: cpId },
-    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true, empresa: { select: { industrializa: true } } },
+    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } }, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true, empresa: { select: { industrializa: true } } },
   });
   if (!cp || cp.status === "CANCELADA") return;
 
@@ -373,6 +373,12 @@ export async function contabilizarTituloPagar(cpId: string) {
     contaDoBanco(cp.empresaId, caixaCbId),
     contaPorCodigo(cp.empresaId, "1.1.1"),
   ]);
+
+  // CIF (custo indireto): a natureza marcada `cif` desloca o débito de origem para
+  // "CIF a Apropriar" (1.1.4.0001, ativo de staging), em vez da conta de resultado.
+  // A natureza viaja como DIMENSÃO na partida; o crédito a Fornecedores é igual.
+  const ehCif = cp.naturezaFinanceira?.cif === true;
+  const contaCifAprop = ehCif ? await contaPorCodigo(cp.empresaId, "1.1.4.0001") : null;
 
   // Pernas de crédito de caixa/banco a partir das baixas (LancamentoFinanceiro),
   // por banco real; fallback no caixa da empresa. Retorna partidas CREDITO + total.
@@ -455,7 +461,8 @@ export async function contabilizarTituloPagar(cpId: string) {
 
   // Sem natureza: empresa de revenda (não industrializa) → compra de mercadoria
   // entra no ESTOQUE (ativo, modelo perpétuo); fábrica → Despesas Gerais.
-  let contaDespesa = contaNat;
+  // CIF: débito vai para CIF a Apropriar (staging), não para resultado.
+  let contaDespesa = ehCif && contaCifAprop ? contaCifAprop : contaNat;
   if (!contaDespesa) {
     contaDespesa = cp.empresa?.industrializa === false
       ? (await contaEstoquePrincipal(cp.empresaId)) ?? contaDespesaFb
@@ -470,7 +477,7 @@ export async function contabilizarTituloPagar(cpId: string) {
       empresaId: cp.empresaId, data: cp.dataCompetencia ?? cp.createdAt,
       historico: `Compra — ${refCp}`, origemTipo: "COMPRA", origemId: cp.id,
       partidas: [
-        { contaId: contaDespesa.id, tipo: "DEBITO", valor },
+        { contaId: contaDespesa.id, tipo: "DEBITO", valor, naturezaId: ehCif ? cp.naturezaFinanceiraId : undefined },
         { contaId: contaForn.id, tipo: "CREDITO", valor, fornecedorId: cp.fornecedorId },
       ],
     });
