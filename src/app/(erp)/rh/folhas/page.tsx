@@ -66,7 +66,7 @@ export default function FolhasPage() {
         breadcrumbs={[{ label: "RH" }, { label: "Folhas de Pagamento" }]}
         action={
           <>
-            <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={onUpload} />
+            <input ref={fileRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={onUpload} />
             <Button onClick={() => fileRef.current?.click()} disabled={enviando}>
               {enviando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
               Nova folha (PDF)

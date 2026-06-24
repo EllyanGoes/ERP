@@ -24,7 +24,9 @@ export async function POST(req: NextRequest) {
   const form = await req.formData();
   const file = form.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "Envie o PDF da folha" }, { status: 400 });
-  if (file.type !== "application/pdf") return NextResponse.json({ error: "O arquivo deve ser PDF" }, { status: 415 });
+  // Aceita por tipo OU extensão (alguns navegadores não preenchem o MIME).
+  const ehPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+  if (!ehPdf) return NextResponse.json({ error: "O arquivo deve ser PDF" }, { status: 415 });
   if (file.size > 25 * 1024 * 1024) return NextResponse.json({ error: "Arquivo muito grande (máx. 25 MB)" }, { status: 413 });
 
   const blob = await put(`rh/folhas/${empresaId}/${Date.now()}-${file.name}`, file, { access: "public" });
