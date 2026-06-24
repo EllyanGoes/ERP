@@ -1,9 +1,10 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { useCachedData } from "@/lib/use-cached-data";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtColuna } from "@/lib/formato-contabil";
@@ -24,7 +25,8 @@ function celula(v: number, modo: "contabil" | "real") {
 
 export default function DrePage() {
   useTabTitle("DRE");
-  const [ano, setAno] = useState(new Date().getUTCFullYear());
+  // Exercício persistido (mesmo padrão do Balancete): lido no 1º render.
+  const [ano, setAno] = usePersistedState<number>("contabilidade:dre:ano", () => new Date().getUTCFullYear());
   const [modo, setModo] = useFormatoContabil();
   // Cache stale-while-revalidate por ano — reabrir não recarrega.
   const { data: dre, loading } = useCachedData<Dre>(

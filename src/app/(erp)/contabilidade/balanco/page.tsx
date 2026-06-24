@@ -8,6 +8,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatDate } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtSaldo, saldoAnormal, type FormatoModo, type NaturezaConta } from "@/lib/formato-contabil";
 import { useCachedData } from "@/lib/use-cached-data";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { useSession } from "@/lib/session-context";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
 import { Loader2, Scale, Check, X, FileDown, ChevronRight, ChevronDown } from "lucide-react";
@@ -56,8 +57,9 @@ function LinhaRow({ l, soComSaldo, modo, data, filhos, recolhido, onToggle }: {
 
 export default function BalancoPage() {
   useTabTitle("Balanço Patrimonial");
-  const [data, setData] = useState(hoje());
-  const [soComSaldo, setSoComSaldo] = useState(true);
+  // Filtros persistidos (mesmo padrão do Balancete): lidos no 1º render.
+  const [data, setData] = usePersistedState<string>("contabilidade:balanco:data", hoje);
+  const [soComSaldo, setSoComSaldo] = usePersistedState<boolean>("contabilidade:balanco:soComSaldo", true);
   const [modo, setModo] = useFormatoContabil();
 
   // Recolher/expandir contas (sintéticas escondem suas analíticas). Persiste.

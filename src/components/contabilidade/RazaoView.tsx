@@ -12,6 +12,7 @@ import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker"
 import ContaContabilCombobox from "@/components/contabilidade/ContaContabilCombobox";
 import RazaoLauncher from "@/components/contabilidade/RazaoLauncher";
 import { useCachedData } from "@/lib/use-cached-data";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatDate, cn } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtSaldo, fmtColuna, saldoAnormal, type NaturezaConta } from "@/lib/formato-contabil";
@@ -29,8 +30,6 @@ type Razao = {
   saldoInicial: number; movimentos: Mov[]; saldoFinal: number;
 };
 
-const RANGE_KEY = "contabilidade:razao:range";
-
 function defaultRange(): DateRange {
   const h = new Date();
   return { from: new Date(h.getFullYear(), 0, 1).toISOString().slice(0, 10), to: h.toISOString().slice(0, 10) };
@@ -46,7 +45,8 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
   const [urlContaId, setUrlContaId] = useState<string | null>(null);
   const contaId = contaIdProp ?? urlContaId;
 
-  const [range, setRange] = useState<DateRange>(defaultRange);
+  // Filtro de período persistido (mesmo padrão do Balancete): lido no 1º render.
+  const [range, setRange] = usePersistedState<DateRange>("contabilidade:razao:range", defaultRange);
   const [modo, setModo] = useFormatoContabil();
   const rangeRef = useRef(range);
   useEffect(() => { rangeRef.current = range; }, [range]);
@@ -55,7 +55,8 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
     fetch("/api/contabilidade/plano-contas").then((r) => r.json()).then((j) => setContas(j.flat ?? []));
   }, []);
 
-  // Período da URL (click-through) tem prioridade; senão, o último usado.
+  // Período da URL (click-through) tem prioridade sobre o filtro salvo — que já
+  // foi lido no 1º render pelo usePersistedState.
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const cId = sp.get("contaId");
@@ -63,9 +64,7 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
     const to = sp.get("to");
     if (cId && !contaIdProp) setUrlContaId(cId);
     if (from || to) setRange((r) => ({ from: from || r.from, to: to || r.to }));
-    else { try { const raw = localStorage.getItem(RANGE_KEY); if (raw) { const r = JSON.parse(raw); if (r?.from && r?.to) setRange(r); } } catch { /* ignore */ } }
   }, [contaIdProp]);
-  useEffect(() => { try { localStorage.setItem(RANGE_KEY, JSON.stringify(range)); } catch { /* ignore */ } }, [range]);
 
   // Caminho da conta: "Pai › Conta" (ex.: "Clientes a Receber › Cimento e Mix").
   const byId = useMemo(() => new Map(contas.map((c) => [c.id, c])), [contas]);
