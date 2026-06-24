@@ -62,10 +62,29 @@ model AprovacaoSC {
   telegramMsgId  Int?
   createdAt     DateTime          @default(now())
   fluxoId       String?
+  // Quem submeteu p/ aprovação — notificado quando a aprovação é decidida.
+  solicitadoPor String?
   aprovador     Usuario           @relation(fields: [aprovadorId], references: [id])
   fluxo         AprovacaoFluxo?   @relation(fields: [fluxoId], references: [id])
   necessidade   NecessidadeCompra? @relation(fields: [necessidadeId], references: [id], onDelete: Cascade)
   cotacao       CotacaoCompra?    @relation(fields: [cotacaoId], references: [id], onDelete: Cascade)
+}
+
+// Notificação in-app por usuário (toast estilo macOS + sino). Criada por eventos
+// como aprovação de cotação (solicitada/aprovada/reprovada).
+model Notificacao {
+  id        String   @id @default(cuid())
+  usuarioId String
+  tipo      String   // ex.: COTACAO_APROVACAO_SOLICITADA, COTACAO_APROVADA, COTACAO_REPROVADA
+  titulo    String
+  mensagem  String
+  link      String?
+  lida      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, lida])
+  @@index([usuarioId, createdAt])
 }
 
 model CentroCusto {
@@ -1911,6 +1930,7 @@ model Usuario {
   empresas           UsuarioEmpresa[]
   vendedor           Vendedor?
   sessoes            UsuarioSessao[]
+  notificacoes       Notificacao[]
 }
 
 // Sessão/dispositivo logado de um usuário. id = jti embutido no JWT. Permite

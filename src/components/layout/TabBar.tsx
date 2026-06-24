@@ -8,6 +8,7 @@ import { useDirtyFormContext } from "@/lib/dirty-form-context";
 import { routeColor } from "@/lib/route-registry";
 import { cn } from "@/lib/utils";
 import EmpresaSelector from "@/components/layout/EmpresaSelector";
+import NotificationCenter from "@/components/layout/NotificationCenter";
 
 type DropTarget = { id: string; side: "before" | "after" } | null;
 
@@ -147,7 +148,10 @@ export default function TabBar() {
           );
         })}
       </div>
-      <EmpresaSelector />
+      <div className="flex items-center gap-1 pr-1.5 pb-1 shrink-0">
+        <EmpresaSelector />
+        <NotificationCenter />
+      </div>
     </div>
   );
 }

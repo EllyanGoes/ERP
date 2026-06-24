@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { aprovadorPedidoCompras } from "@/lib/aprovacao-cotacao";
+import { notificarUsuario } from "@/lib/notificacoes";
 import { sendTelegramMessage, sendTelegramDocument, sendTelegramDM, escMD } from "@/lib/telegram";
 import { buildCotacaoPDF } from "@/lib/pdf-cotacao";
 
@@ -58,10 +59,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           aprovadorId: aprovador.aprovadorId,
           fluxoId: aprovador.fluxoId,
           status: "PENDENTE",
+          solicitadoPor: auth.session.sub,
         },
       });
       return ap.id;
     });
+
+    // Notificação in-app (toast) para o aprovador.
+    if (aprovacaoId && aprovador) {
+      await notificarUsuario({
+        usuarioId: aprovador.aprovadorId,
+        tipo: "COTACAO_APROVACAO_SOLICITADA",
+        titulo: "Cotação aguardando aprovação",
+        mensagem: `A cotação ${numeroRef} foi enviada para sua aprovação.`,
+        link: `/suprimentos/cotacoes/${params.id}`,
+      });
+    }
 
     // Notificação remota com botões inline (best-effort). A mensagem vai na
     // conversa DIRETA com o aprovador (DM), não no grupo — assim só ele decide e
