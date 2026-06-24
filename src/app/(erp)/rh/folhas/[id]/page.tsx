@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { formatBRL, cn } from "@/lib/utils";
-import { Loader2, Sparkles, Lock, FileText, AlertCircle } from "lucide-react";
+import { Loader2, Sparkles, Lock, FileText, AlertCircle, Trash2, Plus } from "lucide-react";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 type Classif = "MOD" | "MOI" | "ADMIN";
 type Item = {
@@ -35,6 +36,8 @@ export default function FolhaDetalhePage() {
   const [salvando, setSalvando] = useState(false);
   const [fechando, setFechando] = useState(false);
   const [erro, setErro] = useState("");
+  const [removidos, setRemovidos] = useState<string[]>([]);
+  const novoIdRef = useRef(0);
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/rh/folhas/${id}`);
@@ -65,14 +68,38 @@ export default function FolhaDetalhePage() {
     setFolha((prev) => prev ? { ...prev, itens: prev.itens.map((i) => i.id === itemId ? { ...i, ...patch } : i) } : prev);
   }
 
+  function addItem() {
+    const novo: Item = {
+      id: `new-${novoIdRef.current++}`, nome: "", cargo: null, matricula: null,
+      colaboradorId: null, classificacao: "ADMIN",
+      bruto: "0", liquido: "0", inssRetido: "0", inssPatronal: "0", irrf: "0", fgts: "0",
+    };
+    setFolha((prev) => prev ? { ...prev, itens: [...prev.itens, novo] } : prev);
+  }
+
+  function removeItem(it: Item) {
+    if (!it.id.startsWith("new-")) setRemovidos((r) => [...r, it.id]);
+    setFolha((prev) => prev ? { ...prev, itens: prev.itens.filter((i) => i.id !== it.id) } : prev);
+  }
+
   async function salvar() {
     if (!folha) return;
     setSalvando(true); setErro("");
     try {
       await fetch(`/api/rh/folhas/${id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itens: folha.itens.map((i) => ({ id: i.id, colaboradorId: i.colaboradorId, classificacao: i.classificacao })) }),
+        body: JSON.stringify({
+          removidos,
+          itens: folha.itens.map((i) => ({
+            id: i.id.startsWith("new-") ? undefined : i.id,
+            nome: i.nome, colaboradorId: i.colaboradorId, classificacao: i.classificacao,
+            bruto: i.bruto, liquido: i.liquido, inssRetido: i.inssRetido,
+            inssPatronal: i.inssPatronal, irrf: i.irrf, fgts: i.fgts,
+          })),
+        }),
       });
+      setRemovidos([]);
+      await load();
     } finally { setSalvando(false); }
   }
 
@@ -122,17 +149,32 @@ export default function FolhaDetalhePage() {
       <div className="px-8 pb-8 space-y-4">
         {erro && <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-danger/10 border border-danger/30 text-danger text-sm"><AlertCircle className="w-4 h-4" /> {erro}</div>}
 
-        {/* Totais */}
-        <div className="inline-flex flex-wrap items-stretch rounded-xl border border-border bg-card divide-x divide-border overflow-hidden">
-          {[
-            ["Bruto", folha.totalBruto], ["Líquido", folha.totalLiquido], ["INSS retido", folha.totalInssRetido],
-            ["INSS patronal", folha.totalInssPatronal], ["IRRF", folha.totalIrrf], ["FGTS", folha.totalFgts],
-          ].map(([k, v]) => (
-            <div key={k} className="px-4 py-2.5">
-              <p className="text-[11px] text-muted-foreground uppercase tracking-wide">{k}</p>
-              <p className="text-sm font-bold tabular-nums">{formatBRL(N(v))}</p>
-            </div>
-          ))}
+        {/* Totais da folha + custo por classificação (apropriação) */}
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="inline-flex flex-wrap items-stretch rounded-xl border border-border bg-card divide-x divide-border overflow-hidden">
+            {[
+              ["Bruto", folha.totalBruto], ["Líquido", folha.totalLiquido], ["INSS retido", folha.totalInssRetido],
+              ["INSS patronal", folha.totalInssPatronal], ["IRRF", folha.totalIrrf], ["FGTS", folha.totalFgts],
+            ].map(([k, v]) => (
+              <div key={k} className="px-4 py-2.5">
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wide">{k}</p>
+                <p className="text-sm font-bold tabular-nums">{formatBRL(N(v))}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Custo por classificação = bruto + INSS patronal + FGTS por grupo. */}
+          <div className="inline-flex flex-wrap items-stretch rounded-xl border border-border bg-card divide-x divide-border overflow-hidden">
+            {([["MOD", "MOD (PEP)"], ["MOI", "MOI (CIF)"], ["ADMIN", "Admin (despesa)"]] as const).map(([cl, label]) => {
+              const total = folha.itens.filter((i) => i.classificacao === cl).reduce((a, i) => a + N(i.bruto) + N(i.inssPatronal) + N(i.fgts), 0);
+              return (
+                <div key={cl} className="px-4 py-2.5">
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wide">{label}</p>
+                  <p className="text-sm font-bold tabular-nums">{formatBRL(total)}</p>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {extraindo && folha.itens.length === 0 && (
@@ -153,34 +195,43 @@ export default function FolhaDetalhePage() {
                   <th className="text-left px-3 py-3 font-semibold">Funcionário (folha)</th>
                   <th className="text-left px-3 py-3 font-semibold w-56">Colaborador</th>
                   <th className="text-left px-3 py-3 font-semibold w-28">Classif.</th>
-                  <th className="text-right px-3 py-3 font-semibold">Bruto</th>
-                  <th className="text-right px-3 py-3 font-semibold">Líquido</th>
-                  <th className="text-right px-3 py-3 font-semibold">INSS</th>
-                  <th className="text-right px-3 py-3 font-semibold">IRRF</th>
-                  <th className="text-right px-3 py-3 font-semibold">FGTS</th>
+                  <th className="text-right px-3 py-3 font-semibold w-28">Bruto</th>
+                  <th className="text-right px-3 py-3 font-semibold w-28">Líquido</th>
+                  <th className="text-right px-3 py-3 font-semibold w-24">INSS</th>
+                  <th className="text-right px-3 py-3 font-semibold w-24">INSS Pat.</th>
+                  <th className="text-right px-3 py-3 font-semibold w-24">IRRF</th>
+                  <th className="text-right px-3 py-3 font-semibold w-24">FGTS</th>
+                  <th className="w-10 px-2 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {folha.itens.map((it) => (
                   <tr key={it.id} className={cn("hover:bg-muted", !it.colaboradorId && "bg-warning/5")}>
                     <td className="px-3 py-2">
-                      <div className="font-medium text-foreground">{it.nome}</div>
+                      {editavel ? (
+                        <input
+                          value={it.nome}
+                          onChange={(e) => setItem(it.id, { nome: e.target.value })}
+                          className="w-full h-8 rounded-md border border-border bg-card px-2 text-sm font-medium"
+                        />
+                      ) : (
+                        <div className="font-medium text-foreground">{it.nome}</div>
+                      )}
                       <div className="text-xs text-muted-foreground">{[it.matricula, it.cargo].filter(Boolean).join(" · ")}</div>
                     </td>
                     <td className="px-3 py-2">
-                      <select
+                      <ComboboxWithCreate
                         value={it.colaboradorId ?? ""}
-                        disabled={!editavel}
-                        onChange={(e) => {
-                          const cid = e.target.value || null;
+                        onChange={(cid) => {
                           const c = colabs.find((x) => x.id === cid);
-                          setItem(it.id, { colaboradorId: cid, ...(c?.classificacaoCusto ? { classificacao: c.classificacaoCusto } : {}) });
+                          setItem(it.id, { colaboradorId: cid || null, ...(c?.classificacaoCusto ? { classificacao: c.classificacaoCusto } : {}) });
                         }}
-                        className="w-full h-8 rounded-md border border-border bg-card text-sm px-2 disabled:opacity-60"
-                      >
-                        <option value="">— selecionar —</option>
-                        {colabs.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                      </select>
+                        placeholder="Buscar colaborador…"
+                        noneLabel="— selecionar —"
+                        triggerClassName={cn("h-8 rounded-md", !it.colaboradorId && "border-warning/50")}
+                        disabled={!editavel}
+                        options={colabs.map((c) => ({ value: c.id, label: c.nome }))}
+                      />
                     </td>
                     <td className="px-3 py-2">
                       <select
@@ -194,11 +245,27 @@ export default function FolhaDetalhePage() {
                         <option value="ADMIN">Admin</option>
                       </select>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatBRL(N(it.bruto))}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatBRL(N(it.liquido))}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatBRL(N(it.inssRetido))}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatBRL(N(it.irrf))}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatBRL(N(it.fgts))}</td>
+                    {(["bruto", "liquido", "inssRetido", "inssPatronal", "irrf", "fgts"] as const).map((campo) => (
+                      <td key={campo} className="px-2 py-1.5 text-right tabular-nums">
+                        {editavel ? (
+                          <input
+                            inputMode="decimal"
+                            value={it[campo]}
+                            onChange={(e) => setItem(it.id, { [campo]: e.target.value } as Partial<Item>)}
+                            className="w-full h-8 rounded-md border border-border bg-card px-2 text-right text-sm"
+                          />
+                        ) : (
+                          <span className={campo === "bruto" || campo === "liquido" ? "" : "text-muted-foreground"}>{formatBRL(N(it[campo]))}</span>
+                        )}
+                      </td>
+                    ))}
+                    <td className="px-2 py-1.5 text-center">
+                      {editavel && (
+                        <button onClick={() => removeItem(it)} className="text-muted-foreground hover:text-danger" title="Remover">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -207,8 +274,9 @@ export default function FolhaDetalhePage() {
         )}
 
         {editavel && folha.itens.length > 0 && (
-          <div className="flex justify-end">
-            <Button variant="outline" onClick={salvar} disabled={salvando}>
+          <div className="flex items-center justify-between">
+            <Button variant="outline" onClick={addItem}><Plus className="w-4 h-4 mr-1.5" /> Adicionar linha</Button>
+            <Button onClick={salvar} disabled={salvando}>
               {salvando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Salvar revisão
             </Button>
           </div>
