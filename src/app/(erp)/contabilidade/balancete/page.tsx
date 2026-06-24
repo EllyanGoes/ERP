@@ -18,6 +18,8 @@ type Linha = {
 };
 
 const COLLAPSE_KEY = "contabilidade:balancete:collapsed";
+const RANGE_KEY = "contabilidade:balancete:range";
+const SOMOV_KEY = "contabilidade:balancete:soComMov";
 
 function defaultRange(): DateRange {
   const h = new Date();
@@ -30,10 +32,28 @@ export default function BalancetePage() {
   const [soComMov, setSoComMov] = useState(true);
   const [modo, setModo] = useFormatoContabil();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Filtros persistidos (sobrevivem a trocar de aba e voltar).
+  const [filtrosCarregados, setFiltrosCarregados] = useState(false);
 
   useEffect(() => {
     try { const raw = localStorage.getItem(COLLAPSE_KEY); if (raw) setCollapsed(new Set(JSON.parse(raw) as string[])); } catch { /* ignore */ }
+    try {
+      const r = localStorage.getItem(RANGE_KEY);
+      if (r) { const p = JSON.parse(r) as DateRange; if (p?.from && p?.to) setRange(p); }
+      const s = localStorage.getItem(SOMOV_KEY);
+      if (s != null) setSoComMov(s === "1");
+    } catch { /* ignore */ }
+    setFiltrosCarregados(true);
   }, []);
+  // Grava só depois de carregar, p/ não sobrescrever com o default no 1º render.
+  useEffect(() => {
+    if (!filtrosCarregados) return;
+    try { localStorage.setItem(RANGE_KEY, JSON.stringify(range)); } catch { /* ignore */ }
+  }, [range, filtrosCarregados]);
+  useEffect(() => {
+    if (!filtrosCarregados) return;
+    try { localStorage.setItem(SOMOV_KEY, soComMov ? "1" : "0"); } catch { /* ignore */ }
+  }, [soComMov, filtrosCarregados]);
   const persist = useCallback((next: Set<string>) => {
     setCollapsed(next);
     try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
