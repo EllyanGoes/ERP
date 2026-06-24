@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber, generateSimpleDocNumber } from "@/lib/utils";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
@@ -158,6 +159,126 @@ export async function gerarContasPagarFolha(folhaId: string) {
       },
     });
   }
+}
+
+// ── Extração por IA (Claude) ────────────────────────────────────────────────
+const MODELO_EXTRACAO = process.env.FOLHA_EXTRACAO_MODELO ?? "claude-sonnet-4-6";
+
+type ColaboradorExtraido = {
+  matricula?: string; nome: string; cargo?: string;
+  bruto: number; liquido: number; inssRetido: number; inssPatronal?: number; irrf: number; fgts: number;
+};
+type FolhaExtraida = { competencia?: string; dataPagamento?: string; colaboradores: ColaboradorExtraido[] };
+
+const PROMPT_EXTRACAO = `Você recebe um PDF de FOLHA DE PAGAMENTO brasileira (uma empresa, uma competência).
+Extraia os dados em JSON ESTRITO (sem comentários, sem markdown), no formato:
+{
+  "competencia": "MM/AAAA",
+  "dataPagamento": "AAAA-MM-DD",
+  "colaboradores": [
+    { "matricula": "string", "nome": "string", "cargo": "string",
+      "bruto": number, "liquido": number, "inssRetido": number,
+      "inssPatronal": number, "irrf": number, "fgts": number }
+  ]
+}
+Regras:
+- "bruto" = TOTAL DE PROVENTOS do colaborador; "liquido" = SALÁRIO LÍQUIDO.
+- "inssRetido" = INSS descontado do empregado (rubrica de desconto, ex.: "INSS - MENSAL").
+- "irrf" = IRRF retido (0 se não houver).
+- "fgts" = FGTS A RECOLHER do colaborador (não é desconto do líquido).
+- "inssPatronal" = INSS patronal do colaborador se o documento informar; senão 0.
+- Use ponto decimal e números puros (sem "R$", sem separador de milhar). Inclua TODOS os colaboradores.
+Responda APENAS o JSON.`;
+
+function parseCompetencia(s?: string): Date | null {
+  if (!s) return null;
+  const m = s.match(/(\d{1,2})\s*\/\s*(\d{4})/);
+  if (!m) return null;
+  return new Date(Date.UTC(Number(m[2]), Number(m[1]) - 1, 1));
+}
+
+function extrairJson(texto: string): unknown {
+  const limpo = texto.replace(/```json\s*|\s*```/g, "").trim();
+  const ini = limpo.indexOf("{");
+  const fim = limpo.lastIndexOf("}");
+  if (ini < 0 || fim < 0) throw new Error("A IA não retornou JSON.");
+  return JSON.parse(limpo.slice(ini, fim + 1));
+}
+
+/**
+ * Extrai a folha do PDF (Claude) e (re)popula os FolhaItem + cabeçalho/totais.
+ * Casa cada item a um Colaborador pelo nome (exato, ignorando caixa) e herda a
+ * classificação do cadastro; sem match fica null (o usuário vincula na revisão).
+ */
+export async function extrairFolhaPdf(folhaId: string) {
+  const folha = await prismaSemEscopo.folhaPagamento.findUnique({
+    where: { id: folhaId }, select: { id: true, empresaId: true, arquivoUrl: true, status: true },
+  });
+  if (!folha) throw new Error("Folha não encontrada");
+  if (folha.status === "FECHADA") throw new Error("Folha já fechada — não pode reextrair.");
+  if (!folha.arquivoUrl) throw new Error("Folha sem arquivo PDF.");
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY não configurada.");
+
+  const pdfBuf = Buffer.from(await (await fetch(folha.arquivoUrl)).arrayBuffer());
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const resp = await client.messages.create({
+    model: MODELO_EXTRACAO,
+    max_tokens: 16000,
+    messages: [{
+      role: "user",
+      content: [
+        { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBuf.toString("base64") } },
+        { type: "text", text: PROMPT_EXTRACAO },
+      ],
+    }],
+  });
+  const texto = resp.content.filter((c) => c.type === "text").map((c) => (c as { text: string }).text).join("\n");
+  const dados = extrairJson(texto) as FolhaExtraida;
+  if (!dados?.colaboradores?.length) throw new Error("A IA não encontrou colaboradores no PDF.");
+
+  // Colaboradores da empresa p/ casar por nome.
+  const colabs = await prismaSemEscopo.colaborador.findMany({
+    where: { empresas: { some: { id: folha.empresaId } } },
+    select: { id: true, nome: true, classificacaoCusto: true },
+  });
+  const porNome = new Map(colabs.map((c) => [c.nome.trim().toLowerCase(), c]));
+
+  const itensData = dados.colaboradores.map((c) => {
+    const match = porNome.get((c.nome ?? "").trim().toLowerCase()) ?? null;
+    return {
+      folhaId: folha.id,
+      colaboradorId: match?.id ?? null,
+      matricula: c.matricula ?? null,
+      nome: c.nome,
+      cargo: c.cargo ?? null,
+      classificacao: match?.classificacaoCusto ?? "ADMIN" as const,
+      bruto: c.bruto ?? 0, liquido: c.liquido ?? 0, inssRetido: c.inssRetido ?? 0,
+      inssPatronal: c.inssPatronal ?? 0, irrf: c.irrf ?? 0, fgts: c.fgts ?? 0,
+      outrosDescontos: round((c.bruto ?? 0) - (c.liquido ?? 0) - (c.inssRetido ?? 0) - (c.irrf ?? 0)),
+    };
+  });
+
+  const tot = itensData.reduce((a, i) => ({
+    bruto: a.bruto + i.bruto, liquido: a.liquido + i.liquido, inssR: a.inssR + i.inssRetido,
+    inssP: a.inssP + i.inssPatronal, irrf: a.irrf + i.irrf, fgts: a.fgts + i.fgts,
+  }), { bruto: 0, liquido: 0, inssR: 0, inssP: 0, irrf: 0, fgts: 0 });
+
+  const competencia = parseCompetencia(dados.competencia);
+  await prismaSemEscopo.$transaction([
+    prismaSemEscopo.folhaItem.deleteMany({ where: { folhaId: folha.id } }),
+    prismaSemEscopo.folhaItem.createMany({ data: itensData }),
+    prismaSemEscopo.folhaPagamento.update({
+      where: { id: folha.id },
+      data: {
+        ...(competencia ? { competencia } : {}),
+        ...(dados.dataPagamento ? { dataPagamento: new Date(dados.dataPagamento) } : {}),
+        totalBruto: round(tot.bruto), totalLiquido: round(tot.liquido),
+        totalInssRetido: round(tot.inssR), totalInssPatronal: round(tot.inssP),
+        totalIrrf: round(tot.irrf), totalFgts: round(tot.fgts),
+      },
+    }),
+  ]);
+  return { quantidade: itensData.length, semVinculo: itensData.filter((i) => !i.colaboradorId).length };
 }
 
 /** Fecha a folha: valida, apropria e gera as Contas a Pagar. */
