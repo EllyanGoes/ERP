@@ -56,6 +56,30 @@ export default function NotificationCenter() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // Permissão para notificações nativas do SO (macOS/Windows). Pede no 1º clique
+  // do sino (gesto do usuário — exigido pelos navegadores).
+  const pedirPermissaoNativa = useCallback(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  // Dispara a notificação do SISTEMA. Só quando a aba não está em foco (com a aba
+  // ativa basta o toast in-app), e com permissão concedida.
+  const dispararNativa = useCallback((n: Notif) => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "granted" || !document.hidden) return;
+    try {
+      const nativa = new Notification(n.titulo, { body: n.mensagem, tag: n.id });
+      nativa.onclick = () => {
+        window.focus();
+        if (n.link) router.push(n.link);
+        nativa.close();
+      };
+    } catch { /* ignore */ }
+  }, [router]);
+
   const poll = useCallback(async () => {
     try {
       const res = await fetch("/api/notificacoes");
@@ -77,14 +101,15 @@ export default function NotificationCenter() {
       }
       const novas = list.filter((n) => new Date(n.createdAt).getTime() > lastSeenRef.current && !n.lida);
       if (novas.length) {
-        setToasts((prev) => [...novas.reverse(), ...prev].slice(0, 4));
+        novas.forEach(dispararNativa); // notificação do SO (aba em 2º plano)
+        setToasts((prev) => [...[...novas].reverse(), ...prev].slice(0, 4));
         lastSeenRef.current = maisRecente;
         localStorage.setItem(key, String(maisRecente));
       }
     } catch {
       /* silencioso */
     }
-  }, [userId]);
+  }, [userId, dispararNativa]);
 
   useEffect(() => {
     if (!user) return;
@@ -142,7 +167,7 @@ export default function NotificationCenter() {
       <div className="relative">
         <button
           ref={btnRef}
-          onClick={() => { setOpen((o) => !o); if (!open && naoLidas) poll(); }}
+          onClick={() => { pedirPermissaoNativa(); setOpen((o) => !o); if (!open && naoLidas) poll(); }}
           className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           title="Notificações"
           aria-label="Notificações"
