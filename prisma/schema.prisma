@@ -489,6 +489,9 @@ model NaturezaFinanceira {
   grupo         NaturezaGrupo
   subgrupoId    String?
   ativo         Boolean             @default(true)
+  // Natureza de Custo Indireto de Fabricação: o débito de origem vai para
+  // "CIF a Apropriar" (1.1.4.0001), não para a conta de resultado da natureza.
+  cif           Boolean             @default(false)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
   subgrupo      NaturezaSubgrupo?   @relation(fields: [subgrupoId], references: [id])
@@ -499,6 +502,7 @@ model NaturezaFinanceira {
   conferencias  ConferenciaCompra[]
   lancamentos   LancamentoFinanceiro[]
   recorrencias  Recorrencia[]
+  partidasContabeis PartidaContabil[] // dimensão natureza nas partidas (ex.: CIF)
   // Conta de RESULTADO (receita p/ ENTRADA, despesa p/ SAIDA): vínculo via
   // ContaContabil.naturezaFinanceiraId (uma conta por natureza).
   contasContabeis ContaContabil[]    @relation("NaturezaResultado")
@@ -641,13 +645,19 @@ model PartidaContabil {
   valor        Decimal            @db.Decimal(15, 2)
   clienteId    String? // razão auxiliar
   fornecedorId String? // razão auxiliar
+  // Dimensões de custeio (não são contas): estágio do WIP e natureza (ex.: CIF).
+  estagio              EstadoWIP?
+  naturezaFinanceiraId String?
   lancamento   LancamentoContabil @relation(fields: [lancamentoId], references: [id], onDelete: Cascade)
   conta        ContaContabil      @relation(fields: [contaId], references: [id])
   empresa      Empresa            @relation(fields: [empresaId], references: [id])
+  naturezaFinanceira NaturezaFinanceira? @relation(fields: [naturezaFinanceiraId], references: [id])
 
   @@index([empresaId])
   @@index([contaId])
   @@index([lancamentoId])
+  @@index([naturezaFinanceiraId])
+  @@index([estagio])
 }
 
 enum StatusFechamento {

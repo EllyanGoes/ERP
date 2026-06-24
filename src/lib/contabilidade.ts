@@ -1,5 +1,6 @@
 import { prismaSemEscopo } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import type { EstadoWIP } from "@prisma/client";
 import { decimalToNumber, generateDocNumber } from "@/lib/utils";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
@@ -22,6 +23,9 @@ export type PartidaIn = {
   valor: number;
   clienteId?: string | null;
   fornecedorId?: string | null;
+  // Dimensões de custeio (não são contas): estágio do WIP e natureza (ex.: CIF).
+  estagio?: EstadoWIP | null;
+  naturezaId?: string | null;
 };
 
 export type LancamentoIn = {
@@ -135,14 +139,14 @@ function agruparItensParaDetalhe(
 // Compara as partidas persistidas com as recalculadas (multiset por
 // conta/tipo/valor/cliente/fornecedor) para decidir se há mudança a re-sincronizar.
 function mesmasPartidas(
-  persistidas: { contaId: string; tipo: string; valor: unknown; clienteId: string | null; fornecedorId: string | null }[],
+  persistidas: { contaId: string; tipo: string; valor: unknown; clienteId: string | null; fornecedorId: string | null; estagio?: string | null; naturezaFinanceiraId?: string | null }[],
   novas: PartidaIn[],
 ): boolean {
   if (persistidas.length !== novas.length) return false;
-  const k = (contaId: string, tipo: string, valor: number, cli?: string | null, forn?: string | null) =>
-    `${contaId}|${tipo}|${Math.round(valor * 100)}|${cli ?? ""}|${forn ?? ""}`;
-  const a = persistidas.map((p) => k(p.contaId, p.tipo, decimalToNumber(p.valor), p.clienteId, p.fornecedorId)).sort();
-  const b = novas.map((p) => k(p.contaId, p.tipo, p.valor, p.clienteId, p.fornecedorId)).sort();
+  const k = (contaId: string, tipo: string, valor: number, cli?: string | null, forn?: string | null, est?: string | null, nat?: string | null) =>
+    `${contaId}|${tipo}|${Math.round(valor * 100)}|${cli ?? ""}|${forn ?? ""}|${est ?? ""}|${nat ?? ""}`;
+  const a = persistidas.map((p) => k(p.contaId, p.tipo, decimalToNumber(p.valor), p.clienteId, p.fornecedorId, p.estagio, p.naturezaFinanceiraId)).sort();
+  const b = novas.map((p) => k(p.contaId, p.tipo, p.valor, p.clienteId, p.fornecedorId, p.estagio, p.naturezaId)).sort();
   return a.every((x, i) => x === b[i]);
 }
 
@@ -181,7 +185,7 @@ export async function registrarLancamento(input: LancamentoIn) {
       where: { empresaId, origemTipo, origemId },
       select: {
         id: true, data: true, historico: true,
-        partidas: { select: { contaId: true, tipo: true, valor: true, clienteId: true, fornecedorId: true } },
+        partidas: { select: { contaId: true, tipo: true, valor: true, clienteId: true, fornecedorId: true, estagio: true, naturezaFinanceiraId: true } },
       },
     });
     if (existente) {
@@ -202,6 +206,7 @@ export async function registrarLancamento(input: LancamentoIn) {
               create: partidas.map((p) => ({
                 empresaId, contaId: p.contaId, tipo: p.tipo, valor: p.valor,
                 clienteId: p.clienteId ?? null, fornecedorId: p.fornecedorId ?? null,
+                estagio: p.estagio ?? null, naturezaFinanceiraId: p.naturezaId ?? null,
               })),
             },
           },
@@ -237,6 +242,8 @@ export async function registrarLancamento(input: LancamentoIn) {
           valor: p.valor,
           clienteId: p.clienteId ?? null,
           fornecedorId: p.fornecedorId ?? null,
+          estagio: p.estagio ?? null,
+          naturezaFinanceiraId: p.naturezaId ?? null,
         })),
       },
     },
@@ -974,6 +981,77 @@ export async function contabilizarProducaoOrdem(ordemId: string) {
     origemTipo: "ESTOQUE_PRODUCAO", origemId: ordemId,
     movs, semContrapartida: true,
   });
+}
+
+// ── CIF (Custos Indiretos de Fabricação) — custo REAL ──────────────────────────
+// O CIF real acumula em "CIF a Apropriar" (1.1.4.0001, ativo) e, no fechamento, é
+// apropriado ao PEP-CIF (1.1.3.0005.0003) com a dimensão estágio=queimado, zerando
+// a conta de staging. Estágio é DIMENSÃO da partida, nunca conta.
+
+/**
+ * Consumo de combustível/insumos de queima do estoque para a produção:
+ * D 1.1.4.0001 CIF a Apropriar (natureza) / C 1.1.3.0002 Estoque de Insumos.
+ * `origemId` é o id do fato (requisição/baixa); idempotente por (empresa, ESTOQUE_CONSUMO, CIF-CONSUMO-<id>).
+ */
+export async function contabilizarConsumoCif(input: {
+  empresaId: string; data: Date; valor: number; origemId: string; historico: string; naturezaId?: string | null;
+}) {
+  const valor = Math.round(input.valor * 100) / 100;
+  if (valor <= EPS) return;
+  const [cifAprop, estInsumos] = await Promise.all([
+    contaPorCodigo(input.empresaId, "1.1.4.0001"),
+    contaPorCodigo(input.empresaId, "1.1.3.0002"),
+  ]);
+  if (!cifAprop || !estInsumos) return; // contas do plano não encontradas → não lança
+  await registrarLancamento({
+    empresaId: input.empresaId, data: input.data, historico: input.historico,
+    origemTipo: "ESTOQUE_CONSUMO", origemId: `CIF-CONSUMO-${input.origemId}`,
+    partidas: [
+      { contaId: cifAprop.id, tipo: "DEBITO", valor, naturezaId: input.naturezaId ?? null },
+      { contaId: estInsumos.id, tipo: "CREDITO", valor },
+    ],
+  });
+}
+
+/**
+ * Apropriação do CIF ao PEP no fechamento (CUSTO REAL): apropria o saldo devedor
+ * acumulado em CIF a Apropriar, zerando-o exatamente.
+ * D 1.1.3.0005.0003 PEP-CIF (estagio=queimado) / C 1.1.4.0001 CIF a Apropriar.
+ * Validação: não apropriar mais que o saldo pendente.
+ */
+export async function apropriarCifAoPep(input: {
+  empresaId: string; data: Date; periodo?: string; valor?: number; criadoPor?: string | null;
+}): Promise<{ apropriado: number; pendente: number }> {
+  const [cifAprop, pepCif] = await Promise.all([
+    contaPorCodigo(input.empresaId, "1.1.4.0001"),
+    contaPorCodigo(input.empresaId, "1.1.3.0005.0003"),
+  ]);
+  if (!cifAprop || !pepCif) throw new Error("Contas de CIF (1.1.4.0001 / 1.1.3.0005.0003) não encontradas.");
+
+  // Saldo devedor pendente em CIF a Apropriar (débito − crédito).
+  const grupos = await prismaSemEscopo.partidaContabil.groupBy({ by: ["tipo"], where: { contaId: cifAprop.id }, _sum: { valor: true } });
+  let pendente = 0;
+  for (const g of grupos) pendente += g.tipo === "DEBITO" ? decimalToNumber(g._sum.valor ?? 0) : -decimalToNumber(g._sum.valor ?? 0);
+  pendente = Math.round(pendente * 100) / 100;
+
+  const valor = input.valor != null ? Math.round(input.valor * 100) / 100 : pendente;
+  if (valor <= EPS) return { apropriado: 0, pendente };
+  if (valor > pendente + EPS) throw new Error(`Apropriação (R$ ${valor.toFixed(2)}) maior que o saldo de CIF a Apropriar (R$ ${pendente.toFixed(2)}).`);
+
+  const periodo = input.periodo ?? "";
+  await registrarLancamento({
+    empresaId: input.empresaId, data: input.data, criadoPor: input.criadoPor ?? null,
+    historico: `Apropriação de CIF ao PEP${periodo ? ` — ${periodo}` : ""}`,
+    origemTipo: "ESTOQUE_PRODUCAO", origemId: `CIF-APROP-${periodo}-${input.data.getTime()}`,
+    partidas: [
+      { contaId: pepCif.id, tipo: "DEBITO", valor, estagio: "QUEIMADO" },
+      { contaId: cifAprop.id, tipo: "CREDITO", valor },
+    ],
+  });
+  return { apropriado: valor, pendente };
+  // EXTENSÃO (predeterminado — NÃO implementado): em vez do saldo real, lançar
+  // D PEP-CIF / C 1.1.4.0002 CIF Aplicado pela taxa × base e tratar a variação
+  // (real − aplicado) no fechamento.
 }
 
 /**
