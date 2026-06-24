@@ -10,6 +10,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import PageHeader from "@/components/shared/PageHeader";
 
@@ -504,7 +505,7 @@ function FornecedorTable({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function OtdPage() {
-  const [range, setRange] = useState<DateRange>(() => {
+  const [range, setRange] = usePersistedState<DateRange>("relatorios:compras:otd:range", () => {
     const to   = new Date();
     const from = new Date();
     from.setMonth(from.getMonth() - 12);

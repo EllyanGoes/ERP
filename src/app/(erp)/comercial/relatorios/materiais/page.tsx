@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatBRL, cn } from "@/lib/utils";
 import { Package, Loader2, Search, Download, ArrowDownToLine, ArrowUpFromLine, TrendingUp, Shuffle } from "lucide-react";
@@ -37,7 +38,7 @@ function defaultRange(): DateRange {
 export default function MateriaisReportPage() {
   useTabTitle("Materiais Vendidos");
 
-  const [range, setRange] = useState<DateRange>(defaultRange);
+  const [range, setRange] = usePersistedState<DateRange>("relatorios:comercial:materiais:range", defaultRange);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState("");

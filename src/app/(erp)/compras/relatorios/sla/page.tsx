@@ -5,6 +5,7 @@ import {
   Clock, CheckCircle2, XCircle, BarChart3, TrendingUp, Loader2, RefreshCw,
 } from "lucide-react";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import PageHeader from "@/components/shared/PageHeader";
 
@@ -339,7 +340,7 @@ function SummaryCard({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function SlaPage() {
-  const [range, setRange] = useState<DateRange>(() => {
+  const [range, setRange] = usePersistedState<DateRange>("relatorios:compras:sla:range", () => {
     const to   = new Date();
     const from = new Date();
     from.setMonth(from.getMonth() - 12);

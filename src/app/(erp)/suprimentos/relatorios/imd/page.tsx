@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import FilterDropdown, { FilterOption } from "@/components/shared/FilterDropdown";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { Search, X, Loader2, Package, Truck, AlertTriangle, Info, Layers, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -120,9 +121,9 @@ export default function ImdPage() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState("");
   const [search, setSearch]         = useState("");
-  const [imdFilter, setImdFilter]   = useState("todos");
+  const [imdFilter, setImdFilter]   = usePersistedState("relatorios:suprimentos:imd:imdFilter", "todos");
   const [locais, setLocais]         = useState<LocalEstoque[]>([]);
-  const [periodo, setPeriodo]       = useState<DateRange>(defaultRange());
+  const [periodo, setPeriodo]       = usePersistedState<DateRange>("relatorios:suprimentos:imd:periodo", defaultRange);
   const [localId, setLocalId]       = useState("");
   const [periodMonths, setPeriodMonths] = useState(36);
 

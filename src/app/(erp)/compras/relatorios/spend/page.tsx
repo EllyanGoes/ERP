@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn, formatBRL } from "@/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -507,7 +508,7 @@ function SummaryCard({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function SpendPage() {
-  const [range, setRange] = useState<DateRange>(() => {
+  const [range, setRange] = usePersistedState<DateRange>("relatorios:compras:spend:range", () => {
     const to   = new Date();
     const from = new Date();
     from.setMonth(from.getMonth() - 12);

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import FilterDropdown, { FilterOption } from "@/components/shared/FilterDropdown";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { Search, X, Loader2, Layers, Info, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { cn, formatBRL } from "@/lib/utils";
@@ -105,9 +106,9 @@ export default function CurvaAbcPage() {
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState("");
   const [search, setSearch]       = useState("");
-  const [abcFilter, setAbcFilter] = useState("todos");
+  const [abcFilter, setAbcFilter] = usePersistedState("relatorios:suprimentos:curva-abc:abcFilter", "todos");
   const [locais, setLocais]       = useState<LocalEstoque[]>([]);
-  const [periodo, setPeriodo]     = useState<DateRange>(defaultRange());
+  const [periodo, setPeriodo]     = usePersistedState<DateRange>("relatorios:suprimentos:curva-abc:periodo", defaultRange);
   const [localId, setLocalId]     = useState("");
 
   // Load locais once

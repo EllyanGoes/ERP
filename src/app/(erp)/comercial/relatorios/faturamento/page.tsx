@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import PageHeader from "@/components/shared/PageHeader";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatBRL, cn } from "@/lib/utils";
@@ -86,7 +87,7 @@ export default function FaturamentoReportPage() {
   useTabTitle("Faturamento");
   const router = useRouter();
 
-  const [range, setRange] = useState<DateRange>(defaultRange);
+  const [range, setRange] = usePersistedState<DateRange>("relatorios:comercial:faturamento:range", defaultRange);
   const [criterio, setCriterio] = useState<"entrega" | "confirmacao">("entrega");
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);

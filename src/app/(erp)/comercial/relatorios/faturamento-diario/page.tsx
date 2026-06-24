@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatBRL } from "@/lib/utils";
 import { Loader2, FileText, Wallet, CreditCard } from "lucide-react";
@@ -36,7 +37,7 @@ export default function FaturamentoDiarioPage() {
   useTabTitle("Resumo Diário");
   const router = useRouter();
 
-  const [range, setRange] = useState<DateRange>(() => ({ from: hojeISO(), to: hojeISO() }));
+  const [range, setRange] = usePersistedState<DateRange>("relatorios:comercial:faturamento-diario:range", () => ({ from: hojeISO(), to: hojeISO() }));
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
