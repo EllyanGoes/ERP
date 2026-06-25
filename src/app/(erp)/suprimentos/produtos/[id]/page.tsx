@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Link from "next/link";
 import {
   ChevronRight, Pencil, Save, X, Plus, Trash2, Printer,
-  Loader2, Package, TrendingUp, TrendingDown, ArrowUpDown,
+  Loader2, Package, TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown,
   BarChart2, ShieldCheck, RefreshCw, Clock, AlertOctagon, AlertTriangle,
   ClipboardList, FileText, PackageCheck, ExternalLink, Info as InfoIcon, Star, Activity, Ruler,
 } from "lucide-react";
@@ -238,6 +238,8 @@ export default function ProdutoDetailPage() {
   const [movPeriodo, setMovPeriodo] = useState<DateRange>({ from: "", to: "" });
   const [movLocalFilter, setMovLocalFilter] = useState("");
   const [movTipoFilter, setMovTipoFilter] = useState<"" | "ENTRADA" | "SAIDA">("");
+  // Ordenação por data: "desc" = mais recentes primeiro (padrão), "asc" = mais antigas.
+  const [movSort, setMovSort] = useState<"desc" | "asc">("desc");
 
   // Inserir Saldo Inicial
   const [showSaldoDialog, setShowSaldoDialog] = useState(false);
@@ -1825,6 +1827,12 @@ export default function ProdutoDetailPage() {
             if (movTipoFilter && m.tipo !== movTipoFilter) return false;
             return true;
           });
+          // Ordena pela data exibida (lote.dataMovimentacao ?? createdAt), conforme o toggle.
+          const movsOrdenadas = [...movsVisiveis].sort((a, b) => {
+            const da = new Date(a.lote?.dataMovimentacao ?? a.createdAt).getTime();
+            const db = new Date(b.lote?.dataMovimentacao ?? b.createdAt).getTime();
+            return movSort === "desc" ? db - da : da - db;
+          });
           const temFiltro = !!movPeriodo.from || !!movPeriodo.to || !!movLocalFilter || !!movTipoFilter;
           // Locais de estoque presentes nas movimentações (para o filtro).
           const locaisMov = Array.from(
@@ -1948,7 +1956,17 @@ export default function ProdutoDetailPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                     <tr>
-                      <th className="text-left px-4 py-3 font-semibold">Data</th>
+                      <th className="text-left px-4 py-3 font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setMovSort((s) => (s === "desc" ? "asc" : "desc"))}
+                          className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                          title={movSort === "desc" ? "Mais recentes primeiro (clique p/ inverter)" : "Mais antigas primeiro (clique p/ inverter)"}
+                        >
+                          Data
+                          {movSort === "desc" ? <ArrowDown className="w-3.5 h-3.5" /> : <ArrowUp className="w-3.5 h-3.5" />}
+                        </button>
+                      </th>
                       <th className="text-center px-4 py-3 font-semibold">Tipo</th>
                       <th className="text-right px-4 py-3 font-semibold">Quantidade</th>
                       <th className="text-left px-4 py-3 font-semibold">Unidade</th>
@@ -1963,7 +1981,7 @@ export default function ProdutoDetailPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {movsVisiveis.map((m) => (
+                    {movsOrdenadas.map((m) => (
                       <tr key={m.id} className="hover:bg-info/10 group/row">
                         <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
                           {formatDateTime(m.lote?.dataMovimentacao ?? m.createdAt)}
