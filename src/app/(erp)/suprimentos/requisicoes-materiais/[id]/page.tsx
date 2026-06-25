@@ -24,6 +24,7 @@ type ItemRow = {
   localizacao:  string;
   centroCustoId: string;
   naturezaFinanceiraId: string;
+  destinoManual: string;
   os:           string;
   requisicaoRef: string;
   item: { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null } | null;
@@ -72,6 +73,7 @@ function emptyEditRow(base?: Partial<ItemRow>): ItemRow {
     localizacao: base?.localizacao ?? "",
     centroCustoId: base?.centroCustoId ?? "",
     naturezaFinanceiraId: base?.naturezaFinanceiraId ?? "",
+    destinoManual: base?.destinoManual ?? "",
     os: base?.os ?? "",
     requisicaoRef: base?.requisicaoRef ?? "",
     item: base?.item ?? null,
@@ -155,6 +157,7 @@ export default function RequisicaoDetailPage() {
       quantidade:    String(r.quantidade),
       centroCustoId: r.centroCusto?.id ?? "",
       naturezaFinanceiraId: r.naturezaFinanceira?.id ?? "",
+      destinoManual: r.destinoManual ?? "",
     })));
     setEditMode(true);
   }
@@ -175,6 +178,7 @@ export default function RequisicaoDetailPage() {
           localizacao:   r.localizacao  || null,
           centroCustoId: r.centroCustoId || null,
           naturezaFinanceiraId: r.naturezaFinanceiraId || null,
+          destinoManual: r.destinoManual || null,
           os:            r.os           || null,
           requisicaoRef: r.requisicaoRef || null,
         })),
@@ -390,6 +394,7 @@ export default function RequisicaoDetailPage() {
                     {req.tipo === "REQUISICAO" && <>
                       <th className="text-left px-3 py-2 font-medium w-36">Centro de Custo</th>
                       <th className="text-left px-3 py-2 font-medium w-40">Natureza</th>
+                      <th className="text-left px-3 py-2 font-medium w-32">Destino</th>
                       <th className="text-left px-3 py-2 font-medium w-24">O.S.</th>
                     </>}
                     <th className="text-left px-3 py-2 font-medium w-28">Localização</th>
@@ -447,6 +452,16 @@ export default function RequisicaoDetailPage() {
                               options={naturezas.map((n) => ({ value: n.id, label: `${n.nome}${n.cif ? " · CIF" : ""}` }))} />
                           </td>
                           <td className="px-3 py-2">
+                            <select value={row.destinoManual} onChange={(e) => updateEditRow(idx, "destinoManual", e.target.value)}
+                              className="h-7 text-xs w-full rounded border border-border bg-card px-1">
+                              <option value="">Automático</option>
+                              <option value="PEP_MD">PEP-MD</option>
+                              <option value="CIF">CIF</option>
+                              <option value="IMOBILIZADO">Imobilizado</option>
+                              <option value="DESPESA">Despesa</option>
+                            </select>
+                          </td>
+                          <td className="px-3 py-2">
                             <Input value={row.os} onChange={(e) => updateEditRow(idx, "os", e.target.value)} className="h-7 text-xs" />
                           </td>
                         </>}
@@ -480,6 +495,7 @@ export default function RequisicaoDetailPage() {
                   {req.tipo === "REQUISICAO" && <>
                     <th className="text-left px-4 py-2.5 font-medium">Centro de Custo</th>
                     <th className="text-left px-4 py-2.5 font-medium">Natureza</th>
+                    <th className="text-left px-4 py-2.5 font-medium">Destino</th>
                     <th className="text-left px-4 py-2.5 font-medium">O.S.</th>
                   </>}
                   <th className="text-left px-4 py-2.5 font-medium">Localização</th>
@@ -495,6 +511,7 @@ export default function RequisicaoDetailPage() {
                     {req.tipo === "REQUISICAO" && <>
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.centroCusto ? `${it.centroCusto.codigo}` : "—"}</td>
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.naturezaFinanceira ? `${it.naturezaFinanceira.nome}${it.naturezaFinanceira.cif ? " · CIF" : ""}` : "—"}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.destinoManual ?? "auto"}</td>
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.os ?? "—"}</td>
                     </>}
                     <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.localizacao ?? "—"}</td>
