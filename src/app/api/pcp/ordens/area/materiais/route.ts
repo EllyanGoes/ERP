@@ -7,8 +7,9 @@ import { snapshotEtapas } from "@/lib/pcp/snapshot-etapas";
 import type { FlowGraph } from "@/lib/pcp/types";
 
 // GET /api/pcp/ordens/area/materiais?fluxoId=&areaNodeId=
-// Materiais (insumos) configurados na OPERAÇÃO daquela área no fluxo + saldo em
-// estoque. Ex.: "Mistura de insumos" → serragem fina/grossa.
+// Materiais necessários na área, derivados da ENGENHARIA (BOM) dos produtos do fluxo:
+// os insumos cuja FASE de consumo (estadoConsumo) é o estado de saída da área. Ex.:
+// Conformação(ÚMIDO) → Argila; Embalar(ACABADO) → Fita. Mostra o saldo em estoque.
 export async function GET(req: NextRequest) {
   const auth = await requireModulo("pcp");
   if (!auth.ok) return auth.response;
@@ -24,23 +25,48 @@ export async function GET(req: NextRequest) {
 
   const etapas = snapshotEtapas((versao?.grafo as unknown as FlowGraph) ?? { nodes: [], edges: [] });
   const area = etapas.find((e) => e.nodeId === areaNodeId);
-  const insumos = (area?.insumos ?? []).filter((i) => i.itemId);
-  const ids = Array.from(new Set(insumos.map((i) => i.itemId)));
+  if (!area) return NextResponse.json({ data: [] });
+  const fase = area.estadoSaida ?? null; // estado que esta área produz = fase de consumo dos insumos
+
+  // Insumos da BOM (de todos os produtos fabricáveis do fluxo) consumidos NESTA fase.
+  const engs = await prisma.engenhariaProduto.findMany({
+    where: { fluxoId, ativo: true },
+    include: {
+      insumos: {
+        include: { insumoItem: { select: { id: true, descricao: true, unidadeMedida: true } } },
+      },
+    },
+  });
+
+  type Mat = { itemId: string; descricao: string; unidade: string | null; consumoMin: number; consumoMax: number };
+  const byItem = new Map<string, Mat>();
+  for (const e of engs) {
+    for (const ins of e.insumos) {
+      if ((ins.estadoConsumo ?? null) !== fase) continue;
+      if (!ins.insumoItem) continue;
+      const q = Number(ins.quantidade) * (ins.base === "POR_UNIDADE" ? 1000 : 1); // por milheiro
+      const cur = byItem.get(ins.insumoItemId);
+      if (cur) { cur.consumoMin = Math.min(cur.consumoMin, q); cur.consumoMax = Math.max(cur.consumoMax, q); }
+      else byItem.set(ins.insumoItemId, { itemId: ins.insumoItemId, descricao: ins.insumoItem.descricao, unidade: ins.insumoItem.unidadeMedida ?? null, consumoMin: q, consumoMax: q });
+    }
+  }
+  const ids = Array.from(byItem.keys());
   if (!ids.length) return NextResponse.json({ data: [] });
 
-  const [itens, estoques] = await Promise.all([
-    prisma.item.findMany({ where: { id: { in: ids } }, select: { id: true, descricao: true, unidadeMedida: true } }),
-    prisma.estoqueItem.groupBy({ by: ["itemId"], where: { itemId: { in: ids }, clienteDonoId: null }, _sum: { quantidadeAtual: true } }),
-  ]);
-  const itMap = new Map(itens.map((i) => [i.id, i]));
-  const saldoMap = new Map(estoques.map((e) => [e.itemId, Number(e._sum.quantidadeAtual ?? 0)]));
+  const estoques = await prisma.estoqueItem.groupBy({ by: ["itemId"], where: { itemId: { in: ids }, clienteDonoId: null }, _sum: { quantidadeAtual: true } });
+  const saldoMap = new Map(estoques.map((x) => [x.itemId, Number(x._sum.quantidadeAtual ?? 0)]));
 
-  const data = insumos.map((ins) => ({
-    itemId: ins.itemId,
-    descricao: itMap.get(ins.itemId)?.descricao ?? ins.descricao ?? ins.itemId,
-    saldo: Math.round((saldoMap.get(ins.itemId) ?? 0) * 1000) / 1000,
-    unidade: itMap.get(ins.itemId)?.unidadeMedida ?? null,
-  }));
+  const data = ids.map((id) => {
+    const m = byItem.get(id)!;
+    return {
+      itemId: id,
+      descricao: m.descricao,
+      unidade: m.unidade,
+      saldo: Math.round((saldoMap.get(id) ?? 0) * 1000) / 1000,
+      // consumo por milheiro (faixa, pois varia por produto)
+      consumoPorMilheiro: m.consumoMin === m.consumoMax ? Math.round(m.consumoMin * 1000) / 1000 : null,
+    };
+  });
 
   return NextResponse.json({ data });
 }
