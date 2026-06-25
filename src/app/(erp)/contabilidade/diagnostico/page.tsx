@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import UltimoRetroativo from "@/components/contabilidade/UltimoRetroativo";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatBRL, cn } from "@/lib/utils";
 import { useCachedData } from "@/lib/use-cached-data";
@@ -29,6 +30,7 @@ export default function DiagnosticoPage() {
     <div>
       <PageHeader title="Diagnóstico contábil" breadcrumbs={[{ label: "Contabilidade" }, { label: "Diagnóstico" }]} />
       <div className="px-8 pb-8 space-y-4 max-w-4xl">
+        <UltimoRetroativo />
         <div className="flex items-start gap-3 bg-info/10 border border-info/20 rounded-xl p-4 text-sm text-info">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
           <p>

@@ -3,6 +3,7 @@
 import { Fragment, useState } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import UltimoRetroativo from "@/components/contabilidade/UltimoRetroativo";
 import { useCachedData } from "@/lib/use-cached-data";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
@@ -74,6 +75,7 @@ export default function DrePage() {
     <div>
       <PageHeader title="DRE" breadcrumbs={[{ label: "Contabilidade" }, { label: "DRE" }]} />
       <div className="px-8 pb-8 space-y-4">
+        <UltimoRetroativo />
         <div className="flex items-center gap-3 flex-wrap no-print">
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             Exercício

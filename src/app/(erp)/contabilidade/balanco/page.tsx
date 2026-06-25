@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import UltimoRetroativo from "@/components/contabilidade/UltimoRetroativo";
 import { Input } from "@/components/ui/input";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatDate } from "@/lib/utils";
@@ -130,6 +131,7 @@ export default function BalancoPage() {
     <div>
       <PageHeader title="Balanço Patrimonial" breadcrumbs={[{ label: "Contabilidade" }, { label: "Balanço" }]} />
       <div className="px-8 pb-8 space-y-4">
+        <UltimoRetroativo />
         <div className="flex items-center gap-3 flex-wrap no-print">
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             Posição em
