@@ -57,8 +57,8 @@ function LinhaRow({ l, soComSaldo, modo, data, filhos, recolhido, onToggle }: {
 
 export default function BalancoPage() {
   useTabTitle("Balanço Patrimonial");
-  // Filtros persistidos (mesmo padrão do Balancete): lidos no 1º render.
-  const [data, setData] = usePersistedState<string>("contabilidade:balanco:data", hoje);
+  // Posição SEMPRE em hoje ao abrir (não persiste a data — evita ver saldo defasado).
+  const [data, setData] = useState<string>(hoje);
   const [soComSaldo, setSoComSaldo] = usePersistedState<boolean>("contabilidade:balanco:soComSaldo", true);
   const [modo, setModo] = useFormatoContabil();
 

@@ -85,6 +85,7 @@ export default function CusteioPage() {
   const [aplicando, setAplicando] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [view, setView] = useState<"total" | "milheiro">("total");
+  const [aba, setAba] = useState<"taxa" | "fechamento">("taxa");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(async (comp: string) => {
@@ -182,6 +183,17 @@ export default function CusteioPage() {
         )}
       </div>
 
+      {/* Abas: definição da taxa pré-definida × fechamentos (apropriações) */}
+      <div className="flex gap-0 border-b border-border">
+        {([["taxa", "Definição de taxa pré-definida"], ["fechamento", "Fechamentos"]] as const).map(([k, lbl]) => (
+          <button key={k} type="button" onClick={() => { setAba(k); setMsg(null); }}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${aba === k ? "border-blue-600 text-info" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            {lbl}
+          </button>
+        ))}
+      </div>
+
+      {aba === "taxa" && (<>
       <Card>
         <CardHeader><CardTitle className="text-base">Parâmetros da competência</CardTitle></CardHeader>
         <CardContent className="space-y-4">
@@ -258,14 +270,9 @@ export default function CusteioPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">Custo por produto (estoque de acabado)</CardTitle>
-              <div className="flex items-center gap-2">
-                <Button onClick={apropriarCif} disabled={apropriando} variant="outline" title="Leva o CIF a Apropriar (1.1.4.0001) ao PEP-CIF (1.1.3.0005.0003)">
-                  {apropriando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />} Apropriar CIF ao PEP
-                </Button>
-                <Button onClick={aplicar} disabled={aplicando || result.volumeTotalMilheiros <= 0} variant="default">
-                  {aplicando ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />} Aplicar ao estoque de PA
-                </Button>
-              </div>
+              <Button onClick={aplicar} disabled={aplicando || result.volumeTotalMilheiros <= 0} variant="default">
+                {aplicando ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />} Aplicar ao estoque de PA
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="mb-4 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
@@ -314,6 +321,33 @@ export default function CusteioPage() {
             </CardContent>
           </Card>
         </>
+      )}
+      </>)}
+
+      {aba === "fechamento" && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Fechamentos — apropriação ao PEP</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">Processos de fechamento que levam os custos reais acumulados ao Produto em Processo (PEP). Rode ao fechar a competência.</p>
+            <div className="rounded-lg border border-border p-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Apropriar CIF ao PEP</p>
+                <p className="text-[12px] text-muted-foreground">Leva o saldo de “CIF a Apropriar” (1.1.4.0001) ao PEP-CIF (1.1.3.0005.0003), estágio queimado. Zera o staging.</p>
+              </div>
+              <Button onClick={apropriarCif} disabled={apropriando} variant="default">
+                {apropriando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />} Apropriar CIF
+              </Button>
+            </div>
+            <div className="rounded-lg border border-dashed border-border p-4 flex items-center justify-between gap-3 opacity-60">
+              <div>
+                <p className="text-sm font-medium text-foreground">Apropriar MOD ao PEP <span className="text-[11px] font-normal text-muted-foreground">(em breve)</span></p>
+                <p className="text-[12px] text-muted-foreground">Folha da mão de obra direta → PEP-MOD (1.1.3.0005.0002).</p>
+              </div>
+              <Button disabled variant="outline">Em breve</Button>
+            </div>
+            {msg && <span className={`text-sm ${msg.ok ? "text-emerald-600" : "text-rose-500"}`}>{msg.text}</span>}
+          </CardContent>
+        </Card>
       )}
     </div>
     </TooltipProvider>

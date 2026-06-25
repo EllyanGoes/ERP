@@ -27,8 +27,8 @@ function defaultRange(): DateRange {
 
 export default function BalancetePage() {
   useTabTitle("Balancete");
-  // Filtros persistidos (padrão do sistema: lidos no 1º render, sem flash).
-  const [range, setRange] = usePersistedState<DateRange>("contabilidade:balancete:range", defaultRange);
+  // Período SEMPRE até hoje ao abrir (não persiste — evita relatório defasado).
+  const [range, setRange] = useState<DateRange>(defaultRange);
   const [soComMov, setSoComMov] = usePersistedState<boolean>("contabilidade:balancete:soComMov", true);
   const [modo, setModo] = useFormatoContabil();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
