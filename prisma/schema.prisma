@@ -93,6 +93,9 @@ model CentroCusto {
   nome                   String
   grupoCentroCustoId     String?
   ativo                  Boolean                  @default(true)
+  // Centro de custo FABRIL (forno, extrusora, secador, vagonetas, esteiras) vs.
+  // não-fabril (frota, escritório, vendas). Decide CIF×Despesa do consumo indireto.
+  fabril                 Boolean                  @default(false)
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @updatedAt
   grupoCentroCusto       GrupoCentroCusto?        @relation(fields: [grupoCentroCustoId], references: [id])
@@ -1193,6 +1196,11 @@ model Item {
   consumivel             Boolean                  @default(true)
   // Insumo que compõe custo/saldo de produção. false = ignorado no PCP (ex.: água).
   compoeCusto            Boolean                  @default(true)
+  // Consumível INDIRETO de fábrica (peça de manutenção, lubrificante, refratário,
+  // EPI, solda). Quando true, a requisição roteia para CIF se o centro de custo for
+  // fabril (senão Despesa). Não usado por material direto (MATERIA_PRIMA/INSUMO/EMBALAGEM
+  // com compoeCusto), que vai sempre para o PEP-MD. Ver src/lib/pcp/rotear-requisicao.ts.
+  fabril                 Boolean                  @default(false)
   estoqueMinimo          Decimal?                 @db.Decimal(15, 3)
   estoqueMaximo          Decimal?                 @db.Decimal(15, 3)
   pontoReposicao         Decimal?                 @db.Decimal(15, 3)

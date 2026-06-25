@@ -4,6 +4,7 @@ import type { EstadoWIP } from "@prisma/client";
 import { decimalToNumber, generateDocNumber } from "@/lib/utils";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
+import { rotearDestinoRequisicao } from "@/lib/pcp/rotear-requisicao";
 import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
@@ -1128,41 +1129,89 @@ export async function apropriarCifAoPep(input: {
 }
 
 /**
- * Requisição/devolução de materiais: consumo (SAIDA) D Consumo de Materiais
- * (3.3.9001) / C Estoque; devolução (ENTRADA) inverte. Idempotente por
- * (empresa, ESTOQUE_CONSUMO, requisicaoId).
+ * Requisição/devolução de materiais. O destino contábil de CADA item é roteado
+ * por `rotearDestinoRequisicao` (o que é o item × onde é consumido):
+ *  - PEP_MD  → absorve no PEP-MD (1.1.3.0005.0001) — material direto que compõe o produto;
+ *  - CIF     → CIF a Apropriar (1.1.4.0001) — indireto fabril (natureza.cif OU item.fabril em centro fabril);
+ *  - DESPESA → Consumo de Materiais (3.3.9001) — default.
+ * Item indireto sem centro de custo (destino INDEFINIDO) cai em Despesa e é sinalizado
+ * (não trava o backfill). Posta um lançamento por destino, com origemId distinto;
+ * `registrarLancamento` (gerarPartidas) NÃO é alterado. Idempotente por
+ * (empresa, ESTOQUE_CONSUMO, origemId).
  */
 export async function contabilizarRequisicao(requisicaoId: string) {
   const req = await prismaSemEscopo.requisicaoMaterial.findUnique({
     where: { id: requisicaoId },
-    select: { id: true, numero: true, status: true, updatedAt: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } } },
+    select: {
+      id: true, numero: true, status: true, updatedAt: true,
+      naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } },
+      centroCusto: { select: { fabril: true } },
+      itens: { select: { itemId: true, centroCusto: { select: { fabril: true } } } },
+    },
   });
   if (!req || req.status !== "ATENDIDA") return;
 
   const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
     where: { documento: req.numero, localEstoqueId: { not: null }, clienteDonoId: null, tipo: { in: ["ENTRADA", "SAIDA"] } },
-    select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true, valorUnitario: true, item: { select: { descricao: true } } },
+    select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true, valorUnitario: true,
+      item: { select: { descricao: true, categoriaEstoque: true, compoeCusto: true, fabril: true } } },
   });
   if (movs.length === 0) return;
   const empresaId = movs[0].empresaId;
-  const { consumoId } = await garantirContasSistemaEstoque(empresaId);
+  const naturezaCif = req.naturezaFinanceira?.cif === true;
 
-  // CIF: se a natureza da RM é indireta, a saída vai para "CIF a Apropriar"
-  // (1.1.4.0001, ativo de staging) com a natureza como dimensão, em vez de
-  // Consumo de Materiais (3.3.9001). Senão, segue o consumo normal.
-  const ehCif = req.naturezaFinanceira?.cif === true;
-  const cifAprop = ehCif ? await contaPorCodigo(empresaId, "1.1.4.0001") : null;
-  const contraId = ehCif && cifAprop ? cifAprop.id : consumoId;
+  // Centro de custo fabril por item (item-level vence o header). null = sem centro.
+  const centroFabrilPorItem = new Map<string, boolean | null>();
+  for (const it of req.itens) {
+    centroFabrilPorItem.set(it.itemId, it.centroCusto?.fabril ?? req.centroCusto?.fabril ?? null);
+  }
 
-  // Detalhe dos itens (qtd× produto × R$ unit) p/ identificar o que foi requisitado.
-  const detItens = agruparItensParaDetalhe(movs);
+  // Contas de destino (resolvidas uma vez).
+  const [consumo, pepMd, cifAprop] = await Promise.all([
+    garantirContasSistemaEstoque(empresaId),
+    contaPorCodigo(empresaId, "1.1.3.0005.0001"),
+    contaPorCodigo(empresaId, "1.1.4.0001"),
+  ]);
+  const consumoId = consumo.consumoId;
 
-  await postMovimentosEstoque({
-    empresaId, data: req.updatedAt, historico: `Requisição — ${req.numero}${ehCif ? " (CIF)" : ""}${detItens ? ` — ${detItens}` : ""}`,
-    origemTipo: "ESTOQUE_CONSUMO", origemId: requisicaoId,
-    movs, contaPositivoId: contraId, contaNegativoId: contraId,
-    naturezaContrapartidaId: ehCif ? req.naturezaFinanceiraId : null,
-  });
+  // Agrupa os movimentos por destino roteado. Contas ausentes caem no consumo (default seguro).
+  const buckets = { PEP_MD: [] as typeof movs, CIF: [] as typeof movs, DESPESA: [] as typeof movs };
+  const indefinidos: string[] = [];
+  for (const m of movs) {
+    let destino = rotearDestinoRequisicao({
+      item: { categoriaEstoque: m.item?.categoriaEstoque ?? null, compoeCusto: m.item?.compoeCusto ?? false, fabril: m.item?.fabril ?? false },
+      naturezaCif,
+      centroFabril: centroFabrilPorItem.get(m.itemId) ?? null,
+    });
+    if (destino === "PEP_MD" && !pepMd) destino = "DESPESA";
+    if (destino === "CIF" && !cifAprop) destino = "DESPESA";
+    if (destino === "INDEFINIDO") { indefinidos.push(m.item?.descricao ?? m.itemId); destino = "DESPESA"; }
+    buckets[destino].push(m);
+  }
+  if (indefinidos.length > 0) {
+    console.warn(`[contabilizarRequisicao] ${req.numero}: ${indefinidos.length} item(ns) indireto(s) sem centro de custo (lançados como Despesa): ${indefinidos.join(", ")}`);
+  }
+
+  // Cada destino → um lançamento (origemId distinto). Bucket vazio → limpa órfão de reprocesso anterior.
+  const planos: Array<{ destino: keyof typeof buckets; origemId: string; contaId: string | null | undefined; rotulo: string; natId: string | null }> = [
+    { destino: "DESPESA", origemId: requisicaoId, contaId: consumoId, rotulo: "", natId: null },
+    { destino: "PEP_MD", origemId: `${requisicaoId}#pep`, contaId: pepMd?.id, rotulo: " (PEP-MD)", natId: null },
+    { destino: "CIF", origemId: `${requisicaoId}#cif`, contaId: cifAprop?.id, rotulo: " (CIF)", natId: naturezaCif ? req.naturezaFinanceiraId : null },
+  ];
+  for (const plano of planos) {
+    const bucket = buckets[plano.destino];
+    if (bucket.length === 0 || !plano.contaId) {
+      await apagarLancamentosContabeis({ empresaId, origemTipo: "ESTOQUE_CONSUMO", origemId: plano.origemId });
+      continue;
+    }
+    const det = agruparItensParaDetalhe(bucket);
+    await postMovimentosEstoque({
+      empresaId, data: req.updatedAt, historico: `Requisição — ${req.numero}${plano.rotulo}${det ? ` — ${det}` : ""}`,
+      origemTipo: "ESTOQUE_CONSUMO", origemId: plano.origemId,
+      movs: bucket, contaPositivoId: plano.contaId, contaNegativoId: plano.contaId,
+      naturezaContrapartidaId: plano.natId,
+    });
+  }
 }
 
 /**
