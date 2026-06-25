@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 type LocalEstoqueOpt = { id: string; nome: string };
 type ColaboradorOpt  = { id: string; nome: string; setorId: string | null };
 type SetorOpt        = { id: string; nome: string };
-type CentroCustoOpt  = { id: string; codigo: string; nome: string };
+type CentroCustoOpt  = { id: string; codigo: string; nome: string; grupoCentroCusto?: { id: string; nome: string } | null };
 type ItemOpt         = { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null; fabril?: boolean; capitaliza?: boolean; categoriaEstoque?: string | null; compoeCusto?: boolean };
 
 type ItemRow = {
@@ -160,15 +160,20 @@ const GRUPO_NAT_ORDER: Record<string, number> = {
   RECEITA_OPERACIONAL: 0, CUSTO_OPERACIONAL: 1, DESPESA_OPERACIONAL: 2, INVESTIMENTO: 3, FINANCIAMENTO: 4,
 };
 
-function NaturezaSelect({
-  options, value, onChange, placeholder, error, compact,
+// Opção genérica de um seletor AGRUPADO + busca. `group` é o rótulo da seção;
+// `order` ordena as seções (menor primeiro); `badge` é um sufixo opcional (ex.: CIF).
+type GroupedOpt = { id: string; label: string; badge?: string | null; group: string; order?: number };
+
+function GroupedSelect({
+  options, value, onChange, placeholder, error, compact, vazio = "Nenhuma opção",
 }: {
-  options: NaturezaOpt[];
+  options: GroupedOpt[];
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   error?: boolean;
   compact?: boolean;
+  vazio?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -179,17 +184,19 @@ function NaturezaSelect({
 
   const selected = options.find((o) => o.id === value);
   const filtered = query.trim()
-    ? options.filter((o) => o.nome.toLowerCase().includes(query.toLowerCase()))
+    ? options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
     : options;
 
-  // Agrupa por grupo financeiro, com seções na ordem do fluxo de caixa.
+  // Agrupa por seção; ordena pela `order` (menor da seção) e depois pelo nome.
   const grupos = (() => {
-    const m = new Map<string, NaturezaOpt[]>();
+    const m = new Map<string, { opts: GroupedOpt[]; order: number }>();
     for (const o of filtered) {
-      const g = o.grupo ?? "OUTROS";
-      (m.get(g) ?? m.set(g, []).get(g)!).push(o);
+      const cur = m.get(o.group) ?? { opts: [], order: o.order ?? 99 };
+      cur.opts.push(o);
+      cur.order = Math.min(cur.order, o.order ?? 99);
+      m.set(o.group, cur);
     }
-    return Array.from(m.entries()).sort((a, b) => (GRUPO_NAT_ORDER[a[0]] ?? 99) - (GRUPO_NAT_ORDER[b[0]] ?? 99));
+    return Array.from(m.entries()).sort((a, b) => (a[1].order - b[1].order) || a[0].localeCompare(b[0]));
   })();
 
   function calcPos() {
@@ -225,12 +232,12 @@ function NaturezaSelect({
       )}>
         <input
           type="text"
-          value={open ? query : (selected ? `${selected.nome}${selected.cif ? " · CIF" : ""}` : "")}
+          value={open ? query : (selected ? `${selected.label}${selected.badge ? ` ${selected.badge}` : ""}` : "")}
           onChange={(e) => { setQuery(e.target.value); if (!open) openDrop(); }}
           onFocus={openDrop}
           placeholder={placeholder}
           className={cn(
-            "flex-1 bg-transparent outline-none placeholder:text-muted-foreground text-foreground",
+            "flex-1 bg-transparent outline-none placeholder:text-muted-foreground text-foreground min-w-0",
             compact ? "px-2 py-1.5 text-xs h-8" : "px-3 py-2 text-sm",
           )}
         />
@@ -244,24 +251,24 @@ function NaturezaSelect({
       {mounted && open && createPortal(
         <div className="fixed z-[9999] bg-card border border-border rounded-xl shadow-lg overflow-auto max-h-72"
           style={{ top: pos?.top, left: pos?.left, width: pos?.width }}>
-          {grupos.length > 0 ? grupos.map(([g, opts]) => (
+          {grupos.length > 0 ? grupos.map(([g, { opts }]) => (
             <div key={g}>
               <div className="px-3 py-1.5 bg-muted/70 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0">
-                {GRUPO_NAT_LABEL[g] ?? "Outros"}
+                {g}
               </div>
               {opts.map((o) => (
                 <button key={o.id} type="button"
                   onMouseDown={(e) => { e.preventDefault(); onChange(o.id); setOpen(false); setQuery(""); }}
                   className={cn("w-full px-3 py-2 text-sm text-left hover:bg-info/10 hover:text-info transition-colors flex items-center gap-1.5",
                     o.id === value && "bg-info/10 text-info font-medium")}>
-                  <span className="truncate">{o.nome}</span>
-                  {o.cif && <span className="text-[10px] text-violet-600 dark:text-violet-400 shrink-0">· CIF</span>}
+                  <span className="truncate">{o.label}</span>
+                  {o.badge && <span className="text-[10px] text-violet-600 dark:text-violet-400 shrink-0">{o.badge}</span>}
                 </button>
               ))}
             </div>
           )) : (
             <p className="px-3 py-2.5 text-sm text-muted-foreground italic">
-              {query ? `Nenhum resultado para "${query}"` : "Nenhuma natureza"}
+              {query ? `Nenhum resultado para "${query}"` : vazio}
             </p>
           )}
         </div>,
@@ -269,6 +276,24 @@ function NaturezaSelect({
       )}
     </div>
   );
+}
+
+// Constrói as opções agrupadas de NATUREZA (por grupo do fluxo de caixa).
+function naturezaOpts(naturezas: NaturezaOpt[]): GroupedOpt[] {
+  return naturezas.map((n) => ({
+    id: n.id, label: n.nome, badge: n.cif ? "· CIF" : null,
+    group: GRUPO_NAT_LABEL[n.grupo ?? ""] ?? "Outros",
+    order: GRUPO_NAT_ORDER[n.grupo ?? ""] ?? 99,
+  }));
+}
+
+// Constrói as opções agrupadas de CENTRO DE CUSTO (por grupo de centro de custo).
+function centroOpts(centros: CentroCustoOpt[]): GroupedOpt[] {
+  return centros.map((c) => ({
+    id: c.id, label: `${c.codigo} — ${c.nome}`,
+    group: c.grupoCentroCusto?.nome ?? "Sem grupo",
+    order: c.grupoCentroCusto ? 0 : 1, // "Sem grupo" por último
+  }));
 }
 
 // ── Item search dropdown (portal) ─────────────────────────────────────────────
@@ -834,21 +859,22 @@ export default function RequisicaoCreateForm() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Centro de Custo <span className="text-muted-foreground font-normal text-xs">(aplica a todos os itens)</span></Label>
-                  <PortalSelect
-                    options={centros}
+                  <GroupedSelect
+                    options={centroOpts(centros)}
                     value={centroCustoId}
                     onChange={(v) => { setCentroCustoId(v); setRows((prev) => prev.map((r) => ({ ...r, centroCustoId: v }))); }}
                     placeholder="Selecionar centro de custo..."
-                    getLabel={(c) => `${c.codigo} — ${c.nome}`}
+                    vazio="Nenhum centro de custo"
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Natureza financeira <span className="text-muted-foreground font-normal text-xs">(aplica a todos os itens)</span></Label>
-                  <NaturezaSelect
-                    options={naturezas}
+                  <GroupedSelect
+                    options={naturezaOpts(naturezas)}
                     value={naturezaFinanceiraId}
                     onChange={(v) => { setNaturezaFinanceiraId(v); setRows((prev) => prev.map((r) => ({ ...r, naturezaFinanceiraId: v }))); }}
                     placeholder="Selecionar natureza..."
+                    vazio="Nenhuma natureza"
                   />
                 </div>
               </div>
@@ -936,20 +962,27 @@ export default function RequisicaoCreateForm() {
                       </td>
                       {tipo === "REQUISICAO" && <>
                         <td className="px-3 py-2">
-                          <ComboboxWithCreate value={row.centroCustoId} onChange={(v) => updateRow(row._key, "centroCustoId", v)}
-                            placeholder="—" noneLabel="—" triggerClassName="h-8 rounded-md text-xs"
-                            options={centros.map((c) => ({ value: c.id, label: c.codigo }))} />
+                          <GroupedSelect
+                            options={centroOpts(centros)}
+                            value={row.centroCustoId}
+                            onChange={(v) => updateRow(row._key, "centroCustoId", v)}
+                            placeholder="—"
+                            compact
+                            vazio="Nenhum centro de custo"
+                            error={submitted && !!row.itemId && !(row.centroCustoId || centroCustoId)}
+                          />
                           {submitted && row.itemId && !(row.centroCustoId || centroCustoId) && (
                             <p className="text-[10px] text-red-500 mt-0.5">centro obrigatório</p>
                           )}
                         </td>
                         <td className="px-3 py-2">
-                          <NaturezaSelect
-                            options={naturezas}
+                          <GroupedSelect
+                            options={naturezaOpts(naturezas)}
                             value={row.naturezaFinanceiraId}
                             onChange={(v) => updateRow(row._key, "naturezaFinanceiraId", v)}
                             placeholder="—"
                             compact
+                            vazio="Nenhuma natureza"
                             error={submitted && !!row.itemId && !(row.naturezaFinanceiraId || naturezaFinanceiraId)}
                           />
                           {submitted && row.itemId && !(row.naturezaFinanceiraId || naturezaFinanceiraId) && (
