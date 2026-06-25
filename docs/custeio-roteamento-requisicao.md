@@ -127,3 +127,32 @@ por completo (deixar de ser negativo), ainda faltam os outros componentes da abs
 
 Reprocessar com **"Gerar retroativos"** (Diário Contábil) reclassifica o histórico
 conforme estas regras.
+
+## Modelo A (absorção): consumo de MP e insumos fabris CAPITALIZA
+
+Decisão de política de custeio: o consumo de **matéria-prima** e de **insumos fabris**
+**não vai direto ao CPV** — ele **capitaliza no PEP** (vira ativo) e só vira CPV quando
+o produto é **vendido** (via custo do produto em `3.2.2.0001`). Isso evita a **dupla
+contagem** (a MP já está no BOM/custo do produto; lançá-la também direto no CPV a
+contaria 2×).
+
+- **Matéria-prima** (ex.: argila) → `D PEP-MD (1.1.3.0005.0001)` / `C` estoque da MP.
+  **Não** usar `3.2.2.1.0001 Consumo de Matéria-Prima` (conta descontinuada/zerada).
+- **Insumo de queima** (serragem, lenha, biomassa, combustível de forno) → é **CIF**:
+  `D 1.1.4.0001 CIF a Apropriar` / `C` estoque do insumo; apropria ao PEP-CIF no
+  fechamento. **Nunca** em Despesa (`3.3.x`).
+
+O motor de requisição (FASE 1–4) já roteia `MATERIA_PRIMA → PEP_MD` e `fabril+centro →
+CIF`. O consumo mensal manual de argila/serragem deve postar PEP-MD / CIF a Apropriar.
+
+## Naturezas-gaveta de requisição (seed)
+
+`prisma/seeds/naturezas-requisicao.ts` semeia (idempotente) as gavetas gerenciais:
+- Subgrupo sintético **"Material de manutenção"** (não lançável) com 6 folhas lançáveis
+  (Peças de reposição, Abrasivos, Material elétrico, Solda, Lubrificante, Refratário) —
+  `destinoSugerido = CIF`.
+- 4 folhas diretas: Material de segurança (CIF), Material de limpeza, Material de consumo
+  geral e Material de escritório/TI (DESPESA).
+
+`destinoSugerido` alimenta **só o alerta** de coerência na RM; o destino contábil real
+vem das flags do item + centro de custo.

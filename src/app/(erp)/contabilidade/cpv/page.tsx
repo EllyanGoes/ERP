@@ -85,7 +85,7 @@ export default function CusteioPage() {
   const [aplicando, setAplicando] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [view, setView] = useState<"total" | "milheiro">("total");
-  const [aba, setAba] = useState<"taxa" | "fechamento">("taxa");
+  const [aba, setAba] = useState<"taxa" | "fechamento" | "mensal">("taxa");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(async (comp: string) => {
@@ -185,7 +185,7 @@ export default function CusteioPage() {
 
       {/* Abas: definição da taxa pré-definida × fechamentos (apropriações) */}
       <div className="flex gap-0 border-b border-border">
-        {([["taxa", "Definição de taxa pré-definida"], ["fechamento", "Fechamentos"]] as const).map(([k, lbl]) => (
+        {([["taxa", "Definição de taxa pré-definida"], ["fechamento", "Fechamentos"], ["mensal", "Acompanhamento mensal"]] as const).map(([k, lbl]) => (
           <button key={k} type="button" onClick={() => { setAba(k); setMsg(null); }}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${aba === k ? "border-blue-600 text-info" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             {lbl}
@@ -349,8 +349,88 @@ export default function CusteioPage() {
           </CardContent>
         </Card>
       )}
+
+      {aba === "mensal" && <CpvMensal />}
     </div>
     </TooltipProvider>
+  );
+}
+
+type CpvMensalData = {
+  ano: number;
+  linhas: { id: string; codigo: string; nome: string; meses: number[]; total: number }[];
+  totalMeses: number[];
+  totalTotal: number;
+};
+const MESES_CURTO = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+// Acompanhamento do CPV (3.2.2.*) mês a mês — a DRE só mostra consolidado.
+function CpvMensal() {
+  const [ano, setAno] = useState<number>(() => new Date().getUTCFullYear());
+  const [data, setData] = useState<CpvMensalData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/contabilidade/cpv-mensal?ano=${ano}`)
+      .then((r) => r.json())
+      .then((d: CpvMensalData) => setData(d))
+      .finally(() => setLoading(false));
+  }, [ano]);
+
+  const cel = (v: number) =>
+    Math.abs(v) < 0.005 ? <span className="text-muted-foreground/50">—</span> : <span className={v < 0 ? "text-rose-500" : ""}>{brl(v)}</span>;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <div>
+          <CardTitle className="text-base">CPV mês a mês</CardTitle>
+          <p className="text-[12px] text-muted-foreground">Contas do grupo CPV (3.2.2.*) abertas por mês — posição do exercício corrente.</p>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
+          Exercício
+          <select value={ano} onChange={(e) => setAno(parseInt(e.target.value, 10))} className="h-9 rounded-lg border border-border px-2 text-sm bg-card">
+            {Array.from({ length: 6 }).map((_, i) => { const y = new Date().getUTCFullYear() - i; return <option key={y} value={y}>{y}</option>; })}
+          </select>
+        </label>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex items-center gap-2 text-muted-foreground py-8"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>
+        ) : !data || data.linhas.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">Sem movimento de CPV no exercício.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm tabular-nums whitespace-nowrap">
+              <thead className="text-xs text-muted-foreground uppercase tracking-wide">
+                <tr className="border-b border-border">
+                  <th className="text-left py-2 pr-3 sticky left-0 bg-card min-w-[14rem]">Conta</th>
+                  {MESES_CURTO.map((m) => <th key={m} className="text-right py-2 px-2 w-24">{m}</th>)}
+                  <th className="text-right py-2 pl-3 w-28">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.linhas.map((l) => (
+                  <tr key={l.id} className="border-b border-border/50 hover:bg-muted/40">
+                    <td className="py-1.5 pr-3 sticky left-0 bg-card">
+                      <span className="font-mono text-[11px] text-muted-foreground mr-2">{l.codigo}</span>{l.nome}
+                    </td>
+                    {l.meses.map((v, i) => <td key={i} className="text-right py-1.5 px-2 text-muted-foreground">{cel(v)}</td>)}
+                    <td className="text-right py-1.5 pl-3 font-medium">{cel(l.total)}</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-border bg-muted/50 font-bold">
+                  <td className="py-2 pr-3 sticky left-0 bg-muted/50">CPV total</td>
+                  {data.totalMeses.map((v, i) => <td key={i} className="text-right py-2 px-2">{cel(v)}</td>)}
+                  <td className="text-right py-2 pl-3">{brl(data.totalTotal)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
