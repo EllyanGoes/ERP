@@ -482,7 +482,7 @@ export default function LocalEstoqueDetailPage() {
           <div className="px-5 py-3">
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Custo Total</p>
             <p className="text-xl font-bold text-violet-700 dark:text-violet-300 mt-0.5 tabular-nums leading-tight">
-              {custoTotal > 0 ? formatBRL(custoTotal) : <span className="text-muted-foreground/60">—</span>}
+              {custoTotal !== 0 ? formatBRL(custoTotal) : <span className="text-muted-foreground/60">—</span>}
             </p>
           </div>
           {abaixoMinimo > 0 ? (
@@ -602,7 +602,7 @@ export default function LocalEstoqueDetailPage() {
                           </td>
                         )}
                         <td className="px-4 py-3 text-right font-semibold text-violet-700 dark:text-violet-300 align-middle">
-                          {itemCusto > 0 ? formatBRL(itemCusto) : <span className="text-muted-foreground/60 font-normal">—</span>}
+                          {atual !== 0 ? formatBRL(itemCusto) : <span className="text-muted-foreground/60 font-normal">—</span>}
                         </td>
                         <td className="px-4 py-3 text-center align-middle">
                           {abaixo ? (
@@ -624,7 +624,7 @@ export default function LocalEstoqueDetailPage() {
                     <tr className="border-t border-border bg-muted">
                       <td colSpan={2 + (hasEnderecos ? 1 : 0) + (hasMin ? 1 : 0) + (hasMax ? 1 : 0)} className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total</td>
                       <td className="px-4 py-3 text-right font-bold text-violet-700 dark:text-violet-300 text-base">
-                        {custoTotal > 0 ? formatBRL(custoTotal) : "—"}
+                        {custoTotal !== 0 ? formatBRL(custoTotal) : "—"}
                       </td>
                       <td />
                     </tr>
