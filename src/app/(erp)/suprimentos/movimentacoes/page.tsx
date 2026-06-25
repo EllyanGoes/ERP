@@ -806,7 +806,10 @@ export default function MovimentacoesPage() {
                   {/* Header row */}
                   <button
                     onClick={() => toggleExpand(lote.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted transition-colors text-left"
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 transition-colors text-left",
+                      isFocus ? "bg-blue-50 dark:bg-blue-500/15 hover:bg-blue-100 dark:hover:bg-blue-500/20" : "hover:bg-muted"
+                    )}
                   >
                     {isOpen
                       ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
