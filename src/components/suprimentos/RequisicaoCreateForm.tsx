@@ -28,6 +28,7 @@ type ItemRow = {
   unidade:      string;
   localizacao:  string;
   centroCustoId: string;
+  naturezaFinanceiraId: string;
   os:           string;
   requisicaoRef: string;
 };
@@ -40,6 +41,7 @@ function emptyRow(): ItemRow {
     unidade:      "",
     localizacao:  "",
     centroCustoId: "",
+    naturezaFinanceiraId: "",
     os:           "",
     requisicaoRef: "",
   };
@@ -488,9 +490,17 @@ export default function RequisicaoCreateForm() {
   async function handleSave(statusFinal: "RASCUNHO" | "ABERTA") {
     setSubmitted(true);
     if (!localEstoqueId) { setSaveError("Almoxarifado é obrigatório"); return; }
-    if (tipo === "REQUISICAO" && !naturezaFinanceiraId) { setSaveError("Natureza financeira é obrigatória"); return; }
     const validRows = rows.filter((r) => r.itemId && r.quantidade);
     if (validRows.length === 0) { setSaveError("Adicione pelo menos um item"); return; }
+    // Natureza é obrigatória POR ITEM (o cabeçalho "aplica a todos" preenche as linhas).
+    if (tipo === "REQUISICAO") {
+      const semNat = validRows.filter((r) => !(r.naturezaFinanceiraId || naturezaFinanceiraId));
+      if (semNat.length > 0) {
+        const cods = semNat.map((r) => itensCat.find((i) => i.id === r.itemId)?.codigo ?? r.itemId).join(", ");
+        setSaveError(`Natureza financeira é obrigatória em cada item: ${cods}. Informe no cabeçalho (aplica a todos) ou na linha.`);
+        return;
+      }
+    }
     // Item indireto de fábrica (fabril) precisa de centro de custo (na linha ou no
     // cabeçalho) para classificar CIF × Despesa — senão a contabilidade não decide.
     if (tipo === "REQUISICAO") {
@@ -523,6 +533,7 @@ export default function RequisicaoCreateForm() {
             itemId: r.itemId, quantidade: parseFloat(r.quantidade),
             unidade: r.unidade || null, localizacao: r.localizacao || null,
             centroCustoId: r.centroCustoId || null,
+            naturezaFinanceiraId: r.naturezaFinanceiraId || null,
             os: r.os || null, requisicaoRef: r.requisicaoRef || null,
           })),
         }),
@@ -648,30 +659,29 @@ export default function RequisicaoCreateForm() {
               )}
             </div>
 
-            {/* Centro de Custo + Conta (Requisição only) */}
+            {/* Centro de Custo + Natureza — atalho que APLICA A TODOS os itens (o
+                valor gravado é por item; pode ajustar linha a linha na tabela). */}
             {tipo === "REQUISICAO" && (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label>Centro de Custo <span className="text-muted-foreground font-normal text-xs">(obrigatório p/ itens indiretos)</span></Label>
+                  <Label>Centro de Custo <span className="text-muted-foreground font-normal text-xs">(aplica a todos os itens)</span></Label>
                   <PortalSelect
                     options={centros}
                     value={centroCustoId}
-                    onChange={setCentroCustoId}
+                    onChange={(v) => { setCentroCustoId(v); setRows((prev) => prev.map((r) => ({ ...r, centroCustoId: v }))); }}
                     placeholder="Selecionar centro de custo..."
                     getLabel={(c) => `${c.codigo} — ${c.nome}`}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Natureza financeira <span className="text-red-500">*</span></Label>
+                  <Label>Natureza financeira <span className="text-muted-foreground font-normal text-xs">(aplica a todos os itens)</span></Label>
                   <PortalSelect
                     options={naturezas}
                     value={naturezaFinanceiraId}
-                    onChange={setNaturezaFinanceiraId}
+                    onChange={(v) => { setNaturezaFinanceiraId(v); setRows((prev) => prev.map((r) => ({ ...r, naturezaFinanceiraId: v }))); }}
                     placeholder="Selecionar natureza..."
                     getLabel={(n) => `${n.nome}${n.cif ? " · CIF" : ""}`}
-                    error={submitted}
                   />
-                  {submitted && !naturezaFinanceiraId && <p className="text-xs text-red-500">Natureza financeira é obrigatória</p>}
                 </div>
               </div>
             )}
@@ -707,6 +717,7 @@ export default function RequisicaoCreateForm() {
                     <th className="text-left px-3 py-2.5 w-28">Qtde</th>
                     {tipo === "REQUISICAO" && <>
                       <th className="text-left px-3 py-2.5 min-w-[140px]">Centro de Custo</th>
+                      <th className="text-left px-3 py-2.5 min-w-[150px]">Natureza</th>
                       <th className="text-left px-3 py-2.5 w-24">O.S.</th>
                       <th className="text-left px-3 py-2.5 w-24">Requisição</th>
                     </>}
@@ -734,6 +745,14 @@ export default function RequisicaoCreateForm() {
                             options={centros.map((c) => ({ value: c.id, label: c.codigo }))} />
                           {submitted && (() => { const it = itensCat.find((i) => i.id === row.itemId); return it?.fabril === true && it?.capitaliza !== true && !(row.centroCustoId || centroCustoId); })() && (
                             <p className="text-[10px] text-red-500 mt-0.5">centro obrigatório (indireto)</p>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <ComboboxWithCreate value={row.naturezaFinanceiraId} onChange={(v) => updateRow(row._key, "naturezaFinanceiraId", v)}
+                            placeholder="—" noneLabel="—" triggerClassName="h-8 rounded-md text-xs"
+                            options={naturezas.map((n) => ({ value: n.id, label: `${n.nome}${n.cif ? " · CIF" : ""}` }))} />
+                          {submitted && row.itemId && !(row.naturezaFinanceiraId || naturezaFinanceiraId) && (
+                            <p className="text-[10px] text-red-500 mt-0.5">natureza obrigatória</p>
                           )}
                         </td>
                         <td className="px-3 py-2">

@@ -23,10 +23,12 @@ type ItemRow = {
   unidade:      string;
   localizacao:  string;
   centroCustoId: string;
+  naturezaFinanceiraId: string;
   os:           string;
   requisicaoRef: string;
   item: { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null } | null;
   centroCusto: { id: string; codigo: string; nome: string } | null;
+  naturezaFinanceira: { id: string; nome: string; cif: boolean } | null;
 };
 
 type Req = {
@@ -69,10 +71,12 @@ function emptyEditRow(base?: Partial<ItemRow>): ItemRow {
     unidade: base?.unidade ?? "",
     localizacao: base?.localizacao ?? "",
     centroCustoId: base?.centroCustoId ?? "",
+    naturezaFinanceiraId: base?.naturezaFinanceiraId ?? "",
     os: base?.os ?? "",
     requisicaoRef: base?.requisicaoRef ?? "",
     item: base?.item ?? null,
     centroCusto: base?.centroCusto ?? null,
+    naturezaFinanceira: base?.naturezaFinanceira ?? null,
   };
 }
 
@@ -103,6 +107,7 @@ export default function RequisicaoDetailPage() {
   const [colaboradores, setColaboradores] = useState<ColaboradorOpt[]>([]);
   const [setores,       setSetores]       = useState<SetorOpt[]>([]);
   const [centros,       setCentros]       = useState<CentroCustoOpt[]>([]);
+  const [naturezas,     setNaturezas]     = useState<{ id: string; nome: string; cif?: boolean }[]>([]);
   const [itensCat,      setItensCat]      = useState<ItemOpt[]>([]);
   const [itemSearch,    setItemSearch]    = useState<Record<string, string>>({});
 
@@ -124,11 +129,13 @@ export default function RequisicaoDetailPage() {
       fetch("/api/empresa/setores?ativo=true").then(r => r.json()),
       fetch("/api/empresa/centros-custo?ativo=true").then(r => r.json()),
       fetch("/api/suprimentos/produtos?ativo=true&limit=9999").then(r => r.json()),
-    ]).then(([cData, sData, ccData, itData]) => {
+      fetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1").then(r => r.json()),
+    ]).then(([cData, sData, ccData, itData, nData]) => {
       setColaboradores(Array.isArray(cData.data) ? cData.data : []);
       setSetores(sData.data ?? []);
       setCentros(ccData.data ?? []);
       setItensCat(Array.isArray(itData.data) ? itData.data : []);
+      setNaturezas(Array.isArray(nData) ? nData : nData.data ?? []);
     });
   }, [editMode]);
 
@@ -147,6 +154,7 @@ export default function RequisicaoDetailPage() {
       ...r,
       quantidade:    String(r.quantidade),
       centroCustoId: r.centroCusto?.id ?? "",
+      naturezaFinanceiraId: r.naturezaFinanceira?.id ?? "",
     })));
     setEditMode(true);
   }
@@ -166,6 +174,7 @@ export default function RequisicaoDetailPage() {
           unidade:       r.unidade      || null,
           localizacao:   r.localizacao  || null,
           centroCustoId: r.centroCustoId || null,
+          naturezaFinanceiraId: r.naturezaFinanceiraId || null,
           os:            r.os           || null,
           requisicaoRef: r.requisicaoRef || null,
         })),
@@ -380,6 +389,7 @@ export default function RequisicaoDetailPage() {
                     <th className="text-left px-3 py-2 font-medium w-24">Qtde</th>
                     {req.tipo === "REQUISICAO" && <>
                       <th className="text-left px-3 py-2 font-medium w-36">Centro de Custo</th>
+                      <th className="text-left px-3 py-2 font-medium w-40">Natureza</th>
                       <th className="text-left px-3 py-2 font-medium w-24">O.S.</th>
                     </>}
                     <th className="text-left px-3 py-2 font-medium w-28">Localização</th>
@@ -432,6 +442,11 @@ export default function RequisicaoDetailPage() {
                               options={centros.map((c) => ({ value: c.id, label: c.codigo }))} />
                           </td>
                           <td className="px-3 py-2">
+                            <ComboboxWithCreate value={row.naturezaFinanceiraId} onChange={(v) => updateEditRow(idx, "naturezaFinanceiraId", v)}
+                              noneLabel="—" triggerClassName="h-7 rounded text-xs"
+                              options={naturezas.map((n) => ({ value: n.id, label: `${n.nome}${n.cif ? " · CIF" : ""}` }))} />
+                          </td>
+                          <td className="px-3 py-2">
                             <Input value={row.os} onChange={(e) => updateEditRow(idx, "os", e.target.value)} className="h-7 text-xs" />
                           </td>
                         </>}
@@ -464,6 +479,7 @@ export default function RequisicaoDetailPage() {
                   <th className="text-left px-4 py-2.5 font-medium">Un.</th>
                   {req.tipo === "REQUISICAO" && <>
                     <th className="text-left px-4 py-2.5 font-medium">Centro de Custo</th>
+                    <th className="text-left px-4 py-2.5 font-medium">Natureza</th>
                     <th className="text-left px-4 py-2.5 font-medium">O.S.</th>
                   </>}
                   <th className="text-left px-4 py-2.5 font-medium">Localização</th>
@@ -478,6 +494,7 @@ export default function RequisicaoDetailPage() {
                     <td className="px-4 py-2.5 text-muted-foreground">{it.unidade || it.item?.unidade?.sigla || it.item?.unidadeMedida || "—"}</td>
                     {req.tipo === "REQUISICAO" && <>
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.centroCusto ? `${it.centroCusto.codigo}` : "—"}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.naturezaFinanceira ? `${it.naturezaFinanceira.nome}${it.naturezaFinanceira.cif ? " · CIF" : ""}` : "—"}</td>
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.os ?? "—"}</td>
                     </>}
                     <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.localizacao ?? "—"}</td>

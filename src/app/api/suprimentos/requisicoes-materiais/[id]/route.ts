@@ -19,6 +19,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         include: {
           item:       { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } },
           centroCusto: { select: { id: true, codigo: true, nome: true } },
+          naturezaFinanceira: { select: { id: true, nome: true, cif: true } },
         },
       },
     },
@@ -53,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       updateData.itens = {
         create: body.itens.map((it: {
           itemId: string; quantidade: number; unidade?: string;
-          localizacao?: string; centroCustoId?: string;
+          localizacao?: string; centroCustoId?: string; naturezaFinanceiraId?: string;
           os?: string; requisicaoRef?: string;
         }) => ({
           itemId:       it.itemId,
@@ -61,6 +62,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           unidade:      it.unidade?.trim()        || null,
           localizacao:  it.localizacao?.trim()    || null,
           centroCustoId: it.centroCustoId         || null,
+          naturezaFinanceiraId: it.naturezaFinanceiraId || body.naturezaFinanceiraId || null,
           os:           it.os?.trim()             || null,
           requisicaoRef: it.requisicaoRef?.trim() || null,
         })),

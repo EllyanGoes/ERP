@@ -40,10 +40,11 @@ export async function POST(req: NextRequest) {
     if (!body.localEstoqueId) {
       return NextResponse.json({ error: "Almoxarifado é obrigatório" }, { status: 400 });
     }
-    // Natureza financeira é obrigatória na requisição (define p/ onde o consumo
-    // vai no resultado). Devolução não tem natureza de saída.
-    if ((body.tipo ?? "REQUISICAO") !== "DEVOLUCAO" && !body.naturezaFinanceiraId) {
-      return NextResponse.json({ error: "Natureza financeira é obrigatória" }, { status: 400 });
+    // Natureza financeira é obrigatória POR ITEM (define p/ onde o consumo vai no
+    // resultado). O cabeçalho serve de fallback ("aplica a todos"). Devolução não tem.
+    if ((body.tipo ?? "REQUISICAO") !== "DEVOLUCAO") {
+      const semNat = (body.itens ?? []).some((it: { naturezaFinanceiraId?: string }) => !(it.naturezaFinanceiraId || body.naturezaFinanceiraId));
+      if (semNat) return NextResponse.json({ error: "Natureza financeira é obrigatória em cada item" }, { status: 400 });
     }
 
     const record = await prisma.$transaction(async (tx) => {
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
           itens: body.itens?.length > 0 ? {
             create: body.itens.map((it: {
               itemId: string; quantidade: number; unidade?: string;
-              localizacao?: string; centroCustoId?: string;
+              localizacao?: string; centroCustoId?: string; naturezaFinanceiraId?: string;
               os?: string; requisicaoRef?: string;
             }) => ({
               itemId:       it.itemId,
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
               unidade:      it.unidade?.trim()       || null,
               localizacao:  it.localizacao?.trim()   || null,
               centroCustoId: it.centroCustoId        || null,
+              naturezaFinanceiraId: it.naturezaFinanceiraId || body.naturezaFinanceiraId || null,
               os:           it.os?.trim()            || null,
               requisicaoRef: it.requisicaoRef?.trim() || null,
             })),

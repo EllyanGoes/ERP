@@ -82,8 +82,8 @@ Grupos cadastrados:
 | Grupo | `fabril` | Exemplos |
 |---|:--:|---|
 | **Produtivos** | true | Preparação de Massa, Extrusão, Secagem, Queima, Classificação |
-| **Auxiliares de Produção** | true | Manutenção Mecânica/Elétrica, Utilidades, Movimentação Interna/Pátio, Almoxarifado de Fábrica, Laboratório, PCP, Supervisão |
-| **Não-Fabris** | false | Diretoria, Financeiro, Compras, RH, TI, Comercial, Marketing, **Expedição/Frota**, Faturamento |
+| **Auxiliares de Produção** | true | Manutenção Mecânica/Elétrica, Utilidades, Movimentação Interna/Pátio, **Frota de Produção** (carregadeira/empilhadeira), Almoxarifado de Fábrica, Laboratório, PCP, Supervisão |
+| **Não-Fabris** | false | Diretoria, Financeiro, Compras, RH, TI, Comercial, Marketing, **Frota de Entregas** (frete ao cliente = despesa de venda), Faturamento |
 
 ## Casos de borda decididos (política)
 
@@ -98,10 +98,15 @@ Grupos cadastrados:
 
 ## Coleta na requisição
 
-O formulário de requisição (`RequisicaoCreateForm.tsx`) coleta o centro de custo no
-**cabeçalho** e **por item** (o item vence o cabeçalho). Para item `fabril`, o centro
-é **obrigatório** (bloqueio no save + aviso por linha) — sem ele, o indireto não tem
-como ser classificado e cairia em Despesa.
+O formulário de requisição (`RequisicaoCreateForm.tsx`) coleta **centro de custo E
+natureza financeira POR ITEM** — porque uma requisição pode misturar itens de centros/
+destinos diferentes. Os seletores no **cabeçalho** são um atalho que **"aplica a todos
+os itens"** (preenche as linhas de uma vez), mas o valor gravado/operativo é o **da
+linha**. Regras: para item `fabril` o centro é **obrigatório** (bloqueio no save + aviso
+por linha); a natureza é **obrigatória por item** (a do cabeçalho preenche as linhas).
+Itens `capitaliza` não exigem centro (vão ao Imobilizado). A contabilização lê a
+natureza e o centro do item (`rmi.naturezaFinanceira`/`rmi.centroCusto`), com o
+cabeçalho como fallback.
 
 ## Escopo e pendências
 
