@@ -1318,9 +1318,11 @@ export async function contabilizarLoteMovimentacao(loteId: string) {
       // Movimentos já contabilizados pela ORIGEM (venda → minuta CMV/CPV; compra →
       // conferência de entrada; abertura → saldo inicial de estoque) não entram
       // aqui, senão o lançamento dobra. O lote só contabiliza movimento manual
-      // genuíno (produção, ajuste, transferência).
+      // genuíno (produção, ajuste, transferência). OBS: `{ not: "SALDO-INICIAL" }`
+      // sozinho descartaria os movimentos com documento NULL (produção) — por isso
+      // o OR explícito que preserva os nulos.
       pedidoVendaItemId: null, conferenciaItemId: null,
-      documento: { not: "SALDO-INICIAL" },
+      OR: [{ documento: null }, { documento: { not: "SALDO-INICIAL" } }],
     },
     select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true },
   });
