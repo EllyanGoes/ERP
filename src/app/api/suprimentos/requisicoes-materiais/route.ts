@@ -45,6 +45,9 @@ export async function POST(req: NextRequest) {
     if ((body.tipo ?? "REQUISICAO") !== "DEVOLUCAO") {
       const semNat = (body.itens ?? []).some((it: { naturezaFinanceiraId?: string }) => !(it.naturezaFinanceiraId || body.naturezaFinanceiraId));
       if (semNat) return NextResponse.json({ error: "Natureza financeira é obrigatória em cada item" }, { status: 400 });
+      // Centro de custo também obrigatório por item (cabeçalho serve de fallback).
+      const semCentro = (body.itens ?? []).some((it: { centroCustoId?: string }) => !(it.centroCustoId || body.centroCustoId));
+      if (semCentro) return NextResponse.json({ error: "Centro de custo é obrigatório em cada item" }, { status: 400 });
     }
 
     const record = await prisma.$transaction(async (tx) => {

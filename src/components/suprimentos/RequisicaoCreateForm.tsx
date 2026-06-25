@@ -26,6 +26,7 @@ type ItemRow = {
   itemId:       string;
   quantidade:   string;
   unidade:      string;
+  unidadeId:    string; // unidade escolhida (das cadastradas no produto)
   localizacao:  string;
   centroCustoId: string;
   naturezaFinanceiraId: string;
@@ -33,12 +34,17 @@ type ItemRow = {
   requisicaoRef: string;
 };
 
+// Unidade cadastrada do produto. `fator` = quantas unidades-base equivalem a 1
+// desta unidade (principal = 1). Ex.: 1 CX = 12 UN → fator 12.
+type UnidadeOpt = { unidadeId: string; sigla: string; nome: string; isPrincipal: boolean; fator: number };
+
 function emptyRow(): ItemRow {
   return {
     _key:         Math.random().toString(36).slice(2),
     itemId:       "",
     quantidade:   "",
     unidade:      "",
+    unidadeId:    "",
     localizacao:  "",
     centroCustoId: "",
     naturezaFinanceiraId: "",
@@ -438,6 +444,8 @@ export default function RequisicaoCreateForm() {
   const [centros,       setCentros]       = useState<CentroCustoOpt[]>([]);
   const [naturezas,     setNaturezas]     = useState<{ id: string; nome: string; cif?: boolean }[]>([]);
   const [itensCat,      setItensCat]      = useState<ItemOpt[]>([]);
+  // Unidades cadastradas por produto (para limitar o seletor e converter à base).
+  const [itemUnidades,  setItemUnidades]  = useState<Map<string, UnidadeOpt[]>>(new Map());
 
   const [submitted, setSubmitted] = useState(false);
   const [saving,    setSaving]    = useState(false);
@@ -479,8 +487,38 @@ export default function RequisicaoCreateForm() {
     else if (!id) setSetorId("");
   }
 
-  function handleItemSelect(key: string, itemId: string, sigla: string) {
-    setRows((prev) => prev.map((r) => r._key === key ? { ...r, itemId, unidade: sigla } : r));
+  // Busca (e cacheia) as unidades cadastradas do produto.
+  const fetchUnidades = useCallback(async (itemId: string): Promise<UnidadeOpt[]> => {
+    if (itemUnidades.has(itemId)) return itemUnidades.get(itemId)!;
+    try {
+      const res = await fetch(`/api/suprimentos/produtos/${itemId}/unidades`);
+      const json = await res.json();
+      const list: UnidadeOpt[] = Array.isArray(json)
+        ? json.map((u: { unidade: { id: string; sigla: string; nome: string }; isPrincipal: boolean; fatorConversao: unknown }) => ({
+            unidadeId: u.unidade.id, sigla: u.unidade.sigla, nome: u.unidade.nome,
+            isPrincipal: u.isPrincipal, fator: u.isPrincipal ? 1 : (Number(u.fatorConversao) || 1),
+          }))
+        : [];
+      setItemUnidades((prev) => new Map(prev).set(itemId, list));
+      return list;
+    } catch { return []; }
+  }, [itemUnidades]);
+
+  function handleItemSelect(key: string, itemId: string, _sigla: string) {
+    // Zera a unidade ao trocar de produto; carrega as unidades do cadastro e
+    // assume a principal por padrão (a conversão usa o fator de cada unidade).
+    setRows((prev) => prev.map((r) => r._key === key ? { ...r, itemId, unidade: "", unidadeId: "" } : r));
+    if (!itemId) return;
+    fetchUnidades(itemId).then((list) => {
+      const principal = list.find((u) => u.isPrincipal) ?? list[0];
+      if (!principal) return;
+      setRows((prev) => prev.map((r) => (r._key === key && r.itemId === itemId)
+        ? { ...r, unidade: principal.sigla, unidadeId: principal.unidadeId } : r));
+    });
+  }
+
+  function updateRowUnidade(key: string, u: UnidadeOpt) {
+    setRows((prev) => prev.map((r) => r._key === key ? { ...r, unidade: u.sigla, unidadeId: u.unidadeId } : r));
   }
 
   function updateRow(key: string, field: keyof ItemRow, value: string) {
@@ -501,17 +539,12 @@ export default function RequisicaoCreateForm() {
         return;
       }
     }
-    // Item indireto de fábrica (fabril) precisa de centro de custo (na linha ou no
-    // cabeçalho) para classificar CIF × Despesa — senão a contabilidade não decide.
+    // Centro de custo obrigatório por item (cabeçalho "aplica a todos" preenche as linhas).
     if (tipo === "REQUISICAO") {
-      const semCentro = validRows.filter((r) => {
-        const it = itensCat.find((i) => i.id === r.itemId);
-        // capitaliza vai para Imobilizado independente do centro — não exige centro.
-        return it?.fabril === true && it?.capitaliza !== true && !(r.centroCustoId || centroCustoId);
-      });
+      const semCentro = validRows.filter((r) => !(r.centroCustoId || centroCustoId));
       if (semCentro.length > 0) {
         const cods = semCentro.map((r) => itensCat.find((i) => i.id === r.itemId)?.codigo ?? r.itemId).join(", ");
-        setSaveError(`Itens indiretos de fábrica exigem centro de custo (para classificar CIF × Despesa): ${cods}. Informe no cabeçalho ou na linha do item.`);
+        setSaveError(`Centro de custo é obrigatório em cada item: ${cods}. Informe no cabeçalho (aplica a todos) ou na linha.`);
         return;
       }
     }
@@ -529,13 +562,23 @@ export default function RequisicaoCreateForm() {
           centroCustoId:  centroCustoId  || null,
           naturezaFinanceiraId: naturezaFinanceiraId || null,
           data, observacoes: observacoes || null,
-          itens: validRows.map((r) => ({
-            itemId: r.itemId, quantidade: parseFloat(r.quantidade),
-            unidade: r.unidade || null, localizacao: r.localizacao || null,
-            centroCustoId: r.centroCustoId || null,
-            naturezaFinanceiraId: r.naturezaFinanceiraId || null,
-            os: r.os || null, requisicaoRef: r.requisicaoRef || null,
-          })),
+          itens: validRows.map((r) => {
+            // Converte a quantidade para a unidade-BASE do produto (estoque/custo
+            // são sempre na base). Ex.: 2 CX × fator 12 = 24 UN.
+            const list = itemUnidades.get(r.itemId) ?? [];
+            const sel  = list.find((u) => u.unidadeId === r.unidadeId);
+            const base = list.find((u) => u.isPrincipal) ?? list[0];
+            const fator = sel?.fator ?? 1;
+            return {
+              itemId: r.itemId,
+              quantidade: parseFloat(r.quantidade) * fator,
+              unidade: (base?.sigla ?? r.unidade) || null,
+              localizacao: r.localizacao || null,
+              centroCustoId: r.centroCustoId || null,
+              naturezaFinanceiraId: r.naturezaFinanceiraId || null,
+              os: r.os || null, requisicaoRef: r.requisicaoRef || null,
+            };
+          }),
         }),
       });
       if (!res.ok) { setSaveError((await res.json()).error || "Erro ao salvar"); setSaving(false); return; }
@@ -716,8 +759,8 @@ export default function RequisicaoCreateForm() {
                     <th className="text-left px-3 py-2.5 w-16">Un.</th>
                     <th className="text-left px-3 py-2.5 w-28">Qtde</th>
                     {tipo === "REQUISICAO" && <>
-                      <th className="text-left px-3 py-2.5 min-w-[140px]">Centro de Custo</th>
-                      <th className="text-left px-3 py-2.5 min-w-[150px]">Natureza</th>
+                      <th className="text-left px-3 py-2.5 min-w-[140px]">Centro de Custo <span className="text-red-500">*</span></th>
+                      <th className="text-left px-3 py-2.5 min-w-[150px]">Natureza <span className="text-red-500">*</span></th>
                       <th className="text-left px-3 py-2.5 w-24">O.S.</th>
                       <th className="text-left px-3 py-2.5 w-24">Requisição</th>
                     </>}
@@ -732,19 +775,47 @@ export default function RequisicaoCreateForm() {
                         <ItemSearchCell row={row} itensCat={itensCat} onSelect={handleItemSelect} />
                       </td>
                       <td className="px-3 py-2">
-                        <Input value={row.unidade} onChange={(e) => updateRow(row._key, "unidade", e.target.value)} className="h-8 text-xs w-14" />
+                        {(() => {
+                          const list = itemUnidades.get(row.itemId) ?? [];
+                          if (!row.itemId) return <span className="text-xs text-muted-foreground/50">—</span>;
+                          if (list.length <= 1) {
+                            return <span className="inline-flex items-center h-8 px-2 text-xs font-mono text-muted-foreground">{row.unidade || list[0]?.sigla || "—"}</span>;
+                          }
+                          return (
+                            <select
+                              value={row.unidadeId}
+                              onChange={(e) => { const u = list.find((x) => x.unidadeId === e.target.value); if (u) updateRowUnidade(row._key, u); }}
+                              className="h-8 text-xs w-20 rounded-md border border-border bg-card px-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                            >
+                              {list.map((u) => (
+                                <option key={u.unidadeId} value={u.unidadeId}>
+                                  {u.sigla}{u.isPrincipal ? "" : ` (×${u.fator})`}
+                                </option>
+                              ))}
+                            </select>
+                          );
+                        })()}
                       </td>
                       <td className="px-3 py-2">
                         <Input type="number" step="0.001" min="0" value={row.quantidade}
                           onChange={(e) => updateRow(row._key, "quantidade", e.target.value)} className="h-8 text-xs w-24" />
+                        {(() => {
+                          const list = itemUnidades.get(row.itemId) ?? [];
+                          const sel  = list.find((u) => u.unidadeId === row.unidadeId);
+                          const base = list.find((u) => u.isPrincipal);
+                          if (!sel || sel.isPrincipal || !row.quantidade) return null;
+                          const q = parseFloat(row.quantidade);
+                          if (!Number.isFinite(q)) return null;
+                          return <p className="text-[10px] text-muted-foreground mt-0.5">= {(q * sel.fator).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {base?.sigla}</p>;
+                        })()}
                       </td>
                       {tipo === "REQUISICAO" && <>
                         <td className="px-3 py-2">
                           <ComboboxWithCreate value={row.centroCustoId} onChange={(v) => updateRow(row._key, "centroCustoId", v)}
                             placeholder="—" noneLabel="—" triggerClassName="h-8 rounded-md text-xs"
                             options={centros.map((c) => ({ value: c.id, label: c.codigo }))} />
-                          {submitted && (() => { const it = itensCat.find((i) => i.id === row.itemId); return it?.fabril === true && it?.capitaliza !== true && !(row.centroCustoId || centroCustoId); })() && (
-                            <p className="text-[10px] text-red-500 mt-0.5">centro obrigatório (indireto)</p>
+                          {submitted && row.itemId && !(row.centroCustoId || centroCustoId) && (
+                            <p className="text-[10px] text-red-500 mt-0.5">centro obrigatório</p>
                           )}
                         </td>
                         <td className="px-3 py-2">
