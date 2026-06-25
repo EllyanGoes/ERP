@@ -11,7 +11,10 @@ import { Plus, RefreshCw, Factory, CheckCircle2, List, Loader2, X, Boxes, Packag
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
-type Produto = { id: string; codigo: string; descricao: string };
+type Unidade = { id: string; sigla: string };
+type Produto = { id: string; codigo: string; descricao: string; unidades: Unidade[] };
+type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
+type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string };
 type BoardOP = { id: string; numero: string; status: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string };
 type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
 type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
@@ -40,9 +43,9 @@ export default function OrdensBoardPage() {
   const [erro, setErro] = useState<string | null>(null);
 
   // Nova OP
-  const [novo, setNovo] = useState<{ itemId: string; quantidade: string; dataPrevista: string } | null>(null);
-  const [disp, setDisp] = useState<Disp | null>(null);
+  const [novo, setNovo] = useState<NovoOP | null>(null);
   const [criando, setCriando] = useState(false);
+  const [colaboradores, setColaboradores] = useState<{ id: string; nome: string }[]>([]);
 
   // Apontar
   const [apontar, setApontar] = useState<BoardOP | null>(null);
@@ -117,27 +120,34 @@ export default function OrdensBoardPage() {
     }
   }, [fluxoId, areaNodeId, areas]);
 
-  // Referência de disponibilidade ao escolher produto
+  // Colaboradores (responsável pela OP)
   useEffect(() => {
-    if (!novo?.itemId || !area) { setDisp(null); return; }
-    setDisp(null);
-    fetch(`/api/pcp/ordens/area/disponibilidade?fluxoId=${fluxoId}&areaNodeId=${areaNodeId}&itemId=${novo.itemId}`)
-      .then((r) => r.json()).then((j) => setDisp(j)).catch(() => setDisp(null));
-  }, [novo?.itemId, area, fluxoId, areaNodeId]);
+    fetch("/api/empresa/colaboradores?daEmpresaAtiva=1&ativo=true")
+      .then((r) => r.json())
+      .then((j) => setColaboradores(Array.isArray(j) ? j.map((c: { id: string; nome: string }) => ({ id: c.id, nome: c.nome })) : []))
+      .catch(() => setColaboradores([]));
+  }, []);
 
   async function criarOp() {
-    if (!novo?.itemId) { setErro("Escolha o produto"); return; }
-    const q = Number(novo.quantidade);
-    if (!Number.isFinite(q) || q <= 0) { setErro("Quantidade deve ser > 0"); return; }
+    if (!novo) return;
+    const linhas = novo.linhas.filter((l) => l.itemId && Number(l.quantidade) > 0);
+    if (!linhas.length) { setErro("Adicione ao menos um produto com quantidade > 0"); return; }
     setCriando(true); setErro(null);
     try {
       const r = await fetch("/api/pcp/ordens/area", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fluxoId, areaNodeId, itemId: novo.itemId, quantidadePlanejada: q, data, dataPrevista: novo.dataPrevista || undefined }),
+        body: JSON.stringify({
+          fluxoId, areaNodeId, data,
+          produtos: linhas.map((l) => ({ itemId: l.itemId, quantidade: l.quantidade, unidadeId: l.unidadeId || undefined })),
+          dataPrevistaInicio: novo.inicio || undefined,
+          dataPrevistaFim: novo.fim || undefined,
+          responsavelColaboradorId: novo.responsavelId || undefined,
+          observacao: novo.observacao || undefined,
+        }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error ?? "Erro ao criar OP");
-      setNovo(null); setDisp(null);
+      setNovo(null);
       await loadOps();
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setCriando(false); }
   }
@@ -254,7 +264,7 @@ export default function OrdensBoardPage() {
               {/* Coluna 2 — ORDENS DE PRODUÇÃO */}
               <ColBoard cor="cyan" titulo="Ordens de Produção" icon={<Factory className="w-3.5 h-3.5" />}
                 acao={
-                  <button onClick={() => { setNovo({ itemId: area.produtos[0]?.id ?? "", quantidade: "", dataPrevista: "" }); setDisp(null); setErro(null); }}
+                  <button onClick={() => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: area.produtos[0]?.unidades[0]?.id ?? "" }], inicio: "", fim: "", responsavelId: "", observacao: "" }); setErro(null); }}
                     className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-700">
                     <Plus className="w-3.5 h-3.5" /> Nova OP
                   </button>
@@ -312,58 +322,73 @@ export default function OrdensBoardPage() {
         )}
       </div>
 
-      {/* Modal Nova OP */}
+      {/* Modal Nova OP — multi-produto, prazos, responsável */}
       {novo && area && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setNovo(null); setDisp(null); }}>
-          <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setNovo(null)}>
+          <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Plus className="w-5 h-5 text-cyan-600" /> Nova OP — {area.centroTrabalho ?? area.nome}</h2>
             {area.produtos.length === 0 ? (
               <p className="text-sm text-muted-foreground mt-3">Esta etapa não tem produto configurado. Defina o produto de saída da operação no editor do fluxo.</p>
             ) : (
               <>
-                <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Número da OP</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Número</label>
                     <div className="h-9 flex items-center px-3 rounded-lg border border-dashed border-border text-sm text-muted-foreground">automático</div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Data de emissão</label>
-                    <div className="h-9 flex items-center px-3 rounded-lg border border-border bg-muted/40 text-sm text-foreground tabular-nums">{new Date(`${data}T00:00:00`).toLocaleDateString("pt-BR")}</div>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Produto acabado *</label>
-                    <ComboboxWithCreate value={novo.itemId} onChange={(v) => setNovo({ ...novo, itemId: v })} allowNone={false} triggerClassName="h-9 rounded-lg"
-                      options={area.produtos.map((p) => ({ value: p.id, label: `${p.codigo} · ${p.descricao}` }))} />
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Emissão</label>
+                    <div className="h-9 flex items-center px-3 rounded-lg border border-border bg-muted/40 text-sm tabular-nums">{new Date(`${data}T00:00:00`).toLocaleDateString("pt-BR")}</div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Código do produto</label>
-                    <div className="h-9 flex items-center px-3 rounded-lg border border-border bg-muted/40 text-sm text-foreground font-mono">{area.produtos.find((p) => p.id === novo.itemId)?.codigo ?? "—"}</div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade solicitada *</label>
-                    <input autoFocus className="w-full h-9 rounded-lg border border-border px-3 text-sm text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                      inputMode="decimal" value={novo.quantidade} onChange={(e) => setNovo({ ...novo, quantidade: e.target.value })} placeholder="ex.: 50" />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Data de entrega (prazo)</label>
-                    <input type="date" value={novo.dataPrevista} onChange={(e) => setNovo({ ...novo, dataPrevista: e.target.value })} className="h-9 rounded-lg border border-border px-3 text-sm bg-card" />
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Responsável</label>
+                    <ComboboxWithCreate value={novo.responsavelId} onChange={(v) => setNovo({ ...novo, responsavelId: v })} allowNone triggerClassName="h-9 rounded-lg" placeholder="—"
+                      options={colaboradores.map((c) => ({ value: c.id, label: c.nome }))} />
                   </div>
                 </div>
-                {disp && (
-                  <div className="text-xs text-muted-foreground mt-3 border-t border-border/60 pt-2">
-                    {disp.tipo === "MP" ? (
-                      disp.aviso ? <span className="text-warning">{disp.aviso}</span> : (
-                        <span>Estoque de MP rende <b className="text-foreground">{disp.rendimentoMilheiros != null ? `~${disp.rendimentoMilheiros.toLocaleString("pt-BR")} milheiro` : "—"}</b>
-                          {disp.insumos && disp.insumos.length > 0 && <> · {disp.insumos.map((i) => `${i.descricao}: ${i.disponivel.toLocaleString("pt-BR")}`).join(" · ")}</>}
-                          {" "}(referência)</span>
-                      )
-                    ) : (
-                      <span>Saldo de WIP {ESTADO_LABEL[area.fromEstado ?? ""] ?? area.fromEstado}: <b className="text-foreground">{(disp.saldoWipAnterior ?? 0).toLocaleString("pt-BR")}</b> (referência)</span>
-                    )}
+
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Início previsto</label>
+                    <input type="datetime-local" value={novo.inicio} onChange={(e) => setNovo({ ...novo, inicio: e.target.value })} className="w-full h-9 rounded-lg border border-border px-3 text-sm bg-card" />
                   </div>
-                )}
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Fim previsto</label>
+                    <input type="datetime-local" value={novo.fim} onChange={(e) => setNovo({ ...novo, fim: e.target.value })} className="w-full h-9 rounded-lg border border-border px-3 text-sm bg-card" />
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Produtos *</label>
+                    <button onClick={() => setNovo({ ...novo, linhas: [...novo.linhas, { itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: area.produtos[0]?.unidades[0]?.id ?? "" }] })}
+                      className="inline-flex items-center gap-1 text-xs text-cyan-600 hover:text-cyan-700"><Plus className="w-3.5 h-3.5" /> Adicionar produto</button>
+                  </div>
+                  <div className="space-y-2">
+                    {novo.linhas.map((l, i) => {
+                      const prod = area.produtos.find((p) => p.id === l.itemId);
+                      return (
+                        <div key={i} className="grid grid-cols-[1fr_5rem_4.5rem_1.75rem] gap-2 items-center">
+                          <ComboboxWithCreate value={l.itemId} onChange={(v) => { const un = area.produtos.find((p) => p.id === v)?.unidades[0]?.id ?? ""; setNovo({ ...novo, linhas: novo.linhas.map((x, j) => j === i ? { ...x, itemId: v, unidadeId: un } : x) }); }} allowNone={false} triggerClassName="h-9 rounded-lg"
+                            options={area.produtos.map((p) => ({ value: p.id, label: `${p.codigo} · ${p.descricao}` }))} />
+                          <input inputMode="decimal" value={l.quantidade} onChange={(e) => setNovo({ ...novo, linhas: novo.linhas.map((x, j) => j === i ? { ...x, quantidade: e.target.value } : x) })} placeholder="qtd" className="h-9 rounded-lg border border-border px-2 text-sm text-right tabular-nums bg-card" />
+                          <select value={l.unidadeId} onChange={(e) => setNovo({ ...novo, linhas: novo.linhas.map((x, j) => j === i ? { ...x, unidadeId: e.target.value } : x) })} className="h-9 rounded-lg border border-border px-1.5 text-sm bg-card">
+                            {(prod?.unidades ?? []).map((u) => <option key={u.id} value={u.id}>{u.sigla}</option>)}
+                          </select>
+                          <button onClick={() => novo.linhas.length > 1 && setNovo({ ...novo, linhas: novo.linhas.filter((_, j) => j !== i) })} className="text-muted-foreground hover:text-danger flex justify-center" title="Remover"><X className="w-4 h-4" /></button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Observação</label>
+                  <input value={novo.observacao} onChange={(e) => setNovo({ ...novo, observacao: e.target.value })} className="w-full h-9 rounded-lg border border-border px-3 text-sm bg-card" placeholder="opcional" />
+                </div>
+
                 <div className="mt-5 flex items-center justify-end gap-2">
-                  <button onClick={() => { setNovo(null); setDisp(null); }} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+                  <button onClick={() => setNovo(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
                   <button onClick={criarOp} disabled={criando} className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
                     {criando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Criar OP
                   </button>

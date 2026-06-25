@@ -21,22 +21,24 @@ export async function POST(req: NextRequest) {
 
   const fluxoId = typeof body.fluxoId === "string" ? body.fluxoId : "";
   const areaNodeId = typeof body.areaNodeId === "string" ? body.areaNodeId : "";
-  const itemId = typeof body.itemId === "string" ? body.itemId : "";
-  const quantidade = Number(body.quantidadePlanejada ?? body.quantidade);
   if (!fluxoId) return NextResponse.json({ error: "fluxoId é obrigatório" }, { status: 400 });
   if (!areaNodeId) return NextResponse.json({ error: "areaNodeId é obrigatório" }, { status: 400 });
-  if (!itemId) return NextResponse.json({ error: "Informe o produto" }, { status: 400 });
-  if (!Number.isFinite(quantidade) || quantidade <= 0) {
-    return NextResponse.json({ error: "Quantidade deve ser > 0" }, { status: 400 });
-  }
 
-  const [fluxo, item] = await Promise.all([
-    prisma.fluxoProducao.findUnique({ where: { id: fluxoId } }),
-    prisma.item.findUnique({ where: { id: itemId }, select: { id: true, codigo: true, descricao: true } }),
-  ]);
+  // Produtos da OP: aceita produtos[] (multi) ou itemId+quantidade (compat).
+  type LinhaIn = { itemId: string; quantidade: number; unidadeId: string | null };
+  const brutos = Array.isArray(body.produtos)
+    ? (body.produtos as Record<string, unknown>[])
+    : [{ itemId: body.itemId, quantidade: body.quantidadePlanejada ?? body.quantidade, unidadeId: body.unidadeId }];
+  const produtos: LinhaIn[] = brutos
+    .map((p) => ({ itemId: typeof p.itemId === "string" ? p.itemId : "", quantidade: Number(p.quantidade), unidadeId: typeof p.unidadeId === "string" && p.unidadeId ? p.unidadeId : null }))
+    .filter((p) => p.itemId && Number.isFinite(p.quantidade) && p.quantidade > 0);
+  if (produtos.length === 0) return NextResponse.json({ error: "Informe ao menos um produto com quantidade > 0." }, { status: 400 });
+
+  const fluxo = await prisma.fluxoProducao.findUnique({ where: { id: fluxoId } });
   if (!fluxo) return NextResponse.json({ error: "Fluxo não encontrado" }, { status: 404 });
   if (!fluxo.versaoAtivaId) return NextResponse.json({ error: "Publique uma versão do fluxo antes de criar a ordem." }, { status: 400 });
-  if (!item) return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 });
+  const itensOk = await prisma.item.findMany({ where: { id: { in: produtos.map((p) => p.itemId) } }, select: { id: true } });
+  if (itensOk.length !== new Set(produtos.map((p) => p.itemId)).size) return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 });
 
   const versao = await prisma.fluxoProducaoVersao.findUnique({ where: { id: fluxo.versaoAtivaId } });
   if (!versao) return NextResponse.json({ error: "Versão publicada não encontrada" }, { status: 404 });
@@ -53,8 +55,11 @@ export async function POST(req: NextRequest) {
   const unidade = typeof body.unidade === "string" && body.unidade.trim() ? body.unidade.trim() : "milheiro";
   const observacao = typeof body.observacao === "string" && body.observacao.trim() ? body.observacao.trim() : null;
   const criadoPor = typeof body.criadoPor === "string" && body.criadoPor.trim() ? body.criadoPor.trim() : null;
-  const dpRaw = typeof body.dataPrevista === "string" && body.dataPrevista.trim() ? new Date(body.dataPrevista) : null;
-  const dataPrevista = dpRaw && !isNaN(dpRaw.getTime()) ? dpRaw : null;
+  const parseDt = (v: unknown) => { if (typeof v === "string" && v.trim()) { const d = new Date(v); return isNaN(d.getTime()) ? null : d; } return null; };
+  const dataPrevista = parseDt(body.dataPrevista);
+  const dataPrevistaInicio = parseDt(body.dataPrevistaInicio);
+  const dataPrevistaFim = parseDt(body.dataPrevistaFim);
+  const responsavelColaboradorId = typeof body.responsavelColaboradorId === "string" && body.responsavelColaboradorId ? body.responsavelColaboradorId : null;
 
   const ordem = await prisma.$transaction(async (tx) => {
     const seq = await tx.sequencia.upsert({
@@ -66,14 +71,20 @@ export async function POST(req: NextRequest) {
     return tx.ordemProducao.create({
       data: {
         numero,
-        itemId: item.id,
+        itemId: produtos[0].itemId, // compat: 1º produto
         fluxoVersaoId: versao.id,
-        quantidadePlanejada: quantidade,
+        quantidadePlanejada: produtos[0].quantidade,
         unidade,
         observacao,
         criadoPor,
         dataPrevista,
+        dataPrevistaInicio,
+        dataPrevistaFim,
+        responsavelColaboradorId,
         estadoAtual: fromEstado ?? toEstado ?? undefined,
+        produtoItens: {
+          create: produtos.map((p) => ({ itemId: p.itemId, quantidadePlanejada: p.quantidade, unidadeId: p.unidadeId })),
+        },
         etapas: {
           create: [{
             nodeId: area.nodeId,

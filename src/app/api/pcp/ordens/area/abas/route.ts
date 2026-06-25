@@ -23,12 +23,22 @@ export async function GET(req: NextRequest) {
     prisma.fluxoProducaoVersao.findUnique({ where: { id: fluxo.versaoAtivaId }, select: { grafo: true } }),
     prisma.engenhariaProduto.findMany({
       where: { fluxoId, ativo: true },
-      select: { item: { select: { id: true, codigo: true, descricao: true, vendavel: true } } },
+      select: { item: { select: { id: true, codigo: true, descricao: true, vendavel: true,
+        unidade: { select: { id: true, sigla: true } },
+        itemUnidades: { select: { isPrincipal: true, unidade: { select: { id: true, sigla: true } } } } } } },
     }),
   ]);
 
-  const todos = engs.map((e) => e.item).filter((x): x is NonNullable<typeof x> => !!x);
-  const lite = (p: { id: string; codigo: string; descricao: string }) => ({ id: p.id, codigo: p.codigo, descricao: p.descricao });
+  type ItemRaw = NonNullable<(typeof engs)[number]["item"]>;
+  const todos = engs.map((e) => e.item).filter((x): x is ItemRaw => !!x);
+  // Unidades do produto: a base + as alternativas (ItemUnidade), deduplicadas.
+  const unidadesDe = (p: ItemRaw) => {
+    const m = new Map<string, { id: string; sigla: string }>();
+    if (p.unidade) m.set(p.unidade.id, { id: p.unidade.id, sigla: p.unidade.sigla });
+    for (const u of p.itemUnidades) if (u.unidade) m.set(u.unidade.id, { id: u.unidade.id, sigla: u.unidade.sigla });
+    return Array.from(m.values());
+  };
+  const lite = (p: ItemRaw) => ({ id: p.id, codigo: p.codigo, descricao: p.descricao, unidades: unidadesDe(p) });
   const vendaveis = todos.filter((p) => p.vendavel).map(lite);
   const byId = new Map(todos.map((p) => [p.id, lite(p)]));
 
