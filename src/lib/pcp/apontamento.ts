@@ -2,6 +2,8 @@ import type { Prisma, EstadoWIP, StatusOrdemProducao } from "@prisma/client";
 import { getOrCreateLocalProducao, getOrCreateLocalEstado, getOrCreateWipItem, getOrCreateLoteProducao, postMovimento, resolveLocalInsumo } from "@/lib/pcp/wip-estoque";
 import { custosDaEmpresa, aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { registrarLancamento, contaPorCodigo, type PartidaIn } from "@/lib/contabilidade";
+import { garantirContaLocalNaEmpresa } from "@/lib/conta-contabil";
 
 type Tx = Prisma.TransactionClient;
 
@@ -198,4 +200,63 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
   if (Object.keys(opData).length) {
     await tx.ordemProducao.update({ where: { id: ordemId }, data: opData });
   }
+}
+
+/**
+ * Apontamento de uma OP de área CIF (sem WIP) — ex.: "Mistura de insumos para
+ * queima". Consome os insumos da engenharia (serragem) do estoque e lança o custo
+ * direto em CIF a Apropriar: D 1.1.4.0001 CIF a Apropriar / C conta do local do
+ * insumo. NÃO gera WIP/PA. Gatilho: o produto da OP tem naturezaPadrao com
+ * destinoSugerido = CIF. Idempotente por (empresa, ESTOQUE_CONSUMO, CIF-MISTURA-<ordemId>).
+ */
+export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: string; qtd: number; apontadoPor: string | null }): Promise<void> {
+  const agora = new Date();
+  await tx.itemOrdemProducao.update({
+    where: { id: p.etapaId },
+    data: { status: "CONCLUIDA", qtdEntrada: p.qtd, qtdSaida: p.qtd, inicioReal: agora, fimReal: agora, ...(p.apontadoPor ? { apontadoPor: p.apontadoPor } : {}) },
+  });
+
+  const ordem = await tx.ordemProducao.findUnique({ where: { id: p.ordemId }, select: { numero: true, itemId: true } });
+  if (!ordem?.itemId) return;
+
+  const eng = await tx.engenhariaProduto.findUnique({
+    where: { itemId: ordem.itemId },
+    include: { insumos: { include: { insumoItem: { select: { id: true, descricao: true, compoeCusto: true, precoCusto: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } } } } },
+  });
+  const cifAprop = await contaPorCodigo(EMPRESA_PADRAO_ID, "1.1.4.0001");
+  if (eng && cifAprop) {
+    const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Insumos de queima (CIF) ${ordem.numero}`);
+    const custoPorConta = new Map<string, number>();
+    for (const ins of eng.insumos) {
+      const meta = ins.insumoItem;
+      if (!meta || meta.compoeCusto === false) continue;
+      let fator = 1;
+      if (ins.unidadeId) {
+        const iu = meta.itemUnidades.find((u) => u.unidadeId === ins.unidadeId);
+        if (iu && !iu.isPrincipal && iu.fatorConversao != null) { const f = Number(iu.fatorConversao); if (Number.isFinite(f) && f > 0) fator = f; }
+      }
+      const baseFator = ins.base === "POR_UNIDADE" ? 1000 : 1;
+      const consumo = Number(ins.quantidade) * fator * baseFator * p.qtd;
+      if (consumo <= 0) continue;
+      const custoUnit = (await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, [ins.insumoItemId])).get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
+      const localIns = await resolveLocalInsumo(tx, ins.insumoItemId);
+      await postMovimento(tx, { itemId: ins.insumoItemId, localEstoqueId: localIns, tipo: "SAIDA", quantidade: consumo, ordemProducaoId: p.ordemId, documento: ordem.numero, observacoes: `Consumo ${meta.descricao} (CIF queima) — ${ordem.numero}`, loteId, valorUnitario: custoUnit });
+      const cl = await garantirContaLocalNaEmpresa(EMPRESA_PADRAO_ID, localIns);
+      if (cl) custoPorConta.set(cl.id, Math.round(((custoPorConta.get(cl.id) ?? 0) + consumo * custoUnit) * 100) / 100);
+    }
+    // D CIF a Apropriar (total) / C conta de cada local do insumo. Débito = soma dos créditos (fecha).
+    const creditos = Array.from(custoPorConta.entries()).filter(([, v]) => v > 0.005);
+    const total = Math.round(creditos.reduce((s, [, v]) => s + v, 0) * 100) / 100;
+    if (total > 0.005) {
+      const partidas: PartidaIn[] = [{ contaId: cifAprop.id, tipo: "DEBITO", valor: total }];
+      for (const [contaId, v] of creditos) partidas.push({ contaId, tipo: "CREDITO", valor: v });
+      await registrarLancamento({
+        empresaId: EMPRESA_PADRAO_ID, data: agora,
+        historico: `Consumo de insumos de queima (CIF) — ${ordem.numero}`,
+        origemTipo: "ESTOQUE_CONSUMO", origemId: `CIF-MISTURA-${p.ordemId}`, partidas,
+      });
+    }
+  }
+
+  await tx.ordemProducao.update({ where: { id: p.ordemId }, data: { status: "CONCLUIDA" } });
 }

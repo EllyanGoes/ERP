@@ -5,7 +5,7 @@ import type { Prisma, EstadoWIP } from "@prisma/client";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { contabilizarProducaoOrdem } from "@/lib/contabilidade";
-import { apontarEtapaProducao } from "@/lib/pcp/apontamento";
+import { apontarEtapaProducao, apontarMisturaCif } from "@/lib/pcp/apontamento";
 import { snapshotEtapas } from "@/lib/pcp/snapshot-etapas";
 import type { FlowGraph } from "@/lib/pcp/types";
 
@@ -36,6 +36,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     where: { id: params.id },
     select: {
       id: true, status: true,
+      item: { select: { naturezaPadrao: { select: { destinoSugerido: true } } } },
       fluxoVersao: { select: { grafo: true } },
       etapas: {
         select: { id: true, status: true, estadoSaida: true, sequencia: true, nome: true, subprodutoItemId: true, nodeId: true },
@@ -48,6 +49,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const etapa = ordem.etapas[0];
   if (!etapa) return NextResponse.json({ error: "Ordem sem etapa" }, { status: 400 });
   if (etapa.status === "CONCLUIDA") return NextResponse.json({ error: "Etapa já concluída." }, { status: 400 });
+
+  // OP de área CIF (sem WIP) — ex.: "Mistura de insumos para queima": consome a
+  // serragem do estoque e lança direto em CIF a Apropriar, sem gerar WIP/PA.
+  // Gatilho: o produto da OP tem naturezaPadrao com destinoSugerido = CIF.
+  const ehCifSemWip = !etapa.estadoSaida && ordem.item?.naturezaPadrao?.destinoSugerido === "CIF";
+  if (ehCifSemWip) {
+    await prisma.$transaction(async (tx) => {
+      await apontarMisturaCif(tx, { ordemId: params.id, etapaId: etapa.id, qtd: quantidadeProduzida, apontadoPor });
+    }, { timeout: 30000 });
+    return NextResponse.json({ ok: true, cif: true });
+  }
 
   // Deriva os estados de entrada (WIP anterior) e da 1ª área do fluxo a partir do grafo.
   const etapasFluxo = snapshotEtapas((ordem.fluxoVersao?.grafo as unknown as FlowGraph) ?? { nodes: [], edges: [] });
