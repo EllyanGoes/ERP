@@ -30,7 +30,7 @@ export default function OrdensBoardPage() {
   const [areaNodeId, setAreaNodeId] = useState("");
   const [data, setData] = useState(hoje());
   const [ops, setOps] = useState<BoardOP[]>([]);
-  const [materiais, setMateriais] = useState<{ itemId: string; descricao: string; saldo: number; unidade: string | null }[] | null>(null);
+  const [materiais, setMateriais] = useState<{ itemId: string; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] }[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [carregandoOps, setCarregandoOps] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -204,13 +204,29 @@ export default function OrdensBoardPage() {
               ) : materiais.length === 0 ? (
                 <p className="text-xs text-muted-foreground">Nenhum material configurado nesta etapa — defina os insumos da operação no editor do fluxo.</p>
               ) : (
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {materiais.map((m) => (
-                    <span key={m.itemId} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs", m.saldo > 0 ? "border-border bg-card" : "border-warning/40 bg-warning/10")}>
-                      <span className="text-foreground">{m.descricao}</span>
-                      <b className={cn("tabular-nums", m.saldo > 0 ? "text-foreground" : "text-warning")}>{m.saldo.toLocaleString("pt-BR")}</b>
-                      {m.unidade && <span className="text-muted-foreground">{m.unidade}</span>}
-                    </span>
+                    <div key={m.itemId} className={cn("rounded-lg border px-3 py-2 text-xs", m.saldoTotal > 0 ? "border-border bg-card" : "border-warning/40 bg-warning/10")}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-foreground font-medium truncate">{m.descricao}</span>
+                        <span className="shrink-0 tabular-nums">
+                          <b className={m.saldoTotal > 0 ? "text-foreground" : "text-warning"}>{m.saldoTotal.toLocaleString("pt-BR")}</b>
+                          {m.unidade && <span className="text-muted-foreground ml-1">{m.unidade}</span>}
+                        </span>
+                      </div>
+                      {m.locais.length > 0 ? (
+                        <div className="mt-1 space-y-0.5">
+                          {m.locais.map((l, i) => (
+                            <div key={i} className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                              <span className="truncate">{l.localNome}</span>
+                              <span className="tabular-nums shrink-0">{l.saldo.toLocaleString("pt-BR")}{m.unidade ? ` ${m.unidade}` : ""}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-[11px] text-warning">Sem saldo em estoque</p>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}

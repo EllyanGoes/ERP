@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     where: { fluxoId, ativo: true },
     include: {
       insumos: {
-        include: { insumoItem: { select: { id: true, descricao: true, unidadeMedida: true } } },
+        include: { insumoItem: { select: { id: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } } },
       },
     },
   });
@@ -47,24 +47,39 @@ export async function GET(req: NextRequest) {
       const q = Number(ins.quantidade) * (ins.base === "POR_UNIDADE" ? 1000 : 1); // por milheiro
       const cur = byItem.get(ins.insumoItemId);
       if (cur) { cur.consumoMin = Math.min(cur.consumoMin, q); cur.consumoMax = Math.max(cur.consumoMax, q); }
-      else byItem.set(ins.insumoItemId, { itemId: ins.insumoItemId, descricao: ins.insumoItem.descricao, unidade: ins.insumoItem.unidadeMedida ?? null, consumoMin: q, consumoMax: q });
+      else byItem.set(ins.insumoItemId, { itemId: ins.insumoItemId, descricao: ins.insumoItem.descricao, unidade: ins.insumoItem.unidade?.sigla ?? ins.insumoItem.unidadeMedida ?? null, consumoMin: q, consumoMax: q });
     }
   }
   const ids = Array.from(byItem.keys());
   if (!ids.length) return NextResponse.json({ data: [] });
 
-  const estoques = await prisma.estoqueItem.groupBy({ by: ["itemId"], where: { itemId: { in: ids }, clienteDonoId: null }, _sum: { quantidadeAtual: true } });
-  const saldoMap = new Map(estoques.map((x) => [x.itemId, Number(x._sum.quantidadeAtual ?? 0)]));
+  // Saldo POR LOCAL de estoque (onde cada material está hoje).
+  const estoques = await prisma.estoqueItem.groupBy({
+    by: ["itemId", "localEstoqueId"],
+    where: { itemId: { in: ids }, clienteDonoId: null },
+    _sum: { quantidadeAtual: true },
+  });
+  const localIds = Array.from(new Set(estoques.map((e) => e.localEstoqueId).filter((x): x is string => !!x)));
+  const locais = localIds.length
+    ? await prisma.localEstoque.findMany({ where: { id: { in: localIds } }, select: { id: true, nome: true } })
+    : [];
+  const nomeLocal = new Map(locais.map((l) => [l.id, l.nome]));
 
+  const r3 = (n: number) => Math.round(n * 1000) / 1000;
   const data = ids.map((id) => {
     const m = byItem.get(id)!;
+    const porLocal = estoques
+      .filter((e) => e.itemId === id)
+      .map((e) => ({ localNome: e.localEstoqueId ? (nomeLocal.get(e.localEstoqueId) ?? "—") : "Sem local", saldo: r3(Number(e._sum.quantidadeAtual ?? 0)) }))
+      .filter((l) => Math.abs(l.saldo) > 0.0005)
+      .sort((a, b) => b.saldo - a.saldo);
     return {
       itemId: id,
       descricao: m.descricao,
       unidade: m.unidade,
-      saldo: Math.round((saldoMap.get(id) ?? 0) * 1000) / 1000,
-      // consumo por milheiro (faixa, pois varia por produto)
-      consumoPorMilheiro: m.consumoMin === m.consumoMax ? Math.round(m.consumoMin * 1000) / 1000 : null,
+      saldoTotal: r3(porLocal.reduce((s, l) => s + l.saldo, 0)),
+      locais: porLocal,
+      consumoPorMilheiro: m.consumoMin === m.consumoMax ? r3(m.consumoMin) : null,
     };
   });
 
