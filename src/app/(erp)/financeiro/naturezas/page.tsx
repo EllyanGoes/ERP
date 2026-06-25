@@ -14,8 +14,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus, Pencil, Trash2, Loader2, Info, ArrowDownLeft, ArrowUpRight, FolderClosed, ChevronDown, Tag,
+  Download, Copy, FileText, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
 
 const GRUPOS = ["RECEITA_OPERACIONAL", "CUSTO_OPERACIONAL", "DESPESA_OPERACIONAL", "INVESTIMENTO", "FINANCIAMENTO"] as const;
 type Grupo = (typeof GRUPOS)[number];
@@ -49,6 +51,7 @@ export default function NaturezasPage() {
   // null = fechado; objeto vazio = novo; objeto preenchido = edição
   const [natModal, setNatModal] = useState<Natureza | "new" | null>(null);
   const [subModal, setSubModal] = useState<Subgrupo | "new" | null>(null);
+  const [copiado, setCopiado] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,6 +82,78 @@ export default function NaturezasPage() {
   const gruposComConteudo = GRUPOS.filter(
     (g) => rows.some((r) => r.grupo === g) || subgrupos.some((s) => s.grupo === g),
   );
+  const semConteudo = gruposComConteudo.length === 0;
+
+  // ── Exportação (texto p/ copiar e PDF) ──────────────────────────────────────
+  const tipoLabel = (t: Tipo) => (t === "ENTRADA" ? "Entrada" : "Saída");
+  const contaTxt = (c: ContaResultado | null) => (c ? `${c.codigo} ${c.nome}` : "—");
+  // Percorre a árvore na ordem da tela e chama os callbacks (fonte única).
+  function percorrerEstrutura(cb: {
+    grupo: (label: string) => void;
+    subgrupo: (nome: string) => void;
+    natureza: (n: Natureza) => void;
+  }) {
+    for (const g of gruposComConteudo) {
+      cb.grupo(GRUPO_LABEL[g]);
+      const doGrupo = rows.filter((r) => r.grupo === g);
+      // naturezas sem subgrupo primeiro
+      for (const n of doGrupo.filter((r) => !r.subgrupoId)) cb.natureza(n);
+      // depois cada subgrupo com suas naturezas
+      for (const sub of subgrupos.filter((s) => s.grupo === g)) {
+        cb.subgrupo(sub.nome);
+        for (const n of doGrupo.filter((r) => r.subgrupoId === sub.id)) cb.natureza(n);
+      }
+    }
+  }
+
+  async function copiarEstrutura() {
+    const linhas: string[] = ["NATUREZAS FINANCEIRAS", ""];
+    const natLinha = (n: Natureza, indent: string) => {
+      const extras = [tipoLabel(n.tipo)];
+      if (n.cif) extras.push("CIF");
+      if (n.contaContabil) extras.push(`Conta ${contaTxt(n.contaContabil)}`);
+      if (n.contaContrapartida) extras.push(`Contrapartida ${contaTxt(n.contaContrapartida)}`);
+      if (!n.ativo) extras.push("inativa");
+      linhas.push(`${indent}• ${n.nome} — ${extras.join(" · ")}`);
+    };
+    let emSubgrupo = false;
+    percorrerEstrutura({
+      grupo: (label) => { emSubgrupo = false; linhas.push(label); },
+      subgrupo: (nome) => { emSubgrupo = true; linhas.push(`  Subgrupo: ${nome}`); },
+      natureza: (n) => natLinha(n, emSubgrupo ? "    " : "  "),
+    });
+    try {
+      await navigator.clipboard.writeText(linhas.join("\n"));
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
+    } catch { /* clipboard indisponível */ }
+  }
+
+  async function baixarPdf() {
+    const head = ["Natureza", "Tipo", "CIF", "Conta contábil", "Contrapartida"];
+    const linhasPdf: LinhaPdf[] = [];
+    percorrerEstrutura({
+      grupo: (label) => linhasPdf.push({ celulas: [label, "", "", "", ""], estilo: "secao" }),
+      subgrupo: (nome) => linhasPdf.push({ celulas: [`  ${nome}`, "", "", "", ""], estilo: "secao" }),
+      natureza: (n) => linhasPdf.push({
+        celulas: [
+          n.ativo ? n.nome : `${n.nome} (inativa)`,
+          tipoLabel(n.tipo),
+          n.cif ? "Sim" : "",
+          contaTxt(n.contaContabil),
+          contaTxt(n.contaContrapartida),
+        ],
+        estilo: "normal",
+      }),
+    });
+    await gerarPdfContabil({
+      titulo: "Naturezas Financeiras",
+      head,
+      linhas: linhasPdf,
+      alinharDireitaDe: head.length, // nenhuma coluna numérica
+      arquivo: `naturezas-financeiras-${new Date().toISOString().slice(0, 10)}.pdf`,
+    });
+  }
 
   return (
     <div>
@@ -86,19 +161,36 @@ export default function NaturezasPage() {
         title="Naturezas Financeiras"
         breadcrumbs={[{ label: "Financeiro" }, { label: "Cadastros" }, { label: "Naturezas Financeiras" }]}
         action={
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button size="sm" />}>
-              <Plus className="w-4 h-4 mr-1.5" /> Adicionar <ChevronDown className="w-3.5 h-3.5 ml-1" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setNatModal("new")}>
-                <Tag className="w-4 h-4 mr-2" /> Nova natureza
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSubModal("new")}>
-                <FolderClosed className="w-4 h-4 mr-2" /> Novo subgrupo
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button size="sm" variant="outline" disabled={loading || semConteudo} />}>
+                {copiado ? <Check className="w-4 h-4 mr-1.5 text-success" /> : <Download className="w-4 h-4 mr-1.5" />}
+                {copiado ? "Estrutura copiada" : "Baixar / Copiar"}
+                <ChevronDown className="w-3.5 h-3.5 ml-1" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={copiarEstrutura}>
+                  <Copy className="w-4 h-4 mr-2" /> Copiar estrutura
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={baixarPdf}>
+                  <FileText className="w-4 h-4 mr-2" /> Baixar PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button size="sm" />}>
+                <Plus className="w-4 h-4 mr-1.5" /> Adicionar <ChevronDown className="w-3.5 h-3.5 ml-1" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setNatModal("new")}>
+                  <Tag className="w-4 h-4 mr-2" /> Nova natureza
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSubModal("new")}>
+                  <FolderClosed className="w-4 h-4 mr-2" /> Novo subgrupo
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         }
       />
       <div className="px-8 pb-8 max-w-3xl space-y-6">
