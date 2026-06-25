@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +17,14 @@ import {
   Check,
   Search,
   ChevronDown,
+  ChevronRight,
+  CornerDownRight,
+  Folder,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const COLLAPSE_KEY = "empresa:centros-custo:collapsed";
+const SEM_GRUPO = "__sem_grupo__";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -118,6 +124,9 @@ export default function CentrosCustoPage() {
   const [filtroGrupo,  setFiltroGrupo]  = useState("");
   const [filtroAtivo,  setFiltroAtivo]  = useState<"" | "true" | "false">("");
 
+  // Árvore: grupos recolhidos (persistido no localStorage).
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
   // Create modal
   const [showCreate, setShowCreate]   = useState(false);
   const [createForm, setCreateForm]   = useState({ codigo: "", nome: "", grupoCentroCustoId: "" });
@@ -155,6 +164,47 @@ export default function CentrosCustoPage() {
 
   useEffect(() => { loadGrupos(); }, [loadGrupos]);
   useEffect(() => { loadCentros(); }, [loadCentros]);
+
+  // Carrega o estado recolhido persistido.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(COLLAPSE_KEY);
+      if (raw) setCollapsed(new Set(JSON.parse(raw) as string[]));
+    } catch { /* ignore */ }
+  }, []);
+
+  const persistCollapsed = useCallback((next: Set<string>) => {
+    setCollapsed(next);
+    try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
+  }, []);
+  const toggleGrupo = useCallback((id: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  // Agrupa os centros (já filtrados pela API) por grupo, na ordem dos grupos.
+  // Centros sem grupo caem num bucket "Sem grupo" no fim.
+  const arvore = useMemo(() => {
+    const porGrupo = new Map<string, Centro[]>();
+    for (const c of centros) {
+      const k = c.grupoCentroCustoId ?? SEM_GRUPO;
+      (porGrupo.get(k) ?? porGrupo.set(k, []).get(k)!).push(c);
+    }
+    const ordenar = (cs: Centro[]) => [...cs].sort((a, b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true }));
+    const secoes = grupos
+      .filter((g) => porGrupo.has(g.id))
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+      .map((g) => ({ id: g.id, nome: g.nome, centros: ordenar(porGrupo.get(g.id)!) }));
+    if (porGrupo.has(SEM_GRUPO)) secoes.push({ id: SEM_GRUPO, nome: "Sem grupo", centros: ordenar(porGrupo.get(SEM_GRUPO)!) });
+    return secoes;
+  }, [centros, grupos]);
+
+  const recolherTudo = useCallback(() => persistCollapsed(new Set(arvore.map((s) => s.id))), [arvore, persistCollapsed]);
+  const expandirTudo = useCallback(() => persistCollapsed(new Set()), [persistCollapsed]);
 
   // ── Create ──────────────────────────────────────────────────────────────────
 
@@ -326,7 +376,7 @@ export default function CentrosCustoPage() {
           </select>
         </div>
 
-        {/* Table */}
+        {/* Árvore: Grupo → Centro de custo */}
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -338,70 +388,91 @@ export default function CentrosCustoPage() {
             <p className="text-sm mt-1">Clique em &quot;Adicionar&quot; para criar o primeiro.</p>
           </div>
         ) : (
-          <div className="bg-card rounded-xl border border-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted border-b border-border">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground w-36">Código</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nome</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground w-44">Grupo</th>
-                  <th className="text-center px-4 py-3 font-medium text-muted-foreground w-24">Ativo</th>
-                  <th className="text-center px-4 py-3 font-medium text-muted-foreground w-20">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {centros.map((centro) => (
-                  <tr key={centro.id} className="hover:bg-muted/60 transition-colors">
-                    <td className="px-4 py-3">
-                      <span className="font-mono text-xs font-semibold text-foreground bg-muted px-2 py-0.5 rounded">
-                        {centro.codigo}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-medium text-foreground">{centro.nome}</td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {centro.grupoCentroCusto ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-violet-50 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300">
-                          {centro.grupoCentroCusto.nome}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground/60">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span
-                        className={cn(
-                          "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                          centro.ativo
-                            ? "bg-success/15 text-success"
-                            : "bg-muted text-muted-foreground"
-                        )}
+          <>
+            <div className="flex items-center justify-end gap-2">
+              <button type="button" onClick={recolherTudo} className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-md border border-border hover:bg-muted">
+                Recolher tudo
+              </button>
+              <button type="button" onClick={expandirTudo} className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-md border border-border hover:bg-muted">
+                Expandir tudo
+              </button>
+            </div>
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-2.5 border-b border-border bg-muted text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                <span>Centro de custo</span>
+                <span className="text-center w-24">Ativo</span>
+                <span className="w-16 text-right">Ações</span>
+              </div>
+              <ul>
+                {arvore.map((secao) => {
+                  const recolhido = collapsed.has(secao.id);
+                  return (
+                    <li key={secao.id}>
+                      {/* Cabeçalho do grupo */}
+                      <button
+                        type="button"
+                        onClick={() => toggleGrupo(secao.id)}
+                        className="w-full grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-2 border-b border-gray-50 hover:bg-muted/60 text-sm text-left"
                       >
-                        {centro.ativo ? "Ativo" : "Inativo"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={(e) => openEdit(centro, e)}
-                          className="p-1.5 rounded-lg text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
-                          title="Editar"
+                        <div className="flex items-center gap-2 min-w-0">
+                          {recolhido ? <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
+                          <Folder className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+                          <span className="font-semibold text-foreground truncate">{secao.nome}</span>
+                          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-muted text-muted-foreground text-[11px] font-medium shrink-0 tabular-nums" title={`${secao.centros.length} centro(s) de custo`}>
+                            {secao.centros.length}
+                          </span>
+                        </div>
+                        <span className="w-24" />
+                        <span className="w-16" />
+                      </button>
+
+                      {/* Centros do grupo */}
+                      {!recolhido && secao.centros.map((centro) => (
+                        <div
+                          key={centro.id}
+                          className={cn(
+                            "grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-2 border-b border-gray-50 hover:bg-muted/60 text-sm group/row",
+                            !centro.ativo && "opacity-50",
+                          )}
                         >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => openDelete(centro, e)}
-                          className="p-1.5 rounded-lg text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                          <div className="flex items-center gap-2 min-w-0" style={{ paddingLeft: "18px" }}>
+                            <CornerDownRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+                            <span className="font-mono text-xs font-semibold text-foreground bg-muted px-2 py-0.5 rounded shrink-0">{centro.codigo}</span>
+                            <span className="truncate text-foreground">{centro.nome}</span>
+                            {!centro.ativo && <span className="text-xs text-muted-foreground shrink-0">(inativo)</span>}
+                          </div>
+                          <span className="w-24 text-center">
+                            <span className={cn(
+                              "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+                              centro.ativo ? "bg-success/15 text-success" : "bg-muted text-muted-foreground",
+                            )}>
+                              {centro.ativo ? "Ativo" : "Inativo"}
+                            </span>
+                          </span>
+                          <div className="w-16 flex items-center justify-end gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => openEdit(centro, e)}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
+                              title="Editar"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => openDelete(centro, e)}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </>
         )}
       </div>
 
