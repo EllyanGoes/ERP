@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
-import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntradaEstoque, contabilizarCmvMinuta, contabilizarReceitaMinuta, contabilizarVendaPedido, contabilizarSaldoInicialEstoque, contabilizarLoteMovimentacao, apagarLancamentosContabeis } from "@/lib/contabilidade";
+import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntradaEstoque, contabilizarCmvMinuta, contabilizarReceitaMinuta, contabilizarVendaPedido, contabilizarSaldoInicialEstoque, contabilizarLoteMovimentacao, contabilizarRequisicao, apagarLancamentosContabeis } from "@/lib/contabilidade";
 
 // Progresso e última execução persistidos em Configuracao (key-value). Como o
 // status mora no banco (e não na memória de uma instância), a barra sobrevive a
@@ -110,7 +110,7 @@ export async function POST(req: Request) {
         await gravarProgresso({ running: true, pct: 0, fase: "Preparando", processados: 0, total: 0, heartbeat: Date.now() });
 
         // Coleta tudo primeiro para saber o TOTAL e calcular a porcentagem.
-        const [empresas, confs, pedidos, crs, cps, minutas, lotes] = await Promise.all([
+        const [empresas, confs, pedidos, crs, cps, minutas, lotes, reqs] = await Promise.all([
           prismaSemEscopo.empresa.findMany({ select: { id: true } }),
           prismaSemEscopo.conferenciaCompra.findMany({ where: { status: "CONCLUIDA" }, select: { id: true, numero: true } }),
           prismaSemEscopo.pedidoVenda.findMany({ where: { status: { in: ["CONFIRMADO", "EM_AGENDAMENTO", "CONCLUIDO"] }, intragrupo: false }, select: { id: true, numero: true } }),
@@ -118,9 +118,10 @@ export async function POST(req: Request) {
           prismaSemEscopo.contaPagar.findMany({ where: { status: { not: "CANCELADA" } }, select: { id: true, numero: true } }),
           prismaSemEscopo.minuta.findMany({ where: { status: { in: ["SAIU_PARA_ENTREGA", "ENTREGUE"] } }, select: { id: true, numero: true } }),
           prismaSemEscopo.loteMovimentacao.findMany({ select: { id: true, numero: true } }),
+          prismaSemEscopo.requisicaoMaterial.findMany({ where: { status: "ATENDIDA" }, select: { id: true, numero: true } }),
         ]);
 
-        const total = empresas.length + confs.length + pedidos.length + crs.length + cps.length + minutas.length + lotes.length;
+        const total = empresas.length + confs.length + pedidos.length + crs.length + cps.length + minutas.length + lotes.length + reqs.length;
         const pct = () => (total > 0 ? Math.min(99, Math.round((processados / total) * 100)) : 100);
         send({ total, processados: 0, pct: 0, fase: "Preparando" });
         await tick(0, "Preparando", total);
@@ -156,6 +157,8 @@ export async function POST(req: Request) {
         await emLotes(minutas, (m) => `Minuta ${m.numero}`, async (m) => { await contabilizarCmvMinuta(m.id); await contabilizarReceitaMinuta(m.id); }, "CMV / receita");
         // 3) Lotes de movimentação manual (entradas/transferências/ajustes).
         await emLotes(lotes, (l) => `Lote ${l.numero}`, (l) => contabilizarLoteMovimentacao(l.id), "Movimentações manuais");
+        // 4) Requisições de material (consumo) — roteia PEP-MD / CIF / Imobilizado / Despesa.
+        await emLotes(reqs, (r) => `RM ${r.numero}`, (r) => contabilizarRequisicao(r.id), "Consumo de materiais");
 
         send({ done: true, ok: true, processados, total, pct: 100, erros: erros.slice(0, 20) });
         await gravarProgresso({ running: false, pct: 100, fase: "Concluído", processados, total, heartbeat: Date.now() });
