@@ -133,6 +133,16 @@ export const MODULOS: ModuloDef[] = [
       { key: "engenharia",       label: "Engenharia do Produto", acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "fluxos",           label: "Fluxos de Produção",   acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "centros-trabalho", label: "Centros de Trabalho",  acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "chao",             label: "Chão de Fábrica",      acoes: ["ver", "editar"] },
+      { key: "estados-wip",      label: "Estados de WIP",       acoes: ["ver", "inserir", "editar", "excluir"] },
+    ],
+  },
+  {
+    key: "rh",
+    label: "Gestão de Pessoas",
+    group: "RH",
+    recursos: [
+      { key: "folhas", label: "Folhas de Pagamento", acoes: ["ver", "inserir", "editar", "excluir"] },
     ],
   },
   {

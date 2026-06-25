@@ -8,7 +8,7 @@ import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 // Série temporal do custo de produção (material + MOD + CIF) por competência,
 // gravada a cada aplicação do Custeio. Usada na aba "Custo de Produção" do produto.
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const auth = await requireModulo("suprimentos");
+  const auth = await requireModulo("empresa");
   if (!auth.ok) return auth.response;
 
   const linhas = await prismaSemEscopo.itemCustoHistorico.findMany({
