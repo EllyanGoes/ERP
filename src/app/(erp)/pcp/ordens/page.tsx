@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { Plus, RefreshCw, Factory, CheckCircle2, List, Loader2, X, Boxes, PackageCheck } from "lucide-react";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
-type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean };
+type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
 type Produto = { id: string; codigo: string; descricao: string };
 type BoardOP = { id: string; numero: string; status: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string };
 type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
@@ -247,7 +247,7 @@ export default function OrdensBoardPage() {
               {/* Coluna 2 — ORDENS DE PRODUÇÃO */}
               <ColBoard cor="cyan" titulo="Ordens de Produção" icon={<Factory className="w-3.5 h-3.5" />}
                 acao={
-                  <button onClick={() => { setNovo({ itemId: produtos[0]?.id ?? "", quantidade: "", dataPrevista: "" }); setDisp(null); setErro(null); }}
+                  <button onClick={() => { setNovo({ itemId: area.produtos[0]?.id ?? "", quantidade: "", dataPrevista: "" }); setDisp(null); setErro(null); }}
                     className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-700">
                     <Plus className="w-3.5 h-3.5" /> Nova OP
                   </button>
@@ -310,8 +310,8 @@ export default function OrdensBoardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setNovo(null); setDisp(null); }}>
           <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Plus className="w-5 h-5 text-cyan-600" /> Nova OP — {area.centroTrabalho ?? area.nome}</h2>
-            {produtos.length === 0 ? (
-              <p className="text-sm text-muted-foreground mt-3">Nenhum produto com engenharia neste fluxo. Cadastre a <strong>Engenharia do Produto</strong>.</p>
+            {area.produtos.length === 0 ? (
+              <p className="text-sm text-muted-foreground mt-3">Esta etapa não tem produto configurado. Defina o produto de saída da operação no editor do fluxo.</p>
             ) : (
               <>
                 <div className="mt-4 grid grid-cols-2 gap-3">
@@ -326,11 +326,11 @@ export default function OrdensBoardPage() {
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Produto acabado *</label>
                     <ComboboxWithCreate value={novo.itemId} onChange={(v) => setNovo({ ...novo, itemId: v })} allowNone={false} triggerClassName="h-9 rounded-lg"
-                      options={produtos.map((p) => ({ value: p.id, label: `${p.codigo} · ${p.descricao}` }))} />
+                      options={area.produtos.map((p) => ({ value: p.id, label: `${p.codigo} · ${p.descricao}` }))} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Código do produto</label>
-                    <div className="h-9 flex items-center px-3 rounded-lg border border-border bg-muted/40 text-sm text-foreground font-mono">{produtos.find((p) => p.id === novo.itemId)?.codigo ?? "—"}</div>
+                    <div className="h-9 flex items-center px-3 rounded-lg border border-border bg-muted/40 text-sm text-foreground font-mono">{area.produtos.find((p) => p.id === novo.itemId)?.codigo ?? "—"}</div>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade solicitada *</label>

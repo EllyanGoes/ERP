@@ -27,10 +27,14 @@ export async function GET(req: NextRequest) {
   const area = etapas.find((e) => e.nodeId === areaNodeId);
   if (!area) return NextResponse.json({ data: [] });
   const fase = area.estadoSaida ?? null; // estado que esta área produz = fase de consumo dos insumos
+  const produtoSaidaId = area.produtoSaidaId ?? null;
 
-  // Insumos da BOM (de todos os produtos fabricáveis do fluxo) consumidos NESTA fase.
+  // Escopo dos insumos:
+  //  - Área com PRODUTO de saída (ex.: Preparação→Mistura de Argila): toda a BOM
+  //    desse produto (sem filtro de fase) — não traz insumos de outros produtos.
+  //  - Área de WIP: insumos da fase, só dos produtos VENDÁVEIS (tijolos).
   const engs = await prisma.engenhariaProduto.findMany({
-    where: { fluxoId, ativo: true },
+    where: produtoSaidaId ? { itemId: produtoSaidaId } : { fluxoId, ativo: true, item: { vendavel: true } },
     include: {
       insumos: {
         include: { insumoItem: { select: { id: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } } },
@@ -42,7 +46,7 @@ export async function GET(req: NextRequest) {
   const byItem = new Map<string, Mat>();
   for (const e of engs) {
     for (const ins of e.insumos) {
-      if ((ins.estadoConsumo ?? null) !== fase) continue;
+      if (!produtoSaidaId && (ins.estadoConsumo ?? null) !== fase) continue;
       if (!ins.insumoItem) continue;
       const q = Number(ins.quantidade) * (ins.base === "POR_UNIDADE" ? 1000 : 1); // por milheiro
       const cur = byItem.get(ins.insumoItemId);

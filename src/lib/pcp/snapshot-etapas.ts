@@ -18,6 +18,7 @@ export interface EtapaSnapshot {
   kind: NodeKind;
   centroTrabalho: string | null;
   estadoSaida: string | null; // EstadoWIP serializado
+  produtoSaidaId: string | null; // produto que esta operação produz (áreas sem WIP)
   tempoCicloHoras: number | null;
   subprodutoItemId: string | null;
   subprodutoDescricao: string | null;
@@ -55,6 +56,7 @@ export function snapshotEtapas(grafo: FlowGraph): EtapaSnapshot[] {
       kind: d.kind,
       centroTrabalho: (d.centroTrabalhoNome as string) ?? null,
       estadoSaida: (d.estadoWip as string) ?? null,
+      produtoSaidaId: (d.produtoSaidaId as string) ?? null,
       tempoCicloHoras: (d.tempoCicloHoras as number) ?? null,
       subprodutoItemId: (d.subprodutoItemId as string) ?? null,
       subprodutoDescricao: (d.subprodutoDescricao as string) ?? null,

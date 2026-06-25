@@ -23,15 +23,24 @@ export async function GET(req: NextRequest) {
     prisma.fluxoProducaoVersao.findUnique({ where: { id: fluxo.versaoAtivaId }, select: { grafo: true } }),
     prisma.engenhariaProduto.findMany({
       where: { fluxoId, ativo: true },
-      select: { item: { select: { id: true, codigo: true, descricao: true } } },
+      select: { item: { select: { id: true, codigo: true, descricao: true, vendavel: true } } },
     }),
   ]);
+
+  const todos = engs.map((e) => e.item).filter((x): x is NonNullable<typeof x> => !!x);
+  const lite = (p: { id: string; codigo: string; descricao: string }) => ({ id: p.id, codigo: p.codigo, descricao: p.descricao });
+  const vendaveis = todos.filter((p) => p.vendavel).map(lite);
+  const byId = new Map(todos.map((p) => [p.id, lite(p)]));
 
   const etapas = snapshotEtapas((versao?.grafo as unknown as FlowGraph) ?? { nodes: [], edges: [] });
   let prevEstado: string | null = null;
   const areas = etapas.map((e) => {
     const fromEstado = prevEstado;
     if (e.estadoSaida) prevEstado = e.estadoSaida;
+    // Produtos que ESTA área produz: o produto de saída (se configurado na operação),
+    // senão os produtos vendáveis (tijolos) p/ as áreas de WIP.
+    const ps = e.produtoSaidaId && byId.has(e.produtoSaidaId) ? byId.get(e.produtoSaidaId)! : null;
+    const produtos = ps ? [ps] : (e.estadoSaida ? vendaveis : []);
     return {
       nodeId: e.nodeId,
       sequencia: e.sequencia,
@@ -40,10 +49,10 @@ export async function GET(req: NextRequest) {
       estadoSaida: e.estadoSaida,
       fromEstado,
       isPrimeira: fromEstado === null,
+      produtoSaidaId: e.produtoSaidaId ?? null,
+      produtos,
     };
   });
 
-  const produtos = engs.filter((e) => e.item).map((e) => ({ id: e.item!.id, codigo: e.item!.codigo, descricao: e.item!.descricao }));
-
-  return NextResponse.json({ areas, produtos });
+  return NextResponse.json({ areas, produtos: vendaveis });
 }
