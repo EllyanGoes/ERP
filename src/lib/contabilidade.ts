@@ -665,22 +665,11 @@ export async function contabilizarSaldoInicialEstoque(empresaId: string) {
     if (d && (!dataMin || d < dataMin)) dataMin = d;
   }
 
-  // Locais de PCP (Produto Acabado / WIP) NÃO recebem saldo de abertura: são
-  // governados pela produção (a entrada de produção já capitaliza o estoque). Uma
-  // abertura aqui duplicaria o estoque reconstruído pelos movimentos de produção.
-  const locaisInfo = await prismaSemEscopo.localEstoque.findMany({
-    where: { id: { in: Array.from(porLocal.keys()) } }, select: { id: true, categoriasAceitas: true },
-  });
-  const pcpLocalIds = new Set(
-    locaisInfo.filter((l) => ((l.categoriasAceitas as string[] | null) ?? []).some((c) => CATEGORIAS_PCP.has(c))).map((l) => l.id),
-  );
-
   const contaAbertura = await garantirContaSaldoAbertura(empresaId);
   if (!contaAbertura) return;
   const partidas: PartidaIn[] = [];
   let totalDeb = 0;
   for (const [localId, v] of Array.from(porLocal.entries())) {
-    if (pcpLocalIds.has(localId)) continue; // PCP não tem abertura
     const r = Math.round(v * 100) / 100;
     if (r <= 0.005) continue;
     const cl = await garantirContaLocalNaEmpresa(empresaId, localId);
@@ -1327,9 +1316,11 @@ export async function contabilizarLoteMovimentacao(loteId: string) {
     where: {
       loteId, localEstoqueId: { not: null }, clienteDonoId: null, tipo: { in: ["ENTRADA", "SAIDA"] },
       // Movimentos já contabilizados pela ORIGEM (venda → minuta CMV/CPV; compra →
-      // conferência de entrada) não entram aqui, senão o lançamento dobra. O lote
-      // só contabiliza movimento manual genuíno (produção, ajuste, transferência).
+      // conferência de entrada; abertura → saldo inicial de estoque) não entram
+      // aqui, senão o lançamento dobra. O lote só contabiliza movimento manual
+      // genuíno (produção, ajuste, transferência).
       pedidoVendaItemId: null, conferenciaItemId: null,
+      documento: { not: "SALDO-INICIAL" },
     },
     select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true },
   });
