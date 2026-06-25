@@ -62,6 +62,9 @@ export default function OrdemDetalhePage() {
   const [erro, setErro] = useState<string | null>(null);
   const [aponta, setAponta] = useState<Record<string, Aponta>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [modalConcluir, setModalConcluir] = useState(false);
+  const [avancado, setAvancado] = useState(false);
+  const [cprod, setCprod] = useState({ quantidade: "", perda: "", biomassa: "" });
 
   const load = useCallback(async () => {
     try {
@@ -119,6 +122,27 @@ export default function OrdemDetalhePage() {
     setAponta((prev) => ({ ...prev, [etapaId]: { ...prev[etapaId], ...patch } }));
   }
 
+  // "Concluir produção" em 1 clique: conclui todas as etapas pendentes com uma
+  // única quantidade (consome MP pela engenharia e gera o PA).
+  async function concluirProducao() {
+    if (!cprod.quantidade || Number(cprod.quantidade) <= 0) { setErro("Informe a quantidade produzida."); return; }
+    setBusy("concluir"); setErro(null);
+    try {
+      const r = await fetch(`/api/pcp/ordens/${id}/concluir`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quantidadeProduzida: cprod.quantidade,
+          qtdPerda: cprod.perda || undefined,
+          biomassaKg: cprod.biomassa || undefined,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j?.error ?? "Erro ao concluir produção");
+      setModalConcluir(false);
+      await load();
+    } catch (e) { setErro(e instanceof Error ? e.message : "Erro ao concluir produção"); } finally { setBusy(null); }
+  }
+
   if (erro && !ordem) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2">
@@ -147,6 +171,10 @@ export default function OrdemDetalhePage() {
             <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium", st.cls)}>{st.label}</span>
             {!finalizada && (
               <>
+                <button onClick={() => { setCprod({ quantidade: s(Number(ordem.quantidadePlanejada) || ""), perda: "", biomassa: "" }); setErro(null); setModalConcluir(true); }}
+                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">
+                  <CheckCircle2 className="w-4 h-4" /> Concluir produção
+                </button>
                 {ordem.status === "RASCUNHO" && (
                   <button onClick={() => mudarStatus("LIBERADA")} disabled={busy === "status"} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
                     <Play className="w-4 h-4" /> Liberar
@@ -184,6 +212,15 @@ export default function OrdemDetalhePage() {
 
         {/* Etapas */}
         <div className="space-y-2">
+          {!finalizada && (
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">Dica: use <b>Concluir produção</b> para apontar tudo de uma vez, ou aponte etapa a etapa abaixo.</p>
+              <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer shrink-0">
+                <input type="checkbox" checked={avancado} onChange={(ev) => setAvancado(ev.target.checked)} className="w-3.5 h-3.5 rounded border-border" />
+                Campos avançados
+              </label>
+            </div>
+          )}
           {ordem.etapas.map((e) => {
             const a = aponta[e.id] ?? { qtdEntrada: "", qtdSaida: "", qtdPerda: "", vagoes: "", vagonetas: "", biomassaKg: "", milheiros: "" };
             const ehQueima = e.estadoSaida === "QUEIMADO";
@@ -206,14 +243,14 @@ export default function OrdemDetalhePage() {
                     <Field label="Entrada"><input className={inCls} inputMode="decimal" value={a.qtdEntrada} onChange={(ev) => setA(e.id, { qtdEntrada: ev.target.value })} /></Field>
                     <Field label="Saída"><input className={inCls} inputMode="decimal" value={a.qtdSaida} onChange={(ev) => setA(e.id, { qtdSaida: ev.target.value })} /></Field>
                     <Field label="Perda"><input className={inCls} inputMode="decimal" value={a.qtdPerda} onChange={(ev) => setA(e.id, { qtdPerda: ev.target.value })} /></Field>
-                    <Field label="Vagões"><input className={inCls} inputMode="numeric" value={a.vagoes} onChange={(ev) => setA(e.id, { vagoes: ev.target.value })} /></Field>
+                    {avancado && <Field label="Vagões"><input className={inCls} inputMode="numeric" value={a.vagoes} onChange={(ev) => setA(e.id, { vagoes: ev.target.value })} /></Field>}
                     {ehQueima ? (
                       <>
                         <Field label="Biomassa (kg)"><input className={inCls} inputMode="decimal" value={a.biomassaKg} onChange={(ev) => setA(e.id, { biomassaKg: ev.target.value })} /></Field>
                         <Field label="Milheiros"><input className={inCls} inputMode="decimal" value={a.milheiros} onChange={(ev) => setA(e.id, { milheiros: ev.target.value })} /></Field>
                       </>
                     ) : (
-                      <Field label="Vagonetas"><input className={inCls} inputMode="numeric" value={a.vagonetas} onChange={(ev) => setA(e.id, { vagonetas: ev.target.value })} /></Field>
+                      avancado && <Field label="Vagonetas"><input className={inCls} inputMode="numeric" value={a.vagonetas} onChange={(ev) => setA(e.id, { vagonetas: ev.target.value })} /></Field>
                     )}
                     {e.subprodutoDescricao && (
                       <Field label="Subproduto"><input className={inCls} inputMode="decimal" value={a.subprodutoQtd} onChange={(ev) => setA(e.id, { subprodutoQtd: ev.target.value })} placeholder={e.subprodutoDescricao} /></Field>
@@ -275,6 +312,37 @@ export default function OrdemDetalhePage() {
           </div>
         )}
       </div>
+
+      {modalConcluir && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setModalConcluir(false)}>
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl" onClick={(ev) => ev.stopPropagation()}>
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Concluir produção</h2>
+            <p className="text-xs text-muted-foreground mt-1">Conclui todas as etapas pendentes com a quantidade informada, consumindo a matéria-prima pela engenharia (BOM) e gerando o produto acabado.</p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade produzida ({ordem.unidade ?? "milheiro"}) *</label>
+                <input autoFocus inputMode="decimal" value={cprod.quantidade} onChange={(ev) => setCprod((p) => ({ ...p, quantidade: ev.target.value }))} className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Perda (opcional)</label>
+                  <input inputMode="decimal" value={cprod.perda} onChange={(ev) => setCprod((p) => ({ ...p, perda: ev.target.value }))} className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Biomassa (kg)</label>
+                  <input inputMode="decimal" value={cprod.biomassa} onChange={(ev) => setCprod((p) => ({ ...p, biomassa: ev.target.value }))} className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button onClick={() => setModalConcluir(false)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+              <button onClick={concluirProducao} disabled={busy === "concluir"} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+                {busy === "concluir" ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Concluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
