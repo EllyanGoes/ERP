@@ -142,6 +142,24 @@ export default function CusteioPage() {
     } finally { setAplicando(false); }
   }
 
+  const [apropriando, setApropriando] = useState(false);
+  async function apropriarCif() {
+    if (!confirm("Apropriar o saldo de \"CIF a Apropriar\" (1.1.4.0001) ao PEP-CIF (1.1.3.0005.0003)? Zera o staging e leva o CIF real ao custo de produção.")) return;
+    setApropriando(true); setMsg(null);
+    try {
+      const r = await fetch("/api/contabilidade/apropriar-cif", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ periodo: competencia }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j?.error ?? "Erro ao apropriar");
+      const ap = j.data?.apropriado ?? 0;
+      setMsg({ ok: true, text: ap > 0 ? `CIF apropriado ao PEP: ${brl(ap)}.` : "Nada a apropriar (CIF a Apropriar já está zerado)." });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : "Erro" });
+    } finally { setApropriando(false); }
+  }
+
   return (
     <TooltipProvider delay={150}>
     <div className="p-6 max-w-7xl mx-auto space-y-5">
@@ -240,9 +258,14 @@ export default function CusteioPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">Custo por produto (estoque de acabado)</CardTitle>
-              <Button onClick={aplicar} disabled={aplicando || result.volumeTotalMilheiros <= 0} variant="default">
-                {aplicando ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />} Aplicar ao estoque de PA
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button onClick={apropriarCif} disabled={apropriando} variant="outline" title="Leva o CIF a Apropriar (1.1.4.0001) ao PEP-CIF (1.1.3.0005.0003)">
+                  {apropriando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />} Apropriar CIF ao PEP
+                </Button>
+                <Button onClick={aplicar} disabled={aplicando || result.volumeTotalMilheiros <= 0} variant="default">
+                  {aplicando ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />} Aplicar ao estoque de PA
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="mb-4 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
