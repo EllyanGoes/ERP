@@ -19,7 +19,7 @@ type LocalEstoqueOpt = { id: string; nome: string };
 type ColaboradorOpt  = { id: string; nome: string; setorId: string | null };
 type SetorOpt        = { id: string; nome: string };
 type CentroCustoOpt  = { id: string; codigo: string; nome: string };
-type ItemOpt         = { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null };
+type ItemOpt         = { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null; fabril?: boolean; categoriaEstoque?: string | null; compoeCusto?: boolean };
 
 type ItemRow = {
   _key:         string;
@@ -491,6 +491,19 @@ export default function RequisicaoCreateForm() {
     if (tipo === "REQUISICAO" && !naturezaFinanceiraId) { setSaveError("Natureza financeira é obrigatória"); return; }
     const validRows = rows.filter((r) => r.itemId && r.quantidade);
     if (validRows.length === 0) { setSaveError("Adicione pelo menos um item"); return; }
+    // Item indireto de fábrica (fabril) precisa de centro de custo (na linha ou no
+    // cabeçalho) para classificar CIF × Despesa — senão a contabilidade não decide.
+    if (tipo === "REQUISICAO") {
+      const semCentro = validRows.filter((r) => {
+        const it = itensCat.find((i) => i.id === r.itemId);
+        return it?.fabril === true && !(r.centroCustoId || centroCustoId);
+      });
+      if (semCentro.length > 0) {
+        const cods = semCentro.map((r) => itensCat.find((i) => i.id === r.itemId)?.codigo ?? r.itemId).join(", ");
+        setSaveError(`Itens indiretos de fábrica exigem centro de custo (para classificar CIF × Despesa): ${cods}. Informe no cabeçalho ou na linha do item.`);
+        return;
+      }
+    }
     setSaving(true); setSaveError("");
     try {
       const res = await fetch("/api/suprimentos/requisicoes-materiais", {
@@ -638,7 +651,7 @@ export default function RequisicaoCreateForm() {
             {tipo === "REQUISICAO" && (
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-1.5">
-                  <Label>Centro de Custo</Label>
+                  <Label>Centro de Custo <span className="text-muted-foreground font-normal text-xs">(obrigatório p/ itens indiretos)</span></Label>
                   <PortalSelect
                     options={centros}
                     value={centroCustoId}
@@ -718,6 +731,9 @@ export default function RequisicaoCreateForm() {
                           <ComboboxWithCreate value={row.centroCustoId} onChange={(v) => updateRow(row._key, "centroCustoId", v)}
                             placeholder="—" noneLabel="—" triggerClassName="h-8 rounded-md text-xs"
                             options={centros.map((c) => ({ value: c.id, label: c.codigo }))} />
+                          {submitted && itensCat.find((i) => i.id === row.itemId)?.fabril === true && !(row.centroCustoId || centroCustoId) && (
+                            <p className="text-[10px] text-red-500 mt-0.5">centro obrigatório (indireto)</p>
+                          )}
                         </td>
                         <td className="px-3 py-2">
                           <Input value={row.os} onChange={(e) => updateRow(row._key, "os", e.target.value)} className="h-8 text-xs" />
