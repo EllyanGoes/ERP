@@ -4,9 +4,12 @@
 import assert from "node:assert/strict";
 import { rotearDestinoRequisicao, type ItemRoteamento } from "./rotear-requisicao";
 
-const direto = (cat: string): ItemRoteamento => ({ categoriaEstoque: cat, compoeCusto: true, fabril: false });
-const indireto: ItemRoteamento = { categoriaEstoque: "ALMOXARIFADO", compoeCusto: true, fabril: true };
-const generico: ItemRoteamento = { categoriaEstoque: "ALMOXARIFADO", compoeCusto: true, fabril: false };
+const direto = (cat: string): ItemRoteamento => ({ categoriaEstoque: cat, compoeCusto: true, fabril: false, capitaliza: false });
+const indireto: ItemRoteamento = { categoriaEstoque: "ALMOXARIFADO", compoeCusto: true, fabril: true, capitaliza: false };
+const generico: ItemRoteamento = { categoriaEstoque: "ALMOXARIFADO", compoeCusto: true, fabril: false, capitaliza: false };
+// Ferramental permanente / material de obra (capitaliza) — também marcado fabril para
+// provar que capitaliza VENCE o teste de centro.
+const capitalizavel: ItemRoteamento = { categoriaEstoque: "ALMOXARIFADO", compoeCusto: false, fabril: true, capitaliza: true };
 
 const casos: Array<[string, () => void]> = [
   ["argila (MATERIA_PRIMA) em qualquer centro → PEP_MD", () => {
@@ -19,7 +22,7 @@ const casos: Array<[string, () => void]> = [
     assert.equal(rotearDestinoRequisicao({ item: direto("EMBALAGEM") }), "PEP_MD");
   }],
   ["material que NÃO compõe custo não é PEP-MD direto", () => {
-    assert.equal(rotearDestinoRequisicao({ item: { categoriaEstoque: "INSUMO", compoeCusto: false, fabril: false } }), "DESPESA");
+    assert.equal(rotearDestinoRequisicao({ item: { categoriaEstoque: "INSUMO", compoeCusto: false, fabril: false, capitaliza: false } }), "DESPESA");
   }],
   ["rolamento (fabril) na extrusora (centro fabril) → CIF", () => {
     assert.equal(rotearDestinoRequisicao({ item: indireto, centroFabril: true }), "CIF");
@@ -28,7 +31,7 @@ const casos: Array<[string, () => void]> = [
     assert.equal(rotearDestinoRequisicao({ item: indireto, centroFabril: false }), "DESPESA");
   }],
   ["EPI (fabril) no forno (fabril) → CIF", () => {
-    assert.equal(rotearDestinoRequisicao({ item: { categoriaEstoque: "ALMOXARIFADO", compoeCusto: true, fabril: true }, centroFabril: true }), "CIF");
+    assert.equal(rotearDestinoRequisicao({ item: { categoriaEstoque: "ALMOXARIFADO", compoeCusto: true, fabril: true, capitaliza: false }, centroFabril: true }), "CIF");
   }],
   ["material de escritório (não-fabril) → DESPESA", () => {
     assert.equal(rotearDestinoRequisicao({ item: generico, centroFabril: false }), "DESPESA");
@@ -43,6 +46,14 @@ const casos: Array<[string, () => void]> = [
   ["indireto SEM centro → INDEFINIDO (sinaliza, não adivinha)", () => {
     assert.equal(rotearDestinoRequisicao({ item: indireto }), "INDEFINIDO");
     assert.equal(rotearDestinoRequisicao({ item: indireto, centroFabril: null }), "INDEFINIDO");
+  }],
+  ["ferramental de alto valor (capitaliza) no forno → IMOBILIZADO (não CIF)", () => {
+    assert.equal(rotearDestinoRequisicao({ item: capitalizavel, centroFabril: true }), "IMOBILIZADO");
+  }],
+  ["material de obra (capitaliza) em área fabril → IMOBILIZADO (precede o teste de fabril/centro)", () => {
+    assert.equal(rotearDestinoRequisicao({ item: capitalizavel, centroFabril: true }), "IMOBILIZADO");
+    assert.equal(rotearDestinoRequisicao({ item: capitalizavel, centroFabril: false }), "IMOBILIZADO");
+    assert.equal(rotearDestinoRequisicao({ item: capitalizavel }), "IMOBILIZADO");
   }],
 ];
 

@@ -19,7 +19,7 @@ type LocalEstoqueOpt = { id: string; nome: string };
 type ColaboradorOpt  = { id: string; nome: string; setorId: string | null };
 type SetorOpt        = { id: string; nome: string };
 type CentroCustoOpt  = { id: string; codigo: string; nome: string };
-type ItemOpt         = { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null; fabril?: boolean; categoriaEstoque?: string | null; compoeCusto?: boolean };
+type ItemOpt         = { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null; fabril?: boolean; capitaliza?: boolean; categoriaEstoque?: string | null; compoeCusto?: boolean };
 
 type ItemRow = {
   _key:         string;
@@ -496,7 +496,8 @@ export default function RequisicaoCreateForm() {
     if (tipo === "REQUISICAO") {
       const semCentro = validRows.filter((r) => {
         const it = itensCat.find((i) => i.id === r.itemId);
-        return it?.fabril === true && !(r.centroCustoId || centroCustoId);
+        // capitaliza vai para Imobilizado independente do centro — não exige centro.
+        return it?.fabril === true && it?.capitaliza !== true && !(r.centroCustoId || centroCustoId);
       });
       if (semCentro.length > 0) {
         const cods = semCentro.map((r) => itensCat.find((i) => i.id === r.itemId)?.codigo ?? r.itemId).join(", ");
@@ -731,7 +732,7 @@ export default function RequisicaoCreateForm() {
                           <ComboboxWithCreate value={row.centroCustoId} onChange={(v) => updateRow(row._key, "centroCustoId", v)}
                             placeholder="—" noneLabel="—" triggerClassName="h-8 rounded-md text-xs"
                             options={centros.map((c) => ({ value: c.id, label: c.codigo }))} />
-                          {submitted && itensCat.find((i) => i.id === row.itemId)?.fabril === true && !(row.centroCustoId || centroCustoId) && (
+                          {submitted && (() => { const it = itensCat.find((i) => i.id === row.itemId); return it?.fabril === true && it?.capitaliza !== true && !(row.centroCustoId || centroCustoId); })() && (
                             <p className="text-[10px] text-red-500 mt-0.5">centro obrigatório (indireto)</p>
                           )}
                         </td>

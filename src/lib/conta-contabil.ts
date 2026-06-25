@@ -339,6 +339,15 @@ export async function garantirContasImobilizado(empresaId: string) {
   return { deprAcumId: deprAcum?.id ?? null, despesaId: despesa?.id ?? null };
 }
 
+/**
+ * Garante (idempotente) a conta "Imobilizado em Andamento" (1.2.4) — obra/ferramental
+ * capitalizado a partir de requisição (CPC 27), antes de virar bem depreciável.
+ * D 1.2.4 / C Estoque na baixa; a transferência p/ 1.2.1.xxxx (ativo depreciável) é manual.
+ */
+export async function garantirContaImobilizadoEmAndamento(empresaId: string) {
+  return garantirContaPorCodigo(empresaId, { codigo: "1.2.4", nome: "Imobilizado em Andamento", pai: "1.2", grupo: "ATIVO", natureza: "DEVEDORA" });
+}
+
 /** Cria a analítica de um bem sob o pai indicado (1.2.1 Imobilizado depreciável; 1.2.3 Terrenos). */
 export async function garantirContaImobilizadoBem(empresaId: string, descricao: string, codigoPai = "1.2.1") {
   const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: codigoPai } });

@@ -1201,6 +1201,11 @@ model Item {
   // fabril (senão Despesa). Não usado por material direto (MATERIA_PRIMA/INSUMO/EMBALAGEM
   // com compoeCusto), que vai sempre para o PEP-MD. Ver src/lib/pcp/rotear-requisicao.ts.
   fabril                 Boolean                  @default(false)
+  // Item que CAPITALIZA (vai ao Imobilizado, não vira custo/despesa do mês):
+  // ferramental permanente de alto valor; material de obra/ampliação/benfeitoria
+  // (CPC 27). A requisição roteia para "Imobilizado em Andamento" (1.2.4), com
+  // precedência sobre `fabril`. Ver src/lib/pcp/rotear-requisicao.ts.
+  capitaliza             Boolean                  @default(false)
   estoqueMinimo          Decimal?                 @db.Decimal(15, 3)
   estoqueMaximo          Decimal?                 @db.Decimal(15, 3)
   pontoReposicao         Decimal?                 @db.Decimal(15, 3)

@@ -5,7 +5,7 @@ import { decimalToNumber, generateDocNumber } from "@/lib/utils";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
 import { rotearDestinoRequisicao } from "@/lib/pcp/rotear-requisicao";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -1154,7 +1154,7 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
     where: { documento: req.numero, localEstoqueId: { not: null }, clienteDonoId: null, tipo: { in: ["ENTRADA", "SAIDA"] } },
     select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true, valorUnitario: true,
-      item: { select: { descricao: true, categoriaEstoque: true, compoeCusto: true, fabril: true } } },
+      item: { select: { descricao: true, categoriaEstoque: true, compoeCusto: true, fabril: true, capitaliza: true } } },
   });
   if (movs.length === 0) return;
   const empresaId = movs[0].empresaId;
@@ -1167,23 +1167,25 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   }
 
   // Contas de destino (resolvidas uma vez).
-  const [consumo, pepMd, cifAprop] = await Promise.all([
+  const [consumo, pepMd, cifAprop, imobAndamento] = await Promise.all([
     garantirContasSistemaEstoque(empresaId),
     contaPorCodigo(empresaId, "1.1.3.0005.0001"),
     contaPorCodigo(empresaId, "1.1.4.0001"),
+    garantirContaImobilizadoEmAndamento(empresaId),
   ]);
   const consumoId = consumo.consumoId;
 
   // Agrupa os movimentos por destino roteado. Contas ausentes caem no consumo (default seguro).
-  const buckets = { PEP_MD: [] as typeof movs, CIF: [] as typeof movs, DESPESA: [] as typeof movs };
+  const buckets = { PEP_MD: [] as typeof movs, IMOBILIZADO: [] as typeof movs, CIF: [] as typeof movs, DESPESA: [] as typeof movs };
   const indefinidos: string[] = [];
   for (const m of movs) {
     let destino = rotearDestinoRequisicao({
-      item: { categoriaEstoque: m.item?.categoriaEstoque ?? null, compoeCusto: m.item?.compoeCusto ?? false, fabril: m.item?.fabril ?? false },
+      item: { categoriaEstoque: m.item?.categoriaEstoque ?? null, compoeCusto: m.item?.compoeCusto ?? false, fabril: m.item?.fabril ?? false, capitaliza: m.item?.capitaliza ?? false },
       naturezaCif,
       centroFabril: centroFabrilPorItem.get(m.itemId) ?? null,
     });
     if (destino === "PEP_MD" && !pepMd) destino = "DESPESA";
+    if (destino === "IMOBILIZADO" && !imobAndamento) destino = "DESPESA";
     if (destino === "CIF" && !cifAprop) destino = "DESPESA";
     if (destino === "INDEFINIDO") { indefinidos.push(m.item?.descricao ?? m.itemId); destino = "DESPESA"; }
     buckets[destino].push(m);
@@ -1196,6 +1198,7 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   const planos: Array<{ destino: keyof typeof buckets; origemId: string; contaId: string | null | undefined; rotulo: string; natId: string | null }> = [
     { destino: "DESPESA", origemId: requisicaoId, contaId: consumoId, rotulo: "", natId: null },
     { destino: "PEP_MD", origemId: `${requisicaoId}#pep`, contaId: pepMd?.id, rotulo: " (PEP-MD)", natId: null },
+    { destino: "IMOBILIZADO", origemId: `${requisicaoId}#imob`, contaId: imobAndamento?.id, rotulo: " (Imobilizado em Andamento)", natId: null },
     { destino: "CIF", origemId: `${requisicaoId}#cif`, contaId: cifAprop?.id, rotulo: " (CIF)", natId: naturezaCif ? req.naturezaFinanceiraId : null },
   ];
   for (const plano of planos) {

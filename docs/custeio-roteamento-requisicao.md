@@ -32,10 +32,15 @@ O destino é decidido por **duas perguntas**, sem digitação manual no caso com
 |---|---|---|---|
 | 1 | Item é **material direto**: `categoria ∈ {MATERIA_PRIMA, INSUMO, EMBALAGEM}` **e** `compoeCusto = true` | **PEP-MD** | `1.1.3.0005.0001` |
 | 2 | RM tem **natureza marcada como CIF** (escape manual) | **CIF** | `1.1.4.0001` |
-| 3 | Item **indireto de fábrica** (`fabril = true`) consumido em **centro fabril** | **CIF** | `1.1.4.0001` |
-| 3 | Item indireto consumido em **centro não-fabril** | **Despesa** | `3.3.9001` |
-| 3 | Item indireto **sem centro de custo** | **INDEFINIDO** → lançado como Despesa **+ aviso no log** | `3.3.9001` |
-| 4 | Qualquer outro caso | **Despesa** (default seguro) | `3.3.9001` |
+| 3 | Item **capitaliza** (`capitaliza = true`) — ferramental permanente / material de obra (CPC 27) | **IMOBILIZADO** | `1.2.4` |
+| 4 | Item **indireto de fábrica** (`fabril = true`) consumido em **centro fabril** | **CIF** | `1.1.4.0001` |
+| 4 | Item indireto consumido em **centro não-fabril** | **Despesa** | `3.3.9001` |
+| 4 | Item indireto **sem centro de custo** | **INDEFINIDO** → lançado como Despesa **+ aviso no log** | `3.3.9001` |
+| 5 | Qualquer outro caso | **Despesa** (default seguro) | `3.3.9001` |
+
+> **`capitaliza` precede o centro (regra 3 antes da 4):** material de obra requisitado para uma
+> área fabril (ex.: reforma do forno) satisfaz "fabril", mas **não é CIF do mês** — é
+> **investimento** que entra no Ativo e só impacta o resultado depois, via depreciação.
 
 > **Regra 1 vence tudo:** material que compõe o produto vai sempre para o PEP-MD,
 > independentemente do centro — nunca é ambíguo. O centro de custo só desempata o
@@ -44,6 +49,10 @@ O destino é decidido por **duas perguntas**, sem digitação manual no caso com
 ### Lançamentos gerados
 
 - **PEP-MD:** `D 1.1.3.0005.0001 PEP-MD  /  C Estoque (local)`
+- **IMOBILIZADO:** `D 1.2.4 Imobilizado em Andamento  /  C Estoque (local)` — capitaliza o
+  material/ferramental no Ativo. A **conclusão da obra** (transferência de `1.2.4` para um
+  bem depreciável `1.2.1.xxxx`) é **manual** (cadastro do Imobilizado + transferência); a
+  partir daí a depreciação leva o custo ao resultado.
 - **CIF:** `D 1.1.4.0001 CIF a Apropriar  /  C Estoque (local)` — apropriado ao
   PEP-CIF (`1.1.3.0005.0003`) no fechamento.
 - **Despesa:** `D 3.3.9001 Consumo de Materiais  /  C Estoque (local)`
@@ -60,6 +69,9 @@ partidas (`registrarLancamento`) **não é alterado** — a regra apenas escolhe
 - `compoeCusto` — `true` = entra no custo do produto.
 - `fabril` — `true` = consumível **indireto de fábrica** (peça de manutenção,
   lubrificante, EPI, solda, refratário). O destino (CIF × Despesa) depende do centro.
+- `capitaliza` — `true` = item que **vai ao Imobilizado** (ferramental permanente de alto
+  valor; material de obra/ampliação/benfeitoria — CPC 27). É investimento, não consumo;
+  tem **precedência sobre `fabril`** no roteamento.
 
 ### Centro de Custo (`CentroCusto`)
 - `fabril = true` → consumo indireto ali vira **CIF**.

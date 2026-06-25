@@ -9,16 +9,20 @@
 // Precedência (não reordenar sem revisar os testes):
 //  1. Material que compõe produto → PEP_MD, SEMPRE (independe do centro).
 //  2. Override manual: natureza marcada como CIF (mecanismo natureza.cif existente).
-//  3. Item indireto de fábrica (item.fabril): decide pelo centro (dual-use) —
+//  3. Item que capitaliza (item.capitaliza) → IMOBILIZADO, ANTES do teste de centro —
+//     material de obra p/ área fabril satisfaz "fabril", mas é investimento (ativo),
+//     não CIF do mês; só impacta o resultado depois, via depreciação (CPC 27).
+//  4. Item indireto de fábrica (item.fabril): decide pelo centro (dual-use) —
 //     fabril → CIF; não-fabril → DESPESA; sem centro → INDEFINIDO (dado incompleto).
-//  4. Resto → DESPESA (default seguro).
+//  5. Resto → DESPESA (default seguro).
 
-export type DestinoRequisicao = "PEP_MD" | "CIF" | "DESPESA" | "INDEFINIDO";
+export type DestinoRequisicao = "PEP_MD" | "IMOBILIZADO" | "CIF" | "DESPESA" | "INDEFINIDO";
 
 export type ItemRoteamento = {
   categoriaEstoque: string | null;
   compoeCusto: boolean;
   fabril: boolean;
+  capitaliza: boolean;
 };
 
 // Categorias de material que compõem o produto e vão direto ao PEP-MD.
@@ -41,13 +45,17 @@ export function rotearDestinoRequisicao(args: {
   // 2) Override manual explícito: natureza CIF na RM (raro, escape).
   if (naturezaCif === true) return "CIF";
 
-  // 3) Indireto de fábrica: o destino depende de ONDE foi consumido.
+  // 3) Item que capitaliza → Imobilizado (precede o centro: obra em área fabril é
+  //    investimento, não CIF do mês).
+  if (item.capitaliza) return "IMOBILIZADO";
+
+  // 4) Indireto de fábrica: o destino depende de ONDE foi consumido.
   if (item.fabril) {
     if (centroFabril === true) return "CIF";
     if (centroFabril === false) return "DESPESA";
     return "INDEFINIDO"; // item indireto sem centro = dado incompleto; sinaliza.
   }
 
-  // 4) Default seguro.
+  // 5) Default seguro.
   return "DESPESA";
 }
