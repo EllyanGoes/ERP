@@ -18,6 +18,7 @@ const schema = z.object({
   ativo: z.boolean().optional(),
   cif: z.boolean().optional(),
   destinoSugerido: z.enum(["PEP_MD", "IMOBILIZADO", "CIF", "DESPESA"]).optional().nullable().transform((v) => v || null),
+  aplicavelRequisicao: z.boolean().optional(),
 });
 
 // GET /api/financeiro/naturezas?tipo=ENTRADA|SAIDA&ativo=1
@@ -31,11 +32,16 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const tipo = searchParams.get("tipo");
   const somenteAtivas = searchParams.get("ativo") === "1";
+  // Só a Requisição de Material passa requisitaveis=1: filtra as naturezas de
+  // consumo de estoque (esconde tesouraria/compra/investimento). Demais seletores
+  // não passam o param → comportamento inalterado.
+  const somenteRequisitaveis = searchParams.get("requisitaveis") === "1";
 
   const data = await prisma.naturezaFinanceira.findMany({
     where: {
       ...(tipo === "ENTRADA" || tipo === "SAIDA" ? { tipo } : {}),
       ...(somenteAtivas ? { ativo: true } : {}),
+      ...(somenteRequisitaveis ? { aplicavelRequisicao: true } : {}),
     },
     include: {
       subgrupo: { select: { id: true, nome: true } },

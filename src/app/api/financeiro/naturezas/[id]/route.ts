@@ -17,6 +17,7 @@ const schema = z.object({
   ativo: z.boolean().optional(),
   cif: z.boolean().optional(),
   destinoSugerido: z.enum(["PEP_MD", "IMOBILIZADO", "CIF", "DESPESA"]).optional().nullable(),
+  aplicavelRequisicao: z.boolean().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

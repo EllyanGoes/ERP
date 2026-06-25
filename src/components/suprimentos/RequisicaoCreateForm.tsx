@@ -671,7 +671,7 @@ export default function RequisicaoCreateForm() {
       safeFetch("/api/empresa/setores?ativo=true"),
       safeFetch("/api/empresa/centros-custo?ativo=true"),
       safeFetch("/api/suprimentos/produtos"),
-      safeFetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1"),
+      safeFetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1&requisitaveis=1"),
     ]);
 
     if (lData  != null) setLocais(       Array.isArray(lData)  ? lData  : lData.data  ?? []);

@@ -576,6 +576,9 @@ model NaturezaFinanceira {
   // Destino contábil que ESTA natureza implica — usado só para o alerta de coerência
   // na requisição (compara com o destino real das flags do item). Não roteia nada.
   destinoSugerido DestinoConsumo?
+  // Aparece no seletor da Requisição de Material (consumo de estoque). Naturezas de
+  // tesouraria/compra/investimento ficam false e não poluem a RM. Não apaga nada.
+  aplicavelRequisicao Boolean         @default(false)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
   subgrupo      NaturezaSubgrupo?   @relation(fields: [subgrupoId], references: [id])
