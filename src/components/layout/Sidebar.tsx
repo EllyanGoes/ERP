@@ -374,13 +374,13 @@ const mainModules: Module[] = [
         items: [
           { href: "/pcp/chao",             label: "Chão de Fábrica",      icon: Factory },
           { href: "/pcp/ordens",           label: "Ordens de Produção",   icon: ClipboardList },
-          { href: "/pcp/operacoes",        label: "Operações (fila)",      icon: ListChecks },
-          { href: "/pcp/planejamento",     label: "Planejamento (MPS/MRP)", icon: Calculator },
         ],
       },
       {
         kind: "Outros" as SubSection["kind"],
         items: [
+          { href: "/pcp/operacoes",        label: "Operações (fila)",      icon: ListChecks },
+          { href: "/pcp/planejamento",     label: "Planejamento (MPS/MRP)", icon: Calculator },
           { href: "/pcp/dashboard",        label: "Dashboard",            icon: BarChart3 },
           { href: "/pcp/sequenciamento",   label: "Sequenciamento (forno)", icon: CalendarClock },
           { href: "/pcp/ajuda",            label: "Como usar",            icon: BookOpen },

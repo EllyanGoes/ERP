@@ -1,207 +1,311 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
-import { Plus, RefreshCw, X, Check, Factory } from "lucide-react";
+import { Plus, RefreshCw, Factory, CheckCircle2, List, Loader2, X } from "lucide-react";
 
-interface OrdemRow {
-  id: string;
-  numero: string;
-  status: string;
-  estadoAtual: string;
-  quantidadePlanejada: string | number;
-  unidade: string | null;
-  item: { codigo: string; descricao: string } | null;
-  fluxoNome: string | null;
-  fluxoVersao: number | null;
-  totalEtapas: number;
-  etapasConcluidas: number;
-}
-interface FluxoOpt { id: string; nome: string; versaoAtivaId: string | null; }
+type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
+type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean };
+type Produto = { id: string; codigo: string; descricao: string };
+type BoardOP = { id: string; numero: string; status: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string };
+type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
 
-export const STATUS_OP: Record<string, { label: string; cls: string }> = {
-  RASCUNHO: { label: "Rascunho", cls: "bg-muted text-muted-foreground" },
-  LIBERADA: { label: "Liberada", cls: "bg-info/10 text-info" },
-  EM_PRODUCAO: { label: "Em produção", cls: "bg-warning/10 text-warning" },
-  CONCLUIDA: { label: "Concluída", cls: "bg-success/10 text-success" },
-  CANCELADA: { label: "Cancelada", cls: "bg-danger/10 text-danger" },
-};
 const ESTADO_LABEL: Record<string, string> = { UMIDO: "úmido", SECO: "seco", QUEIMADO: "queimado", ACABADO: "acabado" };
+const ETAPA_STATUS: Record<string, string> = { PENDENTE: "bg-muted text-muted-foreground", EM_EXECUCAO: "bg-warning/15 text-warning", CONCLUIDA: "bg-success/15 text-success" };
+const hoje = () => new Date().toISOString().slice(0, 10);
 
-const inputCls = "w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500";
-
-export default function OrdensPage() {
+export default function OrdensBoardPage() {
   useTabTitle("Ordens de Produção");
   const router = useRouter();
-  const [ordens, setOrdens] = useState<OrdemRow[]>([]);
-  const [fluxos, setFluxos] = useState<FluxoOpt[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
-  const [form, setForm] = useState<{ fluxoId: string; quantidade: string; unidade: string } | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setErro(null);
-    try {
-      const [ro, rf] = await Promise.all([fetch("/api/pcp/ordens"), fetch("/api/pcp/fluxos")]);
-      const [jo, jf] = await Promise.all([ro.json(), rf.json()]);
-      if (!ro.ok) throw new Error(jo?.error ?? "Erro ao carregar ordens");
-      setOrdens(jo.data ?? []);
-      setFluxos((jf.data ?? []).filter((f: FluxoOpt) => f.versaoAtivaId));
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : "Erro ao carregar");
-    } finally {
+  const [fluxos, setFluxos] = useState<FluxoOpt[]>([]);
+  const [fluxoId, setFluxoId] = useState("");
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [areaNodeId, setAreaNodeId] = useState("");
+  const [data, setData] = useState(hoje());
+  const [ops, setOps] = useState<BoardOP[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [carregandoOps, setCarregandoOps] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  // Nova OP
+  const [novo, setNovo] = useState<{ itemId: string; quantidade: string } | null>(null);
+  const [disp, setDisp] = useState<Disp | null>(null);
+  const [criando, setCriando] = useState(false);
+
+  // Apontar
+  const [apontar, setApontar] = useState<BoardOP | null>(null);
+  const [apForm, setApForm] = useState({ quantidade: "", perda: "", biomassa: "" });
+  const [apBusy, setApBusy] = useState(false);
+
+  const area = areas.find((a) => a.nodeId === areaNodeId) ?? null;
+
+  // 1. Fluxos publicados
+  useEffect(() => {
+    fetch("/api/pcp/fluxos").then((r) => r.json()).then((j) => {
+      const pub = (j.data ?? []).filter((f: FluxoOpt) => f.versaoAtivaId);
+      setFluxos(pub);
+      if (pub[0]) setFluxoId(pub[0].id);
       setLoading(false);
-    }
+    }).catch(() => setLoading(false));
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // 2. Abas (áreas) + produtos do fluxo
+  useEffect(() => {
+    if (!fluxoId) { setAreas([]); setProdutos([]); return; }
+    fetch(`/api/pcp/ordens/area/abas?fluxoId=${fluxoId}`).then((r) => r.json()).then((j) => {
+      setAreas(j.areas ?? []);
+      setProdutos(j.produtos ?? []);
+      setAreaNodeId((prev) => (j.areas ?? []).some((a: Area) => a.nodeId === prev) ? prev : (j.areas?.[0]?.nodeId ?? ""));
+    }).catch(() => { setAreas([]); setProdutos([]); });
+  }, [fluxoId]);
 
-  async function criar() {
-    if (!form || !form.fluxoId) { setErro("Escolha um fluxo publicado"); return; }
-    const q = Number(form.quantidade);
-    if (!Number.isFinite(q) || q <= 0) { setErro("Quantidade deve ser > 0"); return; }
-    setBusy(true);
-    setErro(null);
+  // 3. OPs da área no dia
+  const loadOps = useCallback(async () => {
+    if (!fluxoId || !areaNodeId) { setOps([]); return; }
+    setCarregandoOps(true);
     try {
-      const r = await fetch("/api/pcp/ordens", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fluxoId: form.fluxoId, quantidadePlanejada: q, unidade: form.unidade || "milheiro" }),
+      const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${areaNodeId}&data=${data}`);
+      const j = await r.json();
+      setOps(j.data ?? []);
+    } finally { setCarregandoOps(false); }
+  }, [fluxoId, areaNodeId, data]);
+  useEffect(() => { loadOps(); }, [loadOps]);
+
+  // Referência de disponibilidade ao escolher produto
+  useEffect(() => {
+    if (!novo?.itemId || !area) { setDisp(null); return; }
+    setDisp(null);
+    fetch(`/api/pcp/ordens/area/disponibilidade?fluxoId=${fluxoId}&areaNodeId=${areaNodeId}&itemId=${novo.itemId}`)
+      .then((r) => r.json()).then((j) => setDisp(j)).catch(() => setDisp(null));
+  }, [novo?.itemId, area, fluxoId, areaNodeId]);
+
+  async function criarOp() {
+    if (!novo?.itemId) { setErro("Escolha o produto"); return; }
+    const q = Number(novo.quantidade);
+    if (!Number.isFinite(q) || q <= 0) { setErro("Quantidade deve ser > 0"); return; }
+    setCriando(true); setErro(null);
+    try {
+      const r = await fetch("/api/pcp/ordens/area", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fluxoId, areaNodeId, itemId: novo.itemId, quantidadePlanejada: q, data }),
       });
       const j = await r.json();
-      if (!r.ok) throw new Error(j?.error ?? "Erro ao criar");
-      router.push(`/pcp/ordens/${j.data.id}`);
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : "Erro ao criar");
-      setBusy(false);
-    }
+      if (!r.ok) throw new Error(j?.error ?? "Erro ao criar OP");
+      setNovo(null); setDisp(null);
+      await loadOps();
+    } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setCriando(false); }
+  }
+
+  async function concluir() {
+    if (!apontar) return;
+    const q = Number(apForm.quantidade);
+    if (!Number.isFinite(q) || q <= 0) { setErro("Informe a quantidade produzida"); return; }
+    setApBusy(true); setErro(null);
+    try {
+      const r = await fetch(`/api/pcp/ordens/${apontar.id}/concluir-area`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantidadeProduzida: apForm.quantidade, qtdPerda: apForm.perda || undefined, biomassaKg: apForm.biomassa || undefined }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j?.error ?? "Erro ao apontar");
+      setApontar(null);
+      await loadOps();
+    } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setApBusy(false); }
   }
 
   return (
     <div className="flex flex-col h-full">
       <PageHeader
         title="Ordens de Produção"
-        subtitle="Crie ordens a partir de um fluxo publicado e aponte cada etapa (perdas, biomassa, vagões)."
+        subtitle="Chão de fábrica por área: escolha o fluxo, abra a aba da área e crie/aponte as OPs do dia."
         breadcrumbs={[{ label: "PCP" }, { label: "Ordens de Produção" }]}
         action={
-          <button
-            type="button"
-            onClick={() => setForm({ fluxoId: fluxos[0]?.id ?? "", quantidade: "", unidade: "milheiro" })}
-            disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50"
-          >
-            <Plus className="w-4 h-4" /> Nova ordem
-          </button>
+          <Link href="/pcp/ordens/lista" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+            <List className="w-4 h-4" /> Lista
+          </Link>
         }
       />
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8">
-        {erro && <div className="mb-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</div>}
+      <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8 space-y-4">
+        {erro && <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</div>}
 
-        {form && (
-          <div className="mb-4 rounded-xl border border-cyan-200 dark:border-cyan-500/30 bg-cyan-50/40 p-4">
-            {fluxos.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Nenhum fluxo <strong>publicado</strong> ainda. Publique um fluxo em <strong>Fluxos de Produção</strong> para criar ordens.
-              </p>
+        {/* Fluxo + dia */}
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[16rem]">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Fluxo de produção</label>
+            {loading ? (
+              <div className="h-9 flex items-center text-sm text-muted-foreground gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>
+            ) : fluxos.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum fluxo publicado. Publique em <strong>Fluxos de Produção</strong>.</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Fluxo publicado *</label>
-                  <ComboboxWithCreate
-                    value={form.fluxoId}
-                    onChange={(v) => setForm({ ...form, fluxoId: v })}
-                    allowNone={false}
-                    triggerClassName="h-9 rounded-lg"
-                    options={fluxos.map((f) => ({ value: f.id, label: f.nome }))}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade *</label>
-                  <input className={inputCls} inputMode="decimal" value={form.quantidade} onChange={(e) => setForm({ ...form, quantidade: e.target.value })} placeholder="ex.: 200" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Unidade</label>
-                  <input className={inputCls} value={form.unidade} onChange={(e) => setForm({ ...form, unidade: e.target.value })} placeholder="milheiro" />
-                </div>
-              </div>
+              <ComboboxWithCreate value={fluxoId} onChange={setFluxoId} allowNone={false} triggerClassName="h-9 rounded-lg"
+                options={fluxos.map((f) => ({ value: f.id, label: f.nome }))} />
             )}
-            <div className="mt-3 flex items-center justify-end gap-2">
-              <button onClick={() => setForm(null)} className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-                <X className="w-4 h-4" /> Cancelar
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Dia</label>
+            <input type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-9 rounded-lg border border-border px-3 text-sm bg-card" />
+          </div>
+          <button onClick={loadOps} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
+            <RefreshCw className={cn("w-4 h-4", carregandoOps && "animate-spin")} /> Atualizar
+          </button>
+        </div>
+
+        {/* Abas por área */}
+        {areas.length > 0 && (
+          <div className="flex gap-0 border-b border-border overflow-x-auto">
+            {areas.map((a) => (
+              <button key={a.nodeId} type="button" onClick={() => { setAreaNodeId(a.nodeId); setNovo(null); }}
+                className={cn("px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors",
+                  a.nodeId === areaNodeId ? "border-cyan-600 text-cyan-700 dark:text-cyan-400" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                <span className="text-[10px] text-muted-foreground mr-1.5">{a.sequencia}</span>{a.centroTrabalho ?? a.nome}
+                {a.estadoSaida && <span className="text-[11px] text-muted-foreground"> · {ESTADO_LABEL[a.estadoSaida] ?? a.estadoSaida}</span>}
               </button>
-              {fluxos.length > 0 && (
-                <button onClick={criar} disabled={busy} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
-                  {busy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Criar e abrir
+            ))}
+          </div>
+        )}
+
+        {area && (
+          <div className="space-y-3">
+            {/* Cabeçalho da área + nova OP */}
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                {area.isPrimeira
+                  ? "Consome matéria-prima e gera o WIP da etapa."
+                  : `Consome o WIP ${ESTADO_LABEL[area.fromEstado ?? ""] ?? area.fromEstado} e gera ${ESTADO_LABEL[area.estadoSaida ?? ""] ?? "o próximo"}.`}
+              </p>
+              {!novo && (
+                <button onClick={() => { setNovo({ itemId: produtos[0]?.id ?? "", quantidade: "" }); setErro(null); }}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700">
+                  <Plus className="w-4 h-4" /> Nova OP
                 </button>
               )}
             </div>
-          </div>
-        )}
 
-        {loading ? (
-          <div className="flex items-center justify-center py-16 text-muted-foreground gap-2 text-sm">
-            <RefreshCw className="w-4 h-4 animate-spin" /> Carregando…
-          </div>
-        ) : ordens.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-14 h-14 rounded-full bg-cyan-50 dark:bg-cyan-500/15 flex items-center justify-center mb-3">
-              <Factory className="w-7 h-7 text-cyan-400" />
-            </div>
-            <p className="text-sm font-medium text-foreground">Nenhuma ordem de produção</p>
-            <p className="text-xs text-muted-foreground mt-1">Crie uma ordem a partir de um fluxo publicado.</p>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted text-xs text-muted-foreground uppercase tracking-wider">
-                <tr>
-                  <th className="text-left font-medium px-4 py-2.5">Ordem</th>
-                  <th className="text-left font-medium px-4 py-2.5">Fluxo / Produto</th>
-                  <th className="text-right font-medium px-4 py-2.5">Qtd</th>
-                  <th className="text-center font-medium px-4 py-2.5">Estado</th>
-                  <th className="text-center font-medium px-4 py-2.5">Progresso</th>
-                  <th className="text-center font-medium px-4 py-2.5">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {ordens.map((o) => {
-                  const st = STATUS_OP[o.status] ?? { label: o.status, cls: "bg-muted text-muted-foreground" };
-                  const pct = o.totalEtapas ? Math.round((o.etapasConcluidas / o.totalEtapas) * 100) : 0;
+            {/* Form nova OP */}
+            {novo && (
+              <div className="rounded-xl border border-cyan-200 dark:border-cyan-500/30 bg-cyan-50/40 p-4 space-y-3">
+                {produtos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhum produto com engenharia neste fluxo. Cadastre a <strong>Engenharia do Produto</strong>.</p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">Produto *</label>
+                        <ComboboxWithCreate value={novo.itemId} onChange={(v) => setNovo({ ...novo, itemId: v })} allowNone={false} triggerClassName="h-9 rounded-lg"
+                          options={produtos.map((p) => ({ value: p.id, label: `${p.codigo} · ${p.descricao}` }))} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade ({ops[0]?.unidade ?? "milheiro"}) *</label>
+                        <input className="w-full rounded-lg border border-border px-3 py-2 text-sm text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                          inputMode="decimal" value={novo.quantidade} onChange={(e) => setNovo({ ...novo, quantidade: e.target.value })} placeholder="ex.: 50" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={criarOp} disabled={criando} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
+                          {criando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Criar
+                        </button>
+                        <button onClick={() => { setNovo(null); setDisp(null); }} className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    {/* Referência de disponibilidade (não trava) */}
+                    {disp && (
+                      <div className="text-xs text-muted-foreground border-t border-border/60 pt-2">
+                        {disp.tipo === "MP" ? (
+                          disp.aviso ? <span className="text-warning">{disp.aviso}</span> : (
+                            <span>Estoque de MP rende <b className="text-foreground">{disp.rendimentoMilheiros != null ? `~${disp.rendimentoMilheiros.toLocaleString("pt-BR")} ${ops[0]?.unidade ?? "milheiro"}` : "—"}</b>
+                              {disp.insumos && disp.insumos.length > 0 && <> · {disp.insumos.map((i) => `${i.descricao}: ${i.disponivel.toLocaleString("pt-BR")}`).join(" · ")}</>}
+                              {" "}(referência, não bloqueia)</span>
+                          )
+                        ) : (
+                          <span>Saldo de WIP {ESTADO_LABEL[area.fromEstado ?? ""] ?? area.fromEstado}: <b className="text-foreground">{(disp.saldoWipAnterior ?? 0).toLocaleString("pt-BR")}</b> (referência)</span>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* OPs do dia na área */}
+            {carregandoOps ? (
+              <div className="flex items-center gap-2 text-muted-foreground py-8 text-sm"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>
+            ) : ops.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="w-12 h-12 rounded-full bg-cyan-50 dark:bg-cyan-500/15 flex items-center justify-center mb-2"><Factory className="w-6 h-6 text-cyan-400" /></div>
+                <p className="text-sm font-medium text-foreground">Nenhuma OP nesta área hoje</p>
+                <p className="text-xs text-muted-foreground mt-1">Crie uma OP com &quot;Nova OP&quot;.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {ops.map((o) => {
+                  const concl = o.etapaStatus === "CONCLUIDA";
                   return (
-                    <tr key={o.id} onClick={() => router.push(`/pcp/ordens/${o.id}`)} className="hover:bg-cyan-50/40 cursor-pointer">
-                      <td className="px-4 py-2.5 font-mono font-medium text-foreground">{o.numero}</td>
-                      <td className="px-4 py-2.5 text-muted-foreground">
-                        {o.fluxoNome ?? "—"}
-                        {o.item && <span className="text-muted-foreground"> · {o.item.descricao}</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-foreground">{Number(o.quantidadePlanejada)} {o.unidade}</td>
-                      <td className="px-4 py-2.5 text-center text-muted-foreground">{ESTADO_LABEL[o.estadoAtual] ?? o.estadoAtual}</td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden min-w-[60px]">
-                            <div className="h-full bg-cyan-500" style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="text-[11px] text-muted-foreground tabular-nums">{o.etapasConcluidas}/{o.totalEtapas}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5 text-center">
-                        <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", st.cls)}>{st.label}</span>
-                      </td>
-                    </tr>
+                    <div key={o.id} className={cn("rounded-xl border bg-card p-3", concl ? "border-success/30" : "border-border")}>
+                      <div className="flex items-center justify-between gap-2">
+                        <button onClick={() => router.push(`/pcp/ordens/${o.id}`)} className="font-mono text-xs text-muted-foreground hover:text-cyan-600">{o.numero}</button>
+                        <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
+                          {o.etapaStatus === "CONCLUIDA" ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-foreground mt-1 truncate">{o.produto ?? "—"}</p>
+                      <p className="text-xs text-muted-foreground">{Number(o.quantidade)} {o.unidade}</p>
+                      {!concl && (
+                        <button onClick={() => { setApontar(o); setApForm({ quantidade: String(Number(o.quantidade) || ""), perda: "", biomassa: "" }); setErro(null); }}
+                          className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Apontar / Concluir
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Modal apontar */}
+      {apontar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setApontar(null)}>
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Apontar {apontar.numero}</h2>
+            <p className="text-xs text-muted-foreground mt-1">{apontar.produto} · área {area?.centroTrabalho ?? area?.nome}. Consome o WIP/MP de entrada e gera a saída.</p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade produzida *</label>
+                <input autoFocus inputMode="decimal" value={apForm.quantidade} onChange={(e) => setApForm((p) => ({ ...p, quantidade: e.target.value }))} className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Perda (opcional)</label>
+                  <input inputMode="decimal" value={apForm.perda} onChange={(e) => setApForm((p) => ({ ...p, perda: e.target.value }))} className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                </div>
+                {area?.estadoSaida === "QUEIMADO" && (
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Biomassa (kg)</label>
+                    <input inputMode="decimal" value={apForm.biomassa} onChange={(e) => setApForm((p) => ({ ...p, biomassa: e.target.value }))} className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button onClick={() => setApontar(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+              <button onClick={concluir} disabled={apBusy} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+                {apBusy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Apontar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
