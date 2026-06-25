@@ -7,13 +7,14 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
-import { Plus, RefreshCw, Factory, CheckCircle2, List, Loader2, X, Boxes } from "lucide-react";
+import { Plus, RefreshCw, Factory, CheckCircle2, List, Loader2, X, Boxes, PackageCheck } from "lucide-react";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean };
 type Produto = { id: string; codigo: string; descricao: string };
 type BoardOP = { id: string; numero: string; status: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string };
 type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
+type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
 
 const ESTADO_LABEL: Record<string, string> = { UMIDO: "úmido", SECO: "seco", QUEIMADO: "queimado", ACABADO: "acabado" };
 const ETAPA_STATUS: Record<string, string> = { PENDENTE: "bg-muted text-muted-foreground", EM_EXECUCAO: "bg-warning/15 text-warning", CONCLUIDA: "bg-success/15 text-success" };
@@ -30,7 +31,9 @@ export default function OrdensBoardPage() {
   const [areaNodeId, setAreaNodeId] = useState("");
   const [data, setData] = useState(hoje());
   const [ops, setOps] = useState<BoardOP[]>([]);
-  const [materiais, setMateriais] = useState<{ itemId: string; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] }[] | null>(null);
+  const [materiais, setMateriais] = useState<EstoqueLinha[] | null>(null);
+  const [entradaWip, setEntradaWip] = useState<EstoqueLinha[] | null>(null);
+  const [saidaEstoque, setSaidaEstoque] = useState<EstoqueLinha[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [carregandoOps, setCarregandoOps] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -86,6 +89,24 @@ export default function OrdensBoardPage() {
     fetch(`/api/pcp/ordens/area/materiais?fluxoId=${fluxoId}&areaNodeId=${areaNodeId}`)
       .then((r) => r.json()).then((j) => setMateriais(j.data ?? [])).catch(() => setMateriais([]));
   }, [fluxoId, areaNodeId]);
+
+  // Entrada (PEP da área anterior) e Saída (PEP/PA que esta área produz)
+  useEffect(() => {
+    const a = areas.find((x) => x.nodeId === areaNodeId) ?? null;
+    if (!a) { setEntradaWip(null); setSaidaEstoque(null); return; }
+    if (a.isPrimeira || !a.fromEstado) setEntradaWip([]);
+    else {
+      setEntradaWip(null);
+      fetch(`/api/pcp/ordens/area/estoque-estado?fluxoId=${fluxoId}&estado=${a.fromEstado}`)
+        .then((r) => r.json()).then((j) => setEntradaWip(j.data ?? [])).catch(() => setEntradaWip([]));
+    }
+    if (!a.estadoSaida) setSaidaEstoque([]);
+    else {
+      setSaidaEstoque(null);
+      fetch(`/api/pcp/ordens/area/estoque-estado?fluxoId=${fluxoId}&estado=${a.estadoSaida}`)
+        .then((r) => r.json()).then((j) => setSaidaEstoque(j.data ?? [])).catch(() => setSaidaEstoque([]));
+    }
+  }, [fluxoId, areaNodeId, areas]);
 
   // Referência de disponibilidade ao escolher produto
   useEffect(() => {
@@ -182,91 +203,69 @@ export default function OrdensBoardPage() {
         )}
 
         {area && (
-          <div className="space-y-3">
-            {/* Cabeçalho da área + nova OP */}
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-muted-foreground">
-                {area.isPrimeira
-                  ? "Consome matéria-prima e gera o WIP da etapa."
-                  : `Consome o WIP ${ESTADO_LABEL[area.fromEstado ?? ""] ?? area.fromEstado} e gera ${ESTADO_LABEL[area.estadoSaida ?? ""] ?? "o próximo"}.`}
-              </p>
-              <button onClick={() => { setNovo({ itemId: produtos[0]?.id ?? "", quantidade: "", dataPrevista: "" }); setDisp(null); setErro(null); }}
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700">
-                <Plus className="w-4 h-4" /> Nova OP
-              </button>
-            </div>
+          <>
+            <p className="text-xs text-muted-foreground">
+              {area.isPrimeira
+                ? "Consome matéria-prima e gera o PEP da etapa."
+                : area.estadoSaida === "ACABADO"
+                  ? `Consome o PEP ${ESTADO_LABEL[area.fromEstado ?? ""] ?? area.fromEstado} e gera o produto acabado.`
+                  : area.estadoSaida
+                    ? `Consome o PEP ${ESTADO_LABEL[area.fromEstado ?? ""] ?? area.fromEstado ?? "—"} e gera o PEP ${ESTADO_LABEL[area.estadoSaida] ?? area.estadoSaida}.`
+                    : "Etapa de preparo (sem movimentação de WIP)."}
+            </p>
 
-            {/* Saldo dos materiais necessários nesta etapa */}
-            <div className="rounded-xl border border-border bg-muted/30 p-3">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5"><Boxes className="w-3.5 h-3.5" /> Materiais da etapa — saldo em estoque</p>
-              {materiais === null ? (
-                <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando…</p>
-              ) : materiais.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nenhum material configurado nesta etapa — defina os insumos da operação no editor do fluxo.</p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {materiais.map((m) => (
-                    <div key={m.itemId} className={cn("rounded-lg border px-3 py-2 text-xs", m.saldoTotal > 0 ? "border-border bg-card" : "border-warning/40 bg-warning/10")}>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-foreground font-medium truncate">{m.descricao}</span>
-                        <span className="shrink-0 tabular-nums">
-                          <b className={m.saldoTotal > 0 ? "text-foreground" : "text-warning"}>{m.saldoTotal.toLocaleString("pt-BR")}</b>
-                          {m.unidade && <span className="text-muted-foreground ml-1">{m.unidade}</span>}
-                        </span>
-                      </div>
-                      {m.locais.length > 0 ? (
-                        <div className="mt-1 space-y-0.5">
-                          {m.locais.map((l, i) => (
-                            <div key={i} className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                              <span className="truncate">{l.localNome}</span>
-                              <span className="tabular-nums shrink-0">{l.saldo.toLocaleString("pt-BR")}{m.unidade ? ` ${m.unidade}` : ""}</span>
-                            </div>
-                          ))}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
+              {/* Coluna 1 — ENTRADA (matéria-prima ou PEP da etapa anterior) */}
+              <ColBoard titulo={area.isPrimeira ? "Matéria-prima" : `PEP entrada${area.fromEstado ? ` · ${ESTADO_LABEL[area.fromEstado] ?? area.fromEstado}` : ""}`} icon={<Boxes className="w-3.5 h-3.5" />}>
+                <EstoqueLista linhas={area.isPrimeira ? materiais : entradaWip} vazio={area.isPrimeira ? "Sem materiais na engenharia desta fase." : "Sem PEP de entrada em estoque."} />
+              </ColBoard>
+
+              {/* Coluna 2 — ORDENS DE PRODUÇÃO */}
+              <ColBoard titulo="Ordens de Produção" icon={<Factory className="w-3.5 h-3.5" />}
+                acao={
+                  <button onClick={() => { setNovo({ itemId: produtos[0]?.id ?? "", quantidade: "", dataPrevista: "" }); setDisp(null); setErro(null); }}
+                    className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-700">
+                    <Plus className="w-3.5 h-3.5" /> Nova OP
+                  </button>
+                }>
+                {carregandoOps ? (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5 p-1"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando…</p>
+                ) : ops.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <Factory className="w-6 h-6 text-cyan-400 mb-1.5" />
+                    <p className="text-xs text-muted-foreground">Nenhuma OP hoje. Crie em &quot;Nova OP&quot;.</p>
+                  </div>
+                ) : (
+                  ops.map((o) => {
+                    const concl = o.etapaStatus === "CONCLUIDA";
+                    return (
+                      <div key={o.id} className={cn("rounded-lg border bg-card p-2.5", concl ? "border-success/30" : "border-border")}>
+                        <div className="flex items-center justify-between gap-2">
+                          <button onClick={() => router.push(`/pcp/ordens/${o.id}`)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600">{o.numero}</button>
+                          <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
+                            {o.etapaStatus === "CONCLUIDA" ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
+                          </span>
                         </div>
-                      ) : (
-                        <p className="mt-1 text-[11px] text-warning">Sem saldo em estoque</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* OPs do dia na área */}
-            {carregandoOps ? (
-              <div className="flex items-center gap-2 text-muted-foreground py-8 text-sm"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>
-            ) : ops.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-12 h-12 rounded-full bg-cyan-50 dark:bg-cyan-500/15 flex items-center justify-center mb-2"><Factory className="w-6 h-6 text-cyan-400" /></div>
-                <p className="text-sm font-medium text-foreground">Nenhuma OP nesta área hoje</p>
-                <p className="text-xs text-muted-foreground mt-1">Crie uma OP com &quot;Nova OP&quot;.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {ops.map((o) => {
-                  const concl = o.etapaStatus === "CONCLUIDA";
-                  return (
-                    <div key={o.id} className={cn("rounded-xl border bg-card p-3", concl ? "border-success/30" : "border-border")}>
-                      <div className="flex items-center justify-between gap-2">
-                        <button onClick={() => router.push(`/pcp/ordens/${o.id}`)} className="font-mono text-xs text-muted-foreground hover:text-cyan-600">{o.numero}</button>
-                        <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
-                          {o.etapaStatus === "CONCLUIDA" ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
-                        </span>
+                        <p className="text-sm font-medium text-foreground mt-1 truncate">{o.produto ?? "—"}</p>
+                        <p className="text-[11px] text-muted-foreground">{Number(o.quantidade)} {o.unidade}</p>
+                        {!concl && (
+                          <button onClick={() => { setApontar(o); setApForm({ quantidade: String(Number(o.quantidade) || ""), perda: "", biomassa: "" }); setErro(null); }}
+                            className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Apontar / Concluir
+                          </button>
+                        )}
                       </div>
-                      <p className="text-sm font-medium text-foreground mt-1 truncate">{o.produto ?? "—"}</p>
-                      <p className="text-xs text-muted-foreground">{Number(o.quantidade)} {o.unidade}</p>
-                      {!concl && (
-                        <button onClick={() => { setApontar(o); setApForm({ quantidade: String(Number(o.quantidade) || ""), perda: "", biomassa: "" }); setErro(null); }}
-                          className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Apontar / Concluir
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                    );
+                  })
+                )}
+              </ColBoard>
+
+              {/* Coluna 3 — SAÍDA (PEP que a etapa gera, ou produto acabado) */}
+              <ColBoard titulo={area.estadoSaida === "ACABADO" ? "Produto acabado" : area.estadoSaida ? `PEP saída · ${ESTADO_LABEL[area.estadoSaida] ?? area.estadoSaida}` : "Saída"} icon={<PackageCheck className="w-3.5 h-3.5" />}>
+                <EstoqueLista linhas={saidaEstoque} vazio={area.estadoSaida ? "Sem produção ainda." : "Etapa sem saída de WIP."} />
+              </ColBoard>
+            </div>
+          </>
         )}
       </div>
 
@@ -366,5 +365,53 @@ export default function OrdensBoardPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Coluna do board (Entrada / OPs / Saída).
+function ColBoard({ titulo, icon, acao, children }: { titulo: string; icon?: React.ReactNode; acao?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-border bg-muted/20 flex flex-col min-h-[10rem]">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border">
+        <p className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5 min-w-0">
+          {icon}<span className="truncate">{titulo}</span>
+        </p>
+        {acao}
+      </div>
+      <div className="p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-22rem)]">{children}</div>
+    </div>
+  );
+}
+
+// Lista de saldos de estoque (matéria-prima / PEP / PA), aberta por local.
+function EstoqueLista({ linhas, vazio }: { linhas: EstoqueLinha[] | null; vazio: string }) {
+  if (linhas === null) return <p className="text-xs text-muted-foreground flex items-center gap-1.5 p-1"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando…</p>;
+  if (linhas.length === 0) return <p className="text-xs text-muted-foreground p-1">{vazio}</p>;
+  return (
+    <>
+      {linhas.map((m) => (
+        <div key={m.itemId ?? m.descricao} className={cn("rounded-lg border px-3 py-2 text-xs bg-card", m.saldoTotal > 0 ? "border-border" : "border-warning/40 bg-warning/10")}>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-foreground font-medium truncate">{m.descricao}</span>
+            <span className="shrink-0 tabular-nums">
+              <b className={m.saldoTotal > 0 ? "text-foreground" : "text-warning"}>{m.saldoTotal.toLocaleString("pt-BR")}</b>
+              {m.unidade && <span className="text-muted-foreground ml-1">{m.unidade}</span>}
+            </span>
+          </div>
+          {m.locais.length > 0 ? (
+            <div className="mt-1 space-y-0.5">
+              {m.locais.map((l, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <span className="truncate">{l.localNome}</span>
+                  <span className="tabular-nums shrink-0">{l.saldo.toLocaleString("pt-BR")}{m.unidade ? ` ${m.unidade}` : ""}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1 text-[11px] text-warning">Sem saldo</p>
+          )}
+        </div>
+      ))}
+    </>
   );
 }
