@@ -1999,7 +1999,7 @@ export default function ProdutoDetailPage() {
                 </p>
               </div>
             ) : movView === "grafico" ? (
-              <MovimentacoesDiariasChart movs={movsOrdenadas} />
+              <MovimentacoesDiariasChart movs={movsOrdenadas} saldoAtual={estoqueTotalTodas} />
             ) : (
               <div className="rounded-xl border border-border overflow-hidden">
                 <table className="w-full text-sm">

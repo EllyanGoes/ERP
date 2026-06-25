@@ -9,6 +9,7 @@ import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { respostaSaldoNegativo, SaldoNegativoError } from "@/lib/estoque-guard";
 import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
 import { contabilizarLoteMovimentacao } from "@/lib/contabilidade";
+import { recalcularSaldos } from "@/lib/estoque-saldos";
 
 const itemSchema = z.object({
   itemId:         z.string().min(1),
@@ -126,6 +127,9 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      // (item, local) afetados — p/ recalcular a cadeia de saldos se for retroativo.
+      const afetados = new Map<string, { itemId: string; localEstoqueId: string }>();
+
       // Process each item
       for (const item of itens) {
         const { itemId, localEstoqueId, unidadeId, quantidade, valorUnitario, observacoes: obsItem, localizacao } = item;
@@ -212,6 +216,17 @@ export async function POST(req: NextRequest) {
             observacoes:  obsItem ?? observacoes,
           },
         });
+        afetados.set(`${itemId}|${localEstoqueId}`, { itemId, localEstoqueId });
+      }
+
+      // Movimentação RETROATIVA (dataMovimentacao no passado): o saldoAntes/Depois
+      // gravado acima é o da posição de HOJE e as movs seguintes não foram
+      // deslocadas — recalcula o extrato de cada (item, local) na ordem cronológica
+      // (ancorado no EstoqueItem). Sem isso a cadeia de saldos quebra.
+      if (dataMovimentacao) {
+        for (const a of Array.from(afetados.values())) {
+          await recalcularSaldos(tx, a.itemId, a.localEstoqueId, clienteDonoId);
+        }
       }
 
       // ── Auto-link supplier on ENTRADA ────────────────────────────────────────

@@ -8,7 +8,6 @@ import {
 type Mov = {
   tipo: string;
   quantidade: unknown;
-  saldoDepois?: unknown;
   lote?: { dataMovimentacao: string | null } | null;
   createdAt: string;
 };
@@ -17,37 +16,45 @@ function num(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
-// Gráfico de movimentações agregadas por DIA: barras de entradas × saídas +
-// linha do SALDO ao fim do dia (saldoDepois da última movimentação do dia).
-// Usa a mesma data exibida na tabela (lote.dataMovimentacao ?? createdAt) e
-// recebe a lista já filtrada — respeita período/local/tipo escolhidos.
-export default function MovimentacoesDiariasChart({ movs }: { movs: Mov[] }) {
+// Gráfico de movimentações por DIA: barras de entradas × saídas + linha do SALDO.
+// O saldo é o ACUMULADO de (entradas − saídas), ancorado no estoque atual do
+// produto (`saldoAtual`): anda só com movimentação e termina no estoque de hoje
+// — nunca cai sem saída. (Não usa saldoDepois, que é por local e "pula" quando a
+// última mov do dia é de outro local.) Recebe a lista já filtrada (respeita
+// período/local/tipo escolhidos).
+export default function MovimentacoesDiariasChart({ movs, saldoAtual }: { movs: Mov[]; saldoAtual?: number | null }) {
   const dados = useMemo(() => {
-    const map = new Map<string, { entrada: number; saida: number; saldo: number | null; ts: number }>();
+    const map = new Map<string, { entrada: number; saida: number }>();
     for (const m of movs) {
-      const ef = m.lote?.dataMovimentacao ?? m.createdAt;
-      const d = new Date(ef);
+      const d = new Date(m.lote?.dataMovimentacao ?? m.createdAt);
       if (Number.isNaN(d.getTime())) continue;
       const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
-      const cur = map.get(key) ?? { entrada: 0, saida: 0, saldo: null as number | null, ts: -Infinity };
+      const cur = map.get(key) ?? { entrada: 0, saida: 0 };
       const q = num(m.quantidade);
       if (m.tipo === "ENTRADA") cur.entrada += q;
       else if (m.tipo === "SAIDA") cur.saida += q;
-      // Saldo do dia = saldoDepois da movimentação mais recente (por createdAt) do dia.
-      const ts = new Date(m.createdAt).getTime();
-      if (m.saldoDepois != null && ts >= cur.ts) { cur.saldo = num(m.saldoDepois); cur.ts = ts; }
       map.set(key, cur);
     }
-    return Array.from(map.entries())
+    const dias = Array.from(map.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([k, v]) => ({
-        label: new Date(k + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-        entrada: Math.round(v.entrada * 1000) / 1000,
-        saida: Math.round(v.saida * 1000) / 1000,
-        saldo: v.saldo == null ? null : Math.round(v.saldo * 1000) / 1000,
-      }));
-  }, [movs]);
+      .map(([k, v]) => ({ key: k, entrada: round3(v.entrada), saida: round3(v.saida) }));
+
+    // Âncora: o saldo do último dia = estoque atual; recua pelo net de cada dia.
+    const netTotal = dias.reduce((s, d) => s + (d.entrada - d.saida), 0);
+    const temAncora = saldoAtual != null && Number.isFinite(saldoAtual);
+    let acc = temAncora ? (saldoAtual as number) - netTotal : 0;
+    return dias.map((d) => {
+      acc += d.entrada - d.saida;
+      return {
+        label: new Date(d.key + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+        entrada: d.entrada,
+        saida: d.saida,
+        saldo: round3(acc),
+      };
+    });
+  }, [movs, saldoAtual]);
 
   if (dados.length === 0) {
     return <p className="text-sm text-muted-foreground py-16 text-center border border-dashed border-border rounded-xl">Sem dados para o gráfico.</p>;
