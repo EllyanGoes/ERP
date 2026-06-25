@@ -37,6 +37,7 @@ export default function NotificationCenter() {
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [naoLidas, setNaoLidas] = useState(0);
   const [open, setOpen] = useState(false);
+  const [aba, setAba] = useState<"pendentes" | "vistas">("pendentes");
   const [toasts, setToasts] = useState<Notif[]>([]);
   const [mounted, setMounted] = useState(false);
 
@@ -163,6 +164,10 @@ export default function NotificationCenter() {
     if (n.link) router.push(n.link);
   }
 
+  const pendentes = notifs.filter((n) => !n.lida);
+  const vistas = notifs.filter((n) => n.lida);
+  const lista = aba === "pendentes" ? pendentes : vistas;
+
   return (
     <>
       <div className="relative">
@@ -194,11 +199,32 @@ export default function NotificationCenter() {
                 </button>
               )}
             </div>
+            {/* Abas: pendentes (não lidas) × vistas (já lidas) */}
+            <div className="flex items-center gap-1 px-2 pt-2 border-b border-border">
+              {([["pendentes", "Pendentes", pendentes.length], ["vistas", "Vistas", vistas.length]] as const).map(([k, label, count]) => (
+                <button
+                  key={k}
+                  onClick={() => setAba(k)}
+                  className={`relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors ${
+                    aba === k ? "text-foreground border-b-2 border-info -mb-px" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                  <span className={`inline-flex items-center justify-center min-w-[18px] h-4 px-1 rounded-full text-[10px] font-semibold ${
+                    k === "pendentes" && count > 0 ? "bg-info/15 text-info" : "bg-muted text-muted-foreground"
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              ))}
+            </div>
             <div className="overflow-y-auto">
-              {notifs.length === 0 ? (
-                <p className="px-4 py-8 text-center text-sm text-muted-foreground">Sem notificações.</p>
+              {lista.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  {aba === "pendentes" ? "Nenhuma notificação pendente." : "Nenhuma notificação vista."}
+                </p>
               ) : (
-                notifs.map((n) => (
+                lista.map((n) => (
                   <button
                     key={n.id}
                     onClick={() => abrir(n)}
