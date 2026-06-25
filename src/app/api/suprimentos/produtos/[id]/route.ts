@@ -90,6 +90,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.unidadeId   !== undefined) updateData.unidadeId   = body.unidadeId || null;
   if (body.tipoProdutoId !== undefined) updateData.tipoProdutoId = body.tipoProdutoId || null;
   if (body.categoriaEstoque !== undefined) updateData.categoriaEstoque = body.categoriaEstoque || null;
+  if (body.naturezaPadraoId !== undefined) updateData.naturezaPadraoId = body.naturezaPadraoId || null;
+  if (typeof body.fabril === "boolean") updateData.fabril = body.fabril;
+  if (typeof body.capitaliza === "boolean") updateData.capitaliza = body.capitaliza;
+  if (typeof body.compoeCusto === "boolean") updateData.compoeCusto = body.compoeCusto;
   if (body.ncm         !== undefined) updateData.ncm         = body.ncm || null;
   if (body.precoVenda  !== undefined) updateData.precoVenda  = parseFloat(body.precoVenda) || 0;
   // precoCusto is auto-maintained by CMPM (entrada movements) — never updated via PATCH

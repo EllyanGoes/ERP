@@ -17,6 +17,7 @@ const schema = z.object({
   contaContrapartidaId: z.string().optional().nullable().transform((v) => v || null),
   ativo: z.boolean().optional(),
   cif: z.boolean().optional(),
+  destinoSugerido: z.enum(["PEP_MD", "IMOBILIZADO", "CIF", "DESPESA"]).optional().nullable().transform((v) => v || null),
 });
 
 // GET /api/financeiro/naturezas?tipo=ENTRADA|SAIDA&ativo=1

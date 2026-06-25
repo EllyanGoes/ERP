@@ -16,6 +16,7 @@ const schema = z.object({
   contaContrapartidaId: z.string().optional().nullable(),
   ativo: z.boolean().optional(),
   cif: z.boolean().optional(),
+  destinoSugerido: z.enum(["PEP_MD", "IMOBILIZADO", "CIF", "DESPESA"]).optional().nullable(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
