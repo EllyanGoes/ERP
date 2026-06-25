@@ -34,6 +34,7 @@ export default function LancamentosContabeisPage() {
   const [lancs, setLancs] = useState<Lancamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [gerando, setGerando] = useState(false);
+  const [progresso, setProgresso] = useState<{ pct: number; fase: string } | null>(null);
   const [aviso, setAviso] = useState("");
   // Filtros: classe (manual/auto), origem (tipo) e busca (histórico/código).
   const [classe, setClasse] = useState<"TODOS" | "AUTO" | "MANUAL">("TODOS");
@@ -72,15 +73,48 @@ export default function LancamentosContabeisPage() {
   }, [focusId, loading, lancs]);
 
   async function gerarRetroativos() {
-    setGerando(true); setAviso("");
+    setGerando(true); setAviso(""); setProgresso({ pct: 0, fase: "Iniciando" });
     try {
       const res = await fetch("/api/contabilidade/backfill?reset=vendas", { method: "POST" });
-      const j = await res.json();
-      if (res.ok) {
-        setAviso(`${j.processados} título(s) processado(s).${j.erros?.length ? ` ${j.erros.length} com erro.` : ""}`);
+      // 409 (já em execução) ou erro sem stream → corpo JSON.
+      if (!res.ok || !res.body) {
+        const j = await res.json().catch(() => ({}));
+        setAviso(j.error || "Erro ao gerar lançamentos");
+        return;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let final: { processados?: number; erros?: string[]; error?: string } | null = null;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const partes = buffer.split("\n\n");
+        buffer = partes.pop() ?? "";
+        for (const parte of partes) {
+          const linha = parte.replace(/^data:\s*/, "").trim();
+          if (!linha) continue;
+          try {
+            const obj = JSON.parse(linha);
+            if (obj.done) final = obj;
+            else if (typeof obj.pct === "number") setProgresso({ pct: obj.pct, fase: obj.fase ?? "" });
+          } catch { /* linha parcial */ }
+        }
+      }
+      if (final?.error) {
+        setAviso(final.error);
+      } else if (final) {
+        setProgresso({ pct: 100, fase: "Concluído" });
+        setAviso(`${final.processados} título(s) processado(s).${final.erros?.length ? ` ${final.erros.length} com erro.` : ""}`);
         await load();
-      } else setAviso(j.error || "Erro ao gerar lançamentos");
-    } finally { setGerando(false); }
+      }
+    } catch {
+      setAviso("Erro de conexão durante o reprocesso.");
+    } finally {
+      setGerando(false);
+      setProgresso(null);
+    }
   }
 
   return (
@@ -92,13 +126,24 @@ export default function LancamentosContabeisPage() {
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={gerarRetroativos} disabled={gerando}>
               {gerando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
-              Gerar retroativos
+              {gerando ? `Gerando… ${progresso?.pct ?? 0}%` : "Gerar retroativos"}
             </Button>
             <NovoLancamentoDialog onDone={load} />
           </div>
         }
       />
       <div className="px-8 pb-8 space-y-4">
+        {gerando && progresso && (
+          <div className="rounded-lg border border-info/30 bg-info/10 px-4 py-3 text-sm text-info space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span>Gerando lançamentos retroativos{progresso.fase ? ` — ${progresso.fase}` : ""}…</span>
+              <span className="font-semibold tabular-nums">{progresso.pct}%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-info/20 overflow-hidden">
+              <div className="h-full rounded-full bg-info transition-all duration-300" style={{ width: `${progresso.pct}%` }} />
+            </div>
+          </div>
+        )}
         {aviso && <div className="rounded-lg border border-info/30 bg-info/10 px-4 py-2.5 text-sm text-info">{aviso}</div>}
 
         {/* Filtros */}
