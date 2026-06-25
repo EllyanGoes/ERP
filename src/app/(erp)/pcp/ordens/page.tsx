@@ -34,6 +34,7 @@ export default function OrdensBoardPage() {
   const [materiais, setMateriais] = useState<EstoqueLinha[] | null>(null);
   const [entradaWip, setEntradaWip] = useState<EstoqueLinha[] | null>(null);
   const [saidaEstoque, setSaidaEstoque] = useState<EstoqueLinha[] | null>(null);
+  const [contagem, setContagem] = useState<Record<string, { abertas: number; concluidas: number }>>({});
   const [loading, setLoading] = useState(true);
   const [carregandoOps, setCarregandoOps] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -49,6 +50,7 @@ export default function OrdensBoardPage() {
   const [apBusy, setApBusy] = useState(false);
 
   const area = areas.find((a) => a.nodeId === areaNodeId) ?? null;
+  const minSeq = areas.length ? Math.min(...areas.map((a) => a.sequencia)) : 0;
 
   // 1. Fluxos publicados
   useEffect(() => {
@@ -81,6 +83,13 @@ export default function OrdensBoardPage() {
     } finally { setCarregandoOps(false); }
   }, [fluxoId, areaNodeId, data]);
   useEffect(() => { loadOps(); }, [loadOps]);
+
+  // Contagem de OPs por área (abertas/concluídas) no dia — exibida nas abas.
+  useEffect(() => {
+    if (!fluxoId) { setContagem({}); return; }
+    fetch(`/api/pcp/ordens/area/contagem?fluxoId=${fluxoId}&data=${data}`)
+      .then((r) => r.json()).then((j) => setContagem(j.data ?? {})).catch(() => setContagem({}));
+  }, [fluxoId, data, ops]);
 
   // Saldo dos materiais necessários na área (insumos da operação no fluxo)
   useEffect(() => {
@@ -201,7 +210,17 @@ export default function OrdensBoardPage() {
                 className={cn("px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors",
                   a.nodeId === areaNodeId ? "border-cyan-600 text-cyan-700 dark:text-cyan-400" : "border-transparent text-muted-foreground hover:text-foreground")}>
                 <span className="text-[10px] text-muted-foreground mr-1.5">{a.sequencia}</span>{a.centroTrabalho ?? a.nome}
-                {a.estadoSaida && <span className="text-[11px] text-muted-foreground"> · {ESTADO_LABEL[a.estadoSaida] ?? a.estadoSaida}</span>}
+                {(() => {
+                  const c = contagem[a.nodeId];
+                  if (!c || c.abertas + c.concluidas === 0) return null;
+                  return (
+                    <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium align-middle" title="OPs abertas · concluídas no dia">
+                      <span className="text-cyan-600 dark:text-cyan-400">{c.abertas}</span>
+                      <span className="text-muted-foreground/60">/</span>
+                      <span className="text-emerald-600 dark:text-emerald-400">{c.concluidas}</span>
+                    </span>
+                  );
+                })()}
               </button>
             ))}
           </div>
@@ -221,7 +240,7 @@ export default function OrdensBoardPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
               {/* Coluna 1 — ENTRADA (matéria-prima ou PEP da etapa anterior) */}
-              <ColBoard cor="amber" titulo={area.isPrimeira ? "Matéria-prima" : `PEP entrada${area.fromEstado ? ` · ${ESTADO_LABEL[area.fromEstado] ?? area.fromEstado}` : ""}`} icon={<Boxes className="w-3.5 h-3.5" />}>
+              <ColBoard cor="amber" titulo={area.sequencia === minSeq ? "Matéria-prima" : area.fromEstado ? `PEP entrada · ${ESTADO_LABEL[area.fromEstado] ?? area.fromEstado}` : "PEP de entrada"} icon={<Boxes className="w-3.5 h-3.5" />}>
                 <EstoqueLista linhas={area.isPrimeira ? materiais : entradaWip} vazio={area.isPrimeira ? "Sem materiais na engenharia desta fase." : "Sem PEP de entrada em estoque."} />
               </ColBoard>
 
