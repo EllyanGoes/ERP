@@ -7,7 +7,7 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
-import { Plus, RefreshCw, Factory, CheckCircle2, List, Loader2, X, Boxes, PackageCheck } from "lucide-react";
+import { Plus, RefreshCw, Factory, CheckCircle2, List, Loader2, X, Boxes, PackageCheck, Printer } from "lucide-react";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
@@ -284,12 +284,30 @@ export default function OrdensBoardPage() {
                       <div key={o.id} className={cn("rounded-lg border bg-card p-2.5", concl ? "border-success/30" : "border-border")}>
                         <div className="flex items-center justify-between gap-2">
                           <button onClick={() => router.push(`/pcp/ordens/${o.id}`)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600">{o.numero}</button>
-                          <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
-                            {o.etapaStatus === "CONCLUIDA" ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <a href={`/pcp/ordens/${o.id}/imprimir`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-cyan-600" title="Imprimir OP"><Printer className="w-3.5 h-3.5" /></a>
+                            <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
+                              {o.etapaStatus === "CONCLUIDA" ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
+                            </span>
+                          </div>
                         </div>
-                        <p className="text-sm font-medium text-foreground mt-1 truncate">{o.produto ?? "—"}</p>
-                        <p className="text-[11px] text-muted-foreground">{Number(o.quantidade)} {o.unidade}</p>
+                        {o.produtos.length > 1 ? (
+                          <p className="text-sm font-medium text-foreground mt-1 truncate">{o.produtos.length} produtos</p>
+                        ) : (
+                          <p className="text-sm font-medium text-foreground mt-1 truncate">{o.produto ?? "—"}</p>
+                        )}
+                        <p className="text-[11px] text-muted-foreground">
+                          {o.produtos.length > 1
+                            ? o.produtos.map((p) => `${Number(p.planejada)}${p.unidade ? ` ${p.unidade}` : ""}`).join(" · ")
+                            : `${Number(o.produtos[0]?.planejada ?? o.quantidade)} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`}
+                        </p>
+                        {(o.responsavel || o.fimPrevisto) && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                            {o.responsavel && <span>👤 {o.responsavel}</span>}
+                            {o.responsavel && o.fimPrevisto && " · "}
+                            {o.fimPrevisto && <span>até {new Date(o.fimPrevisto).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>}
+                          </p>
+                        )}
                         {!concl && (
                           <button onClick={() => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perda: "", biomassa: "" }); setErro(null); }}
                             className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">

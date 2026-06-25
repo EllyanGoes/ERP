@@ -17,6 +17,11 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     include: {
       item: { select: { id: true, codigo: true, descricao: true } },
       fluxoVersao: { select: { versao: true, fluxo: { select: { id: true, nome: true } } } },
+      responsavelColaborador: { select: { nome: true } },
+      produtoItens: {
+        select: { itemId: true, quantidadePlanejada: true, quantidadeReal: true,
+          item: { select: { codigo: true, descricao: true } }, unidade: { select: { sigla: true } } },
+      },
       etapas: { orderBy: { sequencia: "asc" } },
       consumos: { orderBy: { data: "desc" } },
       movimentacoes: {
