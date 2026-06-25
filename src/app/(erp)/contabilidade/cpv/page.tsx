@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, Save, BadgeCheck, Calculator, Info } from "lucide-react";
+import { Loader2, Save, BadgeCheck, Calculator, Info, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -338,12 +338,19 @@ export default function CusteioPage() {
                 {apropriando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />} Apropriar CIF
               </Button>
             </div>
-            <div className="rounded-lg border border-dashed border-border p-4 flex items-center justify-between gap-3 opacity-60">
+            <div className="rounded-lg border border-border p-4 flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-medium text-foreground">Apropriar MOD ao PEP <span className="text-[11px] font-normal text-muted-foreground">(em breve)</span></p>
-                <p className="text-[12px] text-muted-foreground">Folha da mão de obra direta → PEP-MOD (1.1.3.0005.0002).</p>
+                <p className="text-sm font-medium text-foreground">Apropriar MOD ao PEP</p>
+                <p className="text-[12px] text-muted-foreground">
+                  A mão de obra é apropriada ao <b>fechar a folha</b> da competência (RH → Folhas):
+                  MOD → PEP-MOD (1.1.3.0005.0002), MOI → CIF a Apropriar, Admin → Despesa.
+                  Classifique os colaboradores (MOD/MOI/Admin) e feche a folha do mês.
+                </p>
               </div>
-              <Button disabled variant="outline">Em breve</Button>
+              <a href="/rh/folhas"
+                className="shrink-0 inline-flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg border border-border hover:bg-muted">
+                <FileText className="w-4 h-4" /> Ir para Folhas
+              </a>
             </div>
             {msg && <span className={`text-sm ${msg.ok ? "text-emerald-600" : "text-rose-500"}`}>{msg.text}</span>}
           </CardContent>

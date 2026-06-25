@@ -18,16 +18,25 @@ import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurat
 type Filial   = { id: string; razaoSocial: string; nomeFantasia: string | null };
 type UsuarioMin = { id: string; nome: string; email: string };
 
+type Classif = "MOD" | "MOI" | "ADMIN";
 type Colaborador = {
   id:       string;
   nome:     string;
   cpf:      string | null;
   cargo:    string | null;
   setor:    { id: string; nome: string } | null;
+  classificacaoCusto: Classif | null;
   telefone: string | null;
   ativo:    boolean;
   filiais:  Filial[];
   usuario:  UsuarioMin | null;
+};
+
+// Classificação de custo (rateio da folha): MOD→PEP-MOD, MOI→CIF, ADMIN→Despesa.
+const CLASSIF_BADGE: Record<Classif, { label: string; cls: string }> = {
+  MOD:   { label: "MOD",   cls: "bg-sky-500/15 text-sky-600 dark:text-sky-400" },
+  MOI:   { label: "MOI",   cls: "bg-violet-500/15 text-violet-600 dark:text-violet-400" },
+  ADMIN: { label: "Admin", cls: "bg-muted text-muted-foreground" },
 };
 
 // ── Column definitions ────────────────────────────────────────────────────────
@@ -59,6 +68,20 @@ const COLS: ColDef<Colaborador>[] = [
     thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3 text-muted-foreground",
     render: (c) => c.setor?.nome || <span className="text-muted-foreground/60">—</span>,
+  },
+  {
+    id: "classificacao",
+    label: "Classif. custo",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-28",
+    tdClass: "px-4 py-3",
+    render: (c) =>
+      c.classificacaoCusto ? (
+        <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium", CLASSIF_BADGE[c.classificacaoCusto].cls)}>
+          {CLASSIF_BADGE[c.classificacaoCusto].label}
+        </span>
+      ) : (
+        <span className="text-muted-foreground/60 text-xs">— sem —</span>
+      ),
   },
   {
     id: "filial",
@@ -123,6 +146,25 @@ export default function ColaboradoresPage() {
   const [loading,   setLoading]   = useState(true);
   const [search,    setSearch]    = useState("");
   const [filtroAtivo, setFiltroAtivo] = useState<"" | "true" | "false">("");
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [classificando, setClassificando] = useState(false);
+
+  const toggleSel = (id: string) => setSel((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const classificar = useCallback(async (cl: Classif | null) => {
+    const ids = Array.from(sel);
+    if (!ids.length) return;
+    setClassificando(true);
+    try {
+      await fetch("/api/empresa/colaboradores/classificar", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, classificacaoCusto: cl }),
+      });
+      setSel(new Set());
+      await load();
+    } finally { setClassificando(false); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,6 +188,9 @@ export default function ColaboradoresPage() {
 
   const ativos   = colaboradores.filter((c) => c.ativo).length;
   const inativos = colaboradores.filter((c) => !c.ativo).length;
+  const semClassif = colaboradores.filter((c) => !c.classificacaoCusto).length;
+  const todosSelecionados = colaboradores.length > 0 && colaboradores.every((c) => sel.has(c.id));
+  const toggleTodos = () => setSel(todosSelecionados ? new Set() : new Set(colaboradores.map((c) => c.id)));
 
   // Column order
   const [colOrder, setColOrder] = useColumnOrder("colaboradores", COLS.map((c) => c.id));
@@ -217,7 +262,30 @@ export default function ColaboradoresPage() {
             <option value="true">Ativos</option>
             <option value="false">Inativos</option>
           </select>
+          {semClassif > 0 && sel.size === 0 && (
+            <span className="ml-auto text-xs text-warning bg-warning/10 px-2.5 py-1.5 rounded-lg">
+              {semClassif} sem classificação de custo
+            </span>
+          )}
         </div>
+
+        {/* Barra de classificação em massa (MOD/MOI/ADMIN) → rateio da folha */}
+        {sel.size > 0 && (
+          <div className="flex items-center gap-3 flex-wrap px-4 py-2.5 rounded-xl border border-info/30 bg-info/5">
+            <span className="text-sm font-medium text-foreground">{sel.size} selecionado(s) — classificar como:</span>
+            {classificando ? (
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            ) : (
+              <div className="flex items-center gap-2">
+                <button onClick={() => classificar("MOD")} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-sky-500/15 text-sky-600 dark:text-sky-400 hover:bg-sky-500/25">MOD <span className="opacity-60">(PEP)</span></button>
+                <button onClick={() => classificar("MOI")} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-violet-500/15 text-violet-600 dark:text-violet-400 hover:bg-violet-500/25">MOI <span className="opacity-60">(CIF)</span></button>
+                <button onClick={() => classificar("ADMIN")} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-muted/70">Admin <span className="opacity-60">(despesa)</span></button>
+                <button onClick={() => classificar(null)} className="text-xs font-medium px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted">Limpar</button>
+                <button onClick={() => setSel(new Set())} className="text-xs text-muted-foreground hover:text-foreground ml-1">Cancelar</button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Table */}
         {loading ? (
@@ -235,6 +303,10 @@ export default function ColaboradoresPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted border-b border-border">
                 <tr>
+                  <th className="w-10 px-3 py-3">
+                    <input type="checkbox" checked={todosSelecionados} onChange={toggleTodos}
+                      className="w-4 h-4 rounded border-border align-middle" title="Selecionar todos" />
+                  </th>
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
                   ))}
@@ -245,8 +317,12 @@ export default function ColaboradoresPage() {
                   <tr
                     key={c.id}
                     onClick={() => router.push(`/empresa/colaboradores/${c.id}`)}
-                    className="hover:bg-muted/60 cursor-pointer transition-colors"
+                    className={cn("hover:bg-muted/60 cursor-pointer transition-colors", sel.has(c.id) && "bg-info/5")}
                   >
+                    <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" checked={sel.has(c.id)} onChange={() => toggleSel(c.id)}
+                        className="w-4 h-4 rounded border-border align-middle" />
+                    </td>
                     {orderedCols.map((col) => (
                       <td key={col.id} className={col.tdClass}>{col.render(c)}</td>
                     ))}
