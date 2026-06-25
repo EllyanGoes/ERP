@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus, Pencil, Trash2, Loader2, Info, ArrowDownLeft, ArrowUpRight, FolderClosed, ChevronDown, Tag,
-  Download, Copy, FileText, Check,
+  Download, Copy, FileText, Check, Search, ChevronRight, CornerDownRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
@@ -28,6 +28,8 @@ const GRUPO_LABEL: Record<Grupo, string> = {
   INVESTIMENTO: "Atividades de investimento",
   FINANCIAMENTO: "Atividades de financiamento",
 };
+
+const COLLAPSE_KEY = "financeiro:naturezas:collapsed";
 
 type Tipo = "ENTRADA" | "SAIDA";
 type Subgrupo = { id: string; nome: string; grupo: Grupo };
@@ -54,6 +56,15 @@ export default function NaturezasPage() {
   const [subModal, setSubModal] = useState<Subgrupo | "new" | null>(null);
   const [copiado, setCopiado] = useState(false);
 
+  // Filtros
+  const [search, setSearch] = useState("");
+  const [filtroGrupo, setFiltroGrupo] = useState<"" | Grupo>("");
+  const [filtroTipo, setFiltroTipo] = useState<"" | Tipo>("");
+  const [filtroAtivo, setFiltroAtivo] = useState<"" | "true" | "false">("");
+
+  // Árvore: grupos/subgrupos recolhidos (persistido no localStorage).
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
   const load = useCallback(async () => {
     setLoading(true);
     const [n, s] = await Promise.all([
@@ -68,6 +79,27 @@ export default function NaturezasPage() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  // Carrega o estado recolhido persistido.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(COLLAPSE_KEY);
+      if (raw) setCollapsed(new Set(JSON.parse(raw) as string[]));
+    } catch { /* ignore */ }
+  }, []);
+
+  const persistCollapsed = useCallback((next: Set<string>) => {
+    setCollapsed(next);
+    try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
+  }, []);
+  const toggle = useCallback((id: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
   async function excluirNatureza(r: Natureza) {
     if (!confirm(`Excluir a natureza "${r.nome}"?`)) return;
     await fetch(`/api/financeiro/naturezas/${r.id}`, { method: "DELETE" });
@@ -79,11 +111,62 @@ export default function NaturezasPage() {
     await load();
   }
 
-  // Grupos que têm algum conteúdo (natureza ou subgrupo)
+  // Grupos que têm algum conteúdo (natureza ou subgrupo) — base para exportação (sem filtro)
   const gruposComConteudo = GRUPOS.filter(
     (g) => rows.some((r) => r.grupo === g) || subgrupos.some((s) => s.grupo === g),
   );
   const semConteudo = gruposComConteudo.length === 0;
+
+  // ── Filtro + montagem da árvore ──────────────────────────────────────────────
+  const temFiltro = !!(search.trim() || filtroGrupo || filtroTipo || filtroAtivo);
+
+  const naturezasFiltradas = useMemo(() => {
+    const termo = search.trim().toLowerCase();
+    return rows.filter((n) => {
+      if (termo && !n.nome.toLowerCase().includes(termo)) return false;
+      if (filtroGrupo && n.grupo !== filtroGrupo) return false;
+      if (filtroTipo && n.tipo !== filtroTipo) return false;
+      if (filtroAtivo === "true" && !n.ativo) return false;
+      if (filtroAtivo === "false" && n.ativo) return false;
+      return true;
+    });
+  }, [rows, search, filtroGrupo, filtroTipo, filtroAtivo]);
+
+  // Árvore: grupo → (subgrupos + naturezas soltas). Com filtro, esconde grupos/subgrupos vazios.
+  const arvore = useMemo(() => {
+    return GRUPOS
+      .filter((g) => !filtroGrupo || g === filtroGrupo)
+      .map((g) => {
+        const naturezasGrupo = naturezasFiltradas.filter((n) => n.grupo === g);
+        const semSubgrupo = naturezasGrupo.filter((n) => !n.subgrupoId);
+        const subs = subgrupos
+          .filter((s) => s.grupo === g)
+          .map((s) => ({ sub: s, naturezas: naturezasGrupo.filter((n) => n.subgrupoId === s.id) }))
+          // sem filtro, mostra todos os subgrupos (mesmo vazios); com filtro, só os com naturezas
+          .filter((x) => (temFiltro ? x.naturezas.length > 0 : true));
+        return { grupo: g, total: naturezasGrupo.length, semSubgrupo, subs };
+      })
+      // grupo só aparece se tem natureza correspondente, ou (sem filtro) se tem qualquer conteúdo
+      .filter((sec) =>
+        temFiltro ? sec.total > 0 : sec.total > 0 || sec.subs.length > 0,
+      );
+  }, [naturezasFiltradas, subgrupos, filtroGrupo, temFiltro]);
+
+  const recolherTudo = useCallback(() => {
+    const ids: string[] = [];
+    for (const g of GRUPOS) {
+      ids.push(g);
+      for (const s of subgrupos.filter((x) => x.grupo === g)) ids.push(`sub:${s.id}`);
+    }
+    persistCollapsed(new Set(ids));
+  }, [subgrupos, persistCollapsed]);
+  const expandirTudo = useCallback(() => persistCollapsed(new Set()), [persistCollapsed]);
+
+  const limparFiltros = () => { setSearch(""); setFiltroGrupo(""); setFiltroTipo(""); setFiltroAtivo(""); };
+
+  const totalNat = rows.length;
+  const ativas = rows.filter((n) => n.ativo).length;
+  const inativas = totalNat - ativas;
 
   // ── Exportação (texto p/ copiar e PDF) ──────────────────────────────────────
   const tipoLabel = (t: Tipo) => (t === "ENTRADA" ? "Entrada" : "Saída");
@@ -194,33 +277,199 @@ export default function NaturezasPage() {
           </div>
         }
       />
-      <div className="px-8 pb-8 max-w-3xl space-y-6">
-        <div className="flex items-start gap-3 bg-info/10 border border-info/20 rounded-xl p-4 text-sm text-info">
+      <div className="px-8 pb-8 space-y-5">
+        <div className="flex items-start gap-3 bg-info/10 border border-info/20 rounded-xl p-4 text-sm text-info max-w-3xl">
           <Info className="w-4 h-4 mt-0.5 shrink-0" />
           <p>
             A natureza classifica os títulos por <b>tipo</b> (entrada/saída) e <b>grupo</b> do fluxo de caixa. É escolhida no Pedido de Venda e no Documento de Entrada e diferente do plano de contas.
           </p>
         </div>
 
-        {loading ? (
-          <div className="py-16 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground/60" /></div>
-        ) : gruposComConteudo.length === 0 ? (
-          <div className="py-16 text-center text-muted-foreground text-sm">Nenhuma natureza cadastrada.</div>
-        ) : (
-          <div className="space-y-8">
-            {gruposComConteudo.map((g) => (
-              <GrupoSecao
-                key={g}
-                grupo={g}
-                naturezas={rows.filter((r) => r.grupo === g)}
-                subgrupos={subgrupos.filter((s) => s.grupo === g)}
-                onEditNat={setNatModal}
-                onDelNat={excluirNatureza}
-                onEditSub={setSubModal}
-                onDelSub={excluirSubgrupo}
-              />
-            ))}
+        {/* Resumo */}
+        <div className="flex items-center gap-4">
+          <div className="rounded-xl px-5 py-3 bg-info/10 text-info flex items-center gap-3">
+            <Tag className="w-5 h-5 opacity-60" />
+            <div>
+              <p className="text-xs font-medium opacity-70">Total</p>
+              <p className="text-2xl font-bold leading-none mt-0.5">{totalNat}</p>
+            </div>
           </div>
+          <div className="rounded-xl px-5 py-3 bg-success/10 text-success flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-emerald-400" />
+            <div>
+              <p className="text-xs font-medium opacity-70">Ativas</p>
+              <p className="text-2xl font-bold leading-none mt-0.5">{ativas}</p>
+            </div>
+          </div>
+          {inativas > 0 && (
+            <div className="rounded-xl px-5 py-3 bg-muted text-muted-foreground flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-gray-400" />
+              <div>
+                <p className="text-xs font-medium opacity-70">Inativas</p>
+                <p className="text-2xl font-bold leading-none mt-0.5">{inativas}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Filtros */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar natureza..."
+              className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </div>
+
+          <select
+            value={filtroGrupo}
+            onChange={(e) => setFiltroGrupo(e.target.value as "" | Grupo)}
+            className="px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400 text-foreground"
+          >
+            <option value="">Todos os grupos</option>
+            {GRUPOS.map((g) => <option key={g} value={g}>{GRUPO_LABEL[g]}</option>)}
+          </select>
+
+          <select
+            value={filtroTipo}
+            onChange={(e) => setFiltroTipo(e.target.value as "" | Tipo)}
+            className="px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400 text-foreground"
+          >
+            <option value="">Todos os tipos</option>
+            <option value="ENTRADA">Entradas</option>
+            <option value="SAIDA">Saídas</option>
+          </select>
+
+          <select
+            value={filtroAtivo}
+            onChange={(e) => setFiltroAtivo(e.target.value as "" | "true" | "false")}
+            className="px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400 text-foreground"
+          >
+            <option value="">Todos</option>
+            <option value="true">Ativas</option>
+            <option value="false">Inativas</option>
+          </select>
+
+          {temFiltro && (
+            <button
+              type="button"
+              onClick={limparFiltros}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-md border border-border hover:bg-muted"
+            >
+              Limpar
+            </button>
+          )}
+        </div>
+
+        {/* Árvore: Grupo → Subgrupo → Natureza */}
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : semConteudo ? (
+          <div className="py-16 text-center text-muted-foreground text-sm">Nenhuma natureza cadastrada.</div>
+        ) : arvore.length === 0 ? (
+          <div className="py-16 text-center text-muted-foreground text-sm">Nenhuma natureza para o filtro.</div>
+        ) : (
+          <>
+            <div className="flex items-center justify-end gap-2">
+              <button type="button" onClick={recolherTudo} className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-md border border-border hover:bg-muted">
+                Recolher tudo
+              </button>
+              <button type="button" onClick={expandirTudo} className="text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-md border border-border hover:bg-muted">
+                Expandir tudo
+              </button>
+            </div>
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-2.5 border-b border-border bg-muted text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                <span>Natureza</span>
+                <span className="text-center w-24">Status</span>
+                <span className="w-16 text-right">Ações</span>
+              </div>
+              <ul>
+                {arvore.map((sec) => {
+                  const grupoRecolhido = collapsed.has(sec.grupo);
+                  return (
+                    <li key={sec.grupo}>
+                      {/* Cabeçalho do grupo */}
+                      <button
+                        type="button"
+                        onClick={() => toggle(sec.grupo)}
+                        className="w-full grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-2 border-b border-gray-50 hover:bg-muted/60 text-sm text-left"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {grupoRecolhido ? <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
+                          <span className="font-semibold text-foreground truncate">{GRUPO_LABEL[sec.grupo]}</span>
+                          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-muted text-muted-foreground text-[11px] font-medium shrink-0 tabular-nums" title={`${sec.total} natureza(s)`}>
+                            {sec.total}
+                          </span>
+                        </div>
+                        <span className="w-24" />
+                        <span className="w-16" />
+                      </button>
+
+                      {!grupoRecolhido && (
+                        <>
+                          {/* Subgrupos do grupo */}
+                          {sec.subs.map(({ sub, naturezas }) => {
+                            const subRecolhido = collapsed.has(`sub:${sub.id}`);
+                            return (
+                              <div key={sub.id}>
+                                <div className="group/row grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-2 border-b border-gray-50 hover:bg-muted/60 text-sm">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggle(`sub:${sub.id}`)}
+                                    className="flex items-center gap-2 min-w-0 text-left"
+                                    style={{ paddingLeft: "18px" }}
+                                  >
+                                    {subRecolhido ? <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
+                                    <FolderClosed className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+                                    <span className="font-medium text-foreground truncate">{sub.nome}</span>
+                                    <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-muted text-muted-foreground text-[11px] font-medium shrink-0 tabular-nums" title={`${naturezas.length} natureza(s)`}>
+                                      {naturezas.length}
+                                    </span>
+                                  </button>
+                                  <span className="w-24" />
+                                  <div className="w-16 flex items-center justify-end gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={() => setSubModal(sub)}
+                                      className="p-1.5 rounded-lg text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
+                                      title="Editar subgrupo"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => excluirSubgrupo(sub)}
+                                      className="p-1.5 rounded-lg text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
+                                      title="Excluir subgrupo"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                                {!subRecolhido && naturezas.map((n) => (
+                                  <NaturezaLinha key={n.id} n={n} nivel={2} onEdit={setNatModal} onDelete={excluirNatureza} />
+                                ))}
+                              </div>
+                            );
+                          })}
+
+                          {/* Naturezas sem subgrupo */}
+                          {sec.semSubgrupo.map((n) => (
+                            <NaturezaLinha key={n.id} n={n} nivel={1} onEdit={setNatModal} onDelete={excluirNatureza} />
+                          ))}
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </>
         )}
       </div>
 
@@ -245,89 +494,53 @@ export default function NaturezasPage() {
   );
 }
 
-function GrupoSecao({ grupo, naturezas, subgrupos, onEditNat, onDelNat, onEditSub, onDelSub }: {
-  grupo: Grupo;
-  naturezas: Natureza[];
-  subgrupos: Subgrupo[];
-  onEditNat: (n: Natureza) => void;
-  onDelNat: (n: Natureza) => void;
-  onEditSub: (s: Subgrupo) => void;
-  onDelSub: (s: Subgrupo) => void;
-}) {
-  const semSubgrupo = naturezas.filter((n) => !n.subgrupoId);
-  return (
-    <section className="space-y-1">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1 mb-2">{GRUPO_LABEL[grupo]}</h2>
-      <div className="border border-border rounded-xl bg-card shadow-sm divide-y divide-border overflow-hidden">
-        {subgrupos.map((s) => {
-          const filhas = naturezas.filter((n) => n.subgrupoId === s.id);
-          return (
-            <div key={s.id}>
-              <RowShell
-                indent={0}
-                left={
-                  <span className="inline-flex items-center gap-2 text-foreground font-medium">
-                    <FolderClosed className="w-4 h-4 text-muted-foreground" />
-                    {s.nome}
-                    <span className="text-xs font-normal text-muted-foreground">({filhas.length})</span>
-                  </span>
-                }
-                onEdit={() => onEditSub(s)}
-                onDelete={() => onDelSub(s)}
-              />
-              {filhas.map((n) => (
-                <NaturezaRow key={n.id} n={n} indent={1} onEdit={onEditNat} onDelete={onDelNat} />
-              ))}
-            </div>
-          );
-        })}
-        {semSubgrupo.map((n) => (
-          <NaturezaRow key={n.id} n={n} indent={0} onEdit={onEditNat} onDelete={onDelNat} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function NaturezaRow({ n, indent, onEdit, onDelete }: {
-  n: Natureza; indent: number; onEdit: (n: Natureza) => void; onDelete: (n: Natureza) => void;
+function NaturezaLinha({ n, nivel, onEdit, onDelete }: {
+  n: Natureza; nivel: 1 | 2; onEdit: (n: Natureza) => void; onDelete: (n: Natureza) => void;
 }) {
   const entrada = n.tipo === "ENTRADA";
   return (
-    <RowShell
-      indent={indent}
-      faded={!n.ativo}
-      left={
-        <span className="inline-flex items-center gap-2 text-foreground">
-          {entrada
-            ? <ArrowUpRight className="w-4 h-4 text-emerald-500 shrink-0" />
-            : <ArrowDownLeft className="w-4 h-4 text-rose-500 shrink-0" />}
-          {n.nome}
-          {!n.ativo && <span className="text-[11px] text-muted-foreground">(inativa)</span>}
-        </span>
-      }
-      onEdit={() => onEdit(n)}
-      onDelete={() => onDelete(n)}
-    />
-  );
-}
-
-function RowShell({ indent, left, faded, onEdit, onDelete }: {
-  indent: number; left: React.ReactNode; faded?: boolean; onEdit: () => void; onDelete: () => void;
-}) {
-  return (
     <div
-      className={cn("group flex items-center justify-between pr-3 py-2.5 hover:bg-muted", faded && "opacity-50")}
-      style={{ paddingLeft: `${16 + indent * 24}px` }}
+      className={cn(
+        "grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-2 border-b border-gray-50 hover:bg-muted/60 text-sm group/row",
+        !n.ativo && "opacity-50",
+      )}
     >
-      <div className="text-sm">{left}</div>
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={onEdit}>
+      <div className="flex items-center gap-2 min-w-0" style={{ paddingLeft: `${nivel * 18}px` }}>
+        <CornerDownRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+        {entrada
+          ? <ArrowUpRight className="w-4 h-4 text-emerald-500 shrink-0" />
+          : <ArrowDownLeft className="w-4 h-4 text-rose-500 shrink-0" />}
+        <span className="truncate text-foreground">{n.nome}</span>
+        {n.cif && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-muted text-muted-foreground shrink-0">CIF</span>
+        )}
+        {n.contaContabil && (
+          <span className="font-mono text-[11px] text-muted-foreground shrink-0">{n.contaContabil.codigo}</span>
+        )}
+      </div>
+      <span className="w-24 text-center">
+        <span className={cn(
+          "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+          n.ativo ? "bg-success/15 text-success" : "bg-muted text-muted-foreground",
+        )}>
+          {n.ativo ? "Ativa" : "Inativa"}
+        </span>
+      </span>
+      <div className="w-16 flex items-center justify-end gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+        <button
+          onClick={() => onEdit(n)}
+          className="p-1.5 rounded-lg text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
+          title="Editar"
+        >
           <Pencil className="w-3.5 h-3.5" />
-        </Button>
-        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-danger" onClick={onDelete}>
+        </button>
+        <button
+          onClick={() => onDelete(n)}
+          className="p-1.5 rounded-lg text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
+          title="Excluir"
+        >
           <Trash2 className="w-3.5 h-3.5" />
-        </Button>
+        </button>
       </div>
     </div>
   );
