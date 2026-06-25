@@ -240,8 +240,15 @@ export default function OrdensBoardPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
               {/* Coluna 1 — ENTRADA (matéria-prima ou PEP da etapa anterior) */}
-              <ColBoard cor="amber" titulo={area.sequencia === minSeq ? "Matéria-prima" : area.fromEstado ? `PEP entrada · ${ESTADO_LABEL[area.fromEstado] ?? area.fromEstado}` : "PEP de entrada"} icon={<Boxes className="w-3.5 h-3.5" />}>
-                <EstoqueLista linhas={area.isPrimeira ? materiais : entradaWip} vazio={area.isPrimeira ? "Sem materiais na engenharia desta fase." : "Sem PEP de entrada em estoque."} />
+              <ColBoard cor="amber" titulo={area.sequencia === minSeq ? "Matéria-prima" : "PEP de entrada"} icon={<Boxes className="w-3.5 h-3.5" />}>
+                {area.isPrimeira ? (
+                  <EstoqueLista linhas={materiais} vazio="Sem materiais na engenharia desta fase." />
+                ) : (
+                  <>
+                    <EstoqueLista linhas={entradaWip} estado={area.fromEstado} vazio="Sem PEP de entrada em estoque." />
+                    <EstoqueLista linhas={materiais} vazio="" />
+                  </>
+                )}
               </ColBoard>
 
               {/* Coluna 2 — ORDENS DE PRODUÇÃO */}
@@ -285,9 +292,9 @@ export default function OrdensBoardPage() {
               </ColBoard>
 
               {/* Coluna 3 — SAÍDA (PEP que a etapa gera, ou o produto produzido) */}
-              <ColBoard cor="emerald" titulo={area.estadoSaida === "ACABADO" ? "Produto acabado" : area.estadoSaida ? `PEP saída · ${ESTADO_LABEL[area.estadoSaida] ?? area.estadoSaida}` : "Saída"} icon={<PackageCheck className="w-3.5 h-3.5" />}>
+              <ColBoard cor="emerald" titulo={area.estadoSaida === "ACABADO" ? "Produto acabado" : area.estadoSaida ? "PEP de saída" : "Saída"} icon={<PackageCheck className="w-3.5 h-3.5" />}>
                 {area.estadoSaida ? (
-                  <EstoqueLista linhas={saidaEstoque} vazio="Sem produção ainda." />
+                  <EstoqueLista linhas={saidaEstoque} estado={area.estadoSaida} vazio="Sem produção ainda." />
                 ) : (() => {
                   // Área sem estado de WIP: a saída é o(s) produto(s) produzido(s) — vem das OPs do dia.
                   const prods = Array.from(new Map(ops.map((o) => [o.produtoCodigo ?? o.produto ?? o.id, o])).values());
@@ -426,15 +433,19 @@ function ColBoard({ titulo, icon, acao, cor = "cyan", children }: { titulo: stri
 }
 
 // Lista de saldos de estoque (matéria-prima / PEP / PA), aberta por local.
-function EstoqueLista({ linhas, vazio }: { linhas: EstoqueLinha[] | null; vazio: string }) {
+// `estado` (opcional) adiciona uma tag de estado WIP no produto (só PEP têm estado).
+function EstoqueLista({ linhas, vazio, estado }: { linhas: EstoqueLinha[] | null; vazio: string; estado?: string | null }) {
   if (linhas === null) return <p className="text-xs text-muted-foreground flex items-center gap-1.5 p-1"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando…</p>;
-  if (linhas.length === 0) return <p className="text-xs text-muted-foreground p-1">{vazio}</p>;
+  if (linhas.length === 0) return vazio ? <p className="text-xs text-muted-foreground p-1">{vazio}</p> : null;
   return (
     <>
       {linhas.map((m) => (
         <div key={m.itemId ?? m.descricao} className={cn("rounded-lg border px-3 py-2 text-xs bg-card", m.saldoTotal > 0 ? "border-border" : "border-warning/40 bg-warning/10")}>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-foreground font-medium truncate">{m.descricao}</span>
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span className="text-foreground font-medium truncate">{m.descricao}</span>
+              {estado && <span className="shrink-0 inline-flex items-center rounded bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 px-1.5 text-[9px] font-semibold uppercase tracking-wide">{ESTADO_LABEL[estado] ?? estado}</span>}
+            </span>
             <span className="shrink-0 tabular-nums">
               <b className={m.saldoTotal > 0 ? "text-foreground" : "text-warning"}>{m.saldoTotal.toLocaleString("pt-BR")}</b>
               {m.unidade && <span className="text-muted-foreground ml-1">{m.unidade}</span>}
