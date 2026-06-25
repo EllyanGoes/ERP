@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { Loader2, Save, BadgeCheck, Calculator, Info, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTabTitle } from "@/lib/tabs-context";
+import { cn } from "@/lib/utils";
 
 type Produto = {
   itemId: string; codigo: string; descricao: string;
@@ -185,7 +186,7 @@ export default function CusteioPage() {
 
       {/* Abas: definição da taxa pré-definida × fechamentos (apropriações) */}
       <div className="flex gap-0 border-b border-border">
-        {([["taxa", "Definição de taxa pré-definida"], ["fechamento", "Fechamentos"], ["mensal", "Acompanhamento mensal"]] as const).map(([k, lbl]) => (
+        {([["taxa", "Definição de taxa pré-definida"], ["fechamento", "Fechamentos"], ["mensal", "Detalhamento mensal"]] as const).map(([k, lbl]) => (
           <button key={k} type="button" onClick={() => { setAba(k); setMsg(null); }}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${aba === k ? "border-blue-600 text-info" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             {lbl}
@@ -363,37 +364,44 @@ export default function CusteioPage() {
   );
 }
 
-type CpvMensalData = {
+type CpvItem = { nome: string; meses: number[]; total: number };
+type CpvSecao = { chave: string; nome: string; meses: number[]; total: number; itens?: CpvItem[] };
+type CpvDetalhadoData = {
   ano: number;
-  linhas: { id: string; codigo: string; nome: string; meses: number[]; total: number }[];
+  secoes: CpvSecao[];
   totalMeses: number[];
   totalTotal: number;
+  totalAnterior: number;
+  variacao: number | null;
 };
 const MESES_CURTO = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-// Acompanhamento do CPV (3.2.2.*) mês a mês — a DRE só mostra consolidado.
+// CPV detalhado por COMPONENTE, mês a mês (derivado da composição de custo). A DRE
+// só mostra o CPV consolidado; aqui abrimos Matéria-Prima (com sub-itens), Embalagens,
+// Mão-de-obra, Gastos Gerais de Fabricação e Depreciação — somam ao CPV do razão.
 function CpvMensal() {
   const [ano, setAno] = useState<number>(() => new Date().getUTCFullYear());
-  const [data, setData] = useState<CpvMensalData | null>(null);
+  const [data, setData] = useState<CpvDetalhadoData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/contabilidade/cpv-mensal?ano=${ano}`)
+    fetch(`/api/contabilidade/cpv-detalhado?ano=${ano}`)
       .then((r) => r.json())
-      .then((d: CpvMensalData) => setData(d))
+      .then((d: CpvDetalhadoData) => setData(d))
       .finally(() => setLoading(false));
   }, [ano]);
 
   const cel = (v: number) =>
     Math.abs(v) < 0.005 ? <span className="text-muted-foreground/50">—</span> : <span className={v < 0 ? "text-rose-500" : ""}>{brl(v)}</span>;
+  const temMov = data && data.secoes.some((s) => Math.abs(s.total) >= 0.005);
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <div>
-          <CardTitle className="text-base">CPV mês a mês</CardTitle>
-          <p className="text-[12px] text-muted-foreground">Contas do grupo CPV (3.2.2.*) abertas por mês — posição do exercício corrente.</p>
+          <CardTitle className="text-base">CPV detalhado — mês a mês</CardTitle>
+          <p className="text-[12px] text-muted-foreground">Componentes do custo (derivados da composição) — a soma bate com o CPV do razão. Posição do exercício corrente.</p>
         </div>
         <label className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
           Exercício
@@ -405,33 +413,49 @@ function CpvMensal() {
       <CardContent>
         {loading ? (
           <div className="flex items-center gap-2 text-muted-foreground py-8"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>
-        ) : !data || data.linhas.length === 0 ? (
+        ) : !temMov ? (
           <p className="text-sm text-muted-foreground py-8 text-center">Sem movimento de CPV no exercício.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm tabular-nums whitespace-nowrap">
               <thead className="text-xs text-muted-foreground uppercase tracking-wide">
                 <tr className="border-b border-border">
-                  <th className="text-left py-2 pr-3 sticky left-0 bg-card min-w-[14rem]">Conta</th>
+                  <th className="text-left py-2 pr-3 sticky left-0 bg-card min-w-[15rem]">Custos</th>
                   {MESES_CURTO.map((m) => <th key={m} className="text-right py-2 px-2 w-24">{m}</th>)}
                   <th className="text-right py-2 pl-3 w-28">Total</th>
                 </tr>
               </thead>
               <tbody>
-                {data.linhas.map((l) => (
-                  <tr key={l.id} className="border-b border-border/50 hover:bg-muted/40">
-                    <td className="py-1.5 pr-3 sticky left-0 bg-card">
-                      <span className="font-mono text-[11px] text-muted-foreground mr-2">{l.codigo}</span>{l.nome}
-                    </td>
-                    {l.meses.map((v, i) => <td key={i} className="text-right py-1.5 px-2 text-muted-foreground">{cel(v)}</td>)}
-                    <td className="text-right py-1.5 pl-3 font-medium">{cel(l.total)}</td>
-                  </tr>
+                {data!.secoes.map((s) => (
+                  <Fragment key={s.chave}>
+                    <tr className="border-b border-border/60 bg-muted/30 font-semibold text-foreground">
+                      <td className="py-1.5 pr-3 sticky left-0 bg-muted/30">{s.nome}</td>
+                      {s.meses.map((v, i) => <td key={i} className="text-right py-1.5 px-2">{cel(v)}</td>)}
+                      <td className="text-right py-1.5 pl-3">{cel(s.total)}</td>
+                    </tr>
+                    {(s.itens ?? []).map((it) => (
+                      <tr key={s.chave + it.nome} className="border-b border-border/40 text-muted-foreground hover:bg-muted/30">
+                        <td className="py-1 pr-3 pl-6 sticky left-0 bg-card">{it.nome}</td>
+                        {it.meses.map((v, i) => <td key={i} className="text-right py-1 px-2">{cel(v)}</td>)}
+                        <td className="text-right py-1 pl-3">{cel(it.total)}</td>
+                      </tr>
+                    ))}
+                  </Fragment>
                 ))}
-                <tr className="border-t-2 border-border bg-muted/50 font-bold">
-                  <td className="py-2 pr-3 sticky left-0 bg-muted/50">CPV total</td>
-                  {data.totalMeses.map((v, i) => <td key={i} className="text-right py-2 px-2">{cel(v)}</td>)}
-                  <td className="text-right py-2 pl-3">{brl(data.totalTotal)}</td>
+                <tr className="border-t-2 border-border bg-muted/60 font-bold text-foreground">
+                  <td className="py-2 pr-3 sticky left-0 bg-muted/60">TOTAL</td>
+                  {data!.totalMeses.map((v, i) => <td key={i} className="text-right py-2 px-2">{cel(v)}</td>)}
+                  <td className="text-right py-2 pl-3">{brl(data!.totalTotal)}</td>
                 </tr>
+                {data!.variacao != null && (
+                  <tr className="text-xs text-muted-foreground">
+                    <td className="py-1.5 pr-3 sticky left-0 bg-card">Variação no CPV (vs {ano - 1})</td>
+                    <td colSpan={12} />
+                    <td className={cn("text-right py-1.5 pl-3 font-semibold", data!.variacao < 0 ? "text-emerald-600" : "text-rose-500")}>
+                      {data!.variacao > 0 ? "+" : ""}{data!.variacao.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
