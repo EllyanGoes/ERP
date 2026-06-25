@@ -145,7 +145,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/financeiro/conciliacao",               label: "Conciliação (OFX)",       group: "Financeiro",     section: "Financeiro",       icon: FileCheck2,    keywords: "conciliação ofx extrato banco importar conciliar" },
   { href: "/fluxo-caixa",                          label: "Fluxo de Caixa",          group: "Financeiro",     section: "Financeiro",       icon: BarChart3 },
 
-  { href: "/rh/folhas",                            label: "Folhas de Pagamento",     group: "RH",             section: "Processos",        icon: Users, keywords: "folha pagamento salário rh holerite inss fgts irrf colaborador" },
+  { href: "/rh/folhas",                            label: "Folhas de Pagamento",     group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "folha pagamento salário rh gestão de pessoas holerite inss fgts irrf colaborador" },
 
   { href: "/admin/usuarios",                       label: "Usuários",                group: "Administração",  section: "Sistema",          icon: UserCog },
   { href: "/admin/perfis",                         label: "Perfis de Acesso",        group: "Administração",  section: "Sistema",          icon: ShieldCheck },

@@ -313,8 +313,8 @@ const mainModules: Module[] = [
   },
   {
     id: "rh",
-    label: "RH",
-    icon: Users,
+    label: "Gestão de Pessoas",
+    icon: Users2,
     sections: [
       {
         kind: "Cadastros",
@@ -419,9 +419,7 @@ const configModule: Module = {
 const allModules = [...mainModules, configModule];
 
 // ── Future modules (strip-only, no panel, disabled) ───────────────────────────
-const futureModules: { id: string; label: string; icon: LucideIcon }[] = [
-  { id: "gestao-pessoas",  label: "Gestão de Pessoas",                           icon: Users2  },
-];
+const futureModules: { id: string; label: string; icon: LucideIcon }[] = [];
 
 const STRIP_W       = 64;
 const PANEL_MIN       = 160;
