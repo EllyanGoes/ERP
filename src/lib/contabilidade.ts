@@ -1311,7 +1311,13 @@ export async function contabilizarLoteMovimentacao(loteId: string) {
   if (!lote) return;
 
   const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
-    where: { loteId, localEstoqueId: { not: null }, clienteDonoId: null, tipo: { in: ["ENTRADA", "SAIDA"] } },
+    where: {
+      loteId, localEstoqueId: { not: null }, clienteDonoId: null, tipo: { in: ["ENTRADA", "SAIDA"] },
+      // Movimentos já contabilizados pela ORIGEM (venda → minuta CMV/CPV; compra →
+      // conferência de entrada) não entram aqui, senão o lançamento dobra. O lote
+      // só contabiliza movimento manual genuíno (produção, ajuste, transferência).
+      pedidoVendaItemId: null, conferenciaItemId: null,
+    },
     select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true },
   });
   if (movs.length === 0) return;
