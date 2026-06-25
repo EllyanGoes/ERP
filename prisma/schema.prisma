@@ -573,6 +573,9 @@ model NaturezaFinanceira {
   // Natureza de Custo Indireto de Fabricação: o débito de origem vai para
   // "CIF a Apropriar" (1.1.4.0001), não para a conta de resultado da natureza.
   cif           Boolean             @default(false)
+  // Destino contábil que ESTA natureza implica — usado só para o alerta de coerência
+  // na requisição (compara com o destino real das flags do item). Não roteia nada.
+  destinoSugerido DestinoConsumo?
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
   subgrupo      NaturezaSubgrupo?   @relation(fields: [subgrupoId], references: [id])
@@ -585,6 +588,7 @@ model NaturezaFinanceira {
   recorrencias  Recorrencia[]
   requisicoes   RequisicaoMaterial[] // natureza da saída de estoque (ex.: CIF)
   requisicaoItens RequisicaoMaterialItem[] // natureza por item da requisição
+  itensPadrao   Item[]              @relation("ItemNaturezaPadrao") // natureza-padrão do item
   partidasContabeis PartidaContabil[] // dimensão natureza nas partidas (ex.: CIF)
   // Conta de RESULTADO (receita p/ ENTRADA, despesa p/ SAIDA): vínculo via
   // ContaContabil.naturezaFinanceiraId (uma conta por natureza).
@@ -1175,6 +1179,15 @@ model GrupoCentroCusto {
   centros   CentroCusto[]
 }
 
+// Destino contábil do consumo de uma requisição (vem das flags do item + centro;
+// a natureza é gaveta gerencial e NÃO define o destino). Ver src/lib/pcp/rotear-requisicao.ts.
+enum DestinoConsumo {
+  PEP_MD
+  IMOBILIZADO
+  CIF
+  DESPESA
+}
+
 model Item {
   id                     String                   @id @default(cuid())
   codigo                 String                   @unique
@@ -1207,6 +1220,10 @@ model Item {
   // (CPC 27). A requisição roteia para "Imobilizado em Andamento" (1.2.4), com
   // precedência sobre `fabril`. Ver src/lib/pcp/rotear-requisicao.ts.
   capitaliza             Boolean                  @default(false)
+  // Natureza financeira-padrão (gaveta gerencial sugerida): pré-preenche a linha da
+  // requisição. NÃO define o destino contábil (isso vem das flags + centro).
+  naturezaPadraoId       String?
+  naturezaPadrao         NaturezaFinanceira?      @relation("ItemNaturezaPadrao", fields: [naturezaPadraoId], references: [id])
   estoqueMinimo          Decimal?                 @db.Decimal(15, 3)
   estoqueMaximo          Decimal?                 @db.Decimal(15, 3)
   pontoReposicao         Decimal?                 @db.Decimal(15, 3)
@@ -2752,8 +2769,11 @@ model RequisicaoMaterialItem {
   unidade       String?
   localizacao   String?
   centroCustoId String?
-  // Natureza financeira POR ITEM (vence a do cabeçalho; ex.: CIF → "CIF a Apropriar").
+  // Natureza financeira POR ITEM (gaveta gerencial; vence a do cabeçalho).
   naturezaFinanceiraId String?
+  // Destino contábil MANUAL (escape explícito, independente da natureza): força o
+  // destino da linha. Vence as flags do item (exceto material direto). null = automático.
+  destinoManual DestinoConsumo?
   contaContabil String?
   os            String?
   requisicaoRef String?

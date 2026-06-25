@@ -37,11 +37,13 @@ const casos: Array<[string, () => void]> = [
     assert.equal(rotearDestinoRequisicao({ item: generico, centroFabril: false }), "DESPESA");
     assert.equal(rotearDestinoRequisicao({ item: generico }), "DESPESA");
   }],
-  ["override manual natureza.cif → CIF (item não-direto)", () => {
-    assert.equal(rotearDestinoRequisicao({ item: generico, naturezaCif: true }), "CIF");
+  ["destino manual explícito vence (item não-direto)", () => {
+    assert.equal(rotearDestinoRequisicao({ item: generico, destinoManual: "CIF" }), "CIF");
+    assert.equal(rotearDestinoRequisicao({ item: generico, destinoManual: "IMOBILIZADO" }), "IMOBILIZADO");
+    assert.equal(rotearDestinoRequisicao({ item: indireto, destinoManual: "DESPESA", centroFabril: true }), "DESPESA");
   }],
-  ["direto vence o override: PEP_MD mesmo com natureza.cif", () => {
-    assert.equal(rotearDestinoRequisicao({ item: direto("MATERIA_PRIMA"), naturezaCif: true }), "PEP_MD");
+  ["direto vence o destino manual: PEP_MD mesmo com destinoManual=CIF", () => {
+    assert.equal(rotearDestinoRequisicao({ item: direto("MATERIA_PRIMA"), destinoManual: "CIF" }), "PEP_MD");
   }],
   ["indireto SEM centro → INDEFINIDO (sinaliza, não adivinha)", () => {
     assert.equal(rotearDestinoRequisicao({ item: indireto }), "INDEFINIDO");

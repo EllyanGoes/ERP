@@ -6,9 +6,13 @@
 // sem efeito colateral e sem tocar no ledger: quem chama resolve as contas e
 // gera as partidas (ver contabilizarRequisicao em src/lib/contabilidade.ts).
 //
+// O destino vem das FLAGS DO ITEM + CENTRO DE CUSTO — nunca da natureza (que é só
+// gaveta gerencial). O escape manual é o campo `destinoManual` da linha da RM, um
+// destino explícito desacoplado da natureza.
+//
 // Precedência (não reordenar sem revisar os testes):
 //  1. Material que compõe produto → PEP_MD, SEMPRE (independe do centro).
-//  2. Override manual: natureza marcada como CIF (mecanismo natureza.cif existente).
+//  2. Destino manual explícito (destinoManual da linha) → vence (raro, escape).
 //  3. Item que capitaliza (item.capitaliza) → IMOBILIZADO, ANTES do teste de centro —
 //     material de obra p/ área fabril satisfaz "fabril", mas é investimento (ativo),
 //     não CIF do mês; só impacta o resultado depois, via depreciação (CPC 27).
@@ -16,7 +20,10 @@
 //     fabril → CIF; não-fabril → DESPESA; sem centro → INDEFINIDO (dado incompleto).
 //  5. Resto → DESPESA (default seguro).
 
-export type DestinoRequisicao = "PEP_MD" | "IMOBILIZADO" | "CIF" | "DESPESA" | "INDEFINIDO";
+// Destino contábil "fechado" (sem o INDEFINIDO, que é estado de runtime). Espelha
+// o enum Prisma DestinoConsumo — usado em destinoManual e natureza.destinoSugerido.
+export type DestinoConsumo = "PEP_MD" | "IMOBILIZADO" | "CIF" | "DESPESA";
+export type DestinoRequisicao = DestinoConsumo | "INDEFINIDO";
 
 export type ItemRoteamento = {
   categoriaEstoque: string | null;
@@ -30,20 +37,20 @@ export const CATEGORIAS_DIRETO_PEP = new Set(["MATERIA_PRIMA", "INSUMO", "EMBALA
 
 export function rotearDestinoRequisicao(args: {
   item: ItemRoteamento;
-  /** A natureza da RM está marcada como CIF? (mecanismo natureza.cif existente) */
-  naturezaCif?: boolean;
+  /** Destino manual explícito da linha da RM (escape, independe da natureza). */
+  destinoManual?: DestinoConsumo | null;
   /** O centro de custo da RM é fabril? null/undefined = centro não informado. */
   centroFabril?: boolean | null;
 }): DestinoRequisicao {
-  const { item, naturezaCif, centroFabril } = args;
+  const { item, destinoManual, centroFabril } = args;
 
   // 1) Material direto que compõe o produto → PEP-MD, sempre. Nunca é ambíguo.
   if (item.compoeCusto && item.categoriaEstoque != null && CATEGORIAS_DIRETO_PEP.has(item.categoriaEstoque)) {
     return "PEP_MD";
   }
 
-  // 2) Override manual explícito: natureza CIF na RM (raro, escape).
-  if (naturezaCif === true) return "CIF";
+  // 2) Escape manual explícito: o destino da linha vence (desacoplado da natureza).
+  if (destinoManual) return destinoManual;
 
   // 3) Item que capitaliza → Imobilizado (precede o centro: obra em área fabril é
   //    investimento, não CIF do mês).

@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
             create: body.itens.map((it: {
               itemId: string; quantidade: number; unidade?: string;
               localizacao?: string; centroCustoId?: string; naturezaFinanceiraId?: string;
-              os?: string; requisicaoRef?: string;
+              destinoManual?: string; os?: string; requisicaoRef?: string;
             }) => ({
               itemId:       it.itemId,
               quantidade:   parseFloat(String(it.quantidade)),
@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
               localizacao:  it.localizacao?.trim()   || null,
               centroCustoId: it.centroCustoId        || null,
               naturezaFinanceiraId: it.naturezaFinanceiraId || body.naturezaFinanceiraId || null,
+              destinoManual: (it.destinoManual as never) || null,
               os:           it.os?.trim()            || null,
               requisicaoRef: it.requisicaoRef?.trim() || null,
             })),

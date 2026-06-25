@@ -4,7 +4,7 @@ import type { EstadoWIP } from "@prisma/client";
 import { decimalToNumber, generateDocNumber } from "@/lib/utils";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
-import { rotearDestinoRequisicao } from "@/lib/pcp/rotear-requisicao";
+import { rotearDestinoRequisicao, type DestinoConsumo } from "@/lib/pcp/rotear-requisicao";
 import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
@@ -1162,7 +1162,7 @@ export async function contabilizarRequisicao(requisicaoId: string) {
       id: true, numero: true, status: true, updatedAt: true,
       naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } },
       centroCusto: { select: { fabril: true } },
-      itens: { select: { itemId: true, centroCusto: { select: { fabril: true } }, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } } } },
+      itens: { select: { itemId: true, centroCusto: { select: { fabril: true } }, naturezaFinanceiraId: true, destinoManual: true } },
     },
   });
   if (!req || req.status !== "ATENDIDA") return;
@@ -1175,13 +1175,15 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   if (movs.length === 0) return;
   const empresaId = movs[0].empresaId;
 
-  // Centro e natureza POR ITEM (item-level vence o cabeçalho). centro null = sem centro.
+  // Centro, destino manual e natureza POR ITEM (item-level vence o cabeçalho).
+  // O destino vem das FLAGS + centro (+ destinoManual como escape); a natureza é só
+  // dimensão gerencial nas partidas — NÃO roteia.
   const centroFabrilPorItem = new Map<string, boolean | null>();
-  const naturezaCifPorItem = new Map<string, boolean>();
+  const destinoManualPorItem = new Map<string, DestinoConsumo | null>();
   const naturezaIdPorItem = new Map<string, string | null>();
   for (const it of req.itens) {
     centroFabrilPorItem.set(it.itemId, it.centroCusto?.fabril ?? req.centroCusto?.fabril ?? null);
-    naturezaCifPorItem.set(it.itemId, it.naturezaFinanceira?.cif ?? req.naturezaFinanceira?.cif ?? false);
+    destinoManualPorItem.set(it.itemId, (it.destinoManual as DestinoConsumo | null) ?? null);
     naturezaIdPorItem.set(it.itemId, it.naturezaFinanceiraId ?? req.naturezaFinanceiraId ?? null);
   }
 
@@ -1200,7 +1202,7 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   for (const m of movs) {
     let destino = rotearDestinoRequisicao({
       item: { categoriaEstoque: m.item?.categoriaEstoque ?? null, compoeCusto: m.item?.compoeCusto ?? false, fabril: m.item?.fabril ?? false, capitaliza: m.item?.capitaliza ?? false },
-      naturezaCif: naturezaCifPorItem.get(m.itemId) ?? false,
+      destinoManual: destinoManualPorItem.get(m.itemId) ?? null,
       centroFabril: centroFabrilPorItem.get(m.itemId) ?? null,
     });
     if (destino === "PEP_MD" && !pepMd) destino = "DESPESA";
