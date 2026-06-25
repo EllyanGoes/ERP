@@ -25,14 +25,20 @@ function ehParceiro(p: Ponto): boolean {
   return !!p.clienteId;
 }
 
+type Categoria = "fornecedor" | "revendedor" | "parceiro" | "ambos";
+
 // Cor por categoria: fornecedor=âmbar, ambos=violeta, revendedor parceiro=verde,
 // revendedor (não parceiro)=azul.
-function corDe(p: Ponto): string {
-  if (p.ehFornecedor && p.ehRevendedor) return "#8b5cf6";
-  if (p.ehFornecedor) return "#f59e0b";
-  if (p.ehRevendedor && ehParceiro(p)) return "#10b981";
-  return "#3b82f6";
+const COR: Record<Categoria, string> = {
+  fornecedor: "#f59e0b", revendedor: "#3b82f6", parceiro: "#10b981", ambos: "#8b5cf6",
+};
+function categoriaDe(p: Ponto): Categoria {
+  if (p.ehFornecedor && p.ehRevendedor) return "ambos";
+  if (p.ehFornecedor) return "fornecedor";
+  if (p.ehRevendedor && ehParceiro(p)) return "parceiro";
+  return "revendedor";
 }
+function corDe(p: Ponto): string { return COR[categoriaDe(p)]; }
 
 const CENTRO_BRASIL: [number, number] = [-15.78, -47.93];
 
@@ -53,6 +59,13 @@ export default function ConcorrentesMap() {
     const lat = pontos.reduce((s, p) => s + p.latitude, 0) / pontos.length;
     const lng = pontos.reduce((s, p) => s + p.longitude, 0) / pontos.length;
     return [lat, lng];
+  }, [pontos]);
+
+  // Contagem de concorrentes por categoria (mesma classificação das cores).
+  const contagem = useMemo(() => {
+    const c: Record<Categoria, number> = { fornecedor: 0, revendedor: 0, parceiro: 0, ambos: 0 };
+    for (const p of pontos) c[categoriaDe(p)]++;
+    return c;
   }, [pontos]);
 
   if (loading) {
@@ -93,12 +106,15 @@ export default function ConcorrentesMap() {
       </MapContainer>
 
       {/* Legenda */}
-      <div className="absolute bottom-4 right-4 z-[400] bg-card/95 backdrop-blur border border-border rounded-lg shadow-lg px-3 py-2 text-xs space-y-1">
-        <p className="font-semibold text-foreground mb-1">Legenda</p>
-        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: "#f59e0b" }} /> <Building2 className="h-3 w-3" /> Fornecedor</div>
-        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: "#3b82f6" }} /> <Store className="h-3 w-3" /> Revendedor</div>
-        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: "#10b981" }} /> <Handshake className="h-3 w-3" /> Revendedor parceiro</div>
-        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: "#8b5cf6" }} /> Ambos</div>
+      <div className="absolute bottom-4 right-4 z-[400] bg-card/95 backdrop-blur border border-border rounded-lg shadow-lg px-3 py-2 text-xs space-y-1 min-w-[190px]">
+        <div className="flex items-center justify-between mb-1">
+          <p className="font-semibold text-foreground">Legenda</p>
+          <span className="text-muted-foreground tabular-nums">{pontos.length} no total</span>
+        </div>
+        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.fornecedor }} /> <Building2 className="h-3 w-3 shrink-0" /> Fornecedor <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.fornecedor}</span></div>
+        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.revendedor }} /> <Store className="h-3 w-3 shrink-0" /> Revendedor <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.revendedor}</span></div>
+        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.parceiro }} /> <Handshake className="h-3 w-3 shrink-0" /> Revendedor parceiro <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.parceiro}</span></div>
+        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.ambos }} /> Ambos <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.ambos}</span></div>
       </div>
 
       {pontos.length === 0 && (
