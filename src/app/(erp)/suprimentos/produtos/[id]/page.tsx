@@ -19,6 +19,7 @@ import { UnidadeQuickCreate, LocalEstoqueQuickCreate } from "@/components/shared
 import CategoriaEstoqueSelect from "@/components/shared/CategoriaEstoqueSelect";
 import EstadosWipMultiSelect from "@/components/shared/EstadosWipMultiSelect";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import MovimentacoesDiariasChart from "@/components/suprimentos/MovimentacoesDiariasChart";
 import { cn, formatBRL, decimalToNumber, formatDate } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
@@ -240,6 +241,8 @@ export default function ProdutoDetailPage() {
   const [movTipoFilter, setMovTipoFilter] = useState<"" | "ENTRADA" | "SAIDA">("");
   // Ordenação por data: "desc" = mais recentes primeiro (padrão), "asc" = mais antigas.
   const [movSort, setMovSort] = useState<"desc" | "asc">("desc");
+  // Visualização: tabela (padrão) ou gráfico diário (entradas × saídas por dia).
+  const [movView, setMovView] = useState<"tabela" | "grafico">("tabela");
 
   // Inserir Saldo Inicial
   const [showSaldoDialog, setShowSaldoDialog] = useState(false);
@@ -1902,6 +1905,23 @@ export default function ProdutoDetailPage() {
                   </span>
                 </>
               )}
+              {/* Toggle de visualização: tabela x gráfico diário */}
+              <div className="ml-auto inline-flex rounded-lg border border-border overflow-hidden text-sm">
+                <button
+                  type="button"
+                  onClick={() => setMovView("tabela")}
+                  className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 transition-colors", movView === "tabela" ? "bg-info/10 text-info font-medium" : "text-muted-foreground hover:bg-muted")}
+                >
+                  <ClipboardList className="w-4 h-4" /> Tabela
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMovView("grafico")}
+                  className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 border-l border-border transition-colors", movView === "grafico" ? "bg-info/10 text-info font-medium" : "text-muted-foreground hover:bg-muted")}
+                >
+                  <BarChart2 className="w-4 h-4" /> Gráfico
+                </button>
+              </div>
             </div>
 
             {/* Summary */}
@@ -1951,6 +1971,8 @@ export default function ProdutoDetailPage() {
                   {temFiltro ? "Tente ajustar as datas do filtro." : "As movimentações são geradas automaticamente."}
                 </p>
               </div>
+            ) : movView === "grafico" ? (
+              <MovimentacoesDiariasChart movs={movsOrdenadas} />
             ) : (
               <div className="rounded-xl border border-border overflow-hidden">
                 <table className="w-full text-sm">
