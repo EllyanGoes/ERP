@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntradaEstoque, contabilizarCmvMinuta, contabilizarReceitaMinuta, contabilizarVendaPedido, contabilizarSaldoInicialEstoque, contabilizarLoteMovimentacao, contabilizarRequisicao, apagarLancamentosContabeis } from "@/lib/contabilidade";
+import { notificarUsuario } from "@/lib/notificacoes";
 
 // Progresso e última execução persistidos em Configuracao (key-value). Como o
 // status mora no banco (e não na memória de uma instância), a barra sobrevive a
@@ -72,6 +73,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const auth = await requireModulo("contabilidade");
   if (!auth.ok) return auth.response;
+  const usuarioId = auth.session.sub; // quem disparou — notificado ao concluir
 
   const reset = new URL(req.url).searchParams.get("reset");
 
@@ -92,9 +94,17 @@ export async function POST(req: Request) {
       const send = (obj: Record<string, unknown>) => {
         try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`)); } catch { /* stream fechado */ }
       };
-      // Atualiza progresso + heartbeat (running=true) p/ a UI reconstruir a barra.
-      const tick = (pct: number, fase: string, total: number) =>
-        gravarProgresso({ running: true, pct, fase, processados, total, heartbeat: Date.now() });
+      // Persiste progresso + heartbeat no banco, mas com THROTTLE e SEM bloquear o
+      // loop: antes gravávamos (await) a cada lote — milhares de upserts serializados
+      // entre os lotes. Agora gravamos no máximo a cada ~1,5s (fire-and-forget); a
+      // barra na tela continua suave porque o `send` ao stream é a cada lote.
+      let ultimoTickAt = 0;
+      const tick = (pct: number, fase: string, total: number, forcar = false) => {
+        const agora = Date.now();
+        if (!forcar && agora - ultimoTickAt < 1500) return;
+        ultimoTickAt = agora;
+        void gravarProgresso({ running: true, pct, fase, processados, total, heartbeat: agora });
+      };
 
       try {
         // Limpa partidas órfãs (lançamento já apagado, partida ficou) — sem FK em
@@ -124,23 +134,22 @@ export async function POST(req: Request) {
         const total = empresas.length + confs.length + pedidos.length + crs.length + cps.length + minutas.length + lotes.length + reqs.length;
         const pct = () => (total > 0 ? Math.min(99, Math.round((processados / total) * 100)) : 100);
         send({ total, processados: 0, pct: 0, fase: "Preparando" });
-        await tick(0, "Preparando", total);
+        tick(0, "Preparando", total, true);
 
         // Processa itens em LOTES paralelos (acelera ~Nx os round-trips ao banco). A
         // criação de contas analíticas é resiliente a corrida (criarAnaliticaComRetry),
         // e cada origem aparece uma vez por fase — seguro para idempotência.
-        const LOTE = 20;
+        const LOTE = 40;
         const emLotes = async <T,>(itens: T[], rotulo: (t: T) => string, fn: (t: T) => Promise<void>, fase: string) => {
+          tick(pct(), fase, total, true); // marca o início da fase (atualiza o rótulo)
           for (let i = 0; i < itens.length; i += LOTE) {
             await Promise.all(itens.slice(i, i + LOTE).map(async (it) => {
               try { await fn(it); processados++; }
               catch (e) { erros.push(`${rotulo(it)}: ${(e as Error).message}`); processados++; }
             }));
             send({ total, processados, pct: pct(), fase });
-            await tick(pct(), fase, total);
+            tick(pct(), fase, total); // throttled, não bloqueia o loop
           }
-          // Garante um tick de progresso mesmo quando a fase não tem itens.
-          if (itens.length === 0) { send({ total, processados, pct: pct(), fase }); await tick(pct(), fase, total); }
         };
 
         // 0) Saldo de abertura de estoque por empresa (antes das saídas).
@@ -163,10 +172,24 @@ export async function POST(req: Request) {
         send({ done: true, ok: true, processados, total, pct: 100, erros: erros.slice(0, 20) });
         await gravarProgresso({ running: false, pct: 100, fase: "Concluído", processados, total, heartbeat: Date.now() });
         await registrarUltimaExecucao({ ok: true, processados, total, erros: erros.length });
+        await notificarUsuario({
+          usuarioId,
+          tipo: "RETROATIVOS_CONCLUIDO",
+          titulo: "Lançamentos retroativos concluídos",
+          mensagem: `${processados} lançamento(s) processado(s)${erros.length ? ` · ${erros.length} com erro` : ""}.`,
+          link: "/contabilidade/lancamentos",
+        });
       } catch (e) {
         send({ done: true, error: (e as Error).message });
         await gravarProgresso({ running: false, pct: 0, fase: "Erro", processados, heartbeat: Date.now() });
         await registrarUltimaExecucao({ ok: false, error: (e as Error).message });
+        await notificarUsuario({
+          usuarioId,
+          tipo: "RETROATIVOS_ERRO",
+          titulo: "Falha ao gerar retroativos",
+          mensagem: (e as Error).message.slice(0, 200),
+          link: "/contabilidade/lancamentos",
+        });
       } finally {
         controller.close();
       }

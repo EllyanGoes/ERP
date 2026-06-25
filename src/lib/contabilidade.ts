@@ -50,14 +50,30 @@ export class PeriodoFechadoError extends Error {
   }
 }
 
+// Cache curtíssimo do "fechado até" por empresa. Durante um reprocesso em massa,
+// registrarLancamento chama isto a CADA lançamento (milhares de vezes) — sem o
+// cache seria 1 query por lançamento. TTL baixo mantém a correção: fechar/reabrir
+// um exercício é ação deliberada e o cache expira em segundos.
+const _fechadoCache = new Map<string, { at: number; val: Date | null }>();
+const FECHADO_TTL_MS = 15_000;
+/** Limpa o cache do exercício fechado (chamar ao fechar/reabrir um período). */
+export function limparCacheExercicioFechado(empresaId?: string) {
+  if (empresaId) _fechadoCache.delete(empresaId);
+  else _fechadoCache.clear();
+}
+
 /** Maior data de fim de exercício FECHADO da empresa (ou null). */
 export async function exercicioFechadoAte(empresaId: string): Promise<Date | null> {
+  const cached = _fechadoCache.get(empresaId);
+  if (cached && Date.now() - cached.at < FECHADO_TTL_MS) return cached.val;
   const f = await prismaSemEscopo.fechamentoContabil.findFirst({
     where: { empresaId, status: "FECHADO" },
     orderBy: { dataFim: "desc" },
     select: { dataFim: true },
   });
-  return f?.dataFim ?? null;
+  const val = f?.dataFim ?? null;
+  _fechadoCache.set(empresaId, { at: Date.now(), val });
+  return val;
 }
 
 // ── Resolvers de conta (por empresa) ─────────────────────────────────────────
@@ -1146,7 +1162,7 @@ export async function contabilizarRequisicao(requisicaoId: string) {
       id: true, numero: true, status: true, updatedAt: true,
       naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } },
       centroCusto: { select: { fabril: true } },
-      itens: { select: { itemId: true, centroCusto: { select: { fabril: true } } } },
+      itens: { select: { itemId: true, centroCusto: { select: { fabril: true } }, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } } } },
     },
   });
   if (!req || req.status !== "ATENDIDA") return;
@@ -1158,12 +1174,15 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   });
   if (movs.length === 0) return;
   const empresaId = movs[0].empresaId;
-  const naturezaCif = req.naturezaFinanceira?.cif === true;
 
-  // Centro de custo fabril por item (item-level vence o header). null = sem centro.
+  // Centro e natureza POR ITEM (item-level vence o cabeçalho). centro null = sem centro.
   const centroFabrilPorItem = new Map<string, boolean | null>();
+  const naturezaCifPorItem = new Map<string, boolean>();
+  const naturezaIdPorItem = new Map<string, string | null>();
   for (const it of req.itens) {
     centroFabrilPorItem.set(it.itemId, it.centroCusto?.fabril ?? req.centroCusto?.fabril ?? null);
+    naturezaCifPorItem.set(it.itemId, it.naturezaFinanceira?.cif ?? req.naturezaFinanceira?.cif ?? false);
+    naturezaIdPorItem.set(it.itemId, it.naturezaFinanceiraId ?? req.naturezaFinanceiraId ?? null);
   }
 
   // Contas de destino (resolvidas uma vez).
@@ -1181,7 +1200,7 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   for (const m of movs) {
     let destino = rotearDestinoRequisicao({
       item: { categoriaEstoque: m.item?.categoriaEstoque ?? null, compoeCusto: m.item?.compoeCusto ?? false, fabril: m.item?.fabril ?? false, capitaliza: m.item?.capitaliza ?? false },
-      naturezaCif,
+      naturezaCif: naturezaCifPorItem.get(m.itemId) ?? false,
       centroFabril: centroFabrilPorItem.get(m.itemId) ?? null,
     });
     if (destino === "PEP_MD" && !pepMd) destino = "DESPESA";
@@ -1194,12 +1213,17 @@ export async function contabilizarRequisicao(requisicaoId: string) {
     console.warn(`[contabilizarRequisicao] ${req.numero}: ${indefinidos.length} item(ns) indireto(s) sem centro de custo (lançados como Despesa): ${indefinidos.join(", ")}`);
   }
 
+  // Dimensão natureza no CIF: usa a natureza quando todos os itens-CIF compartilham uma só
+  // (caso comum); se misturam naturezas distintas, fica null (o CIF fabril normalmente não tem natureza).
+  const cifNats = new Set(buckets.CIF.map((m) => naturezaIdPorItem.get(m.itemId)).filter((x): x is string => !!x));
+  const cifNatId = cifNats.size === 1 ? Array.from(cifNats)[0] : null;
+
   // Cada destino → um lançamento (origemId distinto). Bucket vazio → limpa órfão de reprocesso anterior.
   const planos: Array<{ destino: keyof typeof buckets; origemId: string; contaId: string | null | undefined; rotulo: string; natId: string | null }> = [
     { destino: "DESPESA", origemId: requisicaoId, contaId: consumoId, rotulo: "", natId: null },
     { destino: "PEP_MD", origemId: `${requisicaoId}#pep`, contaId: pepMd?.id, rotulo: " (PEP-MD)", natId: null },
     { destino: "IMOBILIZADO", origemId: `${requisicaoId}#imob`, contaId: imobAndamento?.id, rotulo: " (Imobilizado em Andamento)", natId: null },
-    { destino: "CIF", origemId: `${requisicaoId}#cif`, contaId: cifAprop?.id, rotulo: " (CIF)", natId: naturezaCif ? req.naturezaFinanceiraId : null },
+    { destino: "CIF", origemId: `${requisicaoId}#cif`, contaId: cifAprop?.id, rotulo: " (CIF)", natId: cifNatId },
   ];
   for (const plano of planos) {
     const bucket = buckets[plano.destino];
@@ -1577,6 +1601,7 @@ export async function fecharExercicio(empresaId: string, exercicio: number) {
     create: { empresaId, exercicio, dataInicio, dataFim, resultado, status: "FECHADO" },
     select: { id: true },
   });
+  limparCacheExercicioFechado(empresaId); // período mudou → invalida o cache
 
   if (partidas.length > 0) {
     const plConta = await garantirContaResultadoAcumulado(empresaId);
@@ -1616,6 +1641,7 @@ export async function reabrirExercicio(empresaId: string, exercicio: number) {
   await prismaSemEscopo.fechamentoContabil.update({
     where: { id: fechamento.id }, data: { status: "REABERTO", reabertoEm: new Date(), lancamentoId: null },
   });
+  limparCacheExercicioFechado(empresaId); // período destravou → invalida o cache
   return { id: fechamento.id, exercicio };
 }
 
