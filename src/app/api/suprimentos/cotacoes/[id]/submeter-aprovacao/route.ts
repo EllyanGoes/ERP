@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { aprovadorPedidoCompras } from "@/lib/aprovacao-cotacao";
-import { notificarUsuario } from "@/lib/notificacoes";
+import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
 import { sendTelegramMessage, sendTelegramDocument, sendTelegramDM, escMD } from "@/lib/telegram";
 import { buildCotacaoPDF } from "@/lib/pdf-cotacao";
 
@@ -67,6 +67,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // Notificação in-app (toast) para o aprovador.
     if (aprovacaoId && aprovador) {
+      // Evita acúmulo: marca como lida qualquer pendência anterior desta cotação
+      // antes de criar a nova (re-submissão não empilha "aguardando aprovação").
+      await marcarNotificacoesLidasPorLink(aprovador.aprovadorId, `/suprimentos/cotacoes/${params.id}`, "COTACAO_APROVACAO_SOLICITADA");
       await notificarUsuario({
         usuarioId: aprovador.aprovadorId,
         tipo: "COTACAO_APROVACAO_SOLICITADA",

@@ -35,9 +35,17 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         orderBy: { createdAt: "asc" },
       },
       pedidos: { select: { id: true, numero: true, status: true, conferencia: { select: { id: true } } } },
-      // Pendência de aprovação atual — libera o botão de aprovar ao aprovador
-      // designado (além do ADMIN) na tela da cotação.
-      aprovacoes: { where: { status: "PENDENTE" }, select: { id: true, aprovadorId: true } },
+      // Aprovações da cotação: a pendente libera o botão de aprovar ao aprovador
+      // designado (além do ADMIN); as resolvidas formam o histórico (quem aprovou
+      // /reprovou e quando) exibido na tela.
+      aprovacoes: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true, aprovadorId: true, status: true, respondidoEm: true,
+          etapaNome: true, observacao: true, createdAt: true,
+          aprovador: { select: { nome: true } },
+        },
+      },
     },
   });
 

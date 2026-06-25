@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Loader2, CheckCircle2, ChevronDown, ChevronRight,
+  Loader2, CheckCircle2, XCircle, Clock, ChevronDown, ChevronRight,
   Plus, ArrowLeft, BarChart3, X, Pencil, Search, Trash2,
 } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -72,7 +72,11 @@ type Cotacao = {
   necessidade: { id: string; numero: string; itens: SCItem[] } | null;
   fornecedores: CotacaoFornecedor[];
   pedidos: Array<{ id: string; numero: string; status: string; conferencia: { id: string } | null }>;
-  aprovacoes?: Array<{ id: string; aprovadorId: string | null }>;
+  aprovacoes?: Array<{
+    id: string; aprovadorId: string | null; status: string;
+    respondidoEm: string | null; etapaNome: string | null; observacao: string | null;
+    createdAt: string; aprovador: { nome: string } | null;
+  }>;
 };
 
 type HistoricoEntry = {
@@ -439,7 +443,7 @@ export default function CotacaoDetailPage() {
   const respondidas = cotacao.fornecedores.filter((cf) => cf.status === "RESPONDIDA");
   const canEdit = isAdmin || cotacao.status !== "CONCLUIDA";
   // Aprovador designado da pendência atual (além do ADMIN) pode aprovar/reprovar.
-  const isAprovador = (cotacao.aprovacoes ?? []).some((a) => a.aprovadorId === user?.id);
+  const isAprovador = (cotacao.aprovacoes ?? []).some((a) => a.status === "PENDENTE" && a.aprovadorId === user?.id);
   const podeAprovar = isAdmin || isAprovador;
 
   return (
@@ -571,6 +575,41 @@ export default function CotacaoDetailPage() {
           </div>
         </div>
 
+        {/* ── Histórico de aprovação (quem aprovou/reprovou e quando) ─────── */}
+        {(cotacao.aprovacoes ?? []).length > 0 && (
+          <div className="bg-card rounded-xl border border-border px-5 py-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Histórico de aprovação</p>
+            <ul className="space-y-1.5 text-sm">
+              {(cotacao.aprovacoes ?? []).map((a) => {
+                const nome = a.aprovador?.nome ?? "Aprovador";
+                const quando = a.respondidoEm ?? a.createdAt;
+                const data = quando ? new Date(quando).toLocaleString("pt-BR") : "—";
+                if (a.status === "APROVADO") return (
+                  <li key={a.id} className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                    <span className="text-foreground"><b className="font-semibold">Aprovada</b> por {nome}</span>
+                    <span className="text-muted-foreground ml-auto text-xs whitespace-nowrap">{data}</span>
+                  </li>
+                );
+                if (a.status === "REPROVADO") return (
+                  <li key={a.id} className="flex items-start gap-2">
+                    <XCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
+                    <span className="text-foreground"><b className="font-semibold">Reprovada</b> por {nome}{a.observacao ? ` — ${a.observacao}` : ""}</span>
+                    <span className="text-muted-foreground ml-auto text-xs whitespace-nowrap">{data}</span>
+                  </li>
+                );
+                return (
+                  <li key={a.id} className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-warning shrink-0" />
+                    <span className="text-foreground">Aguardando aprovação de {nome}</span>
+                    <span className="text-muted-foreground ml-auto text-xs whitespace-nowrap">desde {data}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
         {/* ── Itens da cotação (collapsible) ─────────────────────────────── */}
         <div className="bg-card rounded-xl border border-border overflow-hidden">
           <button
@@ -628,7 +667,7 @@ export default function CotacaoDetailPage() {
             const codigoForn = cf.fornecedor.id.slice(-8).toUpperCase();
             const propostaNum = `PROPOSTA ${String(idx + 1).padStart(2, "0")}`;
             const totalItens = cf.itens.length;
-            const itensSemPreco = cf.itens.filter((i) => !i.precoUnitario).length;
+            const itensComPreco = cf.itens.filter((i) => Number(i.precoUnitario) > 0).length;
             const total = decimalToNumber(cf.totalCalculado);
 
             return (
@@ -726,9 +765,9 @@ export default function CotacaoDetailPage() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">Itens pendentes</p>
+                    <p className="text-xs text-muted-foreground mb-0.5">Itens preenchidos</p>
                     <p className="font-medium text-foreground">
-                      {cf.status === "RESPONDIDA" ? `${itensSemPreco}/${totalItens}` : `${totalItens}/${totalItens}`}
+                      {cf.status === "RESPONDIDA" ? `${itensComPreco}/${totalItens}` : `0/${totalItens}`}
                     </p>
                   </div>
                   <div>

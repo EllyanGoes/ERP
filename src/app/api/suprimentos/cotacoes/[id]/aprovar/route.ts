@@ -4,7 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { gerarPedidoDeCotacao, finalizarMensagemAprovacaoCotacao } from "@/lib/aprovacao-cotacao";
-import { notificarUsuario } from "@/lib/notificacoes";
+import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
 
 // POST /api/suprimentos/cotacoes/[id]/aprovar
 // Aprova a cotação e gera o Pedido de Compras (uma única aprovação). Quem pode:
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // Pendência (para editar a mensagem do Telegram do aprovador após aprovar).
     const pendencia = await prisma.aprovacaoSC.findFirst({
       where: { cotacaoId: params.id, status: "PENDENTE" },
-      select: { id: true, solicitadoPor: true, aprovador: { select: { nome: true } } },
+      select: { id: true, solicitadoPor: true, aprovadorId: true, aprovador: { select: { nome: true } } },
     });
     const numeroRef = (await prisma.cotacaoCompra.findUnique({
       where: { id: params.id }, select: { nome: true, numero: true },
@@ -55,6 +55,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       await finalizarMensagemAprovacaoCotacao(
         pendencia.id, "APROVADO", pendencia.aprovador?.nome ?? "Aprovador", result.pedidoCompra.numero,
       );
+    }
+
+    // Tira do "não lidas" do aprovador a pendência desta cotação (não acumula).
+    if (pendencia?.aprovadorId) {
+      await marcarNotificacoesLidasPorLink(pendencia.aprovadorId, `/suprimentos/cotacoes/${params.id}`, "COTACAO_APROVACAO_SOLICITADA");
     }
 
     // Notificação in-app (toast) para o solicitante: cotação aprovada.

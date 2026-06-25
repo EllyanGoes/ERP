@@ -65,11 +65,12 @@ export default function NotificationCenter() {
     }
   }, []);
 
-  // Dispara a notificação do SISTEMA. Só quando a aba não está em foco (com a aba
-  // ativa basta o toast in-app), e com permissão concedida.
+  // Dispara a notificação do SISTEMA. Só quando a janela do app NÃO está focada
+  // (aba em 2º plano OU usuário em outro aplicativo — com a aba ativa e focada
+  // basta o toast in-app), e com permissão concedida.
   const dispararNativa = useCallback((n: Notif) => {
     if (typeof window === "undefined" || !("Notification" in window)) return;
-    if (Notification.permission !== "granted" || !document.hidden) return;
+    if (Notification.permission !== "granted" || document.hasFocus()) return;
     try {
       const nativa = new Notification(n.titulo, { body: n.mensagem, tag: n.id });
       nativa.onclick = () => {

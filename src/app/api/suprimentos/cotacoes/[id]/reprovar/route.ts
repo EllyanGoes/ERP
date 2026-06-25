@@ -4,7 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { finalizarMensagemAprovacaoCotacao } from "@/lib/aprovacao-cotacao";
-import { notificarUsuario } from "@/lib/notificacoes";
+import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
 
 // POST /api/suprimentos/cotacoes/[id]/reprovar
 // O gerente reprova a cotação: volta para EM_ANALISE (o comprador revê) com o
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const pendencia = await prisma.aprovacaoSC.findFirst({
       where: { cotacaoId: params.id, status: "PENDENTE" },
-      select: { id: true, solicitadoPor: true, aprovador: { select: { nome: true } } },
+      select: { id: true, solicitadoPor: true, aprovadorId: true, aprovador: { select: { nome: true } } },
     });
     const cot = await prisma.cotacaoCompra.findUnique({ where: { id: params.id }, select: { nome: true, numero: true } });
 
@@ -49,6 +49,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // Atualiza a mensagem do aprovador (reprovada, sem botões) — best-effort.
     if (pendencia) {
       await finalizarMensagemAprovacaoCotacao(pendencia.id, "REPROVADO", pendencia.aprovador?.nome ?? "Aprovador");
+    }
+
+    // Tira do "não lidas" do aprovador a pendência desta cotação (não acumula).
+    if (pendencia?.aprovadorId) {
+      await marcarNotificacoesLidasPorLink(pendencia.aprovadorId, `/suprimentos/cotacoes/${params.id}`, "COTACAO_APROVACAO_SOLICITADA");
     }
 
     // Notificação in-app (toast) para o solicitante: cotação reprovada.
