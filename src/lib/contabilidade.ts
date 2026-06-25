@@ -665,11 +665,22 @@ export async function contabilizarSaldoInicialEstoque(empresaId: string) {
     if (d && (!dataMin || d < dataMin)) dataMin = d;
   }
 
+  // Locais de PCP (Produto Acabado / WIP) NÃO recebem saldo de abertura: são
+  // governados pela produção (a entrada de produção já capitaliza o estoque). Uma
+  // abertura aqui duplicaria o estoque reconstruído pelos movimentos de produção.
+  const locaisInfo = await prismaSemEscopo.localEstoque.findMany({
+    where: { id: { in: Array.from(porLocal.keys()) } }, select: { id: true, categoriasAceitas: true },
+  });
+  const pcpLocalIds = new Set(
+    locaisInfo.filter((l) => ((l.categoriasAceitas as string[] | null) ?? []).some((c) => CATEGORIAS_PCP.has(c))).map((l) => l.id),
+  );
+
   const contaAbertura = await garantirContaSaldoAbertura(empresaId);
   if (!contaAbertura) return;
   const partidas: PartidaIn[] = [];
   let totalDeb = 0;
   for (const [localId, v] of Array.from(porLocal.entries())) {
+    if (pcpLocalIds.has(localId)) continue; // PCP não tem abertura
     const r = Math.round(v * 100) / 100;
     if (r <= 0.005) continue;
     const cl = await garantirContaLocalNaEmpresa(empresaId, localId);
@@ -1306,9 +1317,11 @@ export async function reconciliarEstoqueAoFisico(
 export async function contabilizarLoteMovimentacao(loteId: string) {
   const lote = await prismaSemEscopo.loteMovimentacao.findUnique({
     where: { id: loteId },
-    select: { id: true, numero: true, tipo: true, createdAt: true },
+    select: { id: true, numero: true, tipo: true, createdAt: true, empresaId: true },
   });
   if (!lote) return;
+  const ehTransferencia = lote.tipo === "TRANSFERENCIA";
+  const origemTipo = ehTransferencia ? "ESTOQUE_TRANSFERENCIA" : "ESTOQUE_AJUSTE";
 
   const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
     where: {
@@ -1320,9 +1333,13 @@ export async function contabilizarLoteMovimentacao(loteId: string) {
     },
     select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true },
   });
-  if (movs.length === 0) return;
+  // Lote 100% venda/conferência (nada manual sobrou) → remove lançamento órfão de
+  // reprocessos anteriores e sai. Sem isso, a dupla contagem antiga persistiria.
+  if (movs.length === 0) {
+    await apagarLancamentosContabeis({ empresaId: lote.empresaId, origemTipo, origemId: loteId });
+    return;
+  }
   const empresaId = movs[0].empresaId;
-  const ehTransferencia = lote.tipo === "TRANSFERENCIA";
 
   // Locais de PCP (Produto Acabado / WIP): a entrada de produção capitaliza (C PEP)
   // e a baixa de acabado vira CPV (D CPV) — modelo de absorção. Os demais locais
@@ -1344,7 +1361,7 @@ export async function contabilizarLoteMovimentacao(loteId: string) {
 
   await postMovimentosEstoque({
     empresaId, data: lote.createdAt, historico: `Movimentação manual — ${lote.numero}`,
-    origemTipo: ehTransferencia ? "ESTOQUE_TRANSFERENCIA" : "ESTOQUE_AJUSTE", origemId: loteId,
+    origemTipo, origemId: loteId,
     movs, contaPositivoId: sobrasId, contaNegativoId: perdasId, semContrapartida: ehTransferencia,
     pcpLocalIds, contaPcpEntradaId: pep?.id ?? null, contaPcpSaidaId: cpv?.id ?? null,
   });
