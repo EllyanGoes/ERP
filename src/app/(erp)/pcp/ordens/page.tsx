@@ -15,7 +15,8 @@ type Unidade = { id: string; sigla: string };
 type Produto = { id: string; codigo: string; descricao: string; unidades: Unidade[] };
 type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
 type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string };
-type BoardOP = { id: string; numero: string; status: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string };
+type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null };
+type BoardOP = { id: string; numero: string; status: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
 type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
 
@@ -49,7 +50,7 @@ export default function OrdensBoardPage() {
 
   // Apontar
   const [apontar, setApontar] = useState<BoardOP | null>(null);
-  const [apForm, setApForm] = useState({ quantidade: "", perda: "", biomassa: "" });
+  const [apForm, setApForm] = useState<{ reais: Record<string, string>; perda: string; biomassa: string }>({ reais: {}, perda: "", biomassa: "" });
   const [apBusy, setApBusy] = useState(false);
 
   const area = areas.find((a) => a.nodeId === areaNodeId) ?? null;
@@ -154,13 +155,13 @@ export default function OrdensBoardPage() {
 
   async function concluir() {
     if (!apontar) return;
-    const q = Number(apForm.quantidade);
-    if (!Number.isFinite(q) || q <= 0) { setErro("Informe a quantidade produzida"); return; }
+    const itens = apontar.produtos.map((p) => ({ itemId: p.itemId, quantidadeReal: apForm.reais[p.itemId] ?? String(p.planejada) }));
+    if (!itens.some((i) => Number(i.quantidadeReal) > 0)) { setErro("Informe a quantidade produzida"); return; }
     setApBusy(true); setErro(null);
     try {
       const r = await fetch(`/api/pcp/ordens/${apontar.id}/concluir-area`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantidadeProduzida: apForm.quantidade, qtdPerda: apForm.perda || undefined, biomassaKg: apForm.biomassa || undefined }),
+        body: JSON.stringify({ itens, qtdPerda: apForm.perda || undefined, biomassaKg: apForm.biomassa || undefined }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error ?? "Erro ao apontar");
@@ -290,7 +291,7 @@ export default function OrdensBoardPage() {
                         <p className="text-sm font-medium text-foreground mt-1 truncate">{o.produto ?? "—"}</p>
                         <p className="text-[11px] text-muted-foreground">{Number(o.quantidade)} {o.unidade}</p>
                         {!concl && (
-                          <button onClick={() => { setApontar(o); setApForm({ quantidade: String(Number(o.quantidade) || ""), perda: "", biomassa: "" }); setErro(null); }}
+                          <button onClick={() => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perda: "", biomassa: "" }); setErro(null); }}
                             className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
                             <CheckCircle2 className="w-3.5 h-3.5" /> Apontar / Concluir
                           </button>
@@ -402,13 +403,21 @@ export default function OrdensBoardPage() {
       {/* Modal apontar */}
       {apontar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setApontar(null)}>
-          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Apontar {apontar.numero}</h2>
-            <p className="text-xs text-muted-foreground mt-1">{apontar.produto} · área {area?.centroTrabalho ?? area?.nome}. Consome o WIP/MP de entrada e gera a saída.</p>
+            <p className="text-xs text-muted-foreground mt-1">Área {area?.centroTrabalho ?? area?.nome}. Informe a quantidade <b>real</b> produzida por produto (padrão = planejado).</p>
             <div className="mt-4 space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade produzida *</label>
-                <input autoFocus inputMode="decimal" value={apForm.quantidade} onChange={(e) => setApForm((p) => ({ ...p, quantidade: e.target.value }))} className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+              <div className="rounded-lg border border-border overflow-hidden">
+                <div className="grid grid-cols-[1fr_5rem_5rem] gap-2 px-3 py-1.5 bg-muted text-[11px] font-semibold text-muted-foreground uppercase">
+                  <span>Produto</span><span className="text-right">Planejado</span><span className="text-right">Real</span>
+                </div>
+                {apontar.produtos.map((pr) => (
+                  <div key={pr.itemId} className="grid grid-cols-[1fr_5rem_5rem] gap-2 px-3 py-1.5 items-center border-t border-border/60">
+                    <span className="text-xs text-foreground truncate">{pr.descricao}{pr.unidade ? <span className="text-muted-foreground"> ({pr.unidade})</span> : null}</span>
+                    <span className="text-xs text-muted-foreground text-right tabular-nums">{Number(pr.planejada)}</span>
+                    <input inputMode="decimal" value={apForm.reais[pr.itemId] ?? ""} onChange={(e) => setApForm((p) => ({ ...p, reais: { ...p.reais, [pr.itemId]: e.target.value } }))} className="h-8 rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                  </div>
+                ))}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

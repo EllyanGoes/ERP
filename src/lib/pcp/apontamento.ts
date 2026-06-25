@@ -34,6 +34,9 @@ export type ApontarEtapaInput = {
   // Ausentes (undefined) → deriva das etapas da própria OP (comportamento atual).
   fromEstadoOverride?: EstadoWIP | null;
   firstEstadoOverride?: EstadoWIP | null;
+  // OP multi-produto: produz ESTE produto (chamado 1× por produto da OP). qtdSaidaNum
+  // é a quantidade real desse produto (na unidade-base). Ausente → usa ordem.itemId.
+  produtoOverride?: { itemId: string; codigo: string; descricao: string } | null;
 };
 
 /**
@@ -80,9 +83,13 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
   // Consome os insumos da etapa (MP) e o WIP do estado anterior, soma o custo e dá
   // entrada no WIP/acabado do estado de saída com o custo unitário acumulado.
   if (p.concluindoAgora && etapa.estadoSaida && p.qtdSaidaNum != null && p.qtdSaidaNum > 0) {
-    const base = ordem.item
-      ? { codigo: ordem.item.codigo, descricao: ordem.item.descricao }
-      : { codigo: ordem.numero, descricao: ordem.fluxoVersao?.fluxo?.nome ?? ordem.numero };
+    // Produto desta produção: override (OP multi-produto, 1 chamada por produto) ou o itemId da OP.
+    const itemIdAtivo = p.produtoOverride?.itemId ?? ordem.itemId;
+    const base = p.produtoOverride
+      ? { codigo: p.produtoOverride.codigo, descricao: p.produtoOverride.descricao }
+      : ordem.item
+        ? { codigo: ordem.item.codigo, descricao: ordem.item.descricao }
+        : { codigo: ordem.numero, descricao: ordem.fluxoVersao?.fluxo?.nome ?? ordem.numero };
     const toEstado = etapa.estadoSaida;
     const anteriores = etapas.filter((e) => e.sequencia < etapa.sequencia && e.estadoSaida);
     // WIP de entrada: override (OP de área) ou derivado das etapas anteriores da OP.
@@ -101,13 +108,13 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
       : (etapas.find((e) => e.estadoSaida)?.estadoSaida ?? null);
 
     const destItemId =
-      toEstado === "ACABADO" && ordem.itemId ? ordem.itemId : await getOrCreateWipItem(tx, base, toEstado);
+      toEstado === "ACABADO" && itemIdAtivo ? itemIdAtivo : await getOrCreateWipItem(tx, base, toEstado);
 
     // 1. Consumo dos insumos da BOM cuja fase é esta etapa (custeio por fase).
     let custoInsumos = 0;
-    const eng = ordem.itemId
+    const eng = itemIdAtivo
       ? await tx.engenhariaProduto.findUnique({
-          where: { itemId: ordem.itemId },
+          where: { itemId: itemIdAtivo },
           include: {
             insumos: {
               include: {

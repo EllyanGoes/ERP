@@ -31,7 +31,13 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: "asc" },
     select: {
       id: true, numero: true, status: true, quantidadePlanejada: true, unidade: true,
+      dataPrevistaInicio: true, dataPrevistaFim: true,
+      responsavelColaborador: { select: { nome: true } },
       item: { select: { codigo: true, descricao: true } },
+      produtoItens: {
+        select: { itemId: true, quantidadePlanejada: true, quantidadeReal: true,
+          item: { select: { codigo: true, descricao: true } }, unidade: { select: { sigla: true } } },
+      },
       etapas: { where: { nodeId: areaNodeId }, select: { status: true, qtdSaida: true, qtdPerda: true }, take: 1 },
     },
   });
@@ -44,6 +50,17 @@ export async function GET(req: NextRequest) {
     unidade: o.unidade,
     produto: o.item?.descricao ?? null,
     produtoCodigo: o.item?.codigo ?? null,
+    responsavel: o.responsavelColaborador?.nome ?? null,
+    inicioPrevisto: o.dataPrevistaInicio,
+    fimPrevisto: o.dataPrevistaFim,
+    produtos: o.produtoItens.map((pi) => ({
+      itemId: pi.itemId,
+      codigo: pi.item.codigo,
+      descricao: pi.item.descricao,
+      planejada: pi.quantidadePlanejada,
+      real: pi.quantidadeReal,
+      unidade: pi.unidade?.sigla ?? null,
+    })),
     etapaStatus: o.etapas[0]?.status ?? "PENDENTE",
     qtdSaida: o.etapas[0]?.qtdSaida ?? null,
     qtdPerda: o.etapas[0]?.qtdPerda ?? null,
