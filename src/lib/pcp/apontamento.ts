@@ -26,6 +26,12 @@ export type ApontarEtapaInput = {
   milheiros: number | null;
   subprodutoQtd: number | null;
   apontadoPor: string | null;
+  // Overrides p/ OP de uma área só (board de chão de fábrica): a OP não tem etapas
+  // anteriores, então o estado de ENTRADA (WIP a consumir) e o estado da 1ª área do
+  // fluxo (p/ saber se esta OP consome MP) vêm do fluxo, não das etapas da OP.
+  // Ausentes (undefined) → deriva das etapas da própria OP (comportamento atual).
+  fromEstadoOverride?: EstadoWIP | null;
+  firstEstadoOverride?: EstadoWIP | null;
 };
 
 /**
@@ -77,13 +83,20 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
       : { codigo: ordem.numero, descricao: ordem.fluxoVersao?.fluxo?.nome ?? ordem.numero };
     const toEstado = etapa.estadoSaida;
     const anteriores = etapas.filter((e) => e.sequencia < etapa.sequencia && e.estadoSaida);
-    const fromEstado = anteriores.length ? anteriores[anteriores.length - 1].estadoSaida : null;
+    // WIP de entrada: override (OP de área) ou derivado das etapas anteriores da OP.
+    const fromEstado = p.fromEstadoOverride !== undefined
+      ? p.fromEstadoOverride
+      : (anteriores.length ? anteriores[anteriores.length - 1].estadoSaida : null);
     const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Produção ${ordem.numero} — ${etapa.nome}`);
     const localDest = await getOrCreateLocalEstado(tx, toEstado);
 
     const qtdProduzida = p.qtdSaidaNum;
     const qtdConsumidaWip = p.qtdEntradaNum ?? p.qtdSaidaNum;
-    const firstEstado = etapas.find((e) => e.estadoSaida)?.estadoSaida ?? null;
+    // Estado da 1ª área do fluxo: override (OP de área) ou a 1ª etapa da OP. Só a OP
+    // dessa 1ª área consome a MP (insumos da BOM com estadoConsumo null).
+    const firstEstado = p.firstEstadoOverride !== undefined
+      ? p.firstEstadoOverride
+      : (etapas.find((e) => e.estadoSaida)?.estadoSaida ?? null);
 
     const destItemId =
       toEstado === "ACABADO" && ordem.itemId ? ordem.itemId : await getOrCreateWipItem(tx, base, toEstado);
