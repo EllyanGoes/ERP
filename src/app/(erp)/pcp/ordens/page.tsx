@@ -284,9 +284,21 @@ export default function OrdensBoardPage() {
                 )}
               </ColBoard>
 
-              {/* Coluna 3 — SAÍDA (PEP que a etapa gera, ou produto acabado) */}
+              {/* Coluna 3 — SAÍDA (PEP que a etapa gera, ou o produto produzido) */}
               <ColBoard cor="emerald" titulo={area.estadoSaida === "ACABADO" ? "Produto acabado" : area.estadoSaida ? `PEP saída · ${ESTADO_LABEL[area.estadoSaida] ?? area.estadoSaida}` : "Saída"} icon={<PackageCheck className="w-3.5 h-3.5" />}>
-                <EstoqueLista linhas={saidaEstoque} vazio={area.estadoSaida ? "Sem produção ainda." : "Etapa sem saída de WIP."} />
+                {area.estadoSaida ? (
+                  <EstoqueLista linhas={saidaEstoque} vazio="Sem produção ainda." />
+                ) : (() => {
+                  // Área sem estado de WIP: a saída é o(s) produto(s) produzido(s) — vem das OPs do dia.
+                  const prods = Array.from(new Map(ops.map((o) => [o.produtoCodigo ?? o.produto ?? o.id, o])).values());
+                  if (prods.length === 0) return <p className="text-xs text-muted-foreground p-1">A saída aparece ao criar uma OP nesta etapa.</p>;
+                  return prods.map((o) => (
+                    <div key={o.id} className="rounded-lg border border-border bg-card px-3 py-2 text-xs">
+                      <p className="text-foreground font-medium truncate">{o.produto ?? "—"}</p>
+                      <p className="text-[11px] text-muted-foreground">{o.produtoCodigo ? `${o.produtoCodigo} · ` : ""}Produto</p>
+                    </div>
+                  ));
+                })()}
               </ColBoard>
             </div>
           </>
