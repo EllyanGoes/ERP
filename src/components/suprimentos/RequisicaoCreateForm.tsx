@@ -145,6 +145,132 @@ function PortalSelect<T extends { id: string }>({
   );
 }
 
+// ── Natureza Select (agrupado por grupo + busca) ──────────────────────────────
+
+type NaturezaOpt = { id: string; nome: string; cif?: boolean; grupo?: string };
+
+const GRUPO_NAT_LABEL: Record<string, string> = {
+  RECEITA_OPERACIONAL: "Receitas operacionais",
+  CUSTO_OPERACIONAL:   "Custos operacionais",
+  DESPESA_OPERACIONAL: "Despesas operacionais",
+  INVESTIMENTO:        "Atividades de investimento",
+  FINANCIAMENTO:       "Atividades de financiamento",
+};
+const GRUPO_NAT_ORDER: Record<string, number> = {
+  RECEITA_OPERACIONAL: 0, CUSTO_OPERACIONAL: 1, DESPESA_OPERACIONAL: 2, INVESTIMENTO: 3, FINANCIAMENTO: 4,
+};
+
+function NaturezaSelect({
+  options, value, onChange, placeholder, error, compact,
+}: {
+  options: NaturezaOpt[];
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  error?: boolean;
+  compact?: boolean;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [pos, setPos]   = useState<{ top: number; left: number; width: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const selected = options.find((o) => o.id === value);
+  const filtered = query.trim()
+    ? options.filter((o) => o.nome.toLowerCase().includes(query.toLowerCase()))
+    : options;
+
+  // Agrupa por grupo financeiro, com seções na ordem do fluxo de caixa.
+  const grupos = (() => {
+    const m = new Map<string, NaturezaOpt[]>();
+    for (const o of filtered) {
+      const g = o.grupo ?? "OUTROS";
+      (m.get(g) ?? m.set(g, []).get(g)!).push(o);
+    }
+    return Array.from(m.entries()).sort((a, b) => (GRUPO_NAT_ORDER[a[0]] ?? 99) - (GRUPO_NAT_ORDER[b[0]] ?? 99));
+  })();
+
+  function calcPos() {
+    if (!containerRef.current) return;
+    const r = containerRef.current.getBoundingClientRect();
+    setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 240) });
+  }
+  function openDrop() { calcPos(); setQuery(""); setOpen(true); }
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (!containerRef.current?.contains(e.target as Node)) { setOpen(false); setQuery(""); }
+    }
+    document.addEventListener("mousedown", handler);
+    window.addEventListener("scroll", calcPos, true);
+    window.addEventListener("resize", calcPos);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      window.removeEventListener("scroll", calcPos, true);
+      window.removeEventListener("resize", calcPos);
+    };
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className={cn(
+        "flex items-center rounded-md border bg-card transition-colors",
+        compact ? "rounded-md" : "rounded-lg",
+        open ? "border-blue-400 ring-1 ring-blue-200"
+          : error && !value ? "border-red-400 ring-1 ring-red-100"
+          : "border-border hover:border-border"
+      )}>
+        <input
+          type="text"
+          value={open ? query : (selected ? `${selected.nome}${selected.cif ? " · CIF" : ""}` : "")}
+          onChange={(e) => { setQuery(e.target.value); if (!open) openDrop(); }}
+          onFocus={openDrop}
+          placeholder={placeholder}
+          className={cn(
+            "flex-1 bg-transparent outline-none placeholder:text-muted-foreground text-foreground",
+            compact ? "px-2 py-1.5 text-xs h-8" : "px-3 py-2 text-sm",
+          )}
+        />
+        {value && !open && (
+          <button type="button" onClick={(e) => { e.stopPropagation(); onChange(""); setQuery(""); setOpen(false); }} className="px-1.5 text-muted-foreground/60 hover:text-muted-foreground">
+            <X className={compact ? "w-3 h-3" : "w-3.5 h-3.5"} />
+          </button>
+        )}
+        <ChevronDown className={cn("text-muted-foreground shrink-0 mr-2 transition-transform", compact ? "w-3.5 h-3.5" : "w-4 h-4", open && "rotate-180")} />
+      </div>
+      {mounted && open && createPortal(
+        <div className="fixed z-[9999] bg-card border border-border rounded-xl shadow-lg overflow-auto max-h-72"
+          style={{ top: pos?.top, left: pos?.left, width: pos?.width }}>
+          {grupos.length > 0 ? grupos.map(([g, opts]) => (
+            <div key={g}>
+              <div className="px-3 py-1.5 bg-muted/70 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0">
+                {GRUPO_NAT_LABEL[g] ?? "Outros"}
+              </div>
+              {opts.map((o) => (
+                <button key={o.id} type="button"
+                  onMouseDown={(e) => { e.preventDefault(); onChange(o.id); setOpen(false); setQuery(""); }}
+                  className={cn("w-full px-3 py-2 text-sm text-left hover:bg-info/10 hover:text-info transition-colors flex items-center gap-1.5",
+                    o.id === value && "bg-info/10 text-info font-medium")}>
+                  <span className="truncate">{o.nome}</span>
+                  {o.cif && <span className="text-[10px] text-violet-600 dark:text-violet-400 shrink-0">· CIF</span>}
+                </button>
+              ))}
+            </div>
+          )) : (
+            <p className="px-3 py-2.5 text-sm text-muted-foreground italic">
+              {query ? `Nenhum resultado para "${query}"` : "Nenhuma natureza"}
+            </p>
+          )}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // ── Item search dropdown (portal) ─────────────────────────────────────────────
 
 function ItemSearchCell({
@@ -442,7 +568,7 @@ export default function RequisicaoCreateForm() {
   const [colaboradores, setColaboradores] = useState<ColaboradorOpt[]>([]);
   const [setores,       setSetores]       = useState<SetorOpt[]>([]);
   const [centros,       setCentros]       = useState<CentroCustoOpt[]>([]);
-  const [naturezas,     setNaturezas]     = useState<{ id: string; nome: string; cif?: boolean }[]>([]);
+  const [naturezas,     setNaturezas]     = useState<NaturezaOpt[]>([]);
   const [itensCat,      setItensCat]      = useState<ItemOpt[]>([]);
   // Unidades cadastradas por produto (para limitar o seletor e converter à base).
   const [itemUnidades,  setItemUnidades]  = useState<Map<string, UnidadeOpt[]>>(new Map());
@@ -718,12 +844,11 @@ export default function RequisicaoCreateForm() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Natureza financeira <span className="text-muted-foreground font-normal text-xs">(aplica a todos os itens)</span></Label>
-                  <PortalSelect
+                  <NaturezaSelect
                     options={naturezas}
                     value={naturezaFinanceiraId}
                     onChange={(v) => { setNaturezaFinanceiraId(v); setRows((prev) => prev.map((r) => ({ ...r, naturezaFinanceiraId: v }))); }}
                     placeholder="Selecionar natureza..."
-                    getLabel={(n) => `${n.nome}${n.cif ? " · CIF" : ""}`}
                   />
                 </div>
               </div>
@@ -819,9 +944,14 @@ export default function RequisicaoCreateForm() {
                           )}
                         </td>
                         <td className="px-3 py-2">
-                          <ComboboxWithCreate value={row.naturezaFinanceiraId} onChange={(v) => updateRow(row._key, "naturezaFinanceiraId", v)}
-                            placeholder="—" noneLabel="—" triggerClassName="h-8 rounded-md text-xs"
-                            options={naturezas.map((n) => ({ value: n.id, label: `${n.nome}${n.cif ? " · CIF" : ""}` }))} />
+                          <NaturezaSelect
+                            options={naturezas}
+                            value={row.naturezaFinanceiraId}
+                            onChange={(v) => updateRow(row._key, "naturezaFinanceiraId", v)}
+                            placeholder="—"
+                            compact
+                            error={submitted && !!row.itemId && !(row.naturezaFinanceiraId || naturezaFinanceiraId)}
+                          />
                           {submitted && row.itemId && !(row.naturezaFinanceiraId || naturezaFinanceiraId) && (
                             <p className="text-[10px] text-red-500 mt-0.5">natureza obrigatória</p>
                           )}
