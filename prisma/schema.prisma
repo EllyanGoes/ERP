@@ -175,6 +175,7 @@ model Colaborador {
   updatedAt                  DateTime             @updatedAt
   etapasAprovacao            AprovacaoEtapa[]
   folhaItens                 FolhaItem[]
+  ordensProducaoResponsavel  OrdemProducao[]      @relation("OrdemProducaoResponsavel")
   usuario                    Usuario?             @relation(fields: [usuarioId], references: [id])
   filiais                    Filial[]
   // Empresas em que o colaborador está presente — define onde ele aparece nos
@@ -1258,6 +1259,7 @@ model Item {
   tabelaPrecoItens       TabelaPrecoItem[]
   fluxosProducao         FluxoProducao[]
   ordensProducao         OrdemProducao[]
+  ordemProducaoProdutoItens OrdemProducaoProdutoItem[] @relation("OrdemProducaoProdutoItem_item")
   engenhariaProduto      EngenhariaProduto?       @relation("EngenhariaProdutoItem")
   insumosEngenharia      EngenhariaInsumo[]       @relation("EngenhariaInsumoItem")
   // Item de SEGUNDA qualidade: mesma engenharia/custo do produto base; muda só o
@@ -2024,6 +2026,7 @@ model Unidade {
   movimentacoes     MovimentacaoEstoque[]
   minutaItens       MinutaItem[]
   conversoesDestino UnidadeConversao[]    @relation("UnidadeConversao_unidadeDestinoIdToUnidade")
+  ordemProducaoProdutoItens OrdemProducaoProdutoItem[]
   conversoesOrigem  UnidadeConversao[]    @relation("UnidadeConversao_unidadeOrigemIdToUnidade")
 }
 
@@ -2315,12 +2318,17 @@ model OrdemProducao {
   status              StatusOrdemProducao   @default(RASCUNHO)
   estadoAtual         EstadoWIP             @default(UMIDO)
   dataPrevista        DateTime?
+  dataPrevistaInicio  DateTime?
+  dataPrevistaFim     DateTime?
+  responsavelColaboradorId String?
   observacao          String?
   criadoPor           String?
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
   item                Item?                 @relation(fields: [itemId], references: [id])
   fluxoVersao         FluxoProducaoVersao   @relation(fields: [fluxoVersaoId], references: [id])
+  responsavelColaborador Colaborador?       @relation("OrdemProducaoResponsavel", fields: [responsavelColaboradorId], references: [id])
+  produtoItens        OrdemProducaoProdutoItem[]
   etapas              ItemOrdemProducao[]
   consumos            ConsumoBiomassa[]
   movimentacoes       MovimentacaoEstoque[]
@@ -2332,6 +2340,23 @@ model OrdemProducao {
   @@index([itemId])
   @@index([fluxoVersaoId])
   @@index([empresaId])
+}
+
+// Produtos (linhas) de uma OP — uma OP pode produzir VÁRIOS produtos. quantidade na
+// unidade escolhida (unidadeId; null = base). quantidadeReal preenchida no apontamento.
+model OrdemProducaoProdutoItem {
+  id                  String        @id @default(cuid())
+  ordemProducaoId     String
+  itemId              String
+  quantidadePlanejada Decimal       @db.Decimal(15, 3)
+  unidadeId           String?
+  quantidadeReal      Decimal?      @db.Decimal(15, 3)
+  createdAt           DateTime      @default(now())
+  ordemProducao       OrdemProducao @relation(fields: [ordemProducaoId], references: [id], onDelete: Cascade)
+  item                Item          @relation("OrdemProducaoProdutoItem_item", fields: [itemId], references: [id])
+  unidade             Unidade?      @relation(fields: [unidadeId], references: [id])
+
+  @@index([ordemProducaoId])
 }
 
 // Uma etapa apontável da ordem (snapshot de um nó de operação/transporte/inspeção).
