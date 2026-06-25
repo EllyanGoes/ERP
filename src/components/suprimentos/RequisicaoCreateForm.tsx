@@ -12,14 +12,23 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 import { cn } from "@/lib/utils";
+import { rotearDestinoRequisicao } from "@/lib/pcp/rotear-requisicao";
+
+const DESTINOS = [
+  { value: "", label: "Automático" },
+  { value: "PEP_MD", label: "PEP-MD (material direto)" },
+  { value: "CIF", label: "CIF (indireto fabril)" },
+  { value: "IMOBILIZADO", label: "Imobilizado" },
+  { value: "DESPESA", label: "Despesa" },
+] as const;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type LocalEstoqueOpt = { id: string; nome: string };
 type ColaboradorOpt  = { id: string; nome: string; setorId: string | null };
 type SetorOpt        = { id: string; nome: string };
-type CentroCustoOpt  = { id: string; codigo: string; nome: string; grupoCentroCusto?: { id: string; nome: string } | null };
-type ItemOpt         = { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null; fabril?: boolean; capitaliza?: boolean; categoriaEstoque?: string | null; compoeCusto?: boolean };
+type CentroCustoOpt  = { id: string; codigo: string; nome: string; fabril?: boolean; grupoCentroCusto?: { id: string; nome: string } | null };
+type ItemOpt         = { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null; fabril?: boolean; capitaliza?: boolean; categoriaEstoque?: string | null; compoeCusto?: boolean; naturezaPadraoId?: string | null };
 
 type ItemRow = {
   _key:         string;
@@ -30,6 +39,7 @@ type ItemRow = {
   localizacao:  string;
   centroCustoId: string;
   naturezaFinanceiraId: string;
+  destinoManual: string; // escape explícito (PEP_MD/IMOBILIZADO/CIF/DESPESA) ou "" = auto
   os:           string;
   requisicaoRef: string;
 };
@@ -48,6 +58,7 @@ function emptyRow(): ItemRow {
     localizacao:  "",
     centroCustoId: "",
     naturezaFinanceiraId: "",
+    destinoManual: "",
     os:           "",
     requisicaoRef: "",
   };
@@ -147,7 +158,7 @@ function PortalSelect<T extends { id: string }>({
 
 // ── Natureza Select (agrupado por grupo + busca) ──────────────────────────────
 
-type NaturezaOpt = { id: string; nome: string; cif?: boolean; grupo?: string };
+type NaturezaOpt = { id: string; nome: string; cif?: boolean; grupo?: string; destinoSugerido?: string | null };
 
 const GRUPO_NAT_LABEL: Record<string, string> = {
   RECEITA_OPERACIONAL: "Receitas operacionais",
@@ -692,7 +703,13 @@ export default function RequisicaoCreateForm() {
   function handleItemSelect(key: string, itemId: string, _sigla: string) {
     // Zera a unidade ao trocar de produto; carrega as unidades do cadastro e
     // assume a principal por padrão (a conversão usa o fator de cada unidade).
-    setRows((prev) => prev.map((r) => r._key === key ? { ...r, itemId, unidade: "", unidadeId: "" } : r));
+    // Natureza por precedência: (a) override da linha › (b) natureza-padrão do item
+    // › (c) cabeçalho "aplica a todos".
+    const it = itensCat.find((i) => i.id === itemId);
+    setRows((prev) => prev.map((r) => r._key === key
+      ? { ...r, itemId, unidade: "", unidadeId: "",
+          naturezaFinanceiraId: r.naturezaFinanceiraId || it?.naturezaPadraoId || naturezaFinanceiraId || "" }
+      : r));
     if (!itemId) return;
     fetchUnidades(itemId).then((list) => {
       const principal = list.find((u) => u.isPrincipal) ?? list[0];
@@ -761,6 +778,7 @@ export default function RequisicaoCreateForm() {
               localizacao: r.localizacao || null,
               centroCustoId: r.centroCustoId || null,
               naturezaFinanceiraId: r.naturezaFinanceiraId || null,
+              destinoManual: r.destinoManual || null,
               os: r.os || null, requisicaoRef: r.requisicaoRef || null,
             };
           }),
@@ -954,6 +972,7 @@ export default function RequisicaoCreateForm() {
                     {tipo === "REQUISICAO" && <>
                       <th className="text-left px-3 py-2.5 min-w-[140px]">Centro de Custo <span className="text-red-500">*</span></th>
                       <th className="text-left px-3 py-2.5 min-w-[150px]">Natureza <span className="text-red-500">*</span></th>
+                      <th className="text-left px-3 py-2.5 w-32">Destino</th>
                       <th className="text-left px-3 py-2.5 w-24">O.S.</th>
                       <th className="text-left px-3 py-2.5 w-24">Requisição</th>
                     </>}
@@ -1036,6 +1055,27 @@ export default function RequisicaoCreateForm() {
                           {submitted && row.itemId && !(row.naturezaFinanceiraId || naturezaFinanceiraId) && (
                             <p className="text-[10px] text-red-500 mt-0.5">natureza obrigatória</p>
                           )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <select value={row.destinoManual} onChange={(e) => updateRow(row._key, "destinoManual", e.target.value)}
+                            className="h-8 text-xs w-full rounded-md border border-border bg-card px-1">
+                            {DESTINOS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                          </select>
+                          {(() => {
+                            // Alerta de coerência: o destino REAL (flags + centro + manual) vs o que
+                            // a natureza escolhida implicaria. Avisa, não bloqueia.
+                            const it = itensCat.find((i) => i.id === row.itemId);
+                            if (!it) return null;
+                            const centro = centros.find((c) => c.id === (row.centroCustoId || centroCustoId));
+                            const destino = rotearDestinoRequisicao({
+                              item: { categoriaEstoque: it.categoriaEstoque ?? null, compoeCusto: it.compoeCusto ?? false, fabril: it.fabril ?? false, capitaliza: it.capitaliza ?? false },
+                              destinoManual: (row.destinoManual || null) as never,
+                              centroFabril: centro ? !!centro.fabril : null,
+                            });
+                            const nat = naturezas.find((n) => n.id === (row.naturezaFinanceiraId || naturezaFinanceiraId));
+                            if (!nat?.destinoSugerido || destino === "INDEFINIDO" || nat.destinoSugerido === destino) return null;
+                            return <p className="text-[10px] text-amber-600 mt-0.5">⚠ natureza sugere {nat.destinoSugerido}, mas o destino é {destino}</p>;
+                          })()}
                         </td>
                         <td className="px-3 py-2">
                           <Input value={row.os} onChange={(e) => updateRow(row._key, "os", e.target.value)} className="h-8 text-xs" />
