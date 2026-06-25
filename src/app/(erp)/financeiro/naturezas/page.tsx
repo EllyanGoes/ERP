@@ -37,6 +37,7 @@ type Natureza = {
   id: string; nome: string; tipo: Tipo; grupo: Grupo;
   subgrupoId: string | null; subgrupo: { id: string; nome: string } | null; ativo: boolean;
   cif: boolean;
+  destinoSugerido: string | null;
   contaContabilId: string | null; contaContabil: ContaResultado | null;
   contaContrapartidaId: string | null; contaContrapartida: ContaResultado | null;
 };
@@ -347,6 +348,7 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
   const [contaContabilId, setContaContabilId] = useState(editing?.contaContabilId ?? "");
   const [contaContrapartidaId, setContaContrapartidaId] = useState(editing?.contaContrapartidaId ?? "");
   const [cif, setCif] = useState(editing?.cif ?? false);
+  const [destinoSugerido, setDestinoSugerido] = useState(editing?.destinoSugerido ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -365,7 +367,7 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
     const res = await fetch(url, {
       method: editing ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: nome.trim(), tipo, grupo, cif, subgrupoId: subgrupoId || null, contaContabilId: cif ? null : (contaContabilId || null), contaContrapartidaId: cif ? null : (contaContrapartidaId || null) }),
+      body: JSON.stringify({ nome: nome.trim(), tipo, grupo, cif, destinoSugerido: destinoSugerido || null, subgrupoId: subgrupoId || null, contaContabilId: cif ? null : (contaContabilId || null), contaContrapartidaId: cif ? null : (contaContrapartidaId || null) }),
     });
     if (!res.ok) { setError((await res.json()).error ?? "Erro ao salvar"); setSaving(false); return; }
     onSaved();
@@ -408,6 +410,17 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
               <span className="block text-[11px] text-muted-foreground">O débito vai para “CIF a Apropriar” (1.1.4.0001) e o crédito é fornecedor/estoque — sem conta de resultado nem contrapartida.</span>
             </span>
           </label>
+          <div className="space-y-1.5">
+            <Label>Destino sugerido (requisição) <span className="text-muted-foreground font-normal text-xs">(opcional — só alerta de coerência)</span></Label>
+            <select value={destinoSugerido} onChange={(e) => setDestinoSugerido(e.target.value)} className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card">
+              <option value="">— Nenhum —</option>
+              <option value="PEP_MD">PEP-MD (material direto)</option>
+              <option value="CIF">CIF (indireto fabril)</option>
+              <option value="IMOBILIZADO">Imobilizado</option>
+              <option value="DESPESA">Despesa</option>
+            </select>
+            <p className="text-[11px] text-muted-foreground">Não roteia nada — serve só para avisar na requisição quando a natureza não combina com o destino real (flags do item + centro).</p>
+          </div>
           {!cif && (<>
           <div className="space-y-1.5">
             <Label>Conta de resultado (contábil) *</Label>

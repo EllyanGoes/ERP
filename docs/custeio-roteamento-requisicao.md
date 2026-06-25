@@ -31,7 +31,7 @@ O destino é decidido por **duas perguntas**, sem digitação manual no caso com
 | # | Condição | Destino | Conta |
 |---|---|---|---|
 | 1 | Item é **material direto**: `categoria ∈ {MATERIA_PRIMA, INSUMO, EMBALAGEM}` **e** `compoeCusto = true` | **PEP-MD** | `1.1.3.0005.0001` |
-| 2 | RM tem **natureza marcada como CIF** (escape manual) | **CIF** | `1.1.4.0001` |
+| 2 | Linha da RM tem **`destinoManual`** (escape explícito) | **= destinoManual** | conforme |
 | 3 | Item **capitaliza** (`capitaliza = true`) — ferramental permanente / material de obra (CPC 27) | **IMOBILIZADO** | `1.2.4` |
 | 4 | Item **indireto de fábrica** (`fabril = true`) consumido em **centro fabril** | **CIF** | `1.1.4.0001` |
 | 4 | Item indireto consumido em **centro não-fabril** | **Despesa** | `3.3.9001` |
@@ -41,6 +41,12 @@ O destino é decidido por **duas perguntas**, sem digitação manual no caso com
 > **`capitaliza` precede o centro (regra 3 antes da 4):** material de obra requisitado para uma
 > área fabril (ex.: reforma do forno) satisfaz "fabril", mas **não é CIF do mês** — é
 > **investimento** que entra no Ativo e só impacta o resultado depois, via depreciação.
+
+> **Natureza ≠ destino.** A natureza financeira é só **gaveta gerencial** (dimensão nas partidas) —
+> **não roteia**. O destino vem das flags do item + centro (+ `destinoManual` como escape). Cada item
+> tem uma **natureza-padrão** (`Item.naturezaPadraoId`) que pré-preenche a linha da RM (precedência:
+> override da linha › natureza-padrão do item › cabeçalho). Se a natureza escolhida tiver um
+> `destinoSugerido` diferente do destino real, a RM mostra um **aviso** (não bloqueia).
 
 > **Regra 1 vence tudo:** material que compõe o produto vai sempre para o PEP-MD,
 > independentemente do centro — nunca é ambíguo. O centro de custo só desempata o

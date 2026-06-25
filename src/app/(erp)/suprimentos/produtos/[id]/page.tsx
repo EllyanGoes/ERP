@@ -519,13 +519,16 @@ export default function ProdutoDetailPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadItemUnidades(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [naturezasList, setNaturezasList] = useState<{ id: string; nome: string; cif?: boolean }[]>([]);
   useEffect(() => {
     Promise.all([
       fetch("/api/suprimentos/fornecedores").then((r) => r.json()),
       fetch("/api/suprimentos/unidades").then((r) => r.json()),
-    ]).then(([forn, un]) => {
+      fetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1").then((r) => r.json()),
+    ]).then(([forn, un, nat]) => {
       setFornList(Array.isArray(forn) ? forn : (forn.data ?? []));
       setUnidades(Array.isArray(un) ? un : (un.data ?? []));
+      setNaturezasList(Array.isArray(nat) ? nat : (nat.data ?? []));
     });
   }, []);
 
@@ -1101,6 +1104,30 @@ export default function ProdutoDetailPage() {
                         allowNone
                       />
                       <p className="text-[11px] text-muted-foreground mt-1">Natureza do produto — define em quais locais de estoque ele pode entrar.</p>
+                    </Field>
+                    <Field label="Roteamento contábil (requisição)" colSpan>
+                      <div className="flex flex-wrap gap-4 text-sm">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input type="checkbox" checked={form.fabril === true} onChange={(e) => setForm((p) => ({ ...p, fabril: e.target.checked }))} />
+                          <span>Indireto de fábrica <span className="text-muted-foreground text-xs">(fabril → CIF se centro fabril)</span></span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input type="checkbox" checked={form.capitaliza === true} onChange={(e) => setForm((p) => ({ ...p, capitaliza: e.target.checked }))} />
+                          <span>Capitaliza <span className="text-muted-foreground text-xs">(→ Imobilizado)</span></span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input type="checkbox" checked={form.compoeCusto !== false} onChange={(e) => setForm((p) => ({ ...p, compoeCusto: e.target.checked }))} />
+                          <span>Compõe custo <span className="text-muted-foreground text-xs">(material direto → PEP-MD)</span></span>
+                        </label>
+                      </div>
+                      <div className="mt-2">
+                        <Label className="text-xs">Natureza-padrão <span className="text-muted-foreground font-normal">(pré-preenche a requisição; não roteia)</span></Label>
+                        <select value={(form.naturezaPadraoId as string) || ""} onChange={(e) => setForm((p) => ({ ...p, naturezaPadraoId: e.target.value || null }))}
+                          className="w-full h-9 rounded-md border border-border px-2 text-sm bg-card mt-1">
+                          <option value="">— Nenhuma —</option>
+                          {naturezasList.map((n) => <option key={n.id} value={n.id}>{n.nome}{n.cif ? " · CIF" : ""}</option>)}
+                        </select>
+                      </div>
                     </Field>
                     {(form.categoriaEstoque === "PRODUTO_ACABADO" || form.categoriaEstoque === "WIP") && (
                       <Field label="Estados de WIP atendidos" colSpan>
