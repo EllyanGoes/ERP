@@ -260,3 +260,51 @@ export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: s
 
   await tx.ordemProducao.update({ where: { id: p.ordemId }, data: { status: "CONCLUIDA" } });
 }
+
+/**
+ * Apontamento de uma OP de área SEM estado de WIP que produz um PRODUTO específico
+ * (produtoSaidaId), ex.: "Preparação" → "Mistura de Argila". Consome a BOM do
+ * produto (argila/água) e dá ENTRADA do produto no estoque de produção (WIP), com o
+ * custo acumulado. A contabilização (D estoque-produção / C estoque-insumo) é feita
+ * por contabilizarProducaoOrdem. NÃO é CIF — é material direto (vira PEP no consumo).
+ */
+export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapaId: string; qtd: number; apontadoPor: string | null }): Promise<void> {
+  const agora = new Date();
+  await tx.itemOrdemProducao.update({
+    where: { id: p.etapaId },
+    data: { status: "CONCLUIDA", qtdEntrada: p.qtd, qtdSaida: p.qtd, inicioReal: agora, fimReal: agora, ...(p.apontadoPor ? { apontadoPor: p.apontadoPor } : {}) },
+  });
+
+  const ordem = await tx.ordemProducao.findUnique({ where: { id: p.ordemId }, select: { numero: true, itemId: true } });
+  if (ordem?.itemId) {
+    const eng = await tx.engenhariaProduto.findUnique({
+      where: { itemId: ordem.itemId },
+      include: { insumos: { include: { insumoItem: { select: { id: true, descricao: true, compoeCusto: true, precoCusto: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } } } } },
+    });
+    const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Produção ${ordem.numero}`);
+    let custoTotal = 0;
+    for (const ins of eng?.insumos ?? []) {
+      const meta = ins.insumoItem;
+      if (!meta || meta.compoeCusto === false) continue; // água não compõe custo
+      let fator = 1;
+      if (ins.unidadeId) {
+        const iu = meta.itemUnidades.find((u) => u.unidadeId === ins.unidadeId);
+        if (iu && !iu.isPrincipal && iu.fatorConversao != null) { const f = Number(iu.fatorConversao); if (Number.isFinite(f) && f > 0) fator = f; }
+      }
+      const baseFator = ins.base === "POR_UNIDADE" ? 1000 : 1;
+      const consumo = Number(ins.quantidade) * fator * baseFator * p.qtd;
+      if (consumo <= 0) continue;
+      const custoUnit = (await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, [ins.insumoItemId])).get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
+      const localIns = await resolveLocalInsumo(tx, ins.insumoItemId);
+      await postMovimento(tx, { itemId: ins.insumoItemId, localEstoqueId: localIns, tipo: "SAIDA", quantidade: consumo, ordemProducaoId: p.ordemId, documento: ordem.numero, observacoes: `Consumo ${meta.descricao} — ${ordem.numero}`, loteId, valorUnitario: custoUnit });
+      custoTotal += consumo * custoUnit;
+    }
+    // Entrada do produto no estoque de produção (WIP), valorado pelo custo consumido.
+    const localDest = await getOrCreateLocalProducao(tx);
+    const custoUnitDest = p.qtd > 0 ? custoTotal / p.qtd : 0;
+    await postMovimento(tx, { itemId: ordem.itemId, localEstoqueId: localDest, tipo: "ENTRADA", quantidade: p.qtd, ordemProducaoId: p.ordemId, documento: ordem.numero, observacoes: `Produção ${ordem.numero}`, loteId, valorUnitario: custoUnitDest });
+    if (custoUnitDest > 0) await aplicarCmpmEmpresa(tx, EMPRESA_PADRAO_ID, ordem.itemId, p.qtd, custoUnitDest, { incluirAcabado: true });
+  }
+
+  await tx.ordemProducao.update({ where: { id: p.ordemId }, data: { status: "CONCLUIDA" } });
+}

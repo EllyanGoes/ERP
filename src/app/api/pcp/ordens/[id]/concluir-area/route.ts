@@ -5,7 +5,7 @@ import type { Prisma, EstadoWIP } from "@prisma/client";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { contabilizarProducaoOrdem } from "@/lib/contabilidade";
-import { apontarEtapaProducao, apontarMisturaCif } from "@/lib/pcp/apontamento";
+import { apontarEtapaProducao, apontarMisturaCif, apontarProducaoProduto } from "@/lib/pcp/apontamento";
 import { snapshotEtapas } from "@/lib/pcp/snapshot-etapas";
 import type { FlowGraph } from "@/lib/pcp/types";
 
@@ -67,6 +67,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const anteriores = areaIdx >= 0 ? etapasFluxo.slice(0, areaIdx).filter((e) => e.estadoSaida) : [];
   const fromEstado = (anteriores.length ? anteriores[anteriores.length - 1].estadoSaida : null) as EstadoWIP | null;
   const firstEstado = (etapasFluxo.find((e) => e.estadoSaida)?.estadoSaida ?? null) as EstadoWIP | null;
+  const produtoSaidaId = (areaIdx >= 0 ? etapasFluxo[areaIdx].produtoSaidaId : null) ?? null;
+
+  // OP de área SEM estado de WIP que produz um PRODUTO (ex.: Preparação → Mistura de
+  // Argila): consome a BOM e dá entrada do produto no estoque de produção (MD/WIP).
+  if (!etapa.estadoSaida && produtoSaidaId) {
+    await prisma.$transaction(async (tx) => {
+      await apontarProducaoProduto(tx, { ordemId: params.id, etapaId: etapa.id, qtd: quantidadeProduzida, apontadoPor });
+    }, { timeout: 30000 });
+    await contabilizarProducaoOrdem(params.id).catch(() => {});
+    return NextResponse.json({ ok: true, produto: true });
+  }
 
   const agora = new Date();
   const upd: Prisma.ItemOrdemProducaoUpdateInput = {
