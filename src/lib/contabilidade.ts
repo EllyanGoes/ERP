@@ -915,6 +915,13 @@ async function postMovimentosEstoque(opts: {
   contaNegativoId?: string | null; // debitada quando o estoque desce
   naturezaContrapartidaId?: string | null; // dimensão natureza na contrapartida (ex.: CIF)
   semContrapartida?: boolean; // transferência: estoque ↔ estoque
+  // Locais de PCP (Produto Acabado / WIP): a contrapartida NÃO é Sobras/Perdas de
+  // inventário — produção que ENTRA capitaliza (C PEP) e baixa de acabado vira CPV
+  // (D CPV). Quando informado, esses locais usam contaPcpEntrada/contaPcpSaida em
+  // vez de contaPositivo/contaNegativo; os demais seguem normal. Opt-in.
+  pcpLocalIds?: Set<string>;
+  contaPcpEntradaId?: string | null; // creditada quando PA sobe (PEP 1.1.3.0005.0001)
+  contaPcpSaidaId?: string | null;   // debitada quando PA desce (CPV 3.2.2.0001)
 }) {
   const { empresaId, movs } = opts;
   // Só estoque próprio compõe o ativo (ignora estoque de terceiros).
@@ -939,26 +946,40 @@ async function postMovimentosEstoque(opts: {
     porLocal.set(m.localEstoqueId, (porLocal.get(m.localEstoqueId) ?? 0) + v);
   }
 
-  let totalPos = 0;
-  let totalNeg = 0;
+  // Contrapartida agregada POR CONTA (estoque sobe → crédito; desce → débito).
+  // Locais PCP usam PEP/CPV; os demais, Sobras/Perdas (ou a conta única do caller).
+  const contrapCredito = new Map<string, number>();
+  const contrapDebito = new Map<string, number>();
   const partidas: PartidaIn[] = [];
   for (const [localId, v] of Array.from(porLocal.entries())) {
     if (Math.abs(v) < 0.005) continue;
     const cl = await garantirContaLocalNaEmpresa(empresaId, localId);
     if (!cl) return; // sem conta de local → aborta (não desbalancear)
-    if (v > 0) { partidas.push({ contaId: cl.id, tipo: "DEBITO", valor: v }); totalPos += v; }
-    else { partidas.push({ contaId: cl.id, tipo: "CREDITO", valor: -v }); totalNeg += -v; }
+    const ehPcp = opts.pcpLocalIds?.has(localId) ?? false;
+    if (v > 0) {
+      partidas.push({ contaId: cl.id, tipo: "DEBITO", valor: v });
+      if (!opts.semContrapartida) {
+        const cp = ehPcp ? opts.contaPcpEntradaId : opts.contaPositivoId; // PEP ou Sobras
+        if (!cp) return;
+        contrapCredito.set(cp, (contrapCredito.get(cp) ?? 0) + v);
+      }
+    } else {
+      partidas.push({ contaId: cl.id, tipo: "CREDITO", valor: -v });
+      if (!opts.semContrapartida) {
+        const cp = ehPcp ? opts.contaPcpSaidaId : opts.contaNegativoId; // CPV ou Perdas
+        if (!cp) return;
+        contrapDebito.set(cp, (contrapDebito.get(cp) ?? 0) + -v);
+      }
+    }
   }
   if (partidas.length === 0) return;
 
   if (!opts.semContrapartida) {
-    if (totalPos > 0.005) {
-      if (!opts.contaPositivoId) return;
-      partidas.push({ contaId: opts.contaPositivoId, tipo: "CREDITO", valor: totalPos, naturezaId: opts.naturezaContrapartidaId ?? undefined });
+    for (const [contaId, val] of Array.from(contrapCredito.entries())) {
+      if (val > 0.005) partidas.push({ contaId, tipo: "CREDITO", valor: val, naturezaId: opts.naturezaContrapartidaId ?? undefined });
     }
-    if (totalNeg > 0.005) {
-      if (!opts.contaNegativoId) return;
-      partidas.push({ contaId: opts.contaNegativoId, tipo: "DEBITO", valor: totalNeg, naturezaId: opts.naturezaContrapartidaId ?? undefined });
+    for (const [contaId, val] of Array.from(contrapDebito.entries())) {
+      if (val > 0.005) partidas.push({ contaId, tipo: "DEBITO", valor: val, naturezaId: opts.naturezaContrapartidaId ?? undefined });
     }
   }
 
@@ -1296,14 +1317,30 @@ export async function contabilizarLoteMovimentacao(loteId: string) {
   if (movs.length === 0) return;
   const empresaId = movs[0].empresaId;
   const ehTransferencia = lote.tipo === "TRANSFERENCIA";
+
+  // Locais de PCP (Produto Acabado / WIP): a entrada de produção capitaliza (C PEP)
+  // e a baixa de acabado vira CPV (D CPV) — modelo de absorção. Os demais locais
+  // seguem o ajuste de inventário (Sobras/Perdas).
+  const localIds = Array.from(new Set(movs.map((m) => m.localEstoqueId).filter((x): x is string => !!x)));
+  const locais = await prismaSemEscopo.localEstoque.findMany({
+    where: { id: { in: localIds } }, select: { id: true, categoriasAceitas: true },
+  });
+  const pcpLocalIds = new Set(
+    locais.filter((l) => ((l.categoriasAceitas as string[] | null) ?? []).some((c) => CATEGORIAS_PCP.has(c))).map((l) => l.id),
+  );
+
   const { sobrasId, perdasId } = ehTransferencia
     ? { sobrasId: null, perdasId: null }
     : await garantirContasSistemaEstoque(empresaId);
+  const [pep, cpv] = ehTransferencia || pcpLocalIds.size === 0
+    ? [null, null]
+    : await Promise.all([contaPorCodigo(empresaId, "1.1.3.0005.0001"), garantirContaCpv(empresaId)]);
 
   await postMovimentosEstoque({
     empresaId, data: lote.createdAt, historico: `Movimentação manual — ${lote.numero}`,
     origemTipo: ehTransferencia ? "ESTOQUE_TRANSFERENCIA" : "ESTOQUE_AJUSTE", origemId: loteId,
     movs, contaPositivoId: sobrasId, contaNegativoId: perdasId, semContrapartida: ehTransferencia,
+    pcpLocalIds, contaPcpEntradaId: pep?.id ?? null, contaPcpSaidaId: cpv?.id ?? null,
   });
 }
 
