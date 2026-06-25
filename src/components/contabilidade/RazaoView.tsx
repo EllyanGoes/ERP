@@ -11,7 +11,7 @@ import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import ContaContabilCombobox from "@/components/contabilidade/ContaContabilCombobox";
 import RazaoLauncher from "@/components/contabilidade/RazaoLauncher";
-import UltimoRetroativo from "@/components/contabilidade/UltimoRetroativo";
+import GerarRetroativos from "@/components/contabilidade/GerarRetroativos";
 import { useCachedData } from "@/lib/use-cached-data";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -78,7 +78,7 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
   // Cache stale-while-revalidate: reabrir uma conta já vista mostra na hora, sem
   // recarregar (revalida em segundo plano).
   const razaoKey = contaId && range.from && range.to ? `razao:${contaId}:${range.from}:${range.to}` : null;
-  const { data: razao, loading } = useCachedData<Razao>(razaoKey, async () => {
+  const { data: razao, loading, refetch } = useCachedData<Razao>(razaoKey, async () => {
     const j = await fetch(`/api/contabilidade/razao?contaId=${contaId}&from=${range.from}&to=${range.to}`).then((r) => r.json());
     if (j.error) throw new Error(j.error);
     return j;
@@ -138,7 +138,7 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
     <div>
       <PageHeader title="Razão" breadcrumbs={[{ label: "Contabilidade" }, { label: "Razão" }]} />
       <div className="px-8 pb-8 space-y-4">
-        <UltimoRetroativo />
+        <GerarRetroativos onDone={refetch} />
         <div className="flex items-center gap-3 flex-wrap">
           {/* O seletor de cima só aparece na aba de uma conta — na tela de
               abertura o lançador abaixo já tem busca. */}

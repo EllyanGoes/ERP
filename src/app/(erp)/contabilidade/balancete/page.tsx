@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
-import UltimoRetroativo from "@/components/contabilidade/UltimoRetroativo";
+import GerarRetroativos from "@/components/contabilidade/GerarRetroativos";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -51,7 +51,7 @@ export default function BalancetePage() {
   }, []);
 
   // Cache stale-while-revalidate por período — reabrir não recarrega.
-  const { data: resp, loading } = useCachedData<{ linhas: Linha[]; totalDebito: number; totalCredito: number; confere: boolean }>(
+  const { data: resp, loading, refetch } = useCachedData<{ linhas: Linha[]; totalDebito: number; totalCredito: number; confere: boolean }>(
     range.from && range.to ? `balancete:${range.from}:${range.to}` : null,
     () => fetch(`/api/contabilidade/balancete?from=${range.from}&to=${range.to}`).then((r) => r.json()),
   );
@@ -105,7 +105,7 @@ export default function BalancetePage() {
     <div>
       <PageHeader title="Balancete de Verificação" breadcrumbs={[{ label: "Contabilidade" }, { label: "Balancete" }]} />
       <div className="px-8 pb-8 space-y-4">
-        <UltimoRetroativo />
+        <GerarRetroativos onDone={refetch} />
         <div className="flex items-center gap-3 flex-wrap no-print">
           <DateRangePicker value={range} onChange={setRange} />
           <label className="flex items-center gap-2 text-sm text-muted-foreground">

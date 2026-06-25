@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
-import UltimoRetroativo from "@/components/contabilidade/UltimoRetroativo";
+import GerarRetroativos from "@/components/contabilidade/GerarRetroativos";
 import { useCachedData } from "@/lib/use-cached-data";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ export default function DrePage() {
   const [ano, setAno] = useState<number>(() => new Date().getUTCFullYear());
   const [modo, setModo] = useFormatoContabil();
   // Cache stale-while-revalidate por ano — reabrir não recarrega.
-  const { data: dre, loading } = useCachedData<Dre>(
+  const { data: dre, loading, refetch } = useCachedData<Dre>(
     `dre:${ano}`,
     () => fetch(`/api/contabilidade/dre?ano=${ano}`).then((r) => r.json()),
   );
@@ -75,7 +75,7 @@ export default function DrePage() {
     <div>
       <PageHeader title="DRE" breadcrumbs={[{ label: "Contabilidade" }, { label: "DRE" }]} />
       <div className="px-8 pb-8 space-y-4">
-        <UltimoRetroativo />
+        <GerarRetroativos onDone={refetch} />
         <div className="flex items-center gap-3 flex-wrap no-print">
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             Exercício

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
-import UltimoRetroativo from "@/components/contabilidade/UltimoRetroativo";
+import GerarRetroativos from "@/components/contabilidade/GerarRetroativos";
 import { Input } from "@/components/ui/input";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatDate } from "@/lib/utils";
@@ -82,7 +82,7 @@ export default function BalancoPage() {
   }, []);
 
   // Cache stale-while-revalidate por data — reabrir não recarrega.
-  const { data: bal, loading } = useCachedData<Balanco>(
+  const { data: bal, loading, refetch } = useCachedData<Balanco>(
     data ? `balanco:${data}` : null,
     () => fetch(`/api/contabilidade/balanco?data=${data}`).then((r) => r.json()),
   );
@@ -131,7 +131,7 @@ export default function BalancoPage() {
     <div>
       <PageHeader title="Balanço Patrimonial" breadcrumbs={[{ label: "Contabilidade" }, { label: "Balanço" }]} />
       <div className="px-8 pb-8 space-y-4">
-        <UltimoRetroativo />
+        <GerarRetroativos onDone={refetch} />
         <div className="flex items-center gap-3 flex-wrap no-print">
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             Posição em
