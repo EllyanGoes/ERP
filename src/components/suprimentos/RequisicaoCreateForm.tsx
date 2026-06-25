@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
-import { Plus, Trash2, Loader2, Save, ChevronDown, X, UserPlus } from "lucide-react";
+import { Plus, Trash2, Loader2, Save, ChevronDown, X, UserPlus, Warehouse } from "lucide-react";
+import { CATEGORIA_ESTOQUE_ICONS, CATEGORIA_ESTOQUE_CORES } from "@/lib/categoria-estoque-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +25,18 @@ const DESTINOS = [
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type LocalEstoqueOpt = { id: string; nome: string };
+type LocalEstoqueOpt = { id: string; nome: string; categoriasAceitas?: string[] };
+
+// Ícone do almoxarifado: usa o ícone da categoria que ele aceita (1ª da lista);
+// sem categoria definida → ícone genérico de almoxarifado.
+function iconeLocal(l: LocalEstoqueOpt): ReactNode {
+  const cat = l.categoriasAceitas?.[0] as keyof typeof CATEGORIA_ESTOQUE_ICONS | undefined;
+  if (cat && CATEGORIA_ESTOQUE_ICONS[cat]) {
+    const Icon = CATEGORIA_ESTOQUE_ICONS[cat];
+    return <Icon className={cn("w-4 h-4", CATEGORIA_ESTOQUE_CORES[cat])} />;
+  }
+  return <Warehouse className="w-4 h-4 text-muted-foreground" />;
+}
 type ColaboradorOpt  = { id: string; nome: string; setorId: string | null };
 type SetorOpt        = { id: string; nome: string };
 type CentroCustoOpt  = { id: string; codigo: string; nome: string; fabril?: boolean; grupoCentroCusto?: { id: string; nome: string } | null };
@@ -67,7 +79,7 @@ function emptyRow(): ItemRow {
 // ── Portal Select (Searchable) ────────────────────────────────────────────────
 
 function PortalSelect<T extends { id: string }>({
-  options, value, onChange, placeholder, getLabel, error,
+  options, value, onChange, placeholder, getLabel, error, getIcon,
 }: {
   options: T[];
   value: string;
@@ -75,6 +87,7 @@ function PortalSelect<T extends { id: string }>({
   placeholder: string;
   getLabel: (item: T) => string;
   error?: boolean;
+  getIcon?: (item: T) => ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -119,13 +132,14 @@ function PortalSelect<T extends { id: string }>({
           : error && !value ? "border-red-400 ring-1 ring-red-100"
           : "border-border hover:border-border"
       )}>
+        {getIcon && selected && !open && <span className="pl-3 shrink-0 flex items-center">{getIcon(selected)}</span>}
         <input
           type="text"
           value={open ? query : (selected ? getLabel(selected) : "")}
           onChange={(e) => { setQuery(e.target.value); if (!open) openDrop(); }}
           onFocus={openDrop}
           placeholder={placeholder}
-          className="flex-1 px-3 py-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground text-foreground"
+          className={cn("flex-1 py-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground text-foreground", getIcon && selected && !open ? "pl-2" : "pl-3")}
         />
         {value && !open && (
           <button type="button" onClick={(e) => { e.stopPropagation(); onChange(""); setQuery(""); setOpen(false); }} className="px-1.5 text-muted-foreground/60 hover:text-muted-foreground">
@@ -140,9 +154,10 @@ function PortalSelect<T extends { id: string }>({
           {filtered.length > 0 ? filtered.map((o) => (
             <button key={o.id} type="button"
               onMouseDown={(e) => { e.preventDefault(); onChange(o.id); setOpen(false); setQuery(""); }}
-              className={cn("w-full px-3 py-2 text-sm text-left hover:bg-info/10 hover:text-info transition-colors",
+              className={cn("w-full px-3 py-2 text-sm text-left hover:bg-info/10 hover:text-info transition-colors flex items-center gap-2",
                 o.id === value && "bg-info/10 text-info font-medium")}>
-              {getLabel(o)}
+              {getIcon && <span className="shrink-0 flex items-center">{getIcon(o)}</span>}
+              <span className="truncate">{getLabel(o)}</span>
             </button>
           )) : (
             <p className="px-3 py-2.5 text-sm text-muted-foreground italic">
@@ -315,14 +330,16 @@ function centroOpts(centros: CentroCustoOpt[]): GroupedOpt[] {
 // ── Item search dropdown (portal) ─────────────────────────────────────────────
 
 function ItemSearchCell({
-  row, itensCat, onSelect, localSelecionado, onBlocked,
+  row, itensCat, onSelect, localSelecionado, onBlocked, saldoDe,
 }: {
   row: ItemRow;
   itensCat: ItemOpt[];
   onSelect: (key: string, itemId: string, sigla: string) => void;
   localSelecionado: boolean;
   onBlocked: () => void;
+  saldoDe?: (itemId: string) => number | null;
 }) {
+  const fmtSaldo = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [open, setOpen]   = useState(false);
@@ -415,7 +432,19 @@ function ItemSearchCell({
                 )}>
                 <span className="font-mono text-[11px] font-semibold text-info shrink-0 w-[72px] truncate">{it.codigo}</span>
                 <span className="text-xs text-foreground font-medium truncate flex-1">{it.descricao}</span>
-                {(it.unidade?.sigla || it.unidadeMedida) && (
+                {(() => {
+                  const saldo = saldoDe?.(it.id);
+                  if (saldo == null) return null;
+                  const zerado = saldo <= 0;
+                  return (
+                    <span className={cn("text-[10px] shrink-0 font-medium px-1.5 py-0.5 rounded tabular-nums",
+                      zerado ? "bg-danger/15 text-danger" : "bg-success/15 text-success")}
+                      title={zerado ? "Estoque zerado — não é possível lançar" : "Saldo disponível no local"}>
+                      {fmtSaldo(saldo)} {it.unidade?.sigla || it.unidadeMedida}
+                    </span>
+                  );
+                })()}
+                {saldoDe == null && (it.unidade?.sigla || it.unidadeMedida) && (
                   <span className="text-[10px] text-muted-foreground shrink-0 font-mono">{it.unidade?.sigla || it.unidadeMedida}</span>
                 )}
               </button>
@@ -616,9 +645,10 @@ export default function RequisicaoCreateForm() {
   const [itensCat,      setItensCat]      = useState<ItemOpt[]>([]);
   // Unidades cadastradas por produto (para limitar o seletor e converter à base).
   const [itemUnidades,  setItemUnidades]  = useState<Map<string, UnidadeOpt[]>>(new Map());
-  // Itens com saldo no local selecionado (requisição só lista o que existe lá).
+  // Itens do local selecionado → saldo atual (inclui saldo zero). Requisição só
+  // lista o que está cadastrado no local; saldo 0 aparece mas não pode lançar.
   // null = ainda não carregado / sem restrição (devolução).
-  const [itensNoLocal,  setItensNoLocal]  = useState<Set<string> | null>(null);
+  const [itensNoLocal,  setItensNoLocal]  = useState<Map<string, number> | null>(null);
   const [avisoLocal,    setAvisoLocal]    = useState("");
 
   const [submitted, setSubmitted] = useState(false);
@@ -654,8 +684,8 @@ export default function RequisicaoCreateForm() {
 
   useEffect(() => { loadOptions(); }, [loadOptions]);
 
-  // Ao escolher o almoxarifado (requisição): carrega os itens que têm saldo lá e
-  // limpa linhas cujo produto não exista no novo local. Devolução não restringe.
+  // Ao escolher o almoxarifado (requisição): carrega os itens do local (com saldo)
+  // e limpa linhas cujo produto não exista no novo local. Devolução não restringe.
   useEffect(() => {
     if (tipo !== "REQUISICAO" || !localEstoqueId) { setItensNoLocal(null); return; }
     let cancel = false;
@@ -663,18 +693,20 @@ export default function RequisicaoCreateForm() {
       .then((r) => r.json())
       .then((j) => {
         if (cancel) return;
-        const set = new Set<string>(Array.isArray(j?.itemIds) ? j.itemIds : []);
-        setItensNoLocal(set);
-        setRows((prev) => prev.map((r) => (r.itemId && !set.has(r.itemId)) ? { ...r, itemId: "", unidade: "", unidadeId: "" } : r));
+        const map = new Map<string, number>();
+        for (const it of (Array.isArray(j?.itens) ? j.itens : [])) map.set(it.itemId, Number(it.saldo) || 0);
+        setItensNoLocal(map);
+        setRows((prev) => prev.map((r) => (r.itemId && !map.has(r.itemId)) ? { ...r, itemId: "", unidade: "", unidadeId: "" } : r));
       })
-      .catch(() => { if (!cancel) setItensNoLocal(new Set()); });
+      .catch(() => { if (!cancel) setItensNoLocal(new Map()); });
     return () => { cancel = true; };
   }, [localEstoqueId, tipo]);
 
-  // Itens oferecidos na busca: requisição → só os do local; devolução → catálogo todo.
+  // Itens oferecidos na busca: requisição → todos os do local (com saldo); devolução → catálogo todo.
   const itensDisponiveis = tipo !== "REQUISICAO"
     ? itensCat
     : (localEstoqueId ? (itensNoLocal ? itensCat.filter((i) => itensNoLocal.has(i.id)) : []) : []);
+  const saldoDoItem = (itemId: string): number | null => itensNoLocal?.get(itemId) ?? null;
 
   function avisarLocal() {
     setAvisoLocal("Selecione primeiro o almoxarifado para escolher os produtos.");
@@ -752,6 +784,15 @@ export default function RequisicaoCreateForm() {
       if (semCentro.length > 0) {
         const cods = semCentro.map((r) => itensCat.find((i) => i.id === r.itemId)?.codigo ?? r.itemId).join(", ");
         setSaveError(`Centro de custo é obrigatório em cada item: ${cods}. Informe no cabeçalho (aplica a todos) ou na linha.`);
+        return;
+      }
+    }
+    // Saída só de itens COM saldo: estoque zerado/negativo não pode ser lançado.
+    if (tipo === "REQUISICAO" && itensNoLocal) {
+      const zerados = validRows.filter((r) => (saldoDoItem(r.itemId) ?? 0) <= 0);
+      if (zerados.length > 0) {
+        const cods = zerados.map((r) => itensCat.find((i) => i.id === r.itemId)?.codigo ?? r.itemId).join(", ");
+        setSaveError(`Não é possível lançar — estoque zerado em: ${cods}. Faça a entrada/ajuste do saldo antes de requisitar.`);
         return;
       }
     }
@@ -844,6 +885,7 @@ export default function RequisicaoCreateForm() {
                   onChange={setLocalEstoqueId}
                   placeholder="Selecionar almoxarifado..."
                   getLabel={(l) => l.nome}
+                  getIcon={iconeLocal}
                   error={submitted}
                 />
                 {submitted && !localEstoqueId && <p className="text-xs text-red-500">Almoxarifado é obrigatório</p>}
@@ -995,7 +1037,11 @@ export default function RequisicaoCreateForm() {
                           onSelect={handleItemSelect}
                           localSelecionado={!!localEstoqueId}
                           onBlocked={avisarLocal}
+                          saldoDe={tipo === "REQUISICAO" ? saldoDoItem : undefined}
                         />
+                        {tipo === "REQUISICAO" && row.itemId && (saldoDoItem(row.itemId) ?? 0) <= 0 && (
+                          <p className="text-[10px] text-danger mt-0.5">Estoque zerado — não é possível lançar.</p>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         {(() => {
