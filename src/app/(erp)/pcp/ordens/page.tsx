@@ -157,9 +157,14 @@ export default function OrdensBoardPage() {
         subtitle="Chão de fábrica por área: escolha o fluxo, abra a aba da área e crie/aponte as OPs do dia."
         breadcrumbs={[{ label: "PCP" }, { label: "Ordens de Produção" }]}
         action={
-          <Link href="/pcp/ordens/lista" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-            <List className="w-4 h-4" /> Lista
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/pcp/chao" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+              <Factory className="w-4 h-4" /> Chão de Fábrica
+            </Link>
+            <Link href="/pcp/ordens/lista" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+              <List className="w-4 h-4" /> Lista
+            </Link>
+          </div>
         }
       />
 
