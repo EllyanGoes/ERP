@@ -58,8 +58,12 @@ export async function GET(req: NextRequest) {
 
   // Composição (ratios) por mês via calcularCusteio. Só os meses com CPV ≠ 0.
   // Cada componente = CPV do razão do mês × (componente.total / custoTotalMilheiro).
-  type Ratio = { mp: { nome: string; r: number }[]; emb: { nome: string; r: number }[]; mpTot: number; embTot: number; mod: number; ggf: number; depr: number };
-  const ratioVazio: Ratio = { mp: [], emb: [], mpTot: 0, embTot: 0, mod: 0, ggf: 0, depr: 0 };
+  type ItemR = { nome: string; r: number };
+  type Ratio = {
+    mp: ItemR[]; emb: ItemR[]; mod: ItemR[]; ggf: ItemR[];
+    mpTot: number; embTot: number; modTot: number; ggfTot: number; depr: number;
+  };
+  const ratioVazio: Ratio = { mp: [], emb: [], mod: [], ggf: [], mpTot: 0, embTot: 0, modTot: 0, ggfTot: 0, depr: 0 };
   const ratios: (Ratio | null)[] = new Array(12).fill(null);
 
   for (let m = 0; m < 12; m++) {
@@ -67,16 +71,21 @@ export async function GET(req: NextRequest) {
     const comp = await calcularCusteio(empresaId, new Date(Date.UTC(ano, m, 1)));
     const tot = comp.composicao.custoTotalMilheiro;
     if (!tot || tot <= 0) continue; // sem composição → fallback depois
-    const deprItem = comp.composicao.cif.itens.find((i) => /deprecia/i.test(i.nome));
-    const depr = deprItem?.valorMilheiro ?? 0;
+    // CIF = Gastos Gerais (biomassa/energia/combustível/MOI) + Depreciação (linha à parte).
+    const cifItens = comp.composicao.cif.itens;
+    const deprComp = cifItens.filter((i) => /deprecia/i.test(i.nome));
+    const ggfComp  = cifItens.filter((i) => !/deprecia/i.test(i.nome));
+    const deprMi = deprComp.reduce((s, i) => s + i.valorMilheiro, 0);
     ratios[m] = {
-      mp: comp.composicao.materiaPrima.itens.map((i) => ({ nome: i.nome, r: i.valorMilheiro / tot })),
+      mp:  comp.composicao.materiaPrima.itens.map((i) => ({ nome: i.nome, r: i.valorMilheiro / tot })),
       emb: comp.composicao.embalagem.itens.map((i) => ({ nome: i.nome, r: i.valorMilheiro / tot })),
-      mpTot: comp.composicao.materiaPrima.total / tot,
+      mod: comp.composicao.mod.itens.map((i) => ({ nome: i.nome, r: i.valorMilheiro / tot })),
+      ggf: ggfComp.map((i) => ({ nome: i.nome, r: i.valorMilheiro / tot })),
+      mpTot:  comp.composicao.materiaPrima.total / tot,
       embTot: comp.composicao.embalagem.total / tot,
-      mod: comp.composicao.mod.total / tot,
-      ggf: (comp.composicao.cif.total - depr) / tot,
-      depr: depr / tot,
+      modTot: comp.composicao.mod.total / tot,
+      ggfTot: (comp.composicao.cif.total - deprMi) / tot,
+      depr: deprMi / tot,
     };
   }
   // Fallback: meses com CPV mas sem composição usam o ratio do mês válido mais próximo.
@@ -84,21 +93,28 @@ export async function GET(req: NextRequest) {
   const fallback = ultimoValido();
   for (let m = 0; m < 12; m++) if (!ratios[m] && Math.abs(cpvMes[m]) >= 0.005) ratios[m] = fallback ?? ratioVazio;
 
-  // Agrega os sub-itens de MP/Embalagem por nome ao longo do ano.
+  // Agrega os sub-itens de cada seção por nome ao longo do ano.
   const mpItens = new Map<string, number[]>();
   const embItens = new Map<string, number[]>();
+  const modItens = new Map<string, number[]>();
+  const ggfItens = new Map<string, number[]>();
   const secMp = z12(), secEmb = z12(), secMod = z12(), secGgf = z12(), secDepr = z12(), naoClass = z12();
+  const addItens = (map: Map<string, number[]>, arr: ItemR[], cpv: number, m: number) => {
+    for (const it of arr) { if (!map.has(it.nome)) map.set(it.nome, z12()); map.get(it.nome)![m] += r2(cpv * it.r); }
+  };
   for (let m = 0; m < 12; m++) {
     const cpv = cpvMes[m];
     if (Math.abs(cpv) < 0.005) continue;
     const ra = ratios[m];
     if (!ra) { naoClass[m] += cpv; continue; }
-    for (const it of ra.mp) { if (!mpItens.has(it.nome)) mpItens.set(it.nome, z12()); mpItens.get(it.nome)![m] += r2(cpv * it.r); }
-    for (const it of ra.emb) { if (!embItens.has(it.nome)) embItens.set(it.nome, z12()); embItens.get(it.nome)![m] += r2(cpv * it.r); }
+    addItens(mpItens, ra.mp, cpv, m);
+    addItens(embItens, ra.emb, cpv, m);
+    addItens(modItens, ra.mod, cpv, m);
+    addItens(ggfItens, ra.ggf, cpv, m);
     secMp[m] += r2(cpv * ra.mpTot);
     secEmb[m] += r2(cpv * ra.embTot);
-    secMod[m] += r2(cpv * ra.mod);
-    secGgf[m] += r2(cpv * ra.ggf);
+    secMod[m] += r2(cpv * ra.modTot);
+    secGgf[m] += r2(cpv * ra.ggfTot);
     secDepr[m] += r2(cpv * ra.depr);
   }
   const somaTot = (a: number[]) => r2(a.reduce((s, v) => s + v, 0));
@@ -109,8 +125,8 @@ export async function GET(req: NextRequest) {
   const secoes: Secao[] = [
     { chave: "MATERIA_PRIMA", nome: "Matéria-Prima", meses: secMp.map(r2), total: somaTot(secMp), itens: itensDe(mpItens) },
     { chave: "EMBALAGEM", nome: "Embalagens", meses: secEmb.map(r2), total: somaTot(secEmb), itens: itensDe(embItens) },
-    { chave: "MOD", nome: "Mão-de-obra", meses: secMod.map(r2), total: somaTot(secMod) },
-    { chave: "GGF", nome: "Gastos Gerais de Fabricação", meses: secGgf.map(r2), total: somaTot(secGgf) },
+    { chave: "MOD", nome: "Mão-de-obra", meses: secMod.map(r2), total: somaTot(secMod), itens: itensDe(modItens) },
+    { chave: "GGF", nome: "Gastos Gerais de Fabricação", meses: secGgf.map(r2), total: somaTot(secGgf), itens: itensDe(ggfItens) },
     { chave: "DEPRECIACAO", nome: "Depreciação e Amortização", meses: secDepr.map(r2), total: somaTot(secDepr) },
   ];
   if (somaTot(naoClass) >= 0.005) secoes.push({ chave: "NAO_CLASSIFICADO", nome: "Não classificado", meses: naoClass.map(r2), total: somaTot(naoClass) });

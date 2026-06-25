@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTabTitle } from "@/lib/tabs-context";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 
 type Produto = {
@@ -86,7 +87,7 @@ export default function CusteioPage() {
   const [aplicando, setAplicando] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [view, setView] = useState<"total" | "milheiro">("total");
-  const [aba, setAba] = useState<"taxa" | "fechamento" | "mensal">("taxa");
+  const [aba, setAba] = usePersistedState<"taxa" | "fechamento" | "mensal">("cpv:aba", "taxa");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(async (comp: string) => {
