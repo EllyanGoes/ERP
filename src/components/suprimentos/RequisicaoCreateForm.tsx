@@ -299,11 +299,13 @@ function centroOpts(centros: CentroCustoOpt[]): GroupedOpt[] {
 // ── Item search dropdown (portal) ─────────────────────────────────────────────
 
 function ItemSearchCell({
-  row, itensCat, onSelect,
+  row, itensCat, onSelect, localSelecionado, onBlocked,
 }: {
   row: ItemRow;
   itensCat: ItemOpt[];
   onSelect: (key: string, itemId: string, sigla: string) => void;
+  localSelecionado: boolean;
+  onBlocked: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
@@ -350,6 +352,7 @@ function ItemSearchCell({
           ref={inputRef}
           value={open ? query : (selected ? `${selected.codigo} — ${selected.descricao}` : "")}
           onChange={(e) => {
+            if (!localSelecionado) { onBlocked(); return; }
             setQuery(e.target.value);
             if (row.itemId && e.target.value !== `${selected?.codigo} — ${selected?.descricao}`) {
               onSelect(row._key, "", "");
@@ -357,8 +360,8 @@ function ItemSearchCell({
             calcPos();
             setOpen(true);
           }}
-          onFocus={() => { setQuery(""); calcPos(); setOpen(true); }}
-          placeholder="Buscar produto por código ou descrição..."
+          onFocus={() => { if (!localSelecionado) { onBlocked(); inputRef.current?.blur(); return; } setQuery(""); calcPos(); setOpen(true); }}
+          placeholder={localSelecionado ? "Buscar produto por código ou descrição..." : "Selecione o almoxarifado primeiro..."}
           className="flex-1 px-2 py-1.5 text-xs bg-transparent outline-none placeholder:text-muted-foreground text-foreground h-8"
         />
         {row.itemId && !open && (
@@ -597,6 +600,10 @@ export default function RequisicaoCreateForm() {
   const [itensCat,      setItensCat]      = useState<ItemOpt[]>([]);
   // Unidades cadastradas por produto (para limitar o seletor e converter à base).
   const [itemUnidades,  setItemUnidades]  = useState<Map<string, UnidadeOpt[]>>(new Map());
+  // Itens com saldo no local selecionado (requisição só lista o que existe lá).
+  // null = ainda não carregado / sem restrição (devolução).
+  const [itensNoLocal,  setItensNoLocal]  = useState<Set<string> | null>(null);
+  const [avisoLocal,    setAvisoLocal]    = useState("");
 
   const [submitted, setSubmitted] = useState(false);
   const [saving,    setSaving]    = useState(false);
@@ -630,6 +637,33 @@ export default function RequisicaoCreateForm() {
   }, []);
 
   useEffect(() => { loadOptions(); }, [loadOptions]);
+
+  // Ao escolher o almoxarifado (requisição): carrega os itens que têm saldo lá e
+  // limpa linhas cujo produto não exista no novo local. Devolução não restringe.
+  useEffect(() => {
+    if (tipo !== "REQUISICAO" || !localEstoqueId) { setItensNoLocal(null); return; }
+    let cancel = false;
+    fetch(`/api/suprimentos/locais-estoque/${localEstoqueId}/itens`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancel) return;
+        const set = new Set<string>(Array.isArray(j?.itemIds) ? j.itemIds : []);
+        setItensNoLocal(set);
+        setRows((prev) => prev.map((r) => (r.itemId && !set.has(r.itemId)) ? { ...r, itemId: "", unidade: "", unidadeId: "" } : r));
+      })
+      .catch(() => { if (!cancel) setItensNoLocal(new Set()); });
+    return () => { cancel = true; };
+  }, [localEstoqueId, tipo]);
+
+  // Itens oferecidos na busca: requisição → só os do local; devolução → catálogo todo.
+  const itensDisponiveis = tipo !== "REQUISICAO"
+    ? itensCat
+    : (localEstoqueId ? (itensNoLocal ? itensCat.filter((i) => itensNoLocal.has(i.id)) : []) : []);
+
+  function avisarLocal() {
+    setAvisoLocal("Selecione primeiro o almoxarifado para escolher os produtos.");
+    setTimeout(() => setAvisoLocal(""), 4000);
+  }
 
   function handleColaboradorChange(id: string) {
     setColaboradorId(id);
@@ -750,6 +784,9 @@ export default function RequisicaoCreateForm() {
 
         {saveError && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{saveError}</div>
+        )}
+        {avisoLocal && (
+          <div className="bg-warning/10 border border-warning/30 text-warning px-4 py-3 rounded-lg text-sm">{avisoLocal}</div>
         )}
 
         {/* Type toggle */}
@@ -896,7 +933,12 @@ export default function RequisicaoCreateForm() {
         {/* Items table */}
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Produtos</CardTitle>
+            <div className="flex items-center gap-3">
+              <CardTitle className="text-base">Produtos</CardTitle>
+              {tipo === "REQUISICAO" && !localEstoqueId && (
+                <span className="text-xs text-muted-foreground">Selecione o almoxarifado para listar os produtos disponíveis.</span>
+              )}
+            </div>
             <Button type="button" size="sm" variant="outline" onClick={() => setRows((p) => [...p, emptyRow()])}>
               <Plus className="w-4 h-4 mr-1" />Adicionar
             </Button>
@@ -923,7 +965,13 @@ export default function RequisicaoCreateForm() {
                   {rows.map((row) => (
                     <tr key={row._key} className="hover:bg-muted">
                       <td className="px-3 py-2">
-                        <ItemSearchCell row={row} itensCat={itensCat} onSelect={handleItemSelect} />
+                        <ItemSearchCell
+                          row={row}
+                          itensCat={itensDisponiveis}
+                          onSelect={handleItemSelect}
+                          localSelecionado={!!localEstoqueId}
+                          onBlocked={avisarLocal}
+                        />
                       </td>
                       <td className="px-3 py-2">
                         {(() => {
