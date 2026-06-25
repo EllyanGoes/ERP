@@ -7,7 +7,7 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
-import { Plus, RefreshCw, Factory, CheckCircle2, List, Loader2, X } from "lucide-react";
+import { Plus, RefreshCw, Factory, CheckCircle2, List, Loader2, X, Boxes } from "lucide-react";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean };
@@ -30,12 +30,13 @@ export default function OrdensBoardPage() {
   const [areaNodeId, setAreaNodeId] = useState("");
   const [data, setData] = useState(hoje());
   const [ops, setOps] = useState<BoardOP[]>([]);
+  const [materiais, setMateriais] = useState<{ itemId: string; descricao: string; saldo: number; unidade: string | null }[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [carregandoOps, setCarregandoOps] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   // Nova OP
-  const [novo, setNovo] = useState<{ itemId: string; quantidade: string } | null>(null);
+  const [novo, setNovo] = useState<{ itemId: string; quantidade: string; dataPrevista: string } | null>(null);
   const [disp, setDisp] = useState<Disp | null>(null);
   const [criando, setCriando] = useState(false);
 
@@ -78,6 +79,14 @@ export default function OrdensBoardPage() {
   }, [fluxoId, areaNodeId, data]);
   useEffect(() => { loadOps(); }, [loadOps]);
 
+  // Saldo dos materiais necessários na área (insumos da operação no fluxo)
+  useEffect(() => {
+    if (!fluxoId || !areaNodeId) { setMateriais(null); return; }
+    setMateriais(null);
+    fetch(`/api/pcp/ordens/area/materiais?fluxoId=${fluxoId}&areaNodeId=${areaNodeId}`)
+      .then((r) => r.json()).then((j) => setMateriais(j.data ?? [])).catch(() => setMateriais([]));
+  }, [fluxoId, areaNodeId]);
+
   // Referência de disponibilidade ao escolher produto
   useEffect(() => {
     if (!novo?.itemId || !area) { setDisp(null); return; }
@@ -94,7 +103,7 @@ export default function OrdensBoardPage() {
     try {
       const r = await fetch("/api/pcp/ordens/area", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fluxoId, areaNodeId, itemId: novo.itemId, quantidadePlanejada: q, data }),
+        body: JSON.stringify({ fluxoId, areaNodeId, itemId: novo.itemId, quantidadePlanejada: q, data, dataPrevista: novo.dataPrevista || undefined }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error ?? "Erro ao criar OP");
@@ -175,65 +184,37 @@ export default function OrdensBoardPage() {
         {area && (
           <div className="space-y-3">
             {/* Cabeçalho da área + nova OP */}
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">
                 {area.isPrimeira
                   ? "Consome matéria-prima e gera o WIP da etapa."
                   : `Consome o WIP ${ESTADO_LABEL[area.fromEstado ?? ""] ?? area.fromEstado} e gera ${ESTADO_LABEL[area.estadoSaida ?? ""] ?? "o próximo"}.`}
               </p>
-              {!novo && (
-                <button onClick={() => { setNovo({ itemId: produtos[0]?.id ?? "", quantidade: "" }); setErro(null); }}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700">
-                  <Plus className="w-4 h-4" /> Nova OP
-                </button>
-              )}
+              <button onClick={() => { setNovo({ itemId: produtos[0]?.id ?? "", quantidade: "", dataPrevista: "" }); setDisp(null); setErro(null); }}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700">
+                <Plus className="w-4 h-4" /> Nova OP
+              </button>
             </div>
 
-            {/* Form nova OP */}
-            {novo && (
-              <div className="rounded-xl border border-cyan-200 dark:border-cyan-500/30 bg-cyan-50/40 p-4 space-y-3">
-                {produtos.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhum produto com engenharia neste fluxo. Cadastre a <strong>Engenharia do Produto</strong>.</p>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                      <div className="md:col-span-2">
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">Produto *</label>
-                        <ComboboxWithCreate value={novo.itemId} onChange={(v) => setNovo({ ...novo, itemId: v })} allowNone={false} triggerClassName="h-9 rounded-lg"
-                          options={produtos.map((p) => ({ value: p.id, label: `${p.codigo} · ${p.descricao}` }))} />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade ({ops[0]?.unidade ?? "milheiro"}) *</label>
-                        <input className="w-full rounded-lg border border-border px-3 py-2 text-sm text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                          inputMode="decimal" value={novo.quantidade} onChange={(e) => setNovo({ ...novo, quantidade: e.target.value })} placeholder="ex.: 50" />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={criarOp} disabled={criando} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
-                          {criando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Criar
-                        </button>
-                        <button onClick={() => { setNovo(null); setDisp(null); }} className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                    {/* Referência de disponibilidade (não trava) */}
-                    {disp && (
-                      <div className="text-xs text-muted-foreground border-t border-border/60 pt-2">
-                        {disp.tipo === "MP" ? (
-                          disp.aviso ? <span className="text-warning">{disp.aviso}</span> : (
-                            <span>Estoque de MP rende <b className="text-foreground">{disp.rendimentoMilheiros != null ? `~${disp.rendimentoMilheiros.toLocaleString("pt-BR")} ${ops[0]?.unidade ?? "milheiro"}` : "—"}</b>
-                              {disp.insumos && disp.insumos.length > 0 && <> · {disp.insumos.map((i) => `${i.descricao}: ${i.disponivel.toLocaleString("pt-BR")}`).join(" · ")}</>}
-                              {" "}(referência, não bloqueia)</span>
-                          )
-                        ) : (
-                          <span>Saldo de WIP {ESTADO_LABEL[area.fromEstado ?? ""] ?? area.fromEstado}: <b className="text-foreground">{(disp.saldoWipAnterior ?? 0).toLocaleString("pt-BR")}</b> (referência)</span>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
+            {/* Saldo dos materiais necessários nesta etapa */}
+            <div className="rounded-xl border border-border bg-muted/30 p-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5"><Boxes className="w-3.5 h-3.5" /> Materiais da etapa — saldo em estoque</p>
+              {materiais === null ? (
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando…</p>
+              ) : materiais.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nenhum material configurado nesta etapa — defina os insumos da operação no editor do fluxo.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {materiais.map((m) => (
+                    <span key={m.itemId} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs", m.saldo > 0 ? "border-border bg-card" : "border-warning/40 bg-warning/10")}>
+                      <span className="text-foreground">{m.descricao}</span>
+                      <b className={cn("tabular-nums", m.saldo > 0 ? "text-foreground" : "text-warning")}>{m.saldo.toLocaleString("pt-BR")}</b>
+                      {m.unidade && <span className="text-muted-foreground">{m.unidade}</span>}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* OPs do dia na área */}
             {carregandoOps ? (
@@ -272,6 +253,68 @@ export default function OrdensBoardPage() {
           </div>
         )}
       </div>
+
+      {/* Modal Nova OP */}
+      {novo && area && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setNovo(null); setDisp(null); }}>
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Plus className="w-5 h-5 text-cyan-600" /> Nova OP — {area.centroTrabalho ?? area.nome}</h2>
+            {produtos.length === 0 ? (
+              <p className="text-sm text-muted-foreground mt-3">Nenhum produto com engenharia neste fluxo. Cadastre a <strong>Engenharia do Produto</strong>.</p>
+            ) : (
+              <>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Número da OP</label>
+                    <div className="h-9 flex items-center px-3 rounded-lg border border-dashed border-border text-sm text-muted-foreground">automático</div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Data de emissão</label>
+                    <div className="h-9 flex items-center px-3 rounded-lg border border-border bg-muted/40 text-sm text-foreground tabular-nums">{new Date(`${data}T00:00:00`).toLocaleDateString("pt-BR")}</div>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Produto acabado *</label>
+                    <ComboboxWithCreate value={novo.itemId} onChange={(v) => setNovo({ ...novo, itemId: v })} allowNone={false} triggerClassName="h-9 rounded-lg"
+                      options={produtos.map((p) => ({ value: p.id, label: `${p.codigo} · ${p.descricao}` }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Código do produto</label>
+                    <div className="h-9 flex items-center px-3 rounded-lg border border-border bg-muted/40 text-sm text-foreground font-mono">{produtos.find((p) => p.id === novo.itemId)?.codigo ?? "—"}</div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade solicitada *</label>
+                    <input autoFocus className="w-full h-9 rounded-lg border border-border px-3 text-sm text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                      inputMode="decimal" value={novo.quantidade} onChange={(e) => setNovo({ ...novo, quantidade: e.target.value })} placeholder="ex.: 50" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Data de entrega (prazo)</label>
+                    <input type="date" value={novo.dataPrevista} onChange={(e) => setNovo({ ...novo, dataPrevista: e.target.value })} className="h-9 rounded-lg border border-border px-3 text-sm bg-card" />
+                  </div>
+                </div>
+                {disp && (
+                  <div className="text-xs text-muted-foreground mt-3 border-t border-border/60 pt-2">
+                    {disp.tipo === "MP" ? (
+                      disp.aviso ? <span className="text-warning">{disp.aviso}</span> : (
+                        <span>Estoque de MP rende <b className="text-foreground">{disp.rendimentoMilheiros != null ? `~${disp.rendimentoMilheiros.toLocaleString("pt-BR")} milheiro` : "—"}</b>
+                          {disp.insumos && disp.insumos.length > 0 && <> · {disp.insumos.map((i) => `${i.descricao}: ${i.disponivel.toLocaleString("pt-BR")}`).join(" · ")}</>}
+                          {" "}(referência)</span>
+                      )
+                    ) : (
+                      <span>Saldo de WIP {ESTADO_LABEL[area.fromEstado ?? ""] ?? area.fromEstado}: <b className="text-foreground">{(disp.saldoWipAnterior ?? 0).toLocaleString("pt-BR")}</b> (referência)</span>
+                    )}
+                  </div>
+                )}
+                <div className="mt-5 flex items-center justify-end gap-2">
+                  <button onClick={() => { setNovo(null); setDisp(null); }} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+                  <button onClick={criarOp} disabled={criando} className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
+                    {criando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Criar OP
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal apontar */}
       {apontar && (

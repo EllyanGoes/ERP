@@ -53,6 +53,8 @@ export async function POST(req: NextRequest) {
   const unidade = typeof body.unidade === "string" && body.unidade.trim() ? body.unidade.trim() : "milheiro";
   const observacao = typeof body.observacao === "string" && body.observacao.trim() ? body.observacao.trim() : null;
   const criadoPor = typeof body.criadoPor === "string" && body.criadoPor.trim() ? body.criadoPor.trim() : null;
+  const dpRaw = typeof body.dataPrevista === "string" && body.dataPrevista.trim() ? new Date(body.dataPrevista) : null;
+  const dataPrevista = dpRaw && !isNaN(dpRaw.getTime()) ? dpRaw : null;
 
   const ordem = await prisma.$transaction(async (tx) => {
     const seq = await tx.sequencia.upsert({
@@ -70,6 +72,7 @@ export async function POST(req: NextRequest) {
         unidade,
         observacao,
         criadoPor,
+        dataPrevista,
         estadoAtual: fromEstado ?? toEstado ?? undefined,
         etapas: {
           create: [{
