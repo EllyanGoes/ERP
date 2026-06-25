@@ -253,7 +253,7 @@ function GroupedSelect({
           style={{ top: pos?.top, left: pos?.left, width: pos?.width }}>
           {grupos.length > 0 ? grupos.map(([g, { opts }]) => (
             <div key={g}>
-              <div className="px-3 py-1.5 bg-muted/70 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0">
+              <div className="px-3 py-1.5 bg-muted text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0 z-10 border-b border-border shadow-sm">
                 {g}
               </div>
               {opts.map((o) => (
