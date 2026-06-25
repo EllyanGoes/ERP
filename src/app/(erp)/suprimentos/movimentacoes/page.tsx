@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { usePersistedFilters } from "@/lib/use-persisted-filters";
 import PageHeader from "@/components/shared/PageHeader";
 import { useSession } from "@/lib/session-context";
@@ -297,6 +298,10 @@ function formatDateTime(d: string) {
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function MovimentacoesPage() {
   const { user } = useSession();
+  // Lote a destacar (vindo de um link do razão: ?focus=loteId)
+  const searchParams = useSearchParams();
+  const focusId = searchParams.get("focus");
+  const focusRef = useRef<HTMLDivElement>(null);
 
   // Default period: 1 Jan of current year → today
   const currentYear = new Date().getFullYear();
@@ -375,6 +380,25 @@ export default function MovimentacoesPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Ao chegar com ?focus=loteId (link do razão): amplia o período se necessário,
+  // expande o lote e rola até ele para destacá-lo.
+  useEffect(() => {
+    if (!focusId || lotes.length === 0) return;
+    const alvo = lotes.find((l) => l.id === focusId);
+    if (!alvo) return;
+    const dia = (alvo.data ?? alvo.createdAt).slice(0, 10);
+    if ((dateRange.from && dia < dateRange.from) || (dateRange.to && dia > dateRange.to)) {
+      setDateRange({
+        from: dateRange.from && dia < dateRange.from ? dia : dateRange.from,
+        to: dateRange.to && dia > dateRange.to ? dia : dateRange.to,
+      });
+    }
+    setExpanded((prev) => new Set(prev).add(focusId));
+    const t = setTimeout(() => focusRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId, lotes]);
 
   useEffect(() => {
     Promise.all([
@@ -767,8 +791,18 @@ export default function MovimentacoesPage() {
                 return v !== null ? s + v * toNum(i.quantidade) : s;
               }, 0);
               const hasCusto = lote.itens.some(i => i.valorUnitario && toNum(i.valorUnitario) > 0);
+              const isFocus = lote.id === focusId;
               return (
-                <div key={lote.id} className="bg-card rounded-xl border border-border overflow-hidden">
+                <div
+                  key={lote.id}
+                  ref={isFocus ? focusRef : undefined}
+                  className={cn(
+                    "bg-card rounded-xl border overflow-hidden transition-shadow",
+                    isFocus
+                      ? "border-blue-500 ring-2 ring-blue-400/60 shadow-md shadow-blue-500/10"
+                      : "border-border"
+                  )}
+                >
                   {/* Header row */}
                   <button
                     onClick={() => toggleExpand(lote.id)}

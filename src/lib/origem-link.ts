@@ -30,7 +30,8 @@ export function linkOrigemLancamento(origemTipo: string, origemId: string | null
       return `/suprimentos/requisicoes-materiais/${origemId}`;
     case "ESTOQUE_AJUSTE":
     case "ESTOQUE_TRANSFERENCIA":
-      return "/suprimentos/movimentacoes";
+      // origemId = loteId da movimentação manual → foca/destaca o lote na lista.
+      return `/suprimentos/movimentacoes?focus=${origemId}`;
     case "DEPRECIACAO":
       return "/contabilidade/imobilizado";
     case "ENCERRAMENTO":
