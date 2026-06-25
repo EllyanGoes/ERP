@@ -213,7 +213,12 @@ function GroupedSelect({
   function calcPos() {
     if (!containerRef.current) return;
     const r = containerRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 240) });
+    // Painel mais largo que a célula (os rótulos "código — nome" são longos),
+    // travado dentro da viewport para não vazar pela direita.
+    const width = Math.max(r.width, compact ? 340 : 280);
+    const maxLeft = window.innerWidth - width - 8;
+    const left = Math.min(r.left, Math.max(8, maxLeft));
+    setPos({ top: r.bottom + 4, left, width });
   }
   function openDrop() { calcPos(); setQuery(""); setOpen(true); }
 
@@ -260,7 +265,7 @@ function GroupedSelect({
         <ChevronDown className={cn("text-muted-foreground shrink-0 mr-2 transition-transform", compact ? "w-3.5 h-3.5" : "w-4 h-4", open && "rotate-180")} />
       </div>
       {mounted && open && createPortal(
-        <div className="fixed z-[9999] bg-card border border-border rounded-xl shadow-lg overflow-auto max-h-72"
+        <div className="fixed z-[9999] bg-card border border-border rounded-xl shadow-lg overflow-auto max-h-80"
           style={{ top: pos?.top, left: pos?.left, width: pos?.width }}>
           {grupos.length > 0 ? grupos.map(([g, { opts }]) => (
             <div key={g}>
