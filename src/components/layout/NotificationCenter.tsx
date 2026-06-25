@@ -180,7 +180,7 @@ export default function NotificationCenter() {
         >
           <Bell className="w-[18px] h-[18px]" />
           {naoLidas > 0 && (
-            <span className="absolute top-1 right-1 -translate-y-1/2 translate-x-1/2 min-w-[15px] h-[15px] px-[3px] rounded-full bg-danger text-white text-[9px] font-bold leading-none flex items-center justify-center ring-2 ring-background tabular-nums">
+            <span className="absolute -top-1 -right-1 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-danger px-[3px] text-[9px] font-bold leading-none text-white ring-1 ring-background tabular-nums">
               {naoLidas > 9 ? "9+" : naoLidas}
             </span>
           )}
