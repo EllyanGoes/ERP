@@ -4,6 +4,63 @@ import { prismaSemEscopo } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { contabilizarTituloReceber, contabilizarTituloPagar, contabilizarEntradaEstoque, contabilizarCmvMinuta, contabilizarReceitaMinuta, contabilizarVendaPedido, contabilizarSaldoInicialEstoque, contabilizarLoteMovimentacao, apagarLancamentosContabeis } from "@/lib/contabilidade";
 
+// Progresso e última execução persistidos em Configuracao (key-value). Como o
+// status mora no banco (e não na memória de uma instância), a barra sobrevive a
+// trocar de aba/sessão e funciona em serverless atrás de pooler. O job atualiza
+// um `heartbeat` a cada lote; se parar de bater por mais que HEARTBEAT_MS,
+// consideramos o job morto (crash) — sem trava presa eternamente.
+const PROGRESSO_KEY = "reprocesso:progresso";
+const ULTIMA_KEY = "reprocesso:ultimaExecucao";
+const HEARTBEAT_MS = 90_000;
+
+type Progresso = { running: boolean; pct: number; fase: string; processados?: number; total?: number; heartbeat: number };
+
+async function lerProgresso(): Promise<Progresso | null> {
+  const row = await prismaSemEscopo.configuracao.findUnique({ where: { chave: PROGRESSO_KEY } });
+  if (!row?.valor) return null;
+  try { return JSON.parse(row.valor) as Progresso; } catch { return null; }
+}
+function estaRodando(p: Progresso | null): boolean {
+  return !!(p?.running && p.heartbeat && Date.now() - p.heartbeat < HEARTBEAT_MS);
+}
+async function gravarProgresso(p: Progresso) {
+  const valor = JSON.stringify(p);
+  try {
+    await prismaSemEscopo.configuracao.upsert({
+      where: { chave: PROGRESSO_KEY },
+      create: { chave: PROGRESSO_KEY, valor },
+      update: { valor },
+    });
+  } catch { /* progresso é best-effort */ }
+}
+
+async function registrarUltimaExecucao(payload: Record<string, unknown>) {
+  const valor = JSON.stringify({ at: new Date().toISOString(), ...payload });
+  try {
+    await prismaSemEscopo.configuracao.upsert({
+      where: { chave: ULTIMA_KEY },
+      create: { chave: ULTIMA_KEY, valor },
+      update: { valor },
+    });
+  } catch { /* best-effort */ }
+}
+
+// GET /api/contabilidade/backfill — status: `{ running, progresso, ultima }`.
+// Tudo vem da Configuracao: `running` é o heartbeat ainda fresco; `progresso`
+// (% e fase) e `ultima` (quando rodou por último) são lidos do banco — então a
+// UI reconstrói a barra mesmo se o job foi iniciado em outra aba/sessão.
+export async function GET() {
+  const auth = await requireModulo("contabilidade");
+  if (!auth.ok) return auth.response;
+  const p = await lerProgresso();
+  const running = estaRodando(p);
+  const progresso = running && p ? { pct: p.pct, fase: p.fase, processados: p.processados, total: p.total } : null;
+  let ultima: { at: string; processados?: number; total?: number; erros?: number; ok?: boolean; error?: string } | null = null;
+  const ultimaRow = await prismaSemEscopo.configuracao.findUnique({ where: { chave: ULTIMA_KEY } });
+  if (ultimaRow?.valor) { try { ultima = JSON.parse(ultimaRow.valor); } catch { /* ignore */ } }
+  return NextResponse.json({ running, progresso, ultima });
+}
+
 // POST /api/contabilidade/backfill
 // Gera (idempotente) os lançamentos contábeis retroativos a partir dos títulos
 // já existentes — contas a receber (venda + recebimento) e a pagar (compra +
@@ -18,14 +75,14 @@ export async function POST(req: Request) {
 
   const reset = new URL(req.url).searchParams.get("reset");
 
-  // Trava contra execução concorrente (clique duplo / refresh + reclique): o
-  // reprocesso apaga e regrava em massa; dois rodando juntos se atropelam e
-  // deixam o balanço inconsistente. Advisory lock global; liberado no finally.
-  const LOCK_KEY = 778899;
-  const [{ locked }] = await prismaSemEscopo.$queryRaw<{ locked: boolean }[]>`SELECT pg_try_advisory_lock(${LOCK_KEY}) AS locked`;
-  if (!locked) {
+  // Guarda contra execução concorrente (clique duplo / refresh + reclique): se já
+  // há um reprocesso com heartbeat recente, recusa. Heartbeat em vez de advisory
+  // lock — confiável em pooler e sem ficar preso após um crash.
+  if (estaRodando(await lerProgresso())) {
     return NextResponse.json({ error: "Já há um reprocesso em execução. Aguarde ele terminar antes de rodar de novo." }, { status: 409 });
   }
+  // Marca como rodando JÁ (fecha a janela de corrida do duplo clique).
+  await gravarProgresso({ running: true, pct: 0, fase: "Iniciando", processados: 0, total: 0, heartbeat: Date.now() });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -35,6 +92,9 @@ export async function POST(req: Request) {
       const send = (obj: Record<string, unknown>) => {
         try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`)); } catch { /* stream fechado */ }
       };
+      // Atualiza progresso + heartbeat (running=true) p/ a UI reconstruir a barra.
+      const tick = (pct: number, fase: string, total: number) =>
+        gravarProgresso({ running: true, pct, fase, processados, total, heartbeat: Date.now() });
 
       try {
         // Limpa partidas órfãs (lançamento já apagado, partida ficou) — sem FK em
@@ -46,6 +106,8 @@ export async function POST(req: Request) {
         if (reset === "vendas") {
           await apagarLancamentosContabeis({ origemTipo: { in: ["VENDA", "RECEITA_ENTREGA", "RECEBIMENTO"] } });
         }
+        // Batimento extra antes da coleta (apagar pode demorar e não tem ticks).
+        await gravarProgresso({ running: true, pct: 0, fase: "Preparando", processados: 0, total: 0, heartbeat: Date.now() });
 
         // Coleta tudo primeiro para saber o TOTAL e calcular a porcentagem.
         const [empresas, confs, pedidos, crs, cps, minutas, lotes] = await Promise.all([
@@ -61,6 +123,7 @@ export async function POST(req: Request) {
         const total = empresas.length + confs.length + pedidos.length + crs.length + cps.length + minutas.length + lotes.length;
         const pct = () => (total > 0 ? Math.min(99, Math.round((processados / total) * 100)) : 100);
         send({ total, processados: 0, pct: 0, fase: "Preparando" });
+        await tick(0, "Preparando", total);
 
         // Processa itens em LOTES paralelos (acelera ~Nx os round-trips ao banco). A
         // criação de contas analíticas é resiliente a corrida (criarAnaliticaComRetry),
@@ -73,9 +136,10 @@ export async function POST(req: Request) {
               catch (e) { erros.push(`${rotulo(it)}: ${(e as Error).message}`); processados++; }
             }));
             send({ total, processados, pct: pct(), fase });
+            await tick(pct(), fase, total);
           }
           // Garante um tick de progresso mesmo quando a fase não tem itens.
-          if (itens.length === 0) send({ total, processados, pct: pct(), fase });
+          if (itens.length === 0) { send({ total, processados, pct: pct(), fase }); await tick(pct(), fase, total); }
         };
 
         // 0) Saldo de abertura de estoque por empresa (antes das saídas).
@@ -94,10 +158,13 @@ export async function POST(req: Request) {
         await emLotes(lotes, (l) => `Lote ${l.numero}`, (l) => contabilizarLoteMovimentacao(l.id), "Movimentações manuais");
 
         send({ done: true, ok: true, processados, total, pct: 100, erros: erros.slice(0, 20) });
+        await gravarProgresso({ running: false, pct: 100, fase: "Concluído", processados, total, heartbeat: Date.now() });
+        await registrarUltimaExecucao({ ok: true, processados, total, erros: erros.length });
       } catch (e) {
         send({ done: true, error: (e as Error).message });
+        await gravarProgresso({ running: false, pct: 0, fase: "Erro", processados, heartbeat: Date.now() });
+        await registrarUltimaExecucao({ ok: false, error: (e as Error).message });
       } finally {
-        await prismaSemEscopo.$queryRaw`SELECT pg_advisory_unlock(${LOCK_KEY})`.catch(() => {});
         controller.close();
       }
     },

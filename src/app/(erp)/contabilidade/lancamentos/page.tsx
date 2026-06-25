@@ -36,6 +36,12 @@ export default function LancamentosContabeisPage() {
   const [gerando, setGerando] = useState(false);
   const [progresso, setProgresso] = useState<{ pct: number; fase: string } | null>(null);
   const [aviso, setAviso] = useState("");
+  // Reprocesso em andamento em QUALQUER sessão. Como o % é persistido (Configuracao),
+  // ao trocar de aba e voltar a barra reaparece com o progresso real.
+  const [reprocessoAtivo, setReprocessoAtivo] = useState(false);
+  const [progressoRemoto, setProgressoRemoto] = useState<{ pct: number; fase: string } | null>(null);
+  // Última vez que o retroativo rodou (persistido) — exibido no topo da tela.
+  const [ultimaExecucao, setUltimaExecucao] = useState<{ at: string; processados?: number; total?: number; erros?: number; ok?: boolean; error?: string } | null>(null);
   // Filtros: classe (manual/auto), origem (tipo) e busca (histórico/código).
   const [classe, setClasse] = useState<"TODOS" | "AUTO" | "MANUAL">("TODOS");
   const [origemFiltro, setOrigemFiltro] = useState("TODOS");
@@ -49,6 +55,35 @@ export default function LancamentosContabeisPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Acompanha um reprocesso em andamento (qualquer sessão): busca status + % real.
+  const checarReprocesso = useCallback(async (): Promise<boolean> => {
+    try {
+      const j = await fetch("/api/contabilidade/backfill").then((r) => r.json());
+      setProgressoRemoto(j.progresso ?? null);
+      setUltimaExecucao(j.ultima ?? null);
+      return !!j.running;
+    } catch { return false; }
+  }, []);
+
+  // Ao abrir/voltar à tela: se já houver reprocesso rodando, reconstrói a barra.
+  useEffect(() => { checarReprocesso().then(setReprocessoAtivo); }, [checarReprocesso]);
+
+  // Seguindo um reprocesso (não iniciado por este cliente): polla até terminar
+  // e então recarrega os lançamentos.
+  useEffect(() => {
+    if (!reprocessoAtivo || gerando) return;
+    let parar = false;
+    const timer = setInterval(async () => {
+      const rodando = await checarReprocesso();
+      if (parar) return;
+      if (!rodando) {
+        setReprocessoAtivo(false); setProgressoRemoto(null);
+        setAviso("Reprocesso concluído."); await load();
+      }
+    }, 2000);
+    return () => { parar = true; clearInterval(timer); };
+  }, [reprocessoAtivo, gerando, checarReprocesso, load]);
 
   // Origens presentes (para o seletor de filtro por tipo).
   const origensPresentes = Array.from(new Set(lancs.map((l) => l.origemTipo))).sort();
@@ -79,7 +114,10 @@ export default function LancamentosContabeisPage() {
       // 409 (já em execução) ou erro sem stream → corpo JSON.
       if (!res.ok || !res.body) {
         const j = await res.json().catch(() => ({}));
-        setAviso(j.error || "Erro ao gerar lançamentos");
+        // 409: já há um reprocesso rodando — segue o job (barra com % persistido)
+        // em vez de só avisar.
+        if (res.status === 409) { setReprocessoAtivo(true); checarReprocesso(); }
+        else setAviso(j.error || "Erro ao gerar lançamentos");
         return;
       }
       const reader = res.body.getReader();
@@ -114,6 +152,7 @@ export default function LancamentosContabeisPage() {
     } finally {
       setGerando(false);
       setProgresso(null);
+      checarReprocesso(); // atualiza "última execução" / status
     }
   }
 
@@ -124,15 +163,25 @@ export default function LancamentosContabeisPage() {
         breadcrumbs={[{ label: "Contabilidade" }, { label: "Diário" }]}
         actions={
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={gerarRetroativos} disabled={gerando}>
-              {gerando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
-              {gerando ? `Gerando… ${progresso?.pct ?? 0}%` : "Gerar retroativos"}
+            <Button size="sm" variant="outline" onClick={gerarRetroativos} disabled={gerando || reprocessoAtivo}>
+              {gerando || reprocessoAtivo ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+              {gerando ? `Gerando… ${progresso?.pct ?? 0}%`
+                : reprocessoAtivo ? `Reprocessando… ${progressoRemoto?.pct ?? 0}%`
+                : "Gerar retroativos"}
             </Button>
             <NovoLancamentoDialog onDone={load} />
           </div>
         }
       />
       <div className="px-8 pb-8 space-y-4">
+        {ultimaExecucao?.at && (
+          <p className="text-xs text-muted-foreground">
+            Último retroativo gerado em <span className="font-medium text-foreground">{new Date(ultimaExecucao.at).toLocaleString("pt-BR")}</span>
+            {ultimaExecucao.ok === false
+              ? <span className="text-danger"> · falhou</span>
+              : <>{typeof ultimaExecucao.processados === "number" ? ` · ${ultimaExecucao.processados} lançamento(s) processado(s)` : ""}{ultimaExecucao.erros ? ` · ${ultimaExecucao.erros} com erro` : ""}</>}
+          </p>
+        )}
         {gerando && progresso && (
           <div className="rounded-lg border border-info/30 bg-info/10 px-4 py-3 text-sm text-info space-y-1.5">
             <div className="flex items-center justify-between">
@@ -141,6 +190,22 @@ export default function LancamentosContabeisPage() {
             </div>
             <div className="h-1.5 w-full rounded-full bg-info/20 overflow-hidden">
               <div className="h-full rounded-full bg-info transition-all duration-300" style={{ width: `${progresso.pct}%` }} />
+            </div>
+          </div>
+        )}
+        {/* Reprocesso em andamento iniciado em outra aba/sessão (ou retomado ao
+            voltar à tela): barra com o % real persistido. */}
+        {!gerando && reprocessoAtivo && (
+          <div className="rounded-lg border border-info/30 bg-info/10 px-4 py-3 text-sm text-info space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                Reprocesso em andamento{progressoRemoto?.fase ? ` — ${progressoRemoto.fase}` : ""}… a página atualiza ao terminar.
+              </span>
+              <span className="font-semibold tabular-nums">{progressoRemoto?.pct ?? 0}%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-info/20 overflow-hidden">
+              <div className="h-full rounded-full bg-info transition-all duration-300" style={{ width: `${progressoRemoto?.pct ?? 0}%` }} />
             </div>
           </div>
         )}
