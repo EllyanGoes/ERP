@@ -24,8 +24,10 @@ export async function GET(req: NextRequest) {
   const estado = sp.get("estado") ?? "";
   if (!fluxoId || !estado) return NextResponse.json({ data: [] });
 
+  // Só os produtos FINAIS (vendáveis) percorrem a cadeia de WIP até o acabado —
+  // intermediários (Mistura de Argila, Insumos para Queima) não aparecem nas etapas do tijolo.
   const engs = await prisma.engenhariaProduto.findMany({
-    where: { fluxoId, ativo: true },
+    where: { fluxoId, ativo: true, item: { vendavel: true } },
     select: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } } },
   });
   const produtos = engs.map((e) => e.item).filter((x): x is NonNullable<typeof x> => !!x);

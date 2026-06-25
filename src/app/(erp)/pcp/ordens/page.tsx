@@ -21,7 +21,7 @@ const ETAPA_STATUS: Record<string, string> = { PENDENTE: "bg-muted text-muted-fo
 const hoje = () => new Date().toISOString().slice(0, 10);
 
 export default function OrdensBoardPage() {
-  useTabTitle("Ordens de Produção");
+  useTabTitle("Fluxo de Produção");
   const router = useRouter();
 
   const [fluxos, setFluxos] = useState<FluxoOpt[]>([]);
@@ -153,9 +153,9 @@ export default function OrdensBoardPage() {
   return (
     <div className="flex flex-col h-full">
       <PageHeader
-        title="Ordens de Produção"
+        title="Fluxo de Produção"
         subtitle="Chão de fábrica por área: escolha o fluxo, abra a aba da área e crie/aponte as OPs do dia."
-        breadcrumbs={[{ label: "PCP" }, { label: "Ordens de Produção" }]}
+        breadcrumbs={[{ label: "PCP" }, { label: "Fluxo de Produção" }]}
         action={
           <div className="flex items-center gap-2">
             <Link href="/pcp/chao" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
@@ -195,7 +195,7 @@ export default function OrdensBoardPage() {
 
         {/* Abas por área */}
         {areas.length > 0 && (
-          <div className="flex gap-0 border-b border-border overflow-x-auto">
+          <div className="flex gap-0 border-b border-border overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden">
             {areas.map((a) => (
               <button key={a.nodeId} type="button" onClick={() => { setAreaNodeId(a.nodeId); setNovo(null); }}
                 className={cn("px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors",
@@ -221,12 +221,12 @@ export default function OrdensBoardPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
               {/* Coluna 1 — ENTRADA (matéria-prima ou PEP da etapa anterior) */}
-              <ColBoard titulo={area.isPrimeira ? "Matéria-prima" : `PEP entrada${area.fromEstado ? ` · ${ESTADO_LABEL[area.fromEstado] ?? area.fromEstado}` : ""}`} icon={<Boxes className="w-3.5 h-3.5" />}>
+              <ColBoard cor="amber" titulo={area.isPrimeira ? "Matéria-prima" : `PEP entrada${area.fromEstado ? ` · ${ESTADO_LABEL[area.fromEstado] ?? area.fromEstado}` : ""}`} icon={<Boxes className="w-3.5 h-3.5" />}>
                 <EstoqueLista linhas={area.isPrimeira ? materiais : entradaWip} vazio={area.isPrimeira ? "Sem materiais na engenharia desta fase." : "Sem PEP de entrada em estoque."} />
               </ColBoard>
 
               {/* Coluna 2 — ORDENS DE PRODUÇÃO */}
-              <ColBoard titulo="Ordens de Produção" icon={<Factory className="w-3.5 h-3.5" />}
+              <ColBoard cor="cyan" titulo="Ordens de Produção" icon={<Factory className="w-3.5 h-3.5" />}
                 acao={
                   <button onClick={() => { setNovo({ itemId: produtos[0]?.id ?? "", quantidade: "", dataPrevista: "" }); setDisp(null); setErro(null); }}
                     className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-700">
@@ -266,7 +266,7 @@ export default function OrdensBoardPage() {
               </ColBoard>
 
               {/* Coluna 3 — SAÍDA (PEP que a etapa gera, ou produto acabado) */}
-              <ColBoard titulo={area.estadoSaida === "ACABADO" ? "Produto acabado" : area.estadoSaida ? `PEP saída · ${ESTADO_LABEL[area.estadoSaida] ?? area.estadoSaida}` : "Saída"} icon={<PackageCheck className="w-3.5 h-3.5" />}>
+              <ColBoard cor="emerald" titulo={area.estadoSaida === "ACABADO" ? "Produto acabado" : area.estadoSaida ? `PEP saída · ${ESTADO_LABEL[area.estadoSaida] ?? area.estadoSaida}` : "Saída"} icon={<PackageCheck className="w-3.5 h-3.5" />}>
                 <EstoqueLista linhas={saidaEstoque} vazio={area.estadoSaida ? "Sem produção ainda." : "Etapa sem saída de WIP."} />
               </ColBoard>
             </div>
@@ -373,12 +373,18 @@ export default function OrdensBoardPage() {
   );
 }
 
-// Coluna do board (Entrada / OPs / Saída).
-function ColBoard({ titulo, icon, acao, children }: { titulo: string; icon?: React.ReactNode; acao?: React.ReactNode; children: React.ReactNode }) {
+// Coluna do board (Entrada / OPs / Saída), cada uma com a sua cor.
+const COR_BOARD: Record<string, { topo: string; titulo: string; head: string }> = {
+  amber:   { topo: "border-t-amber-400",   titulo: "text-amber-700 dark:text-amber-400",     head: "bg-amber-50/50 dark:bg-amber-950/20" },
+  cyan:    { topo: "border-t-cyan-500",    titulo: "text-cyan-700 dark:text-cyan-400",       head: "bg-cyan-50/50 dark:bg-cyan-950/20" },
+  emerald: { topo: "border-t-emerald-500", titulo: "text-emerald-700 dark:text-emerald-400", head: "bg-emerald-50/50 dark:bg-emerald-950/20" },
+};
+function ColBoard({ titulo, icon, acao, cor = "cyan", children }: { titulo: string; icon?: React.ReactNode; acao?: React.ReactNode; cor?: "amber" | "cyan" | "emerald"; children: React.ReactNode }) {
+  const c = COR_BOARD[cor] ?? COR_BOARD.cyan;
   return (
-    <div className="rounded-xl border border-border bg-muted/20 flex flex-col min-h-[10rem]">
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border">
-        <p className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5 min-w-0">
+    <div className={cn("rounded-xl border border-border border-t-2 bg-muted/20 flex flex-col min-h-[10rem]", c.topo)}>
+      <div className={cn("flex items-center justify-between gap-2 px-3 py-2 border-b border-border rounded-t-[10px]", c.head)}>
+        <p className={cn("text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5 min-w-0", c.titulo)}>
           {icon}<span className="truncate">{titulo}</span>
         </p>
         {acao}
