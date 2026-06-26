@@ -372,7 +372,6 @@ const mainModules: Module[] = [
       {
         kind: "Planejamento/Apontamento" as SubSection["kind"],
         items: [
-          { href: "/pcp/chao",             label: "Chão de Fábrica",      icon: Factory },
           { href: "/pcp/ordens",           label: "Ordens de Produção",   icon: ClipboardList },
         ],
       },
