@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     },
     orderBy: { createdAt: "asc" },
     select: {
-      id: true, numero: true, status: true, quantidadePlanejada: true, unidade: true,
+      id: true, numero: true, status: true, quantidadePlanejada: true, unidade: true, criadoPor: true,
       dataPrevistaInicio: true, dataPrevistaFim: true, observacao: true, responsavelColaboradorId: true,
       responsavelColaborador: { select: { nome: true } },
       item: { select: { codigo: true, descricao: true } },
@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
     unidade: o.unidade,
     produto: o.item?.descricao ?? null,
     produtoCodigo: o.item?.codigo ?? null,
+    criadoPor: o.criadoPor ?? null,
     responsavel: o.responsavelColaborador?.nome ?? null,
     inicioPrevisto: o.dataPrevistaInicio,
     fimPrevisto: o.dataPrevistaFim,

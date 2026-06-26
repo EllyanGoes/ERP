@@ -170,6 +170,9 @@ model Colaborador {
   dataDemissao               DateTime?
   usuarioId                  String?              @unique
   ativo                      Boolean              @default(true)
+  // Áreas de operação (nomes das etapas do fluxo: Preparação, Conformação, …) em que
+  // o colaborador pode atuar. Vazio = sem restrição (aparece como responsável em todas).
+  areasOperacao              String[]             @default([])
   observacoes                String?
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt

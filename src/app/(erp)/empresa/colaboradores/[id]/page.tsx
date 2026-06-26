@@ -45,6 +45,7 @@ type Colaborador = {
   usuario:         Usuario | null;
   ativo:           boolean;
   observacoes:     string | null;
+  areasOperacao:   string[];
   createdAt:       string;
   updatedAt:       string;
   etapasAprovacao: EtapaInfo[];
@@ -110,6 +111,8 @@ export default function ColaboradorDetailPage() {
   const [eUsuarioId,    setEUsuarioId]    = useState("");
   const [eAtivo,        setEAtivo]        = useState(true);
   const [eObservacoes,  setEObservacoes]  = useState("");
+  const [eAreasOperacao, setEAreasOperacao] = useState<string[]>([]);
+  const [areasDisponiveis, setAreasDisponiveis] = useState<string[]>([]);
 
   // Options
   const [filiais,  setFiliais]  = useState<Filial[]>([]);
@@ -159,8 +162,10 @@ export default function ColaboradorDetailPage() {
     setEUsuarioId(colaborador.usuarioId ?? "");
     setEAtivo(colaborador.ativo);
     setEObservacoes(colaborador.observacoes ?? "");
+    setEAreasOperacao(colaborador.areasOperacao ?? []);
     setEditError("");
     setEditMode(true);
+    fetch("/api/pcp/areas-operacao").then((r) => r.json()).then((j) => setAreasDisponiveis(Array.isArray(j.data) ? j.data : [])).catch(() => setAreasDisponiveis([]));
 
     // Load options
     fetch("/api/empresa/filiais?ativo=true")
@@ -206,6 +211,7 @@ export default function ColaboradorDetailPage() {
           usuarioId:    eUsuarioId   || null,
           ativo:        eAtivo,
           observacoes:  eObservacoes.trim() || null,
+          areasOperacao: eAreasOperacao,
         }),
       });
       const json = await res.json();
@@ -395,6 +401,24 @@ export default function ColaboradorDetailPage() {
                   options={usuarios.map((u) => ({ value: u.id, label: `${u.nome} — ${u.email}` }))}
                 />
               </Field>
+              <Field label="Áreas de operação" hint="Em quais etapas do fluxo o colaborador pode atuar (filtra o responsável nas OPs). Vazio = aparece em todas.">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 border border-border rounded-lg p-2 max-h-40 overflow-y-auto">
+                  {areasDisponiveis.length === 0 && (
+                    <p className="text-xs text-muted-foreground px-1 col-span-full">Nenhuma área (publique um fluxo de produção).</p>
+                  )}
+                  {areasDisponiveis.map((a) => (
+                    <label key={a} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer hover:bg-muted rounded">
+                      <input
+                        type="checkbox"
+                        checked={eAreasOperacao.includes(a)}
+                        onChange={(ev) => setEAreasOperacao((prev) => ev.target.checked ? [...prev, a] : prev.filter((x) => x !== a))}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{a}</span>
+                    </label>
+                  ))}
+                </div>
+              </Field>
               <div className="flex items-center gap-3 pt-1">
                 <input
                   id="e-ativo"
@@ -516,6 +540,9 @@ export default function ColaboradorDetailPage() {
                 ? colaborador.filiais.map((f) => f.nomeFantasia || f.razaoSocial).join(", ")
                 : null
               }
+            </InfoField>
+            <InfoField label="Áreas de operação">
+              {colaborador.areasOperacao?.length ? colaborador.areasOperacao.join(", ") : "Todas"}
             </InfoField>
             <InfoField label="Usuário do sistema">
               {colaborador.usuario ? (

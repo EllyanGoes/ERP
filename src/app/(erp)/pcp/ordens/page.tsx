@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
+import { useSession } from "@/lib/session-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
-import { Plus, RefreshCw, Factory, CheckCircle2, List, Loader2, X, Boxes, PackageCheck, Printer, Pencil } from "lucide-react";
+import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil } from "lucide-react";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
@@ -16,7 +17,8 @@ type Produto = { id: string; codigo: string; descricao: string; unidades: Unidad
 type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
 type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; editId?: string | null; editNumero?: string };
 type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null; unidadeId: string | null };
-type BoardOP = { id: string; numero: string; status: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; observacao: string | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
+type BoardOP = { id: string; numero: string; status: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
+type SaldoInicial = { estado: string; itemId: string; quantidade: string; custoUnitario: string };
 type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
 type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
 type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; suficiente: boolean };
@@ -35,6 +37,7 @@ const toLocalInput = (iso: string | null) => {
 export default function OrdensBoardPage() {
   useTabTitle("Fluxo de Produção");
   const router = useRouter();
+  const { user } = useSession();
 
   const [fluxos, setFluxos] = useState<FluxoOpt[]>([]);
   const [fluxoId, setFluxoId] = useState("");
@@ -54,9 +57,12 @@ export default function OrdensBoardPage() {
   // Nova OP
   const [novo, setNovo] = useState<NovoOP | null>(null);
   const [criando, setCriando] = useState(false);
-  const [colaboradores, setColaboradores] = useState<{ id: string; nome: string }[]>([]);
+  const [colaboradores, setColaboradores] = useState<{ id: string; nome: string; areasOperacao: string[] }[]>([]);
   const [consumo, setConsumo] = useState<ConsumoLinha[] | null>(null);
   const [carregandoConsumo, setCarregandoConsumo] = useState(false);
+  // Saldo inicial de WIP
+  const [saldoIni, setSaldoIni] = useState<SaldoInicial | null>(null);
+  const [salvandoSaldo, setSalvandoSaldo] = useState(false);
 
   // Apontar
   const [apontar, setApontar] = useState<BoardOP | null>(null);
@@ -67,6 +73,8 @@ export default function OrdensBoardPage() {
 
   const area = areas.find((a) => a.nodeId === areaNodeId) ?? null;
   const minSeq = areas.length ? Math.min(...areas.map((a) => a.sequencia)) : 0;
+  // Responsáveis elegíveis na área: colaboradores com a área no cadastro (ou sem nenhuma = todos).
+  const colaboradoresDaArea = colaboradores.filter((c) => c.areasOperacao.length === 0 || (area != null && c.areasOperacao.includes(area.nome)));
 
   // 1. Fluxos publicados
   useEffect(() => {
@@ -137,7 +145,7 @@ export default function OrdensBoardPage() {
   useEffect(() => {
     fetch("/api/empresa/colaboradores?daEmpresaAtiva=1&ativo=true")
       .then((r) => r.json())
-      .then((j) => setColaboradores(Array.isArray(j) ? j.map((c: { id: string; nome: string }) => ({ id: c.id, nome: c.nome })) : []))
+      .then((j) => setColaboradores(Array.isArray(j) ? j.map((c: { id: string; nome: string; areasOperacao?: string[] }) => ({ id: c.id, nome: c.nome, areasOperacao: c.areasOperacao ?? [] })) : []))
       .catch(() => setColaboradores([]));
   }, []);
 
@@ -221,6 +229,24 @@ export default function OrdensBoardPage() {
     setErro(null);
   }
 
+  async function salvarSaldoInicial() {
+    if (!saldoIni) return;
+    if (!saldoIni.itemId || Number(saldoIni.quantidade) <= 0) { setErro("Informe produto e quantidade > 0"); return; }
+    setSalvandoSaldo(true); setErro(null);
+    try {
+      const r = await fetch("/api/pcp/ordens/area/saldo-inicial-wip", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: saldoIni.itemId, estado: saldoIni.estado, quantidade: saldoIni.quantidade, custoUnitario: saldoIni.custoUnitario || 0 }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j?.error ?? "Erro ao lançar saldo inicial");
+      setSaldoIni(null);
+      const a = areas.find((x) => x.nodeId === areaNodeId) ?? null;
+      if (a?.fromEstado) fetch(`/api/pcp/ordens/area/estoque-estado?fluxoId=${fluxoId}&estado=${a.fromEstado}`).then((r) => r.json()).then((j) => setEntradaWip(j.data ?? []));
+      if (a?.estadoSaida) fetch(`/api/pcp/ordens/area/estoque-estado?fluxoId=${fluxoId}&estado=${a.estadoSaida}`).then((r) => r.json()).then((j) => setSaidaEstoque(j.data ?? []));
+    } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setSalvandoSaldo(false); }
+  }
+
   async function concluir() {
     if (!apontar) return;
     const itens = apontar.produtos.map((p) => ({ itemId: p.itemId, quantidadeReal: apForm.reais[p.itemId] ?? String(p.planejada) }));
@@ -247,10 +273,7 @@ export default function OrdensBoardPage() {
         action={
           <div className="flex items-center gap-2">
             <Link href="/pcp/chao" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-              <Factory className="w-4 h-4" /> Chão de Fábrica
-            </Link>
-            <Link href="/pcp/ordens/lista" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-              <List className="w-4 h-4" /> Lista
+              <Workflow className="w-4 h-4" /> Fluxo de Trabalho
             </Link>
           </div>
         }
@@ -319,7 +342,13 @@ export default function OrdensBoardPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
               {/* Coluna 1 — ENTRADA (matéria-prima ou PEP da etapa anterior) */}
-              <ColBoard cor="amber" titulo={area.sequencia === minSeq ? "Matéria-prima" : "PEP de entrada"} icon={<Boxes className="w-3.5 h-3.5" />}>
+              <ColBoard cor="amber" titulo={area.sequencia === minSeq ? "Matéria-prima" : "PEP de entrada"} icon={<Boxes className="w-3.5 h-3.5" />}
+                acao={!area.isPrimeira && area.fromEstado && area.fromEstado !== "ACABADO" ? (
+                  <button onClick={() => { setSaldoIni({ estado: area.fromEstado!, itemId: produtos[0]?.id ?? "", quantidade: "", custoUnitario: "" }); setErro(null); }}
+                    className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-amber-300 dark:border-amber-800 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30" title="Definir saldo inicial">
+                    <Plus className="w-3 h-3" /> Saldo inicial
+                  </button>
+                ) : undefined}>
                 {area.isPrimeira ? (
                   <EstoqueLista linhas={materiais} vazio="Sem materiais na engenharia desta fase." />
                 ) : (
@@ -333,7 +362,7 @@ export default function OrdensBoardPage() {
               {/* Coluna 2 — ORDENS DE PRODUÇÃO */}
               <ColBoard cor="cyan" titulo="Ordens de Produção" icon={<Factory className="w-3.5 h-3.5" />}
                 acao={
-                  <button onClick={() => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: area.produtos[0]?.unidades[0]?.id ?? "" }], inicio: "", fim: "", responsavelId: "", observacao: "" }); setErro(null); }}
+                  <button onClick={() => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: area.produtos[0]?.unidades[0]?.id ?? "" }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); }}
                     className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-700">
                     <Plus className="w-3.5 h-3.5" /> Nova OP
                   </button>
@@ -354,7 +383,7 @@ export default function OrdensBoardPage() {
                           <button onClick={() => router.push(`/pcp/ordens/${o.id}`)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600">{o.numero}</button>
                           <div className="flex items-center gap-1.5 shrink-0">
                             {!concl && <button onClick={(e) => { e.stopPropagation(); abrirEdicao(o); }} className="text-muted-foreground hover:text-cyan-600" title="Editar OP"><Pencil className="w-3.5 h-3.5" /></button>}
-                            <a href={`/pcp/ordens/${o.id}/imprimir`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-cyan-600" title="Imprimir OP"><Printer className="w-3.5 h-3.5" /></a>
+                            <Link href={`/pcp/ordens/${o.id}/imprimir`} onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-cyan-600" title="Imprimir OP"><Printer className="w-3.5 h-3.5" /></Link>
                             <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
                               {o.etapaStatus === "CONCLUIDA" ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
                             </span>
@@ -377,6 +406,7 @@ export default function OrdensBoardPage() {
                             {o.fimPrevisto && <span>até {new Date(o.fimPrevisto).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>}
                           </p>
                         )}
+                        {o.criadoPor && <p className="text-[10px] text-muted-foreground/70 truncate">Programado: {o.criadoPor}</p>}
                         {!concl && (
                           <button onClick={() => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perda: "", biomassa: "" }); setErro(null); }}
                             className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
@@ -390,7 +420,13 @@ export default function OrdensBoardPage() {
               </ColBoard>
 
               {/* Coluna 3 — SAÍDA (PEP que a etapa gera, ou o produto produzido) */}
-              <ColBoard cor="emerald" titulo={area.estadoSaida === "ACABADO" ? "Produto acabado" : area.estadoSaida ? "PEP de saída" : "Saída"} icon={<PackageCheck className="w-3.5 h-3.5" />}>
+              <ColBoard cor="emerald" titulo={area.estadoSaida === "ACABADO" ? "Produto acabado" : area.estadoSaida ? "PEP de saída" : "Saída"} icon={<PackageCheck className="w-3.5 h-3.5" />}
+                acao={area.estadoSaida && area.estadoSaida !== "ACABADO" ? (
+                  <button onClick={() => { setSaldoIni({ estado: area.estadoSaida!, itemId: produtos[0]?.id ?? "", quantidade: "", custoUnitario: "" }); setErro(null); }}
+                    className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-emerald-300 dark:border-emerald-800 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" title="Definir saldo inicial">
+                    <Plus className="w-3 h-3" /> Saldo inicial
+                  </button>
+                ) : undefined}>
                 {area.estadoSaida ? (
                   <EstoqueLista linhas={saidaEstoque} estado={area.estadoSaida} vazio="Sem produção ainda." />
                 ) : (() => {
@@ -433,9 +469,11 @@ export default function OrdensBoardPage() {
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Responsável</label>
                     <ComboboxWithCreate value={novo.responsavelId} onChange={(v) => setNovo({ ...novo, responsavelId: v })} allowNone triggerClassName="h-9 rounded-lg" placeholder="—"
-                      options={colaboradores.map((c) => ({ value: c.id, label: c.nome }))} />
+                      options={colaboradoresDaArea.map((c) => ({ value: c.id, label: c.nome }))} />
                   </div>
                 </div>
+
+                {!novo.editId && user?.nome && <p className="mt-2 text-[11px] text-muted-foreground">Programado por: <b className="text-foreground">{user.nome}</b></p>}
 
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <div>
@@ -537,6 +575,39 @@ export default function OrdensBoardPage() {
               <button onClick={() => setApontar(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
               <button onClick={concluir} disabled={apBusy} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
                 {apBusy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Apontar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal saldo inicial de WIP */}
+      {saldoIni && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSaldoIni(null)}>
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Boxes className="w-5 h-5 text-amber-600" /> Saldo inicial — PEP {ESTADO_LABEL[saldoIni.estado] ?? saldoIni.estado}</h2>
+            <p className="text-xs text-muted-foreground mt-1">Saldo de abertura do produto neste estado de WIP (uma vez por produto/estado). Lança D Estoque WIP / C Saldos de Abertura.</p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Produto *</label>
+                <ComboboxWithCreate value={saldoIni.itemId} onChange={(v) => setSaldoIni({ ...saldoIni, itemId: v })} allowNone={false} triggerClassName="h-9 rounded-lg"
+                  options={produtos.map((p) => ({ value: p.id, label: `${p.codigo} · ${p.descricao}` }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade *</label>
+                  <input inputMode="decimal" value={saldoIni.quantidade} onChange={(e) => setSaldoIni({ ...saldoIni, quantidade: e.target.value })} className="w-full h-9 rounded-lg border border-border px-3 text-sm bg-card text-right tabular-nums" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Custo unit. (R$)</label>
+                  <input inputMode="decimal" value={saldoIni.custoUnitario} onChange={(e) => setSaldoIni({ ...saldoIni, custoUnitario: e.target.value })} className="w-full h-9 rounded-lg border border-border px-3 text-sm bg-card text-right tabular-nums" placeholder="0,00" />
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button onClick={() => setSaldoIni(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+              <button onClick={salvarSaldoInicial} disabled={salvandoSaldo} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50">
+                {salvandoSaldo ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Lançar
               </button>
             </div>
           </div>

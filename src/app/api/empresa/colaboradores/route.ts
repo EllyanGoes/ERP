@@ -25,6 +25,7 @@ const schema = z.object({
   usuarioId: z.string().optional().nullable(),
   ativo: z.boolean().optional(),
   observacoes: z.string().optional().nullable(),
+  areasOperacao: z.array(z.string()).optional(),
 })
 
 export async function GET(req: NextRequest) {

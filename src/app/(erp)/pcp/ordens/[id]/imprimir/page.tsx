@@ -12,6 +12,7 @@ type ProdutoItem = { itemId: string; quantidadePlanejada: string | number; quant
 type Ordem = {
   id: string; numero: string; status: string; createdAt: string;
   dataPrevistaInicio: string | null; dataPrevistaFim: string | null;
+  criadoPor: string | null;
   responsavelColaborador: { nome: string } | null;
   item: { codigo: string; descricao: string } | null;
   fluxoVersao: { fluxo: { nome: string } } | null;
@@ -71,6 +72,7 @@ export default function ImprimirOrdemPage() {
           <Campo rotulo="Início previsto" valor={dt(ordem.dataPrevistaInicio)} />
           <Campo rotulo="Fim previsto" valor={dt(ordem.dataPrevistaFim)} />
           <Campo rotulo="Responsável" valor={ordem.responsavelColaborador?.nome ?? "—"} />
+          <Campo rotulo="Programado por" valor={ordem.criadoPor ?? "—"} />
         </div>
 
         <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Produtos</p>

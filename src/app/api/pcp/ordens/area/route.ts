@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
 
   const unidade = typeof body.unidade === "string" && body.unidade.trim() ? body.unidade.trim() : "milheiro";
   const observacao = typeof body.observacao === "string" && body.observacao.trim() ? body.observacao.trim() : null;
-  const criadoPor = typeof body.criadoPor === "string" && body.criadoPor.trim() ? body.criadoPor.trim() : null;
+  const criadoPor = auth.session.nome ?? null; // "Programado por" = usuário que emite a OP
   const parseDt = (v: unknown) => { if (typeof v === "string" && v.trim()) { const d = new Date(v); return isNaN(d.getTime()) ? null : d; } return null; };
   const dataPrevista = parseDt(body.dataPrevista);
   const dataPrevistaInicio = parseDt(body.dataPrevistaInicio);

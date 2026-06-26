@@ -59,6 +59,8 @@ export default function NovoColaboradorPage() {
   const [usuarioId,    setUsuarioId]    = useState("");
   const [ativo,        setAtivo]        = useState(true);
   const [observacoes,  setObservacoes]  = useState("");
+  const [areasOperacao, setAreasOperacao] = useState<string[]>([]);
+  const [areasDisponiveis, setAreasDisponiveis] = useState<string[]>([]);
 
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
@@ -68,7 +70,7 @@ export default function NovoColaboradorPage() {
     onNew: () => {
       setNome(""); setCpf(""); setRg(""); setEmail(""); setTelefone(""); setCargo("");
       setSetorId(""); setDataAdmissao(""); setFilialIds([]); setEmpresaIds([]); setUsuarioId("");
-      setAtivo(true); setObservacoes(""); setError("");
+      setAtivo(true); setObservacoes(""); setAreasOperacao([]); setError("");
     },
     viewHref: (id) => `/empresa/colaboradores/${id}`,
   });
@@ -89,6 +91,10 @@ export default function NovoColaboradorPage() {
     fetch("/api/empresas")
       .then((r) => r.json())
       .then((j) => setEmpresas(Array.isArray(j) ? j : (j.data ?? [])));
+    fetch("/api/pcp/areas-operacao")
+      .then((r) => r.json())
+      .then((j) => setAreasDisponiveis(Array.isArray(j.data) ? j.data : []))
+      .catch(() => setAreasDisponiveis([]));
   }, []);
 
   async function handleSave() {
@@ -115,6 +121,7 @@ export default function NovoColaboradorPage() {
           usuarioId:    usuarioId    || null,
           ativo,
           observacoes:  observacoes.trim() || null,
+          areasOperacao,
         }),
       });
       const json = await res.json();
@@ -304,6 +311,25 @@ export default function NovoColaboradorPage() {
                 triggerClassName="h-9 rounded-lg"
                 options={usuarios.map((u) => ({ value: u.id, label: `${u.nome} — ${u.email}` }))}
               />
+            </Field>
+
+            <Field label="Áreas de operação" hint="Em quais etapas do fluxo o colaborador pode atuar (filtra o responsável nas OPs). Vazio = aparece em todas.">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 border border-border rounded-lg p-2 max-h-40 overflow-y-auto">
+                {areasDisponiveis.length === 0 && (
+                  <p className="text-xs text-muted-foreground px-1 col-span-full">Nenhuma área (publique um fluxo de produção).</p>
+                )}
+                {areasDisponiveis.map((a) => (
+                  <label key={a} className="flex items-center gap-2 px-1 py-0.5 cursor-pointer hover:bg-muted rounded">
+                    <input
+                      type="checkbox"
+                      checked={areasOperacao.includes(a)}
+                      onChange={(ev) => setAreasOperacao((prev) => ev.target.checked ? [...prev, a] : prev.filter((x) => x !== a))}
+                      className="rounded"
+                    />
+                    <span className="text-sm">{a}</span>
+                  </label>
+                ))}
+              </div>
             </Field>
 
             <div className="flex items-center gap-3 pt-1">
