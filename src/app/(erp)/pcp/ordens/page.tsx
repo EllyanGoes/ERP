@@ -16,7 +16,7 @@ type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: s
 type Unidade = { id: string; sigla: string };
 type Produto = { id: string; codigo: string; descricao: string; unidades: Unidade[] };
 type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
-type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; editId?: string | null; editNumero?: string };
+type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null };
 type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null; unidadeId: string | null };
 type BoardOP = { id: string; numero: string; status: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 type SaldoInicial = { estado: string; itemId: string; quantidade: string; custoUnitario: string };
@@ -245,6 +245,7 @@ export default function OrdensBoardPage() {
         : [{ itemId: area?.produtos[0]?.id ?? "", quantidade: "", unidadeId: area?.produtos[0]?.unidades[0]?.id ?? "" }],
       inicio: toLocalInput(o.inicioPrevisto), fim: toLocalInput(o.fimPrevisto),
       responsavelId: o.responsavelColaboradorId ?? "", observacao: o.observacao ?? "",
+      editCriadoPor: o.criadoPor, editResponsavelNome: o.responsavel,
     });
     setErro(null);
   }
@@ -498,7 +499,15 @@ export default function OrdensBoardPage() {
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Responsável</label>
                     <ComboboxWithCreate value={novo.responsavelId} onChange={(v) => setNovo({ ...novo, responsavelId: v })} allowNone triggerClassName="h-9 rounded-lg" placeholder="—" menuMinWidth={340}
-                      options={colaboradoresDaArea.map((c) => ({ value: c.id, label: c.nome }))} />
+                      options={(() => {
+                        // Inclui o responsável já salvo mesmo que ele não atue na etapa (senão o nome some ao editar).
+                        const opts = colaboradoresDaArea.map((c) => ({ value: c.id, label: c.nome }));
+                        if (novo.responsavelId && !opts.some((o) => o.value === novo.responsavelId)) {
+                          const c = colaboradores.find((x) => x.id === novo.responsavelId);
+                          opts.unshift({ value: novo.responsavelId, label: c?.nome ?? novo.editResponsavelNome ?? "Responsável atual" });
+                        }
+                        return opts;
+                      })()} />
                     {area && (
                       <p className="mt-1 text-[11px] text-muted-foreground">
                         {colaboradoresDaArea.length === 0
@@ -509,7 +518,10 @@ export default function OrdensBoardPage() {
                   </div>
                 </div>
 
-                {!novo.editId && user?.nome && <p className="mt-2 text-[11px] text-muted-foreground">Programado por: <b className="text-foreground">{user.nome}</b></p>}
+                {(() => {
+                  const quem = novo.editId ? novo.editCriadoPor : user?.nome;
+                  return quem ? <p className="mt-2 text-[11px] text-muted-foreground">Programado por: <b className="text-foreground">{quem}</b></p> : null;
+                })()}
 
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <div>
