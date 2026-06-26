@@ -7,16 +7,16 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
-import { Plus, RefreshCw, Factory, CheckCircle2, List, Loader2, X, Boxes, PackageCheck, Printer } from "lucide-react";
+import { Plus, RefreshCw, Factory, CheckCircle2, List, Loader2, X, Boxes, PackageCheck, Printer, Pencil } from "lucide-react";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
 type Unidade = { id: string; sigla: string };
 type Produto = { id: string; codigo: string; descricao: string; unidades: Unidade[] };
 type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
-type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string };
-type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null };
-type BoardOP = { id: string; numero: string; status: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
+type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; editId?: string | null; editNumero?: string };
+type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null; unidadeId: string | null };
+type BoardOP = { id: string; numero: string; status: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; observacao: string | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
 type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
 type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; suficiente: boolean };
@@ -24,6 +24,13 @@ type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string 
 const ESTADO_LABEL: Record<string, string> = { UMIDO: "úmido", SECO: "seco", QUEIMADO: "queimado", ACABADO: "acabado" };
 const ETAPA_STATUS: Record<string, string> = { PENDENTE: "bg-muted text-muted-foreground", EM_EXECUCAO: "bg-warning/15 text-warning", CONCLUIDA: "bg-success/15 text-success" };
 const hoje = () => new Date().toISOString().slice(0, 10);
+// ISO → valor de <input type="datetime-local"> em hora local ("YYYY-MM-DDTHH:mm").
+const toLocalInput = (iso: string | null) => {
+  if (!iso) return "";
+  const d = new Date(iso); if (isNaN(d.getTime())) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
 
 export default function OrdensBoardPage() {
   useTabTitle("Fluxo de Produção");
@@ -55,6 +62,8 @@ export default function OrdensBoardPage() {
   const [apontar, setApontar] = useState<BoardOP | null>(null);
   const [apForm, setApForm] = useState<{ reais: Record<string, string>; perda: string; biomassa: string }>({ reais: {}, perda: "", biomassa: "" });
   const [apBusy, setApBusy] = useState(false);
+  const [consumoAp, setConsumoAp] = useState<ConsumoLinha[] | null>(null);
+  const [carregandoConsumoAp, setCarregandoConsumoAp] = useState(false);
 
   const area = areas.find((a) => a.nodeId === areaNodeId) ?? null;
   const minSeq = areas.length ? Math.min(...areas.map((a) => a.sequencia)) : 0;
@@ -150,28 +159,66 @@ export default function OrdensBoardPage() {
     return () => { clearTimeout(t); ctrl.abort(); };
   }, [novo, fluxoId, areaNodeId]);
 
+  // Consumo previsto ao APONTAR — usa a quantidade REAL informada por produto (padrão = planejado).
+  useEffect(() => {
+    if (!apontar || !fluxoId || !areaNodeId) { setConsumoAp(null); return; }
+    const produtos = apontar.produtos
+      .map((p) => ({ itemId: p.itemId, quantidade: Number(apForm.reais[p.itemId] ?? p.planejada), unidadeId: p.unidadeId }))
+      .filter((p) => p.itemId && p.quantidade > 0);
+    if (!produtos.length) { setConsumoAp(null); return; }
+    setCarregandoConsumoAp(true);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      fetch("/api/pcp/ordens/area/consumo-previsto", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fluxoId, areaNodeId, produtos }), signal: ctrl.signal,
+      }).then((r) => r.json()).then((j) => setConsumoAp(j.data ?? [])).catch(() => {}).finally(() => setCarregandoConsumoAp(false));
+    }, 300);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [apontar, apForm.reais, fluxoId, areaNodeId]);
+
   async function criarOp() {
     if (!novo) return;
     const linhas = novo.linhas.filter((l) => l.itemId && Number(l.quantidade) > 0);
     if (!linhas.length) { setErro("Adicione ao menos um produto com quantidade > 0"); return; }
     setCriando(true); setErro(null);
+    const produtos = linhas.map((l) => ({ itemId: l.itemId, quantidade: l.quantidade, unidadeId: l.unidadeId || null }));
     try {
-      const r = await fetch("/api/pcp/ordens/area", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fluxoId, areaNodeId, data,
-          produtos: linhas.map((l) => ({ itemId: l.itemId, quantidade: l.quantidade, unidadeId: l.unidadeId || undefined })),
-          dataPrevistaInicio: novo.inicio || undefined,
-          dataPrevistaFim: novo.fim || undefined,
-          responsavelColaboradorId: novo.responsavelId || undefined,
-          observacao: novo.observacao || undefined,
-        }),
-      });
+      const r = novo.editId
+        ? await fetch(`/api/pcp/ordens/${novo.editId}`, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              produtos,
+              dataPrevistaInicio: novo.inicio || null, dataPrevistaFim: novo.fim || null,
+              responsavelColaboradorId: novo.responsavelId || null, observacao: novo.observacao || null,
+            }),
+          })
+        : await fetch("/api/pcp/ordens/area", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fluxoId, areaNodeId, data, produtos,
+              dataPrevistaInicio: novo.inicio || undefined, dataPrevistaFim: novo.fim || undefined,
+              responsavelColaboradorId: novo.responsavelId || undefined, observacao: novo.observacao || undefined,
+            }),
+          });
       const j = await r.json();
-      if (!r.ok) throw new Error(j?.error ?? "Erro ao criar OP");
+      if (!r.ok) throw new Error(j?.error ?? (novo.editId ? "Erro ao salvar OP" : "Erro ao criar OP"));
       setNovo(null);
       await loadOps();
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setCriando(false); }
+  }
+
+  // Abre o modal em modo edição, pré-preenchido com a OP do board.
+  function abrirEdicao(o: BoardOP) {
+    setNovo({
+      editId: o.id, editNumero: o.numero,
+      linhas: o.produtos.length
+        ? o.produtos.map((p) => ({ itemId: p.itemId, quantidade: String(Number(p.planejada) || ""), unidadeId: p.unidadeId ?? "" }))
+        : [{ itemId: area?.produtos[0]?.id ?? "", quantidade: "", unidadeId: area?.produtos[0]?.unidades[0]?.id ?? "" }],
+      inicio: toLocalInput(o.inicioPrevisto), fim: toLocalInput(o.fimPrevisto),
+      responsavelId: o.responsavelColaboradorId ?? "", observacao: o.observacao ?? "",
+    });
+    setErro(null);
   }
 
   async function concluir() {
@@ -306,6 +353,7 @@ export default function OrdensBoardPage() {
                         <div className="flex items-center justify-between gap-2">
                           <button onClick={() => router.push(`/pcp/ordens/${o.id}`)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600">{o.numero}</button>
                           <div className="flex items-center gap-1.5 shrink-0">
+                            {!concl && <button onClick={(e) => { e.stopPropagation(); abrirEdicao(o); }} className="text-muted-foreground hover:text-cyan-600" title="Editar OP"><Pencil className="w-3.5 h-3.5" /></button>}
                             <a href={`/pcp/ordens/${o.id}/imprimir`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-cyan-600" title="Imprimir OP"><Printer className="w-3.5 h-3.5" /></a>
                             <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
                               {o.etapaStatus === "CONCLUIDA" ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
@@ -366,7 +414,7 @@ export default function OrdensBoardPage() {
       {novo && area && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setNovo(null)}>
           <div className="w-full max-w-4xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Plus className="w-5 h-5 text-cyan-600" /> Nova OP — {area.centroTrabalho ?? area.nome}</h2>
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">{novo.editId ? <Pencil className="w-5 h-5 text-cyan-600" /> : <Plus className="w-5 h-5 text-cyan-600" />} {novo.editId ? `Editar OP ${novo.editNumero ?? ""}` : `Nova OP — ${area.centroTrabalho ?? area.nome}`}</h2>
             {area.produtos.length === 0 ? (
               <p className="text-sm text-muted-foreground mt-3">Esta etapa não tem produto configurado. Defina o produto de saída da operação no editor do fluxo.</p>
             ) : (
@@ -432,45 +480,14 @@ export default function OrdensBoardPage() {
 
                 {/* Coluna direita — consumo previsto do estoque */}
                 <div className="lg:w-80 shrink-0">
-                  <div className="rounded-xl border border-border bg-muted/20 overflow-hidden">
-                    <div className="px-3 py-2 border-b border-border bg-cyan-50/50 dark:bg-cyan-950/20 flex items-center gap-1.5">
-                      <Boxes className="w-3.5 h-3.5 text-cyan-700 dark:text-cyan-400" />
-                      <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">Consumo previsto do estoque</p>
-                    </div>
-                    <div className="p-2 max-h-[60vh] overflow-y-auto">
-                      {carregandoConsumo && (!consumo || consumo.length === 0) ? (
-                        <p className="text-xs text-muted-foreground flex items-center gap-1.5 p-1"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Calculando…</p>
-                      ) : !consumo || consumo.length === 0 ? (
-                        <p className="text-xs text-muted-foreground p-1">Escolha produto e quantidade para ver o consumo.</p>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {consumo.map((c, i) => (
-                            <div key={c.itemId ?? i} className={cn("rounded-lg border px-2.5 py-1.5 text-xs bg-card", !c.gerenciavel ? "border-border/60 opacity-70" : c.suficiente ? "border-border" : "border-warning/50 bg-warning/10")}>
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-foreground font-medium truncate">{c.descricao}</span>
-                                <span className="tabular-nums shrink-0 text-foreground">{c.consumo.toLocaleString("pt-BR")}{c.unidade ? <span className="text-muted-foreground ml-0.5">{c.unidade}</span> : null}</span>
-                              </div>
-                              {c.gerenciavel ? (
-                                <div className="flex items-center justify-between gap-2 mt-0.5 text-[11px]">
-                                  <span className={c.suficiente ? "text-success" : "text-warning"}>{c.suficiente ? "✓ suficiente" : "⚠ insuficiente"}</span>
-                                  <span className="text-muted-foreground tabular-nums">saldo {(c.saldo ?? 0).toLocaleString("pt-BR")}{c.unidade ? ` ${c.unidade}` : ""}</span>
-                                </div>
-                              ) : (
-                                <p className="mt-0.5 text-[11px] text-muted-foreground">não controla estoque</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <ConsumoEstoque consumo={consumo} carregando={carregandoConsumo} />
                 </div>
                 </div>
 
                 <div className="mt-5 flex items-center justify-end gap-2">
                   <button onClick={() => setNovo(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
                   <button onClick={criarOp} disabled={criando} className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
-                    {criando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Criar OP
+                    {criando ? <RefreshCw className="w-4 h-4 animate-spin" /> : novo.editId ? <CheckCircle2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {novo.editId ? "Salvar" : "Criar OP"}
                   </button>
                 </div>
               </>
@@ -482,10 +499,11 @@ export default function OrdensBoardPage() {
       {/* Modal apontar */}
       {apontar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setApontar(null)}>
-          <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Apontar {apontar.numero}</h2>
             <p className="text-xs text-muted-foreground mt-1">Área {area?.centroTrabalho ?? area?.nome}. Informe a quantidade <b>real</b> produzida por produto (padrão = planejado).</p>
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 flex flex-col lg:flex-row gap-4">
+            <div className="flex-1 min-w-0 space-y-3">
               <div className="rounded-lg border border-border overflow-hidden">
                 <div className="grid grid-cols-[1fr_5rem_5rem] gap-2 px-3 py-1.5 bg-muted text-[11px] font-semibold text-muted-foreground uppercase">
                   <span>Produto</span><span className="text-right">Planejado</span><span className="text-right">Real</span>
@@ -510,6 +528,10 @@ export default function OrdensBoardPage() {
                   </div>
                 )}
               </div>
+            </div>
+            <div className="lg:w-72 shrink-0">
+              <ConsumoEstoque consumo={consumoAp} carregando={carregandoConsumoAp} />
+            </div>
             </div>
             <div className="mt-5 flex items-center justify-end gap-2">
               <button onClick={() => setApontar(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
@@ -541,6 +563,44 @@ function ColBoard({ titulo, icon, acao, cor = "cyan", children }: { titulo: stri
         {acao}
       </div>
       <div className="p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-22rem)]">{children}</div>
+    </div>
+  );
+}
+
+// Tabela de consumo previsto do estoque (reusada na criação e no apontamento da OP).
+function ConsumoEstoque({ consumo, carregando }: { consumo: ConsumoLinha[] | null; carregando: boolean }) {
+  return (
+    <div className="rounded-xl border border-border bg-muted/20 overflow-hidden">
+      <div className="px-3 py-2 border-b border-border bg-cyan-50/50 dark:bg-cyan-950/20 flex items-center gap-1.5">
+        <Boxes className="w-3.5 h-3.5 text-cyan-700 dark:text-cyan-400" />
+        <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">Consumo previsto do estoque</p>
+      </div>
+      <div className="p-2 max-h-[60vh] overflow-y-auto">
+        {carregando && (!consumo || consumo.length === 0) ? (
+          <p className="text-xs text-muted-foreground flex items-center gap-1.5 p-1"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Calculando…</p>
+        ) : !consumo || consumo.length === 0 ? (
+          <p className="text-xs text-muted-foreground p-1">Escolha produto e quantidade para ver o consumo.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {consumo.map((c, i) => (
+              <div key={c.itemId ?? i} className={cn("rounded-lg border px-2.5 py-1.5 text-xs bg-card", !c.gerenciavel ? "border-border/60 opacity-70" : c.suficiente ? "border-border" : "border-warning/50 bg-warning/10")}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-foreground font-medium truncate">{c.descricao}</span>
+                  <span className="tabular-nums shrink-0 text-foreground">{c.consumo.toLocaleString("pt-BR")}{c.unidade ? <span className="text-muted-foreground ml-0.5">{c.unidade}</span> : null}</span>
+                </div>
+                {c.gerenciavel ? (
+                  <div className="flex items-center justify-between gap-2 mt-0.5 text-[11px]">
+                    <span className={c.suficiente ? "text-success" : "text-warning"}>{c.suficiente ? "✓ suficiente" : "⚠ insuficiente"}</span>
+                    <span className="text-muted-foreground tabular-nums">saldo {(c.saldo ?? 0).toLocaleString("pt-BR")}{c.unidade ? ` ${c.unidade}` : ""}</span>
+                  </div>
+                ) : (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">não controla estoque</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

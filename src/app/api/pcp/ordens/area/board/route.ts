@@ -31,11 +31,11 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: "asc" },
     select: {
       id: true, numero: true, status: true, quantidadePlanejada: true, unidade: true,
-      dataPrevistaInicio: true, dataPrevistaFim: true,
+      dataPrevistaInicio: true, dataPrevistaFim: true, observacao: true, responsavelColaboradorId: true,
       responsavelColaborador: { select: { nome: true } },
       item: { select: { codigo: true, descricao: true } },
       produtoItens: {
-        select: { itemId: true, quantidadePlanejada: true, quantidadeReal: true,
+        select: { itemId: true, quantidadePlanejada: true, quantidadeReal: true, unidadeId: true,
           item: { select: { codigo: true, descricao: true } }, unidade: { select: { sigla: true } } },
       },
       etapas: { where: { nodeId: areaNodeId }, select: { status: true, qtdSaida: true, qtdPerda: true }, take: 1 },
