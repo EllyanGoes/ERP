@@ -5,34 +5,25 @@ import { useParams, useRouter } from "next/navigation";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, RefreshCw, Flame, Play, CheckCircle2, Ban, Send, AlertTriangle, ArrowLeftRight, Clock, Paperclip, Upload, Trash2, FileText } from "lucide-react";
+import { ArrowLeft, RefreshCw, Flame, Ban, AlertTriangle, ArrowLeftRight, Printer, Paperclip, Upload, Trash2, FileText } from "lucide-react";
 
 interface Etapa {
-  id: string;
-  sequencia: number;
-  nome: string;
-  kind: string;
-  centroTrabalho: string | null;
-  estadoSaida: string | null;
-  status: string;
-  qtdEntrada: string | number | null;
-  qtdSaida: string | number | null;
-  qtdPerda: string | number | null;
-  vagoes: number | null;
-  vagonetas: number | null;
-  apontadoPor: string | null;
-  tempoCicloHoras: string | number | null;
-  subprodutoItemId: string | null;
-  subprodutoDescricao: string | null;
+  id: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; status: string;
+  qtdEntrada: string | number | null; qtdSaida: string | number | null; qtdPerda: string | number | null;
+  vagoes: number | null; vagonetas: number | null; apontadoPor: string | null;
 }
-interface Consumo { id: string; descricao: string | null; quantidadeKg: string | number; milheirosProduzidos: string | number | null; data: string; }
-interface Movimento { id: string; tipo: string; quantidade: string | number; saldoDepois: string | number; observacoes: string | null; createdAt: string; item: { codigo: string; descricao: string } | null; }
+interface ProdutoItem { itemId: string; quantidadePlanejada: string | number; quantidadeReal: string | number | null; item: { codigo: string; descricao: string }; unidade: { sigla: string } | null; }
+interface Consumo { id: string; descricao: string | null; quantidadeKg: string | number; milheirosProduzidos: string | number | null; }
+interface Movimento { id: string; tipo: string; quantidade: string | number; saldoDepois: string | number; item: { codigo: string; descricao: string } | null; }
 interface Anexo { id: string; nome: string; url: string; tamanho: number; tipo: string; criadoPor: string | null; createdAt: string; }
 interface Ordem {
   id: string; numero: string; status: string; estadoAtual: string;
   quantidadePlanejada: string | number; unidade: string | null;
+  criadoPor: string | null; dataPrevistaInicio: string | null; dataPrevistaFim: string | null;
+  responsavelColaborador: { nome: string } | null;
   item: { codigo: string; descricao: string } | null;
   fluxoVersao: { versao: number; fluxo: { nome: string } } | null;
+  produtoItens: ProdutoItem[];
   etapas: Etapa[];
   consumos: Consumo[];
   movimentacoes: Movimento[];
@@ -47,11 +38,8 @@ const STATUS_OP: Record<string, { label: string; cls: string }> = {
 };
 const ETAPA_STATUS: Record<string, string> = { PENDENTE: "bg-muted text-muted-foreground", EM_EXECUCAO: "bg-warning/15 text-warning", CONCLUIDA: "bg-success/15 text-success" };
 const ESTADO_LABEL: Record<string, string> = { UMIDO: "úmido", SECO: "seco", QUEIMADO: "queimado", ACABADO: "acabado" };
-
-type Aponta = { qtdEntrada: string; qtdSaida: string; qtdPerda: string; vagoes: string; vagonetas: string; biomassaKg: string; milheiros: string; subprodutoQtd: string };
-const inCls = "w-full rounded border border-border px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-cyan-500";
-
-function s(v: string | number | null | undefined): string { return v == null ? "" : String(v); }
+const dt = (s: string | null) => (s ? new Date(s).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—");
+const num = (v: string | number | null | undefined) => (v == null || v === "" ? "—" : Number(v).toLocaleString("pt-BR"));
 
 export default function OrdemDetalhePage() {
   const params = useParams();
@@ -61,17 +49,34 @@ export default function OrdemDetalhePage() {
 
   const [ordem, setOrdem] = useState<Ordem | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [aponta, setAponta] = useState<Record<string, Aponta>>({});
-  const [busy, setBusy] = useState<string | null>(null);
-  const [modalConcluir, setModalConcluir] = useState(false);
-  const [avancado, setAvancado] = useState(false);
-  const [cprod, setCprod] = useState({ quantidade: "", perda: "", biomassa: "" });
+  const [busy, setBusy] = useState(false);
   const [anexos, setAnexos] = useState<Anexo[]>([]);
   const [subindo, setSubindo] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/pcp/ordens/${id}`);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j?.error ?? "Erro ao carregar");
+      setOrdem(j.data);
+    } catch (e) { setErro(e instanceof Error ? e.message : "Erro ao carregar"); }
+  }, [id]);
 
   const loadAnexos = useCallback(async () => {
     try { const j = await fetch(`/api/pcp/ordens/${id}/anexos`).then((r) => r.json()); setAnexos(j.data ?? []); } catch { /* ignore */ }
   }, [id]);
+
+  useEffect(() => { if (id) { load(); loadAnexos(); } }, [id, load, loadAnexos]);
+
+  async function cancelar() {
+    if (!confirm("Cancelar esta OP?")) return;
+    setBusy(true); setErro(null);
+    try {
+      const r = await fetch(`/api/pcp/ordens/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "CANCELADA" }) });
+      if (!r.ok) { const j = await r.json(); throw new Error(j?.error ?? "Erro"); }
+      await load();
+    } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setBusy(false); }
+  }
 
   async function enviarArquivo(file: File) {
     setSubindo(true); setErro(null);
@@ -86,243 +91,125 @@ export default function OrdemDetalhePage() {
     try { await fetch(`/api/pcp/ordens/${id}/anexos/${anexoId}`, { method: "DELETE" }); await loadAnexos(); } catch { /* ignore */ }
   }
 
-  const load = useCallback(async () => {
-    try {
-      const r = await fetch(`/api/pcp/ordens/${id}`);
-      const j = await r.json();
-      if (!r.ok) throw new Error(j?.error ?? "Erro ao carregar");
-      setOrdem(j.data);
-      const init: Record<string, Aponta> = {};
-      for (const e of j.data.etapas as Etapa[]) {
-        init[e.id] = {
-          qtdEntrada: s(e.qtdEntrada), qtdSaida: s(e.qtdSaida), qtdPerda: s(e.qtdPerda),
-          vagoes: s(e.vagoes), vagonetas: s(e.vagonetas), biomassaKg: "", milheiros: "", subprodutoQtd: "",
-        };
-      }
-      setAponta(init);
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : "Erro ao carregar");
-    }
-  }, [id]);
-
-  useEffect(() => { if (id) { load(); loadAnexos(); } }, [id, load, loadAnexos]);
-
-  async function mudarStatus(status: string) {
-    setBusy("status");
-    try {
-      const r = await fetch(`/api/pcp/ordens/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
-      if (!r.ok) { const j = await r.json(); throw new Error(j?.error ?? "Erro"); }
-      await load();
-    } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setBusy(null); }
-  }
-
-  async function apontar(etapa: Etapa, status?: string) {
-    const a = aponta[etapa.id];
-    setBusy(etapa.id);
-    setErro(null);
-    try {
-      const r = await fetch(`/api/pcp/ordens/${id}/apontar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          etapaId: etapa.id,
-          qtdEntrada: a.qtdEntrada, qtdSaida: a.qtdSaida, qtdPerda: a.qtdPerda,
-          vagoes: a.vagoes, vagonetas: a.vagonetas,
-          biomassaKg: a.biomassaKg, milheirosProduzidos: a.milheiros,
-          subprodutoQtd: a.subprodutoQtd,
-          status: status ?? undefined,
-        }),
-      });
-      if (!r.ok) { const j = await r.json(); throw new Error(j?.error ?? "Erro ao apontar"); }
-      await load();
-    } catch (e) { setErro(e instanceof Error ? e.message : "Erro ao apontar"); } finally { setBusy(null); }
-  }
-
-  function setA(etapaId: string, patch: Partial<Aponta>) {
-    setAponta((prev) => ({ ...prev, [etapaId]: { ...prev[etapaId], ...patch } }));
-  }
-
-  // "Concluir produção" em 1 clique: conclui todas as etapas pendentes com uma
-  // única quantidade (consome MP pela engenharia e gera o PA).
-  async function concluirProducao() {
-    if (!cprod.quantidade || Number(cprod.quantidade) <= 0) { setErro("Informe a quantidade produzida."); return; }
-    setBusy("concluir"); setErro(null);
-    try {
-      const r = await fetch(`/api/pcp/ordens/${id}/concluir`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          quantidadeProduzida: cprod.quantidade,
-          qtdPerda: cprod.perda || undefined,
-          biomassaKg: cprod.biomassa || undefined,
-        }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j?.error ?? "Erro ao concluir produção");
-      setModalConcluir(false);
-      await load();
-    } catch (e) { setErro(e instanceof Error ? e.message : "Erro ao concluir produção"); } finally { setBusy(null); }
-  }
-
-  if (erro && !ordem) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-2">
-        <AlertTriangle className="w-7 h-7 text-amber-400" /><p className="text-sm text-muted-foreground">{erro}</p>
-      </div>
-    );
-  }
-  if (!ordem) {
-    return <div className="flex items-center justify-center h-full text-muted-foreground gap-2 text-sm"><RefreshCw className="w-4 h-4 animate-spin" /> Carregando…</div>;
-  }
+  if (erro && !ordem) return <div className="flex flex-col items-center justify-center h-full gap-2"><AlertTriangle className="w-7 h-7 text-amber-400" /><p className="text-sm text-muted-foreground">{erro}</p></div>;
+  if (!ordem) return <div className="flex items-center justify-center h-full text-muted-foreground gap-2 text-sm"><RefreshCw className="w-4 h-4 animate-spin" /> Carregando…</div>;
 
   const st = STATUS_OP[ordem.status] ?? { label: ordem.status, cls: "bg-muted" };
-  const totalPerda = ordem.etapas.reduce((acc, e) => acc + (Number(e.qtdPerda) || 0), 0);
-  const totalBiomassa = ordem.consumos.reduce((acc, c) => acc + (Number(c.quantidadeKg) || 0), 0);
-  const leadHoras = ordem.etapas.reduce((acc, e) => acc + (Number(e.tempoCicloHoras) || 0), 0);
   const finalizada = ordem.status === "CONCLUIDA" || ordem.status === "CANCELADA";
+  const linhas = ordem.produtoItens.length ? ordem.produtoItens : (ordem.item ? [{ itemId: "x", quantidadePlanejada: ordem.quantidadePlanejada, quantidadeReal: null, item: ordem.item, unidade: ordem.unidade ? { sigla: ordem.unidade } : null }] : []);
+  const etapa = ordem.etapas[0];
+
+  const Campo = ({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) => (
+    <div><p className="text-[10px] uppercase tracking-wide text-muted-foreground">{rotulo}</p><p className="text-sm font-medium text-foreground">{valor}</p></div>
+  );
 
   return (
     <div className="flex flex-col h-full">
       <PageHeader
         title={ordem.numero}
-        subtitle={`${ordem.fluxoVersao?.fluxo.nome ?? ""} · ${Number(ordem.quantidadePlanejada)} ${ordem.unidade ?? ""} · estado: ${ESTADO_LABEL[ordem.estadoAtual] ?? ordem.estadoAtual}`}
+        subtitle={`${ordem.fluxoVersao?.fluxo.nome ?? ""} · ${etapa?.centroTrabalho ?? etapa?.nome ?? ""}`}
         breadcrumbs={[{ label: "PCP" }, { label: "Ordens", href: "/pcp/ordens" }, { label: ordem.numero }]}
         action={
           <div className="flex items-center gap-2">
             <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium", st.cls)}>{st.label}</span>
+            <a href={`/pcp/ordens/${id}/imprimir`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted">
+              <Printer className="w-4 h-4" /> Imprimir
+            </a>
             {!finalizada && (
-              <>
-                <button onClick={() => { setCprod({ quantidade: s(Number(ordem.quantidadePlanejada) || ""), perda: "", biomassa: "" }); setErro(null); setModalConcluir(true); }}
-                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">
-                  <CheckCircle2 className="w-4 h-4" /> Concluir produção
-                </button>
-                {ordem.status === "RASCUNHO" && (
-                  <button onClick={() => mudarStatus("LIBERADA")} disabled={busy === "status"} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-                    <Play className="w-4 h-4" /> Liberar
-                  </button>
-                )}
-                <button onClick={() => mudarStatus("CANCELADA")} disabled={busy === "status"} className="inline-flex items-center gap-1 rounded-lg border border-danger/30 px-3 py-1.5 text-sm text-danger hover:bg-danger/10 disabled:opacity-50">
-                  <Ban className="w-4 h-4" /> Cancelar
-                </button>
-              </>
+              <button onClick={cancelar} disabled={busy} className="inline-flex items-center gap-1 rounded-lg border border-danger/30 px-3 py-1.5 text-sm text-danger hover:bg-danger/10 disabled:opacity-50">
+                <Ban className="w-4 h-4" /> Cancelar
+              </button>
             )}
           </div>
         }
       />
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8 space-y-4">
-        <button onClick={() => router.push("/pcp/ordens")} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-muted-foreground">
+      <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8 space-y-4 max-w-4xl">
+        <button onClick={() => router.push("/pcp/ordens")} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-4 h-4" /> Voltar
         </button>
-
         {erro && <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</div>}
 
-        {/* KPIs rápidos */}
-        <div className="flex flex-wrap gap-2 text-xs">
-          <span className="inline-flex items-center rounded-full bg-cyan-50 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 px-3 py-1 font-medium">
-            {ordem.etapas.filter((e) => e.status === "CONCLUIDA").length}/{ordem.etapas.length} etapas concluídas
-          </span>
-          {leadHoras > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-info/10 text-info px-3 py-1 font-medium">
-              <Clock className="w-3 h-3" /> Lead time previsto: {leadHoras}h (~{(leadHoras / 24).toFixed(1)} dias)
-            </span>
-          )}
-          {totalPerda > 0 && <span className="inline-flex items-center rounded-full bg-danger/10 text-danger px-3 py-1 font-medium">Perda total: {totalPerda}</span>}
-          {totalBiomassa > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 text-warning px-3 py-1 font-medium"><Flame className="w-3 h-3" /> Biomassa: {totalBiomassa} kg</span>}
+        {/* Resumo */}
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Campo rotulo="Fluxo" valor={ordem.fluxoVersao?.fluxo.nome ?? "—"} />
+            <Campo rotulo="Etapa / Área" valor={etapa?.centroTrabalho ?? etapa?.nome ?? "—"} />
+            <Campo rotulo="Estado atual" valor={ESTADO_LABEL[ordem.estadoAtual] ?? ordem.estadoAtual ?? "—"} />
+            <Campo rotulo="Programado por" valor={ordem.criadoPor ?? "—"} />
+            <Campo rotulo="Início previsto" valor={dt(ordem.dataPrevistaInicio)} />
+            <Campo rotulo="Fim previsto" valor={dt(ordem.dataPrevistaFim)} />
+            <Campo rotulo="Responsável" valor={ordem.responsavelColaborador?.nome ?? "—"} />
+          </div>
         </div>
 
-        {/* Etapas */}
-        <div className="space-y-2">
-          {!finalizada && (
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">Dica: use <b>Concluir produção</b> para apontar tudo de uma vez, ou aponte etapa a etapa abaixo.</p>
-              <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer shrink-0">
-                <input type="checkbox" checked={avancado} onChange={(ev) => setAvancado(ev.target.checked)} className="w-3.5 h-3.5 rounded border-border" />
-                Campos avançados
-              </label>
-            </div>
-          )}
-          {ordem.etapas.map((e) => {
-            const a = aponta[e.id] ?? { qtdEntrada: "", qtdSaida: "", qtdPerda: "", vagoes: "", vagonetas: "", biomassaKg: "", milheiros: "" };
-            const ehQueima = e.estadoSaida === "QUEIMADO";
-            const concl = e.status === "CONCLUIDA";
-            return (
-              <div key={e.id} className={cn("rounded-xl border bg-card p-3", concl ? "border-success/30" : "border-border")}>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="flex w-6 h-6 items-center justify-center rounded-md bg-muted text-muted-foreground text-xs font-semibold">{e.sequencia}</span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{e.nome}</p>
-                    <p className="text-[11px] text-muted-foreground">{e.centroTrabalho ?? "—"}{e.estadoSaida ? ` · → ${ESTADO_LABEL[e.estadoSaida] ?? e.estadoSaida}` : ""}{e.tempoCicloHoras ? ` · ${Number(e.tempoCicloHoras)}h` : ""}{e.subprodutoDescricao ? ` · resíduo: ${e.subprodutoDescricao}` : ""}</p>
+        {/* Produtos */}
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-3 pt-3">Produtos</p>
+          <table className="w-full text-sm mt-1">
+            <thead className="text-[11px] text-muted-foreground uppercase">
+              <tr><th className="text-left px-3 py-1.5">Código</th><th className="text-left px-3 py-1.5">Produto</th><th className="text-right px-3 py-1.5">Planejado</th><th className="text-right px-3 py-1.5">Real</th><th className="text-left px-3 py-1.5 w-16">Un.</th></tr>
+            </thead>
+            <tbody>
+              {linhas.map((pi, i) => (
+                <tr key={i} className="border-t border-border">
+                  <td className="px-3 py-1.5 font-mono text-xs text-muted-foreground">{pi.item.codigo}</td>
+                  <td className="px-3 py-1.5">{pi.item.descricao}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{num(pi.quantidadePlanejada)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{num(pi.quantidadeReal)}</td>
+                  <td className="px-3 py-1.5 text-xs text-muted-foreground">{pi.unidade?.sigla ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Etapas (consulta) */}
+        {ordem.etapas.length > 0 && (
+          <div className="rounded-xl border border-border bg-card p-3 space-y-1.5">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Etapas</p>
+            {ordem.etapas.map((e) => {
+              const teveApont = e.qtdEntrada != null || e.qtdSaida != null || e.qtdPerda != null;
+              return (
+                <div key={e.id} className="flex items-center gap-2 text-sm border border-border/60 rounded-lg px-2.5 py-1.5">
+                  <span className="flex w-6 h-6 items-center justify-center rounded-md bg-muted text-muted-foreground text-xs font-semibold shrink-0">{e.sequencia}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-foreground truncate">{e.centroTrabalho ?? e.nome}{e.estadoSaida ? <span className="text-muted-foreground font-normal"> → {ESTADO_LABEL[e.estadoSaida] ?? e.estadoSaida}</span> : null}</p>
+                    {teveApont && <p className="text-[11px] text-muted-foreground">entrada {num(e.qtdEntrada)} · saída {num(e.qtdSaida)}{e.qtdPerda ? ` · perda ${num(e.qtdPerda)}` : ""}{e.apontadoPor ? ` · ${e.apontadoPor}` : ""}</p>}
                   </div>
-                  <span className={cn("ml-auto inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", ETAPA_STATUS[e.status])}>
+                  <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium shrink-0", ETAPA_STATUS[e.status])}>
                     {e.status === "EM_EXECUCAO" ? "em execução" : e.status === "CONCLUIDA" ? "concluída" : "pendente"}
                   </span>
                 </div>
+              );
+            })}
+          </div>
+        )}
 
-                {!finalizada && (
-                  <div className="grid grid-cols-2 md:grid-cols-6 gap-2 items-end">
-                    <Field label="Entrada"><input className={inCls} inputMode="decimal" value={a.qtdEntrada} onChange={(ev) => setA(e.id, { qtdEntrada: ev.target.value })} /></Field>
-                    <Field label="Saída"><input className={inCls} inputMode="decimal" value={a.qtdSaida} onChange={(ev) => setA(e.id, { qtdSaida: ev.target.value })} /></Field>
-                    <Field label="Perda"><input className={inCls} inputMode="decimal" value={a.qtdPerda} onChange={(ev) => setA(e.id, { qtdPerda: ev.target.value })} /></Field>
-                    {avancado && <Field label="Vagões"><input className={inCls} inputMode="numeric" value={a.vagoes} onChange={(ev) => setA(e.id, { vagoes: ev.target.value })} /></Field>}
-                    {ehQueima ? (
-                      <>
-                        <Field label="Biomassa (kg)"><input className={inCls} inputMode="decimal" value={a.biomassaKg} onChange={(ev) => setA(e.id, { biomassaKg: ev.target.value })} /></Field>
-                        <Field label="Milheiros"><input className={inCls} inputMode="decimal" value={a.milheiros} onChange={(ev) => setA(e.id, { milheiros: ev.target.value })} /></Field>
-                      </>
-                    ) : (
-                      avancado && <Field label="Vagonetas"><input className={inCls} inputMode="numeric" value={a.vagonetas} onChange={(ev) => setA(e.id, { vagonetas: ev.target.value })} /></Field>
-                    )}
-                    {e.subprodutoDescricao && (
-                      <Field label="Subproduto"><input className={inCls} inputMode="decimal" value={a.subprodutoQtd} onChange={(ev) => setA(e.id, { subprodutoQtd: ev.target.value })} placeholder={e.subprodutoDescricao} /></Field>
-                    )}
-                  </div>
-                )}
-
-                {!finalizada && (
-                  <div className="mt-2 flex items-center justify-end gap-2">
-                    <button onClick={() => apontar(e)} disabled={busy === e.id} className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs text-foreground hover:bg-muted disabled:opacity-50">
-                      {busy === e.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} Apontar
-                    </button>
-                    {!concl && (
-                      <button onClick={() => apontar(e, "CONCLUIDA")} disabled={busy === e.id} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Concluir etapa
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Consumos de biomassa */}
+        {/* Consumo de biomassa */}
         {ordem.consumos.length > 0 && (
           <div className="rounded-xl border border-border bg-card p-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1"><Flame className="w-3.5 h-3.5 text-amber-500" /> Consumo de biomassa</p>
             <div className="space-y-1">
               {ordem.consumos.map((c) => (
                 <div key={c.id} className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>{c.descricao ?? "Caroço de açaí"}</span>
-                  <span className="tabular-nums">{Number(c.quantidadeKg)} kg{c.milheirosProduzidos ? ` · ${(Number(c.quantidadeKg) / Number(c.milheirosProduzidos)).toFixed(1)} kg/milheiro` : ""}</span>
+                  <span>{c.descricao ?? "Biomassa"}</span>
+                  <span className="tabular-nums">{Number(c.quantidadeKg)} kg</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Movimentações de WIP no estoque */}
+        {/* Movimentações de WIP */}
         {ordem.movimentacoes.length > 0 && (
           <div className="rounded-xl border border-border bg-card p-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1">
-              <ArrowLeftRight className="w-3.5 h-3.5 text-cyan-500" /> Movimentações de estoque (WIP)
-            </p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1"><ArrowLeftRight className="w-3.5 h-3.5 text-cyan-500" /> Movimentações de estoque (WIP)</p>
             <div className="space-y-1">
               {ordem.movimentacoes.map((m) => (
                 <div key={m.id} className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 min-w-0">
-                    <span className={cn("inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold", m.tipo === "ENTRADA" ? "bg-success/10 text-success" : "bg-danger/10 text-danger")}>
-                      {m.tipo === "ENTRADA" ? "entra" : "sai"}
-                    </span>
+                    <span className={cn("inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold", m.tipo === "ENTRADA" ? "bg-success/10 text-success" : "bg-danger/10 text-danger")}>{m.tipo === "ENTRADA" ? "entra" : "sai"}</span>
                     <span className="text-muted-foreground truncate">{m.item?.descricao ?? "—"}</span>
                   </span>
                   <span className="tabular-nums text-muted-foreground shrink-0">{Number(m.quantidade)} → saldo {Number(m.saldoDepois)}</span>
@@ -332,12 +219,10 @@ export default function OrdemDetalhePage() {
           </div>
         )}
 
-        {/* Documentos / Anexos da OP (comprovação — OP escaneada) */}
+        {/* Documentos / Anexos (comprovação — OP escaneada) */}
         <div className="rounded-xl border border-border bg-card p-3">
           <div className="flex items-center justify-between gap-2 mb-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-              <Paperclip className="w-3.5 h-3.5 text-cyan-500" /> Documentos / Anexos
-            </p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Paperclip className="w-3.5 h-3.5 text-cyan-500" /> Documentos / Anexos</p>
             <label className={cn("inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs cursor-pointer hover:bg-muted", subindo && "opacity-50 pointer-events-none")}>
               {subindo ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Enviar arquivo
               <input type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) enviarArquivo(f); e.target.value = ""; }} />
@@ -361,46 +246,6 @@ export default function OrdemDetalhePage() {
           )}
         </div>
       </div>
-
-      {modalConcluir && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setModalConcluir(false)}>
-          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl" onClick={(ev) => ev.stopPropagation()}>
-            <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Concluir produção</h2>
-            <p className="text-xs text-muted-foreground mt-1">Conclui todas as etapas pendentes com a quantidade informada, consumindo a matéria-prima pela engenharia (BOM) e gerando o produto acabado.</p>
-            <div className="mt-4 space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade produzida ({ordem.unidade ?? "milheiro"}) *</label>
-                <input autoFocus inputMode="decimal" value={cprod.quantidade} onChange={(ev) => setCprod((p) => ({ ...p, quantidade: ev.target.value }))} className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Perda (opcional)</label>
-                  <input inputMode="decimal" value={cprod.perda} onChange={(ev) => setCprod((p) => ({ ...p, perda: ev.target.value }))} className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Biomassa (kg)</label>
-                  <input inputMode="decimal" value={cprod.biomassa} onChange={(ev) => setCprod((p) => ({ ...p, biomassa: ev.target.value }))} className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-                </div>
-              </div>
-            </div>
-            <div className="mt-5 flex items-center justify-end gap-2">
-              <button onClick={() => setModalConcluir(false)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
-              <button onClick={concluirProducao} disabled={busy === "concluir"} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
-                {busy === "concluir" ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Concluir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">{label}</label>
-      {children}
     </div>
   );
 }
