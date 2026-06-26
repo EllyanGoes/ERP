@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -9,7 +9,7 @@ import { useSession } from "@/lib/session-context";
 import PageHeader from "@/components/shared/PageHeader";
 import CalendarioProducao from "@/components/pcp/CalendarioProducao";
 import { cn } from "@/lib/utils";
-import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil } from "lucide-react";
+import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays } from "lucide-react";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
@@ -55,6 +55,15 @@ export default function OrdensBoardPage() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [areaNodeId, setAreaNodeId] = useState("");
   const [data, setData] = useState(hoje());
+  // Popover do calendário de produção usado como filtro de dia.
+  const [calAberto, setCalAberto] = useState(false);
+  const calRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!calAberto) return;
+    const onDown = (e: MouseEvent) => { if (calRef.current && !calRef.current.contains(e.target as Node)) setCalAberto(false); };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [calAberto]);
   const [ops, setOps] = useState<BoardOP[]>([]);
   const [materiais, setMateriais] = useState<EstoqueLinha[] | null>(null);
   const [entradaWip, setEntradaWip] = useState<EstoqueLinha[] | null>(null);
@@ -306,14 +315,22 @@ export default function OrdensBoardPage() {
                 options={fluxos.map((f) => ({ value: f.id, label: f.nome }))} />
             )}
           </div>
-          <div>
+          <div className="relative" ref={calRef}>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Dia</label>
-            <input type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-9 rounded-lg border border-border px-3 text-sm bg-card" />
+            <button type="button" onClick={() => setCalAberto((o) => !o)}
+              className="h-9 inline-flex items-center gap-2 rounded-lg border border-border px-3 text-sm bg-card hover:bg-muted">
+              <CalendarDays className="w-4 h-4 text-muted-foreground" />
+              {data ? data.split("-").reverse().join("/") : "Selecionar dia"}
+            </button>
+            {calAberto && fluxoId && (
+              <div className="absolute z-50 mt-1 left-0">
+                <CalendarioProducao fluxoId={fluxoId} value={data} onSelect={(d) => { setData(d); setCalAberto(false); }} />
+              </div>
+            )}
           </div>
           <button onClick={loadOps} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
             <RefreshCw className={cn("w-4 h-4", carregandoOps && "animate-spin")} /> Atualizar
           </button>
-          {fluxoId && <CalendarioProducao fluxoId={fluxoId} value={data} onSelect={setData} />}
         </div>
 
         {/* Abas por área */}
