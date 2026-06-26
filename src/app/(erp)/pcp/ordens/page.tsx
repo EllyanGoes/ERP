@@ -519,7 +519,8 @@ export default function OrdensBoardPage() {
                 </div>
 
                 {(() => {
-                  const quem = novo.editId ? novo.editCriadoPor : user?.nome;
+                  // Edição: mostra quem programou (gravado); sem isso, cai no usuário logado.
+                  const quem = (novo.editId ? novo.editCriadoPor : null) ?? user?.nome;
                   return quem ? <p className="mt-2 text-[11px] text-muted-foreground">Programado por: <b className="text-foreground">{quem}</b></p> : null;
                 })()}
 
