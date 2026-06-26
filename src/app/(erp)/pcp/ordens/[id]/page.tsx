@@ -12,7 +12,7 @@ interface Etapa {
   qtdEntrada: string | number | null; qtdSaida: string | number | null; qtdPerda: string | number | null;
   vagoes: number | null; vagonetas: number | null; apontadoPor: string | null;
 }
-interface ProdutoItem { itemId: string; quantidadePlanejada: string | number; quantidadeReal: string | number | null; item: { codigo: string; descricao: string }; unidade: { sigla: string } | null; }
+interface ProdutoItem { itemId: string; quantidadePlanejada: string | number; quantidadeReal: string | number | null; item: { codigo: string; descricao: string; unidade?: { sigla: string } | null }; unidade: { sigla: string } | null; }
 interface Consumo { id: string; descricao: string | null; quantidadeKg: string | number; milheirosProduzidos: string | number | null; }
 interface Movimento { id: string; tipo: string; quantidade: string | number; saldoDepois: string | number; item: { codigo: string; descricao: string } | null; }
 interface Anexo { id: string; nome: string; url: string; tamanho: number; tipo: string; criadoPor: string | null; createdAt: string; }
@@ -96,7 +96,7 @@ export default function OrdemDetalhePage() {
 
   const st = STATUS_OP[ordem.status] ?? { label: ordem.status, cls: "bg-muted" };
   const finalizada = ordem.status === "CONCLUIDA" || ordem.status === "CANCELADA";
-  const linhas = ordem.produtoItens.length ? ordem.produtoItens : (ordem.item ? [{ itemId: "x", quantidadePlanejada: ordem.quantidadePlanejada, quantidadeReal: null, item: ordem.item, unidade: ordem.unidade ? { sigla: ordem.unidade } : null }] : []);
+  const linhas = ordem.produtoItens.length ? ordem.produtoItens : (ordem.item ? [{ itemId: "x", quantidadePlanejada: ordem.quantidadePlanejada, quantidadeReal: null, item: { ...ordem.item, unidade: null }, unidade: ordem.unidade ? { sigla: ordem.unidade } : null }] : []);
   const etapa = ordem.etapas[0];
 
   const Campo = ({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) => (
@@ -157,7 +157,7 @@ export default function OrdemDetalhePage() {
                   <td className="px-3 py-1.5">{pi.item.descricao}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{num(pi.quantidadePlanejada)}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{num(pi.quantidadeReal)}</td>
-                  <td className="px-3 py-1.5 text-xs text-muted-foreground">{pi.unidade?.sigla ?? "—"}</td>
+                  <td className="px-3 py-1.5 text-xs text-muted-foreground">{pi.unidade?.sigla ?? pi.item.unidade?.sigla ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

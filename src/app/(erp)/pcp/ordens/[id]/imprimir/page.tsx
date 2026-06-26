@@ -8,7 +8,7 @@ import PrintButton from "@/components/shared/PrintButton";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 
-type ProdutoItem = { itemId: string; quantidadePlanejada: string | number; quantidadeReal: string | number | null; unidadeId: string | null; item: { codigo: string; descricao: string }; unidade: { sigla: string } | null };
+type ProdutoItem = { itemId: string; quantidadePlanejada: string | number; quantidadeReal: string | number | null; unidadeId: string | null; item: { codigo: string; descricao: string; unidade: { sigla: string } | null }; unidade: { sigla: string } | null };
 type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean };
 type MovLinha = { itemId: string; descricao: string; veiculo: string; nVeiculos: number; capacidade: number; pecas: number };
 type Ordem = {
@@ -153,13 +153,13 @@ export default function ImprimirOrdemPage() {
             </tr>
           </thead>
           <tbody>
-            {(ordem.produtoItens.length ? ordem.produtoItens : (ordem.item ? [{ itemId: "x", quantidadePlanejada: 0, quantidadeReal: null, item: ordem.item, unidade: null }] : [])).map((pi, i) => (
+            {(ordem.produtoItens.length ? ordem.produtoItens : (ordem.item ? [{ itemId: "x", quantidadePlanejada: 0, quantidadeReal: null, unidadeId: null, item: { ...ordem.item, unidade: null }, unidade: null }] : [])).map((pi, i) => (
               <tr key={i} className="border-t border-gray-200">
                 <td className="px-3 py-1.5 font-mono text-xs">{pi.item.codigo}</td>
                 <td className="px-3 py-1.5">{pi.item.descricao}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums">{n(pi.quantidadePlanejada)}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums">{n(pi.quantidadeReal)}</td>
-                <td className="px-3 py-1.5 text-xs text-gray-600">{pi.unidade?.sigla ?? "—"}</td>
+                <td className="px-3 py-1.5 text-xs text-gray-600">{pi.unidade?.sigla ?? pi.item.unidade?.sigla ?? "—"}</td>
               </tr>
             ))}
           </tbody>
