@@ -19,6 +19,7 @@ type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada:
 type BoardOP = { id: string; numero: string; status: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
 type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
+type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; suficiente: boolean };
 
 const ESTADO_LABEL: Record<string, string> = { UMIDO: "úmido", SECO: "seco", QUEIMADO: "queimado", ACABADO: "acabado" };
 const ETAPA_STATUS: Record<string, string> = { PENDENTE: "bg-muted text-muted-foreground", EM_EXECUCAO: "bg-warning/15 text-warning", CONCLUIDA: "bg-success/15 text-success" };
@@ -47,6 +48,8 @@ export default function OrdensBoardPage() {
   const [novo, setNovo] = useState<NovoOP | null>(null);
   const [criando, setCriando] = useState(false);
   const [colaboradores, setColaboradores] = useState<{ id: string; nome: string }[]>([]);
+  const [consumo, setConsumo] = useState<ConsumoLinha[] | null>(null);
+  const [carregandoConsumo, setCarregandoConsumo] = useState(false);
 
   // Apontar
   const [apontar, setApontar] = useState<BoardOP | null>(null);
@@ -128,6 +131,24 @@ export default function OrdensBoardPage() {
       .then((j) => setColaboradores(Array.isArray(j) ? j.map((c: { id: string; nome: string }) => ({ id: c.id, nome: c.nome })) : []))
       .catch(() => setColaboradores([]));
   }, []);
+
+  // Consumo previsto do estoque conforme os produtos/quantidades/unidades da Nova OP (debounce).
+  useEffect(() => {
+    if (!novo || !fluxoId || !areaNodeId) { setConsumo(null); return; }
+    const produtos = novo.linhas
+      .filter((l) => l.itemId && Number(l.quantidade) > 0)
+      .map((l) => ({ itemId: l.itemId, quantidade: Number(l.quantidade), unidadeId: l.unidadeId || null }));
+    if (!produtos.length) { setConsumo(null); return; }
+    setCarregandoConsumo(true);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      fetch("/api/pcp/ordens/area/consumo-previsto", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fluxoId, areaNodeId, produtos }), signal: ctrl.signal,
+      }).then((r) => r.json()).then((j) => setConsumo(j.data ?? [])).catch(() => {}).finally(() => setCarregandoConsumo(false));
+    }, 300);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [novo, fluxoId, areaNodeId]);
 
   async function criarOp() {
     if (!novo) return;
@@ -344,13 +365,15 @@ export default function OrdensBoardPage() {
       {/* Modal Nova OP — multi-produto, prazos, responsável */}
       {novo && area && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setNovo(null)}>
-          <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-4xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Plus className="w-5 h-5 text-cyan-600" /> Nova OP — {area.centroTrabalho ?? area.nome}</h2>
             {area.produtos.length === 0 ? (
               <p className="text-sm text-muted-foreground mt-3">Esta etapa não tem produto configurado. Defina o produto de saída da operação no editor do fluxo.</p>
             ) : (
               <>
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="mt-4 flex flex-col lg:flex-row gap-5">
+                <div className="flex-1 min-w-0">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Número</label>
                     <div className="h-9 flex items-center px-3 rounded-lg border border-dashed border-border text-sm text-muted-foreground">automático</div>
@@ -404,6 +427,44 @@ export default function OrdensBoardPage() {
                 <div className="mt-3">
                   <label className="block text-xs font-medium text-muted-foreground mb-1">Observação</label>
                   <input value={novo.observacao} onChange={(e) => setNovo({ ...novo, observacao: e.target.value })} className="w-full h-9 rounded-lg border border-border px-3 text-sm bg-card" placeholder="opcional" />
+                </div>
+                </div>
+
+                {/* Coluna direita — consumo previsto do estoque */}
+                <div className="lg:w-80 shrink-0">
+                  <div className="rounded-xl border border-border bg-muted/20 overflow-hidden">
+                    <div className="px-3 py-2 border-b border-border bg-cyan-50/50 dark:bg-cyan-950/20 flex items-center gap-1.5">
+                      <Boxes className="w-3.5 h-3.5 text-cyan-700 dark:text-cyan-400" />
+                      <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">Consumo previsto do estoque</p>
+                    </div>
+                    <div className="p-2 max-h-[60vh] overflow-y-auto">
+                      {carregandoConsumo && (!consumo || consumo.length === 0) ? (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1.5 p-1"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Calculando…</p>
+                      ) : !consumo || consumo.length === 0 ? (
+                        <p className="text-xs text-muted-foreground p-1">Escolha produto e quantidade para ver o consumo.</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {consumo.map((c, i) => (
+                            <div key={c.itemId ?? i} className={cn("rounded-lg border px-2.5 py-1.5 text-xs bg-card", !c.gerenciavel ? "border-border/60 opacity-70" : c.suficiente ? "border-border" : "border-warning/50 bg-warning/10")}>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-foreground font-medium truncate">{c.descricao}</span>
+                                <span className="tabular-nums shrink-0 text-foreground">{c.consumo.toLocaleString("pt-BR")}{c.unidade ? <span className="text-muted-foreground ml-0.5">{c.unidade}</span> : null}</span>
+                              </div>
+                              {c.gerenciavel ? (
+                                <div className="flex items-center justify-between gap-2 mt-0.5 text-[11px]">
+                                  <span className={c.suficiente ? "text-success" : "text-warning"}>{c.suficiente ? "✓ suficiente" : "⚠ insuficiente"}</span>
+                                  <span className="text-muted-foreground tabular-nums">saldo {(c.saldo ?? 0).toLocaleString("pt-BR")}{c.unidade ? ` ${c.unidade}` : ""}</span>
+                                </div>
+                              ) : (
+                                <p className="mt-0.5 text-[11px] text-muted-foreground">não controla estoque</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
                 </div>
 
                 <div className="mt-5 flex items-center justify-end gap-2">

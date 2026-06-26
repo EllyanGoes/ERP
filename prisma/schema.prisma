@@ -1296,7 +1296,7 @@ model ItemUnidade {
   id             String   @id @default(cuid())
   itemId         String
   unidadeId      String
-  fatorConversao Decimal? @db.Decimal(15, 6)
+  fatorConversao Decimal? @db.Decimal(18, 9)
   isPrincipal    Boolean  @default(false)
   createdAt      DateTime @default(now())
   baseUnidadeId  String?

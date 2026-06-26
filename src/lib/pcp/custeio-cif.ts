@@ -94,10 +94,12 @@ function materialPorMilheiro(
     const sub = bomMap.get(ins.insumoItemId);
     if (sub && sub.length && prof < 5 && !visitados.has(ins.insumoItemId)) {
       // Intermediário fabricado → explode na sua BOM. As quantidades da sub-BOM são por
-      // 1 unidade-base do intermediário (POR_UNIDADE → 1; POR_MILHEIRO → 1/1000).
+      // 1 unidade-base do intermediário (granel: ex. 1 Batch de mistura), na unidade do
+      // insumo → converte p/ a base do insumo pelo fatorUnidade. Sem multiplicador de
+      // base (POR_MILHEIRO/POR_UNIDADE/POR_CICLO): a quantidade já é por unidade-base.
       const visit = new Set(visitados).add(ins.insumoItemId);
       for (const s of sub) {
-        const razao = num(s.quantidade) * fatorUnidade(s) * (s.base === "POR_MILHEIRO" ? 0.001 : 1);
+        const razao = num(s.quantidade) * fatorUnidade(s);
         acumular(s, qtdBaseMilheiro * razao, visit, prof + 1);
       }
       return;
