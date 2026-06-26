@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
       const meta = ins.insumoItem;
       if (!meta) continue;
       const fatorU = fatorConv(ins.unidadeId, meta.itemUnidades);
-      const baseFator = ins.base === "POR_UNIDADE" ? 1000 : 1;
+      const baseFator = ins.base === "POR_MILHEIRO" ? 0.001 : 1; // qtd em unidade-principal (peça/lote); POR_MILHEIRO = por 1000
       const consumo = num(ins.quantidade) * fatorU * baseFator * qtdBase;
       if (consumo <= 0) continue;
       addConsumo(ins.insumoItemId, {

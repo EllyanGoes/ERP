@@ -144,7 +144,7 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
             if (Number.isFinite(f) && f > 0) fatorUnidade = f;
           }
         }
-        const baseFator = ins.base === "POR_UNIDADE" ? 1000 : 1;
+        const baseFator = ins.base === "POR_MILHEIRO" ? 0.001 : 1; // qtd em unidade-principal (peça/lote); POR_MILHEIRO = por 1000
         const consumo = Number(ins.quantidade) * fatorUnidade * baseFator * qtdProduzida;
         if (consumo <= 0) continue;
         const custoUnit = custos.get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
@@ -242,7 +242,7 @@ export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: s
         const iu = meta.itemUnidades.find((u) => u.unidadeId === ins.unidadeId);
         if (iu && !iu.isPrincipal && iu.fatorConversao != null) { const f = Number(iu.fatorConversao); if (Number.isFinite(f) && f > 0) fator = f; }
       }
-      const baseFator = ins.base === "POR_UNIDADE" ? 1000 : 1;
+      const baseFator = ins.base === "POR_MILHEIRO" ? 0.001 : 1; // qtd em unidade-principal (peça/lote); POR_MILHEIRO = por 1000
       const consumo = Number(ins.quantidade) * fator * baseFator * p.qtd;
       if (consumo <= 0) continue;
       const custoUnit = (await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, [ins.insumoItemId])).get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
@@ -298,7 +298,7 @@ export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapa
         const iu = meta.itemUnidades.find((u) => u.unidadeId === ins.unidadeId);
         if (iu && !iu.isPrincipal && iu.fatorConversao != null) { const f = Number(iu.fatorConversao); if (Number.isFinite(f) && f > 0) fator = f; }
       }
-      const baseFator = ins.base === "POR_UNIDADE" ? 1000 : 1;
+      const baseFator = ins.base === "POR_MILHEIRO" ? 0.001 : 1; // qtd em unidade-principal (peça/lote); POR_MILHEIRO = por 1000
       const consumo = Number(ins.quantidade) * fator * baseFator * p.qtd;
       if (consumo <= 0) continue;
       const custoUnit = (await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, [ins.insumoItemId])).get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
