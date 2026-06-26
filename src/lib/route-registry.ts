@@ -21,7 +21,7 @@ import {
   UserCog, ShieldCheck,
   Settings2, Plug,
   Building2, Clock,
-  Wrench, Database, MessageCircle, Workflow, Boxes, FlaskConical, ListChecks, Calculator, BookOpen, Factory,
+  Wrench, Database, MessageCircle, Workflow, Boxes, FlaskConical, ListChecks, Calculator, BookOpen,
   Landmark, Wallet, FolderTree, Repeat, CalendarClock, FileCheck2,
   Megaphone, Target, Map as MapIcon,
 } from "lucide-react";
@@ -160,7 +160,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/pcp/estados-wip",                      label: "Estados de WIP",          group: "PCP",            section: "Estrutura",        icon: Layers,         keywords: "pcp wip estado fase úmido seco queimado acabado produto em processo" },
   { href: "/pcp/fluxos",                           label: "Fluxos de Produção",      group: "PCP",            section: "Estrutura",        icon: Workflow,       keywords: "pcp produção fluxo roteiro editor n8n" },
   { href: "/pcp/engenharia",                       label: "Engenharia do Produto",   group: "PCP",            section: "Estrutura",        icon: FlaskConical,   keywords: "pcp engenharia estrutura bom insumo embalagem produto" },
-  { href: "/pcp/chao",                             label: "Chão de Fábrica",         group: "PCP",            section: "Planejamento/Apontamento",     icon: Factory,        keywords: "pcp chão fábrica produção apontamento" },
+  { href: "/pcp/chao",                             label: "Fluxo de Trabalho",       group: "PCP",            section: "Planejamento/Apontamento",     icon: Workflow,       keywords: "pcp fluxo de trabalho chão fábrica produção apontamento react flow" },
   { href: "/pcp/ordens",                           label: "Ordens de Produção",      group: "PCP",            section: "Planejamento/Apontamento",     icon: ClipboardList,  keywords: "pcp ordem produção op apontamento etapa" },
   { href: "/pcp/operacoes",                        label: "Operações (fila)",        group: "PCP",            section: "Planejamento/Apontamento",     icon: ListChecks,     keywords: "pcp operação fila chão etapa centro trabalho apontar" },
   { href: "/pcp/planejamento",                     label: "Planejamento (MPS/MRP)",  group: "PCP",            section: "Planejamento/Apontamento",     icon: Calculator,     keywords: "pcp mps mrp planejamento demanda necessidade insumo plano mestre" },

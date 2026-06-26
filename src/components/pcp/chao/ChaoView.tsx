@@ -100,7 +100,7 @@ export default function ChaoView() {
       {/* Toolbar */}
       <div className="flex items-center gap-3 px-6 py-3 border-b border-border flex-wrap">
         <div>
-          <h1 className="text-lg font-semibold text-foreground">Chão de Fábrica</h1>
+          <h1 className="text-lg font-semibold text-foreground">Fluxo de Trabalho</h1>
           <p className="text-xs text-muted-foreground">{chao ? `${chao.fluxo.nome} · v${chao.fluxo.versao}` : "Fluxo de processo compartilhado"}</p>
         </div>
         <div className="flex items-center gap-1.5 ml-2">
