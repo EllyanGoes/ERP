@@ -52,6 +52,8 @@ export async function GET(req: NextRequest) {
     produtoCodigo: o.item?.codigo ?? null,
     criadoPor: o.criadoPor ?? null,
     responsavel: o.responsavelColaborador?.nome ?? null,
+    responsavelColaboradorId: o.responsavelColaboradorId ?? null,
+    observacao: o.observacao ?? null,
     inicioPrevisto: o.dataPrevistaInicio,
     fimPrevisto: o.dataPrevistaFim,
     produtos: o.produtoItens.map((pi) => ({
