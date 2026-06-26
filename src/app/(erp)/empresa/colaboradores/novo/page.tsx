@@ -325,7 +325,7 @@ export default function NovoColaboradorPage() {
               />
             </Field>
 
-            <Field label="Áreas de operação" hint="Em quais etapas do fluxo o colaborador pode atuar (filtra o responsável nas OPs). Vazio = aparece em todas.">
+            <Field label="Áreas de operação" hint="Em quais etapas do fluxo o colaborador pode atuar (filtra o responsável nas OPs). Vazio = não aparece como responsável em nenhuma etapa.">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 border border-border rounded-lg p-2 max-h-40 overflow-y-auto">
                 {areasDisponiveis.length === 0 && (
                   <p className="text-xs text-muted-foreground px-1 col-span-full">Nenhuma área (publique um fluxo de produção).</p>

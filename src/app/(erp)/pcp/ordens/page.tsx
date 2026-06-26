@@ -73,8 +73,9 @@ export default function OrdensBoardPage() {
 
   const area = areas.find((a) => a.nodeId === areaNodeId) ?? null;
   const minSeq = areas.length ? Math.min(...areas.map((a) => a.sequencia)) : 0;
-  // Responsáveis elegíveis na área: colaboradores com a área no cadastro (ou sem nenhuma = todos).
-  const colaboradoresDaArea = colaboradores.filter((c) => c.areasOperacao.length === 0 || (area != null && c.areasOperacao.includes(area.nome)));
+  // Responsáveis elegíveis na área: SÓ quem tem esta etapa nas Áreas de operação.
+  // Sem a área marcada, o colaborador não aparece como responsável aqui.
+  const colaboradoresDaArea = colaboradores.filter((c) => area != null && c.areasOperacao.includes(area.nome));
 
   // 1. Fluxos publicados
   useEffect(() => {
@@ -472,7 +473,9 @@ export default function OrdensBoardPage() {
                       options={colaboradoresDaArea.map((c) => ({ value: c.id, label: c.nome }))} />
                     {area && (
                       <p className="mt-1 text-[11px] text-muted-foreground">
-                        Mostrando quem atua em <b>{area.nome}</b> (defina em Colaboradores → Áreas de operação; sem área = aparece em todas).
+                        {colaboradoresDaArea.length === 0
+                          ? <>Nenhum colaborador marcado para <b>{area.nome}</b>. Marque a etapa em Colaboradores → Áreas de operação.</>
+                          : <>Mostrando só quem atua em <b>{area.nome}</b> (definido em Colaboradores → Áreas de operação).</>}
                       </p>
                     )}
                   </div>
