@@ -58,32 +58,112 @@ export interface Composicao {
 
 type MdItem = { nome: string; valorMilheiro: number; categoria: string | null };
 
-/** Custo de material (R$/milheiro) de um produto pela engenharia × CMPM, com a quebra por insumo. */
-async function materialPorMilheiro(empresaId: string, eng: {
-  insumos: { insumoItemId: string; quantidade: unknown; base: string; unidadeId: string | null;
-    insumoItem: { descricao: string; categoriaEstoque: string | null; compoeCusto: boolean; precoCusto: unknown; itemUnidades: { unidadeId: string; isPrincipal: boolean; fatorConversao: unknown }[] } }[];
-}): Promise<{ total: number; itens: MdItem[] }> {
-  const ids = Array.from(new Set(eng.insumos.map((i) => i.insumoItemId)));
-  const custos = await custosDaEmpresa(prismaSemEscopo, empresaId, ids);
-  let total = 0;
+// Insumo de uma BOM (campos usados no custeio/explosão).
+type InsumoEng = { insumoItemId: string; quantidade: unknown; base: string; unidadeId: string | null;
+  insumoItem: { descricao: string; categoriaEstoque: string | null; compoeCusto: boolean; precoCusto: unknown; itemUnidades: { unidadeId: string; isPrincipal: boolean; fatorConversao: unknown }[] } };
+
+// Fator de conversão (unidade do insumo → unidade-base) pelo itemUnidades.
+function fatorUnidade(ins: InsumoEng): number {
+  if (!ins.unidadeId) return 1;
+  const iu = ins.insumoItem.itemUnidades.find((u) => u.unidadeId === ins.unidadeId);
+  if (iu && !iu.isPrincipal && iu.fatorConversao != null) {
+    const f = num(iu.fatorConversao);
+    if (f > 0) return f;
+  }
+  return 1;
+}
+
+/**
+ * Custo de material (R$/milheiro) de um produto pela engenharia × CMPM, com a quebra por insumo.
+ * Insumos FABRICADOS (que têm BOM própria em bomMap, ex.: "Mistura de Argila") são EXPLODIDOS na
+ * sua matéria-prima de base (ex.: Argila) proporcionalmente — para o relatório mostrar quanto de
+ * argila cada produto gastou, mesmo a engenharia usando o intermediário. Água (compoeCusto=false)
+ * e demais sem custo são ignorados.
+ */
+function materialPorMilheiro(
+  eng: { insumos: InsumoEng[] },
+  custos: Map<string, number | null>,
+  bomMap: Map<string, InsumoEng[]>,
+): { total: number; itens: MdItem[] } {
   const itens: MdItem[] = [];
+
+  // Acumula um insumo no custo: se for fabricado (tem BOM), explode; senão é folha (matéria-prima).
+  // qtdBaseMilheiro = quantidade do insumo, na sua unidade-base, por milheiro do produto-topo.
+  const acumular = (ins: InsumoEng, qtdBaseMilheiro: number, visitados: Set<string>, prof: number) => {
+    if (ins.insumoItem.compoeCusto === false) return; // água
+    const sub = bomMap.get(ins.insumoItemId);
+    if (sub && sub.length && prof < 5 && !visitados.has(ins.insumoItemId)) {
+      // Intermediário fabricado → explode na sua BOM. As quantidades da sub-BOM são por
+      // 1 unidade-base do intermediário (POR_UNIDADE → 1; POR_MILHEIRO → 1/1000).
+      const visit = new Set(visitados).add(ins.insumoItemId);
+      for (const s of sub) {
+        const razao = num(s.quantidade) * fatorUnidade(s) * (s.base === "POR_MILHEIRO" ? 0.001 : 1);
+        acumular(s, qtdBaseMilheiro * razao, visit, prof + 1);
+      }
+      return;
+    }
+    // Folha (matéria-prima/embalagem) → custo direto.
+    const custoUnit = custos.get(ins.insumoItemId) ?? num(ins.insumoItem.precoCusto);
+    const v = qtdBaseMilheiro * custoUnit;
+    itens.push({ nome: ins.insumoItem.descricao, valorMilheiro: v, categoria: ins.insumoItem.categoriaEstoque ?? null });
+  };
+
   for (const ins of eng.insumos) {
     if (ins.insumoItem.compoeCusto === false) continue; // água
-    let fator = 1;
-    if (ins.unidadeId) {
-      const iu = ins.insumoItem.itemUnidades.find((u) => u.unidadeId === ins.unidadeId);
-      if (iu && !iu.isPrincipal && iu.fatorConversao != null) {
-        const f = num(iu.fatorConversao);
-        if (f > 0) fator = f;
-      }
-    }
     const baseFator = ins.base === "POR_UNIDADE" ? 1000 : 1; // por peça → por milheiro
-    const custoUnit = custos.get(ins.insumoItemId) ?? num(ins.insumoItem.precoCusto);
-    const v = num(ins.quantidade) * fator * baseFator * custoUnit;
-    total += v;
-    itens.push({ nome: ins.insumoItem.descricao, valorMilheiro: v, categoria: ins.insumoItem.categoriaEstoque ?? null });
+    acumular(ins, num(ins.quantidade) * fatorUnidade(ins) * baseFator, new Set<string>(), 0);
   }
-  return { total, itens };
+
+  // Agrega folhas repetidas (mesmo insumo por caminhos diferentes) por nome.
+  const porNome = new Map<string, MdItem>();
+  for (const it of itens) {
+    const prev = porNome.get(it.nome);
+    if (prev) prev.valorMilheiro += it.valorMilheiro;
+    else porNome.set(it.nome, { ...it });
+  }
+  const itensAgg = Array.from(porNome.values());
+  const total = itensAgg.reduce((s, i) => s + i.valorMilheiro, 0);
+  return { total, itens: itensAgg };
+}
+
+/**
+ * Pré-carrega as BOMs dos insumos FABRICADOS (que têm engenharia própria) alcançáveis a partir de
+ * um conjunto inicial de itemIds, resolvendo profundidade transitiva. Retorna o mapa itemId→insumos.
+ */
+async function carregarBomsIntermediarios(idsIniciais: string[]): Promise<Map<string, InsumoEng[]>> {
+  const insumoSelect = {
+    insumoItemId: true, quantidade: true, base: true, unidadeId: true,
+    insumoItem: { select: { descricao: true, categoriaEstoque: true, compoeCusto: true, precoCusto: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } },
+  } as const;
+  const bomMap = new Map<string, InsumoEng[]>();
+  let pendentes = Array.from(new Set(idsIniciais));
+  for (let i = 0; i < 6 && pendentes.length; i++) {
+    const buscar = pendentes.filter((id) => !bomMap.has(id));
+    if (!buscar.length) break;
+    const engs = await prismaSemEscopo.engenhariaProduto.findMany({
+      where: { itemId: { in: buscar } },
+      select: { itemId: true, insumos: { select: insumoSelect } },
+    });
+    const novos: string[] = [];
+    for (const e of engs) {
+      bomMap.set(e.itemId, e.insumos as InsumoEng[]);
+      for (const ins of e.insumos) if (!bomMap.has(ins.insumoItemId)) novos.push(ins.insumoItemId);
+    }
+    pendentes = novos;
+  }
+  return bomMap;
+}
+
+/** Todos os itemIds-folha (matéria-prima) alcançáveis a partir de uma BOM, explodindo intermediários. */
+function idsFolha(insumos: InsumoEng[], bomMap: Map<string, InsumoEng[]>, acc: Set<string>, visit = new Set<string>()) {
+  for (const ins of insumos) {
+    const sub = bomMap.get(ins.insumoItemId);
+    if (sub && sub.length && !visit.has(ins.insumoItemId)) {
+      idsFolha(sub, bomMap, acc, new Set(visit).add(ins.insumoItemId));
+    } else {
+      acc.add(ins.insumoItemId);
+    }
+  }
 }
 
 /**
@@ -162,13 +242,22 @@ export async function calcularCusteio(empresaId: string, competencia: Date): Pro
       })
     : [];
 
+  // BOMs dos intermediários fabricados (ex.: "Mistura de Argila") p/ explodir na matéria-prima de base.
+  const engs = itens.map((it) => it.engenhariaProduto ?? it.produtoBase?.engenhariaProduto ?? null);
+  const insumosTopo = engs.flatMap((e) => (e?.insumos ?? []) as InsumoEng[]);
+  const bomMap = await carregarBomsIntermediarios(insumosTopo.map((i) => i.insumoItemId));
+  // CMPM de todos os ids-folha alcançáveis (inclui os exploded, ex.: Argila).
+  const idsCusto = new Set<string>();
+  for (const e of engs) if (e) idsFolha(e.insumos as InsumoEng[], bomMap, idsCusto);
+  const custos = await custosDaEmpresa(prismaSemEscopo, empresaId, Array.from(idsCusto));
+
   const produtos: CusteioProduto[] = [];
   const mdAcumItem = new Map<string, { acum: number; categoria: string | null }>(); // nome → Σ(volMi × valor/mi)  (p/ média ponderada)
   for (const it of itens) {
     const volumeUn = volPorItem.get(it.id) ?? 0;
     const volMi = volumeUn / 1000;
     const eng = it.engenhariaProduto ?? it.produtoBase?.engenhariaProduto ?? null;
-    const mat = eng ? await materialPorMilheiro(empresaId, eng) : { total: 0, itens: [] as MdItem[] };
+    const mat = eng ? materialPorMilheiro({ insumos: eng.insumos as InsumoEng[] }, custos, bomMap) : { total: 0, itens: [] as MdItem[] };
     const custoMilheiro = mat.total + modRate + cifRate;
     for (const mi of mat.itens) {
       const prev = mdAcumItem.get(mi.nome);
