@@ -87,8 +87,10 @@ export default function CusteioPage() {
   const [aplicando, setAplicando] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [view, setView] = useState<"total" | "milheiro">("total");
-  const [aba, setAba] = usePersistedState<"taxa" | "fechamento" | "mensal">("cpv:aba", "taxa");
+  const [aba, setAba] = usePersistedState<"taxa" | "fechamento" | "absorvido" | "efetivo">("cpv:aba", "taxa");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Continuidade: a aba antiga "mensal" (CPV do razão) virou "efetivo".
+  useEffect(() => { if ((aba as string) === "mensal") setAba("efetivo"); }, [aba, setAba]);
 
   const load = useCallback(async (comp: string) => {
     setLoading(true);
@@ -187,7 +189,7 @@ export default function CusteioPage() {
 
       {/* Abas: definição da taxa pré-definida × fechamentos (apropriações) */}
       <div className="flex gap-0 border-b border-border">
-        {([["taxa", "Definição de taxa pré-definida"], ["fechamento", "Fechamentos"], ["mensal", "Detalhamento mensal"]] as const).map(([k, lbl]) => (
+        {([["taxa", "Definição de taxa pré-definida"], ["fechamento", "Fechamentos"], ["absorvido", "Custo absorvido"], ["efetivo", "CPV efetivo"]] as const).map(([k, lbl]) => (
           <button key={k} type="button" onClick={() => { setAba(k); setMsg(null); }}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${aba === k ? "border-blue-600 text-info" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             {lbl}
@@ -359,7 +361,20 @@ export default function CusteioPage() {
         </Card>
       )}
 
-      {aba === "mensal" && <CpvMensal />}
+      {aba === "absorvido" && (
+        <CpvMensal
+          endpoint="/api/contabilidade/cpv-absorvido"
+          titulo="Custo de produção absorvido — mês a mês"
+          nota="O que foi FABRICADO no mês: material pela engenharia (BOM × CMPM) + MOD + CIF reais, absorvidos pelo volume produzido. Não é o que foi vendido."
+        />
+      )}
+      {aba === "efetivo" && (
+        <CpvMensal
+          endpoint="/api/contabilidade/cpv-detalhado"
+          titulo="CPV efetivo (razão) — mês a mês"
+          nota="CPV real lançado no razão (conta 3.2.2) — a baixa do produto acabado na VENDA. O total é real; a quebra por componente é estimada pela composição."
+        />
+      )}
     </div>
     </TooltipProvider>
   );
@@ -380,18 +395,18 @@ const MESES_CURTO = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Se
 // CPV detalhado por COMPONENTE, mês a mês (derivado da composição de custo). A DRE
 // só mostra o CPV consolidado; aqui abrimos Matéria-Prima (com sub-itens), Embalagens,
 // Mão-de-obra, Gastos Gerais de Fabricação e Depreciação — somam ao CPV do razão.
-function CpvMensal() {
+function CpvMensal({ endpoint, titulo, nota }: { endpoint: string; titulo: string; nota: string }) {
   const [ano, setAno] = useState<number>(() => new Date().getUTCFullYear());
   const [data, setData] = useState<CpvDetalhadoData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/contabilidade/cpv-detalhado?ano=${ano}`)
+    fetch(`${endpoint}?ano=${ano}`)
       .then((r) => r.json())
       .then((d: CpvDetalhadoData) => setData(d))
       .finally(() => setLoading(false));
-  }, [ano]);
+  }, [ano, endpoint]);
 
   const cel = (v: number) =>
     Math.abs(v) < 0.005 ? <span className="text-muted-foreground/50">—</span> : <span className={v < 0 ? "text-rose-500" : ""}>{brl(v)}</span>;
@@ -401,8 +416,8 @@ function CpvMensal() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <div>
-          <CardTitle className="text-base">CPV detalhado — mês a mês</CardTitle>
-          <p className="text-[12px] text-muted-foreground">Componentes do custo (derivados da composição) — a soma bate com o CPV do razão. Posição do exercício corrente.</p>
+          <CardTitle className="text-base">{titulo}</CardTitle>
+          <p className="text-[12px] text-muted-foreground">{nota}</p>
         </div>
         <label className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
           Exercício
