@@ -10,6 +10,7 @@ import { useSession } from "@/lib/session-context";
 
 type ProdutoItem = { itemId: string; quantidadePlanejada: string | number; quantidadeReal: string | number | null; unidadeId: string | null; item: { codigo: string; descricao: string }; unidade: { sigla: string } | null };
 type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean };
+type MovLinha = { itemId: string; descricao: string; veiculo: string; nVeiculos: number; capacidade: number; pecas: number };
 type Ordem = {
   id: string; numero: string; status: string; createdAt: string;
   dataPrevistaInicio: string | null; dataPrevistaFim: string | null;
@@ -34,6 +35,7 @@ export default function ImprimirOrdemPage() {
   const empresaNome = user?.empresas?.find((e) => e.id === user.activeEmpresaId)?.nome ?? "";
   const [ordem, setOrdem] = useState<Ordem | null>(null);
   const [consumo, setConsumo] = useState<ConsumoLinha[] | null>(null);
+  const [movimentacao, setMovimentacao] = useState<MovLinha[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,9 +55,22 @@ export default function ImprimirOrdemPage() {
     }).then((r) => r.json()).then((j) => setConsumo(j.data ?? [])).catch(() => {});
   }, [ordem]);
 
-  // Carradas (unidade que o operador de carregadeira entende): só na etapa de
-  // Preparação, busca o fator da unidade "CARRADA" de cada material consumido.
-  const [carradaFator, setCarradaFator] = useState<Map<string, number>>(new Map());
+  // Movimentação prevista (nº de vagonetas/vagões) — config de cargas por etapa.
+  useEffect(() => {
+    if (!ordem) return;
+    const fluxoId = ordem.fluxoVersao?.fluxo?.id;
+    const areaNodeId = ordem.etapas[0]?.nodeId;
+    const produtos = ordem.produtoItens.map((pi) => ({ itemId: pi.itemId, quantidade: Number(pi.quantidadePlanejada), unidadeId: pi.unidadeId }));
+    if (!fluxoId || !areaNodeId || !produtos.length) return;
+    fetch("/api/pcp/ordens/area/movimentacao-prevista", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fluxoId, areaNodeId, produtos }),
+    }).then((r) => r.json()).then((j) => setMovimentacao(j.data ?? [])).catch(() => {});
+  }, [ordem]);
+
+  // Conchadas (unidade que o operador da carregadeira entende): só na etapa de
+  // Preparação, busca o fator da unidade "CONCHADA" de cada material consumido.
+  const [conchadaFator, setConchadaFator] = useState<Map<string, number>>(new Map());
   useEffect(() => {
     if (!ordem || !consumo) return;
     const et = ordem.etapas[0];
@@ -67,17 +82,17 @@ export default function ImprimirOrdemPage() {
     Promise.all(ids.map(async (itemId) => {
       try {
         const us = await fetch(`/api/suprimentos/produtos/${itemId}/unidades`).then((r) => r.json());
-        const carr = Array.isArray(us)
+        const conc = Array.isArray(us)
           ? us.find((u: { unidade?: { sigla?: string }; isPrincipal: boolean; fatorConversao: unknown }) =>
-              !u.isPrincipal && /carrad/i.test(u.unidade?.sigla ?? "") && Number(u.fatorConversao) > 0)
+              !u.isPrincipal && /conchad/i.test(u.unidade?.sigla ?? "") && Number(u.fatorConversao) > 0)
           : null;
-        return carr ? ([itemId, Number(carr.fatorConversao)] as const) : null;
+        return conc ? ([itemId, Number(conc.fatorConversao)] as const) : null;
       } catch { return null; }
     })).then((pares) => {
       if (cancel) return;
       const m = new Map<string, number>();
       for (const p of pares) if (p) m.set(p[0], p[1]);
-      setCarradaFator(m);
+      setConchadaFator(m);
     });
     return () => { cancel = true; };
   }, [ordem, consumo]);
@@ -87,9 +102,9 @@ export default function ImprimirOrdemPage() {
 
   const etapa = ordem.etapas[0];
   const ehPreparacao = !!etapa && /prepara/i.test(`${etapa.nome ?? ""} ${etapa.centroTrabalho ?? ""}`);
-  const carradasDe = (c: ConsumoLinha): string | null => {
+  const conchadasDe = (c: ConsumoLinha): string | null => {
     if (!ehPreparacao || !c.itemId) return null;
-    const fator = carradaFator.get(c.itemId);
+    const fator = conchadaFator.get(c.itemId);
     if (!fator || fator <= 0) return null;
     return (c.consumo / fator).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
   };
@@ -159,12 +174,12 @@ export default function ImprimirOrdemPage() {
                   <th className="text-left px-3 py-1.5 font-semibold">Material</th>
                   <th className="text-right px-3 py-1.5 font-semibold">Consumo previsto</th>
                   <th className="text-left px-3 py-1.5 font-semibold w-16">Un.</th>
-                  {ehPreparacao && <th className="text-right px-3 py-1.5 font-semibold w-24">Carradas</th>}
+                  {ehPreparacao && <th className="text-right px-3 py-1.5 font-semibold w-24">Conchadas</th>}
                 </tr>
               </thead>
               <tbody>
                 {consumo.map((c, i) => {
-                  const carr = carradasDe(c);
+                  const conc = conchadasDe(c);
                   return (
                     <tr key={i} className="border-t border-gray-200">
                       <td className="px-3 py-1.5">{c.descricao}{!c.gerenciavel && <span className="text-gray-400"> (referência)</span>}</td>
@@ -172,7 +187,7 @@ export default function ImprimirOrdemPage() {
                       <td className="px-3 py-1.5 text-xs text-gray-600">{c.unidade ?? "—"}</td>
                       {ehPreparacao && (
                         <td className="px-3 py-1.5 text-right tabular-nums font-medium">
-                          {carr ? <>{carr} <span className="text-xs font-normal text-gray-500">carradas</span></> : <span className="text-gray-400">—</span>}
+                          {conc ? <>{conc} <span className="text-xs font-normal text-gray-500">conchadas</span></> : <span className="text-gray-400">—</span>}
                         </td>
                       )}
                     </tr>
@@ -183,11 +198,42 @@ export default function ImprimirOrdemPage() {
           </>
         )}
 
+        {movimentacao && movimentacao.length > 0 && (
+          <>
+            <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Movimentação prevista</p>
+            <table className="w-full text-sm border border-gray-300 mb-5">
+              <thead className="bg-gray-100 text-xs text-gray-600">
+                <tr>
+                  <th className="text-left px-3 py-1.5 font-semibold">Produto</th>
+                  <th className="text-left px-3 py-1.5 font-semibold w-28">Veículo</th>
+                  <th className="text-right px-3 py-1.5 font-semibold w-24">Nº veículos</th>
+                  <th className="text-right px-3 py-1.5 font-semibold w-28">Capacidade</th>
+                </tr>
+              </thead>
+              <tbody>
+                {movimentacao.map((m, i) => (
+                  <tr key={i} className="border-t border-gray-200">
+                    <td className="px-3 py-1.5">{m.descricao}</td>
+                    <td className="px-3 py-1.5">{m.veiculo}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums font-medium">{n(m.nVeiculos)}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-gray-600">{n(m.capacidade)} pç</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
         {ordem.observacao && (
           <div className="mb-5"><p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Observação</p><p className="text-sm">{ordem.observacao}</p></div>
         )}
 
-        <div className="grid grid-cols-2 gap-8 mt-10 pt-2 text-center text-xs text-gray-500">
+        <div className="mb-6">
+          <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Observações do dia (preenchimento manual)</p>
+          <div className="border border-gray-300 rounded-lg h-32" style={{ backgroundImage: "repeating-linear-gradient(transparent, transparent 27px, #e5e7eb 28px)" }} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-8 mt-8 pt-2 text-center text-xs text-gray-500">
           <div className="border-t border-gray-400 pt-1">Responsável</div>
           <div className="border-t border-gray-400 pt-1">Conferência</div>
         </div>

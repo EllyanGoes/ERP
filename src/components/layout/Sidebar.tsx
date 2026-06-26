@@ -367,6 +367,7 @@ const mainModules: Module[] = [
           { href: "/pcp/estados-wip",      label: "Estados de WIP",       icon: Layers },
           { href: "/pcp/fluxos",           label: "Fluxos de Produção",   icon: Workflow },
           { href: "/pcp/engenharia",       label: "Engenharia do Produto", icon: FlaskConical },
+          { href: "/pcp/cargas-movimentacao", label: "Cargas de Movimentação", icon: Truck },
         ],
       },
       {

@@ -1259,6 +1259,7 @@ model Item {
   tipoProduto            TipoProduto?             @relation(fields: [tipoProdutoId], references: [id])
   unidade                Unidade?                 @relation(fields: [unidadeId], references: [id])
   itemUnidades           ItemUnidade[]
+  cargasVeiculo          ItemCargaVeiculo[]
   movimentacoes          MovimentacaoEstoque[]
   movimentacoesComodato  MovimentacaoComodato[]
   necessidadeCompraItens NecessidadeCompraItem[]
@@ -2259,6 +2260,38 @@ enum EstadoWIP {
   SECO
   QUEIMADO
   ACABADO
+}
+
+// Veículos de movimentação do WIP dentro da fábrica.
+enum VeiculoMovimentacao {
+  VAGONETA
+  VAGAO
+}
+
+// Capacidade de carga (peças) de um produto por veículo. Um veículo pode levar
+// vários produtos, cada um com a sua capacidade.
+model ItemCargaVeiculo {
+  id         String              @id @default(cuid())
+  itemId     String
+  veiculo    VeiculoMovimentacao
+  capacidade Int
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  item       Item                @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, veiculo])
+  @@index([itemId])
+}
+
+// Quais veículos cada ETAPA (nome da operação do fluxo: Conformação, Secagem, …)
+// usa. Ex.: Conformação→VAGONETA; Secagem→VAGONETA e VAGAO; Queima→VAGAO.
+model EtapaVeiculo {
+  id        String              @id @default(cuid())
+  etapa     String
+  veiculo   VeiculoMovimentacao
+  createdAt DateTime            @default(now())
+
+  @@unique([etapa, veiculo])
 }
 
 // Catálogo configurável de estados de WIP (úmido, seco, queimado, acabado, …).
