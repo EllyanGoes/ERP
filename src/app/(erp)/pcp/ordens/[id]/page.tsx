@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, RefreshCw, Flame, Play, CheckCircle2, Ban, Send, AlertTriangle, ArrowLeftRight, Clock } from "lucide-react";
+import { ArrowLeft, RefreshCw, Flame, Play, CheckCircle2, Ban, Send, AlertTriangle, ArrowLeftRight, Clock, Paperclip, Upload, Trash2, FileText } from "lucide-react";
 
 interface Etapa {
   id: string;
@@ -27,6 +27,7 @@ interface Etapa {
 }
 interface Consumo { id: string; descricao: string | null; quantidadeKg: string | number; milheirosProduzidos: string | number | null; data: string; }
 interface Movimento { id: string; tipo: string; quantidade: string | number; saldoDepois: string | number; observacoes: string | null; createdAt: string; item: { codigo: string; descricao: string } | null; }
+interface Anexo { id: string; nome: string; url: string; tamanho: number; tipo: string; criadoPor: string | null; createdAt: string; }
 interface Ordem {
   id: string; numero: string; status: string; estadoAtual: string;
   quantidadePlanejada: string | number; unidade: string | null;
@@ -65,6 +66,25 @@ export default function OrdemDetalhePage() {
   const [modalConcluir, setModalConcluir] = useState(false);
   const [avancado, setAvancado] = useState(false);
   const [cprod, setCprod] = useState({ quantidade: "", perda: "", biomassa: "" });
+  const [anexos, setAnexos] = useState<Anexo[]>([]);
+  const [subindo, setSubindo] = useState(false);
+
+  const loadAnexos = useCallback(async () => {
+    try { const j = await fetch(`/api/pcp/ordens/${id}/anexos`).then((r) => r.json()); setAnexos(j.data ?? []); } catch { /* ignore */ }
+  }, [id]);
+
+  async function enviarArquivo(file: File) {
+    setSubindo(true); setErro(null);
+    try {
+      const fd = new FormData(); fd.append("file", file);
+      const r = await fetch(`/api/pcp/ordens/${id}/anexos`, { method: "POST", body: fd });
+      if (!r.ok) { const j = await r.json(); throw new Error(j?.error ?? "Erro ao enviar"); }
+      await loadAnexos();
+    } catch (e) { setErro(e instanceof Error ? e.message : "Erro ao enviar arquivo"); } finally { setSubindo(false); }
+  }
+  async function excluirAnexo(anexoId: string) {
+    try { await fetch(`/api/pcp/ordens/${id}/anexos/${anexoId}`, { method: "DELETE" }); await loadAnexos(); } catch { /* ignore */ }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -85,7 +105,7 @@ export default function OrdemDetalhePage() {
     }
   }, [id]);
 
-  useEffect(() => { if (id) load(); }, [id, load]);
+  useEffect(() => { if (id) { load(); loadAnexos(); } }, [id, load, loadAnexos]);
 
   async function mudarStatus(status: string) {
     setBusy("status");
@@ -311,6 +331,35 @@ export default function OrdemDetalhePage() {
             </div>
           </div>
         )}
+
+        {/* Documentos / Anexos da OP (comprovação — OP escaneada) */}
+        <div className="rounded-xl border border-border bg-card p-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+              <Paperclip className="w-3.5 h-3.5 text-cyan-500" /> Documentos / Anexos
+            </p>
+            <label className={cn("inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs cursor-pointer hover:bg-muted", subindo && "opacity-50 pointer-events-none")}>
+              {subindo ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Enviar arquivo
+              <input type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) enviarArquivo(f); e.target.value = ""; }} />
+            </label>
+          </div>
+          {anexos.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhum documento. Envie a OP escaneada/assinada como comprovação.</p>
+          ) : (
+            <div className="space-y-1">
+              {anexos.map((a) => (
+                <div key={a.id} className="flex items-center justify-between gap-2 text-sm border border-border rounded-lg px-2.5 py-1.5">
+                  <a href={a.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 min-w-0 text-foreground hover:text-cyan-600">
+                    <FileText className="w-4 h-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{a.nome}</span>
+                    <span className="text-[11px] text-muted-foreground shrink-0">{(a.tamanho / 1024 / 1024).toFixed(2)} MB</span>
+                  </a>
+                  <button onClick={() => excluirAnexo(a.id)} className="text-muted-foreground hover:text-danger shrink-0" title="Excluir"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {modalConcluir && (

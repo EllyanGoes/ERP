@@ -2377,6 +2377,7 @@ model OrdemProducao {
   etapas              ItemOrdemProducao[]
   consumos            ConsumoBiomassa[]
   movimentacoes       MovimentacaoEstoque[]
+  anexos              OrdemProducaoAnexo[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -2385,6 +2386,21 @@ model OrdemProducao {
   @@index([itemId])
   @@index([fluxoVersaoId])
   @@index([empresaId])
+}
+
+// Arquivos anexados à OP (ex.: OP escaneada/assinada como comprovação). Vercel Blob.
+model OrdemProducaoAnexo {
+  id              String        @id @default(cuid())
+  ordemProducaoId String
+  nome            String
+  url             String
+  tamanho         Int
+  tipo            String
+  criadoPor       String?
+  createdAt       DateTime      @default(now())
+  ordemProducao   OrdemProducao @relation(fields: [ordemProducaoId], references: [id], onDelete: Cascade)
+
+  @@index([ordemProducaoId])
 }
 
 // Produtos (linhas) de uma OP — uma OP pode produzir VÁRIOS produtos. quantidade na
