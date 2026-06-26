@@ -53,10 +53,46 @@ export default function ImprimirOrdemPage() {
     }).then((r) => r.json()).then((j) => setConsumo(j.data ?? [])).catch(() => {});
   }, [ordem]);
 
+  // Carradas (unidade que o operador de carregadeira entende): só na etapa de
+  // Preparação, busca o fator da unidade "CARRADA" de cada material consumido.
+  const [carradaFator, setCarradaFator] = useState<Map<string, number>>(new Map());
+  useEffect(() => {
+    if (!ordem || !consumo) return;
+    const et = ordem.etapas[0];
+    const prep = !!et && /prepara/i.test(`${et.nome ?? ""} ${et.centroTrabalho ?? ""}`);
+    if (!prep) return;
+    const ids = Array.from(new Set(consumo.map((c) => c.itemId).filter((x): x is string => !!x)));
+    if (!ids.length) return;
+    let cancel = false;
+    Promise.all(ids.map(async (itemId) => {
+      try {
+        const us = await fetch(`/api/suprimentos/produtos/${itemId}/unidades`).then((r) => r.json());
+        const carr = Array.isArray(us)
+          ? us.find((u: { unidade?: { sigla?: string }; isPrincipal: boolean; fatorConversao: unknown }) =>
+              !u.isPrincipal && /carrad/i.test(u.unidade?.sigla ?? "") && Number(u.fatorConversao) > 0)
+          : null;
+        return carr ? ([itemId, Number(carr.fatorConversao)] as const) : null;
+      } catch { return null; }
+    })).then((pares) => {
+      if (cancel) return;
+      const m = new Map<string, number>();
+      for (const p of pares) if (p) m.set(p[0], p[1]);
+      setCarradaFator(m);
+    });
+    return () => { cancel = true; };
+  }, [ordem, consumo]);
+
   if (erro) return <div className="p-8 text-sm text-muted-foreground">{erro}</div>;
   if (!ordem) return <div className="flex items-center justify-center py-20 text-muted-foreground gap-2 text-sm"><RefreshCw className="w-4 h-4 animate-spin" /> Carregando…</div>;
 
   const etapa = ordem.etapas[0];
+  const ehPreparacao = !!etapa && /prepara/i.test(`${etapa.nome ?? ""} ${etapa.centroTrabalho ?? ""}`);
+  const carradasDe = (c: ConsumoLinha): string | null => {
+    if (!ehPreparacao || !c.itemId) return null;
+    const fator = carradaFator.get(c.itemId);
+    if (!fator || fator <= 0) return null;
+    return (c.consumo / fator).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+  };
   const Campo = ({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) => (
     <div><p className="text-[10px] uppercase tracking-wide text-gray-500">{rotulo}</p><p className="text-sm font-medium text-gray-900">{valor}</p></div>
   );
@@ -123,16 +159,25 @@ export default function ImprimirOrdemPage() {
                   <th className="text-left px-3 py-1.5 font-semibold">Material</th>
                   <th className="text-right px-3 py-1.5 font-semibold">Consumo previsto</th>
                   <th className="text-left px-3 py-1.5 font-semibold w-16">Un.</th>
+                  {ehPreparacao && <th className="text-right px-3 py-1.5 font-semibold w-24">Carradas</th>}
                 </tr>
               </thead>
               <tbody>
-                {consumo.map((c, i) => (
-                  <tr key={i} className="border-t border-gray-200">
-                    <td className="px-3 py-1.5">{c.descricao}{!c.gerenciavel && <span className="text-gray-400"> (referência)</span>}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums">{n(c.consumo)}</td>
-                    <td className="px-3 py-1.5 text-xs text-gray-600">{c.unidade ?? "—"}</td>
-                  </tr>
-                ))}
+                {consumo.map((c, i) => {
+                  const carr = carradasDe(c);
+                  return (
+                    <tr key={i} className="border-t border-gray-200">
+                      <td className="px-3 py-1.5">{c.descricao}{!c.gerenciavel && <span className="text-gray-400"> (referência)</span>}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{n(c.consumo)}</td>
+                      <td className="px-3 py-1.5 text-xs text-gray-600">{c.unidade ?? "—"}</td>
+                      {ehPreparacao && (
+                        <td className="px-3 py-1.5 text-right tabular-nums font-medium">
+                          {carr ? <>{carr} <span className="text-xs font-normal text-gray-500">carradas</span></> : <span className="text-gray-400">—</span>}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </>
