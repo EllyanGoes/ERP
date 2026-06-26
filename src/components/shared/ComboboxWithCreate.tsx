@@ -41,6 +41,8 @@ interface Props {
   className?: string;
   disabled?: boolean;
   triggerClassName?: string;
+  /** Largura mínima do menu (px). Padrão 220 — aumente p/ rótulos longos (ex.: nomes). */
+  menuMinWidth?: number;
   /** When provided, clicking "Criar X" opens this dialog instead of navigating */
   renderCreateModal?: (args: CreateModalArgs) => React.ReactNode;
   /**
@@ -63,6 +65,7 @@ export default function ComboboxWithCreate({
   className,
   disabled,
   triggerClassName,
+  menuMinWidth = 220,
   renderCreateModal,
   disabledValues = [],
 }: Props) {
@@ -107,19 +110,22 @@ export default function ComboboxWithCreate({
     const spaceBelow = window.innerHeight - rect.bottom - MARGIN;
     const spaceAbove = rect.top - MARGIN;
     const openUpward = spaceBelow < DROPDOWN_MAX_H && spaceAbove > spaceBelow;
+    // Largura do menu (no mín. menuMinWidth), travada dentro da viewport.
+    const width = Math.max(rect.width, menuMinWidth);
+    const left = Math.min(rect.left, Math.max(MARGIN, window.innerWidth - width - MARGIN));
 
     if (openUpward) {
       setDropdownPos({
         bottom:    window.innerHeight - rect.top + 4,
-        left:      rect.left,
-        width:     Math.max(rect.width, 220),
+        left,
+        width,
         maxHeight: Math.min(DROPDOWN_MAX_H, spaceAbove),
       });
     } else {
       setDropdownPos({
         top:       rect.bottom + 4,
-        left:      rect.left,
-        width:     Math.max(rect.width, 220),
+        left,
+        width,
         maxHeight: Math.min(DROPDOWN_MAX_H, spaceBelow),
       });
     }

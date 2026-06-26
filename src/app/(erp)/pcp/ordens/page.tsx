@@ -468,8 +468,13 @@ export default function OrdensBoardPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Responsável</label>
-                    <ComboboxWithCreate value={novo.responsavelId} onChange={(v) => setNovo({ ...novo, responsavelId: v })} allowNone triggerClassName="h-9 rounded-lg" placeholder="—"
+                    <ComboboxWithCreate value={novo.responsavelId} onChange={(v) => setNovo({ ...novo, responsavelId: v })} allowNone triggerClassName="h-9 rounded-lg" placeholder="—" menuMinWidth={340}
                       options={colaboradoresDaArea.map((c) => ({ value: c.id, label: c.nome }))} />
+                    {area && (
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Mostrando quem atua em <b>{area.nome}</b> (defina em Colaboradores → Áreas de operação; sem área = aparece em todas).
+                      </p>
+                    )}
                   </div>
                 </div>
 
