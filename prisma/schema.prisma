@@ -166,6 +166,8 @@ model Colaborador {
   setorId                    String?
   // Classificação de custo para o fechamento da folha (rateio MOD/MOI/admin).
   classificacaoCusto         ClassificacaoCusto?
+  // Vínculo: funcionário (folha de pagamento) ou prestador (lançamento de diaristas).
+  tipoColaborador            TipoColaborador      @default(FUNCIONARIO)
   dataAdmissao               DateTime?
   dataDemissao               DateTime?
   usuarioId                  String?              @unique
@@ -198,6 +200,13 @@ enum ClassificacaoCusto {
   MOD
   MOI
   ADMIN
+}
+
+// Vínculo do colaborador: FUNCIONARIO (CLT, vai p/ a folha de pagamento) ou
+// PRESTADOR (diarista/terceiro, vai p/ o lançamento de diaristas).
+enum TipoColaborador {
+  FUNCIONARIO
+  PRESTADOR
 }
 
 enum StatusFolha {

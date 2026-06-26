@@ -19,6 +19,7 @@ type Filial   = { id: string; razaoSocial: string; nomeFantasia: string | null }
 type UsuarioMin = { id: string; nome: string; email: string };
 
 type Classif = "MOD" | "MOI" | "ADMIN";
+type Tipo = "FUNCIONARIO" | "PRESTADOR";
 type Colaborador = {
   id:       string;
   nome:     string;
@@ -26,6 +27,7 @@ type Colaborador = {
   cargo:    string | null;
   setor:    { id: string; nome: string } | null;
   classificacaoCusto: Classif | null;
+  tipoColaborador: Tipo;
   telefone: string | null;
   ativo:    boolean;
   filiais:  Filial[];
@@ -37,6 +39,12 @@ const CLASSIF_BADGE: Record<Classif, { label: string; cls: string }> = {
   MOD:   { label: "MOD",   cls: "bg-sky-500/15 text-sky-600 dark:text-sky-400" },
   MOI:   { label: "MOI",   cls: "bg-violet-500/15 text-violet-600 dark:text-violet-400" },
   ADMIN: { label: "Admin", cls: "bg-muted text-muted-foreground" },
+};
+
+// Tipo de vínculo: funcionário (folha de pagamento) × prestador (diaristas).
+const TIPO_BADGE: Record<Tipo, { label: string; cls: string }> = {
+  FUNCIONARIO: { label: "Funcionário", cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
+  PRESTADOR:   { label: "Prestador",   cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
 };
 
 // ── Column definitions ────────────────────────────────────────────────────────
@@ -82,6 +90,17 @@ const COLS: ColDef<Colaborador>[] = [
       ) : (
         <span className="text-muted-foreground/60 text-xs">— sem —</span>
       ),
+  },
+  {
+    id: "tipo",
+    label: "Tipo",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-28",
+    tdClass: "px-4 py-3",
+    render: (c) => (
+      <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium", TIPO_BADGE[c.tipoColaborador].cls)}>
+        {TIPO_BADGE[c.tipoColaborador].label}
+      </span>
+    ),
   },
   {
     id: "filial",
@@ -159,6 +178,21 @@ export default function ColaboradoresPage() {
       await fetch("/api/empresa/colaboradores/classificar", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids, classificacaoCusto: cl }),
+      });
+      setSel(new Set());
+      await load();
+    } finally { setClassificando(false); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel]);
+
+  const classificarTipo = useCallback(async (tipo: Tipo) => {
+    const ids = Array.from(sel);
+    if (!ids.length) return;
+    setClassificando(true);
+    try {
+      await fetch("/api/empresa/colaboradores/classificar", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, tipoColaborador: tipo }),
       });
       setSel(new Set());
       await load();
@@ -281,6 +315,10 @@ export default function ColaboradoresPage() {
                 <button onClick={() => classificar("MOI")} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-violet-500/15 text-violet-600 dark:text-violet-400 hover:bg-violet-500/25">MOI <span className="opacity-60">(CIF)</span></button>
                 <button onClick={() => classificar("ADMIN")} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-muted/70">Admin <span className="opacity-60">(despesa)</span></button>
                 <button onClick={() => classificar(null)} className="text-xs font-medium px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted">Limpar</button>
+                <span className="mx-1 h-5 w-px bg-border" />
+                <span className="text-xs text-muted-foreground">Tipo:</span>
+                <button onClick={() => classificarTipo("FUNCIONARIO")} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25">Funcionário <span className="opacity-60">(folha)</span></button>
+                <button onClick={() => classificarTipo("PRESTADOR")} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25">Prestador <span className="opacity-60">(diaristas)</span></button>
                 <button onClick={() => setSel(new Set())} className="text-xs text-muted-foreground hover:text-foreground ml-1">Cancelar</button>
               </div>
             )}

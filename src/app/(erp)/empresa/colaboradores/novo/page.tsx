@@ -52,6 +52,7 @@ export default function NovoColaboradorPage() {
   const [cargo,        setCargo]        = useState("");
   const [setorId,      setSetorId]      = useState("");
   const [classificacaoCusto, setClassificacaoCusto] = useState("");
+  const [tipoColaborador, setTipoColaborador] = useState("FUNCIONARIO");
   const [matricula, setMatricula] = useState("");
   const [dataAdmissao, setDataAdmissao] = useState("");
   const [filialIds,    setFilialIds]    = useState<string[]>([]);
@@ -114,6 +115,7 @@ export default function NovoColaboradorPage() {
           cargo:        cargo.trim()   || null,
           setorId:      setorId       || null,
           classificacaoCusto: classificacaoCusto || null,
+          tipoColaborador,
           matricula:    matricula.trim() || null,
           dataAdmissao: dataAdmissao || null,
           filialIds,
@@ -233,6 +235,16 @@ export default function NovoColaboradorPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
+              <Field label="Tipo de vínculo">
+                <select
+                  value={tipoColaborador}
+                  onChange={(e) => setTipoColaborador(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm"
+                >
+                  <option value="FUNCIONARIO">Funcionário — folha de pagamento</option>
+                  <option value="PRESTADOR">Prestador — lançamento de diaristas</option>
+                </select>
+              </Field>
               <Field label="Classificação de custo (folha)">
                 <select
                   value={classificacaoCusto}

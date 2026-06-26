@@ -18,6 +18,7 @@ const schema = z.object({
   cargo: z.string().optional().nullable(),
   setorId: z.string().optional().nullable(),
   classificacaoCusto: z.enum(["MOD", "MOI", "ADMIN"]).optional().nullable(),
+  tipoColaborador: z.enum(["FUNCIONARIO", "PRESTADOR"]).optional(),
   dataAdmissao: z.string().optional().nullable(),
   dataDemissao: z.string().optional().nullable(),
   filialIds: z.array(z.string()).optional(),

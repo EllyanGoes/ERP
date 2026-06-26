@@ -34,6 +34,7 @@ type Colaborador = {
   telegramChatId:  string | null;
   cargo:           string | null;
   classificacaoCusto: "MOD" | "MOI" | "ADMIN" | null;
+  tipoColaborador: "FUNCIONARIO" | "PRESTADOR";
   matricula:       string | null;
   setorId:         string | null;
   setor:           { id: string; nome: string } | null;
@@ -103,6 +104,7 @@ export default function ColaboradorDetailPage() {
   const [eCargo,        setECargo]        = useState("");
   const [eSetorId,      setESetorId]      = useState("");
   const [eClassificacaoCusto, setEClassificacaoCusto] = useState("");
+  const [eTipoColaborador, setETipoColaborador] = useState("FUNCIONARIO");
   const [eMatricula, setEMatricula] = useState("");
   const [eDataAdmissao, setEDataAdmissao] = useState("");
   const [eDataDemissao, setEDataDemissao] = useState("");
@@ -154,6 +156,7 @@ export default function ColaboradorDetailPage() {
     setECargo(colaborador.cargo ?? "");
     setESetorId(colaborador.setorId ?? "");
     setEClassificacaoCusto(colaborador.classificacaoCusto ?? "");
+    setETipoColaborador(colaborador.tipoColaborador ?? "FUNCIONARIO");
     setEMatricula(colaborador.matricula ?? "");
     setEDataAdmissao(colaborador.dataAdmissao ? colaborador.dataAdmissao.slice(0, 10) : "");
     setEDataDemissao(colaborador.dataDemissao ? colaborador.dataDemissao.slice(0, 10) : "");
@@ -202,6 +205,7 @@ export default function ColaboradorDetailPage() {
           telegramChatId: eTelegramChatId.trim() || null,
           cargo:          eCargo.trim()   || null,
           classificacaoCusto: eClassificacaoCusto || null,
+          tipoColaborador: eTipoColaborador,
           matricula:      eMatricula.trim() || null,
           setorId:      eSetorId       || null,
           dataAdmissao: eDataAdmissao || null,
@@ -326,6 +330,16 @@ export default function ColaboradorDetailPage() {
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-4">
+                <Field label="Tipo de vínculo">
+                  <select
+                    value={eTipoColaborador}
+                    onChange={(e) => setETipoColaborador(e.target.value)}
+                    className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm"
+                  >
+                    <option value="FUNCIONARIO">Funcionário — folha de pagamento</option>
+                    <option value="PRESTADOR">Prestador — lançamento de diaristas</option>
+                  </select>
+                </Field>
                 <Field label="Classificação de custo (folha)">
                   <select
                     value={eClassificacaoCusto}
