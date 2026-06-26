@@ -487,14 +487,16 @@ export default function OrdensBoardPage() {
               <>
                 <div className="mt-4 flex flex-col lg:flex-row gap-5">
                 <div className="flex-1 min-w-0">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Número</label>
-                    <div className="h-9 flex items-center px-3 rounded-lg border border-dashed border-border text-sm text-muted-foreground">automático</div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Emissão</label>
-                    <div className="h-9 flex items-center px-3 rounded-lg border border-border bg-muted/40 text-sm tabular-nums">{new Date(`${data}T00:00:00`).toLocaleDateString("pt-BR")}</div>
+                <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-3 items-start">
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Número</label>
+                      <div className="h-9 flex items-center px-3 rounded-lg border border-dashed border-border text-sm text-muted-foreground">automático</div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Emissão</label>
+                      <div className="h-9 flex items-center px-3 rounded-lg border border-border bg-muted/40 text-sm tabular-nums">{new Date(`${data}T00:00:00`).toLocaleDateString("pt-BR")}</div>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Responsável</label>
