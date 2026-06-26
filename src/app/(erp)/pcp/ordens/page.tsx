@@ -7,6 +7,7 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import PageHeader from "@/components/shared/PageHeader";
+import CalendarioProducao from "@/components/pcp/CalendarioProducao";
 import { cn } from "@/lib/utils";
 import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil } from "lucide-react";
 
@@ -32,6 +33,15 @@ const toLocalInput = (iso: string | null) => {
   const d = new Date(iso); if (isNaN(d.getTime())) return "";
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+// <input datetime-local> ("YYYY-MM-DDTHH:mm", sem fuso) → ISO ABSOLUTO (com Z).
+// new Date(local) interpreta na hora do NAVEGADOR (a do usuário); .toISOString()
+// fixa o instante UTC correto — sem isso o servidor (UTC) parseava como UTC e a
+// hora "andava" o offset ao reler.
+const localInputToIso = (v: string): string | null => {
+  if (!v?.trim()) return null;
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d.toISOString();
 };
 
 export default function OrdensBoardPage() {
@@ -198,7 +208,7 @@ export default function OrdensBoardPage() {
             method: "PATCH", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               produtos,
-              dataPrevistaInicio: novo.inicio || null, dataPrevistaFim: novo.fim || null,
+              dataPrevistaInicio: localInputToIso(novo.inicio), dataPrevistaFim: localInputToIso(novo.fim),
               responsavelColaboradorId: novo.responsavelId || null, observacao: novo.observacao || null,
             }),
           })
@@ -206,7 +216,7 @@ export default function OrdensBoardPage() {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               fluxoId, areaNodeId, data, produtos,
-              dataPrevistaInicio: novo.inicio || undefined, dataPrevistaFim: novo.fim || undefined,
+              dataPrevistaInicio: localInputToIso(novo.inicio) ?? undefined, dataPrevistaFim: localInputToIso(novo.fim) ?? undefined,
               responsavelColaboradorId: novo.responsavelId || undefined, observacao: novo.observacao || undefined,
             }),
           });
@@ -303,6 +313,7 @@ export default function OrdensBoardPage() {
           <button onClick={loadOps} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
             <RefreshCw className={cn("w-4 h-4", carregandoOps && "animate-spin")} /> Atualizar
           </button>
+          {fluxoId && <CalendarioProducao fluxoId={fluxoId} value={data} onSelect={setData} />}
         </div>
 
         {/* Abas por área */}
