@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { formatBRL, cn } from "@/lib/utils";
 import { Loader2, Sparkles, Lock, FileText, AlertCircle, Trash2, Plus } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { useTabTitle } from "@/lib/tabs-context";
 
 type Classif = "MOD" | "MOI" | "ADMIN";
 type Item = {
@@ -38,6 +39,9 @@ export default function FolhaDetalhePage() {
   const [erro, setErro] = useState("");
   const [removidos, setRemovidos] = useState<string[]>([]);
   const novoIdRef = useRef(0);
+
+  // Título da aba = "Folha MM/AAAA" (em vez do id cru da rota).
+  useTabTitle(folha ? `Folha ${compLabel(folha.competencia)}` : "Folha");
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/rh/folhas/${id}`);
