@@ -8,16 +8,17 @@ import PrintButton from "@/components/shared/PrintButton";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 
-type ProdutoItem = { itemId: string; quantidadePlanejada: string | number; quantidadeReal: string | number | null; item: { codigo: string; descricao: string }; unidade: { sigla: string } | null };
+type ProdutoItem = { itemId: string; quantidadePlanejada: string | number; quantidadeReal: string | number | null; unidadeId: string | null; item: { codigo: string; descricao: string }; unidade: { sigla: string } | null };
+type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean };
 type Ordem = {
   id: string; numero: string; status: string; createdAt: string;
   dataPrevistaInicio: string | null; dataPrevistaFim: string | null;
   criadoPor: string | null;
   responsavelColaborador: { nome: string } | null;
   item: { codigo: string; descricao: string } | null;
-  fluxoVersao: { fluxo: { nome: string } } | null;
+  fluxoVersao: { fluxo: { id: string; nome: string } } | null;
   produtoItens: ProdutoItem[];
-  etapas: { nome: string; centroTrabalho: string | null; estadoSaida: string | null }[];
+  etapas: { nodeId: string; nome: string; centroTrabalho: string | null; estadoSaida: string | null }[];
   observacao: string | null;
 };
 
@@ -32,11 +33,25 @@ export default function ImprimirOrdemPage() {
   const { user } = useSession();
   const empresaNome = user?.empresas?.find((e) => e.id === user.activeEmpresaId)?.nome ?? "";
   const [ordem, setOrdem] = useState<Ordem | null>(null);
+  const [consumo, setConsumo] = useState<ConsumoLinha[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/pcp/ordens/${id}`).then((r) => r.json()).then((j) => { if (j?.data) setOrdem(j.data); else setErro(j?.error ?? "Erro"); }).catch(() => setErro("Erro ao carregar"));
   }, [id]);
+
+  // Recursos previstos consumidos (mesmo cálculo da abertura/Nova OP).
+  useEffect(() => {
+    if (!ordem) return;
+    const fluxoId = ordem.fluxoVersao?.fluxo?.id;
+    const areaNodeId = ordem.etapas[0]?.nodeId;
+    const produtos = ordem.produtoItens.map((pi) => ({ itemId: pi.itemId, quantidade: Number(pi.quantidadePlanejada), unidadeId: pi.unidadeId }));
+    if (!fluxoId || !areaNodeId || !produtos.length) return;
+    fetch("/api/pcp/ordens/area/consumo-previsto", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fluxoId, areaNodeId, produtos }),
+    }).then((r) => r.json()).then((j) => setConsumo(j.data ?? [])).catch(() => {});
+  }, [ordem]);
 
   if (erro) return <div className="p-8 text-sm text-muted-foreground">{erro}</div>;
   if (!ordem) return <div className="flex items-center justify-center py-20 text-muted-foreground gap-2 text-sm"><RefreshCw className="w-4 h-4 animate-spin" /> Carregando…</div>;
@@ -98,6 +113,30 @@ export default function ImprimirOrdemPage() {
             ))}
           </tbody>
         </table>
+
+        {consumo && consumo.length > 0 && (
+          <>
+            <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Recursos previstos consumidos</p>
+            <table className="w-full text-sm border border-gray-300 mb-5">
+              <thead className="bg-gray-100 text-xs text-gray-600">
+                <tr>
+                  <th className="text-left px-3 py-1.5 font-semibold">Material</th>
+                  <th className="text-right px-3 py-1.5 font-semibold">Consumo previsto</th>
+                  <th className="text-left px-3 py-1.5 font-semibold w-16">Un.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {consumo.map((c, i) => (
+                  <tr key={i} className="border-t border-gray-200">
+                    <td className="px-3 py-1.5">{c.descricao}{!c.gerenciavel && <span className="text-gray-400"> (referência)</span>}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{n(c.consumo)}</td>
+                    <td className="px-3 py-1.5 text-xs text-gray-600">{c.unidade ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
 
         {ordem.observacao && (
           <div className="mb-5"><p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Observação</p><p className="text-sm">{ordem.observacao}</p></div>

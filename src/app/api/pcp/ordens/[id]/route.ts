@@ -19,7 +19,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       fluxoVersao: { select: { versao: true, fluxo: { select: { id: true, nome: true } } } },
       responsavelColaborador: { select: { nome: true } },
       produtoItens: {
-        select: { itemId: true, quantidadePlanejada: true, quantidadeReal: true,
+        select: { itemId: true, quantidadePlanejada: true, quantidadeReal: true, unidadeId: true,
           item: { select: { codigo: true, descricao: true } }, unidade: { select: { sigla: true } } },
       },
       etapas: { orderBy: { sequencia: "asc" } },
