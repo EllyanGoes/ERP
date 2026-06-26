@@ -54,7 +54,6 @@ export default function OrdensBoardPage() {
   const [apBusy, setApBusy] = useState(false);
 
   const area = areas.find((a) => a.nodeId === areaNodeId) ?? null;
-  const minSeq = areas.length ? Math.min(...areas.map((a) => a.sequencia)) : 0;
 
   // 1. Fluxos publicados
   useEffect(() => {
@@ -251,7 +250,7 @@ export default function OrdensBoardPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
               {/* Coluna 1 — ENTRADA (matéria-prima ou PEP da etapa anterior) */}
-              <ColBoard cor="amber" titulo={area.sequencia === minSeq ? "Matéria-prima" : "PEP de entrada"} icon={<Boxes className="w-3.5 h-3.5" />}>
+              <ColBoard cor="amber" titulo={area.fromEstado ? "PEP de entrada" : "Matéria-prima"} icon={<Boxes className="w-3.5 h-3.5" />}>
                 {area.isPrimeira ? (
                   <EstoqueLista linhas={materiais} vazio="Sem materiais na engenharia desta fase." />
                 ) : (
