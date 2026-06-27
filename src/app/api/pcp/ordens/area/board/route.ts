@@ -14,12 +14,15 @@ export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
   const fluxoId = sp.get("fluxoId") ?? "";
   const areaNodeId = sp.get("areaNodeId") ?? "";
+  // Modo dia único (?data=) OU intervalo (?from=&to=, p/ a visão em lista agrupada).
   const data = sp.get("data") ?? new Date().toISOString().slice(0, 10);
+  const from = sp.get("from");
+  const to = sp.get("to");
   if (!fluxoId || !areaNodeId) return NextResponse.json({ error: "fluxoId e areaNodeId são obrigatórios" }, { status: 400 });
 
-  const ini = new Date(`${data}T00:00:00.000Z`);
-  const fim = new Date(`${data}T23:59:59.999Z`);
-  if (isNaN(ini.getTime())) return NextResponse.json({ error: "Data inválida" }, { status: 400 });
+  const ini = new Date(`${from || data}T00:00:00.000Z`);
+  const fim = new Date(`${to || data}T23:59:59.999Z`);
+  if (isNaN(ini.getTime()) || isNaN(fim.getTime())) return NextResponse.json({ error: "Data inválida" }, { status: 400 });
 
   const ordens = await prisma.ordemProducao.findMany({
     where: {
@@ -30,7 +33,7 @@ export async function GET(req: NextRequest) {
     },
     orderBy: { createdAt: "asc" },
     select: {
-      id: true, numero: true, status: true, quantidadePlanejada: true, unidade: true, criadoPor: true,
+      id: true, numero: true, status: true, quantidadePlanejada: true, unidade: true, criadoPor: true, createdAt: true,
       dataPrevistaInicio: true, dataPrevistaFim: true, observacao: true, responsavelColaboradorId: true,
       responsavelColaborador: { select: { nome: true } },
       item: { select: { codigo: true, descricao: true } },
@@ -46,6 +49,7 @@ export async function GET(req: NextRequest) {
     id: o.id,
     numero: o.numero,
     status: o.status,
+    dia: o.createdAt.toISOString().slice(0, 10), // dia (UTC) p/ agrupar na visão em lista
     quantidade: o.quantidadePlanejada,
     unidade: o.unidade,
     produto: o.item?.descricao ?? null,

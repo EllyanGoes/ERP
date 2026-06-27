@@ -9,7 +9,7 @@ import { useSession } from "@/lib/session-context";
 import PageHeader from "@/components/shared/PageHeader";
 import CalendarioProducao from "@/components/pcp/CalendarioProducao";
 import { cn } from "@/lib/utils";
-import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays } from "lucide-react";
+import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List } from "lucide-react";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
@@ -18,7 +18,7 @@ type Produto = { id: string; codigo: string; descricao: string; unidades: Unidad
 type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
 type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null };
 type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null; unidadeId: string | null };
-type BoardOP = { id: string; numero: string; status: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
+type BoardOP = { id: string; numero: string; status: string; dia?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 type SaldoInicial = { estado: string; itemId: string; quantidade: string; custoUnitario: string; data: string };
 type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
 type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
@@ -65,6 +65,10 @@ export default function OrdensBoardPage() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [calAberto]);
   const [ops, setOps] = useState<BoardOP[]>([]);
+  // Visão: board (kanban do dia) × lista (OPs da área agrupadas por dia, no mês).
+  const [vista, setVista] = useState<"board" | "lista">("board");
+  const [opsLista, setOpsLista] = useState<BoardOP[]>([]);
+  const [carregandoLista, setCarregandoLista] = useState(false);
   const [materiais, setMateriais] = useState<EstoqueLinha[] | null>(null);
   const [entradaWip, setEntradaWip] = useState<EstoqueLinha[] | null>(null);
   const [saidaEstoque, setSaidaEstoque] = useState<EstoqueLinha[] | null>(null);
@@ -127,6 +131,22 @@ export default function OrdensBoardPage() {
     } finally { setCarregandoOps(false); }
   }, [fluxoId, areaNodeId, data]);
   useEffect(() => { loadOps(); }, [loadOps]);
+
+  // 3b. Visão em LISTA: OPs da área no MÊS do dia selecionado (agrupadas por dia).
+  const loadLista = useCallback(async () => {
+    if (!fluxoId || !areaNodeId) { setOpsLista([]); return; }
+    const [y, m] = data.split("-").map(Number);
+    const ult = new Date(y, m, 0).getDate();
+    const from = `${y}-${String(m).padStart(2, "0")}-01`;
+    const to = `${y}-${String(m).padStart(2, "0")}-${String(ult).padStart(2, "0")}`;
+    setCarregandoLista(true);
+    try {
+      const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${areaNodeId}&from=${from}&to=${to}`);
+      const j = await r.json();
+      setOpsLista(j.data ?? []);
+    } finally { setCarregandoLista(false); }
+  }, [fluxoId, areaNodeId, data]);
+  useEffect(() => { if (vista === "lista") loadLista(); }, [vista, loadLista]);
 
   // Contagem de OPs por área (abertas/concluídas) no dia — exibida nas abas.
   useEffect(() => {
@@ -233,6 +253,7 @@ export default function OrdensBoardPage() {
       if (!r.ok) throw new Error(j?.error ?? (novo.editId ? "Erro ao salvar OP" : "Erro ao criar OP"));
       setNovo(null);
       await loadOps();
+      if (vista === "lista") await loadLista();
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setCriando(false); }
   }
 
@@ -282,6 +303,7 @@ export default function OrdensBoardPage() {
       if (!r.ok) throw new Error(j?.error ?? "Erro ao apontar");
       setApontar(null);
       await loadOps();
+      if (vista === "lista") await loadLista();
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setApBusy(false); }
   }
 
@@ -329,9 +351,20 @@ export default function OrdensBoardPage() {
               </div>
             )}
           </div>
-          <button onClick={loadOps} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
-            <RefreshCw className={cn("w-4 h-4", carregandoOps && "animate-spin")} /> Atualizar
+          <button onClick={() => { loadOps(); if (vista === "lista") loadLista(); }} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
+            <RefreshCw className={cn("w-4 h-4", (carregandoOps || carregandoLista) && "animate-spin")} /> Atualizar
           </button>
+          {/* Toggle de visão: board (kanban) × lista (por dia) */}
+          <div className="ml-auto flex rounded-lg border border-border p-0.5 text-xs">
+            <button type="button" onClick={() => setVista("board")}
+              className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-md transition-colors", vista === "board" ? "bg-foreground text-background font-medium" : "text-muted-foreground hover:text-foreground")}>
+              <LayoutGrid className="w-3.5 h-3.5" /> Board
+            </button>
+            <button type="button" onClick={() => setVista("lista")}
+              className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-md transition-colors", vista === "lista" ? "bg-foreground text-background font-medium" : "text-muted-foreground hover:text-foreground")}>
+              <List className="w-3.5 h-3.5" /> Lista
+            </button>
+          </div>
         </div>
 
         {/* Abas por área */}
@@ -370,6 +403,17 @@ export default function OrdensBoardPage() {
                     : "Etapa de preparo (sem movimentação de WIP)."}
             </p>
 
+            {vista === "lista" ? (
+              <ListaPorDia
+                ops={opsLista}
+                carregando={carregandoLista}
+                mes={data}
+                onNova={() => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: area.produtos[0]?.unidades[0]?.id ?? "" }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); }}
+                onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
+                onEditar={(o) => abrirEdicao(o)}
+                onApontar={(o) => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perda: "", biomassa: "" }); setErro(null); }}
+              />
+            ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
               {/* Coluna 1 — ENTRADA (matéria-prima ou PEP da etapa anterior) */}
               <ColBoard cor="amber" titulo={area.sequencia === minSeq ? "Matéria-prima" : "PEP de entrada"} icon={<Boxes className="w-3.5 h-3.5" />}
@@ -472,6 +516,7 @@ export default function OrdensBoardPage() {
                 })()}
               </ColBoard>
             </div>
+            )}
           </>
         )}
       </div>
@@ -668,6 +713,81 @@ export default function OrdensBoardPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Visão em LISTA: OPs da área agrupadas por dia (cabeçalho de data + linhas).
+function ListaPorDia({ ops, carregando, mes, onNova, onAbrir, onEditar, onApontar }: {
+  ops: BoardOP[]; carregando: boolean; mes: string;
+  onNova: () => void; onAbrir: (id: string) => void; onEditar: (o: BoardOP) => void; onApontar: (o: BoardOP) => void;
+}) {
+  const fmtDiaTitulo = (dia: string) => {
+    const d = new Date(`${dia}T12:00:00`);
+    return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" });
+  };
+  // Agrupa por dia e ordena (mais recente primeiro).
+  const grupos = (() => {
+    const m = new Map<string, BoardOP[]>();
+    for (const o of ops) { const k = o.dia ?? "—"; (m.get(k) ?? m.set(k, []).get(k)!).push(o); }
+    return Array.from(m.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  })();
+  const mesLabel = (() => { const [y, mm] = mes.split("-").map(Number); return new Date(y, (mm || 1) - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }); })();
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border bg-muted/40">
+        <p className="text-sm font-medium text-foreground capitalize">{mesLabel} · {ops.length} OP{ops.length === 1 ? "" : "s"}</p>
+        <button onClick={onNova} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-700">
+          <Plus className="w-3.5 h-3.5" /> Nova OP
+        </button>
+      </div>
+      {carregando ? (
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5 p-4"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando…</p>
+      ) : ops.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Factory className="w-6 h-6 text-cyan-400 mb-1.5" />
+          <p className="text-xs text-muted-foreground">Nenhuma OP neste mês.</p>
+        </div>
+      ) : grupos.map(([dia, lista]) => (
+        <div key={dia}>
+          <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-1.5 bg-muted/70 border-b border-border text-xs font-semibold text-muted-foreground capitalize">
+            <span>{dia === "—" ? "Sem data" : fmtDiaTitulo(dia)}</span>
+            <span className="text-[10px] font-medium text-muted-foreground/70">{lista.length} OP{lista.length === 1 ? "" : "s"}</span>
+          </div>
+          {lista.map((o) => {
+            const concl = o.etapaStatus === "CONCLUIDA";
+            const qtdTxt = o.produtos.length > 1
+              ? `${o.produtos.length} produtos`
+              : `${Number(o.produtos[0]?.planejada ?? o.quantidade)} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`.trim();
+            return (
+              <div key={o.id} className="flex items-center gap-3 px-4 py-2 border-b border-border/50 hover:bg-muted/40 text-sm">
+                <button onClick={() => onAbrir(o.id)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600 w-24 shrink-0 text-left">{o.numero}</button>
+                <div className="min-w-0 flex-1">
+                  <p className="text-foreground font-medium truncate">{o.produtos.length > 1 ? `${o.produtos.length} produtos` : (o.produto ?? "—")}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {qtdTxt}
+                    {o.responsavel && <> · 👤 {o.responsavel}</>}
+                    {o.fimPrevisto && <> · até {new Date(o.fimPrevisto).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</>}
+                  </p>
+                </div>
+                <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
+                  {concl ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
+                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {!concl && <button onClick={() => onEditar(o)} className="text-muted-foreground hover:text-cyan-600" title="Editar OP"><Pencil className="w-3.5 h-3.5" /></button>}
+                  <Link href={`/pcp/ordens/${o.id}/imprimir`} className="text-muted-foreground hover:text-cyan-600" title="Imprimir OP"><Printer className="w-3.5 h-3.5" /></Link>
+                  {!concl && (
+                    <button onClick={() => onApontar(o)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-700">
+                      <CheckCircle2 className="w-3 h-3" /> Apontar
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
