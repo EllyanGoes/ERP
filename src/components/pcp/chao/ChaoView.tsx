@@ -60,12 +60,15 @@ export default function ChaoView() {
       const un = uns.length === 1 ? ` ${uns[0]}` : "";
       saldoBadge = `${fmtQty(saldo.total)}${un}`;
     }
+    // Aviso: nó de estoque/buffer sem local (ou buffer sem estado de WIP) → não há saldo.
+    const ehEstoque = ESTOQUE_KINDS.has(n.type as NodeKind);
+    const avisoSemLocal = (ehEstoque && !n.data.localEstoqueId) || (n.type === "BUFFER_WIP" && !n.data.estadoWip);
     return {
       id: n.id,
       type: n.type,
       position: n.position,
       draggable: false,
-      data: { ...n.data, saldoBadge },
+      data: { ...n.data, saldoBadge: avisoSemLocal ? undefined : saldoBadge, avisoSemLocal },
     } as Node;
   }), [chao]);
   const rfEdges: Edge[] = useMemo(() => (chao?.fluxo.grafo.edges ?? []).map((e) => ({ id: e.id, source: e.source, target: e.target })), [chao]);
