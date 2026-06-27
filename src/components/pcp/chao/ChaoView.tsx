@@ -56,8 +56,8 @@ export default function ChaoView() {
     // Badge do saldo na fase, com a unidade quando todos os itens compartilham a mesma.
     let saldoBadge: string | undefined;
     if (saldo) {
-      const uns = new Set(saldo.itens.map((i) => i.unidade).filter(Boolean));
-      const un = uns.size === 1 ? ` ${[...uns][0]}` : "";
+      const uns = Array.from(new Set(saldo.itens.map((i) => i.unidade).filter(Boolean)));
+      const un = uns.length === 1 ? ` ${uns[0]}` : "";
       saldoBadge = `${fmtQty(saldo.total)}${un}`;
     }
     return {
