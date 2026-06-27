@@ -25,6 +25,9 @@ export async function POST(req: NextRequest) {
   const estado = typeof body?.estado === "string" ? (body.estado as EstadoWIP) : null;
   const quantidade = Number(body?.quantidade);
   const custoUnitario = Number(body?.custoUnitario);
+  // Data do saldo (opcional). "YYYY-MM-DD" → meio-dia local p/ não deslocar o dia.
+  const dataStr = typeof body?.data === "string" && body.data ? body.data : null;
+  const dataMov = dataStr ? new Date(`${dataStr}T12:00:00`) : null;
   if (!itemId) return NextResponse.json({ error: "Produto é obrigatório" }, { status: 400 });
   if (!estado || !ESTADOS_WIP.includes(estado)) return NextResponse.json({ error: "Estado de WIP inválido (úmido/seco/queimado)" }, { status: 400 });
   if (!Number.isFinite(quantidade) || quantidade <= 0) return NextResponse.json({ error: "Informe uma quantidade > 0" }, { status: 400 });
@@ -54,6 +57,7 @@ export async function POST(req: NextRequest) {
         data: {
           itemId: wipItemId, localEstoqueId: localId, tipo: "ENTRADA", quantidade, saldoAntes, saldoDepois,
           valorUnitario: custoUnitario, documento: "SALDO-INICIAL",
+          data: dataMov && !isNaN(dataMov.getTime()) ? dataMov : null,
           observacoes: `Saldo inicial WIP ${estado} — ${produto.descricao}`, criadoPor,
         },
       });
