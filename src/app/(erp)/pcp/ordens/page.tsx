@@ -25,6 +25,16 @@ type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string 
 type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; suficiente: boolean };
 
 const ESTADO_LABEL: Record<string, string> = { UMIDO: "úmido", SECO: "seco", QUEIMADO: "queimado", ACABADO: "acabado" };
+// Unidade padrão de um produto na OP: no Embalar (saída ACABADO) o padrão é o
+// PALETE (PLT); nas demais etapas, a 1ª unidade (principal). Cai p/ a 1ª se não houver PLT.
+function unidadePadrao(area: Area | null | undefined, prod: Produto | undefined): string {
+  if (!prod) return "";
+  if (area?.estadoSaida === "ACABADO") {
+    const plt = prod.unidades.find((u) => u.sigla.toUpperCase() === "PLT");
+    if (plt) return plt.id;
+  }
+  return prod.unidades[0]?.id ?? "";
+}
 const ETAPA_STATUS: Record<string, string> = { PENDENTE: "bg-muted text-muted-foreground", EM_EXECUCAO: "bg-warning/15 text-warning", CONCLUIDA: "bg-success/15 text-success" };
 const hoje = () => new Date().toISOString().slice(0, 10);
 // ISO → valor de <input type="datetime-local"> em hora local ("YYYY-MM-DDTHH:mm").
@@ -263,7 +273,7 @@ export default function OrdensBoardPage() {
       editId: o.id, editNumero: o.numero,
       linhas: o.produtos.length
         ? o.produtos.map((p) => ({ itemId: p.itemId, quantidade: String(Number(p.planejada) || ""), unidadeId: p.unidadeId ?? "" }))
-        : [{ itemId: area?.produtos[0]?.id ?? "", quantidade: "", unidadeId: area?.produtos[0]?.unidades[0]?.id ?? "" }],
+        : [{ itemId: area?.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area?.produtos[0]) }],
       inicio: toLocalInput(o.inicioPrevisto), fim: toLocalInput(o.fimPrevisto),
       responsavelId: o.responsavelColaboradorId ?? "", observacao: o.observacao ?? "",
       editCriadoPor: o.criadoPor, editResponsavelNome: o.responsavel,
@@ -408,7 +418,7 @@ export default function OrdensBoardPage() {
                 ops={opsLista}
                 carregando={carregandoLista}
                 mes={data}
-                onNova={() => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: area.produtos[0]?.unidades[0]?.id ?? "" }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); }}
+                onNova={() => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area.produtos[0]) }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); }}
                 onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
                 onEditar={(o) => abrirEdicao(o)}
                 onApontar={(o) => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perda: "", biomassa: "" }); setErro(null); }}
@@ -436,7 +446,7 @@ export default function OrdensBoardPage() {
               {/* Coluna 2 — ORDENS DE PRODUÇÃO */}
               <ColBoard cor="cyan" titulo="Ordens de Produção" icon={<Factory className="w-3.5 h-3.5" />}
                 acao={
-                  <button onClick={() => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: area.produtos[0]?.unidades[0]?.id ?? "" }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); }}
+                  <button onClick={() => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area.produtos[0]) }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); }}
                     className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-700">
                     <Plus className="w-3.5 h-3.5" /> Nova OP
                   </button>
@@ -585,7 +595,7 @@ export default function OrdensBoardPage() {
                 <div className="mt-4">
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-medium text-muted-foreground">Produtos *</label>
-                    <button onClick={() => setNovo({ ...novo, linhas: [...novo.linhas, { itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: area.produtos[0]?.unidades[0]?.id ?? "" }] })}
+                    <button onClick={() => setNovo({ ...novo, linhas: [...novo.linhas, { itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area.produtos[0]) }] })}
                       className="inline-flex items-center gap-1 text-xs text-cyan-600 hover:text-cyan-700"><Plus className="w-3.5 h-3.5" /> Adicionar produto</button>
                   </div>
                   <div className="space-y-2">
@@ -593,7 +603,7 @@ export default function OrdensBoardPage() {
                       const prod = area.produtos.find((p) => p.id === l.itemId);
                       return (
                         <div key={i} className="grid grid-cols-[1fr_5rem_4.5rem_1.75rem] gap-2 items-center">
-                          <ComboboxWithCreate value={l.itemId} onChange={(v) => { const un = area.produtos.find((p) => p.id === v)?.unidades[0]?.id ?? ""; setNovo({ ...novo, linhas: novo.linhas.map((x, j) => j === i ? { ...x, itemId: v, unidadeId: un } : x) }); }} allowNone={false} triggerClassName="h-9 rounded-lg"
+                          <ComboboxWithCreate value={l.itemId} onChange={(v) => { const un = unidadePadrao(area, area.produtos.find((p) => p.id === v)); setNovo({ ...novo, linhas: novo.linhas.map((x, j) => j === i ? { ...x, itemId: v, unidadeId: un } : x) }); }} allowNone={false} triggerClassName="h-9 rounded-lg"
                             options={area.produtos.map((p) => ({ value: p.id, label: `${p.codigo} · ${p.descricao}` }))} />
                           <input inputMode="decimal" value={l.quantidade} onChange={(e) => setNovo({ ...novo, linhas: novo.linhas.map((x, j) => j === i ? { ...x, quantidade: e.target.value } : x) })} placeholder="qtd" className="h-9 rounded-lg border border-border px-2 text-sm text-right tabular-nums bg-card" />
                           <select value={l.unidadeId} onChange={(e) => setNovo({ ...novo, linhas: novo.linhas.map((x, j) => j === i ? { ...x, unidadeId: e.target.value } : x) })} className="h-9 rounded-lg border border-border px-1.5 text-sm bg-card">
