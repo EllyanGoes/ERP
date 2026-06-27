@@ -5,6 +5,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { snapshotEtapas } from "@/lib/pcp/snapshot-etapas";
 import type { FlowGraph } from "@/lib/pcp/types";
+import { LOCAL_EMBALAGEM_PRODUCAO_NOME } from "@/lib/pcp/wip-estoque";
 
 // GET /api/pcp/ordens/area/materiais?fluxoId=&areaNodeId=
 // Materiais necessários na área, derivados da ENGENHARIA (BOM) dos produtos do fluxo:
@@ -37,12 +38,12 @@ export async function GET(req: NextRequest) {
     where: produtoSaidaId ? { itemId: produtoSaidaId } : { fluxoId, ativo: true, item: { vendavel: true } },
     include: {
       insumos: {
-        include: { insumoItem: { select: { id: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } } },
+        include: { insumoItem: { select: { id: true, descricao: true, unidadeMedida: true, categoriaEstoque: true, unidade: { select: { sigla: true } } } } },
       },
     },
   });
 
-  type Mat = { itemId: string; descricao: string; unidade: string | null; consumoMin: number; consumoMax: number };
+  type Mat = { itemId: string; descricao: string; unidade: string | null; embalagem: boolean; consumoMin: number; consumoMax: number };
   const byItem = new Map<string, Mat>();
   for (const e of engs) {
     for (const ins of e.insumos) {
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
       const q = Number(ins.quantidade) * (ins.base === "POR_UNIDADE" ? 1000 : 1); // por milheiro
       const cur = byItem.get(ins.insumoItemId);
       if (cur) { cur.consumoMin = Math.min(cur.consumoMin, q); cur.consumoMax = Math.max(cur.consumoMax, q); }
-      else byItem.set(ins.insumoItemId, { itemId: ins.insumoItemId, descricao: ins.insumoItem.descricao, unidade: ins.insumoItem.unidade?.sigla ?? ins.insumoItem.unidadeMedida ?? null, consumoMin: q, consumoMax: q });
+      else byItem.set(ins.insumoItemId, { itemId: ins.insumoItemId, descricao: ins.insumoItem.descricao, unidade: ins.insumoItem.unidade?.sigla ?? ins.insumoItem.unidadeMedida ?? null, embalagem: ins.insumoItem.categoriaEstoque === "EMBALAGEM", consumoMin: q, consumoMax: q });
     }
   }
   const ids = Array.from(byItem.keys());
@@ -69,20 +70,29 @@ export async function GET(req: NextRequest) {
     : [];
   const nomeLocal = new Map(locais.map((l) => [l.id, l.nome]));
 
+  // Local de embalagem da PRODUÇÃO: mesmo zerado, aparece nas linhas de embalagem
+  // (é de lá que a OP de Embalar consome) p/ a produção ver o que foi liberado.
+  const localEmbProd = await prisma.localEstoque.findFirst({ where: { nome: LOCAL_EMBALAGEM_PRODUCAO_NOME }, select: { id: true, nome: true } });
+
   const r3 = (n: number) => Math.round(n * 1000) / 1000;
   const data = ids.map((id) => {
     const m = byItem.get(id)!;
-    const porLocal = estoques
-      .filter((e) => e.itemId === id)
-      .map((e) => ({ localNome: e.localEstoqueId ? (nomeLocal.get(e.localEstoqueId) ?? "—") : "Sem local", saldo: r3(Number(e._sum.quantidadeAtual ?? 0)) }))
+    const todas = estoques.filter((e) => e.itemId === id);
+    const porLocal = todas
+      .map((e) => ({ localEstoqueId: e.localEstoqueId, localNome: e.localEstoqueId ? (nomeLocal.get(e.localEstoqueId) ?? "—") : "Sem local", saldo: r3(Number(e._sum.quantidadeAtual ?? 0)) }))
       .filter((l) => Math.abs(l.saldo) > 0.0005)
       .sort((a, b) => b.saldo - a.saldo);
+    // Garante a linha do estoque de produção p/ embalagem (mesmo 0), se ainda não está.
+    if (m.embalagem && localEmbProd && !porLocal.some((l) => l.localEstoqueId === localEmbProd.id)) {
+      const saldoProd = r3(Number(todas.find((e) => e.localEstoqueId === localEmbProd.id)?._sum.quantidadeAtual ?? 0));
+      porLocal.push({ localEstoqueId: localEmbProd.id, localNome: localEmbProd.nome, saldo: saldoProd });
+    }
     return {
       itemId: id,
       descricao: m.descricao,
       unidade: m.unidade,
       saldoTotal: r3(porLocal.reduce((s, l) => s + l.saldo, 0)),
-      locais: porLocal,
+      locais: porLocal.map(({ localNome, saldo }) => ({ localNome, saldo })),
       consumoPorMilheiro: m.consumoMin === m.consumoMax ? r3(m.consumoMin) : null,
     };
   });
