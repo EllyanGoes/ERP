@@ -336,6 +336,11 @@ export default function OrdensBoardPage() {
       qtdPerda: apForm.perdas[p.itemId] || undefined, // perda por produto (peças)
     }));
     if (!itens.some((i) => Number(i.quantidadeReal) > 0)) { setErro("Informe a quantidade produzida"); return; }
+    // Perda é obrigatória: cada produto precisa ter a perda informada (0 é válido; vazio não).
+    if (apontar.produtos.some((p) => !String(apForm.perdas[p.itemId] ?? "").trim())) {
+      setErro('Calcular a perda é obrigatório — informe a perda de cada produto (use "Calcular perda" ou digite 0).');
+      return;
+    }
     setApBusy(true); setErro(null);
     try {
       const r = await fetch(`/api/pcp/ordens/${apontar.id}/concluir-area`, {
@@ -737,14 +742,14 @@ export default function OrdensBoardPage() {
       {/* Modal apontar */}
       {apontar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setApontar(null)}>
-          <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-4xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Apontar {apontar.numero}</h2>
             <p className="text-xs text-muted-foreground mt-1">Área {area?.centroTrabalho ?? area?.nome}. Informe a quantidade <b>real</b> produzida por produto (padrão = planejado).</p>
             <div className="mt-4 flex flex-col lg:flex-row gap-4">
             <div className="flex-1 min-w-0 space-y-3">
               <div className="rounded-lg border border-border overflow-hidden">
                 <div className="grid grid-cols-[1fr_3.5rem_4rem_4.75rem] gap-2 px-3 py-1.5 bg-muted text-[11px] font-semibold text-muted-foreground uppercase">
-                  <span>Produto</span><span className="text-right">Plan.</span><span className="text-right">Real</span><span className="text-right">Perda</span>
+                  <span>Produto</span><span className="text-right">Plan.</span><span className="text-right">Real</span><span className="text-right">Perda *</span>
                 </div>
                 {apontar.produtos.map((pr) => {
                   const perdaPc = Number(apForm.perdas[pr.itemId] || 0);
@@ -779,11 +784,18 @@ export default function OrdensBoardPage() {
               <ConsumoEstoque consumo={consumoAp} carregando={carregandoConsumoAp} />
             </div>
             </div>
-            <div className="mt-5 flex items-center justify-end gap-2">
+            <div className="mt-5 flex items-center justify-between gap-2">
+              {apontar.produtos.some((p) => !String(apForm.perdas[p.itemId] ?? "").trim())
+                ? <span className="text-xs text-amber-600 dark:text-amber-400">Calcular a perda é obrigatório (use &quot;Calcular perda&quot; ou digite 0).</span>
+                : <span />}
+              <div className="flex items-center gap-2">
               <button onClick={() => setApontar(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
-              <button onClick={concluir} disabled={apBusy} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+              <button onClick={concluir} disabled={apBusy || apontar.produtos.some((p) => !String(apForm.perdas[p.itemId] ?? "").trim())}
+                title={apontar.produtos.some((p) => !String(apForm.perdas[p.itemId] ?? "").trim()) ? "Calcular a perda é obrigatório (use \"Calcular perda\" ou digite 0)" : undefined}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed">
                 {apBusy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Apontar
               </button>
+              </div>
             </div>
           </div>
         </div>
