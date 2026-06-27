@@ -204,8 +204,9 @@ export default function ProdutoDetailPage() {
   const [showMovDialog, setShowMovDialog] = useState(false);
   const [locaisEstoque, setLocaisEstoque] = useState<{ id: string; nome: string; filial: { id: string; razaoSocial: string } | null }[]>([]);
   const [movForm, setMovForm] = useState({
-    tipo: "ENTRADA" as "ENTRADA" | "SAIDA",
+    tipo: "ENTRADA" as "ENTRADA" | "SAIDA" | "TRANSFERENCIA",
     localEstoqueId: "",
+    localDestinoId: "", // só TRANSFERENCIA (destino)
     unidadeId: "",
     quantidade: "",
     valorUnitario: "",
@@ -656,7 +657,7 @@ export default function ProdutoDetailPage() {
     const principal = itemUnidades.find((iu) => iu.isPrincipal);
     const defaultUnidadeId = principal?.unidade.id ?? item?.unidade?.id ?? "";
     const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    setMovForm({ tipo: "ENTRADA", localEstoqueId: "", unidadeId: defaultUnidadeId, quantidade: "", valorUnitario: "", documento: "", observacoes: "", dataMovimentacao: nowLocal });
+    setMovForm({ tipo: "ENTRADA", localEstoqueId: "", localDestinoId: "", unidadeId: defaultUnidadeId, quantidade: "", valorUnitario: "", documento: "", observacoes: "", dataMovimentacao: nowLocal });
     setMovError("");
     setShowMovDialog(true);
     if (locaisEstoque.length === 0) {
@@ -668,7 +669,11 @@ export default function ProdutoDetailPage() {
   }
 
   async function submitMov() {
-    if (!movForm.localEstoqueId) { setMovError("Selecione o local de estoque"); return; }
+    if (!movForm.localEstoqueId) { setMovError(movForm.tipo === "TRANSFERENCIA" ? "Selecione o local de origem" : "Selecione o local de estoque"); return; }
+    if (movForm.tipo === "TRANSFERENCIA") {
+      if (!movForm.localDestinoId) { setMovError("Selecione o local de destino"); return; }
+      if (movForm.localDestinoId === movForm.localEstoqueId) { setMovError("Origem e destino não podem ser o mesmo local"); return; }
+    }
     if (!movForm.quantidade || parseFloat(movForm.quantidade) <= 0) { setMovError("Informe a quantidade"); return; }
     setMovSaving(true); setMovError("");
 
@@ -699,6 +704,7 @@ export default function ProdutoDetailPage() {
           itens: [{
             itemId: id,
             localEstoqueId: movForm.localEstoqueId,
+            localDestinoId: movForm.tipo === "TRANSFERENCIA" ? movForm.localDestinoId : undefined,
             unidadeId: unidadeIdFinal,
             quantidade: qtdConvertida,
             valorUnitario: movForm.tipo === "ENTRADA" && movForm.valorUnitario
@@ -3543,31 +3549,33 @@ export default function ProdutoDetailPage() {
             </div>
 
             {/* Tipo toggle */}
-            <div className="grid grid-cols-2 gap-2">
-              {(["ENTRADA", "SAIDA"] as const).map((t) => (
+            <div className="grid grid-cols-3 gap-2">
+              {(["ENTRADA", "SAIDA", "TRANSFERENCIA"] as const).map((t) => (
                 <button
                   key={t} type="button"
-                  onClick={() => setMovForm((p) => ({ ...p, tipo: t, localEstoqueId: "" }))}
+                  onClick={() => setMovForm((p) => ({ ...p, tipo: t, localEstoqueId: "", localDestinoId: "" }))}
                   className={cn(
                     "flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 text-sm font-medium transition-colors",
                     movForm.tipo === t
                       ? t === "ENTRADA"
                         ? "border-emerald-500 bg-success/10 text-success"
-                        : "border-red-500 bg-danger/10 text-danger"
+                        : t === "SAIDA"
+                          ? "border-red-500 bg-danger/10 text-danger"
+                          : "border-cyan-500 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400"
                       : "border-border text-muted-foreground hover:border-border"
                   )}
                 >
-                  {t === "ENTRADA" ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                  {t === "ENTRADA" ? "Entrada" : "Saída"}
+                  {t === "ENTRADA" ? <TrendingUp className="w-4 h-4" /> : t === "SAIDA" ? <TrendingDown className="w-4 h-4" /> : <ArrowUpDown className="w-4 h-4" />}
+                  {t === "ENTRADA" ? "Entrada" : t === "SAIDA" ? "Saída" : "Transfer."}
                 </button>
               ))}
             </div>
 
             <div className="space-y-3">
-              {/* Local de Estoque */}
+              {/* Local de Estoque (origem na SAÍDA e na TRANSFERÊNCIA: só locais com saldo) */}
               {(() => {
-                // For SAIDA, only show locations where the product has stock > 0
-                const locaisComSaldo = movForm.tipo === "SAIDA"
+                const ehSaida = movForm.tipo === "SAIDA" || movForm.tipo === "TRANSFERENCIA";
+                const locaisComSaldo = ehSaida
                   ? item.estoqueItems
                       .filter((e) => decimalToNumber(e.quantidadeAtual) > 0 && e.localEstoque)
                       .map((e) => ({
@@ -3578,8 +3586,8 @@ export default function ProdutoDetailPage() {
 
                 return (
                   <div className="space-y-1.5">
-                    <Label>Local de Estoque *</Label>
-                    {movForm.tipo === "SAIDA" && locaisComSaldo.length === 0 ? (
+                    <Label>{movForm.tipo === "TRANSFERENCIA" ? "Local de origem *" : "Local de Estoque *"}</Label>
+                    {ehSaida && locaisComSaldo.length === 0 ? (
                       <div className="flex items-center gap-2 text-sm text-warning bg-warning/10 border border-warning/30 rounded-lg px-3 py-2.5">
                         <AlertTriangle className="w-4 h-4 shrink-0" />
                         Nenhum local com saldo disponível para este produto.
@@ -3591,7 +3599,7 @@ export default function ProdutoDetailPage() {
                         value={movForm.localEstoqueId}
                         onChange={(v) => setMovForm((p) => ({ ...p, localEstoqueId: v }))}
                         allowNone={false}
-                        placeholder={movForm.tipo === "SAIDA" ? "Selecionar local com saldo..." : "Selecionar local..."}
+                        placeholder={ehSaida ? "Selecionar local com saldo..." : "Selecionar local..."}
                         {...(movForm.tipo === "ENTRADA" ? {
                           createHref: "/suprimentos/locais-estoque/novo",
                           createParam: "nome",
@@ -3603,6 +3611,25 @@ export default function ProdutoDetailPage() {
                   </div>
                 );
               })()}
+
+              {/* Local de DESTINO (só TRANSFERÊNCIA) */}
+              {movForm.tipo === "TRANSFERENCIA" && (
+                <div className="space-y-1.5">
+                  <Label>Local de destino *</Label>
+                  <ComboboxWithCreate
+                    key="local-destino"
+                    options={locaisEstoque.filter((l) => l.id !== movForm.localEstoqueId).map((l) => ({ value: l.id, label: l.nome }))}
+                    value={movForm.localDestinoId}
+                    onChange={(v) => setMovForm((p) => ({ ...p, localDestinoId: v }))}
+                    allowNone={false}
+                    placeholder="Selecionar destino..."
+                    createHref="/suprimentos/locais-estoque/novo"
+                    createParam="nome"
+                    createLabel="local de estoque"
+                    renderCreateModal={(args: Parameters<NonNullable<React.ComponentProps<typeof ComboboxWithCreate>["renderCreateModal"]>>[0]) => <LocalEstoqueQuickCreate {...args} />}
+                  />
+                </div>
+              )}
 
               {/* Unidade + Quantidade */}
               {(() => {
@@ -3750,10 +3777,10 @@ export default function ProdutoDetailPage() {
                 size="sm"
                 onClick={submitMov}
                 disabled={movSaving}
-                className={movForm.tipo === "SAIDA" ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"}
+                className={movForm.tipo === "SAIDA" ? "bg-red-600 hover:bg-red-700" : movForm.tipo === "TRANSFERENCIA" ? "bg-cyan-600 hover:bg-cyan-700" : "bg-emerald-600 hover:bg-emerald-700"}
               >
                 {movSaving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
-                Registrar {movForm.tipo === "ENTRADA" ? "Entrada" : "Saída"}
+                {movForm.tipo === "ENTRADA" ? "Registrar Entrada" : movForm.tipo === "SAIDA" ? "Registrar Saída" : "Transferir"}
               </Button>
             </div>
           </div>

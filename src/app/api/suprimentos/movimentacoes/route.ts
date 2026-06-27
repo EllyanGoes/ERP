@@ -14,6 +14,8 @@ import { recalcularSaldos } from "@/lib/estoque-saldos";
 const itemSchema = z.object({
   itemId:         z.string().min(1),
   localEstoqueId: z.string().min(1),
+  // Local de DESTINO (só TRANSFERENCIA): a perna de ENTRADA. Origem = localEstoqueId.
+  localDestinoId: z.string().optional().nullable(),
   unidadeId:      z.string().optional().nullable(),
   quantidade:     z.coerce.number().min(0.001),
   valorUnitario:  z.coerce.number().min(0).optional(),
@@ -22,7 +24,7 @@ const itemSchema = z.object({
 });
 
 const postSchema = z.object({
-  tipo:             z.enum(["ENTRADA", "SAIDA"]),
+  tipo:             z.enum(["ENTRADA", "SAIDA", "TRANSFERENCIA"]),
   documento:        z.string().optional(),
   observacoes:      z.string().optional(),
   fornecedorId:     z.string().optional().nullable(),
@@ -63,10 +65,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── Transferência: exige destino diferente da origem (estoque próprio só) ────
+  if (tipo === "TRANSFERENCIA") {
+    if (clienteDonoId) return NextResponse.json({ error: "Transferência só de estoque próprio" }, { status: 400 });
+    for (const it of itens) {
+      if (!it.localDestinoId) return NextResponse.json({ error: "Transferência exige o local de destino" }, { status: 400 });
+      if (it.localDestinoId === it.localEstoqueId) return NextResponse.json({ error: "Origem e destino não podem ser o mesmo local" }, { status: 400 });
+    }
+  }
+
   // ── Trava de saldo negativo (hard block) ───────────────────────────────────
-  // Em SAÍDA, nenhuma movimentação pode deixar o saldo negativo. Não há mais
-  // confirmação para "registrar mesmo assim": corrigir saldo é via inventário.
-  if (tipo === "SAIDA") {
+  // Em SAÍDA (e na perna de saída da TRANSFERÊNCIA), nenhuma movimentação pode
+  // deixar o saldo negativo. Corrigir saldo é via inventário.
+  if (tipo === "SAIDA" || tipo === "TRANSFERENCIA") {
     // soma as quantidades por (item + local) — o mesmo item pode repetir em linhas
     const porChave = new Map<string, { itemId: string; localEstoqueId: string; qtd: number }>();
     for (const it of itens) {
@@ -107,6 +118,18 @@ export async function POST(req: NextRequest) {
       throw e;
     }
   }
+  // Transferência: a perna de ENTRADA é no destino → valida a categoria do destino.
+  if (tipo === "TRANSFERENCIA") {
+    try {
+      await assertItensPermitidosNosLocais(
+        prisma,
+        itens.map((i) => ({ itemId: i.itemId, localEstoqueId: i.localDestinoId! })),
+      );
+    } catch (e) {
+      if (e instanceof CategoriaLocalInvalidaError) return respostaCategoriaInvalida(e);
+      throw e;
+    }
+  }
 
   try {
     const lote = await prisma.$transaction(async (tx) => {
@@ -130,9 +153,18 @@ export async function POST(req: NextRequest) {
       // (item, local) afetados — p/ recalcular a cadeia de saldos se for retroativo.
       const afetados = new Map<string, { itemId: string; localEstoqueId: string }>();
 
-      // Process each item
-      for (const item of itens) {
-        const { itemId, localEstoqueId, unidadeId, quantidade, valorUnitario, observacoes: obsItem, localizacao } = item;
+      // Pernas a movimentar: ENTRADA/SAIDA = 1 perna por item; TRANSFERENCIA = 2
+      // (SAÍDA na origem + ENTRADA no destino), sem custo/CMPM (é realocação).
+      const legs = tipo === "TRANSFERENCIA"
+        ? itens.flatMap((it) => [
+            { ...it, legTipo: "SAIDA" as const, valorUnitario: undefined },
+            { ...it, localEstoqueId: it.localDestinoId as string, legTipo: "ENTRADA" as const, valorUnitario: undefined },
+          ])
+        : itens.map((it) => ({ ...it, legTipo: tipo as "ENTRADA" | "SAIDA" }));
+
+      // Process each leg
+      for (const item of legs) {
+        const { itemId, localEstoqueId, unidadeId, quantidade, valorUnitario, observacoes: obsItem, localizacao, legTipo } = item;
 
         // Find or create EstoqueItem for this location
         let estoque = await tx.estoqueItem.findFirst({
@@ -153,7 +185,7 @@ export async function POST(req: NextRequest) {
 
         // increment/decrement atômico: movimentações concorrentes do mesmo item
         // não perdem atualização; os saldos da linha derivam do valor pós-update.
-        const delta      = tipo === "SAIDA" ? -quantidade : quantidade;
+        const delta      = legTipo === "SAIDA" ? -quantidade : quantidade;
         const atualizado = await tx.estoqueItem.update({
           where: { id: estoque.id },
           data:  { quantidadeAtual: { increment: delta } },
@@ -164,7 +196,7 @@ export async function POST(req: NextRequest) {
         // ── Custo Médio Ponderado Móvel (CMPM) ───────────────────────────────
         // On ENTRADA with a unit price, recalculate and persist precoCusto on Item.
         // Formula: new_cmp = (stock_before × old_cmp + qty × unit_price) / (stock_before + qty)
-        if (tipo === "ENTRADA" && !clienteDonoId && valorUnitario && valorUnitario > 0) {
+        if (legTipo === "ENTRADA" && !clienteDonoId && valorUnitario && valorUnitario > 0) {
           const currentItem = await tx.item.findUnique({
             where: { id: itemId },
             select: { precoCusto: true, categoriaEstoque: true },
@@ -207,7 +239,7 @@ export async function POST(req: NextRequest) {
             clienteDonoId,
             unidadeId:    unidadeId ?? null,
             loteId:       lote.id,
-            tipo,
+            tipo:         legTipo,
             quantidade,
             valorUnitario: valorUnitario ?? null,
             saldoAntes,
