@@ -9,7 +9,7 @@ import { useSession } from "@/lib/session-context";
 import PageHeader from "@/components/shared/PageHeader";
 import CalendarioProducao from "@/components/pcp/CalendarioProducao";
 import { cn } from "@/lib/utils";
-import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List, Trash2, Calculator } from "lucide-react";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
@@ -17,12 +17,15 @@ type Unidade = { id: string; sigla: string };
 type Produto = { id: string; codigo: string; descricao: string; unidades: Unidade[] };
 type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
 type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null };
-type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null; unidadeId: string | null };
+type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null; unidadeId: string | null; pecasPorUnidade?: number };
 type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 type SaldoInicial = { estado: string; itemId: string; quantidade: string; data: string };
 type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
 type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
 type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; suficiente: boolean };
+// Linha da calculadora de perda: nº de vagões/vagonetas e a carga (peças) por produto
+// daquele tipo de vagão. Cheio = 1 produto; meiado = 2+ produtos.
+type CargaVagaoRow = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: string; cargas: { itemId: string; pecas: string }[] };
 
 const ESTADO_LABEL: Record<string, string> = { UMIDO: "úmido", SECO: "seco", QUEIMADO: "queimado", ACABADO: "acabado" };
 // Unidade padrão de um produto na OP: no Embalar (saída ACABADO) o padrão é o
@@ -101,7 +104,11 @@ export default function OrdensBoardPage() {
 
   // Apontar
   const [apontar, setApontar] = useState<BoardOP | null>(null);
-  const [apForm, setApForm] = useState<{ reais: Record<string, string>; perda: string; biomassa: string }>({ reais: {}, perda: "", biomassa: "" });
+  const [apForm, setApForm] = useState<{ reais: Record<string, string>; perdas: Record<string, string>; perda: string; biomassa: string }>({ reais: {}, perdas: {}, perda: "", biomassa: "" });
+  // Calculadora de perda (Embalar): linhas de vagão descarregado → descarregado por produto.
+  const [calcPerda, setCalcPerda] = useState<{ rows: CargaVagaoRow[] } | null>(null);
+  // Capacidades cadastradas (peças/veículo por produto), de cargas-movimentação.
+  const [capacidades, setCapacidades] = useState<Record<string, { VAGONETA?: number; VAGAO?: number }>>({});
   const [apBusy, setApBusy] = useState(false);
   const [consumoAp, setConsumoAp] = useState<ConsumoLinha[] | null>(null);
   const [carregandoConsumoAp, setCarregandoConsumoAp] = useState(false);
@@ -242,6 +249,17 @@ export default function OrdensBoardPage() {
     return () => { clearTimeout(t); ctrl.abort(); };
   }, [apontar, apForm.reais, fluxoId, areaNodeId]);
 
+  // Capacidades cadastradas (peças/veículo por produto) p/ a calculadora de perda.
+  useEffect(() => {
+    fetch("/api/pcp/cargas-movimentacao").then((r) => r.json()).then((j) => {
+      const map: Record<string, { VAGONETA?: number; VAGAO?: number }> = {};
+      for (const p of (j?.produtos ?? []) as { itemId: string; capacidades?: { VAGONETA?: number; VAGAO?: number } }[]) {
+        if (p.itemId) map[p.itemId] = p.capacidades ?? {};
+      }
+      setCapacidades(map);
+    }).catch(() => {});
+  }, []);
+
   async function criarOp() {
     if (!novo) return;
     const linhas = novo.linhas.filter((l) => l.itemId && Number(l.quantidade) > 0);
@@ -308,12 +326,18 @@ export default function OrdensBoardPage() {
 
   async function concluir() {
     if (!apontar) return;
-    const itens = apontar.produtos.map((p) => ({ itemId: p.itemId, quantidadeReal: apForm.reais[p.itemId] ?? String(p.planejada) }));
+    const itens = apontar.produtos.map((p) => ({
+      itemId: p.itemId,
+      quantidadeReal: apForm.reais[p.itemId] ?? String(p.planejada),
+      qtdPerda: apForm.perdas[p.itemId] || undefined, // perda por produto (peças)
+    }));
     if (!itens.some((i) => Number(i.quantidadeReal) > 0)) { setErro("Informe a quantidade produzida"); return; }
     setApBusy(true); setErro(null);
     try {
       const r = await fetch(`/api/pcp/ordens/${apontar.id}/concluir-area`, {
         method: "POST", headers: { "Content-Type": "application/json" },
+        // qtdPerda (etapa) fica a cargo do servidor (soma das perdas por produto); mantém
+        // apForm.perda como fallback p/ etapas sem calculadora (1 produto).
         body: JSON.stringify({ itens, qtdPerda: apForm.perda || undefined, biomassaKg: apForm.biomassa || undefined }),
       });
       const j = await r.json();
@@ -323,6 +347,48 @@ export default function OrdensBoardPage() {
       loadEstoque(); // saldo dos cards (matéria-prima/PEP/saída) muda na hora
       if (vista === "lista") await loadLista();
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setApBusy(false); }
+  }
+
+  // ── Calculadora de perda (Embalar) ───────────────────────────────────────────
+  // Peças apontadas de um produto = real (na unidade) × peças por unidade (PLT→peças).
+  function apontadoPecas(p: ProdutoOP): number {
+    const real = Number(apForm.reais[p.itemId] ?? p.planejada) || 0;
+    return real * (p.pecasPorUnidade ?? 1);
+  }
+  // Descarregado (peças) por produto, somando as linhas de vagão (nº × peças/vagão).
+  function descarregadoPorProduto(rows: CargaVagaoRow[]): Record<string, number> {
+    const acc: Record<string, number> = {};
+    for (const row of rows) {
+      const n = Number(row.nVagoes) || 0;
+      for (const c of row.cargas) {
+        const pc = Number(c.pecas) || 0;
+        if (c.itemId && n > 0 && pc > 0) acc[c.itemId] = (acc[c.itemId] ?? 0) + n * pc;
+      }
+    }
+    return acc;
+  }
+  // Abre a calculadora: 1 linha "cheia" por produto da OP, capacidade do cadastro.
+  function abrirCalcPerda() {
+    if (!apontar) return;
+    const rows: CargaVagaoRow[] = apontar.produtos.map((p) => ({
+      veiculo: "VAGAO", nVagoes: "",
+      cargas: [{ itemId: p.itemId, pecas: String(capacidades[p.itemId]?.VAGAO ?? "") }],
+    }));
+    setCalcPerda({ rows: rows.length ? rows : [{ veiculo: "VAGAO", nVagoes: "", cargas: [{ itemId: "", pecas: "" }] }] });
+  }
+  // Grava a perda por produto (descarregado − apontado, nunca < 0) e fecha.
+  function aplicarCalcPerda() {
+    if (!calcPerda || !apontar) return;
+    const desc = descarregadoPorProduto(calcPerda.rows);
+    const perdas: Record<string, string> = { ...apForm.perdas };
+    for (const p of apontar.produtos) {
+      const d = desc[p.itemId];
+      if (d == null) continue;
+      const perda = Math.max(0, Math.round((d - apontadoPecas(p)) * 1000) / 1000);
+      perdas[p.itemId] = String(perda);
+    }
+    setApForm((f) => ({ ...f, perdas }));
+    setCalcPerda(null);
   }
 
   async function excluirOP(o: BoardOP) {
@@ -444,7 +510,7 @@ export default function OrdensBoardPage() {
                 onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
                 onEditar={(o) => abrirEdicao(o)}
                 onExcluir={(o) => excluirOP(o)}
-                onApontar={(o) => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perda: "", biomassa: "" }); setErro(null); }}
+                onApontar={(o) => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perdas: {}, perda: "", biomassa: "" }); setErro(null); }}
               />
             ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
@@ -516,7 +582,7 @@ export default function OrdensBoardPage() {
                         )}
                         {o.criadoPor && <p className="text-[10px] text-muted-foreground/70 truncate">Programado: {o.criadoPor}</p>}
                         {!concl && (
-                          <button onClick={() => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perda: "", biomassa: "" }); setErro(null); }}
+                          <button onClick={() => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perdas: {}, perda: "", biomassa: "" }); setErro(null); }}
                             className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
                             <CheckCircle2 className="w-3.5 h-3.5" /> Apontar / Concluir
                           </button>
@@ -673,24 +739,32 @@ export default function OrdensBoardPage() {
             <div className="mt-4 flex flex-col lg:flex-row gap-4">
             <div className="flex-1 min-w-0 space-y-3">
               <div className="rounded-lg border border-border overflow-hidden">
-                <div className="grid grid-cols-[1fr_5rem_5rem] gap-2 px-3 py-1.5 bg-muted text-[11px] font-semibold text-muted-foreground uppercase">
-                  <span>Produto</span><span className="text-right">Planejado</span><span className="text-right">Real</span>
+                <div className="grid grid-cols-[1fr_3.5rem_4rem_4.75rem] gap-2 px-3 py-1.5 bg-muted text-[11px] font-semibold text-muted-foreground uppercase">
+                  <span>Produto</span><span className="text-right">Plan.</span><span className="text-right">Real</span><span className="text-right">Perda</span>
                 </div>
-                {apontar.produtos.map((pr) => (
-                  <div key={pr.itemId} className="grid grid-cols-[1fr_5rem_5rem] gap-2 px-3 py-1.5 items-center border-t border-border/60">
-                    <span className="text-xs text-foreground truncate">{pr.descricao}{pr.unidade ? <span className="text-muted-foreground"> ({pr.unidade})</span> : null}</span>
-                    <span className="text-xs text-muted-foreground text-right tabular-nums">{Number(pr.planejada)}</span>
-                    <input inputMode="decimal" value={apForm.reais[pr.itemId] ?? ""} onChange={(e) => setApForm((p) => ({ ...p, reais: { ...p.reais, [pr.itemId]: e.target.value } }))} className="h-8 rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-                  </div>
-                ))}
+                {apontar.produtos.map((pr) => {
+                  const perdaPc = Number(apForm.perdas[pr.itemId] || 0);
+                  const desc = apontadoPecas(pr) + perdaPc; // descarregado = apontado + perda
+                  const pct = desc > 0 && perdaPc > 0 ? `${(perdaPc / desc * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : null;
+                  return (
+                    <div key={pr.itemId} className="grid grid-cols-[1fr_3.5rem_4rem_4.75rem] gap-2 px-3 py-1.5 items-center border-t border-border/60">
+                      <span className="text-xs text-foreground truncate">{pr.descricao}{pr.unidade ? <span className="text-muted-foreground"> ({pr.unidade})</span> : null}</span>
+                      <span className="text-xs text-muted-foreground text-right tabular-nums">{Number(pr.planejada)}</span>
+                      <input inputMode="decimal" value={apForm.reais[pr.itemId] ?? ""} onChange={(e) => setApForm((p) => ({ ...p, reais: { ...p.reais, [pr.itemId]: e.target.value } }))} className="h-8 rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                      <div className="flex flex-col items-end">
+                        <input inputMode="decimal" title="Perda em peças" value={apForm.perdas[pr.itemId] ?? ""} onChange={(e) => setApForm((p) => ({ ...p, perdas: { ...p.perdas, [pr.itemId]: e.target.value } }))} className="h-8 w-full rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                        {pct && <span className="text-[10px] text-amber-600 tabular-nums leading-tight">{pct}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Perda (opcional)</label>
-                  <input inputMode="decimal" value={apForm.perda} onChange={(e) => setApForm((p) => ({ ...p, perda: e.target.value }))} className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-                </div>
+              <div className="flex items-end gap-3">
+                <button type="button" onClick={abrirCalcPerda} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20">
+                  <Calculator className="w-3.5 h-3.5" /> Calcular perda
+                </button>
                 {area?.estadoSaida === "QUEIMADO" && (
-                  <div>
+                  <div className="flex-1">
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Biomassa (kg)</label>
                     <input inputMode="decimal" value={apForm.biomassa} onChange={(e) => setApForm((p) => ({ ...p, biomassa: e.target.value }))} className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500" />
                   </div>
@@ -710,6 +784,76 @@ export default function OrdensBoardPage() {
           </div>
         </div>
       )}
+
+      {/* Calculadora de perda — vagões descarregados (descarregado − apontado, por produto) */}
+      {calcPerda && apontar && (() => {
+        const desc = descarregadoPorProduto(calcPerda.rows);
+        const setRows = (rows: CargaVagaoRow[]) => setCalcPerda({ rows });
+        const upRow = (i: number, patch: Partial<CargaVagaoRow>) => setRows(calcPerda.rows.map((r, j) => j === i ? { ...r, ...patch } : r));
+        const upCarga = (i: number, k: number, patch: Partial<{ itemId: string; pecas: string }>) =>
+          upRow(i, { cargas: calcPerda.rows[i].cargas.map((c, m) => m === k ? { ...c, ...patch } : c) });
+        return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setCalcPerda(null)}>
+          <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Calculator className="w-5 h-5 text-amber-600" /> Calcular perda — vagões descarregados</h2>
+            <p className="text-xs text-muted-foreground mt-1">Defina a carga dos vagões descarregados. <b>Cheio</b> = 1 produto; <b>meiado</b> = adicione mais de um produto. Perda = descarregado − apontado, por produto.</p>
+            <div className="mt-4 space-y-2">
+              {calcPerda.rows.map((row, i) => (
+                <div key={i} className="rounded-lg border border-border p-2.5 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <select value={row.veiculo} onChange={(e) => upRow(i, { veiculo: e.target.value as "VAGAO" | "VAGONETA" })} className="h-8 rounded-md border border-border px-1.5 text-xs bg-card">
+                      <option value="VAGAO">Vagão</option><option value="VAGONETA">Vagoneta</option>
+                    </select>
+                    <input inputMode="numeric" placeholder="nº" value={row.nVagoes} onChange={(e) => upRow(i, { nVagoes: e.target.value })} className="h-8 w-20 rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card" />
+                    <span className="text-xs text-muted-foreground">vagões, cada um com:</span>
+                    <div className="flex-1" />
+                    {calcPerda.rows.length > 1 && <button type="button" onClick={() => setRows(calcPerda.rows.filter((_, j) => j !== i))} className="text-muted-foreground/60 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>}
+                  </div>
+                  {row.cargas.map((c, k) => (
+                    <div key={k} className="flex items-center gap-2 pl-1">
+                      <select value={c.itemId} onChange={(e) => { const id = e.target.value; const cap = capacidades[id]?.[row.veiculo]; upCarga(i, k, { itemId: id, ...(!c.pecas && cap != null ? { pecas: String(cap) } : {}) }); }} className="h-8 flex-1 min-w-0 rounded-md border border-border px-1.5 text-xs bg-card">
+                        <option value="">Produto…</option>
+                        {apontar.produtos.map((p) => <option key={p.itemId} value={p.itemId}>{p.descricao}</option>)}
+                      </select>
+                      <input inputMode="numeric" placeholder="peças/vagão" value={c.pecas} onChange={(e) => upCarga(i, k, { pecas: e.target.value })} className="h-8 w-28 rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card" />
+                      {row.cargas.length > 1 && <button type="button" onClick={() => upRow(i, { cargas: row.cargas.filter((_, m) => m !== k) })} className="text-muted-foreground/60 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>}
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => upRow(i, { cargas: [...row.cargas, { itemId: "", pecas: "" }] })} className="text-[11px] text-amber-600 hover:underline pl-1">+ produto (meiado)</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setRows([...calcPerda.rows, { veiculo: "VAGAO", nVagoes: "", cargas: [{ itemId: "", pecas: "" }] }])} className="inline-flex items-center gap-1 text-xs text-cyan-600 hover:underline"><Plus className="w-3.5 h-3.5" /> Adicionar vagão</button>
+            </div>
+            <div className="mt-4 rounded-lg border border-border overflow-hidden">
+              <div className="grid grid-cols-[1fr_5rem_5rem_5rem_3.5rem] gap-2 px-3 py-1.5 bg-muted text-[11px] font-semibold text-muted-foreground uppercase">
+                <span>Produto</span><span className="text-right">Descarreg.</span><span className="text-right">Apontado</span><span className="text-right">Perda</span><span className="text-right">%</span>
+              </div>
+              {apontar.produtos.map((p) => {
+                const d = desc[p.itemId] ?? 0;
+                const ap = apontadoPecas(p);
+                const perda = Math.max(0, Math.round((d - ap) * 1000) / 1000);
+                const pct = d > 0 ? `${(perda / d * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "—";
+                return (
+                  <div key={p.itemId} className="grid grid-cols-[1fr_5rem_5rem_5rem_3.5rem] gap-2 px-3 py-1.5 items-center border-t border-border/60 text-xs tabular-nums">
+                    <span className="text-foreground truncate">{p.descricao}</span>
+                    <span className="text-right text-muted-foreground">{d.toLocaleString("pt-BR")}</span>
+                    <span className="text-right text-muted-foreground">{ap.toLocaleString("pt-BR")}</span>
+                    <span className="text-right font-medium text-amber-600">{perda.toLocaleString("pt-BR")}</span>
+                    <span className="text-right text-amber-600">{pct}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button onClick={() => setCalcPerda(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+              <button onClick={aplicarCalcPerda} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-700">
+                <CheckCircle2 className="w-4 h-4" /> Aplicar perda
+              </button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
 
       {/* Modal saldo inicial de WIP */}
       {saldoIni && (
