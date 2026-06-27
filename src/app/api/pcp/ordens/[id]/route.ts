@@ -101,6 +101,13 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   if (!auth.ok) return auth.response;
 
   try {
+    // OP já apontada tem movimentações de estoque; excluir deixaria o saldo
+    // alterado sem a OP (movimentação vira órfã). Bloqueia — precisa estornar antes.
+    const movs = await prisma.movimentacaoEstoque.count({ where: { ordemProducaoId: params.id } });
+    if (movs > 0) {
+      return NextResponse.json({ error: "OP já apontada (tem movimentação de estoque). Estorne o apontamento antes de excluir." }, { status: 409 });
+    }
+    // Etapas (ItemOrdemProducao) e consumos têm cascade; remove a OP direto.
     await prisma.ordemProducao.delete({ where: { id: params.id } });
     return NextResponse.json({ ok: true });
   } catch {

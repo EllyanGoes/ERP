@@ -9,7 +9,7 @@ import { useSession } from "@/lib/session-context";
 import PageHeader from "@/components/shared/PageHeader";
 import CalendarioProducao from "@/components/pcp/CalendarioProducao";
 import { cn } from "@/lib/utils";
-import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List } from "lucide-react";
+import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List, Trash2 } from "lucide-react";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
@@ -18,7 +18,7 @@ type Produto = { id: string; codigo: string; descricao: string; unidades: Unidad
 type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
 type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null };
 type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null; unidadeId: string | null };
-type BoardOP = { id: string; numero: string; status: string; dia?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
+type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 type SaldoInicial = { estado: string; itemId: string; quantidade: string; custoUnitario: string; data: string };
 type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
 type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
@@ -77,6 +77,8 @@ export default function OrdensBoardPage() {
   const [ops, setOps] = useState<BoardOP[]>([]);
   // Visão: board (kanban do dia) × lista (OPs da área agrupadas por dia, no mês).
   const [vista, setVista] = useState<"board" | "lista">("board");
+  const [escopoLista, setEscopoLista] = useState<"area" | "todas">("area");
+  const [soAbertas, setSoAbertas] = useState(false);
   const [opsLista, setOpsLista] = useState<BoardOP[]>([]);
   const [carregandoLista, setCarregandoLista] = useState(false);
   const [materiais, setMateriais] = useState<EstoqueLinha[] | null>(null);
@@ -142,20 +144,30 @@ export default function OrdensBoardPage() {
   }, [fluxoId, areaNodeId, data]);
   useEffect(() => { loadOps(); }, [loadOps]);
 
-  // 3b. Visão em LISTA: OPs da área no MÊS do dia selecionado (agrupadas por dia).
+  // 3b. Visão em LISTA: OPs no MÊS do dia selecionado, agrupadas por dia. Escopo
+  // "area" = só a aba atual; "todas" = todas as áreas do fluxo (marca a área em cada OP).
   const loadLista = useCallback(async () => {
-    if (!fluxoId || !areaNodeId) { setOpsLista([]); return; }
+    if (!fluxoId) { setOpsLista([]); return; }
     const [y, m] = data.split("-").map(Number);
     const ult = new Date(y, m, 0).getDate();
     const from = `${y}-${String(m).padStart(2, "0")}-01`;
     const to = `${y}-${String(m).padStart(2, "0")}-${String(ult).padStart(2, "0")}`;
+    const busca = async (nodeId: string, nome?: string): Promise<BoardOP[]> => {
+      const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${nodeId}&from=${from}&to=${to}`);
+      const j = await r.json();
+      return (j.data ?? []).map((o: BoardOP) => ({ ...o, areaNome: nome }));
+    };
     setCarregandoLista(true);
     try {
-      const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${areaNodeId}&from=${from}&to=${to}`);
-      const j = await r.json();
-      setOpsLista(j.data ?? []);
+      if (escopoLista === "todas") {
+        const partes = await Promise.all(areas.map((a) => busca(a.nodeId, a.centroTrabalho ?? a.nome)));
+        setOpsLista(partes.flat());
+      } else {
+        if (!areaNodeId) { setOpsLista([]); return; }
+        setOpsLista(await busca(areaNodeId));
+      }
     } finally { setCarregandoLista(false); }
-  }, [fluxoId, areaNodeId, data]);
+  }, [fluxoId, areaNodeId, data, escopoLista, areas]);
   useEffect(() => { if (vista === "lista") loadLista(); }, [vista, loadLista]);
 
   // Contagem de OPs por área (abertas/concluídas) no dia — exibida nas abas.
@@ -165,31 +177,26 @@ export default function OrdensBoardPage() {
       .then((r) => r.json()).then((j) => setContagem(j.data ?? {})).catch(() => setContagem({}));
   }, [fluxoId, data, ops]);
 
-  // Saldo dos materiais necessários na área (insumos da operação no fluxo)
-  useEffect(() => {
-    if (!fluxoId || !areaNodeId) { setMateriais(null); return; }
-    setMateriais(null);
+  // Estoque dos 3 cards (materiais de entrada · PEP de entrada · saída). Em callback
+  // p/ recarregar em tempo real após apontar/excluir uma OP (o saldo muda na hora).
+  const loadEstoque = useCallback(() => {
+    if (!fluxoId || !areaNodeId) { setMateriais(null); setEntradaWip(null); setSaidaEstoque(null); return; }
     fetch(`/api/pcp/ordens/area/materiais?fluxoId=${fluxoId}&areaNodeId=${areaNodeId}`)
       .then((r) => r.json()).then((j) => setMateriais(j.data ?? [])).catch(() => setMateriais([]));
-  }, [fluxoId, areaNodeId]);
-
-  // Entrada (PEP da área anterior) e Saída (PEP/PA que esta área produz)
-  useEffect(() => {
     const a = areas.find((x) => x.nodeId === areaNodeId) ?? null;
     if (!a) { setEntradaWip(null); setSaidaEstoque(null); return; }
     if (a.isPrimeira || !a.fromEstado) setEntradaWip([]);
     else {
-      setEntradaWip(null);
       fetch(`/api/pcp/ordens/area/estoque-estado?fluxoId=${fluxoId}&estado=${a.fromEstado}`)
         .then((r) => r.json()).then((j) => setEntradaWip(j.data ?? [])).catch(() => setEntradaWip([]));
     }
     if (!a.estadoSaida) setSaidaEstoque([]);
     else {
-      setSaidaEstoque(null);
       fetch(`/api/pcp/ordens/area/estoque-estado?fluxoId=${fluxoId}&estado=${a.estadoSaida}`)
         .then((r) => r.json()).then((j) => setSaidaEstoque(j.data ?? [])).catch(() => setSaidaEstoque([]));
     }
   }, [fluxoId, areaNodeId, areas]);
+  useEffect(() => { setMateriais(null); setEntradaWip(null); setSaidaEstoque(null); loadEstoque(); }, [loadEstoque]);
 
   // Colaboradores (responsável pela OP)
   useEffect(() => {
@@ -313,8 +320,21 @@ export default function OrdensBoardPage() {
       if (!r.ok) throw new Error(j?.error ?? "Erro ao apontar");
       setApontar(null);
       await loadOps();
+      loadEstoque(); // saldo dos cards (matéria-prima/PEP/saída) muda na hora
       if (vista === "lista") await loadLista();
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setApBusy(false); }
+  }
+
+  async function excluirOP(o: BoardOP) {
+    if (!confirm(`Excluir a OP ${o.numero}? Esta ação é permanente.`)) return;
+    setErro(null);
+    try {
+      const r = await fetch(`/api/pcp/ordens/${o.id}`, { method: "DELETE" });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j?.error ?? "Não foi possível excluir"); }
+      await loadOps();
+      loadEstoque();
+      if (vista === "lista") await loadLista();
+    } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); }
   }
 
   return (
@@ -418,9 +438,12 @@ export default function OrdensBoardPage() {
                 ops={opsLista}
                 carregando={carregandoLista}
                 mes={data}
-                onNova={() => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area.produtos[0]) }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); }}
+                escopo={escopoLista} onEscopo={setEscopoLista}
+                soAbertas={soAbertas} onSoAbertas={setSoAbertas}
+                onNova={escopoLista === "area" ? () => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area.produtos[0]) }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); } : null}
                 onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
                 onEditar={(o) => abrirEdicao(o)}
+                onExcluir={(o) => excluirOP(o)}
                 onApontar={(o) => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perda: "", biomassa: "" }); setErro(null); }}
               />
             ) : (
@@ -468,6 +491,7 @@ export default function OrdensBoardPage() {
                           <div className="flex items-center gap-1.5 shrink-0">
                             {!concl && <button onClick={(e) => { e.stopPropagation(); abrirEdicao(o); }} className="text-muted-foreground hover:text-cyan-600" title="Editar OP"><Pencil className="w-3.5 h-3.5" /></button>}
                             <Link href={`/pcp/ordens/${o.id}/imprimir`} onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-cyan-600" title="Imprimir OP"><Printer className="w-3.5 h-3.5" /></Link>
+                            {!concl && <button onClick={(e) => { e.stopPropagation(); excluirOP(o); }} className="text-muted-foreground hover:text-danger" title="Excluir OP"><Trash2 className="w-3.5 h-3.5" /></button>}
                             <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
                               {o.etapaStatus === "CONCLUIDA" ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
                             </span>
@@ -727,37 +751,56 @@ export default function OrdensBoardPage() {
   );
 }
 
-// Visão em LISTA: OPs da área agrupadas por dia (cabeçalho de data + linhas).
-function ListaPorDia({ ops, carregando, mes, onNova, onAbrir, onEditar, onApontar }: {
+// Visão em LISTA: OPs agrupadas por dia (cabeçalho de data + linhas).
+function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAbertas, onNova, onAbrir, onEditar, onExcluir, onApontar }: {
   ops: BoardOP[]; carregando: boolean; mes: string;
-  onNova: () => void; onAbrir: (id: string) => void; onEditar: (o: BoardOP) => void; onApontar: (o: BoardOP) => void;
+  escopo: "area" | "todas"; onEscopo: (e: "area" | "todas") => void;
+  soAbertas: boolean; onSoAbertas: (v: boolean) => void;
+  onNova: (() => void) | null; onAbrir: (id: string) => void; onEditar: (o: BoardOP) => void; onExcluir: (o: BoardOP) => void; onApontar: (o: BoardOP) => void;
 }) {
   const fmtDiaTitulo = (dia: string) => {
     const d = new Date(`${dia}T12:00:00`);
     return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" });
   };
+  const visiveis = soAbertas ? ops.filter((o) => o.etapaStatus !== "CONCLUIDA") : ops;
   // Agrupa por dia e ordena (mais recente primeiro).
   const grupos = (() => {
     const m = new Map<string, BoardOP[]>();
-    for (const o of ops) { const k = o.dia ?? "—"; (m.get(k) ?? m.set(k, []).get(k)!).push(o); }
+    for (const o of visiveis) { const k = o.dia ?? "—"; (m.get(k) ?? m.set(k, []).get(k)!).push(o); }
     return Array.from(m.entries()).sort((a, b) => b[0].localeCompare(a[0]));
   })();
   const mesLabel = (() => { const [y, mm] = mes.split("-").map(Number); return new Date(y, (mm || 1) - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }); })();
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border bg-muted/40">
-        <p className="text-sm font-medium text-foreground capitalize">{mesLabel} · {ops.length} OP{ops.length === 1 ? "" : "s"}</p>
-        <button onClick={onNova} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-700">
-          <Plus className="w-3.5 h-3.5" /> Nova OP
-        </button>
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border bg-muted/40 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <p className="text-sm font-medium text-foreground capitalize">{mesLabel} · {visiveis.length} OP{visiveis.length === 1 ? "" : "s"}</p>
+          <div className="flex rounded-lg border border-border p-0.5 text-xs">
+            {([["area", "Esta área"], ["todas", "Todas as áreas"]] as const).map(([k, lbl]) => (
+              <button key={k} type="button" onClick={() => onEscopo(k)}
+                className={cn("px-2.5 py-1 rounded-md transition-colors", escopo === k ? "bg-foreground text-background font-medium" : "text-muted-foreground hover:text-foreground")}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+            <input type="checkbox" checked={soAbertas} onChange={(e) => onSoAbertas(e.target.checked)} className="accent-cyan-600" />
+            Só abertas
+          </label>
+        </div>
+        {onNova && (
+          <button onClick={onNova} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-700">
+            <Plus className="w-3.5 h-3.5" /> Nova OP
+          </button>
+        )}
       </div>
       {carregando ? (
         <p className="text-xs text-muted-foreground flex items-center gap-1.5 p-4"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando…</p>
-      ) : ops.length === 0 ? (
+      ) : visiveis.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <Factory className="w-6 h-6 text-cyan-400 mb-1.5" />
-          <p className="text-xs text-muted-foreground">Nenhuma OP neste mês.</p>
+          <p className="text-xs text-muted-foreground">{soAbertas ? "Nenhuma OP aberta neste mês." : "Nenhuma OP neste mês."}</p>
         </div>
       ) : grupos.map(([dia, lista]) => (
         <div key={dia}>
@@ -773,6 +816,9 @@ function ListaPorDia({ ops, carregando, mes, onNova, onAbrir, onEditar, onAponta
             return (
               <div key={o.id} className="flex items-center gap-3 px-4 py-2 border-b border-border/50 hover:bg-muted/40 text-sm">
                 <button onClick={() => onAbrir(o.id)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600 w-24 shrink-0 text-left">{o.numero}</button>
+                {escopo === "todas" && o.areaNome && (
+                  <span className="hidden sm:inline-flex items-center rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 px-2 py-0.5 text-[10px] font-medium shrink-0 w-32 justify-center truncate" title={o.areaNome}>{o.areaNome}</span>
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="text-foreground font-medium truncate">{o.produtos.length > 1 ? `${o.produtos.length} produtos` : (o.produto ?? "—")}</p>
                   <p className="text-[11px] text-muted-foreground truncate">
@@ -787,6 +833,7 @@ function ListaPorDia({ ops, carregando, mes, onNova, onAbrir, onEditar, onAponta
                 <div className="flex items-center gap-1.5 shrink-0">
                   {!concl && <button onClick={() => onEditar(o)} className="text-muted-foreground hover:text-cyan-600" title="Editar OP"><Pencil className="w-3.5 h-3.5" /></button>}
                   <Link href={`/pcp/ordens/${o.id}/imprimir`} className="text-muted-foreground hover:text-cyan-600" title="Imprimir OP"><Printer className="w-3.5 h-3.5" /></Link>
+                  {!concl && <button onClick={() => onExcluir(o)} className="text-muted-foreground hover:text-danger" title="Excluir OP"><Trash2 className="w-3.5 h-3.5" /></button>}
                   {!concl && (
                     <button onClick={() => onApontar(o)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-700">
                       <CheckCircle2 className="w-3 h-3" /> Apontar
