@@ -260,7 +260,7 @@ export default function RequisicaoDetailPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold text-foreground">{req.numero}</h1>
             <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium", STATUS_COLOR[req.status] ?? "bg-muted text-muted-foreground")}>
-              {STATUS_LABEL[req.status] ?? req.status}
+              {req.localDestino && req.status === "ATENDIDA" ? "Liberada" : (STATUS_LABEL[req.status] ?? req.status)}
             </span>
             <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium",
               req.tipo === "REQUISICAO" ? "bg-info/10 text-info" : "bg-warning/10 text-warning"
@@ -279,7 +279,7 @@ export default function RequisicaoDetailPage() {
           )}
           {req.status === "ABERTA" && (
             <Button size="sm" onClick={() => updateStatus("ATENDIDA")}>
-              <CheckCircle2 className="w-4 h-4 mr-1" />Marcar Atendida
+              <CheckCircle2 className="w-4 h-4 mr-1" />{req.localDestino ? "Liberar" : "Marcar Atendida"}
             </Button>
           )}
           {canEdit && !editMode && (
