@@ -13,13 +13,13 @@ import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, Pa
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
-type Unidade = { id: string; sigla: string };
+type Unidade = { id: string; sigla: string; isPrincipal?: boolean; fator?: number };
 type Produto = { id: string; codigo: string; descricao: string; unidades: Unidade[] };
 type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
 type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null };
 type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null; unidadeId: string | null; pecasPorUnidade?: number };
 type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
-type SaldoInicial = { estado: string; itemId: string; quantidade: string; data: string };
+type SaldoInicial = { estado: string; itemId: string; quantidade: string; unidadeId: string; data: string };
 type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
 type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
 type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; suficiente: boolean };
@@ -309,11 +309,15 @@ export default function OrdensBoardPage() {
   async function salvarSaldoInicial() {
     if (!saldoIni) return;
     if (!saldoIni.itemId || Number(saldoIni.quantidade) <= 0) { setErro("Informe produto e quantidade > 0"); return; }
+    // Converte para a unidade-base (peças) pelo fator da unidade escolhida.
+    const us = produtos.find((p) => p.id === saldoIni.itemId)?.unidades ?? [];
+    const fator = us.find((u) => u.id === saldoIni.unidadeId)?.fator ?? 1;
+    const quantidadeBase = Number(saldoIni.quantidade) * fator;
     setSalvandoSaldo(true); setErro(null);
     try {
       const r = await fetch("/api/pcp/ordens/area/saldo-inicial-wip", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId: saldoIni.itemId, estado: saldoIni.estado, quantidade: saldoIni.quantidade, data: saldoIni.data || null }),
+        body: JSON.stringify({ itemId: saldoIni.itemId, estado: saldoIni.estado, quantidade: quantidadeBase, data: saldoIni.data || null }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error ?? "Erro ao lançar saldo inicial");
@@ -517,7 +521,7 @@ export default function OrdensBoardPage() {
               {/* Coluna 1 — ENTRADA (matéria-prima ou PEP da etapa anterior) */}
               <ColBoard cor="amber" titulo={area.sequencia === minSeq ? "Matéria-prima" : "PEP de entrada"} icon={<Boxes className="w-3.5 h-3.5" />}
                 acao={!area.isPrimeira && area.fromEstado && area.fromEstado !== "ACABADO" ? (
-                  <button onClick={() => { setSaldoIni({ estado: area.fromEstado!, itemId: produtos[0]?.id ?? "", quantidade: "", data: hoje() }); setErro(null); }}
+                  <button onClick={() => { setSaldoIni({ estado: area.fromEstado!, itemId: produtos[0]?.id ?? "", quantidade: "", unidadeId: (produtos[0]?.unidades.find((u) => u.isPrincipal) ?? produtos[0]?.unidades[0])?.id ?? "", data: hoje() }); setErro(null); }}
                     className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-amber-300 dark:border-amber-800 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30" title="Definir saldo inicial">
                     <Plus className="w-3 h-3" /> Saldo inicial
                   </button>
@@ -596,7 +600,7 @@ export default function OrdensBoardPage() {
               {/* Coluna 3 — SAÍDA (PEP que a etapa gera, ou o produto produzido) */}
               <ColBoard cor="emerald" titulo={area.estadoSaida === "ACABADO" ? "Produto acabado" : area.estadoSaida ? "PEP de saída" : "Saída"} icon={<PackageCheck className="w-3.5 h-3.5" />}
                 acao={area.estadoSaida && area.estadoSaida !== "ACABADO" ? (
-                  <button onClick={() => { setSaldoIni({ estado: area.estadoSaida!, itemId: produtos[0]?.id ?? "", quantidade: "", data: hoje() }); setErro(null); }}
+                  <button onClick={() => { setSaldoIni({ estado: area.estadoSaida!, itemId: produtos[0]?.id ?? "", quantidade: "", unidadeId: (produtos[0]?.unidades.find((u) => u.isPrincipal) ?? produtos[0]?.unidades[0])?.id ?? "", data: hoje() }); setErro(null); }}
                     className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-emerald-300 dark:border-emerald-800 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" title="Definir saldo inicial">
                     <Plus className="w-3 h-3" /> Saldo inicial
                   </button>
@@ -864,13 +868,39 @@ export default function OrdensBoardPage() {
             <div className="mt-4 space-y-3">
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Produto *</label>
-                <ComboboxWithCreate value={saldoIni.itemId} onChange={(v) => setSaldoIni({ ...saldoIni, itemId: v })} allowNone={false} triggerClassName="h-9 rounded-lg"
+                <ComboboxWithCreate value={saldoIni.itemId}
+                  onChange={(v) => { const us = produtos.find((p) => p.id === v)?.unidades ?? []; const principal = us.find((u) => u.isPrincipal) ?? us[0]; setSaldoIni({ ...saldoIni, itemId: v, unidadeId: principal?.id ?? "" }); }}
+                  allowNone={false} triggerClassName="h-9 rounded-lg"
                   options={produtos.map((p) => ({ value: p.id, label: `${p.codigo} · ${p.descricao}` }))} />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade *</label>
-                <input inputMode="decimal" value={saldoIni.quantidade} onChange={(e) => setSaldoIni({ ...saldoIni, quantidade: e.target.value })} className="w-full h-9 rounded-lg border border-border px-3 text-sm bg-card text-right tabular-nums" />
+              <div className="grid grid-cols-[1fr_8rem] gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade *</label>
+                  <input inputMode="decimal" value={saldoIni.quantidade} onChange={(e) => setSaldoIni({ ...saldoIni, quantidade: e.target.value })} className="w-full h-9 rounded-lg border border-border px-3 text-sm bg-card text-right tabular-nums" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Unidade</label>
+                  {(() => {
+                    const us = produtos.find((p) => p.id === saldoIni.itemId)?.unidades ?? [];
+                    return (
+                      <select value={saldoIni.unidadeId} onChange={(e) => setSaldoIni({ ...saldoIni, unidadeId: e.target.value })}
+                        className="w-full h-9 rounded-lg border border-border px-2 text-sm bg-card">
+                        {us.length === 0 && <option value="">—</option>}
+                        {us.map((u) => <option key={u.id} value={u.id}>{u.sigla}{u.isPrincipal ? "" : ` (×${u.fator})`}</option>)}
+                      </select>
+                    );
+                  })()}
+                </div>
               </div>
+              {(() => {
+                const us = produtos.find((p) => p.id === saldoIni.itemId)?.unidades ?? [];
+                const sel = us.find((u) => u.id === saldoIni.unidadeId);
+                const base = us.find((u) => u.isPrincipal);
+                if (!sel || sel.isPrincipal || !saldoIni.quantidade) return null;
+                const q = Number(saldoIni.quantidade);
+                if (!Number.isFinite(q)) return null;
+                return <p className="-mt-1 text-[11px] text-muted-foreground">= {(q * (sel.fator ?? 1)).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {base?.sigla}</p>;
+              })()}
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Data do saldo</label>
                 <input type="date" value={saldoIni.data} onChange={(e) => setSaldoIni({ ...saldoIni, data: e.target.value })} className="w-full h-9 rounded-lg border border-border px-3 text-sm bg-card" />

@@ -25,17 +25,22 @@ export async function GET(req: NextRequest) {
       where: { fluxoId, ativo: true },
       select: { item: { select: { id: true, codigo: true, descricao: true, vendavel: true,
         unidade: { select: { id: true, sigla: true } },
-        itemUnidades: { select: { isPrincipal: true, unidade: { select: { id: true, sigla: true } } } } } } },
+        itemUnidades: { select: { isPrincipal: true, fatorConversao: true, unidade: { select: { id: true, sigla: true } } } } } } },
     }),
   ]);
 
   type ItemRaw = NonNullable<(typeof engs)[number]["item"]>;
   const todos = engs.map((e) => e.item).filter((x): x is ItemRaw => !!x);
-  // Unidades do produto: a base + as alternativas (ItemUnidade), deduplicadas.
+  // Unidades do produto: base (principal, fator 1) + alternativas (fator = fatorConversao).
   const unidadesDe = (p: ItemRaw) => {
-    const m = new Map<string, { id: string; sigla: string }>();
-    if (p.unidade) m.set(p.unidade.id, { id: p.unidade.id, sigla: p.unidade.sigla });
-    for (const u of p.itemUnidades) if (u.unidade) m.set(u.unidade.id, { id: u.unidade.id, sigla: u.unidade.sigla });
+    const principalId = p.unidade?.id ?? null;
+    const m = new Map<string, { id: string; sigla: string; isPrincipal: boolean; fator: number }>();
+    if (p.unidade) m.set(p.unidade.id, { id: p.unidade.id, sigla: p.unidade.sigla, isPrincipal: true, fator: 1 });
+    for (const u of p.itemUnidades) {
+      if (!u.unidade) continue;
+      const isP = u.isPrincipal || u.unidade.id === principalId;
+      m.set(u.unidade.id, { id: u.unidade.id, sigla: u.unidade.sigla, isPrincipal: isP, fator: isP ? 1 : (Number(u.fatorConversao) || 1) });
+    }
     return Array.from(m.values());
   };
   const lite = (p: ItemRaw) => ({ id: p.id, codigo: p.codigo, descricao: p.descricao, unidades: unidadesDe(p) });
