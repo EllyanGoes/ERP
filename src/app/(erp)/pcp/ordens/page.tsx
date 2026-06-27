@@ -9,7 +9,7 @@ import { useSession } from "@/lib/session-context";
 import PageHeader from "@/components/shared/PageHeader";
 import CalendarioProducao from "@/components/pcp/CalendarioProducao";
 import { cn } from "@/lib/utils";
-import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List, Trash2, Calculator } from "lucide-react";
+import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List, Trash2, Calculator, MapPin } from "lucide-react";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
@@ -22,7 +22,7 @@ type BoardOP = { id: string; numero: string; status: string; dia?: string; areaN
 type SaldoInicial = { estado: string; itemId: string; quantidade: string; unidadeId: string; data: string };
 type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
 type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
-type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; suficiente: boolean };
+type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; local?: string | null; suficiente: boolean };
 // Linha da calculadora de perda: nº de vagões/vagonetas e a carga (peças) por produto
 // daquele tipo de vagão. Cheio = 1 produto; meiado = 2+ produtos.
 type CargaVagaoRow = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: string; cargas: { itemId: string; pecas: string }[] };
@@ -1060,10 +1060,17 @@ function ConsumoEstoque({ consumo, carregando }: { consumo: ConsumoLinha[] | nul
                   <span className="tabular-nums shrink-0 text-foreground">{c.consumo.toLocaleString("pt-BR")}{c.unidade ? <span className="text-muted-foreground ml-0.5">{c.unidade}</span> : null}</span>
                 </div>
                 {c.gerenciavel ? (
-                  <div className="flex items-center justify-between gap-2 mt-0.5 text-[11px]">
-                    <span className={c.suficiente ? "text-success" : "text-warning"}>{c.suficiente ? "✓ suficiente" : "⚠ insuficiente"}</span>
-                    <span className="text-muted-foreground tabular-nums">saldo {(c.saldo ?? 0).toLocaleString("pt-BR")}{c.unidade ? ` ${c.unidade}` : ""}</span>
-                  </div>
+                  <>
+                    <div className="flex items-center justify-between gap-2 mt-0.5 text-[11px]">
+                      <span className={c.suficiente ? "text-success" : "text-warning"}>{c.suficiente ? "✓ suficiente" : "⚠ insuficiente"}</span>
+                      <span className="text-muted-foreground tabular-nums">saldo {(c.saldo ?? 0).toLocaleString("pt-BR")}{c.unidade ? ` ${c.unidade}` : ""}</span>
+                    </div>
+                    {c.local && (
+                      <p className="mt-0.5 text-[11px] text-muted-foreground flex items-center gap-1 truncate" title={`Consome do estoque: ${c.local}`}>
+                        <MapPin className="w-3 h-3 shrink-0 text-cyan-600 dark:text-cyan-400" /> {c.local}
+                      </p>
+                    )}
+                  </>
                 ) : (
                   <p className="mt-0.5 text-[11px] text-muted-foreground">não controla estoque</p>
                 )}

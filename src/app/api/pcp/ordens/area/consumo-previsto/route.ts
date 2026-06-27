@@ -137,23 +137,36 @@ export async function POST(req: NextRequest) {
   // Resolve o id real dos WIP (o que estava em itemId era o código).
   for (const x of linhasOut) if (x.itemId && x.itemId.startsWith("WIP-")) x.itemId = wipIdPorCodigo.get(x.itemId) ?? null;
 
-  // Saldo: materiais comuns somam todos os locais; EMBALAGEM (palete/fita/grampo)
-  // mostra só o saldo do estoque de embalagem da PRODUÇÃO — o que o almoxarife
-  // liberou e a produção pode consumir (espelha o que o apontamento baixa).
-  const saldoIds = linhasOut.filter((x) => x.gerenciavel && !x.embalagem && x.itemId).map((x) => x.itemId!) as string[];
-  const embIds   = linhasOut.filter((x) => x.gerenciavel && x.embalagem && x.itemId).map((x) => x.itemId!) as string[];
-  const saldoPorItem = new Map<string, number>();
-  if (saldoIds.length) {
-    const estoques = await prisma.estoqueItem.groupBy({ by: ["itemId"], where: { itemId: { in: saldoIds }, clienteDonoId: null }, _sum: { quantidadeAtual: true } });
-    for (const e of estoques) saldoPorItem.set(e.itemId, num(e._sum.quantidadeAtual));
+  // Saldo + LOCAL por item. Materiais/WIP comuns: somam os locais e mostram o local
+  // dominante (maior saldo). EMBALAGEM (palete/fita/grampo): só o estoque de embalagem
+  // da PRODUÇÃO — o que o almoxarife liberou e a produção consome (espelha o apontamento).
+  const localEmb = await prisma.localEstoque.findFirst({ where: { nome: LOCAL_EMBALAGEM_PRODUCAO_NOME }, select: { id: true, nome: true } });
+  const gerIds = linhasOut.filter((x) => x.gerenciavel && x.itemId).map((x) => x.itemId!) as string[];
+  const estoques = gerIds.length
+    ? await prisma.estoqueItem.findMany({ where: { itemId: { in: gerIds }, clienteDonoId: null }, select: { itemId: true, quantidadeAtual: true, localEstoque: { select: { id: true, nome: true } } } })
+    : [];
+  const porItem = new Map<string, { total: number; locais: Map<string, { nome: string; saldo: number }> }>();
+  for (const e of estoques) {
+    const cur = porItem.get(e.itemId) ?? { total: 0, locais: new Map() };
+    const q = num(e.quantidadeAtual);
+    cur.total += q;
+    const lid = e.localEstoque?.id ?? "?"; const lc = cur.locais.get(lid) ?? { nome: e.localEstoque?.nome ?? "—", saldo: 0 };
+    lc.saldo += q; cur.locais.set(lid, lc);
+    porItem.set(e.itemId, cur);
   }
-  if (embIds.length) {
-    const localEmb = await prisma.localEstoque.findFirst({ where: { nome: LOCAL_EMBALAGEM_PRODUCAO_NOME }, select: { id: true } });
-    const estoques = localEmb
-      ? await prisma.estoqueItem.groupBy({ by: ["itemId"], where: { itemId: { in: embIds }, clienteDonoId: null, localEstoqueId: localEmb.id }, _sum: { quantidadeAtual: true } })
-      : [];
-    for (const id of embIds) saldoPorItem.set(id, 0); // sem local/saldo → 0 (barra até liberar)
-    for (const e of estoques) saldoPorItem.set(e.itemId, num(e._sum.quantidadeAtual));
+  const saldoPorItem = new Map<string, number>();
+  const localPorItem = new Map<string, string>();
+  for (const x of linhasOut) {
+    if (!x.gerenciavel || !x.itemId) continue;
+    const info = porItem.get(x.itemId);
+    if (x.embalagem) {
+      saldoPorItem.set(x.itemId, info && localEmb ? (info.locais.get(localEmb.id)?.saldo ?? 0) : 0);
+      localPorItem.set(x.itemId, localEmb?.nome ?? LOCAL_EMBALAGEM_PRODUCAO_NOME);
+    } else {
+      saldoPorItem.set(x.itemId, info?.total ?? 0);
+      const locais = info ? Array.from(info.locais.values()).filter((l) => l.saldo > 0).sort((a, b) => b.saldo - a.saldo) : [];
+      localPorItem.set(x.itemId, locais.length === 0 ? "—" : locais.length === 1 ? locais[0].nome : `${locais[0].nome} +${locais.length - 1}`);
+    }
   }
 
   const data = linhasOut.map((x) => {
@@ -163,6 +176,7 @@ export async function POST(req: NextRequest) {
       itemId: x.itemId, descricao: x.descricao, unidade: x.unidade,
       consumo, gerenciavel: x.gerenciavel,
       saldo: x.gerenciavel ? saldo : null,
+      local: x.gerenciavel && x.itemId ? (localPorItem.get(x.itemId) ?? null) : null,
       suficiente: x.gerenciavel ? saldo + 1e-6 >= consumo : true,
     };
   }).sort((a, b) => Number(b.gerenciavel) - Number(a.gerenciavel) || a.descricao.localeCompare(b.descricao));
