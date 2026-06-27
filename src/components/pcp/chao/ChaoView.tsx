@@ -53,12 +53,19 @@ export default function ChaoView() {
 
   const rfNodes: Node[] = useMemo(() => (chao?.fluxo.grafo.nodes ?? []).map((n) => {
     const saldo = chao?.saldos[n.id];
+    // Badge do saldo na fase, com a unidade quando todos os itens compartilham a mesma.
+    let saldoBadge: string | undefined;
+    if (saldo) {
+      const uns = new Set(saldo.itens.map((i) => i.unidade).filter(Boolean));
+      const un = uns.size === 1 ? ` ${[...uns][0]}` : "";
+      saldoBadge = `${fmtQty(saldo.total)}${un}`;
+    }
     return {
       id: n.id,
       type: n.type,
       position: n.position,
       draggable: false,
-      data: { ...n.data, saldoBadge: saldo ? `${fmtQty(saldo.total)}` : undefined },
+      data: { ...n.data, saldoBadge },
     } as Node;
   }), [chao]);
   const rfEdges: Edge[] = useMemo(() => (chao?.fluxo.grafo.edges ?? []).map((e) => ({ id: e.id, source: e.source, target: e.target })), [chao]);
