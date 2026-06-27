@@ -625,6 +625,9 @@ export default function RequisicaoCreateForm() {
 
   const [tipo,           setTipo]           = useState<"REQUISICAO" | "DEVOLUCAO">("REQUISICAO");
   const [localEstoqueId, setLocalEstoqueId] = useState(searchParams.get("localEstoqueId") ?? "");
+  // Local de DESTINO (opcional): preenchido = liberação/transferência p/ outro local
+  // (ex.: embalagem do almoxarifado p/ a produção). Sem destino = consumo normal.
+  const [localDestinoId, setLocalDestinoId] = useState(searchParams.get("localDestinoId") ?? "");
   const [colaboradorId,  setColaboradorId]  = useState("");
   const [setorId,        setSetorId]        = useState("");
   const [almoxarifeId,   setAlmoxarifeId]   = useState("");
@@ -770,7 +773,8 @@ export default function RequisicaoCreateForm() {
     const validRows = rows.filter((r) => r.itemId && r.quantidade);
     if (validRows.length === 0) { setSaveError("Adicione pelo menos um item"); return; }
     // Natureza é obrigatória POR ITEM (o cabeçalho "aplica a todos" preenche as linhas).
-    if (tipo === "REQUISICAO") {
+    // Liberação/transferência (com destino) não consome → dispensa natureza/centro.
+    if (tipo === "REQUISICAO" && !localDestinoId) {
       const semNat = validRows.filter((r) => !(r.naturezaFinanceiraId || naturezaFinanceiraId));
       if (semNat.length > 0) {
         const cods = semNat.map((r) => itensCat.find((i) => i.id === r.itemId)?.codigo ?? r.itemId).join(", ");
@@ -779,7 +783,7 @@ export default function RequisicaoCreateForm() {
       }
     }
     // Centro de custo obrigatório por item (cabeçalho "aplica a todos" preenche as linhas).
-    if (tipo === "REQUISICAO") {
+    if (tipo === "REQUISICAO" && !localDestinoId) {
       const semCentro = validRows.filter((r) => !(r.centroCustoId || centroCustoId));
       if (semCentro.length > 0) {
         const cods = semCentro.map((r) => itensCat.find((i) => i.id === r.itemId)?.codigo ?? r.itemId).join(", ");
@@ -803,6 +807,7 @@ export default function RequisicaoCreateForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tipo, localEstoqueId,
+          localDestinoId: localDestinoId || null,
           colaboradorId:  colaboradorId  || null,
           setorId:        setorId        || null,
           almoxarifeId:   almoxarifeId   || null,
@@ -891,6 +896,22 @@ export default function RequisicaoCreateForm() {
                 {submitted && !localEstoqueId && <p className="text-xs text-red-500">Almoxarifado é obrigatório</p>}
               </div>
 
+              {/* Liberar para (transferência) — opcional. Preenchido = atender MOVE os
+                  itens p/ este local (ex.: embalagem → produção), não dá baixa/consumo. */}
+              {tipo === "REQUISICAO" && (
+                <div className="space-y-1.5">
+                  <Label>Liberar para <span className="text-muted-foreground font-normal text-xs">(transferência)</span></Label>
+                  <PortalSelect
+                    options={locais.filter((l) => l.id !== localEstoqueId)}
+                    value={localDestinoId}
+                    onChange={setLocalDestinoId}
+                    placeholder="Consumo (sem liberação)"
+                    getLabel={(l) => l.nome}
+                    getIcon={iconeLocal}
+                  />
+                </div>
+              )}
+
               {/* Solicitante */}
               <div className="space-y-1.5">
                 <Label>Solicitante</Label>
@@ -956,8 +977,9 @@ export default function RequisicaoCreateForm() {
             </div>
 
             {/* Centro de Custo + Natureza — atalho que APLICA A TODOS os itens (o
-                valor gravado é por item; pode ajustar linha a linha na tabela). */}
-            {tipo === "REQUISICAO" && (
+                valor gravado é por item; pode ajustar linha a linha na tabela).
+                Transferência (liberação) não consome → some. */}
+            {tipo === "REQUISICAO" && !localDestinoId && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Centro de Custo <span className="text-muted-foreground font-normal text-xs">(aplica a todos os itens)</span></Label>

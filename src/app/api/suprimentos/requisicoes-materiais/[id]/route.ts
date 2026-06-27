@@ -4,13 +4,15 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { assertSaldoNaoNegativo, respostaSaldoNegativo, SaldoNegativoError, type ItemSaldoNegativo } from "@/lib/estoque-guard";
-import { recontabilizarRequisicao } from "@/lib/contabilidade";
+import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
+import { recontabilizarRequisicao, recontabilizarLoteMovimentacao } from "@/lib/contabilidade";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.requisicaoMaterial.findUnique({
     where: { id: params.id },
     include: {
       localEstoque: { select: { id: true, nome: true } },
+      localDestino: { select: { id: true, nome: true } },
       colaborador:  { select: { id: true, nome: true } },
       setor:        { select: { id: true, nome: true } },
       almoxarife:   { select: { id: true, nome: true } },
@@ -34,6 +36,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const body = await req.json();
 
+  let loteTransferId: string | null = null; // setado no modo transferência (libera p/ outro local)
+
   try {
     const record = await prisma.$transaction(async (tx) => {
     const updateData: Record<string, unknown> = {};
@@ -43,6 +47,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (body.colaboradorId !== undefined) updateData.colaboradorId = body.colaboradorId || null;
     if (body.setorId       !== undefined) updateData.setorId       = body.setorId       || null;
     if (body.almoxarifeId  !== undefined) updateData.almoxarifeId  = body.almoxarifeId  || null;
+    if (body.localDestinoId !== undefined) updateData.localDestinoId = body.localDestinoId || null;
     if (body.os            !== undefined) updateData.os            = body.os?.trim()    || null;
     if (body.centroCustoId !== undefined) updateData.centroCustoId = body.centroCustoId || null;
     if (body.naturezaFinanceiraId !== undefined) updateData.naturezaFinanceiraId = body.naturezaFinanceiraId || null;
@@ -92,6 +97,85 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // For REQUISICAO: deduct from stock (SAIDA)
     // For DEVOLUCAO: return to stock (ENTRADA)
     if (body.status === "ATENDIDA" && updated.tipo !== undefined) {
+    if (updated.localDestinoId) {
+      // ── Modo TRANSFERÊNCIA: LIBERA (move) os itens da origem p/ o destino ──────
+      // Ex.: o almoxarife libera embalagem do almoxarifado p/ o estoque de produção.
+      // NÃO baixa/consome (sem despesa): o custo só sai quando a produção consome.
+      // Saída na origem + entrada no destino, agrupadas num lote → D destino / C origem.
+      const destinoId = updated.localDestinoId;
+      const itensComQtd = updated.itens.filter((i) => parseFloat(String(i.quantidade)) > 0);
+      // Bloqueio de categoria na ENTRADA (destino) — só entra o que o local aceita.
+      await assertItensPermitidosNosLocais(tx, itensComQtd.map((i) => ({ itemId: i.itemId, localEstoqueId: destinoId })));
+
+      const year = new Date().getFullYear();
+      const seq = await tx.sequencia.upsert({
+        where: { empresaId_prefixo: { empresaId: updated.empresaId, prefixo: "MOV" } },
+        create: { empresaId: updated.empresaId, prefixo: "MOV", ultimo: 1 },
+        update: { ultimo: { increment: 1 } },
+      });
+      const lote = await tx.loteMovimentacao.create({
+        data: {
+          empresaId: updated.empresaId, numero: `MOV-${year}-${String(seq.ultimo).padStart(4, "0")}`,
+          tipo: "TRANSFERENCIA", documento: updated.numero, observacoes: `Liberação de Material ${updated.numero}`,
+        },
+        select: { id: true },
+      });
+      loteTransferId = lote.id;
+
+      const negativos: ItemSaldoNegativo[] = [];
+      for (const item of itensComQtd) {
+        const qtd = parseFloat(String(item.quantidade));
+        // Origem: o local da requisição; se não houver saldo lá, o local com maior saldo.
+        let origem = await tx.estoqueItem.findFirst({
+          where: { itemId: item.itemId, localEstoqueId: updated.localEstoqueId, clienteDonoId: null },
+          select: { id: true, localEstoqueId: true },
+        });
+        if (!origem) {
+          origem = await tx.estoqueItem.findFirst({
+            where: { itemId: item.itemId, empresaId: updated.empresaId, clienteDonoId: null, quantidadeAtual: { gt: 0 } },
+            orderBy: { quantidadeAtual: "desc" },
+            select: { id: true, localEstoqueId: true },
+          });
+        }
+        const origemLocalId = origem?.localEstoqueId ?? updated.localEstoqueId;
+
+        // Perna de SAÍDA (origem).
+        let saldoAntes = 0, saldoDepois = 0;
+        if (origem) {
+          const upd = await tx.estoqueItem.update({ where: { id: origem.id }, data: { quantidadeAtual: { increment: -qtd } } });
+          saldoDepois = parseFloat(String(upd.quantidadeAtual));
+          saldoAntes = saldoDepois + qtd;
+        } else {
+          saldoDepois = -qtd; saldoAntes = 0;
+          await tx.estoqueItem.create({ data: { empresaId: updated.empresaId, itemId: item.itemId, clienteDonoId: null, quantidadeAtual: saldoDepois, quantidadeMin: 0, localEstoqueId: origemLocalId } });
+        }
+        if (saldoDepois < 0) negativos.push({ itemId: item.itemId, descricao: item.item.descricao, saldoAtual: saldoAntes, saldoDepois });
+        await tx.movimentacaoEstoque.create({
+          data: {
+            empresaId: updated.empresaId, itemId: item.itemId, tipo: "SAIDA", quantidade: qtd, saldoAntes, saldoDepois,
+            documento: updated.numero, observacoes: `Liberação de Material ${updated.numero}`, localEstoqueId: origemLocalId, loteId: lote.id,
+          },
+        });
+
+        // Perna de ENTRADA (destino).
+        const dest = await tx.estoqueItem.findFirst({ where: { itemId: item.itemId, localEstoqueId: destinoId, clienteDonoId: null }, select: { id: true } });
+        let dAntes = 0, dDepois = 0;
+        if (dest) {
+          const upd = await tx.estoqueItem.update({ where: { id: dest.id }, data: { quantidadeAtual: { increment: qtd } } });
+          dDepois = parseFloat(String(upd.quantidadeAtual)); dAntes = dDepois - qtd;
+        } else {
+          dAntes = 0; dDepois = qtd;
+          await tx.estoqueItem.create({ data: { empresaId: updated.empresaId, itemId: item.itemId, clienteDonoId: null, quantidadeAtual: qtd, quantidadeMin: 0, localEstoqueId: destinoId } });
+        }
+        await tx.movimentacaoEstoque.create({
+          data: {
+            empresaId: updated.empresaId, itemId: item.itemId, tipo: "ENTRADA", quantidade: qtd, saldoAntes: dAntes, saldoDepois: dDepois,
+            documento: updated.numero, observacoes: `Liberação de Material ${updated.numero}`, localEstoqueId: destinoId, loteId: lote.id,
+          },
+        });
+      }
+      if (body.permitirSaldoNegativo !== true) assertSaldoNaoNegativo(negativos);
+    } else {
       const isSaida = updated.tipo === "REQUISICAO";
       const movTipo = isSaida ? "SAIDA" : "ENTRADA";
       const localEstoqueId = updated.localEstoqueId;
@@ -180,6 +264,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       // atender mesmo assim — requisição é consumo real; o saldo se ajusta depois.
       if (body.permitirSaldoNegativo !== true) assertSaldoNaoNegativo(negativos);
     }
+    }
 
     return updated;
     });
@@ -214,15 +299,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
   }
 
-  // Contabiliza o consumo (D Consumo de Materiais / C Estoque) ao atender.
-  // Best-effort, pós-commit.
+  // Contábil ao atender (best-effort, pós-commit). Transferência (liberação p/ outro
+  // local) → D conta-destino / C conta-origem pelo lote; consumo normal → D Consumo / C Estoque.
   if (record.status === "ATENDIDA") {
-    await recontabilizarRequisicao(params.id).catch(() => {});
+    if (loteTransferId) await recontabilizarLoteMovimentacao(loteTransferId).catch(() => {});
+    else await recontabilizarRequisicao(params.id).catch(() => {});
   }
 
   return NextResponse.json({ data: record });
   } catch (err) {
     if (err instanceof SaldoNegativoError) return respostaSaldoNegativo(err);
+    if (err instanceof CategoriaLocalInvalidaError) return respostaCategoriaInvalida(err);
     throw err;
   }
 }

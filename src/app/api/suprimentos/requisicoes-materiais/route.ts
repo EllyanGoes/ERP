@@ -42,7 +42,8 @@ export async function POST(req: NextRequest) {
     }
     // Natureza financeira é obrigatória POR ITEM (define p/ onde o consumo vai no
     // resultado). O cabeçalho serve de fallback ("aplica a todos"). Devolução não tem.
-    if ((body.tipo ?? "REQUISICAO") !== "DEVOLUCAO") {
+    // Transferência (localDestino) também não: é realocação de estoque, não consumo.
+    if ((body.tipo ?? "REQUISICAO") !== "DEVOLUCAO" && !body.localDestinoId) {
       const semNat = (body.itens ?? []).some((it: { naturezaFinanceiraId?: string }) => !(it.naturezaFinanceiraId || body.naturezaFinanceiraId));
       if (semNat) return NextResponse.json({ error: "Natureza financeira é obrigatória em cada item" }, { status: 400 });
       // Centro de custo também obrigatório por item (cabeçalho serve de fallback).
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest) {
           tipo:          body.tipo          || "REQUISICAO",
           status:        "RASCUNHO",
           localEstoqueId: body.localEstoqueId,
+          localDestinoId: body.localDestinoId || null,
           colaboradorId: body.colaboradorId  || null,
           setorId:       body.setorId        || null,
           almoxarifeId:  body.almoxarifeId   || null,

@@ -7,6 +7,10 @@ import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 const LOCAL_WIP_NOME = "Produção (WIP)";
 const LOCAL_PA_NOME = "Estoque de Produto Acabado";
+// Estoque de embalagem da PRODUÇÃO: o que o almoxarife libera p/ a produção. O
+// apontamento que consome embalagem (palete/fita/grampo) baixa DAQUI — então a
+// produção só consome o que foi liberado (saldo zero barra o apontamento).
+export const LOCAL_EMBALAGEM_PRODUCAO_NOME = "Estoque de Embalagem (Produção)";
 
 const ESTADO_LABEL: Record<EstadoWIP, string> = {
   UMIDO: "úmido",
@@ -73,6 +77,11 @@ export async function getOrCreateWipItem(
     select: { id: true },
   });
   return novo.id;
+}
+
+/** Local do estoque de embalagem da PRODUÇÃO (get-or-create). Aceita só EMBALAGEM. */
+export async function getOrCreateLocalEmbalagemProducao(tx: Prisma.TransactionClient): Promise<string> {
+  return getOrCreateLocalNome(tx, LOCAL_EMBALAGEM_PRODUCAO_NOME, "Embalagem liberada pelo almoxarifado p/ a produção", ["EMBALAGEM"]);
 }
 
 /**

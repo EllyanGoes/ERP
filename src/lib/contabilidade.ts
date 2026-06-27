@@ -1159,13 +1159,22 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   const req = await prismaSemEscopo.requisicaoMaterial.findUnique({
     where: { id: requisicaoId },
     select: {
-      id: true, numero: true, status: true, updatedAt: true,
+      id: true, numero: true, status: true, updatedAt: true, localDestinoId: true,
       naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } },
       centroCusto: { select: { fabril: true } },
       itens: { select: { itemId: true, centroCusto: { select: { fabril: true } }, naturezaFinanceiraId: true, destinoManual: true } },
     },
   });
   if (!req || req.status !== "ATENDIDA") return;
+  // Requisição de TRANSFERÊNCIA (libera p/ outro local): não é consumo/despesa — o
+  // contábil (D destino / C origem) é feito pelo lote de movimentação. Limpa qualquer
+  // lançamento de consumo de reprocessos anteriores e sai.
+  if (req.localDestinoId) {
+    for (const oid of [requisicaoId, `${requisicaoId}#pep`, `${requisicaoId}#imob`, `${requisicaoId}#cif`]) {
+      await apagarLancamentosContabeis({ origemTipo: "ESTOQUE_CONSUMO", origemId: oid });
+    }
+    return;
+  }
 
   const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
     where: { documento: req.numero, localEstoqueId: { not: null }, clienteDonoId: null, tipo: { in: ["ENTRADA", "SAIDA"] } },

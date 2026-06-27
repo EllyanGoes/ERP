@@ -1,5 +1,17 @@
 import type { Prisma, EstadoWIP, StatusOrdemProducao } from "@prisma/client";
-import { getOrCreateLocalProducao, getOrCreateLocalEstado, getOrCreateWipItem, getOrCreateLoteProducao, postMovimento, resolveLocalInsumo } from "@/lib/pcp/wip-estoque";
+import { getOrCreateLocalProducao, getOrCreateLocalEstado, getOrCreateWipItem, getOrCreateLoteProducao, postMovimento, resolveLocalInsumo, getOrCreateLocalEmbalagemProducao } from "@/lib/pcp/wip-estoque";
+
+// Local de onde um insumo é baixado: embalagem (palete/fita/grampo) sai do estoque
+// de embalagem da PRODUÇÃO (liberado pelo almoxarife); os demais, do local com maior
+// saldo. Assim a produção só consome a embalagem que foi liberada (saldo 0 → barra).
+async function localDeConsumoInsumo(
+  tx: Parameters<typeof resolveLocalInsumo>[0],
+  itemId: string,
+  categoriaEstoque: string | null | undefined,
+): Promise<string> {
+  if (categoriaEstoque === "EMBALAGEM") return getOrCreateLocalEmbalagemProducao(tx);
+  return resolveLocalInsumo(tx, itemId);
+}
 import { custosDaEmpresa, aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 import { registrarLancamento, contaPorCodigo, type PartidaIn } from "@/lib/contabilidade";
@@ -121,7 +133,7 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
               include: {
                 insumoItem: {
                   select: {
-                    id: true, descricao: true, compoeCusto: true, precoCusto: true,
+                    id: true, descricao: true, compoeCusto: true, precoCusto: true, categoriaEstoque: true,
                     itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } },
                   },
                 },
@@ -152,7 +164,7 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
         const consumo = Number(ins.quantidade) * fatorUnidade * baseFator * qtdProduzida;
         if (consumo <= 0) continue;
         const custoUnit = custos.get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
-        const localIns = await resolveLocalInsumo(tx, ins.insumoItemId);
+        const localIns = await localDeConsumoInsumo(tx, ins.insumoItemId, meta.categoriaEstoque);
         await postMovimento(tx, {
           itemId: ins.insumoItemId, localEstoqueId: localIns, tipo: "SAIDA", quantidade: consumo,
           ordemProducaoId: ordemId, documento: ordem.numero, observacoes: `Consumo ${meta.descricao} — ${etapa.nome}`,
@@ -232,7 +244,7 @@ export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: s
 
   const eng = await tx.engenhariaProduto.findUnique({
     where: { itemId: ordem.itemId },
-    include: { insumos: { include: { insumoItem: { select: { id: true, descricao: true, compoeCusto: true, precoCusto: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } } } } },
+    include: { insumos: { include: { insumoItem: { select: { id: true, descricao: true, compoeCusto: true, precoCusto: true, categoriaEstoque: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } } } } },
   });
   const cifAprop = await contaPorCodigo(EMPRESA_PADRAO_ID, "1.1.4.0001");
   if (eng && cifAprop) {
@@ -251,7 +263,7 @@ export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: s
       const consumo = Number(ins.quantidade) * fator * baseFator * p.qtd;
       if (consumo <= 0) continue;
       const custoUnit = (await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, [ins.insumoItemId])).get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
-      const localIns = await resolveLocalInsumo(tx, ins.insumoItemId);
+      const localIns = await localDeConsumoInsumo(tx, ins.insumoItemId, meta.categoriaEstoque);
       await postMovimento(tx, { itemId: ins.insumoItemId, localEstoqueId: localIns, tipo: "SAIDA", quantidade: consumo, ordemProducaoId: p.ordemId, documento: ordem.numero, observacoes: `Consumo ${meta.descricao} (CIF queima) — ${ordem.numero}`, loteId, valorUnitario: custoUnit });
       const cl = await garantirContaLocalNaEmpresa(EMPRESA_PADRAO_ID, localIns);
       if (cl) custoPorConta.set(cl.id, Math.round(((custoPorConta.get(cl.id) ?? 0) + consumo * custoUnit) * 100) / 100);
@@ -291,7 +303,7 @@ export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapa
   if (ordem?.itemId) {
     const eng = await tx.engenhariaProduto.findUnique({
       where: { itemId: ordem.itemId },
-      include: { insumos: { include: { insumoItem: { select: { id: true, descricao: true, compoeCusto: true, precoCusto: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } } } } },
+      include: { insumos: { include: { insumoItem: { select: { id: true, descricao: true, compoeCusto: true, precoCusto: true, categoriaEstoque: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } } } } },
     });
     const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Produção ${ordem.numero}`);
     const ppp = pecasPorPalete((await tx.item.findUnique({ where: { id: ordem.itemId }, select: { itemUnidades: { select: { fatorConversao: true, unidade: { select: { sigla: true } } } } } }))?.itemUnidades ?? []);
@@ -308,7 +320,7 @@ export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapa
       const consumo = Number(ins.quantidade) * fator * baseFator * p.qtd;
       if (consumo <= 0) continue;
       const custoUnit = (await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, [ins.insumoItemId])).get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
-      const localIns = await resolveLocalInsumo(tx, ins.insumoItemId);
+      const localIns = await localDeConsumoInsumo(tx, ins.insumoItemId, meta.categoriaEstoque);
       await postMovimento(tx, { itemId: ins.insumoItemId, localEstoqueId: localIns, tipo: "SAIDA", quantidade: consumo, ordemProducaoId: p.ordemId, documento: ordem.numero, observacoes: `Consumo ${meta.descricao} — ${ordem.numero}`, loteId, valorUnitario: custoUnit });
       custoTotal += consumo * custoUnit;
     }

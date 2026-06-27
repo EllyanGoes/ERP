@@ -42,6 +42,7 @@ type Req = {
   centroCustoId: string | null;
   observacoes: string | null;
   localEstoque: { id: string; nome: string } | null;
+  localDestino: { id: string; nome: string } | null;
   colaborador:  { id: string; nome: string } | null;
   setor:        { id: string; nome: string } | null;
   almoxarife:   { id: string; nome: string } | null;
@@ -359,6 +360,7 @@ export default function RequisicaoDetailPage() {
           ) : (
             <dl className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3 text-sm">
               <div><dt className="text-xs text-muted-foreground font-medium">Almoxarifado</dt><dd className="text-foreground mt-0.5">{req.localEstoque?.nome ?? "—"}</dd></div>
+              {req.localDestino && <div><dt className="text-xs text-muted-foreground font-medium">Liberar para</dt><dd className="text-foreground mt-0.5">{req.localDestino.nome} <span className="text-xs text-muted-foreground">(transferência)</span></dd></div>}
               <div><dt className="text-xs text-muted-foreground font-medium">Funcionário</dt><dd className="text-foreground mt-0.5">{req.colaborador?.nome ?? "—"}</dd></div>
               <div><dt className="text-xs text-muted-foreground font-medium">Setor</dt><dd className="text-foreground mt-0.5">{req.setor?.nome ?? "—"}</dd></div>
               <div><dt className="text-xs text-muted-foreground font-medium">Almoxarife</dt><dd className="text-foreground mt-0.5">{req.almoxarife?.nome ?? "—"}</dd></div>

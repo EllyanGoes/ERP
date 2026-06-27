@@ -1412,7 +1412,8 @@ model LocalEstoque {
   necessidadesCompra   NecessidadeCompra[]
   docEntradaItens      ConferenciaCompraItem[]
   docEntradas          ConferenciaCompra[]
-  requisicoesMateriais RequisicaoMaterial[]
+  requisicoesMateriais RequisicaoMaterial[]   @relation("RM_LocalOrigem")
+  requisicoesDestino   RequisicaoMaterial[]   @relation("RM_LocalDestino")
   inventariosMateriais InventarioMaterial[]
   minutas              Minuta[]
   contasContabeis      ContaContabil[]
@@ -2823,6 +2824,10 @@ model RequisicaoMaterial {
   tipo           TipoRequisicaoMaterial   @default(REQUISICAO)
   status         StatusRequisicaoMaterial @default(RASCUNHO)
   localEstoqueId String
+  // Local de DESTINO opcional: preenchido = atender vira TRANSFERÊNCIA (saída na
+  // origem + entrada no destino), não baixa/consumo. Ex.: liberar embalagem do
+  // almoxarifado p/ o estoque de produção.
+  localDestinoId String?
   colaboradorId  String?
   setorId        String?
   almoxarifeId   String?
@@ -2835,7 +2840,8 @@ model RequisicaoMaterial {
   observacoes    String?
   createdAt      DateTime                 @default(now())
   updatedAt      DateTime                 @updatedAt
-  localEstoque   LocalEstoque             @relation(fields: [localEstoqueId], references: [id])
+  localEstoque   LocalEstoque             @relation("RM_LocalOrigem", fields: [localEstoqueId], references: [id])
+  localDestino   LocalEstoque?            @relation("RM_LocalDestino", fields: [localDestinoId], references: [id])
   colaborador    Colaborador?             @relation("RM_Solicitante", fields: [colaboradorId], references: [id])
   setor          Setor?                   @relation(fields: [setorId], references: [id])
   almoxarife     Colaborador?             @relation("RM_Almoxarife", fields: [almoxarifeId], references: [id])
@@ -2848,6 +2854,7 @@ model RequisicaoMaterial {
   @@unique([empresaId, numero])
   @@index([status])
   @@index([localEstoqueId])
+  @@index([localDestinoId])
   @@index([empresaId])
 }
 

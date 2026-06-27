@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { snapshotEtapas } from "@/lib/pcp/snapshot-etapas";
 import type { FlowGraph } from "@/lib/pcp/types";
 import { pecasPorPalete, baseFatorConsumo } from "@/lib/pcp/unidades";
+import { LOCAL_EMBALAGEM_PRODUCAO_NOME } from "@/lib/pcp/wip-estoque";
 
 // POST /api/pcp/ordens/area/consumo-previsto
 // Body: { fluxoId, areaNodeId, produtos: [{ itemId, quantidade, unidadeId }] }
@@ -29,7 +30,7 @@ function fatorConv(unidadeId: string | null, itemUnidades: ItemUnidadeLite[]): n
 }
 
 type LinhaIn = { itemId: string; quantidade: number; unidadeId: string | null };
-type Acc = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean };
+type Acc = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; embalagem: boolean };
 
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("pcp");
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
       itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true, unidade: { select: { sigla: true } } } },
       engenhariaProduto: { select: { insumos: { select: {
         insumoItemId: true, quantidade: true, base: true, unidadeId: true, estadoConsumo: true,
-        insumoItem: { select: { descricao: true, compoeCusto: true, unidade: { select: { sigla: true } }, unidadeMedida: true,
+        insumoItem: { select: { descricao: true, compoeCusto: true, categoriaEstoque: true, unidade: { select: { sigla: true } }, unidadeMedida: true,
           itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } },
       } } } },
     },
@@ -104,6 +105,7 @@ export async function POST(req: NextRequest) {
         itemId: ins.insumoItemId, descricao: meta.descricao,
         unidade: meta.unidade?.sigla ?? meta.unidadeMedida ?? null,
         gerenciavel: meta.compoeCusto !== false,
+        embalagem: meta.categoriaEstoque === "EMBALAGEM",
       }, consumo);
     }
     if (toEstado && fromEstado) wipFromTotal += qtdBase; // consome o PEP do estado anterior
@@ -115,9 +117,12 @@ export async function POST(req: NextRequest) {
       const it = byItem.get(l.itemId);
       if (!it) continue;
       const qtdBase = l.quantidade * fatorConv(l.unidadeId, it.itemUnidades);
+      // O PEP/WIP é contado na unidade-PRINCIPAL do produto (peça = UN), não em milheiros:
+      // qtdBase já vem em peças (qtd × fator da unidade escolhida).
+      const wipSigla = it.itemUnidades.find((u) => u.isPrincipal)?.unidade?.sigla ?? "UN";
       addConsumo(`WIP:${it.codigo}:${fromEstado}`, {
         itemId: `WIP-${slug(it.codigo)}-${fromEstado}`,
-        descricao: `PEP ${fromEstado.toLowerCase()} — ${it.codigo}`, unidade: "mi", gerenciavel: true,
+        descricao: `PEP ${fromEstado.toLowerCase()} — ${it.codigo}`, unidade: wipSigla, gerenciavel: true, embalagem: false,
       }, qtdBase);
     }
   }
@@ -132,11 +137,24 @@ export async function POST(req: NextRequest) {
   // Resolve o id real dos WIP (o que estava em itemId era o código).
   for (const x of linhasOut) if (x.itemId && x.itemId.startsWith("WIP-")) x.itemId = wipIdPorCodigo.get(x.itemId) ?? null;
 
-  const saldoIds = linhasOut.filter((x) => x.gerenciavel && x.itemId).map((x) => x.itemId!) as string[];
-  const estoques = saldoIds.length
-    ? await prisma.estoqueItem.groupBy({ by: ["itemId"], where: { itemId: { in: saldoIds }, clienteDonoId: null }, _sum: { quantidadeAtual: true } })
-    : [];
-  const saldoPorItem = new Map(estoques.map((e) => [e.itemId, num(e._sum.quantidadeAtual)]));
+  // Saldo: materiais comuns somam todos os locais; EMBALAGEM (palete/fita/grampo)
+  // mostra só o saldo do estoque de embalagem da PRODUÇÃO — o que o almoxarife
+  // liberou e a produção pode consumir (espelha o que o apontamento baixa).
+  const saldoIds = linhasOut.filter((x) => x.gerenciavel && !x.embalagem && x.itemId).map((x) => x.itemId!) as string[];
+  const embIds   = linhasOut.filter((x) => x.gerenciavel && x.embalagem && x.itemId).map((x) => x.itemId!) as string[];
+  const saldoPorItem = new Map<string, number>();
+  if (saldoIds.length) {
+    const estoques = await prisma.estoqueItem.groupBy({ by: ["itemId"], where: { itemId: { in: saldoIds }, clienteDonoId: null }, _sum: { quantidadeAtual: true } });
+    for (const e of estoques) saldoPorItem.set(e.itemId, num(e._sum.quantidadeAtual));
+  }
+  if (embIds.length) {
+    const localEmb = await prisma.localEstoque.findFirst({ where: { nome: LOCAL_EMBALAGEM_PRODUCAO_NOME }, select: { id: true } });
+    const estoques = localEmb
+      ? await prisma.estoqueItem.groupBy({ by: ["itemId"], where: { itemId: { in: embIds }, clienteDonoId: null, localEstoqueId: localEmb.id }, _sum: { quantidadeAtual: true } })
+      : [];
+    for (const id of embIds) saldoPorItem.set(id, 0); // sem local/saldo → 0 (barra até liberar)
+    for (const e of estoques) saldoPorItem.set(e.itemId, num(e._sum.quantidadeAtual));
+  }
 
   const data = linhasOut.map((x) => {
     const saldo = x.itemId ? r3(saldoPorItem.get(x.itemId) ?? 0) : 0;
