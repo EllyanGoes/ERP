@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
   const itemId = typeof body?.itemId === "string" ? body.itemId : "";
   const estado = typeof body?.estado === "string" ? (body.estado as EstadoWIP) : null;
   const quantidade = Number(body?.quantidade);
-  const custoUnitario = Number(body?.custoUnitario);
+  // Custo unit. não é informado na tela (o custeio vem do CPV/absorção) → default 0.
+  const custoUnitario = Number(body?.custoUnitario ?? 0);
   // Data do saldo (opcional). "YYYY-MM-DD" → meio-dia local p/ não deslocar o dia.
   const dataStr = typeof body?.data === "string" && body.data ? body.data : null;
   const dataMov = dataStr ? new Date(`${dataStr}T12:00:00`) : null;
