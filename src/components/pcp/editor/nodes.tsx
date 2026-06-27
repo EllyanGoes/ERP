@@ -69,7 +69,7 @@ function NodeCard({ kind, data, selected }: { kind: NodeKind; data: FlowNodeData
           <p className="text-sm font-medium text-foreground truncate leading-tight">{data.label || "Sem nome"}</p>
         </div>
       </div>
-      {(sub || data.perdaPct != null || data.isBottleneck || data.saldoBadge != null || data.avisoSemLocal) && (
+      {(sub || data.perdaPct != null || data.isBottleneck || data.saldoBadge != null || data.avisoSemLocal === true) && (
         <div className="mt-1 flex flex-wrap items-center gap-1">
           {sub && <span className="text-[10px] text-muted-foreground truncate max-w-[180px]">{sub}</span>}
           {data.perdaPct != null && data.perdaPct > 0 && (
