@@ -27,11 +27,16 @@ export async function GET(req: NextRequest) {
   const ordens = await prisma.ordemProducao.findMany({
     where: {
       status: { not: "CANCELADA" },
-      createdAt: { gte: ini, lte: fim },
+      // Dia = dia PROGRAMADO (dataPrevistaInicio), não a emissão (createdAt). OPs
+      // antigas sem programação caem no createdAt.
+      OR: [
+        { dataPrevistaInicio: { gte: ini, lte: fim } },
+        { dataPrevistaInicio: null, createdAt: { gte: ini, lte: fim } },
+      ],
       fluxoVersao: { fluxoProducaoId: fluxoId },
       etapas: { some: { nodeId: areaNodeId } },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ dataPrevistaInicio: "asc" }, { createdAt: "asc" }],
     select: {
       id: true, numero: true, status: true, quantidadePlanejada: true, unidade: true, criadoPor: true, createdAt: true,
       dataPrevistaInicio: true, dataPrevistaFim: true, observacao: true, responsavelColaboradorId: true,
@@ -50,7 +55,7 @@ export async function GET(req: NextRequest) {
     id: o.id,
     numero: o.numero,
     status: o.status,
-    dia: o.createdAt.toISOString().slice(0, 10), // dia (UTC) p/ agrupar na visão em lista
+    dia: (o.dataPrevistaInicio ?? o.createdAt).toISOString().slice(0, 10), // dia PROGRAMADO p/ agrupar
     quantidade: o.quantidadePlanejada,
     unidade: o.unidade,
     produto: o.item?.descricao ?? null,
