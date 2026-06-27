@@ -2413,6 +2413,9 @@ model OrdemProducaoProdutoItem {
   quantidadePlanejada Decimal       @db.Decimal(15, 3)
   unidadeId           String?
   quantidadeReal      Decimal?      @db.Decimal(15, 3)
+  // Perda POR PRODUTO (peças): descarregado dos vagões − apontado. A perda da etapa
+  // (ItemOrdemProducao.qtdPerda) guarda a soma; aqui fica a quebra por produto.
+  qtdPerda            Decimal?      @db.Decimal(15, 3)
   createdAt           DateTime      @default(now())
   ordemProducao       OrdemProducao @relation(fields: [ordemProducaoId], references: [id], onDelete: Cascade)
   item                Item          @relation("OrdemProducaoProdutoItem_item", fields: [itemId], references: [id])

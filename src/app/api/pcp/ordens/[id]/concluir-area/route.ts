@@ -23,16 +23,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!auth.ok) return auth.response;
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
-  // Real por produto: itens=[{itemId, quantidadeReal}] (na unidade da linha). Default = planejado.
+  // Real por produto: itens=[{itemId, quantidadeReal, qtdPerda?}] (na unidade da linha).
+  // Default real = planejado. qtdPerda por item (peças) é opcional (calculadora de perda).
   const realMap = new Map<string, number>();
+  const perdaMap = new Map<string, number>();
   if (Array.isArray(body?.itens)) {
     for (const r of body!.itens as Record<string, unknown>[]) {
+      if (typeof r?.itemId !== "string") continue;
       const q = numOrNull(r?.quantidadeReal);
-      if (typeof r?.itemId === "string" && q != null) realMap.set(r.itemId, q);
+      if (q != null) realMap.set(r.itemId, q);
+      const perda = numOrNull(r?.qtdPerda);
+      if (perda != null) perdaMap.set(r.itemId, perda);
     }
   }
   const qtdLegado = numOrNull(body?.quantidadeProduzida); // compat single-product
-  const qtdPerda = numOrNull(body?.qtdPerda);
+  // Perda da etapa: a única enviada (legado) OU a soma das perdas por produto.
+  const somaPerdas = Array.from(perdaMap.values()).reduce((s, v) => s + v, 0);
+  const qtdPerda = numOrNull(body?.qtdPerda) ?? (perdaMap.size ? somaPerdas : null);
   const biomassaKg = numOrNull(body?.biomassaKg);
   const apontadoPor = typeof body?.apontadoPor === "string" && body.apontadoPor.trim() ? body.apontadoPor.trim() : null;
 
@@ -76,8 +83,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!ativos.length) return NextResponse.json({ error: "Informe a quantidade produzida de ao menos um produto." }, { status: 400 });
   const totalBase = ativos.reduce((s, p) => s + p.qtdBase, 0);
 
-  // Grava a quantidade real (na unidade da linha) por produto.
-  for (const p of itensProd) if (p.piId) await prisma.ordemProducaoProdutoItem.update({ where: { id: p.piId }, data: { quantidadeReal: p.realLinha } }).catch(() => {});
+  // Grava a quantidade real (na unidade da linha) e a perda (peças) por produto.
+  for (const p of itensProd) if (p.piId) {
+    const perdaItem = perdaMap.get(p.itemId);
+    await prisma.ordemProducaoProdutoItem.update({
+      where: { id: p.piId },
+      data: { quantidadeReal: p.realLinha, ...(perdaItem != null ? { qtdPerda: perdaItem } : {}) },
+    }).catch(() => {});
+  }
 
   // ── CIF (sem WIP): Mistura de insumos para queima → CIF a Apropriar ──
   const ehCifSemWip = !etapa.estadoSaida && ordem.item?.naturezaPadrao?.destinoSugerido === "CIF";

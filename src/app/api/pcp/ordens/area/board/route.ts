@@ -39,7 +39,8 @@ export async function GET(req: NextRequest) {
       item: { select: { codigo: true, descricao: true } },
       produtoItens: {
         select: { itemId: true, quantidadePlanejada: true, quantidadeReal: true, unidadeId: true,
-          item: { select: { codigo: true, descricao: true } }, unidade: { select: { sigla: true } } },
+          item: { select: { codigo: true, descricao: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } },
+          unidade: { select: { sigla: true } } },
       },
       etapas: { where: { nodeId: areaNodeId }, select: { status: true, qtdSaida: true, qtdPerda: true }, take: 1 },
     },
@@ -60,14 +61,28 @@ export async function GET(req: NextRequest) {
     observacao: o.observacao ?? null,
     inicioPrevisto: o.dataPrevistaInicio,
     fimPrevisto: o.dataPrevistaFim,
-    produtos: o.produtoItens.map((pi) => ({
-      itemId: pi.itemId,
-      codigo: pi.item.codigo,
-      descricao: pi.item.descricao,
-      planejada: pi.quantidadePlanejada,
-      real: pi.quantidadeReal,
-      unidade: pi.unidade?.sigla ?? null,
-    })),
+    produtos: o.produtoItens.map((pi) => {
+      // Peças (unidade-base) por 1 unidade apontada: PLT → peças/palete; principal → 1.
+      // A UI usa p/ converter o apontado (ex.: paletes) em peças no cálculo de perda.
+      let pecasPorUnidade = 1;
+      if (pi.unidadeId) {
+        const iu = pi.item.itemUnidades.find((u) => u.unidadeId === pi.unidadeId);
+        if (iu && !iu.isPrincipal && iu.fatorConversao != null) {
+          const f = Number(iu.fatorConversao);
+          if (Number.isFinite(f) && f > 0) pecasPorUnidade = f;
+        }
+      }
+      return {
+        itemId: pi.itemId,
+        codigo: pi.item.codigo,
+        descricao: pi.item.descricao,
+        planejada: pi.quantidadePlanejada,
+        real: pi.quantidadeReal,
+        unidade: pi.unidade?.sigla ?? null,
+        unidadeId: pi.unidadeId ?? null,
+        pecasPorUnidade,
+      };
+    }),
     etapaStatus: o.etapas[0]?.status ?? "PENDENTE",
     qtdSaida: o.etapas[0]?.qtdSaida ?? null,
     qtdPerda: o.etapas[0]?.qtdPerda ?? null,
