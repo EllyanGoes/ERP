@@ -7,6 +7,7 @@ import { getSession } from "@/lib/auth";
 import { gerarPedidoDeCotacao, finalizarMensagemAprovacaoCotacao } from "@/lib/aprovacao-cotacao";
 import { sendWAMessage }                    from "@/lib/whatsapp";
 import { sendTelegramMessage, escMD }       from "@/lib/telegram";
+import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
 
 export async function POST(
   req: NextRequest,
@@ -93,6 +94,26 @@ export async function POST(
       }
       // Atualiza a mensagem do aprovador (novo status, sem botões) — best-effort.
       await finalizarMensagemAprovacaoCotacao(aprovacao.id, novoStatus, aprovacao.aprovador.nome, novoPedidoNumero);
+
+      // Sincroniza as notificações in-app (mesmo comportamento dos demais canais):
+      const link = `/suprimentos/cotacoes/${cotacaoId}`;
+      if (aprovacao.aprovadorId) {
+        await marcarNotificacoesLidasPorLink(aprovacao.aprovadorId, link, "COTACAO_APROVACAO_SOLICITADA").catch(() => {});
+      }
+      if (aprovacao.solicitadoPor) {
+        const ref = aprovacao.cotacao?.nome || aprovacao.cotacao?.numero || "";
+        if (novoStatus === "APROVADO") {
+          await notificarUsuario({
+            usuarioId: aprovacao.solicitadoPor, tipo: "COTACAO_APROVADA", titulo: "Cotação aprovada",
+            mensagem: `Sua cotação ${ref} foi aprovada — Pedido ${novoPedidoNumero} gerado.`, link,
+          }).catch(() => {});
+        } else {
+          await notificarUsuario({
+            usuarioId: aprovacao.solicitadoPor, tipo: "COTACAO_REPROVADA", titulo: "Cotação reprovada",
+            mensagem: `Sua cotação ${ref} foi reprovada${observacao ? `: ${observacao}` : "."}`, link,
+          }).catch(() => {});
+        }
+      }
       return NextResponse.json({ ok: true, status: novoStatus });
     }
 

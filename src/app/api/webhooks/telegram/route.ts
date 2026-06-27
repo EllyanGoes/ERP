@@ -9,6 +9,7 @@ import { buildRelatorioNecessidades } from "@/lib/relatorio-necessidades";
 import { buildRelatorioSolicitacoes } from "@/lib/relatorio-solicitacoes";
 import { buildRelatorioConsumo } from "@/lib/relatorio-consumo";
 import { gerarPedidoDeCotacao, finalizarMensagemAprovacaoCotacao } from "@/lib/aprovacao-cotacao";
+import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
 
 // Telegram sends POST with callback_query when user clicks inline keyboard button
 export async function POST(req: NextRequest) {
@@ -268,6 +269,29 @@ export async function POST(req: NextRequest) {
       await answerCallbackQuery(cq.id, novoStatus === "APROVADO" ? "✅ Cotação aprovada — pedido gerado" : "❌ Cotação reprovada");
       // Atualiza a mensagem do aprovador (novo status, sem botões).
       await finalizarMensagemAprovacaoCotacao(aprovacaoId, novoStatus, aprovacao.aprovador.nome, novoPedidoNumero);
+
+      // Sincroniza as notificações in-app (mesmo comportamento do canal in-app):
+      const link = `/suprimentos/cotacoes/${cotacaoId}`;
+      // 1) Tira do "não lidas" do aprovador a pendência desta cotação (não acumula).
+      if (aprovacao.aprovadorId) {
+        await marcarNotificacoesLidasPorLink(aprovacao.aprovadorId, link, "COTACAO_APROVACAO_SOLICITADA").catch(() => {});
+      }
+      // 2) Notifica o solicitante in-app (aprovada/reprovada).
+      if (aprovacao.solicitadoPor) {
+        const cot = await prisma.cotacaoCompra.findUnique({ where: { id: cotacaoId }, select: { nome: true, numero: true } });
+        const ref = cot?.nome || cot?.numero || "";
+        if (novoStatus === "APROVADO") {
+          await notificarUsuario({
+            usuarioId: aprovacao.solicitadoPor, tipo: "COTACAO_APROVADA", titulo: "Cotação aprovada",
+            mensagem: `Sua cotação ${ref} foi aprovada — Pedido ${novoPedidoNumero} gerado.`, link,
+          }).catch(() => {});
+        } else {
+          await notificarUsuario({
+            usuarioId: aprovacao.solicitadoPor, tipo: "COTACAO_REPROVADA", titulo: "Cotação reprovada",
+            mensagem: `Sua cotação ${ref} foi reprovada.`, link,
+          }).catch(() => {});
+        }
+      }
       return NextResponse.json({ ok: true });
     }
 
