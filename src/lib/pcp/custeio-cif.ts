@@ -5,6 +5,7 @@
 
 import { prismaSemEscopo } from "@/lib/prisma";
 import { custosDaEmpresa } from "@/lib/custo-empresa";
+import { pecasPorPalete, baseFatorCusteioMilheiro } from "@/lib/pcp/unidades";
 
 const num = (v: unknown): number => {
   if (v == null) return 0;
@@ -84,6 +85,7 @@ function materialPorMilheiro(
   eng: { insumos: InsumoEng[] },
   custos: Map<string, number | null>,
   bomMap: Map<string, InsumoEng[]>,
+  ppp: number | null, // peças/palete do produto (p/ POR_PALETE)
 ): { total: number; itens: MdItem[] } {
   const itens: MdItem[] = [];
 
@@ -112,7 +114,7 @@ function materialPorMilheiro(
 
   for (const ins of eng.insumos) {
     if (ins.insumoItem.compoeCusto === false) continue; // água
-    const baseFator = ins.base === "POR_UNIDADE" ? 1000 : 1; // por peça → por milheiro
+    const baseFator = baseFatorCusteioMilheiro(ins.base, ppp); // por milheiro; POR_PALETE = 1000/peçasPorPalete
     acumular(ins, num(ins.quantidade) * fatorUnidade(ins) * baseFator, new Set<string>(), 0);
   }
 
@@ -215,6 +217,7 @@ export async function calcularCusteio(empresaId: string, competencia: Date): Pro
         where: { id: { in: itemIds } },
         select: {
           id: true, codigo: true, descricao: true,
+          itemUnidades: { select: { fatorConversao: true, unidade: { select: { sigla: true } } } },
           engenhariaProduto: {
             select: {
               insumos: {
@@ -259,7 +262,8 @@ export async function calcularCusteio(empresaId: string, competencia: Date): Pro
     const volumeUn = volPorItem.get(it.id) ?? 0;
     const volMi = volumeUn / 1000;
     const eng = it.engenhariaProduto ?? it.produtoBase?.engenhariaProduto ?? null;
-    const mat = eng ? materialPorMilheiro({ insumos: eng.insumos as InsumoEng[] }, custos, bomMap) : { total: 0, itens: [] as MdItem[] };
+    const ppp = pecasPorPalete(it.itemUnidades); // peças/palete do produto (p/ POR_PALETE)
+    const mat = eng ? materialPorMilheiro({ insumos: eng.insumos as InsumoEng[] }, custos, bomMap, ppp) : { total: 0, itens: [] as MdItem[] };
     const custoMilheiro = mat.total + modRate + cifRate;
     for (const mi of mat.itens) {
       const prev = mdAcumItem.get(mi.nome);

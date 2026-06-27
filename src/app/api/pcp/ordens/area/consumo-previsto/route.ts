@@ -5,6 +5,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { snapshotEtapas } from "@/lib/pcp/snapshot-etapas";
 import type { FlowGraph } from "@/lib/pcp/types";
+import { pecasPorPalete, baseFatorConsumo } from "@/lib/pcp/unidades";
 
 // POST /api/pcp/ordens/area/consumo-previsto
 // Body: { fluxoId, areaNodeId, produtos: [{ itemId, quantidade, unidadeId }] }
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
     where: { id: { in: itemIds } },
     select: {
       id: true, codigo: true,
-      itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } },
+      itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true, unidade: { select: { sigla: true } } } },
       engenhariaProduto: { select: { insumos: { select: {
         insumoItemId: true, quantidade: true, base: true, unidadeId: true, estadoConsumo: true,
         insumoItem: { select: { descricao: true, compoeCusto: true, unidade: { select: { sigla: true } }, unidadeMedida: true,
@@ -86,6 +87,7 @@ export async function POST(req: NextRequest) {
     const it = byItem.get(l.itemId);
     if (!it) continue;
     const qtdBase = l.quantidade * fatorConv(l.unidadeId, it.itemUnidades);
+    const ppp = pecasPorPalete(it.itemUnidades); // peças/palete do produto (p/ POR_PALETE)
     const insumos = it.engenhariaProduto?.insumos ?? [];
     // Áreas com produto de saída ou sem estado de WIP (ex.: Preparação→Mistura): toda a BOM.
     // Áreas de WIP: só os insumos cuja fase de consumo é o estado de saída.
@@ -95,7 +97,7 @@ export async function POST(req: NextRequest) {
       const meta = ins.insumoItem;
       if (!meta) continue;
       const fatorU = fatorConv(ins.unidadeId, meta.itemUnidades);
-      const baseFator = ins.base === "POR_MILHEIRO" ? 0.001 : 1; // qtd em unidade-principal (peça/lote); POR_MILHEIRO = por 1000
+      const baseFator = baseFatorConsumo(ins.base, ppp);
       const consumo = num(ins.quantidade) * fatorU * baseFator * qtdBase;
       if (consumo <= 0) continue;
       addConsumo(ins.insumoItemId, {

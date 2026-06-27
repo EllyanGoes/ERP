@@ -56,6 +56,13 @@ const CATEGORIAS = [
   { v: "ENERGIA", l: "Energia" },
   { v: "OUTRO", l: "Outro" },
 ];
+// Base de consumo: como a quantidade do insumo escala com a produção.
+const BASES = [
+  { v: "POR_UNIDADE", l: "Por peça" },
+  { v: "POR_MILHEIRO", l: "Por milheiro" },
+  { v: "POR_PALETE", l: "Por palete" },
+  { v: "POR_CICLO", l: "Por ciclo/lote" },
+];
 // Fase/estado em que o insumo é consumido (custeio por fase). "" = primeira etapa.
 const FASES = [
   { v: "", l: "Primeira fase" },
@@ -238,6 +245,7 @@ export default function EngenhariaDetalhePage() {
                 <tr>
                   <th className="text-left font-medium py-1.5">Insumo</th>
                   <th className="text-right font-medium py-1.5 w-40">Quantidade</th>
+                  <th className="text-left font-medium py-1.5 w-32">Base</th>
                   <th className="text-left font-medium py-1.5 w-36">Categoria</th>
                   <th className="text-left font-medium py-1.5 w-32">Fase consumo</th>
                   <th className="w-10" />
@@ -258,6 +266,11 @@ export default function EngenhariaDetalhePage() {
                           <span className="text-xs text-muted-foreground w-16 text-left">{l.units[0]?.sigla ?? l.baseSigla}</span>
                         )}
                       </div>
+                    </td>
+                    <td className="py-1.5">
+                      <select className={selCls} value={l.base} onChange={(e) => setLinha(i, { base: e.target.value })}>
+                        {BASES.map((b) => <option key={b.v} value={b.v}>{b.l}</option>)}
+                      </select>
                     </td>
                     <td className="py-1.5">
                       <select className={selCls} value={l.categoria} onChange={(e) => setLinha(i, { categoria: e.target.value })}>

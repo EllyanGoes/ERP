@@ -4,6 +4,7 @@ import { custosDaEmpresa, aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 import { registrarLancamento, contaPorCodigo, type PartidaIn } from "@/lib/contabilidade";
 import { garantirContaLocalNaEmpresa } from "@/lib/conta-contabil";
+import { pecasPorPalete, baseFatorConsumo } from "@/lib/pcp/unidades";
 
 type Tx = Prisma.TransactionClient;
 
@@ -129,6 +130,9 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
           },
         })
       : null;
+    const ppp = pecasPorPalete((itemIdAtivo
+      ? (await tx.item.findUnique({ where: { id: itemIdAtivo }, select: { itemUnidades: { select: { fatorConversao: true, unidade: { select: { sigla: true } } } } } }))?.itemUnidades
+      : null) ?? []); // peças/palete do produto (p/ POR_PALETE)
     const insumosDaFase = (eng?.insumos ?? []).filter((i) => (i.estadoConsumo ?? firstEstado) === toEstado);
     if (insumosDaFase.length) {
       const ids = Array.from(new Set(insumosDaFase.map((i) => i.insumoItemId)));
@@ -144,7 +148,7 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
             if (Number.isFinite(f) && f > 0) fatorUnidade = f;
           }
         }
-        const baseFator = ins.base === "POR_MILHEIRO" ? 0.001 : 1; // qtd em unidade-principal (peça/lote); POR_MILHEIRO = por 1000
+        const baseFator = baseFatorConsumo(ins.base, ppp);
         const consumo = Number(ins.quantidade) * fatorUnidade * baseFator * qtdProduzida;
         if (consumo <= 0) continue;
         const custoUnit = custos.get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
@@ -233,6 +237,7 @@ export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: s
   const cifAprop = await contaPorCodigo(EMPRESA_PADRAO_ID, "1.1.4.0001");
   if (eng && cifAprop) {
     const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Insumos de queima (CIF) ${ordem.numero}`);
+    const ppp = pecasPorPalete((await tx.item.findUnique({ where: { id: ordem.itemId }, select: { itemUnidades: { select: { fatorConversao: true, unidade: { select: { sigla: true } } } } } }))?.itemUnidades ?? []);
     const custoPorConta = new Map<string, number>();
     for (const ins of eng.insumos) {
       const meta = ins.insumoItem;
@@ -242,7 +247,7 @@ export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: s
         const iu = meta.itemUnidades.find((u) => u.unidadeId === ins.unidadeId);
         if (iu && !iu.isPrincipal && iu.fatorConversao != null) { const f = Number(iu.fatorConversao); if (Number.isFinite(f) && f > 0) fator = f; }
       }
-      const baseFator = ins.base === "POR_MILHEIRO" ? 0.001 : 1; // qtd em unidade-principal (peça/lote); POR_MILHEIRO = por 1000
+      const baseFator = baseFatorConsumo(ins.base, ppp);
       const consumo = Number(ins.quantidade) * fator * baseFator * p.qtd;
       if (consumo <= 0) continue;
       const custoUnit = (await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, [ins.insumoItemId])).get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
@@ -289,6 +294,7 @@ export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapa
       include: { insumos: { include: { insumoItem: { select: { id: true, descricao: true, compoeCusto: true, precoCusto: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } } } } },
     });
     const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Produção ${ordem.numero}`);
+    const ppp = pecasPorPalete((await tx.item.findUnique({ where: { id: ordem.itemId }, select: { itemUnidades: { select: { fatorConversao: true, unidade: { select: { sigla: true } } } } } }))?.itemUnidades ?? []);
     let custoTotal = 0;
     for (const ins of eng?.insumos ?? []) {
       const meta = ins.insumoItem;
@@ -298,7 +304,7 @@ export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapa
         const iu = meta.itemUnidades.find((u) => u.unidadeId === ins.unidadeId);
         if (iu && !iu.isPrincipal && iu.fatorConversao != null) { const f = Number(iu.fatorConversao); if (Number.isFinite(f) && f > 0) fator = f; }
       }
-      const baseFator = ins.base === "POR_MILHEIRO" ? 0.001 : 1; // qtd em unidade-principal (peça/lote); POR_MILHEIRO = por 1000
+      const baseFator = baseFatorConsumo(ins.base, ppp);
       const consumo = Number(ins.quantidade) * fator * baseFator * p.qtd;
       if (consumo <= 0) continue;
       const custoUnit = (await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, [ins.insumoItemId])).get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
