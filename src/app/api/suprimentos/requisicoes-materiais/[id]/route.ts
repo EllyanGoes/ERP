@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { assertSaldoNaoNegativo, respostaSaldoNegativo, SaldoNegativoError, type ItemSaldoNegativo } from "@/lib/estoque-guard";
 import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
-import { recontabilizarRequisicao, recontabilizarLoteMovimentacao } from "@/lib/contabilidade";
+import { recontabilizarRequisicao, recontabilizarLoteMovimentacao, apagarLancamentosContabeis } from "@/lib/contabilidade";
+import { recalcularSaldos } from "@/lib/estoque-saldos";
 import { custosComFallback } from "@/lib/custo-empresa";
 import { LOCAL_EMBALAGEM_PRODUCAO_NOME } from "@/lib/locais-producao";
 
@@ -339,6 +340,55 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   const auth = await requireModulo("compras");
   if (!auth.ok) return auth.response;
 
-  await prisma.requisicaoMaterial.delete({ where: { id: params.id } });
+  const req = await prisma.requisicaoMaterial.findUnique({
+    where: { id: params.id },
+    select: { numero: true, empresaId: true, status: true },
+  });
+  if (!req) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
+  if (req.status === "ATENDIDA" && auth.session.perfil !== "ADMIN") {
+    return NextResponse.json({ error: "Apenas administradores podem excluir requisições já atendidas" }, { status: 403 });
+  }
+
+  // Excluir uma requisição tem de DESFAZER o que o atendimento fez — cobre os 3
+  // tipos: REQUISICAO (SAIDA/consumo), DEVOLUCAO (ENTRADA) e TRANSFERENCIA
+  // (SAIDA origem + ENTRADA destino). Reverte o saldo por tipo, apaga os
+  // movimentos e os lançamentos contábeis (consumo e transferência).
+  const num = (d: unknown) => parseFloat(String(d));
+  const loteIds = await prisma.$transaction(async (tx) => {
+    const movs = await tx.movimentacaoEstoque.findMany({
+      where: { empresaId: req.empresaId, documento: req.numero },
+      select: { id: true, itemId: true, localEstoqueId: true, tipo: true, quantidade: true, saldoAntes: true, saldoDepois: true, clienteDonoId: true, loteId: true },
+    });
+    const afetados = new Set<string>();
+    const lotes = new Set<string>();
+    for (const m of movs) {
+      if (m.loteId) lotes.add(m.loteId);
+      if (!m.localEstoqueId) continue;
+      const efeito = m.tipo === "ENTRADA" ? num(m.quantidade) : m.tipo === "SAIDA" ? -num(m.quantidade) : num(m.saldoDepois) - num(m.saldoAntes);
+      if (efeito !== 0) {
+        await tx.estoqueItem.updateMany({
+          where: { itemId: m.itemId, localEstoqueId: m.localEstoqueId, clienteDonoId: m.clienteDonoId ?? null },
+          data: { quantidadeAtual: { decrement: efeito } },
+        });
+      }
+      afetados.add(`${m.itemId}|${m.localEstoqueId}|${m.clienteDonoId ?? ""}`);
+    }
+    if (movs.length) await tx.movimentacaoEstoque.deleteMany({ where: { id: { in: movs.map((m) => m.id) } } });
+    for (const chave of Array.from(afetados)) {
+      const [itemId, localId, dono] = chave.split("|");
+      await recalcularSaldos(tx, itemId, localId, dono || null);
+    }
+    for (const loteId of Array.from(lotes)) {
+      const restante = await tx.movimentacaoEstoque.count({ where: { loteId } });
+      if (restante === 0) await tx.loteMovimentacao.delete({ where: { id: loteId } }).catch(() => {});
+    }
+    await tx.requisicaoMaterial.delete({ where: { id: params.id } });
+    return Array.from(lotes);
+  });
+
+  await apagarLancamentosContabeis({ empresaId: req.empresaId, origemTipo: "ESTOQUE_CONSUMO", origemId: params.id }).catch(() => {});
+  if (loteIds.length) {
+    await apagarLancamentosContabeis({ empresaId: req.empresaId, origemTipo: "ESTOQUE_TRANSFERENCIA", origemId: { in: loteIds } }).catch(() => {});
+  }
   return NextResponse.json({ ok: true });
 }

@@ -4,7 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { definirCustoEmpresa } from "@/lib/custo-empresa";
 import { recalcularSaldos } from "@/lib/estoque-saldos";
-import { contabilizarInventario } from "@/lib/contabilidade";
+import { contabilizarInventario, apagarLancamentosContabeis } from "@/lib/contabilidade";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.inventarioMaterial.findUnique({
@@ -157,6 +157,42 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   const auth = await requireModulo("almoxarifado");
   if (!auth.ok) return auth.response;
 
-  await prisma.inventarioMaterial.delete({ where: { id: params.id } });
+  const inv = await prisma.inventarioMaterial.findUnique({
+    where: { id: params.id },
+    select: { numero: true, empresaId: true, status: true },
+  });
+  if (!inv) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
+  if (inv.status === "CONCLUIDO" && auth.session.perfil !== "ADMIN") {
+    return NextResponse.json({ error: "Apenas administradores podem excluir inventários concluídos" }, { status: 403 });
+  }
+
+  // Excluir um inventário tem de DESFAZER o ajuste que ele aplicou: reverte o
+  // saldo pelo delta (saldoDepois − saldoAntes), apaga os movimentos AJUSTE e o
+  // lançamento contábil (sobra/perda) — senão estoque e razão ficam alterados.
+  await prisma.$transaction(async (tx) => {
+    const movs = await tx.movimentacaoEstoque.findMany({
+      where: { empresaId: inv.empresaId, documento: inv.numero, tipo: "AJUSTE" },
+      select: { id: true, itemId: true, localEstoqueId: true, saldoAntes: true, saldoDepois: true, clienteDonoId: true },
+    });
+    const afetados = new Set<string>();
+    for (const m of movs) {
+      const delta = parseFloat(String(m.saldoDepois)) - parseFloat(String(m.saldoAntes));
+      if (m.localEstoqueId && delta !== 0) {
+        await tx.estoqueItem.updateMany({
+          where: { itemId: m.itemId, localEstoqueId: m.localEstoqueId, clienteDonoId: m.clienteDonoId ?? null },
+          data: { quantidadeAtual: { decrement: delta } },
+        });
+        afetados.add(`${m.itemId}|${m.localEstoqueId}|${m.clienteDonoId ?? ""}`);
+      }
+    }
+    if (movs.length) await tx.movimentacaoEstoque.deleteMany({ where: { id: { in: movs.map((m) => m.id) } } });
+    for (const chave of Array.from(afetados)) {
+      const [itemId, localId, dono] = chave.split("|");
+      await recalcularSaldos(tx, itemId, localId, dono || null);
+    }
+    await tx.inventarioMaterial.delete({ where: { id: params.id } });
+  });
+
+  await apagarLancamentosContabeis({ empresaId: inv.empresaId, origemTipo: "ESTOQUE_AJUSTE", origemId: params.id }).catch(() => {});
   return NextResponse.json({ ok: true });
 }

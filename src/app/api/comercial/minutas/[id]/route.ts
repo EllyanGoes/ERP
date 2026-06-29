@@ -9,7 +9,7 @@ import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { espelharEntregaMinuta } from "@/lib/intragrupo";
 import { gerarCompraVirtualVendaOrdem } from "@/lib/venda-ordem";
-import { recontabilizarMinuta } from "@/lib/contabilidade";
+import { recontabilizarMinuta, apagarLancamentosContabeis } from "@/lib/contabilidade";
 import { resolverLocaisSaida } from "@/lib/local-saida";
 
 // Lançado dentro das transações quando outra requisição mexeu na minuta no meio
@@ -533,7 +533,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   try {
     const minuta = await prisma.minuta.findUnique({
       where: { id: params.id },
-      select: { id: true, numero: true, status: true, pedidoVendaId: true },
+      select: { id: true, numero: true, status: true, pedidoVendaId: true, empresaId: true },
     });
     if (!minuta) return NextResponse.json({ error: "Minuta não encontrada" }, { status: 404 });
 
@@ -588,6 +588,14 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       //    (pode reverter de Concluído se a minuta excluída era a que fechava).
       if (minuta.pedidoVendaId) await checkAndConcludePedido(tx, minuta.pedidoVendaId);
     });
+
+    // 6) Reverte a contabilidade da entrega: CMV (ESTOQUE_SAIDA) e receita
+    //    (RECEITA_ENTREGA), ambos com origem na minuta — senão ficam órfãos.
+    await apagarLancamentosContabeis({
+      empresaId: minuta.empresaId,
+      origemTipo: { in: ["ESTOQUE_SAIDA", "RECEITA_ENTREGA"] },
+      origemId: params.id,
+    }).catch(() => {});
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {

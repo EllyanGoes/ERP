@@ -9,7 +9,7 @@ import { recalcPedidoValorTotal, getItensPendentesEntrega, recomputarStatusPedid
 import { espelharConfirmacaoVenda, cancelarEspelhoVenda } from "@/lib/intragrupo";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
-import { recontabilizarClientePedido } from "@/lib/contabilidade";
+import { recontabilizarClientePedido, apagarLancamentosContabeis } from "@/lib/contabilidade";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const pedido = await prisma.pedidoVenda.findUnique({
@@ -586,10 +586,11 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       // Itens e minutas desses pedidos — usados para achar os movimentos a estornar.
       const [itens, minutas] = await Promise.all([
         tx.pedidoVendaItem.findMany({ where: { pedidoVendaId: { in: pedidoIds } }, select: { id: true } }),
-        tx.minuta.findMany({ where: { pedidoVendaId: { in: pedidoIds } }, select: { numero: true } }),
+        tx.minuta.findMany({ where: { pedidoVendaId: { in: pedidoIds } }, select: { id: true, numero: true } }),
       ]);
       const itemIds = itens.map((i) => i.id);
       const minutaNumeros = minutas.map((m) => m.numero);
+      const minutaIds = minutas.map((m) => m.id);
 
       // Movimentos de estoque: tag de venda à ordem, ou documentados pelas minutas,
       // ou amarrados a um item do pedido. Estorna o saldo de cada um antes de apagar.
@@ -666,10 +667,20 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
         contasPagar: cpIds.length,
         minutas: minutaNumeros.length,
         pedidosEntrega: entregas.length,
+        // Ids de origem p/ apagar os lançamentos contábeis fora da transação.
+        origemIds: [...pedidoIds, ...crIds, ...minutaIds],
       };
     });
 
-    return NextResponse.json({ data: { ok: true, ...resumo } });
+    // Contabilidade: apaga os lançamentos gerados pela venda/entrega/recebimento
+    // (VENDA por pedido/CR, RECEBIMENTO por CR, CMV/RECEITA por minuta) — senão
+    // ficam órfãos no razão. Sem filtro de empresa: a cadeia cruza o grupo.
+    if (resumo.origemIds.length) {
+      await apagarLancamentosContabeis({ origemId: { in: resumo.origemIds } }).catch(() => {});
+    }
+
+    const { origemIds: _omit, ...resp } = resumo;
+    return NextResponse.json({ data: { ok: true, ...resp } });
   } catch (err) {
     console.error("[DELETE /api/pedidos-venda/[id]]", err);
     return NextResponse.json(
