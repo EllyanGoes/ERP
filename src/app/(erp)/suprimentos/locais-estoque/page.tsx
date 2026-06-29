@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
-import { MapPin, Package, Plus, Pencil, Trash2, Loader2, AlertTriangle, X, Check, Save, Building2, GitBranch, Scale } from "lucide-react";
+import { MapPin, Package, Plus, Pencil, Trash2, Loader2, AlertTriangle, X, Check, Save, Building2, GitBranch, Scale, Layers } from "lucide-react";
 import { formatBRL, cn } from "@/lib/utils";
 import { useSession } from "@/lib/session-context";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import type { CategoriaEstoque } from "@prisma/client";
 import { CATEGORIA_ESTOQUE_VALUES, CATEGORIA_ESTOQUE_LABELS, CATEGORIA_ESTOQUE_DESCRICOES, iconeLocalPorCategoria } from "@/lib/categoria-estoque-ui";
 
@@ -89,6 +90,8 @@ export default function LocaisEstoquePage() {
   const [locais, setLocais] = useState<LocalRow[]>([]);
   const [filiais, setFiliais] = useState<Filial[]>([]);
   const [loading, setLoading] = useState(true);
+  // Agrupar os locais pela categoria que aceitam (persistido por usuário).
+  const [agruparCategoria, setAgruparCategoria] = usePersistedState("locais-estoque:agruparCategoria", false);
 
   // Reconciliação contábil → físico
   const [reconc, setReconc] = useState(false);
@@ -229,6 +232,32 @@ export default function LocaisEstoquePage() {
   const filialNome = (f: Filial | null | undefined) =>
     f ? (f.nomeFantasia || f.razaoSocial) : null;
 
+  // Agrupamento por categoria: cada local entra na 1ª categoria que aceita
+  // (vazio → "Sem categoria"). Grupos na ordem do enum, "Sem categoria" por último.
+  const SEM_CATEGORIA = "__none__";
+  const grupos = (() => {
+    if (!agruparCategoria) return null;
+    const map = new Map<string, LocalRow[]>();
+    for (const l of locais) {
+      const key = l.categoriasAceitas?.[0] ?? SEM_CATEGORIA;
+      const arr = map.get(key) ?? [];
+      arr.push(l);
+      map.set(key, arr);
+    }
+    const ordem = (k: string) => (k === SEM_CATEGORIA ? 999 : CATEGORIA_ESTOQUE_VALUES.indexOf(k as CategoriaEstoque));
+    return Array.from(map.keys())
+      .sort((a, b) => ordem(a) - ordem(b))
+      .map((k) => {
+        const ls = map.get(k)!;
+        return {
+          key: k,
+          label: k === SEM_CATEGORIA ? "Sem categoria" : CATEGORIA_ESTOQUE_LABELS[k as CategoriaEstoque],
+          locais: ls,
+          custo: ls.reduce((s, l) => s + (l.custoFisico ?? 0), 0),
+        };
+      });
+  })();
+
   return (
     <div>
       <PageHeader
@@ -296,6 +325,24 @@ export default function LocaisEstoquePage() {
           </div>
         </div>
 
+        {/* Toggle: agrupar os locais pela categoria que aceitam (persistido) */}
+        {!loading && locais.length > 0 && (
+          <div className="flex justify-end">
+            <button
+              onClick={() => setAgruparCategoria((v) => !v)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                agruparCategoria
+                  ? "border-indigo-300 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground",
+              )}
+              title="Agrupar os locais pela categoria que aceitam"
+            >
+              <Layers className="w-3.5 h-3.5" /> Agrupar por categoria
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -321,7 +368,22 @@ export default function LocaisEstoquePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {locais.map((local) => {
+                {(agruparCategoria && grupos ? grupos : [{ key: "__all__", label: "", locais, custo: 0 }]).map((g) => (
+                  <Fragment key={g.key}>
+                    {agruparCategoria && (
+                      <tr className="bg-muted/50 border-y border-border">
+                        <td colSpan={4} className="px-4 py-2">
+                          <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-foreground">
+                            <Layers className="w-3.5 h-3.5 text-muted-foreground" />
+                            {g.label}
+                            <span className="font-normal normal-case text-muted-foreground">· {g.locais.length} local(is)</span>
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-right text-xs font-semibold text-violet-700 dark:text-violet-300 tabular-nums">{formatBRL(g.custo)}</td>
+                        <td colSpan={2} />
+                      </tr>
+                    )}
+                    {g.locais.map((local) => {
                   const custoTotal = local.custoFisico;
                   // Divergência contábil × físico (só mostra enquanto não reconciliado).
                   const diverge = local.custoContabil != null && Math.abs(local.custoContabil - local.custoFisico) > 0.01;
@@ -407,7 +469,9 @@ export default function LocaisEstoquePage() {
                       </td>
                     </tr>
                   );
-                })}
+                    })}
+                  </Fragment>
+                ))}
               </tbody>
             </table>
           </div>
