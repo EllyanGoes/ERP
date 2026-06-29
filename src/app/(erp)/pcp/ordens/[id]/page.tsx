@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, RefreshCw, Flame, Ban, AlertTriangle, ArrowLeftRight, Printer, Paperclip, Upload, Trash2, FileText } from "lucide-react";
+import { ArrowLeft, RefreshCw, Flame, Ban, AlertTriangle, ArrowLeftRight, Printer, Paperclip, Upload, Trash2, FileText, RotateCcw } from "lucide-react";
 
 interface Etapa {
   id: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; status: string;
@@ -78,6 +78,16 @@ export default function OrdemDetalhePage() {
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setBusy(false); }
   }
 
+  async function estornar() {
+    if (!confirm("Estornar o apontamento desta OP? Desfaz a produção/consumo no estoque e na contabilidade e devolve a OP para LIBERADA.")) return;
+    setBusy(true); setErro(null);
+    try {
+      const r = await fetch(`/api/pcp/ordens/${id}/estornar`, { method: "POST" });
+      if (!r.ok) { const j = await r.json(); throw new Error(j?.error ?? "Erro"); }
+      await load();
+    } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setBusy(false); }
+  }
+
   async function enviarArquivo(file: File) {
     setSubindo(true); setErro(null);
     try {
@@ -115,6 +125,11 @@ export default function OrdemDetalhePage() {
             <a href={`/pcp/ordens/${id}/imprimir`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted">
               <Printer className="w-4 h-4" /> Imprimir
             </a>
+            {(ordem.status === "EM_PRODUCAO" || ordem.status === "CONCLUIDA") && (
+              <button onClick={estornar} disabled={busy} className="inline-flex items-center gap-1 rounded-lg border border-warning/40 px-3 py-1.5 text-sm text-warning hover:bg-warning/10 disabled:opacity-50">
+                <RotateCcw className="w-4 h-4" /> Estornar apontamento
+              </button>
+            )}
             {!finalizada && (
               <button onClick={cancelar} disabled={busy} className="inline-flex items-center gap-1 rounded-lg border border-danger/30 px-3 py-1.5 text-sm text-danger hover:bg-danger/10 disabled:opacity-50">
                 <Ban className="w-4 h-4" /> Cancelar
