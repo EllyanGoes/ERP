@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { recontabilizarConferencia } from "@/lib/contabilidade";
+import { recontabilizarConferencia, apagarLancamentosContabeis } from "@/lib/contabilidade";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.conferenciaCompra.findUnique({
@@ -261,7 +261,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
 
   const current = await prisma.conferenciaCompra.findUnique({
     where: { id: params.id },
-    select: { status: true },
+    select: { status: true, empresaId: true, itens: { select: { id: true } } },
   });
   if (!current) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
 
@@ -271,6 +271,38 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: "Apenas administradores podem excluir documentos concluídos" }, { status: 403 });
   }
 
-  await prisma.conferenciaCompra.delete({ where: { id: params.id } });
+  // Excluir uma conferência tem de DESFAZER tudo que a conclusão fez — senão o
+  // estoque e a contabilidade ficam inflados e o movimento de ENTRADA vira órfão
+  // (a FK conferenciaItemId é ON DELETE SET NULL, não apaga o movimento).
+  await prisma.$transaction(async (tx) => {
+    const itemIds = current.itens.map((i) => i.id);
+    const movs = itemIds.length
+      ? await tx.movimentacaoEstoque.findMany({
+          where: { conferenciaItemId: { in: itemIds }, tipo: "ENTRADA" },
+          select: { id: true, itemId: true, localEstoqueId: true, quantidade: true, clienteDonoId: true },
+        })
+      : [];
+    // 1) Estoque: reverter o incremento feito na conclusão (por item/local).
+    for (const m of movs) {
+      const ei = await tx.estoqueItem.findFirst({
+        where: { empresaId: current.empresaId, itemId: m.itemId, localEstoqueId: m.localEstoqueId, clienteDonoId: m.clienteDonoId },
+        select: { id: true },
+      });
+      if (ei) {
+        await tx.estoqueItem.update({ where: { id: ei.id }, data: { quantidadeAtual: { decrement: m.quantidade } } });
+      }
+    }
+    // 2) Movimentações: apagar as ENTRADAs geradas (não deixar órfãs).
+    if (movs.length) {
+      await tx.movimentacaoEstoque.deleteMany({ where: { id: { in: movs.map((m) => m.id) } } });
+    }
+    // 3) Conferência (cascade nos itens).
+    await tx.conferenciaCompra.delete({ where: { id: params.id } });
+  });
+
+  // 4) Contabilidade: apagar o lançamento da entrada (D Estoque / C Fornecedor).
+  // (CMPM do item não é revertido — média móvel; ajuste manual se necessário.)
+  await apagarLancamentosContabeis({ empresaId: current.empresaId, origemTipo: "ESTOQUE_ENTRADA", origemId: params.id }).catch(() => {});
+
   return NextResponse.json({ ok: true });
 }
