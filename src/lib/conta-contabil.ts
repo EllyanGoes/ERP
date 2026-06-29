@@ -173,12 +173,40 @@ export async function garantirContaContabilNatureza(naturezaId: string) {
   return garantirAnaliticaSobPai(n.empresaId, paiCodResultado(n.grupo, n.tipo), n.nome, { naturezaFinanceiraId: naturezaId });
 }
 
-/** Garante (idempotente) a conta de Estoque de um local, na empresa dele. */
+// Local de WIP de produção (estados úmido/seco/queimado, todos categoria "WIP", +
+// o genérico "Produção (WIP)"): a conta de estoque deve nascer DENTRO da sintética
+// PEP (1.1.3.0005), não solta como irmã em 1.1.3. A embalagem liberada à produção
+// (categoria EMBALAGEM) NÃO é WIP e segue em 1.1.3.
+function localEhWipProducao(nome: string, categoriasAceitas: string[]): boolean {
+  return categoriasAceitas.includes("WIP") || nome === "Produção (WIP)";
+}
+
+/** Garante (idempotente) a sintética "Estoque de Produto em Processo (PEP)" (1.1.3.0005). */
+export async function garantirContaPep(empresaId: string) {
+  const ex = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.3.0005" }, select: { id: true } });
+  if (ex) return ex;
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.3" } });
+  if (!pai) return null;
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo: "1.1.3.0005", nome: "Estoque de Produto em Processo (PEP)",
+      grupo: "ATIVO", natureza: "DEVEDORA", tipo: "SINTETICA",
+      nivel: pai.nivel + 1, aceitaLancamento: false, paiId: pai.id, ativo: true,
+    },
+    select: { id: true },
+  });
+}
+
+/** Garante (idempotente) a conta de Estoque de um local, na empresa dele. WIP de produção vai sob a PEP. */
 export async function garantirContaContabilLocalEstoque(localId: string) {
   const l = await prismaSemEscopo.localEstoque.findUnique({
-    where: { id: localId }, select: { empresaId: true, nome: true },
+    where: { id: localId }, select: { empresaId: true, nome: true, categoriasAceitas: true },
   });
   if (!l) return null;
+  if (localEhWipProducao(l.nome, l.categoriasAceitas as string[])) {
+    await garantirContaPep(l.empresaId);
+    return garantirAnaliticaSobPai(l.empresaId, "1.1.3.0005", l.nome, { localEstoqueId: localId });
+  }
   return garantirAnaliticaSobPai(l.empresaId, "1.1.3", l.nome, { localEstoqueId: localId });
 }
 
@@ -201,8 +229,12 @@ export async function garantirContaContabilBanco(contaBancariaId: string) {
 export async function garantirContaLocalNaEmpresa(empresaId: string, localId: string) {
   const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, localEstoqueId: localId } });
   if (existente) return existente;
-  const l = await prismaSemEscopo.localEstoque.findUnique({ where: { id: localId }, select: { nome: true } });
+  const l = await prismaSemEscopo.localEstoque.findUnique({ where: { id: localId }, select: { nome: true, categoriasAceitas: true } });
   if (!l) return null;
+  if (localEhWipProducao(l.nome, l.categoriasAceitas as string[])) {
+    await garantirContaPep(empresaId);
+    return garantirAnaliticaSobPai(empresaId, "1.1.3.0005", l.nome, { localEstoqueId: localId });
+  }
   return garantirAnaliticaSobPai(empresaId, "1.1.3", l.nome, { localEstoqueId: localId });
 }
 
