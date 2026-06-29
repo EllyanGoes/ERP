@@ -5,6 +5,19 @@ import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 import { custosComFallback } from "@/lib/custo-empresa";
+import { LOCAL_EMBALAGEM_PRODUCAO_NOME } from "@/lib/locais-producao";
+
+// Único destino de transferência ("Liberar para") permitido é a embalagem da
+// produção. Qualquer outro destino (WIP, depósitos) seria realocar estoque p/
+// dentro da produção indevidamente — deve ser consumo. Retorna msg de erro ou null.
+async function validarDestinoTransferencia(localDestinoId: string | null | undefined): Promise<string | null> {
+  if (!localDestinoId) return null;
+  const dest = await prisma.localEstoque.findUnique({ where: { id: localDestinoId }, select: { nome: true } });
+  if (!dest || dest.nome !== LOCAL_EMBALAGEM_PRODUCAO_NOME) {
+    return `Transferência só é permitida para "${LOCAL_EMBALAGEM_PRODUCAO_NOME}". Para os demais, use consumo (sem liberação).`;
+  }
+  return null;
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -61,6 +74,8 @@ export async function POST(req: NextRequest) {
     if (!body.localEstoqueId) {
       return NextResponse.json({ error: "Almoxarifado é obrigatório" }, { status: 400 });
     }
+    const erroDestino = await validarDestinoTransferencia(body.localDestinoId);
+    if (erroDestino) return NextResponse.json({ error: erroDestino }, { status: 400 });
     // Natureza financeira é obrigatória POR ITEM (define p/ onde o consumo vai no
     // resultado). O cabeçalho serve de fallback ("aplica a todos"). Devolução não tem.
     // Transferência (localDestino) também não: é realocação de estoque, não consumo.

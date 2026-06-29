@@ -14,6 +14,7 @@ import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 import { cn } from "@/lib/utils";
 import { rotearDestinoRequisicao } from "@/lib/pcp/rotear-requisicao";
+import { LOCAL_EMBALAGEM_PRODUCAO_NOME } from "@/lib/locais-producao";
 
 const DESTINOS = [
   { value: "", label: "Automático" },
@@ -901,8 +902,10 @@ export default function RequisicaoCreateForm() {
               {tipo === "REQUISICAO" && (
                 <div className="space-y-1.5">
                   <Label>Liberar para <span className="text-muted-foreground font-normal text-xs">(transferência)</span></Label>
+                  {/* Único destino de transferência válido é a embalagem da produção;
+                      qualquer outro local é consumo (não liberação). */}
                   <PortalSelect
-                    options={locais.filter((l) => l.id !== localEstoqueId)}
+                    options={locais.filter((l) => l.nome === LOCAL_EMBALAGEM_PRODUCAO_NOME && l.id !== localEstoqueId)}
                     value={localDestinoId}
                     onChange={setLocalDestinoId}
                     placeholder="Consumo (sem liberação)"

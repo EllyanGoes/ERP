@@ -7,6 +7,7 @@ import { assertSaldoNaoNegativo, respostaSaldoNegativo, SaldoNegativoError, type
 import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
 import { recontabilizarRequisicao, recontabilizarLoteMovimentacao } from "@/lib/contabilidade";
 import { custosComFallback } from "@/lib/custo-empresa";
+import { LOCAL_EMBALAGEM_PRODUCAO_NOME } from "@/lib/locais-producao";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.requisicaoMaterial.findUnique({
@@ -45,6 +46,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!auth.ok) return auth.response;
 
   const body = await req.json();
+
+  // Guard: o único destino de transferência ("Liberar para") permitido é a embalagem
+  // da produção. Outros destinos (WIP, depósitos) seriam realocação indevida p/ dentro
+  // da produção — devem ser consumo.
+  if (body.localDestinoId) {
+    const dest = await prisma.localEstoque.findUnique({ where: { id: body.localDestinoId }, select: { nome: true } });
+    if (!dest || dest.nome !== LOCAL_EMBALAGEM_PRODUCAO_NOME) {
+      return NextResponse.json({ error: `Transferência só é permitida para "${LOCAL_EMBALAGEM_PRODUCAO_NOME}". Para os demais, use consumo (sem liberação).` }, { status: 400 });
+    }
+  }
 
   let loteTransferId: string | null = null; // setado no modo transferência (libera p/ outro local)
 

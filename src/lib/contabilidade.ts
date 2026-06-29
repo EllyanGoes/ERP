@@ -1393,9 +1393,13 @@ export async function reconciliarEstoqueAoFisico(
 export async function contabilizarLoteMovimentacao(loteId: string) {
   const lote = await prismaSemEscopo.loteMovimentacao.findUnique({
     where: { id: loteId },
-    select: { id: true, numero: true, tipo: true, createdAt: true, empresaId: true },
+    select: { id: true, numero: true, tipo: true, createdAt: true, empresaId: true, documento: true, observacoes: true },
   });
   if (!lote) return;
+  // Histórico que revela a ORIGEM real (liberação de RM, etc.) em vez do genérico
+  // "Movimentação manual". `observacoes` já traz "Liberação de Material RM-XXXX".
+  const historico = lote.observacoes?.trim()
+    || (lote.documento?.trim() ? `Movimentação — ${lote.documento.trim()}` : `Movimentação manual — ${lote.numero}`);
   const ehTransferencia = lote.tipo === "TRANSFERENCIA";
   const origemTipo = ehTransferencia ? "ESTOQUE_TRANSFERENCIA" : "ESTOQUE_AJUSTE";
 
@@ -1409,6 +1413,10 @@ export async function contabilizarLoteMovimentacao(loteId: string) {
       // sozinho descartaria os movimentos com documento NULL (produção) — por isso
       // o OR explícito que preserva os nulos.
       pedidoVendaItemId: null, conferenciaItemId: null,
+      // Movimentos de produção (ordemProducaoId) já são contabilizados por
+      // contabilizarProducaoOrdem; se a OP também agrupa num lote, o lote NÃO pode
+      // recontabilizar (senão dobra D PEP / C origem — virava "perda" na reconciliação).
+      ordemProducaoId: null,
       OR: [{ documento: null }, { documento: { not: "SALDO-INICIAL" } }],
     },
     select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true },
@@ -1440,7 +1448,7 @@ export async function contabilizarLoteMovimentacao(loteId: string) {
     : await Promise.all([contaPorCodigo(empresaId, "1.1.3.0005.0001"), garantirContaCpv(empresaId)]);
 
   await postMovimentosEstoque({
-    empresaId, data: lote.createdAt, historico: `Movimentação manual — ${lote.numero}`,
+    empresaId, data: lote.createdAt, historico,
     origemTipo, origemId: loteId,
     movs, contaPositivoId: sobrasId, contaNegativoId: perdasId, semContrapartida: ehTransferencia,
     pcpLocalIds, contaPcpEntradaId: pep?.id ?? null, contaPcpSaidaId: cpv?.id ?? null,

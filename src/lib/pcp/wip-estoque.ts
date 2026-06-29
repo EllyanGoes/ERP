@@ -4,13 +4,15 @@
 
 import type { Prisma, EstadoWIP, TipoMovimentacaoEstoque, CategoriaEstoque } from "@prisma/client";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+// Estoque de embalagem da PRODUÇÃO: o que o almoxarife libera p/ a produção. O
+// apontamento que consome embalagem (palete/fita/grampo) baixa DAQUI — então a
+// produção só consome o que foi liberado (saldo zero barra o apontamento). Constante
+// em módulo client-safe (reexportada aqui p/ não quebrar imports existentes).
+import { LOCAL_EMBALAGEM_PRODUCAO_NOME } from "@/lib/locais-producao";
+export { LOCAL_EMBALAGEM_PRODUCAO_NOME };
 
 const LOCAL_WIP_NOME = "Produção (WIP)";
 const LOCAL_PA_NOME = "Estoque de Produto Acabado";
-// Estoque de embalagem da PRODUÇÃO: o que o almoxarife libera p/ a produção. O
-// apontamento que consome embalagem (palete/fita/grampo) baixa DAQUI — então a
-// produção só consome o que foi liberado (saldo zero barra o apontamento).
-export const LOCAL_EMBALAGEM_PRODUCAO_NOME = "Estoque de Embalagem (Produção)";
 
 const ESTADO_LABEL: Record<EstadoWIP, string> = {
   UMIDO: "úmido",
