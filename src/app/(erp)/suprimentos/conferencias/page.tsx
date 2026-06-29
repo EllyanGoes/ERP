@@ -58,7 +58,14 @@ const STATUS_COLS: { key: string; label: string; color: string; bg: string; bord
 const ALL_STATUSES = STATUS_COLS.map((s) => s.key);
 
 const FILTER_KEY = "erp:conferencias:filters:v1";
-type Filters = { search: string; statuses: string[]; view: "list" | "kanban"; groupBy: GroupByValue };
+type SortValue = "recentes" | "conferencia" | "emissao" | "valor";
+const SORT_OPTIONS: { value: SortValue; label: string }[] = [
+  { value: "recentes", label: "Mais recentes" },
+  { value: "conferencia", label: "Data de conferência" },
+  { value: "emissao", label: "Data de emissão" },
+  { value: "valor", label: "Valor total" },
+];
+type Filters = { search: string; statuses: string[]; view: "list" | "kanban"; groupBy: GroupByValue; sort: SortValue };
 
 function loadFilters(): Filters {
   try {
@@ -77,10 +84,11 @@ function loadFilters(): Filters {
         statuses: Array.isArray(f.statuses) ? f.statuses : [...ALL_STATUSES],
         view: f.view ?? "list",
         groupBy,
+        sort: SORT_OPTIONS.some((o) => o.value === f.sort) ? f.sort : "recentes",
       };
     }
   } catch { /* ignore */ }
-  return { search: "", statuses: [...ALL_STATUSES], view: "list", groupBy: "none" };
+  return { search: "", statuses: [...ALL_STATUSES], view: "list", groupBy: "none", sort: "recentes" };
 }
 
 // ── Column definitions ────────────────────────────────────────────────────────
@@ -121,6 +129,13 @@ const COLS: ColDef<ConferenciaRow>[] = [
     thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3 text-muted-foreground text-xs",
     render: (doc) => doc.dtEmissao ? formatDate(doc.dtEmissao) : "—",
+  },
+  {
+    id: "dataConferencia",
+    label: "Data Conferência",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
+    tdClass: "px-4 py-3 text-muted-foreground text-xs",
+    render: (doc) => doc.dataConferencia ? formatDate(doc.dataConferencia) : "—",
   },
   {
     id: "status",
@@ -313,6 +328,20 @@ export default function DocumentosEntradaPage() {
     });
   }, [docs, filters]);
 
+  // Ordenação (aplicada à lista e dentro dos grupos).
+  const sorted = useMemo(() => {
+    const ts = (d: string | null | undefined): number => {
+      const t = d ? new Date(d).getTime() : 0;
+      return Number.isNaN(t) ? 0 : t;
+    };
+    const arr = [...filtered];
+    if (filters.sort === "valor") arr.sort((a, b) => calcValorTotal(b) - calcValorTotal(a));
+    else if (filters.sort === "emissao") arr.sort((a, b) => ts(b.dtEmissao) - ts(a.dtEmissao));
+    else if (filters.sort === "conferencia") arr.sort((a, b) => ts(b.dataConferencia ?? b.createdAt) - ts(a.dataConferencia ?? a.createdAt));
+    else arr.sort((a, b) => ts(b.createdAt) - ts(a.createdAt)); // recentes
+    return arr;
+  }, [filtered, filters.sort]);
+
   const activeStatusLabel = useMemo(() => {
     if (filters.statuses.length === ALL_STATUSES.length) return `${filters.statuses.length} status`;
     if (filters.statuses.length === 0) return "Nenhum status";
@@ -333,7 +362,7 @@ export default function DocumentosEntradaPage() {
     if (filters.groupBy === "none") return null;
     const groups: { key: string; label: string; items: ConferenciaRow[]; total: number }[] = [];
     const index = new Map<string, number>();
-    for (const doc of filtered) {
+    for (const doc of sorted) {
       let key: string;
       let label: string;
       if (filters.groupBy === "fornecedor") {
@@ -341,11 +370,12 @@ export default function DocumentosEntradaPage() {
         key = nome === "—" ? "sem-fornecedor" : nome.toLowerCase();
         label = nome === "—" ? "Sem fornecedor" : nome;
       } else {
-        // Por dia: usa a emissão quando houver; senão a data de conferência ou,
-        // por fim, a de registro (DEs automáticos não têm emissão — antes caíam
-        // todos em "Sem data" e sumiam da visão por dia). Chave e rótulo no mesmo
-        // critério (formatDate é UTC; slice(0,10) também), p/ a ordem bater.
-        const dataRef = doc.dtEmissao ?? doc.dataConferencia ?? doc.createdAt ?? null;
+        // Por dia = dia da ENTRADA (conferência/registro), não a emissão da NF
+        // (que pode ser dias antes). Assim o doc aparece no dia em que o estoque
+        // entrou, batendo com a movimentação. Toda conferência tem createdAt, então
+        // nada cai em "Sem data". Chave e rótulo no mesmo critério (UTC, igual ao
+        // formatDate; slice(0,10) também), p/ a ordem bater com o exibido.
+        const dataRef = doc.dataConferencia ?? doc.createdAt ?? null;
         key = dataRef ? dataRef.slice(0, 10) : "sem-data";
         label = dataRef ? formatDate(dataRef) : "Sem data";
       }
@@ -370,7 +400,7 @@ export default function DocumentosEntradaPage() {
       );
     }
     return groups;
-  }, [filtered, filters.groupBy]);
+  }, [sorted, filters.groupBy]);
 
   return (
     <div className="flex flex-col h-full">
@@ -471,6 +501,20 @@ export default function DocumentosEntradaPage() {
           <GroupByControl value={filters.groupBy} onChange={(v) => updateFilters({ groupBy: v })} />
         )}
 
+        {/* Ordenação — list only */}
+        {filters.view === "list" && (
+          <label className="flex items-center gap-1.5 h-9 px-3 text-xs border border-border rounded-lg bg-card text-muted-foreground">
+            <span>Ordenar:</span>
+            <select
+              value={filters.sort}
+              onChange={(e) => updateFilters({ sort: e.target.value as SortValue })}
+              className="bg-transparent text-foreground text-xs outline-none cursor-pointer"
+            >
+              {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </label>
+        )}
+
         {/* View toggle */}
         <div className="ml-auto flex items-center gap-1 border border-border rounded-lg p-0.5 bg-card">
           <button
@@ -548,7 +592,7 @@ export default function DocumentosEntradaPage() {
                         ))}
                       </Fragment>
                     ))
-                  : filtered.map((doc) => (
+                  : sorted.map((doc) => (
                       <tr
                         key={doc.id}
                         className="hover:bg-muted cursor-pointer transition-colors"

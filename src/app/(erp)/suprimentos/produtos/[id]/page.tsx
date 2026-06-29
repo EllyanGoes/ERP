@@ -41,6 +41,7 @@ type Movimentacao = {
   createdAt: string;
   pedidoVendaItemId: string | null;
   conferenciaItemId: string | null;
+  conferenciaId?: string | null;
   loteId: string | null;
   localEstoqueId?: string | null;
   valorUnitario?: unknown;
@@ -2083,7 +2084,17 @@ export default function ProdutoDetailPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
-                          {m.documento || "—"}
+                          {m.conferenciaId ? (
+                            <Link
+                              href={`/suprimentos/conferencias/${m.conferenciaId}`}
+                              className="text-info hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {m.documento || "—"}
+                            </Link>
+                          ) : (
+                            m.documento || "—"
+                          )}
                         </td>
                         <td className="px-4 py-3 text-foreground font-mono text-xs">
                           {m.minutaFisica || "—"}

@@ -59,6 +59,20 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       })
     : [];
   const minutaPorNumero = new Map(minutas.map((mn) => [mn.numero, mn]));
+
+  // Resolve a conferência (Documento de Entrada) de cada movimentação de compra,
+  // para a tela linkar o documento direto ao DE.
+  const confItemIds = Array.from(
+    new Set(item.movimentacoes.map((m) => m.conferenciaItemId).filter((x): x is string => !!x)),
+  );
+  const confItens = confItemIds.length
+    ? await prisma.conferenciaCompraItem.findMany({
+        where: { id: { in: confItemIds } },
+        select: { id: true, conferenciaId: true },
+      })
+    : [];
+  const conferenciaPorItem = new Map(confItens.map((ci) => [ci.id, ci.conferenciaId]));
+
   const movimentacoes = item.movimentacoes.map((m) => {
     const mn = m.documento ? minutaPorNumero.get(m.documento) : undefined;
     return {
@@ -66,6 +80,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       minutaFisica: mn?.numeroFisico ?? null,
       minutaDataEmissao: mn?.dataEmissao ?? null,
       minutaDataEntrega: mn?.dataEntrega ?? null,
+      conferenciaId: m.conferenciaItemId ? conferenciaPorItem.get(m.conferenciaItemId) ?? null : null,
     };
   });
 
