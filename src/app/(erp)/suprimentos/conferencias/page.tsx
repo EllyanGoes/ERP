@@ -23,6 +23,8 @@ type ConferenciaRow = {
   numeroNF: string | null;
   status: string;
   dtEmissao: string | null;
+  dataConferencia: string | null;
+  createdAt: string;
   vrTotal: unknown;
   pedido: {
     id: string;
@@ -339,8 +341,13 @@ export default function DocumentosEntradaPage() {
         key = nome === "—" ? "sem-fornecedor" : nome.toLowerCase();
         label = nome === "—" ? "Sem fornecedor" : nome;
       } else {
-        key = doc.dtEmissao ? doc.dtEmissao.slice(0, 10) : "sem-data";
-        label = doc.dtEmissao ? formatDate(doc.dtEmissao) : "Sem data";
+        // Por dia: usa a emissão quando houver; senão a data de conferência ou,
+        // por fim, a de registro (DEs automáticos não têm emissão — antes caíam
+        // todos em "Sem data" e sumiam da visão por dia). Chave e rótulo no mesmo
+        // critério (formatDate é UTC; slice(0,10) também), p/ a ordem bater.
+        const dataRef = doc.dtEmissao ?? doc.dataConferencia ?? doc.createdAt ?? null;
+        key = dataRef ? dataRef.slice(0, 10) : "sem-data";
+        label = dataRef ? formatDate(dataRef) : "Sem data";
       }
       let gi = index.get(key);
       if (gi === undefined) {
