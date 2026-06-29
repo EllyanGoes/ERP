@@ -18,8 +18,13 @@ import { statusMinutaLabel, TIPO_MINUTA_LABEL, type TipoMinuta } from "@/lib/min
 import {
   Plus, Search, X, LayoutList, Kanban, Loader2,
   ChevronDown as ChevronDownIcon, CalendarDays, Download, Check, Truck, Layers, Shuffle,
+  MoreVertical, Trash2, Eye,
 } from "lucide-react";
 import EmpresaTag from "@/components/shared/EmpresaTag";
+import { useSession } from "@/lib/session-context";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Minuta = {
@@ -409,6 +414,8 @@ function MinutaKanbanCard({
 export default function MinutasPage() {
   useTabTitle("Minutas");
   const router = useRouter();
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
 
   const [minutas, setMinutas] = useState<Minuta[]>([]);
   const [loading, setLoading] = useState(true);
@@ -520,17 +527,48 @@ export default function MinutasPage() {
     return Array.from(map.values()).sort((a, b) => a.sortVal - b.sortVal);
   }, [filtered, filters.groupByDelivery]);
 
-  const renderRow = (m: Minuta) => (
-    <tr
-      key={m.id}
-      className="hover:bg-muted cursor-pointer transition-colors"
-      onClick={() => router.push(`/comercial/minutas/${m.id}`)}
-    >
-      {orderedCols.map((col) => (
-        <td key={col.id} className={col.tdClass}>{col.render(m)}</td>
-      ))}
-    </tr>
-  );
+  // Excluir minuta (PENDENTE: qualquer um; já movimentada: só ADMIN, com estorno de estoque).
+  async function excluirMinuta(m: Minuta) {
+    const estorna = m.status !== "PENDENTE";
+    if (!confirm(`Excluir a minuta ${m.numero}?${estorna ? " O estoque baixado será estornado." : ""} Esta ação é permanente.`)) return;
+    try {
+      const res = await fetch(`/api/comercial/minutas/${m.id}`, { method: "DELETE" });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); alert(j.error ?? "Não foi possível excluir a minuta."); return; }
+      setMinutas((prev) => prev.filter((x) => x.id !== m.id));
+    } catch { alert("Erro de conexão ao excluir."); }
+  }
+
+  const renderRow = (m: Minuta) => {
+    const podeExcluir = isAdmin || m.status === "PENDENTE";
+    return (
+      <tr
+        key={m.id}
+        className="hover:bg-muted cursor-pointer transition-colors"
+        onClick={() => router.push(`/comercial/minutas/${m.id}`)}
+      >
+        {orderedCols.map((col) => (
+          <td key={col.id} className={col.tdClass}>{col.render(m)}</td>
+        ))}
+        <td className="px-2 py-3 w-12 text-right" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<button type="button" title="Ações" className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" />}>
+              <MoreVertical className="w-4 h-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => router.push(`/comercial/minutas/${m.id}`)}>
+                <Eye className="w-4 h-4 mr-2" /> Ver minuta
+              </DropdownMenuItem>
+              {podeExcluir && (
+                <DropdownMenuItem onClick={() => excluirMinuta(m)} className="text-danger focus:text-danger">
+                  <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </td>
+      </tr>
+    );
+  };
 
   // ── Kanban grouped ────────────────────────────────────────────────────────
   const kanbanGroups = useMemo(
@@ -843,6 +881,7 @@ export default function MinutasPage() {
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
                   ))}
+                  <th className="px-2 py-3 w-12" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -851,7 +890,7 @@ export default function MinutasPage() {
                       <Fragment key={g.key}>
                         <tr className="bg-muted">
                           <td
-                            colSpan={orderedCols.length}
+                            colSpan={orderedCols.length + 1}
                             className="px-4 py-2 border-t border-border text-xs font-semibold text-foreground"
                           >
                             <span className="inline-flex items-center gap-1.5">
