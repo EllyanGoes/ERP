@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useTabTitle } from "@/lib/tabs-context";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDate, formatBRL } from "@/lib/utils";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +30,8 @@ type ItemRow = {
   item: { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null } | null;
   centroCusto: { id: string; codigo: string; nome: string } | null;
   naturezaFinanceira: { id: string; nome: string; cif: boolean } | null;
+  custoUnitario?: number;
+  valorTotal?: number;
 };
 
 type Req = {
@@ -48,6 +50,7 @@ type Req = {
   almoxarife:   { id: string; nome: string } | null;
   centroCusto:  { id: string; codigo: string; nome: string } | null;
   itens: ItemRow[];
+  valorTotal?: number;
 };
 
 type ColaboradorOpt = { id: string; nome: string; setorId: string | null };
@@ -501,6 +504,8 @@ export default function RequisicaoDetailPage() {
                     <th className="text-left px-4 py-2.5 font-medium">O.S.</th>
                   </>}
                   <th className="text-left px-4 py-2.5 font-medium">Localização</th>
+                  <th className="text-right px-4 py-2.5 font-medium">Preço unit.</th>
+                  <th className="text-right px-4 py-2.5 font-medium">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -517,9 +522,17 @@ export default function RequisicaoDetailPage() {
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.os ?? "—"}</td>
                     </>}
                     <td className="px-4 py-2.5 text-muted-foreground text-xs">{it.localizacao ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{it.custoUnitario ? formatBRL(it.custoUnitario) : "—"}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums font-medium text-foreground">{it.valorTotal ? formatBRL(it.valorTotal) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-border bg-muted/40 font-semibold">
+                  <td colSpan={req.tipo === "REQUISICAO" ? 10 : 6} className="px-4 py-2.5 text-right text-muted-foreground">Total da requisição</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-foreground">{req.valorTotal != null ? formatBRL(req.valorTotal) : "—"}</td>
+                </tr>
+              </tfoot>
             </table>
           )}
         </div>

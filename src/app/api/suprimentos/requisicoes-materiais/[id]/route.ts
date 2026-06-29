@@ -6,6 +6,7 @@ import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { assertSaldoNaoNegativo, respostaSaldoNegativo, SaldoNegativoError, type ItemSaldoNegativo } from "@/lib/estoque-guard";
 import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
 import { recontabilizarRequisicao, recontabilizarLoteMovimentacao } from "@/lib/contabilidade";
+import { custosComFallback } from "@/lib/custo-empresa";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.requisicaoMaterial.findUnique({
@@ -27,7 +28,16 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     },
   });
   if (!record) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
-  return NextResponse.json({ data: record });
+
+  // Custo do material na empresa (fallback no CMPM global) → preço unit. + total por item.
+  const custos = await custosComFallback(prisma, record.empresaId, record.itens.map((it) => it.itemId));
+  const itens = record.itens.map((it) => {
+    const custoUnitario = custos.get(it.itemId) ?? 0;
+    const valorTotal = Math.round(parseFloat(String(it.quantidade)) * custoUnitario * 100) / 100;
+    return { ...it, custoUnitario, valorTotal };
+  });
+  const valorTotal = Math.round(itens.reduce((s, it) => s + it.valorTotal, 0) * 100) / 100;
+  return NextResponse.json({ data: { ...record, itens, valorTotal } });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

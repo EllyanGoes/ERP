@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import CreateDrawer from "@/components/shared/CreateDrawer";
 import RequisicaoCreateForm from "@/components/suprimentos/RequisicaoCreateForm";
 import { Input } from "@/components/ui/input";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDate, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 
 type Req = {
@@ -20,6 +20,7 @@ type Req = {
   colaborador:  { id: string; nome: string } | null;
   setor:        { id: string; nome: string } | null;
   _count: { itens: number };
+  valorTotal?: number;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -153,6 +154,7 @@ export default function RequisicoesMaterialPage() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Solicitante</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Data</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Itens</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Valor</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
               </tr>
             </thead>
@@ -178,6 +180,9 @@ export default function RequisicoesMaterialPage() {
                     {formatDate(r.data)}
                   </td>
                   <td className="px-4 py-3 text-center text-foreground font-medium">{r._count.itens}</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium text-foreground">
+                    {r.valorTotal != null && r.valorTotal > 0 ? formatBRL(r.valorTotal) : <span className="text-muted-foreground/60">—</span>}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", STATUS_COLOR[r.status] ?? "bg-muted text-muted-foreground")}>
                       {STATUS_LABEL[r.status] ?? r.status}

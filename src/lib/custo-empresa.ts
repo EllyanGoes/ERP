@@ -51,6 +51,25 @@ export async function custosDaEmpresa(db: DbCusto, empresaId: string, itemIds: s
   return resultado;
 }
 
+/**
+ * Custo por item com FALLBACK no CMPM global (Item.precoCusto) quando o item não
+ * tem custo próprio na empresa. Para EXIBIÇÃO (valor de requisição/relatório) —
+ * não para apropriar no razão (aí use custosDaEmpresa estrito). Retorna só itens
+ * com custo > 0.
+ */
+export async function custosComFallback(db: DbCusto, empresaId: string, itemIds: string[]): Promise<Map<string, number>> {
+  const m = new Map<string, number>();
+  if (itemIds.length === 0) return m;
+  const proprios = await custosDaEmpresa(db, empresaId, itemIds);
+  for (const [k, v] of Array.from(proprios.entries())) if (v != null && v > 0) m.set(k, v);
+  const faltam = itemIds.filter((id) => !m.has(id));
+  if (faltam.length) {
+    const itens = await db.item.findMany({ where: { id: { in: faltam } }, select: { id: true, precoCusto: true } });
+    for (const it of itens) { const v = num(it.precoCusto); if (v != null && v > 0) m.set(it.id, v); }
+  }
+  return m;
+}
+
 /** Chave do mapa de custos por (empresa, item). */
 export const chaveCustoEmpresa = (empresaId: string, itemId: string) => `${empresaId}|${itemId}`;
 

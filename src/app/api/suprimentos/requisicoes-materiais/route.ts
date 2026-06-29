@@ -4,6 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { custosComFallback } from "@/lib/custo-empresa";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -24,10 +25,30 @@ export async function GET(req: NextRequest) {
       colaborador:  { select: { id: true, nome: true } },
       setor:        { select: { id: true, nome: true } },
       _count:       { select: { itens: true } },
+      itens:        { select: { itemId: true, quantidade: true } },
     },
     orderBy: { createdAt: "desc" },
   });
-  return NextResponse.json({ data });
+
+  // Valor total por requisição = Σ (qtd × custo do material na empresa, com fallback no CMPM global).
+  const porEmpresa = new Map<string, Set<string>>();
+  for (const r of data) {
+    const s = porEmpresa.get(r.empresaId) ?? new Set<string>();
+    for (const it of r.itens) s.add(it.itemId);
+    porEmpresa.set(r.empresaId, s);
+  }
+  const custoPorEmpresa = new Map<string, Map<string, number>>();
+  for (const [emp, ids] of Array.from(porEmpresa.entries())) {
+    custoPorEmpresa.set(emp, await custosComFallback(prisma, emp, Array.from(ids)));
+  }
+
+  const result = data.map((r) => {
+    const cm = custoPorEmpresa.get(r.empresaId) ?? new Map<string, number>();
+    const valorTotal = r.itens.reduce((s, it) => s + parseFloat(String(it.quantidade)) * (cm.get(it.itemId) ?? 0), 0);
+    const { itens: _itens, ...rest } = r;
+    return { ...rest, valorTotal: Math.round(valorTotal * 100) / 100 };
+  });
+  return NextResponse.json({ data: result });
 }
 
 export async function POST(req: NextRequest) {
