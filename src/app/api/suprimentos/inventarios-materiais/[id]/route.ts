@@ -191,8 +191,11 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       await recalcularSaldos(tx, itemId, localId, dono || null);
     }
     await tx.inventarioMaterial.delete({ where: { id: params.id } });
+
+    // Contábil (sobra/perda) DENTRO da transação (atômico): se falhar, a exclusão
+    // inteira faz rollback e não sobra lançamento órfão no razão.
+    await apagarLancamentosContabeis({ empresaId: inv.empresaId, origemTipo: "ESTOQUE_AJUSTE", origemId: params.id }, tx);
   });
 
-  await apagarLancamentosContabeis({ empresaId: inv.empresaId, origemTipo: "ESTOQUE_AJUSTE", origemId: params.id }).catch(() => {});
   return NextResponse.json({ ok: true });
 }

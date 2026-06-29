@@ -587,15 +587,16 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       // 5) A entrega mudou → reavalia conclusão e recomputa os status do pedido
       //    (pode reverter de Concluído se a minuta excluída era a que fechava).
       if (minuta.pedidoVendaId) await checkAndConcludePedido(tx, minuta.pedidoVendaId);
-    });
 
-    // 6) Reverte a contabilidade da entrega: CMV (ESTOQUE_SAIDA) e receita
-    //    (RECEITA_ENTREGA), ambos com origem na minuta — senão ficam órfãos.
-    await apagarLancamentosContabeis({
-      empresaId: minuta.empresaId,
-      origemTipo: { in: ["ESTOQUE_SAIDA", "RECEITA_ENTREGA"] },
-      origemId: params.id,
-    }).catch(() => {});
+      // 6) Reverte a contabilidade da entrega DENTRO da transação (atômico): CMV
+      //    (ESTOQUE_SAIDA) e receita (RECEITA_ENTREGA), ambos com origem na minuta.
+      //    Se falhar, a exclusão inteira faz rollback e não fica órfão no razão.
+      await apagarLancamentosContabeis({
+        empresaId: minuta.empresaId,
+        origemTipo: { in: ["ESTOQUE_SAIDA", "RECEITA_ENTREGA"] },
+        origemId: params.id,
+      }, tx);
+    });
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {

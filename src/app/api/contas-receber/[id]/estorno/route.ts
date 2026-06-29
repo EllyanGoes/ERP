@@ -27,11 +27,12 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       data: { valorPago: 0, valorMulta: 0, valorJuros: 0, dataPagamento: null, formaPagamento: null, status: "ABERTA" },
     });
     if (conta.pedidoVendaId) await recomputarStatusPedido(tx, conta.pedidoVendaId);
+    // Desfaz a contabilização do recebimento DENTRO da transação (atômico: se
+    // falhar, o estorno inteiro faz rollback e não sobra lançamento órfão).
+    await apagarLancamentosContabeis({ empresaId: conta.empresaId, origemTipo: "RECEBIMENTO", origemId: params.id }, tx);
     return { erro: null, empresaId: conta.empresaId } as const;
   });
 
   if (result.erro) return NextResponse.json({ error: result.erro.msg }, { status: result.erro.status });
-  // Desfaz a contabilização do recebimento (best-effort, pós-commit).
-  await apagarLancamentosContabeis({ empresaId: result.empresaId, origemTipo: "RECEBIMENTO", origemId: params.id }).catch(() => {});
   return NextResponse.json({ ok: true });
 }

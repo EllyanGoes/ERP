@@ -646,13 +646,21 @@ export async function recontabilizarLoteMovimentacao(loteId: string) {
  * tem FK em cascata no banco — apagar só o LancamentoContabil deixa partidas
  * órfãs que corrompem o balanço. Sempre apagar as partidas ANTES. Retorna a
  * quantidade de lançamentos removidos.
+ *
+ * `db` permite rodar DENTRO da transação que desfaz o físico (passe o `tx`),
+ * tornando a limpeza atômica — se ela falhar, a exclusão inteira faz rollback e
+ * não sobra órfão. Default = prismaSemEscopo (pós-commit, p/ filtros cross-empresa
+ * sem empresaId, que um `tx` escopado não alcançaria).
  */
-export async function apagarLancamentosContabeis(where: Prisma.LancamentoContabilWhereInput): Promise<number> {
-  const lancs = await prismaSemEscopo.lancamentoContabil.findMany({ where, select: { id: true } });
+export async function apagarLancamentosContabeis(
+  where: Prisma.LancamentoContabilWhereInput,
+  db: Pick<Prisma.TransactionClient, "lancamentoContabil" | "partidaContabil"> = prismaSemEscopo,
+): Promise<number> {
+  const lancs = await db.lancamentoContabil.findMany({ where, select: { id: true } });
   if (!lancs.length) return 0;
   const ids = lancs.map((l) => l.id);
-  await prismaSemEscopo.partidaContabil.deleteMany({ where: { lancamentoId: { in: ids } } });
-  await prismaSemEscopo.lancamentoContabil.deleteMany({ where: { id: { in: ids } } });
+  await db.partidaContabil.deleteMany({ where: { lancamentoId: { in: ids } } });
+  await db.lancamentoContabil.deleteMany({ where: { id: { in: ids } } });
   return ids.length;
 }
 

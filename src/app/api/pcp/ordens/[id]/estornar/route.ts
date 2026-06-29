@@ -59,11 +59,12 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       data: { status: "PENDENTE", qtdEntrada: null, qtdSaida: null, qtdPerda: null, vagoes: null, vagonetas: null, inicioReal: null, fimReal: null },
     });
     await tx.ordemProducao.update({ where: { id: params.id }, data: { status: "LIBERADA", estadoAtual: "UMIDO" } });
-  });
 
-  // 4) Contábil: produção (transferência entre contas de estoque) + CIF de mistura.
-  await apagarLancamentosContabeis({ empresaId: ordem.empresaId, origemTipo: "ESTOQUE_PRODUCAO", origemId: params.id }).catch(() => {});
-  await apagarLancamentosContabeis({ empresaId: ordem.empresaId, origemTipo: "ESTOQUE_CONSUMO", origemId: `CIF-MISTURA-${params.id}` }).catch(() => {});
+    // 4) Contábil DENTRO da transação (atômico): produção (transferência entre
+    // contas de estoque) + CIF de mistura. Se falhar, o estorno todo faz rollback.
+    await apagarLancamentosContabeis({ empresaId: ordem.empresaId, origemTipo: "ESTOQUE_PRODUCAO", origemId: params.id }, tx);
+    await apagarLancamentosContabeis({ empresaId: ordem.empresaId, origemTipo: "ESTOQUE_CONSUMO", origemId: `CIF-MISTURA-${params.id}` }, tx);
+  });
 
   return NextResponse.json({ ok: true });
 }

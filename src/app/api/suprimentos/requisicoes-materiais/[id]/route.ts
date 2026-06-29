@@ -354,7 +354,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   // (SAIDA origem + ENTRADA destino). Reverte o saldo por tipo, apaga os
   // movimentos e os lançamentos contábeis (consumo e transferência).
   const num = (d: unknown) => parseFloat(String(d));
-  const loteIds = await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     const movs = await tx.movimentacaoEstoque.findMany({
       where: { empresaId: req.empresaId, documento: req.numero },
       select: { id: true, itemId: true, localEstoqueId: true, tipo: true, quantidade: true, saldoAntes: true, saldoDepois: true, clienteDonoId: true, loteId: true },
@@ -383,12 +383,14 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       if (restante === 0) await tx.loteMovimentacao.delete({ where: { id: loteId } }).catch(() => {});
     }
     await tx.requisicaoMaterial.delete({ where: { id: params.id } });
-    return Array.from(lotes);
-  });
 
-  await apagarLancamentosContabeis({ empresaId: req.empresaId, origemTipo: "ESTOQUE_CONSUMO", origemId: params.id }).catch(() => {});
-  if (loteIds.length) {
-    await apagarLancamentosContabeis({ empresaId: req.empresaId, origemTipo: "ESTOQUE_TRANSFERENCIA", origemId: { in: loteIds } }).catch(() => {});
-  }
+    // Contábil DENTRO da transação (atômico): consumo + transferências por lote.
+    // Se falhar, a exclusão inteira faz rollback e não sobra órfão no razão.
+    await apagarLancamentosContabeis({ empresaId: req.empresaId, origemTipo: "ESTOQUE_CONSUMO", origemId: params.id }, tx);
+    const lotesArr = Array.from(lotes);
+    if (lotesArr.length) {
+      await apagarLancamentosContabeis({ empresaId: req.empresaId, origemTipo: "ESTOQUE_TRANSFERENCIA", origemId: { in: lotesArr } }, tx);
+    }
+  });
   return NextResponse.json({ ok: true });
 }

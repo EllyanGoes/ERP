@@ -298,11 +298,12 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     }
     // 3) Conferência (cascade nos itens).
     await tx.conferenciaCompra.delete({ where: { id: params.id } });
-  });
 
-  // 4) Contabilidade: apagar o lançamento da entrada (D Estoque / C Fornecedor).
-  // (CMPM do item não é revertido — média móvel; ajuste manual se necessário.)
-  await apagarLancamentosContabeis({ empresaId: current.empresaId, origemTipo: "ESTOQUE_ENTRADA", origemId: params.id }).catch(() => {});
+    // 4) Contabilidade: apagar o lançamento da entrada (D Estoque / C Fornecedor)
+    // DENTRO da transação — se falhar, tudo faz rollback e não sobra órfão no razão.
+    // (CMPM do item não é revertido — média móvel; ajuste manual se necessário.)
+    await apagarLancamentosContabeis({ empresaId: current.empresaId, origemTipo: "ESTOQUE_ENTRADA", origemId: params.id }, tx);
+  });
 
   return NextResponse.json({ ok: true });
 }

@@ -674,9 +674,13 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
 
     // Contabilidade: apaga os lançamentos gerados pela venda/entrega/recebimento
     // (VENDA por pedido/CR, RECEBIMENTO por CR, CMV/RECEITA por minuta) — senão
-    // ficam órfãos no razão. Sem filtro de empresa: a cadeia cruza o grupo.
+    // ficam órfãos no razão. Sem filtro de empresa: a cadeia cruza o grupo, então
+    // roda pós-commit com prismaSemEscopo (um tx escopado não alcançaria a outra
+    // empresa). Não engole o erro: loga p/ um eventual órfão ser detectável.
     if (resumo.origemIds.length) {
-      await apagarLancamentosContabeis({ origemId: { in: resumo.origemIds } }).catch(() => {});
+      await apagarLancamentosContabeis({ origemId: { in: resumo.origemIds } }).catch((e) => {
+        console.error("[DELETE /pedidos-venda] falha ao apagar lançamentos contábeis (possível órfão):", resumo.origemIds, e);
+      });
     }
 
     const { origemIds: _omit, ...resp } = resumo;
