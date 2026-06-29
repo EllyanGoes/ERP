@@ -11,7 +11,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatBRL } from "@/lib/utils";
-import { Wallet, Plus, ArrowLeftRight, ExternalLink, Landmark } from "lucide-react";
+import { Wallet, Plus, ArrowLeftRight, ExternalLink, Landmark, Pencil } from "lucide-react";
 
 type Conta = {
   id: string;
@@ -37,6 +37,8 @@ export default function ContasBancariasPage() {
   const [contas, setContas] = useState<Conta[]>([]);
   const [bancos, setBancos] = useState<Banco[]>([]);
   const [loading, setLoading] = useState(true);
+  // Diálogo de conta: null = fechado; { conta: null } = nova; { conta } = editar.
+  const [dlg, setDlg] = useState<{ conta: Conta | null } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,9 +63,19 @@ export default function ContasBancariasPage() {
         action={
           <div className="flex gap-2">
             <TransferenciaDialog contas={contas.filter((c) => c.ativo)} onDone={load} />
-            <NovaContaDialog bancos={bancos} onDone={load} />
+            <Button onClick={() => setDlg({ conta: null })}>
+              <Plus className="w-4 h-4 mr-1.5" />Nova Conta
+            </Button>
           </div>
         }
+      />
+
+      <ContaDialog
+        bancos={bancos}
+        conta={dlg?.conta ?? null}
+        open={dlg !== null}
+        onOpenChange={(v) => { if (!v) setDlg(null); }}
+        onDone={() => { setDlg(null); load(); }}
       />
       <div className="px-8 pb-8 space-y-6">
         {/* Saldo total */}
@@ -123,9 +135,14 @@ export default function ContasBancariasPage() {
                       {formatBRL(c.saldoAtual)}
                     </td>
                     <td className="px-6 py-3 text-right">
-                      <Link href={`/financeiro/contas/${c.id}`} className="text-muted-foreground/60 hover:text-blue-500">
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => setDlg({ conta: c })} className="text-muted-foreground/60 hover:text-info" title="Editar conta">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <Link href={`/financeiro/contas/${c.id}`} className="text-muted-foreground/60 hover:text-blue-500" title="Abrir conta">
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -138,8 +155,11 @@ export default function ContasBancariasPage() {
   );
 }
 
-function NovaContaDialog({ bancos, onDone }: { bancos: Banco[]; onDone: () => void }) {
-  const [open, setOpen] = useState(false);
+// Diálogo controlado de conta bancária: cria (conta=null) ou edita (conta preenchida).
+function ContaDialog({ bancos, conta, open, onOpenChange, onDone }: {
+  bancos: Banco[]; conta: Conta | null; open: boolean; onOpenChange: (v: boolean) => void; onDone: () => void;
+}) {
+  const editing = !!conta;
   const [saving, setSaving] = useState(false);
   const [nome, setNome] = useState("");
   const [bancoId, setBancoId] = useState("");
@@ -147,30 +167,36 @@ function NovaContaDialog({ bancos, onDone }: { bancos: Banco[]; onDone: () => vo
   const [numero, setNumero] = useState("");
   const [tipo, setTipo] = useState<Conta["tipo"]>("CORRENTE");
   const [saldoInicial, setSaldoInicial] = useState("0");
+  const [ativo, setAtivo] = useState(true);
+
+  // Ao abrir, preenche a partir da conta (edição) ou zera (nova).
+  useEffect(() => {
+    if (!open) return;
+    setNome(conta?.nome ?? "");
+    setBancoId(conta?.banco?.id ?? "");
+    setAgencia(conta?.agencia ?? "");
+    setNumero(conta?.numero ?? "");
+    setTipo(conta?.tipo ?? "CORRENTE");
+    setSaldoInicial(String(conta?.saldoInicial ?? "0"));
+    setAtivo(conta?.ativo ?? true);
+  }, [open, conta]);
 
   async function salvar() {
     if (!nome.trim()) return;
     setSaving(true);
-    const res = await fetch("/api/financeiro/contas", {
-      method: "POST",
+    const res = await fetch(editing ? `/api/financeiro/contas/${conta!.id}` : "/api/financeiro/contas", {
+      method: editing ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, bancoId: bancoId || null, agencia, numero, tipo, saldoInicial }),
+      body: JSON.stringify({ nome, bancoId: bancoId || null, agencia, numero, tipo, saldoInicial, ativo }),
     });
     setSaving(false);
-    if (res.ok) {
-      setOpen(false);
-      setNome(""); setBancoId(""); setAgencia(""); setNumero(""); setTipo("CORRENTE"); setSaldoInicial("0");
-      onDone();
-    }
+    if (res.ok) { onOpenChange(false); onDone(); }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button />}>
-        <Plus className="w-4 h-4 mr-1.5" />Nova Conta
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Nova conta bancária</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{editing ? "Editar conta bancária" : "Nova conta bancária"}</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
             <Label>Nome *</Label>
@@ -205,9 +231,15 @@ function NovaContaDialog({ bancos, onDone }: { bancos: Banco[]; onDone: () => vo
               <Input type="number" step="0.01" value={saldoInicial} onChange={(e) => setSaldoInicial(e.target.value)} />
             </div>
           </div>
+          {editing && (
+            <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
+              <input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} className="accent-blue-600" />
+              Conta ativa
+            </label>
+          )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={salvar} disabled={saving || !nome.trim()}>{saving ? "Salvando..." : "Salvar"}</Button>
         </DialogFooter>
       </DialogContent>
