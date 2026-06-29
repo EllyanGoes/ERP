@@ -11,7 +11,11 @@ import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 import { LOCAL_EMBALAGEM_PRODUCAO_NOME } from "@/lib/locais-producao";
 export { LOCAL_EMBALAGEM_PRODUCAO_NOME };
 
-const LOCAL_WIP_NOME = "Produção (WIP)";
+// WIP unificado: um único local de produto em processo p/ todos os estados de WIP
+// (úmido/seco/queimado) e o fallback genérico. O estado segue como dimensão de ITEM
+// (WIP-X-UMIDO/SECO/QUEIMADO), não de local; o contábil já rola tudo p/ PEP-MD
+// (1.1.3.0005.0001) em contabilizarProducaoOrdem.
+const LOCAL_PEP_NOME = "Estoque de Produto em Processo";
 const LOCAL_PA_NOME = "Estoque de Produto Acabado";
 
 const ESTADO_LABEL: Record<EstadoWIP, string> = {
@@ -29,21 +33,20 @@ async function getOrCreateLocalNome(tx: Prisma.TransactionClient, nome: string, 
   return novo.id;
 }
 
-/** Local genérico de WIP (subproduto/resíduo sem estado). */
+/** Local genérico de WIP (subproduto/resíduo sem estado) — o único PEP. */
 export async function getOrCreateLocalProducao(tx: Prisma.TransactionClient): Promise<string> {
-  return getOrCreateLocalNome(tx, LOCAL_WIP_NOME, "Estoque de produto em processo (gerado pela produção)");
+  return getOrCreateLocalNome(tx, LOCAL_PEP_NOME, "Estoque de produto em processo (produção)", ["WIP"]);
 }
 
 /**
- * Local de estoque por estado do WIP — cada estado é uma conta de estoque distinta,
- * para o razão refletir o fluxo úmido→seco→queimado→acabado (D/C por fase).
+ * Local de estoque do WIP — um ÚNICO "Estoque de Produto em Processo" para todos os
+ * estados (úmido/seco/queimado). O estado é dimensão de ITEM, não de local; o
+ * contábil rola tudo p/ PEP-MD (1.1.3.0005.0001) em contabilizarProducaoOrdem.
  * ACABADO cai num local de produto acabado (sellável).
  */
 export async function getOrCreateLocalEstado(tx: Prisma.TransactionClient, estado: EstadoWIP): Promise<string> {
   if (estado === "ACABADO") return getOrCreateLocalNome(tx, LOCAL_PA_NOME, "Estoque de produto acabado (produção)");
-  // Categoria WIP: na contabilidade todos os locais de fase rolam para a conta
-  // PEP-MD (estágio é dimensão, não conta) — ver contabilizarProducaoOrdem.
-  return getOrCreateLocalNome(tx, `Produção — WIP ${ESTADO_LABEL[estado] ?? estado}`, "Estoque de produto em processo (produção)", ["WIP"]);
+  return getOrCreateLocalNome(tx, LOCAL_PEP_NOME, "Estoque de produto em processo (produção)", ["WIP"]);
 }
 
 function slug(s: string): string {
