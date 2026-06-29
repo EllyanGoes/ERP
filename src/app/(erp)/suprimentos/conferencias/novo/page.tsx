@@ -49,9 +49,24 @@ type PedidoOption = {
     id: string;
     quantidade: unknown;
     precoUnitario?: unknown;
+    unidadeId?: string | null;
     item: { id: string; codigo: string; descricao: string; unidadeMedida: string };
   }>;
 };
+
+// Unidade de compra do item (base + alternativas). unidadeId "" = unidade base
+// (principal); fator converte a qtd comprada para a base e divide o preço.
+type UnidadeItemOpt = { unidadeId: string; sigla: string; fator: number; base: boolean };
+type ItemUnidadeApi = { unidadeId: string; isPrincipal: boolean; fatorConversao: unknown; unidade: { sigla: string } };
+
+function buildUnidadesDoItem(rows: ItemUnidadeApi[], fallbackSigla: string): UnidadeItemOpt[] {
+  const principal = rows.find((r) => r.isPrincipal);
+  const base: UnidadeItemOpt = { unidadeId: "", sigla: principal?.unidade.sigla ?? fallbackSigla, fator: 1, base: true };
+  const alt = rows
+    .filter((r) => !r.isPrincipal && r.fatorConversao != null)
+    .map((r) => ({ unidadeId: r.unidadeId, sigla: r.unidade.sigla, fator: parseFloat(String(r.fatorConversao)), base: false }));
+  return [base, ...alt];
+}
 
 // Pedido de Compra compatível sugerido pelo endpoint /match (anti-duplicidade).
 type MatchResult = {
@@ -72,6 +87,7 @@ type ItemRow = {
   codigo: string;
   descricao: string;
   unidadeMedida: string;
+  unidadeId: string;
   localEstoqueId: string;
   quantidadePedida: string;
   quantidadeRecebida: string;
@@ -101,6 +117,7 @@ function emptyRow(): ItemRow {
     codigo: "",
     descricao: "",
     unidadeMedida: "",
+    unidadeId: "",
     localEstoqueId: "",
     quantidadePedida: "",
     quantidadeRecebida: "",
@@ -261,6 +278,8 @@ export default function NovoDocumentoEntradaPage() {
   const [produtos, setProdutos]                 = useState<Produto[]>([]);
   const [locaisEstoque, setLocaisEstoque]       = useState<LocalEstoque[]>([]);
   const [prodSearchMap, setProdSearchMap]       = useState<Record<string, string>>({});
+  // Unidades de compra por item (busca sob demanda quando o item entra na grade).
+  const [unidadesMap, setUnidadesMap]           = useState<Record<string, UnidadeItemOpt[]>>({});
 
   // Totals
   const [frete, setFrete]       = useState("");
@@ -304,6 +323,24 @@ export default function NovoDocumentoEntradaPage() {
       .then((j) => setProdutos(j.data ?? []))
       .catch(() => {});
   }, []);
+
+  // Carrega as unidades de compra de cada item presente na grade (sob demanda).
+  // Mantém o cadastro de unidades alternativas (ex.: balde de 20 L) disponível
+  // para o conferente escolher a unidade efetivamente recebida.
+  useEffect(() => {
+    const ids = Array.from(new Set(itens.map((r) => r.itemId).filter(Boolean)));
+    const faltam = ids.filter((id) => !(id in unidadesMap));
+    if (faltam.length === 0) return;
+    faltam.forEach((id) => {
+      const sigla = itens.find((r) => r.itemId === id)?.unidadeMedida ?? "";
+      fetch(`/api/suprimentos/produtos/${id}/unidades`)
+        .then((r) => (r.ok ? r.json() : []))
+        .then((rows: ItemUnidadeApi[]) => {
+          setUnidadesMap((prev) => ({ ...prev, [id]: buildUnidadesDoItem(Array.isArray(rows) ? rows : [], sigla) }));
+        })
+        .catch(() => setUnidadesMap((prev) => ({ ...prev, [id]: [{ unidadeId: "", sigla, fator: 1, base: true }] })));
+    });
+  }, [itens, unidadesMap]);
 
   // Load locais-estoque
   useEffect(() => {
@@ -413,9 +450,10 @@ export default function NovoDocumentoEntradaPage() {
           id: pc.id,
           numero: pc.numero,
           fornecedor: { id: pc.fornecedor.id, razaoSocial: pc.fornecedor.razaoSocial, nomeFantasia: pc.fornecedor.nomeFantasia },
-          itens: pc.itens.map((i: { id: string; quantidade: unknown; item: { id: string; codigo: string; descricao: string; unidadeMedida: string } }) => ({
+          itens: pc.itens.map((i: { id: string; quantidade: unknown; unidadeId?: string | null; item: { id: string; codigo: string; descricao: string; unidadeMedida: string } }) => ({
             id: i.id,
             quantidade: i.quantidade,
+            unidadeId: i.unidadeId ?? null,
             item: i.item,
           })),
         });
@@ -503,6 +541,7 @@ export default function NovoDocumentoEntradaPage() {
         codigo: pi.item.codigo,
         descricao: pi.item.descricao,
         unidadeMedida: pi.item.unidadeMedida,
+        unidadeId: pi.unidadeId ?? "",
         localEstoqueId: modoLocalEstoque === "GLOBAL" ? localEstoqueGlobalId : "",
         quantidadePedida: decimalToNumber(pi.quantidade).toString(),
         quantidadeRecebida: "0",
@@ -550,7 +589,7 @@ export default function NovoDocumentoEntradaPage() {
     setItens((prev) =>
       prev.map((r) =>
         r._key === key
-          ? { ...r, itemId: p.id, codigo: p.codigo, descricao: p.descricao, unidadeMedida: p.unidadeMedida }
+          ? { ...r, itemId: p.id, codigo: p.codigo, descricao: p.descricao, unidadeMedida: p.unidadeMedida, unidadeId: "" }
           : r
       )
     );
@@ -636,6 +675,7 @@ export default function NovoDocumentoEntradaPage() {
           itemId: r.itemId,
           quantidadePedida: parseFloat(r.quantidadePedida),
           quantidadeRecebida: parseFloat(r.quantidadeRecebida) || 0,
+          unidadeId: r.unidadeId || null,
           vlrUnitario: parseFloat(r.vlrUnitario) || null,
           desconto: parseFloat(r.desconto) || null,
           vlrTotal: parseFloat(r.vlrTotal) || null,
@@ -1107,6 +1147,12 @@ export default function NovoDocumentoEntradaPage() {
                     const qtdPedida   = parseFloat(row.quantidadePedida) || 0;
                     const qtdRecebida = parseFloat(row.quantidadeRecebida) || 0;
                     const itemStatus  = getItemStatus(qtdPedida, qtdRecebida);
+                    // Unidades de compra do item e a unidade escolhida (default = base).
+                    const unidadesItem = row.itemId ? unidadesMap[row.itemId] : undefined;
+                    const unidadeSel   = unidadesItem?.find((u) => u.unidadeId === row.unidadeId) ?? unidadesItem?.[0];
+                    const baseSigla    = unidadesItem?.find((u) => u.base)?.sigla ?? row.unidadeMedida;
+                    const fatorSel     = unidadeSel?.fator ?? 1;
+                    const vlrUnitNum   = parseFloat(row.vlrUnitario) || 0;
 
                     return (
                       <tr key={row._key} className="hover:bg-muted">
@@ -1146,9 +1192,35 @@ export default function NovoDocumentoEntradaPage() {
                           </td>
                         )}
 
-                        {/* U.M. */}
+                        {/* U.M. — unidade de compra (base ou alternativa). A conversão
+                            p/ a unidade de estoque é feita na conclusão da conferência. */}
                         <td className="px-3 py-2">
-                          <span className="text-xs text-muted-foreground">{row.unidadeMedida || "—"}</span>
+                          {unidadesItem && unidadesItem.length > 1 ? (
+                            <div className="flex flex-col gap-0.5">
+                              <select
+                                value={row.unidadeId}
+                                onChange={(e) => updateItem(row._key, "unidadeId", e.target.value)}
+                                className={cn(
+                                  "h-7 px-1.5 text-xs border rounded bg-card",
+                                  !unidadeSel?.base && "border-info text-info font-medium",
+                                )}
+                              >
+                                {unidadesItem.map((u) => (
+                                  <option key={u.unidadeId || "_base"} value={u.unidadeId}>
+                                    {u.base ? u.sigla : `${u.sigla} (×${u.fator})`}
+                                  </option>
+                                ))}
+                              </select>
+                              {!unidadeSel?.base && qtdRecebida > 0 && (
+                                <span className="text-[10px] text-muted-foreground leading-tight">
+                                  = {(qtdRecebida * fatorSel).toLocaleString("pt-BR")} {baseSigla}
+                                  {vlrUnitNum > 0 && ` · ${formatBRL(vlrUnitNum / fatorSel)}/${baseSigla}`}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">{row.unidadeMedida || "—"}</span>
+                          )}
                         </td>
 
                         {/* Qtd. Pedida */}
