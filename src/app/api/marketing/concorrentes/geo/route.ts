@@ -27,13 +27,14 @@ export async function GET(_: NextRequest) {
       ehFornecedor: c.ehFornecedor, ehRevendedor: c.ehRevendedor, clienteId: c.clienteId,
       _count: c._count,
     };
-    // Local principal (matriz) — só se tiver coordenadas.
-    if (c.latitude != null && c.longitude != null) {
-      data.push({ ...base, localId: `${c.id}-0`, localNome: "Matriz", cidade: c.cidade, estado: c.estado, latitude: c.latitude, longitude: c.longitude });
-    }
-    // Lojas físicas (canais de localização).
+    // Lojas físicas (canais de localização) são a fonte dos pontos.
     for (const l of c.canais) {
       data.push({ ...base, localId: l.id, localNome: l.valor || "Loja física", cidade: l.cidade ?? c.cidade, estado: l.estado ?? c.estado, latitude: l.latitude, longitude: l.longitude });
+    }
+    // Matriz (lat/lng do próprio concorrente) só como FALLBACK quando ainda não há
+    // canal de localização — evita duplicar o ponto do concorrente já mapeado.
+    if (c.canais.length === 0 && c.latitude != null && c.longitude != null) {
+      data.push({ ...base, localId: `${c.id}-0`, localNome: "Matriz", cidade: c.cidade, estado: c.estado, latitude: c.latitude, longitude: c.longitude });
     }
   }
 
