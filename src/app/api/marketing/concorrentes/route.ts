@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       orderBy: { razaoSocial: "asc" },
       skip: (page - 1) * limit,
       take: limit,
-      include: { _count: { select: { precos: true } } },
+      include: { _count: { select: { precos: true, canais: true } } },
     }),
     prisma.concorrente.count({ where }),
   ]);

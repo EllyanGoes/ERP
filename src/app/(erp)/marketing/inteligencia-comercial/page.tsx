@@ -24,7 +24,7 @@ type Concorrente = {
   estado: string | null;
   latitude: number | null;
   longitude: number | null;
-  _count: { precos: number };
+  _count: { precos: number; canais: number };
 };
 
 const FILTROS = [
@@ -175,6 +175,7 @@ export default function InteligenciaComercialPage() {
                   <th className="px-3 py-2.5 font-semibold">Categoria</th>
                   <th className="px-3 py-2.5 font-semibold">Bairro</th>
                   <th className="px-3 py-2.5 font-semibold">Localização</th>
+                  <th className="px-3 py-2.5 font-semibold text-center">Canais</th>
                   <th className="px-3 py-2.5 font-semibold text-center">Preços</th>
                   <th className="px-3 py-2.5"></th>
                 </tr>
@@ -206,6 +207,7 @@ export default function InteligenciaComercialPage() {
                         </span>
                       ) : "—"}
                     </td>
+                    <td className="px-3 py-3 text-center text-muted-foreground">{c._count.canais}</td>
                     <td className="px-3 py-3 text-center text-muted-foreground">{c._count.precos}</td>
                     <td className="px-3 py-3 text-right"><ChevronRight className="h-4 w-4 text-muted-foreground/60 inline" /></td>
                   </tr>
