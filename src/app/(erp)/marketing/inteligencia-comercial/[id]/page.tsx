@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
+import { useTabTitle } from "@/lib/tabs-context";
 import ConcorrenteForm from "@/components/marketing/ConcorrenteForm";
 import ConcorrenteDadosView from "@/components/marketing/ConcorrenteDadosView";
 import ConcorrentePrecos, { type PrecoConcorrente } from "@/components/marketing/ConcorrentePrecos";
@@ -45,6 +46,7 @@ export default function ConcorrenteDetailPage() {
   const [geoMsg, setGeoMsg] = useState<string | null>(null);
   const [aba, setAba] = useState<Aba>("dados");
   const [editando, setEditando] = useState(false);
+  useTabTitle(data ? (data.nomeFantasia || data.razaoSocial) : null);
 
   const carregar = useCallback(async () => {
     const res = await fetch(`/api/marketing/concorrentes/${id}`);

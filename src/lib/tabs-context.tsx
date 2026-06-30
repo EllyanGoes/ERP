@@ -60,6 +60,21 @@ const ROUTE_TITLES: Record<string, string> = {
   "/suprimentos/formas-pagamento": "Formas de Pagamento",
 };
 
+// Um segmento que é claramente um id (cuid/uuid/numérico/hash longo), não um
+// nome de rota — nunca deve virar título de aba.
+function isIdLike(s: string): boolean {
+  return (
+    /^c[a-z0-9]{16,}$/i.test(s) ||                      // cuid / cuid2
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-/i.test(s) || // uuid
+    /^\d+$/.test(s) ||                                  // id numérico
+    (/^[a-z0-9_-]+$/i.test(s) && s.length >= 16)        // hash genérico
+  );
+}
+
+function titleize(seg: string): string {
+  return seg.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function guessTitle(href: string): string {
   // Exact match
   if (ROUTE_TITLES[href]) return ROUTE_TITLES[href];
@@ -80,13 +95,25 @@ function guessTitle(href: string): string {
     [/^\/suprimentos\/locais-estoque\/[^/]+$/, "Local de Estoque"],
     [/^\/contas-receber\/[^/]+$/, "Conta a Receber"],
     [/^\/contas-pagar\/[^/]+$/, "Conta a Pagar"],
+    [/^\/marketing\/inteligencia-comercial\/[^/]+$/, "Concorrente"],
+    [/^\/empresa\/colaboradores\/[^/]+$/, "Colaborador"],
+    [/^\/pcp\/ordens\/[^/]+$/, "Ordem de Produção"],
+    [/^\/rh\/folhas\/[^/]+$/, "Folha"],
   ];
   for (const [regex, title] of patterns) {
     if (regex.test(href)) return title;
   }
-  // Fallback: last segment capitalized
-  const last = href.split("/").filter(Boolean).pop() ?? "Página";
-  return last.charAt(0).toUpperCase() + last.slice(1).replace(/-/g, " ");
+  // Fallback: NUNCA mostra um id — se o último segmento é id-like (ou "editar"
+  // após um id), usa o segmento do recurso (o pai) titleizado.
+  const segs = href.split("/").filter(Boolean);
+  let last = segs.pop() ?? "Página";
+  if (last === "editar" || last === "novo" || last === "nova") {
+    const pai = segs.pop() ?? "";
+    last = isIdLike(pai) ? (segs.pop() ?? last) : (pai || last);
+  } else if (isIdLike(last)) {
+    last = segs.pop() ?? last;
+  }
+  return titleize(last);
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
