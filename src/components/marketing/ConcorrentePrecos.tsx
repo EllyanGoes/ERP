@@ -4,7 +4,7 @@ import ComboboxWithCreate, { type ComboboxOption } from "@/components/shared/Com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { formatBRL, cn } from "@/lib/utils";
-import { Plus, Trash2, Loader2, TrendingUp, TrendingDown, Minus, Truck, Store } from "lucide-react";
+import { Plus, Trash2, Loader2, TrendingUp, TrendingDown, Minus, Truck, Store, X } from "lucide-react";
 
 export type PrecoConcorrente = {
   id: string;
@@ -42,7 +42,9 @@ export default function ConcorrentePrecos({
   const [itens, setItens] = useState<ComboboxOption[]>([]);
   const [precoMap, setPrecoMap] = useState<Record<string, number>>({});
 
-  // Novo registro
+  // Novo registro (em popup)
+  const [aberto, setAberto] = useState(false);
+  const [unidadesItem, setUnidadesItem] = useState<string[]>([]); // siglas das unidades do produto selecionado (base + alternativas, ex.: UN, MI)
   const [itemId, setItemId] = useState("");
   const [produtoNome, setProdutoNome] = useState("");
   const [preco, setPreco] = useState("");
@@ -76,6 +78,23 @@ export default function ConcorrentePrecos({
       .catch(() => {});
   }, []);
 
+  // Unidades do produto do catálogo selecionado (base + alternativas, ex.: UN, MI).
+  // Permite escolher a unidade do preço; default = principal.
+  useEffect(() => {
+    if (!itemId) { setUnidadesItem([]); return; }
+    let cancel = false;
+    fetch(`/api/suprimentos/produtos/${itemId}/unidades`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { unidade?: { sigla?: string } }[]) => {
+        if (cancel) return;
+        const siglas = (Array.isArray(rows) ? rows : []).map((r) => r.unidade?.sigla).filter((s): s is string => !!s);
+        setUnidadesItem(siglas);
+        setUnidade(siglas[0] ?? ""); // principal vem primeiro (endpoint ordena isPrincipal desc)
+      })
+      .catch(() => { if (!cancel) setUnidadesItem([]); });
+    return () => { cancel = true; };
+  }, [itemId]);
+
   const nossoPrecoNovo = itemId ? precoMap[itemId] ?? null : null;
 
   async function adicionar() {
@@ -101,7 +120,8 @@ export default function ConcorrentePrecos({
       if (res.ok) {
         const json = await res.json();
         setPrecos((p) => [...p, json.data]);
-        setItemId(""); setProdutoNome(""); setPreco(""); setUnidade(""); setCondicaoPagamento(""); setModalidade("");
+        setItemId(""); setProdutoNome(""); setPreco(""); setUnidade(""); setCondicaoPagamento(""); setModalidade(""); setUnidadesItem([]);
+        setAberto(false);
       } else {
         const j = await res.json().catch(() => ({}));
         setErro(j.error ?? "Erro ao adicionar preço.");
@@ -122,63 +142,16 @@ export default function ConcorrentePrecos({
 
   return (
     <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-border bg-muted">
-        <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Preços mapeados</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Compare com o nosso preço de venda. O mesmo produto pode ter mais de um preço conforme a condição de pagamento e entrega/retirada.
-        </p>
-      </div>
-
-      {/* Linha de inclusão (duas linhas) */}
-      <div className="p-4 border-b border-border bg-muted/30 space-y-2">
-        <div className="grid grid-cols-12 gap-2 items-end">
-          <div className="col-span-7">
-            <label className="text-[11px] font-semibold text-muted-foreground uppercase">Produto (catálogo)</label>
-            <ComboboxWithCreate
-              options={itens}
-              value={itemId}
-              onChange={(v) => { setItemId(v); const lbl = itens.find((i) => i.value === v)?.label; if (lbl) setProdutoNome(lbl); }}
-              placeholder="Vincular ao nosso catálogo..."
-              noneLabel="Produto avulso (texto livre)"
-            />
-          </div>
-          <div className="col-span-5">
-            <label className="text-[11px] font-semibold text-muted-foreground uppercase">Ou nome avulso</label>
-            <Input value={produtoNome} disabled={!!itemId} onChange={(e) => setProdutoNome(e.target.value)} placeholder="Nome do produto" className="h-10 border-border" />
-          </div>
+      <div className="px-5 py-3 border-b border-border bg-muted flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Preços mapeados</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Compare com o nosso preço de venda. O mesmo produto pode ter mais de um preço conforme a condição de pagamento e entrega/retirada.
+          </p>
         </div>
-
-        <div className="grid grid-cols-12 gap-2 items-end">
-          <div className="col-span-2">
-            <label className="text-[11px] font-semibold text-muted-foreground uppercase">Preço conc.</label>
-            <Input value={preco} onChange={(e) => setPreco(e.target.value)} placeholder="0,00" inputMode="decimal" className="h-10 border-border" />
-          </div>
-          <div className="col-span-1">
-            <label className="text-[11px] font-semibold text-muted-foreground uppercase">Un.</label>
-            <Input value={unidade} onChange={(e) => setUnidade(e.target.value)} placeholder="UN" className="h-10 border-border" />
-          </div>
-          <div className="col-span-4">
-            <label className="text-[11px] font-semibold text-muted-foreground uppercase">Condição de pagamento</label>
-            <Input value={condicaoPagamento} onChange={(e) => setCondicaoPagamento(e.target.value)} placeholder="Ex.: À vista, 30 dias, 30/60/90" className="h-10 border-border" />
-          </div>
-          <div className="col-span-3">
-            <label className="text-[11px] font-semibold text-muted-foreground uppercase">Entrega / Retirada</label>
-            <select value={modalidade} onChange={(e) => setModalidade(e.target.value)} className={selectCls}>
-              <option value="">Indiferente</option>
-              <option value="ENTREGA">Entrega</option>
-              <option value="RETIRADA">Retirada</option>
-            </select>
-          </div>
-          <div className="col-span-2">
-            <Button type="button" onClick={adicionar} disabled={salvando} className="w-full h-10 gap-1.5">
-              {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Adicionar
-            </Button>
-          </div>
-        </div>
-        {nossoPrecoNovo != null && (
-          <p className="text-[11px] text-muted-foreground">Nosso preço deste item: <strong>{formatBRL(nossoPrecoNovo)}</strong></p>
-        )}
-        {erro && <p className="text-xs text-danger">{erro}</p>}
+        <Button type="button" onClick={() => { setErro(null); setAberto(true); }} className="h-9 gap-1.5 shrink-0">
+          <Plus className="h-4 w-4" /> Adicionar preço
+        </Button>
       </div>
 
       {/* Tabela */}
@@ -236,6 +209,79 @@ export default function ConcorrentePrecos({
       <div className="px-5 py-2 text-[11px] text-muted-foreground border-t border-border">
         Diferença positiva (verde) = concorrente mais caro que nós. Negativa (vermelho) = concorrente mais barato.
       </div>
+
+      {/* Popup — novo preço de concorrente */}
+      {aberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAberto(false)}>
+          <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-foreground flex items-center gap-2"><Plus className="h-5 w-5 text-blue-600" /> Novo preço de concorrente</h3>
+              <button onClick={() => setAberto(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-7">
+                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Produto (catálogo)</label>
+                  <ComboboxWithCreate
+                    options={itens}
+                    value={itemId}
+                    onChange={(v) => { setItemId(v); const lbl = itens.find((i) => i.value === v)?.label; if (lbl) setProdutoNome(lbl); }}
+                    placeholder="Vincular ao nosso catálogo..."
+                    noneLabel="Produto avulso (texto livre)"
+                  />
+                </div>
+                <div className="col-span-5">
+                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Ou nome avulso</label>
+                  <Input value={produtoNome} disabled={!!itemId} onChange={(e) => setProdutoNome(e.target.value)} placeholder="Nome do produto" className="h-10 border-border" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-12 gap-3 items-end">
+                <div className="col-span-3">
+                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Preço conc.</label>
+                  <Input value={preco} onChange={(e) => setPreco(e.target.value)} placeholder="0,00" inputMode="decimal" className="h-10 border-border" />
+                </div>
+                <div className="col-span-3">
+                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Unidade</label>
+                  {itemId && unidadesItem.length > 0 ? (
+                    <select value={unidade} onChange={(e) => setUnidade(e.target.value)} className={selectCls}>
+                      {unidadesItem.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  ) : (
+                    <Input value={unidade} onChange={(e) => setUnidade(e.target.value)} placeholder="UN" className="h-10 border-border" />
+                  )}
+                </div>
+                <div className="col-span-6">
+                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Entrega / Retirada</label>
+                  <select value={modalidade} onChange={(e) => setModalidade(e.target.value)} className={selectCls}>
+                    <option value="">Indiferente</option>
+                    <option value="ENTREGA">Entrega</option>
+                    <option value="RETIRADA">Retirada</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase">Condição de pagamento</label>
+                <Input value={condicaoPagamento} onChange={(e) => setCondicaoPagamento(e.target.value)} placeholder="Ex.: À vista, 30 dias, 30/60/90" className="h-10 border-border" />
+              </div>
+
+              {nossoPrecoNovo != null && (
+                <p className="text-[11px] text-muted-foreground">Nosso preço deste item: <strong>{formatBRL(nossoPrecoNovo)}</strong></p>
+              )}
+              {erro && <p className="text-xs text-danger">{erro}</p>}
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button onClick={() => setAberto(false)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+              <Button type="button" onClick={adicionar} disabled={salvando} className="h-10 gap-1.5">
+                {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Adicionar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
