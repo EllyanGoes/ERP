@@ -5,7 +5,7 @@ INSERT INTO "ConcorrenteCanal"
   (id, "empresaId", "concorrenteId", tipo, valor, cep, logradouro, numero, complemento, bairro, cidade, estado, latitude, longitude, "geoManual", "geoReferencia", "createdAt", "updatedAt")
 SELECT
   'cc_' || replace(gen_random_uuid()::text,'-',''), c."empresaId", c.id, 'LOCALIZACAO',
-  COALESCE(NULLIF(c."nomeFantasia",''), c."razaoSocial", 'Loja'),
+  NULL, -- sem nome próprio: evita repetir o nome do concorrente no mapa/lista
   c.cep, c.logradouro, c.numero, c.complemento, c.bairro, c.cidade, c.estado,
   c.latitude, c.longitude, c."geoManual", c."geoReferencia", now(), now()
 FROM "Concorrente" c

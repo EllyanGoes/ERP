@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CANAIS_AQUISICAO, labelCanal, ehCanalLocal } from "@/lib/canais-aquisicao";
 import {
-  Plus, Trash2, Loader2, X, Share2, Pencil, ExternalLink,
+  Plus, Trash2, Loader2, X, Share2, Pencil, ExternalLink, CheckCircle2,
   MessageCircle, Send, Camera, ThumbsUp, Globe, Mail, Phone, Store, MapPin, ShoppingBag, Users, Link2,
 } from "lucide-react";
 
@@ -79,6 +79,7 @@ export default function ConcorrenteCanais({
   const [canais, setCanais] = useState<CanalConcorrente[]>(canaisIniciais);
   const [editando, setEditando] = useState<Rascunho | null>(null); // popup aberto (novo ou edição)
   const [salvando, setSalvando] = useState(false);
+  const [salvo, setSalvo] = useState(false); // confirmação visual pós-salvar
   const [erro, setErro] = useState<string | null>(null);
   const [mapsUrl, setMapsUrl] = useState("");
   const [puxando, setPuxando] = useState(false);
@@ -124,8 +125,15 @@ export default function ConcorrenteCanais({
     setSalvando(false);
     if (!res.ok) { const j = await res.json().catch(() => ({})); setErro(j.error ?? "Erro ao salvar."); return; }
     const { data } = await res.json();
-    if (r.id) { setCanais((cs) => cs.map((x) => (x.id === r.id ? data : x))); setEditando(ehCanalLocal(data.tipo) ? data : null); }
-    else { sync([...canais, data]); setEditando(ehCanalLocal(data.tipo) ? data : null); } // local: mantém aberto p/ ajustar pino
+    if (r.id) setCanais((cs) => cs.map((x) => (x.id === r.id ? data : x)));
+    else sync([...canais, data]);
+    // Confirmação visual: botão vira "Salvo!" por ~1.4s.
+    setSalvo(true);
+    setTimeout(() => setSalvo(false), 1400);
+    // Loja física mantém o popup aberto (ajustar pino no mapa); demais fecham após
+    // a animação aparecer.
+    if (ehCanalLocal(data.tipo)) setEditando(data);
+    else setTimeout(() => setEditando(null), 800);
   }
 
   async function remover(id: string) {
@@ -272,8 +280,9 @@ export default function ConcorrenteCanais({
             <div className="px-5 py-3 border-t border-border flex items-center justify-end gap-2">
               {erro && <p className="text-xs text-danger mr-auto">{erro}</p>}
               <button onClick={() => setEditando(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Fechar</button>
-              <Button type="button" onClick={salvar} disabled={salvando} className="h-10 gap-1.5">
-                {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {editando.id ? "Salvar" : "Adicionar"}
+              <Button type="button" onClick={salvar} disabled={salvando || salvo} className={cn("h-10 gap-1.5 transition-colors", salvo && "bg-success hover:bg-success text-white")}>
+                {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : salvo ? <CheckCircle2 className="h-4 w-4 animate-in zoom-in-50 duration-300" /> : <Plus className="h-4 w-4" />}
+                {salvando ? "Salvando…" : salvo ? "Salvo!" : (editando.id ? "Salvar" : "Adicionar")}
               </Button>
             </div>
           </div>

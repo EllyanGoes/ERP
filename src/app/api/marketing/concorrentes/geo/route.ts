@@ -27,9 +27,10 @@ export async function GET(_: NextRequest) {
       ehFornecedor: c.ehFornecedor, ehRevendedor: c.ehRevendedor, clienteId: c.clienteId,
       _count: c._count,
     };
-    // Lojas físicas (canais de localização) são a fonte dos pontos.
+    // Lojas físicas (canais de localização) são a fonte dos pontos. localNome só
+    // quando o local tem nome próprio — senão o mapa repetiria o nome do concorrente.
     for (const l of c.canais) {
-      data.push({ ...base, localId: l.id, localNome: l.valor || "Loja física", cidade: l.cidade ?? c.cidade, estado: l.estado ?? c.estado, latitude: l.latitude, longitude: l.longitude });
+      data.push({ ...base, localId: l.id, localNome: l.valor || null, cidade: l.cidade ?? c.cidade, estado: l.estado ?? c.estado, latitude: l.latitude, longitude: l.longitude });
     }
     // Matriz (lat/lng do próprio concorrente) só como FALLBACK quando ainda não há
     // canal de localização — evita duplicar o ponto do concorrente já mapeado.
