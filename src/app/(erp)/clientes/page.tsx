@@ -8,12 +8,16 @@ import ClientesTable from "@/components/clientes/ClientesTable";
 export const dynamic = "force-dynamic";
 
 export default async function ClientesPage() {
-  const [clientes, counts] = await Promise.all([
+  const [clientes, counts, vinc] = await Promise.all([
     prisma.cliente.findMany({ orderBy: { razaoSocial: "asc" } }),
     prisma.cliente.groupBy({ by: ["status"], _count: true }),
+    // Clientes mapeados na Inteligência Comercial = têm um Concorrente vinculado.
+    prisma.concorrente.findMany({ where: { clienteId: { not: null } }, select: { clienteId: true } }),
   ]);
 
   const countMap = Object.fromEntries(counts.map((c) => [c.status, c._count]));
+  const mapeadosSet = new Set(vinc.map((v) => v.clienteId).filter((x): x is string => !!x));
+  const clientesComMapeado = clientes.map((c) => ({ ...c, mapeado: mapeadosSet.has(c.id) }));
 
   return (
     <div>
@@ -43,7 +47,7 @@ export default async function ClientesPage() {
             </div>
           ))}
         </div>
-        <ClientesTable clientes={clientes} />
+        <ClientesTable clientes={clientesComMapeado} />
       </div>
     </div>
   );

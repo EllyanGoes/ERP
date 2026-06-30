@@ -39,11 +39,11 @@ export default function ImportarParaConcorrente({ clienteId }: { clienteId: stri
     <button
       onClick={importar}
       disabled={loading}
-      title={erro ?? "Cadastrar este cliente como concorrente (Parceiro)"}
-      className="inline-flex items-center gap-1.5 rounded-full border border-fuchsia-300 bg-fuchsia-50 dark:bg-fuchsia-500/15 px-3 py-1 text-xs font-medium text-fuchsia-700 dark:text-fuchsia-300 hover:bg-fuchsia-100 transition-colors disabled:opacity-60"
+      title={erro ?? "Mapear este cliente na Inteligência Comercial (Parceiro)"}
+      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/70 transition-colors disabled:opacity-60"
     >
       {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Target className="h-3.5 w-3.5" />}
-      Cadastrar como concorrente
+      Não mapeado · mapear
     </button>
   );
 }

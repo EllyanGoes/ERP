@@ -19,8 +19,15 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
   const status = searchParams.get("status") || undefined;
+  const mapeado = searchParams.get("mapeado") || undefined; // "true" = mapeado na IC, "false" = não mapeado
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
+
+  // "Mapeado" na Inteligência Comercial = existe um Concorrente vinculado a este
+  // cliente (Concorrente.clienteId). Não há FK, então buscamos os ids vinculados.
+  const vinc = await prisma.concorrente.findMany({ where: { clienteId: { not: null } }, select: { clienteId: true } });
+  const mapeadosIds = Array.from(new Set(vinc.map((v) => v.clienteId).filter((x): x is string => !!x)));
+  const mapeadosSet = new Set(mapeadosIds);
 
   const where: any = {
     AND: [
@@ -32,6 +39,8 @@ export async function GET(req: NextRequest) {
         ],
       } : {},
       status ? { status } : {},
+      mapeado === "true" ? { id: { in: mapeadosIds } } : {},
+      mapeado === "false" ? { id: { notIn: mapeadosIds } } : {},
     ],
   };
 
@@ -45,7 +54,8 @@ export async function GET(req: NextRequest) {
     prisma.cliente.count({ where }),
   ]);
 
-  return NextResponse.json({ data, total, page, limit });
+  const dataComMapeado = data.map((c) => ({ ...c, mapeado: mapeadosSet.has(c.id) }));
+  return NextResponse.json({ data: dataComMapeado, total, page, limit });
 }
 
 export async function POST(req: NextRequest) {

@@ -18,6 +18,7 @@ type ClienteRow = {
   cidade: string | null;
   estado: string | null;
   status: string;
+  mapeado?: boolean; // mapeado na Inteligência Comercial (tem Concorrente vinculado)
 };
 
 // Busca por nome OU CPF/CNPJ — casa os dígitos ignorando pontuação.
@@ -37,13 +38,23 @@ const TIPOS = [
   { value: "FISICA", label: "Pessoa Física (PF)" },
 ] as const;
 
+const MAPEADO_FILTROS = [
+  { value: "", label: "Todos" },
+  { value: "sim", label: "Mapeados" },
+  { value: "nao", label: "Não mapeados" },
+] as const;
+
 export default function ClientesTable({ clientes }: { clientes: ClienteRow[] }) {
   const router = useRouter();
   const [tipo, setTipo] = useState<"" | "JURIDICA" | "FISICA">("");
+  const [mapFiltro, setMapFiltro] = useState<"" | "sim" | "nao">("");
 
   const dados = useMemo(
-    () => (tipo ? clientes.filter((c) => c.tipoPessoa === tipo) : clientes),
-    [clientes, tipo],
+    () => clientes.filter((c) =>
+      (!tipo || c.tipoPessoa === tipo) &&
+      (!mapFiltro || (mapFiltro === "sim" ? !!c.mapeado : !c.mapeado)),
+    ),
+    [clientes, tipo, mapFiltro],
   );
 
   const columns = useMemo<ColumnDef<ClienteRow>[]>(() => [
@@ -85,6 +96,17 @@ export default function ClientesTable({ clientes }: { clientes: ClienteRow[] }) 
       },
     },
     {
+      id: "mapeado",
+      header: "Inteligência Comercial",
+      cell: ({ row }) => (
+        row.original.mapeado ? (
+          <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-500/15 dark:text-fuchsia-300">Mapeado</span>
+        ) : (
+          <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Não mapeado</span>
+        )
+      ),
+    },
+    {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
@@ -112,6 +134,21 @@ export default function ClientesTable({ clientes }: { clientes: ClienteRow[] }) 
               className={cn(
                 "px-3 py-1.5 text-sm rounded-md transition-colors",
                 tipo === t.value ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {/* Filtro mapeado na Inteligência Comercial */}
+        <div className="flex gap-1 rounded-lg border border-border p-1">
+          {MAPEADO_FILTROS.map((t) => (
+            <button
+              key={t.value}
+              onClick={() => setMapFiltro(t.value)}
+              className={cn(
+                "px-3 py-1.5 text-sm rounded-md transition-colors",
+                mapFiltro === t.value ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-muted",
               )}
             >
               {t.label}

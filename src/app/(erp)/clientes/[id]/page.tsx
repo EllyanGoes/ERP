@@ -108,9 +108,9 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
               <Link
                 href={`/marketing/inteligencia-comercial/${concorrenteVinc.id}`}
                 className="rounded-full border border-fuchsia-300 bg-fuchsia-50 dark:bg-fuchsia-500/15 px-3 py-1 text-xs font-medium text-fuchsia-700 dark:text-fuchsia-300 hover:bg-fuchsia-100"
-                title="Este cliente já está cadastrado como concorrente"
+                title="Este cliente já está mapeado na Inteligência Comercial"
               >
-                Já é concorrente ↗
+                Mapeado ↗
               </Link>
             ) : (
               <ImportarParaConcorrente clienteId={cliente.id} />
