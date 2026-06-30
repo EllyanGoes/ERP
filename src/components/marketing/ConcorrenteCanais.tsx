@@ -81,6 +81,7 @@ export default function ConcorrenteCanais({
   const [erro, setErro] = useState<string | null>(null);
   const [mapsUrl, setMapsUrl] = useState("");
   const [puxando, setPuxando] = useState(false);
+  const [abaPopup, setAbaPopup] = useState<"tipo" | "form" | "mapa">("tipo");
   const base = `/api/marketing/concorrentes/${concorrenteId}/canais`;
 
   // Puxa nome + endereço a partir de um link do Google Maps (coords + reverse geocoding).
@@ -105,8 +106,8 @@ export default function ConcorrenteCanais({
   }
 
   function sync(next: CanalConcorrente[]) { setCanais(next); onCount?.(next.length); }
-  function abrirNovo() { setErro(null); setMapsUrl(""); setEditando({ tipo: "LOCALIZACAO" }); }
-  function abrirEdicao(c: CanalConcorrente) { setErro(null); setMapsUrl(c.geoReferencia ?? ""); setEditando({ ...c }); }
+  function abrirNovo() { setErro(null); setMapsUrl(""); setAbaPopup("tipo"); setEditando({ tipo: "LOCALIZACAO" }); }
+  function abrirEdicao(c: CanalConcorrente) { setErro(null); setMapsUrl(c.geoReferencia ?? ""); setAbaPopup("form"); setEditando({ ...c }); }
 
   async function salvar() {
     if (!editando) return;
@@ -180,86 +181,113 @@ export default function ConcorrenteCanais({
         </div>
       )}
 
-      {/* Popup novo/editar canal */}
-      {editando && (
+      {/* Popup novo/editar canal — 3 abas: Tipo · Formulário · Mapa */}
+      {editando && (() => {
+        const abaAtiva: "tipo" | "form" | "mapa" = abaPopup === "mapa" && !ehLocal ? "form" : abaPopup;
+        const ABAS: { v: "tipo" | "form" | "mapa"; l: string }[] = [
+          { v: "tipo", l: "Tipo de canal" },
+          { v: "form", l: "Formulário" },
+          ...(ehLocal ? [{ v: "mapa" as const, l: "Mapa" }] : []),
+        ];
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditando(null)}>
-          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
+          <div className="w-full max-w-xl rounded-xl border border-border bg-card shadow-xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
               <h3 className="text-base font-semibold text-foreground flex items-center gap-2"><IconeCanal tipo={editando.tipo} /> {editando.id ? "Editar canal" : "Novo canal"}</h3>
               <button onClick={() => setEditando(null)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
 
-            {/* Grade de tipos (com ícone) */}
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              {CANAIS_AQUISICAO.map((o) => (
-                <button key={o.value} type="button" onClick={() => set("tipo", o.value)}
-                  className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs transition-colors ${editando.tipo === o.value ? "border-info bg-info/10 text-foreground font-medium" : "border-border hover:bg-muted text-muted-foreground"}`}>
-                  <IconeCanal tipo={o.value} className="h-4 w-4" /> <span className="truncate">{o.label}</span>
+            {/* Abas horizontais */}
+            <div className="flex border-b border-border px-3">
+              {ABAS.map((a) => (
+                <button key={a.v} type="button" onClick={() => setAbaPopup(a.v)}
+                  className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${abaAtiva === a.v ? "border-info text-info" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+                  {a.l}
                 </button>
               ))}
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="text-[11px] font-semibold text-muted-foreground uppercase">{ehLocal ? "Nome do local" : "Contato / link"}</label>
-                <Input value={editando.valor ?? ""} onChange={(e) => set("valor", e.target.value)} placeholder={placeholderValor(editando.tipo)} className="h-10 border-border" />
-              </div>
-
-              {ehLocal && (
-                <div className="rounded-lg border border-dashed border-border bg-muted/30 p-2.5">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center gap-1"><MapPin className="h-3 w-3" /> Puxar do Google Maps</label>
-                  <div className="flex items-end gap-2 mt-1">
-                    <Input value={mapsUrl} onChange={(e) => setMapsUrl(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); puxarDoMaps(); } }} placeholder="Cole o link do Google Maps (ou lat, lng)" className="h-9 border-border" />
-                    <Button type="button" variant="outline" onClick={puxarDoMaps} disabled={puxando || !mapsUrl.trim()} className="h-9 shrink-0">
-                      {puxando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Puxar"}
-                    </Button>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-1">Preenche nome, endereço e o pino pelas coordenadas do link. (Dados oficiais do Google exigem API paga.)</p>
+            <div className="p-5 overflow-y-auto flex-1">
+              {/* ── Aba: Tipo de canal ── */}
+              {abaAtiva === "tipo" && (
+                <div className="grid grid-cols-3 gap-2">
+                  {CANAIS_AQUISICAO.map((o) => (
+                    <button key={o.value} type="button" onClick={() => { set("tipo", o.value); setAbaPopup("form"); }}
+                      className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs transition-colors ${editando.tipo === o.value ? "border-info bg-info/10 text-foreground font-medium" : "border-border hover:bg-muted text-muted-foreground"}`}>
+                      <IconeCanal tipo={o.value} className="h-4 w-4" /> <span className="truncate">{o.label}</span>
+                    </button>
+                  ))}
                 </div>
               )}
 
-              {ehLocal && (
-                <div className="grid grid-cols-12 gap-2">
-                  <div className="col-span-4"><label className="text-[11px] font-semibold text-muted-foreground uppercase">CEP</label><Input value={editando.cep ?? ""} onChange={(e) => set("cep", e.target.value)} className="h-10 border-border" /></div>
-                  <div className="col-span-8"><label className="text-[11px] font-semibold text-muted-foreground uppercase">Logradouro</label><Input value={editando.logradouro ?? ""} onChange={(e) => set("logradouro", e.target.value)} className="h-10 border-border" /></div>
-                  <div className="col-span-3"><label className="text-[11px] font-semibold text-muted-foreground uppercase">Número</label><Input value={editando.numero ?? ""} onChange={(e) => set("numero", e.target.value)} className="h-10 border-border" /></div>
-                  <div className="col-span-5"><label className="text-[11px] font-semibold text-muted-foreground uppercase">Bairro</label><Input value={editando.bairro ?? ""} onChange={(e) => set("bairro", e.target.value)} className="h-10 border-border" /></div>
-                  <div className="col-span-3"><label className="text-[11px] font-semibold text-muted-foreground uppercase">Cidade</label><Input value={editando.cidade ?? ""} onChange={(e) => set("cidade", e.target.value)} className="h-10 border-border" /></div>
-                  <div className="col-span-1"><label className="text-[11px] font-semibold text-muted-foreground uppercase">UF</label>
-                    <select value={editando.estado ?? ""} onChange={(e) => set("estado", e.target.value)} className="h-10 w-full rounded-lg border border-border bg-background px-1 text-sm">
-                      <option value="">—</option>{UFS.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
-                    </select>
+              {/* ── Aba: Formulário ── */}
+              {abaAtiva === "form" && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-muted-foreground uppercase">{ehLocal ? "Nome do local" : "Contato / link"}</label>
+                    <Input value={editando.valor ?? ""} onChange={(e) => set("valor", e.target.value)} placeholder={placeholderValor(editando.tipo)} className="h-10 border-border" />
                   </div>
+
+                  {ehLocal && (
+                    <div className="rounded-lg border border-dashed border-border bg-muted/30 p-2.5">
+                      <label className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center gap-1"><MapPin className="h-3 w-3" /> Puxar do Google Maps</label>
+                      <div className="flex items-end gap-2 mt-1">
+                        <Input value={mapsUrl} onChange={(e) => setMapsUrl(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); puxarDoMaps(); } }} placeholder="Cole o link do Google Maps (ou lat, lng)" className="h-9 border-border" />
+                        <Button type="button" variant="outline" onClick={puxarDoMaps} disabled={puxando || !mapsUrl.trim()} className="h-9 shrink-0">
+                          {puxando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Puxar"}
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">Preenche nome, endereço e o pino pelas coordenadas do link. (Dados oficiais do Google exigem API paga.)</p>
+                    </div>
+                  )}
+
+                  {ehLocal && (
+                    <div className="grid grid-cols-12 gap-2">
+                      <div className="col-span-4"><label className="text-[11px] font-semibold text-muted-foreground uppercase">CEP</label><Input value={editando.cep ?? ""} onChange={(e) => set("cep", e.target.value)} className="h-10 border-border" /></div>
+                      <div className="col-span-8"><label className="text-[11px] font-semibold text-muted-foreground uppercase">Logradouro</label><Input value={editando.logradouro ?? ""} onChange={(e) => set("logradouro", e.target.value)} className="h-10 border-border" /></div>
+                      <div className="col-span-3"><label className="text-[11px] font-semibold text-muted-foreground uppercase">Número</label><Input value={editando.numero ?? ""} onChange={(e) => set("numero", e.target.value)} className="h-10 border-border" /></div>
+                      <div className="col-span-5"><label className="text-[11px] font-semibold text-muted-foreground uppercase">Bairro</label><Input value={editando.bairro ?? ""} onChange={(e) => set("bairro", e.target.value)} className="h-10 border-border" /></div>
+                      <div className="col-span-3"><label className="text-[11px] font-semibold text-muted-foreground uppercase">Cidade</label><Input value={editando.cidade ?? ""} onChange={(e) => set("cidade", e.target.value)} className="h-10 border-border" /></div>
+                      <div className="col-span-1"><label className="text-[11px] font-semibold text-muted-foreground uppercase">UF</label>
+                        <select value={editando.estado ?? ""} onChange={(e) => set("estado", e.target.value)} className="h-10 w-full rounded-lg border border-border bg-background px-1 text-sm">
+                          <option value="">—</option>{UFS.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-muted-foreground uppercase">Observação</label>
+                    <Input value={editando.observacao ?? ""} onChange={(e) => set("observacao", e.target.value)} placeholder="Opcional" className="h-10 border-border" />
+                  </div>
+                  {ehLocal && (
+                    <p className="text-[11px] text-muted-foreground">A localização precisa fica na aba <b>Mapa</b> (disponível após salvar o local).</p>
+                  )}
                 </div>
               )}
 
-              <div>
-                <label className="text-[11px] font-semibold text-muted-foreground uppercase">Observação</label>
-                <Input value={editando.observacao ?? ""} onChange={(e) => set("observacao", e.target.value)} placeholder="Opcional" className="h-10 border-border" />
-              </div>
-
-              {/* Mapa do local — só após salvar (precisa de id). */}
-              {ehLocal && editando.id && (
-                <LocalizacaoMapa
-                  endpoint={`${base}/${editando.id}/localizacao`}
-                  latitude={editando.latitude ?? null}
-                  longitude={editando.longitude ?? null}
-                  geoManual={editando.geoManual ?? false}
-                  geoReferencia={editando.geoReferencia}
-                  onChange={(lat, lng, manual, referencia) => {
-                    setEditando((e) => (e ? { ...e, latitude: lat, longitude: lng, geoManual: manual, geoReferencia: referencia } : e));
-                    setCanais((cs) => cs.map((x) => (x.id === editando.id ? { ...x, latitude: lat, longitude: lng, geoManual: manual, geoReferencia: referencia } : x)));
-                  }}
-                />
+              {/* ── Aba: Mapa ── */}
+              {abaAtiva === "mapa" && ehLocal && (
+                editando.id ? (
+                  <LocalizacaoMapa
+                    endpoint={`${base}/${editando.id}/localizacao`}
+                    latitude={editando.latitude ?? null}
+                    longitude={editando.longitude ?? null}
+                    geoManual={editando.geoManual ?? false}
+                    geoReferencia={editando.geoReferencia}
+                    onChange={(lat, lng, manual, referencia) => {
+                      setEditando((e) => (e ? { ...e, latitude: lat, longitude: lng, geoManual: manual, geoReferencia: referencia } : e));
+                      setCanais((cs) => cs.map((x) => (x.id === editando.id ? { ...x, latitude: lat, longitude: lng, geoManual: manual, geoReferencia: referencia } : x)));
+                    }}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground py-8 text-center">Salve o local primeiro (aba Formulário) — ele é geocodificado pelo endereço e depois você ajusta o pino aqui.</p>
+                )
               )}
-              {ehLocal && !editando.id && (
-                <p className="text-[11px] text-muted-foreground">Salve o local para localizar no mapa (geocodifica pelo endereço; depois você pode ajustar o pino).</p>
-              )}
-
-              {erro && <p className="text-xs text-danger">{erro}</p>}
             </div>
 
-            <div className="mt-5 flex items-center justify-end gap-2">
+            <div className="px-5 py-3 border-t border-border flex items-center justify-end gap-2">
+              {erro && <p className="text-xs text-danger mr-auto">{erro}</p>}
               <button onClick={() => setEditando(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Fechar</button>
               <Button type="button" onClick={salvar} disabled={salvando} className="h-10 gap-1.5">
                 {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {editando.id ? "Salvar" : "Adicionar"}
@@ -267,7 +295,8 @@ export default function ConcorrenteCanais({
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
