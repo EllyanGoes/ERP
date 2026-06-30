@@ -9,7 +9,6 @@ export const CANAIS_AQUISICAO: { value: string; label: string }[] = [
   { value: "SITE", label: "Site" },
   { value: "EMAIL", label: "E-mail" },
   { value: "TELEFONE", label: "Telefone" },
-  { value: "GOOGLE", label: "Google / Maps" },
   { value: "MARKETPLACE", label: "Marketplace" },
   { value: "INDICACAO", label: "Indicação" },
   { value: "OUTRO", label: "Outro" },
