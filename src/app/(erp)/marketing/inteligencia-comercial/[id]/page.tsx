@@ -8,6 +8,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import ConcorrenteForm from "@/components/marketing/ConcorrenteForm";
 import ConcorrenteDadosView from "@/components/marketing/ConcorrenteDadosView";
 import ConcorrentePrecos, { type PrecoConcorrente } from "@/components/marketing/ConcorrentePrecos";
+import ConcorrenteLocais, { type LocalConcorrente } from "@/components/marketing/ConcorrenteLocais";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Loader2, MapPin, Crosshair, Trash2, Pencil, Building2, Store, Handshake } from "lucide-react";
@@ -187,6 +188,7 @@ export default function ConcorrenteDetailPage() {
             </div>
             {geoMsg && <div className="rounded-lg border border-border bg-muted px-4 py-2 text-sm text-muted-foreground">{geoMsg}</div>}
 
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-1">Local principal (matriz)</p>
             <LocalizacaoMapa
               endpoint={`/api/marketing/concorrentes/${data.id}/localizacao`}
               latitude={data.latitude}
@@ -197,6 +199,8 @@ export default function ConcorrenteDetailPage() {
                 setData((d) => (d ? { ...d, latitude: lat, longitude: lng, geoManual: manual, geoReferencia: referencia } : d))
               }
             />
+
+            <ConcorrenteLocais concorrenteId={data.id} locaisIniciais={(data.locais as LocalConcorrente[]) ?? []} />
           </div>
         )}
 

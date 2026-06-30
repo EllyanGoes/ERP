@@ -3066,11 +3066,38 @@ model Concorrente {
   precos        ConcorrentePreco[]
   contatos      ConcorrenteContato[]
   canais        ConcorrenteCanal[]
+  locais        ConcorrenteLocal[]
 
   @@index([empresaId])
   @@index([cidade])
   @@index([ativo])
   @@index([clienteId])
+}
+
+// Locais físicos ADICIONAIS do concorrente (filiais, depósitos...). O endereço/
+// lat-lng do próprio Concorrente é o local principal (matriz); estes são extras,
+// cada um geocodificável e plotado no mapa do geomarketing.
+model ConcorrenteLocal {
+  id            String   @id @default(cuid())
+  empresaId     String   @default("emp_tramontin")
+  concorrenteId String
+  nome          String?  // "Filial Santana", "Depósito"...
+  cep           String?
+  logradouro    String?
+  numero        String?
+  complemento   String?
+  bairro        String?
+  cidade        String?
+  estado        String?
+  latitude      Float?
+  longitude     Float?
+  geoManual     Boolean  @default(false)
+  geoReferencia String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  concorrente   Concorrente @relation(fields: [concorrenteId], references: [id], onDelete: Cascade)
+
+  @@index([concorrenteId])
 }
 
 // Um concorrente pode ter vários contatos (vendedor, gerente, dono...).

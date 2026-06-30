@@ -7,7 +7,9 @@ import { Building2, Store, Handshake, Loader2 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
 type Ponto = {
-  id: string;
+  id: string;          // id do concorrente (link)
+  localId: string;     // chave única do ponto (matriz ou local adicional)
+  localNome?: string | null;
   razaoSocial: string;
   nomeFantasia: string | null;
   ehFornecedor: boolean;
@@ -81,15 +83,16 @@ export default function ConcorrentesMap() {
         />
         {pontos.map((p) => (
           <CircleMarker
-            key={p.id}
+            key={p.localId}
             center={[p.latitude, p.longitude]}
             radius={9}
             pathOptions={{ color: corDe(p), fillColor: corDe(p), fillOpacity: 0.7, weight: 2 }}
           >
-            <Tooltip>{p.nomeFantasia || p.razaoSocial}</Tooltip>
+            <Tooltip>{p.nomeFantasia || p.razaoSocial}{p.localNome && p.localNome !== "Matriz" ? ` · ${p.localNome}` : ""}</Tooltip>
             <Popup>
               <div className="space-y-1">
                 <p className="font-semibold text-sm">{p.nomeFantasia || p.razaoSocial}</p>
+                {p.localNome && <p className="text-[11px] text-gray-500">{p.localNome}</p>}
                 <p className="text-xs text-gray-600">{[p.cidade, p.estado].filter(Boolean).join("/") || "—"}</p>
                 <div className="flex flex-wrap gap-1 text-[11px]">
                   {p.ehFornecedor && <span className="inline-flex items-center gap-0.5 text-amber-700">Fornecedor</span>}
