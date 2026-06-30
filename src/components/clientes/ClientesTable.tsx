@@ -57,6 +57,11 @@ export default function ClientesTable({ clientes }: { clientes: ClienteRow[] }) 
     [clientes, tipo, mapFiltro],
   );
 
+  // Resumo do mapeamento na Inteligência Comercial.
+  const mapeadosN = useMemo(() => clientes.filter((c) => c.mapeado).length, [clientes]);
+  const naoMapeadosN = clientes.length - mapeadosN;
+  const contagemMap = (v: "" | "sim" | "nao") => (v === "sim" ? mapeadosN : v === "nao" ? naoMapeadosN : clientes.length);
+
   const columns = useMemo<ColumnDef<ClienteRow>[]>(() => [
     {
       accessorKey: "razaoSocial",
@@ -151,11 +156,16 @@ export default function ClientesTable({ clientes }: { clientes: ClienteRow[] }) 
                 mapFiltro === t.value ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-muted",
               )}
             >
-              {t.label}
+              {t.label} <span className="opacity-60 tabular-nums">({contagemMap(t.value)})</span>
             </button>
           ))}
         </div>
-        <span className="text-xs text-muted-foreground">{dados.length} cliente{dados.length !== 1 ? "s" : ""}</span>
+        <span className="text-xs text-muted-foreground">
+          {dados.length} cliente{dados.length !== 1 ? "s" : ""}
+          <span className="mx-1.5">·</span>
+          <span className="text-fuchsia-600 dark:text-fuchsia-400 font-medium">{mapeadosN} mapeado{mapeadosN !== 1 ? "s" : ""}</span> na IC,
+          {" "}{naoMapeadosN} não
+        </span>
       </div>
 
       <DataTable
