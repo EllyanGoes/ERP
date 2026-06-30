@@ -71,13 +71,24 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const { contatos, canais, ...escalares } = d;
   const concorrente = await prisma.concorrente.create({
     data: {
-      ...d,
-      email: d.email || null,
-      cpfCnpj: d.cpfCnpj?.trim() || null,
+      ...escalares,
+      email: escalares.email || null,
+      cpfCnpj: escalares.cpfCnpj?.trim() || null,
       latitude: latitude ?? null,
       longitude: longitude ?? null,
+      contatos: contatos?.length ? {
+        create: contatos.filter((ct) => ct.nome?.trim()).map((ct) => ({
+          nome: ct.nome.trim(), cargo: ct.cargo || null, telefone: ct.telefone || null, email: ct.email || null,
+        })),
+      } : undefined,
+      canais: canais?.length ? {
+        create: canais.filter((cn) => cn.tipo?.trim()).map((cn) => ({
+          tipo: cn.tipo, valor: cn.valor || null, observacao: cn.observacao || null,
+        })),
+      } : undefined,
     },
   });
 

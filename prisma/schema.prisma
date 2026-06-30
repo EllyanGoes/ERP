@@ -3064,11 +3064,45 @@ model Concorrente {
 
   empresa       Empresa  @relation(fields: [empresaId], references: [id])
   precos        ConcorrentePreco[]
+  contatos      ConcorrenteContato[]
+  canais        ConcorrenteCanal[]
 
   @@index([empresaId])
   @@index([cidade])
   @@index([ativo])
   @@index([clienteId])
+}
+
+// Um concorrente pode ter vários contatos (vendedor, gerente, dono...).
+model ConcorrenteContato {
+  id            String   @id @default(cuid())
+  empresaId     String   @default("emp_tramontin")
+  concorrenteId String
+  nome          String
+  cargo         String?
+  telefone      String?
+  email         String?
+  observacao    String?
+  createdAt     DateTime @default(now())
+  concorrente   Concorrente @relation(fields: [concorrenteId], references: [id], onDelete: Cascade)
+
+  @@index([concorrenteId])
+}
+
+// Canais de aquisição de clientes do concorrente. A localização física conta
+// como um canal (tipo LOCALIZACAO); demais: INSTAGRAM, SITE, WHATSAPP, etc.
+// `tipo` é String (não enum) p/ permitir novos canais sem migração.
+model ConcorrenteCanal {
+  id            String   @id @default(cuid())
+  empresaId     String   @default("emp_tramontin")
+  concorrenteId String
+  tipo          String
+  valor         String?  // link/@perfil/número/descrição
+  observacao    String?
+  createdAt     DateTime @default(now())
+  concorrente   Concorrente @relation(fields: [concorrenteId], references: [id], onDelete: Cascade)
+
+  @@index([concorrenteId])
 }
 
 model ConcorrentePreco {

@@ -13,6 +13,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         orderBy: [{ produtoNome: "asc" }, { dataColeta: "desc" }],
         include: { item: { select: { id: true, codigo: true, descricao: true, precoVenda: true } } },
       },
+      contatos: { orderBy: { createdAt: "asc" } },
+      canais: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!concorrente) return NextResponse.json({ error: "Concorrente não encontrado" }, { status: 404 });
@@ -57,16 +59,40 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     geoManual = false;
   }
 
-  const concorrente = await prisma.concorrente.update({
-    where: { id: params.id },
-    data: {
-      ...d,
-      email: d.email || null,
-      cpfCnpj: d.cpfCnpj?.trim() || null,
-      latitude: latitude ?? null,
-      longitude: longitude ?? null,
-      geoManual,
-    },
+  // Contatos e canais são relações — fora do update direto; substitui em lote.
+  const { contatos, canais, ...escalares } = d;
+
+  const concorrente = await prisma.$transaction(async (tx) => {
+    const c = await tx.concorrente.update({
+      where: { id: params.id },
+      data: {
+        ...escalares,
+        email: escalares.email || null,
+        cpfCnpj: escalares.cpfCnpj?.trim() || null,
+        latitude: latitude ?? null,
+        longitude: longitude ?? null,
+        geoManual,
+      },
+    });
+    if (contatos !== undefined) {
+      await tx.concorrenteContato.deleteMany({ where: { concorrenteId: params.id } });
+      if (contatos.length) await tx.concorrenteContato.createMany({
+        data: contatos.filter((ct) => ct.nome?.trim()).map((ct) => ({
+          concorrenteId: params.id, empresaId: c.empresaId,
+          nome: ct.nome.trim(), cargo: ct.cargo || null, telefone: ct.telefone || null, email: ct.email || null,
+        })),
+      });
+    }
+    if (canais !== undefined) {
+      await tx.concorrenteCanal.deleteMany({ where: { concorrenteId: params.id } });
+      if (canais.length) await tx.concorrenteCanal.createMany({
+        data: canais.filter((cn) => cn.tipo?.trim()).map((cn) => ({
+          concorrenteId: params.id, empresaId: c.empresaId,
+          tipo: cn.tipo, valor: cn.valor || null, observacao: cn.observacao || null,
+        })),
+      });
+    }
+    return c;
   });
 
   return NextResponse.json({ data: concorrente });

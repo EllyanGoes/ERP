@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import { concorrenteSchema, type ConcorrenteFormData } from "@/lib/validations/concorrente";
@@ -13,9 +13,24 @@ import ComboboxWithCreate, { type ComboboxOption } from "@/components/shared/Com
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Building2, Store, UserPlus } from "lucide-react";
+import { Building2, Store, UserPlus, Plus, X, Users, Share2 } from "lucide-react";
 
 type ConcorrenteData = { id: string } & ConcorrenteFormData;
+
+// Canais de aquisição de clientes. A localização física conta como canal.
+export const CANAIS_AQUISICAO: { value: string; label: string }[] = [
+  { value: "LOCALIZACAO", label: "Localização física" },
+  { value: "INSTAGRAM", label: "Instagram" },
+  { value: "SITE", label: "Site" },
+  { value: "WHATSAPP", label: "WhatsApp" },
+  { value: "FACEBOOK", label: "Facebook" },
+  { value: "GOOGLE", label: "Google / Maps" },
+  { value: "MARKETPLACE", label: "Marketplace" },
+  { value: "TELEFONE", label: "Telefone" },
+  { value: "INDICACAO", label: "Indicação" },
+  { value: "OUTRO", label: "Outro" },
+];
+export const labelCanal = (v: string) => CANAIS_AQUISICAO.find((c) => c.value === v)?.label ?? v;
 
 const UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 
@@ -47,14 +62,20 @@ export default function ConcorrenteForm({
 
   const form = useForm<ConcorrenteFormData>({
     resolver: zodResolver(concorrenteSchema),
-    defaultValues: concorrente ?? {
-      tipoPessoa: "JURIDICA",
-      ehFornecedor: false,
-      ehRevendedor: true,
-      ativo: true,
-      ...(initialNome ? { razaoSocial: initialNome, nomeFantasia: initialNome } : {}),
-    },
+    defaultValues: concorrente
+      ? { ...concorrente, contatos: concorrente.contatos ?? [], canais: concorrente.canais ?? [] }
+      : {
+          tipoPessoa: "JURIDICA",
+          ehFornecedor: false,
+          ehRevendedor: true,
+          ativo: true,
+          contatos: [],
+          canais: [],
+          ...(initialNome ? { razaoSocial: initialNome, nomeFantasia: initialNome } : {}),
+        },
   });
+  const contatosFA = useFieldArray({ control: form.control, name: "contatos" });
+  const canaisFA = useFieldArray({ control: form.control, name: "canais" });
 
   const tipoPessoa = form.watch("tipoPessoa");
   const ehFornecedor = form.watch("ehFornecedor");
@@ -139,7 +160,7 @@ export default function ConcorrenteForm({
 
   const { confirmCreated, dialog } = useCreateFlow({
     entity: "concorrente",
-    onNew: () => form.reset({ tipoPessoa: "JURIDICA", ehFornecedor: false, ehRevendedor: true, ativo: true }),
+    onNew: () => form.reset({ tipoPessoa: "JURIDICA", ehFornecedor: false, ehRevendedor: true, ativo: true, contatos: [], canais: [] }),
     viewHref: (id) => `/marketing/inteligencia-comercial/${id}`,
   });
 
@@ -410,6 +431,63 @@ export default function ConcorrenteForm({
                 )} />
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* ── Contatos (múltiplos) ───────────────────────────────────────── */}
+        <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+          <SectionTitle>
+            <span className="inline-flex items-center gap-2"><Users className="h-4 w-4" /> Contatos</span>
+          </SectionTitle>
+          <div className="p-5 space-y-3">
+            <p className="text-xs text-muted-foreground">Pessoas de contato no concorrente (vendedor, gerente, dono...). Pode adicionar quantos quiser.</p>
+            {contatosFA.fields.length === 0 && (
+              <p className="text-sm text-muted-foreground/70 italic">Nenhum contato adicionado.</p>
+            )}
+            {contatosFA.fields.map((f, i) => (
+              <div key={f.id} className="grid grid-cols-[1.4fr_1fr_1fr_1.2fr_auto] gap-2 items-start">
+                <div>
+                  <Input {...form.register(`contatos.${i}.nome`)} placeholder="Nome *" className="h-10 border-border" />
+                  {form.formState.errors.contatos?.[i]?.nome && <p className="text-[11px] text-danger mt-0.5">{form.formState.errors.contatos[i]?.nome?.message as string}</p>}
+                </div>
+                <Input {...form.register(`contatos.${i}.cargo`)} placeholder="Cargo" className="h-10 border-border" />
+                <Input {...form.register(`contatos.${i}.telefone`)} placeholder="Telefone" className="h-10 border-border" />
+                <Input {...form.register(`contatos.${i}.email`)} placeholder="E-mail" className="h-10 border-border" />
+                <Button type="button" variant="ghost" onClick={() => contatosFA.remove(i)} className="h-10 w-10 p-0 text-muted-foreground hover:text-danger" title="Remover"><X className="h-4 w-4" /></Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" onClick={() => contatosFA.append({ nome: "", cargo: "", telefone: "", email: "" })} className="gap-1.5 border-dashed">
+              <Plus className="h-4 w-4" /> Adicionar contato
+            </Button>
+          </div>
+        </div>
+
+        {/* ── Canais de aquisição (múltiplos) ────────────────────────────── */}
+        <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+          <SectionTitle>
+            <span className="inline-flex items-center gap-2"><Share2 className="h-4 w-4" /> Canais de aquisição de clientes</span>
+          </SectionTitle>
+          <div className="p-5 space-y-3">
+            <p className="text-xs text-muted-foreground">Por onde o concorrente capta clientes. A <b>localização física</b> conta como um canal; Instagram, site, WhatsApp são outros exemplos.</p>
+            {canaisFA.fields.length === 0 && (
+              <p className="text-sm text-muted-foreground/70 italic">Nenhum canal adicionado.</p>
+            )}
+            {canaisFA.fields.map((f, i) => (
+              <div key={f.id} className="grid grid-cols-[1fr_1.4fr_1.4fr_auto] gap-2 items-start">
+                <div>
+                  <select {...form.register(`canais.${i}.tipo`)} className="h-10 w-full rounded-lg border border-border bg-background px-2 text-sm text-foreground">
+                    {CANAIS_AQUISICAO.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </select>
+                  {form.formState.errors.canais?.[i]?.tipo && <p className="text-[11px] text-danger mt-0.5">{form.formState.errors.canais[i]?.tipo?.message as string}</p>}
+                </div>
+                <Input {...form.register(`canais.${i}.valor`)} placeholder="Link / @perfil / nº / descrição" className="h-10 border-border" />
+                <Input {...form.register(`canais.${i}.observacao`)} placeholder="Observação" className="h-10 border-border" />
+                <Button type="button" variant="ghost" onClick={() => canaisFA.remove(i)} className="h-10 w-10 p-0 text-muted-foreground hover:text-danger" title="Remover"><X className="h-4 w-4" /></Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" onClick={() => canaisFA.append({ tipo: "LOCALIZACAO", valor: "", observacao: "" })} className="gap-1.5 border-dashed">
+              <Plus className="h-4 w-4" /> Adicionar canal
+            </Button>
           </div>
         </div>
 

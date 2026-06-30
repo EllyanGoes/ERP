@@ -28,6 +28,19 @@ export const concorrenteSchema = z.object({
 
   observacoes: z.string().optional().nullable(),
   ativo: z.boolean(),
+
+  // Múltiplos contatos e canais de aquisição (a localização física conta como canal).
+  contatos: z.array(z.object({
+    nome: z.string().min(1, "Informe o nome do contato"),
+    cargo: z.string().optional().nullable(),
+    telefone: z.string().optional().nullable(),
+    email: z.string().optional().nullable(),
+  })).optional(),
+  canais: z.array(z.object({
+    tipo: z.string().min(1, "Selecione o tipo do canal"),
+    valor: z.string().optional().nullable(),
+    observacao: z.string().optional().nullable(),
+  })).optional(),
 }).superRefine((data, ctx) => {
   if (!data.ehFornecedor && !data.ehRevendedor) {
     ctx.addIssue({

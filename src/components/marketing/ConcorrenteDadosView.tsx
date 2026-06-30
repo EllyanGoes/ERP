@@ -1,6 +1,11 @@
 "use client";
 
 import { formatCPFCNPJ } from "@/lib/utils";
+import { labelCanal } from "@/components/marketing/ConcorrenteForm";
+import { Users, Share2 } from "lucide-react";
+
+type Contato = { id?: string; nome: string; cargo: string | null; telefone: string | null; email: string | null };
+type Canal = { id?: string; tipo: string; valor: string | null; observacao: string | null };
 
 type Concorrente = {
   tipoPessoa: string;
@@ -22,6 +27,8 @@ type Concorrente = {
   cidade: string | null;
   estado: string | null;
   observacoes: string | null;
+  contatos?: Contato[];
+  canais?: Canal[];
 };
 
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
@@ -67,13 +74,44 @@ export default function ConcorrenteDadosView({ c }: { c: Concorrente }) {
         <Field label="Status" value={c.ativo ? "Ativo" : "Inativo"} />
       </div>
 
-      <SectionTitle>Contato</SectionTitle>
+      <SectionTitle>Contato principal</SectionTitle>
       <div className="px-5 py-5 grid grid-cols-2 gap-x-8 gap-y-5">
         <Field label="E-mail" value={c.email} />
         <Field label="Site" value={c.site} />
         <Field label="Telefone" value={c.telefone} />
         <Field label="Celular" value={c.celular} />
       </div>
+
+      {c.contatos && c.contatos.length > 0 && (
+        <>
+          <SectionTitle><span className="inline-flex items-center gap-2"><Users className="h-3.5 w-3.5" /> Contatos</span></SectionTitle>
+          <div className="px-5 py-4 space-y-2">
+            {c.contatos.map((ct, i) => (
+              <div key={ct.id ?? i} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-sm border-b border-border/60 last:border-0 pb-2 last:pb-0">
+                <span className="font-medium text-foreground">{ct.nome}</span>
+                {ct.cargo && <span className="text-xs text-muted-foreground">{ct.cargo}</span>}
+                {ct.telefone && <span className="text-muted-foreground">{ct.telefone}</span>}
+                {ct.email && <span className="text-muted-foreground">{ct.email}</span>}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {c.canais && c.canais.length > 0 && (
+        <>
+          <SectionTitle><span className="inline-flex items-center gap-2"><Share2 className="h-3.5 w-3.5" /> Canais de aquisição</span></SectionTitle>
+          <div className="px-5 py-4 flex flex-wrap gap-2">
+            {c.canais.map((cn, i) => (
+              <span key={cn.id ?? i} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-xs">
+                <span className="font-semibold text-foreground">{labelCanal(cn.tipo)}</span>
+                {cn.valor && <span className="text-muted-foreground">· {cn.valor}</span>}
+                {cn.observacao && <span className="text-muted-foreground/70">({cn.observacao})</span>}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
 
       <SectionTitle>Endereço</SectionTitle>
       <div className="px-5 py-5 grid grid-cols-2 gap-x-8 gap-y-5">
