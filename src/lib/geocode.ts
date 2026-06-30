@@ -145,3 +145,86 @@ export async function geocodificarEndereco(
   }
   return null;
 }
+
+// ── Reverse geocoding (coords → endereço) ───────────────────────────────────
+export type EnderecoReverso = {
+  cep: string | null;
+  logradouro: string | null;
+  numero: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  estado: string | null; // UF (2 letras)
+};
+
+const NOME_UF: Record<string, string> = {
+  acre: "AC", alagoas: "AL", amapá: "AP", amapa: "AP", amazonas: "AM", bahia: "BA",
+  ceará: "CE", ceara: "CE", "distrito federal": "DF", "espírito santo": "ES", "espirito santo": "ES",
+  goiás: "GO", goias: "GO", maranhão: "MA", maranhao: "MA", "mato grosso": "MT", "mato grosso do sul": "MS",
+  "minas gerais": "MG", pará: "PA", para: "PA", paraíba: "PB", paraiba: "PB", paraná: "PR", parana: "PR",
+  pernambuco: "PE", piauí: "PI", piaui: "PI", "rio de janeiro": "RJ", "rio grande do norte": "RN",
+  "rio grande do sul": "RS", rondônia: "RO", rondonia: "RO", roraima: "RR", "santa catarina": "SC",
+  "são paulo": "SP", "sao paulo": "SP", sergipe: "SE", tocantins: "TO",
+};
+function paraUF(v?: string | null): string | null {
+  const s = limpo(v);
+  if (!s) return null;
+  if (/^[A-Za-z]{2}$/.test(s)) return s.toUpperCase();
+  return NOME_UF[s.toLowerCase()] ?? null;
+}
+
+/**
+ * Coordenadas → endereço (CEP, logradouro, bairro, cidade, UF). Best-effort,
+ * Nominatim reverse com fallback Photon. Server-side. Nunca lança.
+ */
+export async function reverseGeocode(lat: number, lon: number): Promise<EnderecoReverso | null> {
+  if (Number.isNaN(lat) || Number.isNaN(lon)) return null;
+
+  // 1) Nominatim reverse (mais rico em endereço estruturado no Brasil).
+  try {
+    const url = new URL("https://nominatim.openstreetmap.org/reverse");
+    url.searchParams.set("format", "jsonv2");
+    url.searchParams.set("addressdetails", "1");
+    url.searchParams.set("lat", String(lat));
+    url.searchParams.set("lon", String(lon));
+    const res = await fetch(url.toString(), { headers: HEADERS, cache: "no-store" });
+    if (res.ok) {
+      const j = (await res.json()) as { address?: Record<string, string> };
+      const a = j.address;
+      if (a) {
+        const uf = paraUF(a["ISO3166-2-lvl4"]?.split("-")[1] ?? a.state);
+        return {
+          cep: a.postcode ?? null,
+          logradouro: a.road ?? a.pedestrian ?? null,
+          numero: a.house_number ?? null,
+          bairro: a.suburb ?? a.neighbourhood ?? a.quarter ?? null,
+          cidade: a.city ?? a.town ?? a.village ?? a.municipality ?? null,
+          estado: uf,
+        };
+      }
+    }
+  } catch { /* tenta o fallback */ }
+
+  // 2) Photon reverse (quando o Nominatim limita IP de datacenter).
+  try {
+    const url = new URL("https://photon.komoot.io/reverse");
+    url.searchParams.set("lat", String(lat));
+    url.searchParams.set("lon", String(lon));
+    const res = await fetch(url.toString(), { headers: HEADERS, cache: "no-store" });
+    if (res.ok) {
+      const j = (await res.json()) as { features?: Array<{ properties?: Record<string, string> }> };
+      const p = j.features?.[0]?.properties;
+      if (p) {
+        return {
+          cep: p.postcode ?? null,
+          logradouro: p.street ?? p.name ?? null,
+          numero: p.housenumber ?? null,
+          bairro: p.district ?? null,
+          cidade: p.city ?? p.county ?? null,
+          estado: paraUF(p.state),
+        };
+      }
+    }
+  } catch { /* desiste */ }
+
+  return null;
+}

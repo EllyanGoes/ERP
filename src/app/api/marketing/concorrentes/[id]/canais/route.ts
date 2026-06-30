@@ -20,12 +20,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!b.tipo?.trim()) return NextResponse.json({ error: "Selecione o tipo do canal" }, { status: 400 });
 
   // Loja física (LOCALIZACAO): geocodifica o endereço para virar ponto no mapa.
+  // Se vierem coordenadas explícitas (ex.: link do Google Maps), usa-as e marca
+  // geoManual (não re-geocodifica por cima).
   const ehLocal = b.tipo === "LOCALIZACAO";
   const end = ehLocal ? {
     cep: b.cep ?? null, logradouro: b.logradouro ?? null, numero: b.numero ?? null,
     complemento: b.complemento ?? null, bairro: b.bairro ?? null, cidade: b.cidade ?? null, estado: b.estado ?? null,
   } : {};
-  const geo = ehLocal ? await geocodificarEndereco(end) : null;
+  const temCoord = ehLocal && b.latitude != null && b.longitude != null;
+  const geo = ehLocal && !temCoord ? await geocodificarEndereco(end) : null;
 
   const canal = await prisma.concorrenteCanal.create({
     data: {
@@ -34,9 +37,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       valor: b.valor?.trim() || null,
       observacao: b.observacao?.trim() || null,
       ...end,
-      latitude: geo?.latitude ?? null,
-      longitude: geo?.longitude ?? null,
-      geoManual: false,
+      latitude: temCoord ? Number(b.latitude) : geo?.latitude ?? null,
+      longitude: temCoord ? Number(b.longitude) : geo?.longitude ?? null,
+      geoManual: !!temCoord,
+      geoReferencia: temCoord ? (b.geoReferencia ?? null) : null,
     },
   });
   return NextResponse.json({ data: canal }, { status: 201 });

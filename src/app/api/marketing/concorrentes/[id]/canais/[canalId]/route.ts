@@ -22,20 +22,26 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     complemento: b.complemento ?? null, bairro: b.bairro ?? null, cidade: b.cidade ?? null, estado: b.estado ?? null,
   } : { cep: null, logradouro: null, numero: null, complemento: null, bairro: null, cidade: null, estado: null };
 
-  // Re-geocodifica pelo endereço, exceto se o ponto foi fixado manualmente.
+  // Coordenadas explícitas no corpo (ex.: link do Google Maps) têm prioridade e
+  // marcam geoManual. Senão: re-geocodifica pelo endereço, exceto se já é manual.
+  const temCoord = ehLocal && b.latitude != null && b.longitude != null && b.geoManual;
   let latitude = atual.latitude;
   let longitude = atual.longitude;
-  if (ehLocal && !atual.geoManual) {
+  let geoManual = atual.geoManual;
+  let geoReferencia = atual.geoReferencia;
+  if (temCoord) {
+    latitude = Number(b.latitude); longitude = Number(b.longitude); geoManual = true; geoReferencia = b.geoReferencia ?? geoReferencia;
+  } else if (ehLocal && !atual.geoManual) {
     const geo = await geocodificarEndereco(end);
     latitude = geo?.latitude ?? null;
     longitude = geo?.longitude ?? null;
   } else if (!ehLocal) {
-    latitude = null; longitude = null;
+    latitude = null; longitude = null; geoManual = false; geoReferencia = null;
   }
 
   const canal = await prisma.concorrenteCanal.update({
     where: { id: params.canalId },
-    data: { tipo: b.tipo, valor: b.valor?.trim() || null, observacao: b.observacao?.trim() || null, ...end, latitude, longitude },
+    data: { tipo: b.tipo, valor: b.valor?.trim() || null, observacao: b.observacao?.trim() || null, ...end, latitude, longitude, geoManual, geoReferencia },
   });
   return NextResponse.json({ data: canal });
 }

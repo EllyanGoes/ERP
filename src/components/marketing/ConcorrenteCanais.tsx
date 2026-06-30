@@ -79,11 +79,34 @@ export default function ConcorrenteCanais({
   const [editando, setEditando] = useState<Rascunho | null>(null); // popup aberto (novo ou edição)
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [mapsUrl, setMapsUrl] = useState("");
+  const [puxando, setPuxando] = useState(false);
   const base = `/api/marketing/concorrentes/${concorrenteId}/canais`;
 
+  // Puxa nome + endereço a partir de um link do Google Maps (coords + reverse geocoding).
+  async function puxarDoMaps() {
+    if (!mapsUrl.trim()) return;
+    setPuxando(true); setErro(null);
+    try {
+      const res = await fetch(`/api/marketing/concorrentes/${concorrenteId}/maps-lookup`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: mapsUrl }),
+      });
+      const j = await res.json();
+      if (!res.ok) { setErro(j.error ?? "Não consegui ler o link."); return; }
+      const d = j.data;
+      setEditando((e) => e ? {
+        ...e,
+        valor: e.valor || d.nome || e.valor,
+        cep: d.cep ?? e.cep, logradouro: d.logradouro ?? e.logradouro, numero: d.numero ?? e.numero,
+        bairro: d.bairro ?? e.bairro, cidade: d.cidade ?? e.cidade, estado: d.estado ?? e.estado,
+        latitude: d.latitude, longitude: d.longitude, geoManual: true, geoReferencia: mapsUrl.trim(),
+      } : e);
+    } finally { setPuxando(false); }
+  }
+
   function sync(next: CanalConcorrente[]) { setCanais(next); onCount?.(next.length); }
-  function abrirNovo() { setErro(null); setEditando({ tipo: "WHATSAPP" }); }
-  function abrirEdicao(c: CanalConcorrente) { setErro(null); setEditando({ ...c }); }
+  function abrirNovo() { setErro(null); setMapsUrl(""); setEditando({ tipo: "LOCALIZACAO" }); }
+  function abrirEdicao(c: CanalConcorrente) { setErro(null); setMapsUrl(c.geoReferencia ?? ""); setEditando({ ...c }); }
 
   async function salvar() {
     if (!editando) return;
@@ -93,6 +116,7 @@ export default function ConcorrenteCanais({
       tipo: r.tipo, valor: r.valor ?? null, observacao: r.observacao ?? null,
       cep: r.cep ?? null, logradouro: r.logradouro ?? null, numero: r.numero ?? null,
       complemento: r.complemento ?? null, bairro: r.bairro ?? null, cidade: r.cidade ?? null, estado: r.estado ?? null,
+      latitude: r.latitude ?? null, longitude: r.longitude ?? null, geoManual: r.geoManual ?? false, geoReferencia: r.geoReferencia ?? null,
     };
     const url = r.id ? `${base}/${r.id}` : base;
     const res = await fetch(url, { method: r.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -180,6 +204,19 @@ export default function ConcorrenteCanais({
                 <label className="text-[11px] font-semibold text-muted-foreground uppercase">{ehLocal ? "Nome do local" : "Contato / link"}</label>
                 <Input value={editando.valor ?? ""} onChange={(e) => set("valor", e.target.value)} placeholder={placeholderValor(editando.tipo)} className="h-10 border-border" />
               </div>
+
+              {ehLocal && (
+                <div className="rounded-lg border border-dashed border-border bg-muted/30 p-2.5">
+                  <label className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center gap-1"><MapPin className="h-3 w-3" /> Puxar do Google Maps</label>
+                  <div className="flex items-end gap-2 mt-1">
+                    <Input value={mapsUrl} onChange={(e) => setMapsUrl(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); puxarDoMaps(); } }} placeholder="Cole o link do Google Maps (ou lat, lng)" className="h-9 border-border" />
+                    <Button type="button" variant="outline" onClick={puxarDoMaps} disabled={puxando || !mapsUrl.trim()} className="h-9 shrink-0">
+                      {puxando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Puxar"}
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">Preenche nome, endereço e o pino pelas coordenadas do link. (Dados oficiais do Google exigem API paga.)</p>
+                </div>
+              )}
 
               {ehLocal && (
                 <div className="grid grid-cols-12 gap-2">
