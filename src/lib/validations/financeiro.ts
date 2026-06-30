@@ -49,6 +49,13 @@ export const pagamentoSchema = z.object({
     contaBancariaId: z.string().optional().nullable(),
     valor: z.coerce.number().min(0.01),
   })).optional(),
+  // Rateio gerencial por natureza (classificação do título na baixa). Cada linha =
+  // natureza + valor; a soma deve bater com o valor do título. Opcional.
+  naturezas: z.array(z.object({
+    naturezaFinanceiraId: z.string().min(1),
+    detalhamento: z.string().optional().nullable(),
+    valor: z.coerce.number().min(0.01),
+  })).optional(),
 }).refine(
   (d) => (d.pagamentos && d.pagamentos.length > 0) || (d.valorPago != null && d.valorPago > 0),
   { message: "Informe o valor recebido/pago", path: ["valorPago"] },

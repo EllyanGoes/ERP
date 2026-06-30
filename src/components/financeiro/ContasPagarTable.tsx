@@ -15,6 +15,11 @@ import PagamentosInput, {
   type FormaOpt, type ContaOpt, type LinhaPagamento,
   novaLinhaPagamento, parseValorBR, contaPadraoParaForma, pagamentoContaInvalida,
 } from "@/components/pedidos-venda/PagamentosInput";
+import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
+import { Plus, Trash2 } from "lucide-react";
+
+// Linha do rateio gerencial por natureza no modal de baixa.
+type RateioLinha = { key: string; naturezaFinanceiraId: string; detalhamento: string; valor: string };
 
 type ContaRow = {
   id: string; numero: string; descricao: string; categoria: string | null; status: string;
@@ -22,6 +27,7 @@ type ContaRow = {
   valorOriginal: unknown; valorPago: unknown;
   fornecedor: { id: string; razaoSocial: string } | null;
   contasContrapartida?: { id: string; nome: string }[];
+  naturezas?: { naturezaFinanceiraId: string; detalhamento: string | null; valor: unknown }[];
 };
 
 type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "PAGA";
@@ -73,6 +79,9 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  // Rateio gerencial por natureza (classificação do título na baixa).
+  const [naturezasOpts, setNaturezasOpts] = useState<NaturezaOpt[]>([]);
+  const [rateio, setRateio] = useState<RateioLinha[]>([]);
 
   // Rastreabilidade: ?focus=<id> destaca o título vindo do Razão/contabilidade.
   useEffect(() => {
@@ -84,6 +93,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
   useEffect(() => {
     fetch("/api/suprimentos/formas-pagamento").then((r) => r.json()).then((j) => setFormas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
     fetch("/api/financeiro/contas").then((r) => r.json()).then((j) => setContasBanco(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+    fetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1").then((r) => r.json()).then((j) => setNaturezasOpts(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
   }, []);
 
   const saldo = selected ? decimalToNumber(selected.valorOriginal) - decimalToNumber(selected.valorPago) : 0;
@@ -94,6 +104,13 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
     setDataPag(new Date().toISOString().split("T")[0]);
     const s = decimalToNumber(row.valorOriginal) - decimalToNumber(row.valorPago);
     setLinhas([novaLinhaPagamento("", contaPadraoParaForma("", formas, contasBanco), s > 0 ? s.toFixed(2).replace(".", ",") : "")]);
+    // Rateio por natureza: pré-carrega o existente ou 1 linha com o valor do título.
+    const valOrig = decimalToNumber(row.valorOriginal);
+    setRateio(
+      row.naturezas && row.naturezas.length
+        ? row.naturezas.map((n) => ({ key: crypto.randomUUID(), naturezaFinanceiraId: n.naturezaFinanceiraId, detalhamento: n.detalhamento ?? "", valor: decimalToNumber(n.valor).toFixed(2).replace(".", ",") }))
+        : [{ key: crypto.randomUUID(), naturezaFinanceiraId: "", detalhamento: "", valor: valOrig > 0 ? valOrig.toFixed(2).replace(".", ",") : "" }],
+    );
   }
 
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
@@ -146,11 +163,27 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
       setErro(`Selecione a conta bancária de origem para "${contaRuim.forma || "a forma eletrônica"}" — formas que não são dinheiro não podem sair do Caixa em Dinheiro.`);
       return;
     }
+    // Rateio gerencial por natureza (opcional): se preenchido, a soma deve bater
+    // com o valor do título (classifica a obrigação inteira).
+    const rateioValido = rateio.filter((l) => l.naturezaFinanceiraId && parseValorBR(l.valor) > 0);
+    if (rateioValido.length > 0) {
+      const soma = Math.round(rateioValido.reduce((s, l) => s + parseValorBR(l.valor), 0) * 100) / 100;
+      const valOrig = decimalToNumber(selected.valorOriginal);
+      if (Math.abs(soma - valOrig) > 0.05) {
+        setErro(`A soma das naturezas (${formatBRL(soma)}) deve bater com o valor do título (${formatBRL(valOrig)}).`);
+        return;
+      }
+    }
     setSaving(true); setErro(null);
     const res = await fetch(`/api/contas-pagar/${selected.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pagamentos, dataPagamento: dataPag, valorMulta: 0, valorJuros: 0 }),
+      body: JSON.stringify({
+        pagamentos, dataPagamento: dataPag, valorMulta: 0, valorJuros: 0,
+        naturezas: rateioValido.length
+          ? rateioValido.map((l) => ({ naturezaFinanceiraId: l.naturezaFinanceiraId, detalhamento: l.detalhamento.trim() || null, valor: parseValorBR(l.valor) }))
+          : undefined,
+      }),
     });
     setSaving(false);
     if (!res.ok) { setErro((await res.json().catch(() => ({}))).error ?? "Erro ao pagar."); return; }
@@ -222,6 +255,33 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
               contas={contasBanco}
               total={saldo}
             />
+            {/* Rateio gerencial por natureza — classifica o título (igual ao Novo Lançamento). */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Naturezas financeiras</Label>
+                <button type="button" onClick={() => setRateio((p) => [...p, { key: crypto.randomUUID(), naturezaFinanceiraId: "", detalhamento: "", valor: "" }])} className="inline-flex items-center gap-1 text-xs text-info hover:text-info font-medium">
+                  <Plus className="w-3.5 h-3.5" /> Adicionar natureza
+                </button>
+              </div>
+              {rateio.map((l) => (
+                <div key={l.key} className="grid grid-cols-[1fr_1fr_6rem_auto] gap-2 items-center">
+                  <NaturezaCombobox
+                    value={l.naturezaFinanceiraId}
+                    onChange={(id) => setRateio((p) => p.map((x) => (x.key === l.key ? { ...x, naturezaFinanceiraId: id } : x)))}
+                    naturezas={naturezasOpts}
+                    defaultTipo="SAIDA"
+                    allowCreate
+                    onCreated={(n) => setNaturezasOpts((prev) => [...prev, n])}
+                  />
+                  <Input value={l.detalhamento} onChange={(e) => setRateio((p) => p.map((x) => (x.key === l.key ? { ...x, detalhamento: e.target.value } : x)))} placeholder="Detalhamento (opcional)" className="h-9 min-w-0" />
+                  <Input value={l.valor} onChange={(e) => setRateio((p) => p.map((x) => (x.key === l.key ? { ...x, valor: e.target.value } : x)))} placeholder="0,00" className="h-9 text-right font-mono min-w-0" />
+                  <button type="button" onClick={() => setRateio((p) => (p.length > 1 ? p.filter((x) => x.key !== l.key) : p))} disabled={rateio.length <= 1} className="p-1.5 rounded text-muted-foreground/60 hover:text-red-500 hover:bg-danger/10 disabled:opacity-30">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              <p className="text-[11px] text-muted-foreground">Classificação gerencial do título por natureza — a soma deve bater com o valor do título. Opcional.</p>
+            </div>
             {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>
           <DialogFooter>

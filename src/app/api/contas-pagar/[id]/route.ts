@@ -100,6 +100,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const totalOriginal = parseFloat(conta.valorOriginal.toString());
     const newStatus = totalPago >= totalOriginal ? "PAGA" : "PARCIAL";
 
+    // Rateio gerencial por natureza (opcional): valida ANTES de baixar — a soma das
+    // naturezas deve bater com o valor do título (classifica a obrigação inteira).
+    const naturezasRateio = parsed.data.naturezas ?? [];
+    if (naturezasRateio.length > 0) {
+      const somaNat = Math.round(naturezasRateio.reduce((s, n) => s + n.valor, 0) * 100) / 100;
+      if (Math.abs(somaNat - totalOriginal) > 0.05) {
+        return { erro: { msg: `A soma das naturezas (R$ ${somaNat.toFixed(2)}) deve bater com o valor do título (R$ ${totalOriginal.toFixed(2)}).`, status: 422 }, data: null };
+      }
+    }
+
     // Só aplica se status/valorPago não mudaram desde a leitura acima — a
     // requisição concorrente que perder a corrida cai no count === 0.
     const aplicado = await tx.contaPagar.updateMany({
@@ -115,6 +125,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
     if (aplicado.count === 0) {
       return { erro: { msg: "A conta foi baixada por outra operação simultânea — recarregue e confira.", status: 409 }, data: null };
+    }
+
+    // Persiste o rateio por natureza (substitui o anterior). Mantém a coluna única
+    // do título na 1ª natureza p/ exibição e o caminho single-natureza coerente.
+    if (naturezasRateio.length > 0) {
+      await tx.contaPagarNatureza.deleteMany({ where: { contaPagarId: params.id } });
+      await tx.contaPagarNatureza.createMany({
+        data: naturezasRateio.map((n) => ({
+          contaPagarId: params.id, naturezaFinanceiraId: n.naturezaFinanceiraId,
+          detalhamento: n.detalhamento?.trim() || null, valor: n.valor,
+        })),
+      });
+      await tx.contaPagar.update({ where: { id: params.id }, data: { naturezaFinanceiraId: naturezasRateio[0].naturezaFinanceiraId } });
     }
 
     // Conta de destino efetiva por linha (cai no caixa da empresa se nada melhor).

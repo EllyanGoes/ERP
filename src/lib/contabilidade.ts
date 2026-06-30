@@ -421,6 +421,30 @@ export async function contabilizarTituloPagar(cpId: string) {
 
   const pago = decimalToNumber(cp.valorPago);
 
+  // Rateio gerencial por natureza (definido na baixa): quando presente, o débito é
+  // dividido entre as naturezas como DIMENSÃO (razão/relatório por natureza); senão,
+  // segue o caminho single-natureza. Em PC de estoque, a despesa não é lançada (já
+  // está no estoque) — então o rateio aparece só na perna de pagamento (no Fornecedor).
+  const rateio = await prismaSemEscopo.contaPagarNatureza.findMany({
+    where: { contaPagarId: cp.id },
+    select: { naturezaFinanceiraId: true, valor: true, naturezaFinanceira: { select: { cif: true } } },
+  });
+  const somaRateio = rateio.reduce((s, r) => s + decimalToNumber(r.valor), 0);
+  // Divide `total` proporcional ao rateio (ajusta centavos na última linha).
+  const dividirPorNatureza = (total: number) => {
+    if (rateio.length === 0 || somaRateio <= 0) return [] as { r: (typeof rateio)[number]; valor: number }[];
+    let acc = 0;
+    return rateio
+      .map((r, i) => {
+        const v = i === rateio.length - 1
+          ? Math.round((total - acc) * 100) / 100
+          : Math.round((total * decimalToNumber(r.valor) / somaRateio) * 100) / 100;
+        acc += v;
+        return { r, valor: v };
+      })
+      .filter((x) => x.valor > 0.005);
+  };
+
   // SAÍDA SEM fornecedor (vale, combustível, encargos como INSS patronal/FGTS…).
   if (!cp.fornecedorId) {
     if (cp.intragrupo) return;
@@ -494,22 +518,48 @@ export async function contabilizarTituloPagar(cpId: string) {
   if (!contaForn) return;
 
   const valor = decimalToNumber(cp.valorOriginal);
-  if (!ehCompraEstoque && valor > 0 && contaDespesa) {
-    await registrarLancamento({
-      empresaId: cp.empresaId, data: cp.dataCompetencia ?? cp.createdAt,
-      historico: `Compra — ${refCp}`, origemTipo: "COMPRA", origemId: cp.id,
-      partidas: [
-        { contaId: contaDespesa.id, tipo: "DEBITO", valor, naturezaId: ehCif ? cp.naturezaFinanceiraId : undefined },
-        { contaId: contaForn.id, tipo: "CREDITO", valor, fornecedorId: cp.fornecedorId },
-      ],
-    });
+  if (!ehCompraEstoque && valor > 0) {
+    const compraSplit = dividirPorNatureza(valor);
+    if (compraSplit.length > 0) {
+      // Rateio: um débito por natureza (CIF→1.1.4.0001; senão a conta da natureza),
+      // como dimensão; crédito Fornecedor pelo total.
+      const debitos: PartidaIn[] = [];
+      for (const s of compraSplit) {
+        const cifConta = s.r.naturezaFinanceira?.cif ? await contaPorCodigo(cp.empresaId, "1.1.4.0001") : null;
+        const conta = cifConta ?? (await contaDaNatureza(cp.empresaId, s.r.naturezaFinanceiraId)) ?? contaDespesa;
+        if (conta) debitos.push({ contaId: conta.id, tipo: "DEBITO", valor: s.valor, naturezaId: s.r.naturezaFinanceiraId });
+      }
+      if (debitos.length) {
+        await registrarLancamento({
+          empresaId: cp.empresaId, data: cp.dataCompetencia ?? cp.createdAt,
+          historico: `Compra — ${refCp}`, origemTipo: "COMPRA", origemId: cp.id,
+          partidas: [...debitos, { contaId: contaForn.id, tipo: "CREDITO", valor, fornecedorId: cp.fornecedorId }],
+        });
+      }
+    } else if (contaDespesa) {
+      await registrarLancamento({
+        empresaId: cp.empresaId, data: cp.dataCompetencia ?? cp.createdAt,
+        historico: `Compra — ${refCp}`, origemTipo: "COMPRA", origemId: cp.id,
+        partidas: [
+          { contaId: contaDespesa.id, tipo: "DEBITO", valor, naturezaId: ehCif ? cp.naturezaFinanceiraId : undefined },
+          { contaId: contaForn.id, tipo: "CREDITO", valor, fornecedorId: cp.fornecedorId },
+        ],
+      });
+    }
   }
   // Pagamento: caixa só com pagamento de fato; intragrupo nunca lança caixa.
   // O caixa sai do BANCO REAL de cada baixa (LancamentoFinanceiro), não unificado.
   if (pago > 0 && !cp.intragrupo) {
     const { partidas, total } = await pernasDeBanco(pago);
     if (total > 0 && partidas.length) {
-      partidas.unshift({ contaId: contaForn.id, tipo: "DEBITO", valor: total, fornecedorId: cp.fornecedorId });
+      // Com rateio: o débito do Fornecedor é dividido por natureza (dimensão), somando
+      // o total. Sem rateio: um débito único. O saldo do Fornecedor é o mesmo.
+      const fornSplit = dividirPorNatureza(total);
+      if (fornSplit.length > 0) {
+        for (const s of fornSplit) partidas.unshift({ contaId: contaForn.id, tipo: "DEBITO", valor: s.valor, fornecedorId: cp.fornecedorId, naturezaId: s.r.naturezaFinanceiraId });
+      } else {
+        partidas.unshift({ contaId: contaForn.id, tipo: "DEBITO", valor: total, fornecedorId: cp.fornecedorId });
+      }
       await registrarLancamento({
         empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
         historico: `Pagamento — ${refCp}`, origemTipo: "PAGAMENTO", origemId: cp.id,
