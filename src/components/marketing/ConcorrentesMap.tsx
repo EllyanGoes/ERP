@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap } from "react-leaflet";
 import { Building2, Store, Handshake, Loader2 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
@@ -44,6 +44,18 @@ function corDe(p: Ponto): string { return COR[categoriaDe(p)]; }
 
 const CENTRO_BRASIL: [number, number] = [-15.78, -47.93];
 
+// Enquadra o mapa nos marcadores (aproxima ao máximo, com folga) sempre que os
+// pontos mudam — evita o mapa "afastado" com os pontos amontoados num canto.
+function FitBounds({ pontos }: { pontos: Ponto[] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!pontos.length) return;
+    const coords = pontos.map((p) => [p.latitude, p.longitude] as [number, number]);
+    map.fitBounds(coords, { padding: [50, 50], maxZoom: 15, animate: false });
+  }, [pontos, map]);
+  return null;
+}
+
 export default function ConcorrentesMap() {
   const [pontos, setPontos] = useState<Ponto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +93,7 @@ export default function ConcorrentesMap() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <FitBounds pontos={pontos} />
         {pontos.map((p) => {
           const nome = p.nomeFantasia || p.razaoSocial;
           // Só mostra o nome do local quando agrega informação (≠ do nome e ≠ "Matriz").
