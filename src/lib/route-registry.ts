@@ -146,6 +146,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/fluxo-caixa",                          label: "Fluxo de Caixa",          group: "Financeiro",     section: "Financeiro",       icon: BarChart3 },
 
   { href: "/rh/folhas",                            label: "Folhas de Pagamento",     group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "folha pagamento salário rh gestão de pessoas holerite inss fgts irrf colaborador" },
+  { href: "/rh/diaristas",                         label: "Lançamento de Diárias",   group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "diária diarista diárias rh gestão de pessoas pagamento mão de obra produção fábrica turno" },
 
   { href: "/admin/usuarios",                       label: "Usuários",                group: "Administração",  section: "Sistema",          icon: UserCog },
   { href: "/admin/perfis",                         label: "Perfis de Acesso",        group: "Administração",  section: "Sistema",          icon: ShieldCheck },

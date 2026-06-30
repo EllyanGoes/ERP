@@ -180,6 +180,7 @@ model Colaborador {
   updatedAt                  DateTime             @updatedAt
   etapasAprovacao            AprovacaoEtapa[]
   folhaItens                 FolhaItem[]
+  diariaItens                DiariaItem[]
   ordensProducaoResponsavel  OrdemProducao[]      @relation("OrdemProducaoResponsavel")
   usuario                    Usuario?             @relation(fields: [usuarioId], references: [id])
   filiais                    Filial[]
@@ -263,6 +264,56 @@ model FolhaItem {
   colaborador     Colaborador?       @relation(fields: [colaboradorId], references: [id])
 
   @@index([folhaId])
+  @@index([colaboradorId])
+}
+
+// ── Diárias (lançamento de diaristas) ───────────────────────────────────────
+// Folha de diárias de um dia, organizada em blocos (grupos) por tipo/setor/turno,
+// como o modelo de planilha em papel. Cada item é uma diária paga a um colaborador.
+model DiariaFolha {
+  id          String        @id @default(cuid())
+  empresaId   String        @default("emp_tramontin")
+  data        DateTime      @db.Date
+  observacoes String?
+  status      String        @default("ABERTA") // ABERTA | FECHADA
+  total       Decimal       @default(0) @db.Decimal(15, 2)
+  criadoPor   String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  empresa     Empresa       @relation(fields: [empresaId], references: [id])
+  grupos      DiariaGrupo[]
+
+  @@index([empresaId, data])
+}
+
+// Bloco da folha: um cabeçalho (tipo Fixos/Diversas · setor · turno Dia/Noite) com
+// sua própria lista e subtotal — espelha cada quadro do modelo impresso.
+model DiariaGrupo {
+  id        String       @id @default(cuid())
+  empresaId String       @default("emp_tramontin")
+  folhaId   String
+  tipo      String       @default("DIVERSAS") // FIXOS | DIVERSAS
+  setor     String? // texto do bloco (ex.: "SETOR DE PRODUÇÃO", "DIVERSOS SETORES FABRICA")
+  turno     String       @default("DIA") // DIA | NOITE
+  ordem     Int          @default(0)
+  folha     DiariaFolha  @relation(fields: [folhaId], references: [id], onDelete: Cascade)
+  itens     DiariaItem[]
+
+  @@index([folhaId])
+}
+
+model DiariaItem {
+  id            String      @id @default(cuid())
+  empresaId     String      @default("emp_tramontin")
+  grupoId       String
+  colaboradorId String
+  servico       String? // descrição do serviço (ex.: "MOTORISTA 120/8*8")
+  valor         Decimal     @default(0) @db.Decimal(15, 2)
+  ordem         Int         @default(0)
+  grupo         DiariaGrupo @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
+
+  @@index([grupoId])
   @@index([colaboradorId])
 }
 
@@ -1015,6 +1066,7 @@ model Empresa {
   contaPagars               ContaPagar[]
   contaRecebers             ContaReceber[]
   folhasPagamento           FolhaPagamento[]
+  diariaFolhas              DiariaFolha[]
   naturezasFinanceiras      NaturezaFinanceira[]
   naturezaSubgrupos         NaturezaSubgrupo[]
   contaBancarias            ContaBancaria[]
