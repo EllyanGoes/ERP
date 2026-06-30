@@ -13,9 +13,9 @@ export async function GET(_: NextRequest) {
       ehFornecedor: true, ehRevendedor: true, clienteId: true,
       cidade: true, estado: true, latitude: true, longitude: true,
       _count: { select: { precos: true } },
-      locais: {
-        where: { latitude: { not: null }, longitude: { not: null } },
-        select: { id: true, nome: true, cidade: true, estado: true, latitude: true, longitude: true },
+      canais: {
+        where: { tipo: "LOCALIZACAO", latitude: { not: null }, longitude: { not: null } },
+        select: { id: true, valor: true, cidade: true, estado: true, latitude: true, longitude: true },
       },
     },
   });
@@ -31,9 +31,9 @@ export async function GET(_: NextRequest) {
     if (c.latitude != null && c.longitude != null) {
       data.push({ ...base, localId: `${c.id}-0`, localNome: "Matriz", cidade: c.cidade, estado: c.estado, latitude: c.latitude, longitude: c.longitude });
     }
-    // Locais adicionais.
-    for (const l of c.locais) {
-      data.push({ ...base, localId: l.id, localNome: l.nome || "Local", cidade: l.cidade ?? c.cidade, estado: l.estado ?? c.estado, latitude: l.latitude, longitude: l.longitude });
+    // Lojas físicas (canais de localização).
+    for (const l of c.canais) {
+      data.push({ ...base, localId: l.id, localNome: l.valor || "Loja física", cidade: l.cidade ?? c.cidade, estado: l.estado ?? c.estado, latitude: l.latitude, longitude: l.longitude });
     }
   }
 

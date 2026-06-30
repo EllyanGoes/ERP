@@ -15,7 +15,6 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       },
       contatos: { orderBy: { createdAt: "asc" } },
       canais: { orderBy: { createdAt: "asc" } },
-      locais: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!concorrente) return NextResponse.json({ error: "Concorrente não encontrado" }, { status: 404 });

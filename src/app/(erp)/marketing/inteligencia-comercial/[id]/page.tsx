@@ -8,7 +8,8 @@ import { useTabTitle } from "@/lib/tabs-context";
 import ConcorrenteForm from "@/components/marketing/ConcorrenteForm";
 import ConcorrenteDadosView from "@/components/marketing/ConcorrenteDadosView";
 import ConcorrentePrecos, { type PrecoConcorrente } from "@/components/marketing/ConcorrentePrecos";
-import ConcorrenteLocais, { type LocalConcorrente } from "@/components/marketing/ConcorrenteLocais";
+import ConcorrenteContatos, { type ContatoConcorrente } from "@/components/marketing/ConcorrenteContatos";
+import ConcorrenteCanais, { type CanalConcorrente } from "@/components/marketing/ConcorrenteCanais";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Loader2, MapPin, Crosshair, Trash2, Pencil, Building2, Store, Handshake } from "lucide-react";
@@ -33,10 +34,12 @@ type Concorrente = {
   geoManual: boolean;
   geoReferencia: string | null;
   precos: PrecoConcorrente[];
+  contatos?: ContatoConcorrente[];
+  canais?: CanalConcorrente[];
   [k: string]: any;
 };
 
-type Aba = "dados" | "localizacao" | "precos";
+type Aba = "dados" | "contatos" | "canais" | "localizacao" | "precos";
 
 export default function ConcorrenteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -46,6 +49,8 @@ export default function ConcorrenteDetailPage() {
   const [geocoding, setGeocoding] = useState(false);
   const [geoMsg, setGeoMsg] = useState<string | null>(null);
   const [aba, setAba] = useState<Aba>("dados");
+  const [contatosCount, setContatosCount] = useState<number | null>(null);
+  const [canaisCount, setCanaisCount] = useState<number | null>(null);
   const [editando, setEditando] = useState(false);
   useTabTitle(data ? (data.nomeFantasia || data.razaoSocial) : null);
 
@@ -88,6 +93,8 @@ export default function ConcorrenteDetailPage() {
 
   const TABS: { key: Aba; label: string }[] = [
     { key: "dados", label: "Dados Cadastrais" },
+    { key: "contatos", label: `Contatos (${contatosCount ?? data.contatos?.length ?? 0})` },
+    { key: "canais", label: `Canais (${canaisCount ?? data.canais?.length ?? 0})` },
     { key: "localizacao", label: "Localização" },
     { key: "precos", label: `Preços (${data.precos.length})` },
   ];
@@ -166,6 +173,16 @@ export default function ConcorrenteDetailPage() {
           )
         )}
 
+        {/* ── CONTATOS ──────────────────────────────────────────────────── */}
+        {aba === "contatos" && (
+          <ConcorrenteContatos concorrenteId={data.id} contatosIniciais={data.contatos ?? []} onCount={setContatosCount} />
+        )}
+
+        {/* ── CANAIS ────────────────────────────────────────────────────── */}
+        {aba === "canais" && (
+          <ConcorrenteCanais concorrenteId={data.id} canaisIniciais={data.canais ?? []} onCount={setCanaisCount} />
+        )}
+
         {/* ── LOCALIZAÇÃO ───────────────────────────────────────────────── */}
         {aba === "localizacao" && (
           <div className="space-y-5">
@@ -199,8 +216,7 @@ export default function ConcorrenteDetailPage() {
                 setData((d) => (d ? { ...d, latitude: lat, longitude: lng, geoManual: manual, geoReferencia: referencia } : d))
               }
             />
-
-            <ConcorrenteLocais concorrenteId={data.id} locaisIniciais={(data.locais as LocalConcorrente[]) ?? []} />
+            <p className="text-[11px] text-muted-foreground">As lojas físicas adicionais são cadastradas como <b>canais do tipo Loja física</b> (aba Canais) e aparecem no mapa do geomarketing.</p>
           </div>
         )}
 

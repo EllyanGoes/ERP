@@ -4,15 +4,12 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { geocodificarEndereco } from "@/lib/geocode";
 
-// Locais físicos ADICIONAIS do concorrente (o endereço do próprio concorrente é
-// o local principal/matriz). Cada local é geocodificável e vai pro mapa.
-
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
-  const locais = await prisma.concorrenteLocal.findMany({
+  const data = await prisma.concorrenteCanal.findMany({
     where: { concorrenteId: params.id },
     orderBy: { createdAt: "asc" },
   });
-  return NextResponse.json({ data: locais });
+  return NextResponse.json({ data });
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -20,22 +17,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!auth.ok) return auth.response;
 
   const b = await req.json();
-  const end = {
+  if (!b.tipo?.trim()) return NextResponse.json({ error: "Selecione o tipo do canal" }, { status: 400 });
+
+  // Loja física (LOCALIZACAO): geocodifica o endereço para virar ponto no mapa.
+  const ehLocal = b.tipo === "LOCALIZACAO";
+  const end = ehLocal ? {
     cep: b.cep ?? null, logradouro: b.logradouro ?? null, numero: b.numero ?? null,
     complemento: b.complemento ?? null, bairro: b.bairro ?? null, cidade: b.cidade ?? null, estado: b.estado ?? null,
-  };
-  // Geocodifica pelo endereço informado (best-effort).
-  const geo = await geocodificarEndereco(end);
+  } : {};
+  const geo = ehLocal ? await geocodificarEndereco(end) : null;
 
-  const local = await prisma.concorrenteLocal.create({
+  const canal = await prisma.concorrenteCanal.create({
     data: {
       concorrenteId: params.id,
-      nome: b.nome?.trim() || null,
+      tipo: b.tipo,
+      valor: b.valor?.trim() || null,
+      observacao: b.observacao?.trim() || null,
       ...end,
       latitude: geo?.latitude ?? null,
       longitude: geo?.longitude ?? null,
       geoManual: false,
     },
   });
-  return NextResponse.json({ data: local }, { status: 201 });
+  return NextResponse.json({ data: canal }, { status: 201 });
 }
