@@ -19,6 +19,7 @@ type Concorrente = {
   ehFornecedor: boolean;
   ehRevendedor: boolean;
   clienteId: string | null;
+  bairro: string | null;
   cidade: string | null;
   estado: string | null;
   latitude: number | null;
@@ -172,6 +173,7 @@ export default function InteligenciaComercialPage() {
                 <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border">
                   <th className="px-5 py-2.5 font-semibold">Concorrente</th>
                   <th className="px-3 py-2.5 font-semibold">Categoria</th>
+                  <th className="px-3 py-2.5 font-semibold">Bairro</th>
                   <th className="px-3 py-2.5 font-semibold">Localização</th>
                   <th className="px-3 py-2.5 font-semibold text-center">Preços</th>
                   <th className="px-3 py-2.5"></th>
@@ -195,6 +197,7 @@ export default function InteligenciaComercialPage() {
                         {c.clienteId && <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400" title="Está na nossa base de clientes — atendido pelo grupo"><Handshake className="h-3 w-3" /> Parceiro</span>}
                       </div>
                     </td>
+                    <td className="px-3 py-3 text-muted-foreground">{c.bairro || "—"}</td>
                     <td className="px-3 py-3 text-muted-foreground">
                       {c.cidade ? (
                         <span className="inline-flex items-center gap-1">
