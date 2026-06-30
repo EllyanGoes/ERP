@@ -65,6 +65,16 @@ function placeholderValor(tipo: string): string {
   }
 }
 
+// Extrai o @usuario de um link/handle do Instagram.
+function instaHandle(v?: string | null): string | null {
+  const s = (v ?? "").trim();
+  if (!s) return null;
+  const m = s.match(/instagram\.com\/([A-Za-z0-9._]+)/i);
+  if (m) return m[1];
+  const h = s.replace(/^@/, "").replace(/\/+$/, "");
+  return /^[A-Za-z0-9._]+$/.test(h) ? h : null;
+}
+
 type Rascunho = Partial<CanalConcorrente> & { tipo: string };
 
 export default function ConcorrenteCanais({
@@ -147,6 +157,9 @@ export default function ConcorrenteCanais({
   }
 
   const ehLocal = editando ? ehCanalLocal(editando.tipo) : false;
+  const ehInsta = editando?.tipo === "INSTAGRAM";
+  const igHandle = ehInsta ? instaHandle(editando?.valor) : null;
+  const temCol3 = ehLocal || ehInsta; // 3ª coluna: mapa (loja física) ou prévia (Instagram)
 
   return (
     <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden max-w-4xl">
@@ -192,13 +205,13 @@ export default function ConcorrenteCanais({
       {/* Popup novo/editar canal — 3 colunas: Tipo · Formulário · Mapa */}
       {editando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditando(null)}>
-          <div className={cn("w-full rounded-xl border border-border bg-card shadow-xl max-h-[92vh] flex flex-col", ehLocal ? "max-w-6xl" : "max-w-3xl")} onClick={(e) => e.stopPropagation()}>
+          <div className={cn("w-full rounded-xl border border-border bg-card shadow-xl max-h-[92vh] flex flex-col", temCol3 ? "max-w-6xl" : "max-w-3xl")} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b border-border">
               <h3 className="text-base font-semibold text-foreground flex items-center gap-2"><IconeCanal tipo={editando.tipo} /> {editando.id ? "Editar canal" : "Novo canal"}</h3>
               <button onClick={() => setEditando(null)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
 
-            <div className={cn("grid flex-1 overflow-hidden divide-x divide-border", ehLocal ? "md:grid-cols-[220px_1fr_1.2fr]" : "md:grid-cols-[220px_1fr]")}>
+            <div className={cn("grid flex-1 overflow-hidden divide-x divide-border", temCol3 ? "md:grid-cols-[220px_1fr_1.2fr]" : "md:grid-cols-[220px_1fr]")}>
               {/* Coluna 1 — Tipo de canal */}
               <div className="p-4 overflow-y-auto">
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Tipo de canal</p>
@@ -272,6 +285,35 @@ export default function ConcorrenteCanais({
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground py-8 text-center px-3">Salve o local primeiro — ele é geocodificado pelo endereço e depois você ajusta o pino aqui.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Coluna 3 — Prévia do Instagram */}
+              {ehInsta && (
+                <div className="p-4 overflow-y-auto bg-muted/20 flex flex-col">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Prévia do Instagram</p>
+                  {igHandle ? (
+                    <>
+                      <div className="flex-1 min-h-[360px] rounded-lg border border-border overflow-hidden bg-white">
+                        <iframe
+                          key={igHandle}
+                          src={`https://www.instagram.com/${igHandle}/embed`}
+                          title={`Instagram @${igHandle}`}
+                          className="w-full h-full"
+                          loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade"
+                          sandbox="allow-scripts allow-same-origin allow-popups"
+                        />
+                      </div>
+                      <a href={`https://www.instagram.com/${igHandle}/`} target="_blank" rel="noreferrer"
+                        className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted">
+                        <Camera className="h-4 w-4 text-pink-600" /> Abrir @{igHandle} no Instagram <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                      <p className="text-[10px] text-muted-foreground mt-1 text-center">A prévia depende do Instagram permitir o embed; o botão sempre abre o perfil.</p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-8 text-center px-3">Informe o link ou @ do Instagram (na coluna do meio) para ver a prévia do perfil.</p>
                   )}
                 </div>
               )}
