@@ -179,7 +179,7 @@ export default function ConcorrenteCanais({
             const temGeo = c.latitude != null && c.longitude != null;
             const isLink = /^https?:\/\//i.test(c.valor ?? "");
             return (
-              <div key={c.id} className="px-5 py-3 flex items-center gap-3">
+              <div key={c.id} onClick={() => abrirEdicao(c)} className="px-5 py-3 flex items-center gap-3 cursor-pointer hover:bg-muted/40 transition-colors">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted shrink-0"><IconeCanal tipo={c.tipo} /></span>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">{labelCanal(c.tipo)}</p>
@@ -193,9 +193,9 @@ export default function ConcorrenteCanais({
                     {temGeo ? "no mapa" : "sem localização"}
                   </span>
                 )}
-                {isLink && <a href={c.valor!} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-info shrink-0" title="Abrir"><ExternalLink className="h-4 w-4" /></a>}
-                <button onClick={() => abrirEdicao(c)} className="text-muted-foreground hover:text-info shrink-0" title="Editar"><Pencil className="h-4 w-4" /></button>
-                <button onClick={() => remover(c.id)} className="text-muted-foreground hover:text-danger shrink-0" title="Remover"><Trash2 className="h-4 w-4" /></button>
+                {isLink && <a href={c.valor!} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-info shrink-0" title="Abrir link"><ExternalLink className="h-4 w-4" /></a>}
+                <button onClick={(e) => { e.stopPropagation(); abrirEdicao(c); }} className="text-muted-foreground hover:text-info shrink-0" title="Editar"><Pencil className="h-4 w-4" /></button>
+                <button onClick={(e) => { e.stopPropagation(); remover(c.id); }} className="text-muted-foreground hover:text-danger shrink-0" title="Remover"><Trash2 className="h-4 w-4" /></button>
               </div>
             );
           })}
