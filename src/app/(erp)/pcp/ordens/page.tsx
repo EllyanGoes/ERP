@@ -107,6 +107,9 @@ export default function OrdensBoardPage() {
   const [apForm, setApForm] = useState<{ reais: Record<string, string>; perdas: Record<string, string>; perda: string; biomassa: string }>({ reais: {}, perdas: {}, perda: "", biomassa: "" });
   // Calculadora de perda (Embalar): linhas de vagão descarregado → descarregado por produto.
   const [calcPerda, setCalcPerda] = useState<{ rows: CargaVagaoRow[] } | null>(null);
+  // Planejamento por transporte (Nova OP): mesma calculadora de vagões, mas o total
+  // por produto alimenta a quantidade planejada da OP (em vez da perda).
+  const [calcPlan, setCalcPlan] = useState<{ rows: CargaVagaoRow[] } | null>(null);
   // Capacidades cadastradas (peças/veículo por produto), de cargas-movimentação.
   const [capacidades, setCapacidades] = useState<Record<string, { VAGONETA?: number; VAGAO?: number }>>({});
   const [apBusy, setApBusy] = useState(false);
@@ -398,6 +401,40 @@ export default function OrdensBoardPage() {
     }
     setApForm((f) => ({ ...f, perdas }));
     setCalcPerda(null);
+  }
+
+  // ── Planejamento por transporte (Nova OP) ────────────────────────────────────
+  // Abre a calculadora de vagões: 1 linha "cheia" por produto já na OP (ou pelo 1º
+  // produto da área), com a capacidade cadastrada como peças/vagão.
+  function abrirCalcPlan() {
+    if (!novo || !area) return;
+    const itemIds = Array.from(new Set(novo.linhas.map((l) => l.itemId).filter(Boolean)));
+    const base = itemIds.length ? itemIds : (area.produtos[0] ? [area.produtos[0].id] : []);
+    const rows: CargaVagaoRow[] = base.map((id) => ({
+      veiculo: "VAGAO", nVagoes: "",
+      cargas: [{ itemId: id, pecas: String(capacidades[id]?.VAGAO ?? "") }],
+    }));
+    setCalcPlan({ rows: rows.length ? rows : [{ veiculo: "VAGAO", nVagoes: "", cargas: [{ itemId: "", pecas: "" }] }] });
+  }
+  // Aplica o total de peças por produto como quantidade planejada da OP, convertendo
+  // peças → unidade da linha (÷ fator: PLT→peças/palete; principal = 1). Atualiza a
+  // linha existente do produto ou cria uma nova.
+  function aplicarCalcPlan() {
+    if (!calcPlan || !novo || !area) return;
+    const total = descarregadoPorProduto(calcPlan.rows); // peças por produto
+    const linhas = [...novo.linhas];
+    for (const [itemId, pecas] of Object.entries(total)) {
+      const prod = area.produtos.find((p) => p.id === itemId);
+      if (!prod) continue;
+      const idx = linhas.findIndex((l) => l.itemId === itemId);
+      const unidadeId = idx >= 0 ? linhas[idx].unidadeId : unidadePadrao(area, prod);
+      const fator = prod.unidades.find((u) => u.id === unidadeId)?.fator;
+      const qtd = Math.round((pecas / (fator && fator > 0 ? fator : 1)) * 1000) / 1000;
+      if (idx >= 0) linhas[idx] = { ...linhas[idx], quantidade: String(qtd) };
+      else linhas.push({ itemId, quantidade: String(qtd), unidadeId });
+    }
+    setNovo({ ...novo, linhas });
+    setCalcPlan(null);
   }
 
   async function excluirOP(o: BoardOP) {
@@ -694,8 +731,12 @@ export default function OrdensBoardPage() {
                 <div className="mt-4">
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-medium text-muted-foreground">Produtos *</label>
-                    <button onClick={() => setNovo({ ...novo, linhas: [...novo.linhas, { itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area.produtos[0]) }] })}
-                      className="inline-flex items-center gap-1 text-xs text-cyan-600 hover:text-cyan-700"><Plus className="w-3.5 h-3.5" /> Adicionar produto</button>
+                    <div className="flex items-center gap-3">
+                      <button type="button" onClick={abrirCalcPlan}
+                        className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700"><Calculator className="w-3.5 h-3.5" /> Por transporte</button>
+                      <button onClick={() => setNovo({ ...novo, linhas: [...novo.linhas, { itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area.produtos[0]) }] })}
+                        className="inline-flex items-center gap-1 text-xs text-cyan-600 hover:text-cyan-700"><Plus className="w-3.5 h-3.5" /> Adicionar produto</button>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     {novo.linhas.map((l, i) => {
@@ -864,6 +905,82 @@ export default function OrdensBoardPage() {
               <button onClick={() => setCalcPerda(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
               <button onClick={aplicarCalcPerda} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-700">
                 <CheckCircle2 className="w-4 h-4" /> Aplicar perda
+              </button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
+
+      {/* Planejamento por transporte — vagões carregados → quantidade planejada da OP */}
+      {calcPlan && novo && area && (() => {
+        const total = descarregadoPorProduto(calcPlan.rows);
+        const setRows = (rows: CargaVagaoRow[]) => setCalcPlan({ rows });
+        const upRow = (i: number, patch: Partial<CargaVagaoRow>) => setRows(calcPlan.rows.map((r, j) => j === i ? { ...r, ...patch } : r));
+        const upCarga = (i: number, k: number, patch: Partial<{ itemId: string; pecas: string }>) =>
+          upRow(i, { cargas: calcPlan.rows[i].cargas.map((c, m) => m === k ? { ...c, ...patch } : c) });
+        // Produtos que apareceram na calculadora (preserva ordem de inserção).
+        const itensPreview = Array.from(new Set(calcPlan.rows.flatMap((r) => r.cargas.map((c) => c.itemId)).filter(Boolean)));
+        return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setCalcPlan(null)}>
+          <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Calculator className="w-5 h-5 text-amber-600" /> Planejar por transporte</h2>
+            <p className="text-xs text-muted-foreground mt-1">Defina a carga dos vagões/vagonetas. <b>Cheio</b> = 1 produto; <b>meiado</b> = adicione mais de um produto. O total (nº × peças/vagão) vira a quantidade planejada da OP.</p>
+            <div className="mt-4 space-y-2">
+              {calcPlan.rows.map((row, i) => (
+                <div key={i} className="rounded-lg border border-border p-2.5 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <select value={row.veiculo} onChange={(e) => upRow(i, { veiculo: e.target.value as "VAGAO" | "VAGONETA" })} className="h-8 rounded-md border border-border px-1.5 text-xs bg-card">
+                      <option value="VAGAO">Vagão</option><option value="VAGONETA">Vagoneta</option>
+                    </select>
+                    <input inputMode="numeric" placeholder="nº" value={row.nVagoes} onChange={(e) => upRow(i, { nVagoes: e.target.value })} className="h-8 w-20 rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card" />
+                    <span className="text-xs text-muted-foreground">vagões, cada um com:</span>
+                    <div className="flex-1" />
+                    {calcPlan.rows.length > 1 && <button type="button" onClick={() => setRows(calcPlan.rows.filter((_, j) => j !== i))} className="text-muted-foreground/60 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>}
+                  </div>
+                  {row.cargas.map((c, k) => (
+                    <div key={k} className="flex items-center gap-2 pl-1">
+                      <select value={c.itemId} onChange={(e) => { const id = e.target.value; const cap = capacidades[id]?.[row.veiculo]; upCarga(i, k, { itemId: id, ...(!c.pecas && cap != null ? { pecas: String(cap) } : {}) }); }} className="h-8 flex-1 min-w-0 rounded-md border border-border px-1.5 text-xs bg-card">
+                        <option value="">Produto…</option>
+                        {area.produtos.map((p) => <option key={p.id} value={p.id}>{p.codigo} · {p.descricao}</option>)}
+                      </select>
+                      <input inputMode="numeric" placeholder="peças/vagão" value={c.pecas} onChange={(e) => upCarga(i, k, { pecas: e.target.value })} className="h-8 w-28 rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card" />
+                      {row.cargas.length > 1 && <button type="button" onClick={() => upRow(i, { cargas: row.cargas.filter((_, m) => m !== k) })} className="text-muted-foreground/60 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>}
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => upRow(i, { cargas: [...row.cargas, { itemId: "", pecas: "" }] })} className="text-[11px] text-amber-600 hover:underline pl-1">+ produto (meiado)</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setRows([...calcPlan.rows, { veiculo: "VAGAO", nVagoes: "", cargas: [{ itemId: "", pecas: "" }] }])} className="inline-flex items-center gap-1 text-xs text-cyan-600 hover:underline"><Plus className="w-3.5 h-3.5" /> Adicionar vagão</button>
+            </div>
+            {itensPreview.length > 0 && (
+              <div className="mt-4 rounded-lg border border-border overflow-hidden">
+                <div className="grid grid-cols-[1fr_6rem_8rem] gap-2 px-3 py-1.5 bg-muted text-[11px] font-semibold text-muted-foreground uppercase">
+                  <span>Produto</span><span className="text-right">Peças</span><span className="text-right">Planejado</span>
+                </div>
+                {itensPreview.map((itemId) => {
+                  const prod = area.produtos.find((p) => p.id === itemId);
+                  if (!prod) return null;
+                  const pecas = total[itemId] ?? 0;
+                  const linha = novo.linhas.find((l) => l.itemId === itemId);
+                  const unidadeId = linha?.unidadeId ?? unidadePadrao(area, prod);
+                  const un = prod.unidades.find((u) => u.id === unidadeId);
+                  const fator = un?.fator && un.fator > 0 ? un.fator : 1;
+                  const qtd = Math.round((pecas / fator) * 1000) / 1000;
+                  return (
+                    <div key={itemId} className="grid grid-cols-[1fr_6rem_8rem] gap-2 px-3 py-1.5 items-center border-t border-border/60 text-xs tabular-nums">
+                      <span className="text-foreground truncate">{prod.descricao}</span>
+                      <span className="text-right text-muted-foreground">{pecas.toLocaleString("pt-BR")}</span>
+                      <span className="text-right font-medium text-cyan-600">{qtd.toLocaleString("pt-BR")} {un?.sigla ?? ""}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button onClick={() => setCalcPlan(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+              <button onClick={aplicarCalcPlan} className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-cyan-700">
+                <CheckCircle2 className="w-4 h-4" /> Aplicar planejamento
               </button>
             </div>
           </div>
