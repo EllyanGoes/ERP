@@ -81,18 +81,22 @@ export default function ConcorrentesMap() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {pontos.map((p) => (
+        {pontos.map((p) => {
+          const nome = p.nomeFantasia || p.razaoSocial;
+          // Só mostra o nome do local quando agrega informação (≠ do nome e ≠ "Matriz").
+          const localExtra = p.localNome && p.localNome !== "Matriz" && p.localNome.trim().toLowerCase() !== nome.trim().toLowerCase() ? p.localNome : null;
+          return (
           <CircleMarker
             key={p.localId}
             center={[p.latitude, p.longitude]}
             radius={9}
             pathOptions={{ color: corDe(p), fillColor: corDe(p), fillOpacity: 0.7, weight: 2 }}
           >
-            <Tooltip>{p.nomeFantasia || p.razaoSocial}{p.localNome && p.localNome !== "Matriz" ? ` · ${p.localNome}` : ""}</Tooltip>
+            <Tooltip>{nome}{localExtra ? ` · ${localExtra}` : ""}</Tooltip>
             <Popup>
               <div className="space-y-1">
-                <p className="font-semibold text-sm">{p.nomeFantasia || p.razaoSocial}</p>
-                {p.localNome && <p className="text-[11px] text-gray-500">{p.localNome}</p>}
+                <p className="font-semibold text-sm">{nome}</p>
+                {localExtra && <p className="text-[11px] text-gray-500">{localExtra}</p>}
                 <p className="text-xs text-gray-600">{[p.cidade, p.estado].filter(Boolean).join("/") || "—"}</p>
                 <div className="flex flex-wrap gap-1 text-[11px]">
                   {p.ehFornecedor && <span className="inline-flex items-center gap-0.5 text-amber-700">Fornecedor</span>}
@@ -105,7 +109,8 @@ export default function ConcorrentesMap() {
               </div>
             </Popup>
           </CircleMarker>
-        ))}
+          );
+        })}
       </MapContainer>
 
       {/* Legenda */}
