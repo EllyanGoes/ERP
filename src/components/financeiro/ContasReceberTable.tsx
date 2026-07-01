@@ -8,8 +8,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
-import { formatBRL, formatDate, decimalToNumber, isVencida } from "@/lib/utils";
+import { formatBRL, formatDate, decimalToNumber, isVencida, cn } from "@/lib/utils";
+import { CalendarClock, Building2, Wallet, RotateCcw } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
 import DatePicker from "@/components/shared/DatePicker";
 import PagamentosInput, {
   type FormaOpt, type ContaOpt, type LinhaPagamento,
@@ -64,6 +66,7 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
     [contas, statusFiltro, contaFiltro],
   );
   const [selected, setSelected] = useState<ContaRow | null>(null);
+  const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
   const [dataPag, setDataPag] = useState(new Date().toISOString().split("T")[0]);
   const [linhas, setLinhas] = useState<LinhaPagamento[]>([novaLinhaPagamento()]);
   const [formas, setFormas] = useState<FormaOpt[]>([]);
@@ -71,6 +74,34 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+
+  // Agrupamento (toggle): por data de VENCIMENTO ou por CLIENTE. Grupos com
+  // contagem e soma dos valores.
+  const [agrupamento, setAgrupamento] = useState<"none" | "vencimento" | "cliente">("none");
+  const grupos = useMemo(() => {
+    if (agrupamento === "none") return [];
+    const m = new Map<string, { chave: string; label: string; ordem: number | string; itens: ContaRow[] }>();
+    for (const c of contasFiltradas) {
+      if (agrupamento === "vencimento") {
+        const d = c.dataVencimento ? new Date(c.dataVencimento) : null;
+        const chave = d && !isNaN(d.getTime()) ? formatDate(c.dataVencimento) : "Sem vencimento";
+        const ordem = d && !isNaN(d.getTime()) ? d.getTime() : Number.MAX_SAFE_INTEGER;
+        const g = m.get(chave) ?? { chave, label: chave, ordem, itens: [] };
+        g.itens.push(c);
+        m.set(chave, g);
+      } else {
+        const nome = c.cliente?.razaoSocial ?? "Sem cliente";
+        const g = m.get(nome) ?? { chave: nome, label: nome, ordem: nome.toLowerCase(), itens: [] };
+        g.itens.push(c);
+        m.set(nome, g);
+      }
+    }
+    return Array.from(m.values()).sort((a, b) =>
+      typeof a.ordem === "number" && typeof b.ordem === "number"
+        ? a.ordem - b.ordem
+        : String(a.ordem).localeCompare(String(b.ordem), "pt-BR"),
+    );
+  }, [agrupamento, contasFiltradas]);
 
   // Rastreabilidade: ?focus=<id> destaca o título vindo do Razão/contabilidade.
   useEffect(() => {
@@ -92,6 +123,21 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
     setDataPag(new Date().toISOString().split("T")[0]);
     const s = decimalToNumber(row.valorOriginal) - decimalToNumber(row.valorPago);
     setLinhas([novaLinhaPagamento("", contaPadraoParaForma("", formas, contasBanco), s > 0 ? s.toFixed(2).replace(".", ",") : "")]);
+  }
+
+  function renderAcoes(c: ContaRow) {
+    const s = c.status;
+    if (s === "PAGA" || s === "PARCIAL") {
+      return (
+        <div className="flex justify-end gap-1">
+          {s === "PARCIAL" && <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); abrir(c); }}>Receber</Button>}
+          <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700" onClick={(e) => { e.stopPropagation(); estornar(c); }}>Estornar</Button>
+        </div>
+      );
+    }
+    return s !== "CANCELADA"
+      ? <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); abrir(c); }}>Receber</Button>
+      : null;
   }
 
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
@@ -193,8 +239,30 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
             </button>
           );
         })}
+        <button
+          type="button"
+          onClick={() => setAgrupamento((v) => (v === "vencimento" ? "none" : "vencimento"))}
+          className={cn(
+            "ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors",
+            agrupamento === "vencimento" ? "bg-blue-600 border-blue-600 text-white" : "bg-card border-border text-muted-foreground hover:bg-muted",
+          )}
+          title="Agrupar por data de vencimento"
+        >
+          <CalendarClock className="w-4 h-4" /> Vencimento
+        </button>
+        <button
+          type="button"
+          onClick={() => setAgrupamento((v) => (v === "cliente" ? "none" : "cliente"))}
+          className={cn(
+            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors",
+            agrupamento === "cliente" ? "bg-blue-600 border-blue-600 text-white" : "bg-card border-border text-muted-foreground hover:bg-muted",
+          )}
+          title="Agrupar por cliente"
+        >
+          <Building2 className="w-4 h-4" /> Cliente
+        </button>
         {contasDisponiveis.length > 0 && (
-          <div className="ml-auto w-60">
+          <div className="w-60">
             <ComboboxWithCreate
               value={contaFiltro}
               onChange={setContaFiltro}
@@ -205,16 +273,81 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
           </div>
         )}
       </div>
-      <DataTable
-        data={contasFiltradas}
-        columns={columns}
-        searchPlaceholder="Buscar por número, cliente ou descrição..."
-        focusId={focusId}
-        getRowId={(c) => c.id}
-        onRowClick={(row) => {
-          if (row.status !== "PAGA" && row.status !== "CANCELADA") abrir(row);
-        }}
-      />
+      {agrupamento !== "none" ? (
+        <div className="rounded-xl border border-border overflow-hidden bg-card">
+          {grupos.length === 0 ? (
+            <div className="px-5 py-10 text-center text-sm text-muted-foreground">Nenhuma conta.</div>
+          ) : grupos.map((g) => {
+            const soma = g.itens.reduce((s, c) => s + decimalToNumber(c.valorOriginal), 0);
+            const vencido = g.itens.some((c) => isVencida(c.dataVencimento, c.dataPagamento));
+            return (
+              <div key={g.chave}>
+                <div className={cn("flex items-center gap-2 px-5 py-2 bg-muted border-y border-border text-sm font-semibold", vencido && agrupamento === "vencimento" ? "text-danger" : "text-foreground")}>
+                  {agrupamento === "cliente" ? <Building2 className="w-4 h-4" /> : <CalendarClock className="w-4 h-4" />} {g.label}
+                  <span className="text-xs font-normal text-muted-foreground">· {g.itens.length} título{g.itens.length !== 1 ? "s" : ""}</span>
+                  <span className="ml-auto tabular-nums">{formatBRL(soma)}</span>
+                </div>
+                <div className="divide-y divide-border">
+                  {g.itens.map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => setDetalhe(c)}
+                      className="grid grid-cols-[7rem_1.4fr_1.6fr_6.5rem_5rem_auto] gap-3 items-center px-5 py-2.5 hover:bg-muted/40 cursor-pointer text-sm"
+                    >
+                      <span className="font-mono text-xs font-semibold text-info">{c.numero}</span>
+                      <span className="truncate">{c.cliente?.razaoSocial ?? "—"}</span>
+                      <span className="truncate text-muted-foreground">{c.descricao}</span>
+                      <span className="font-medium tabular-nums text-right">{formatBRL(decimalToNumber(c.valorOriginal))}</span>
+                      <StatusBadge status={c.status} />
+                      {renderAcoes(c)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <DataTable
+          data={contasFiltradas}
+          columns={columns}
+          searchPlaceholder="Buscar por número, cliente ou descrição..."
+          focusId={focusId}
+          getRowId={(c) => c.id}
+          onRowClick={(row) => setDetalhe(row)}
+        />
+      )}
+      {detalhe && (() => {
+        const podeReceber = detalhe.status !== "PAGA" && detalhe.status !== "CANCELADA";
+        const podeEstornar = detalhe.status === "PAGA" || detalhe.status === "PARCIAL";
+        const vo = decimalToNumber(detalhe.valorOriginal);
+        const vp = decimalToNumber(detalhe.valorPago);
+        const contas = detalhe.contasContrapartida ?? [];
+        const campos: TituloCampo[] = [
+          { label: "Cliente", valor: detalhe.cliente?.razaoSocial ?? "—", full: true },
+          { label: "Descrição", valor: detalhe.descricao || "—", full: true },
+          { label: "Vencimento", valor: <span className={isVencida(detalhe.dataVencimento, detalhe.dataPagamento) ? "text-danger font-medium" : undefined}>{formatDate(detalhe.dataVencimento)}</span> },
+          { label: "Valor", valor: formatBRL(vo) },
+          { label: "Recebido", valor: formatBRL(vp) },
+          { label: "Saldo", valor: <span className="font-medium">{formatBRL(vo - vp)}</span> },
+          ...(detalhe.dataPagamento ? [{ label: "Recebimento", valor: formatDate(detalhe.dataPagamento) }] : []),
+          ...(contas.length ? [{ label: "Conta", valor: contas.map((c) => c.nome).join(" + "), full: true }] : []),
+        ];
+        const acoes: TituloAcao[] = [
+          ...(podeReceber ? [{ label: "Receber", tone: "primary" as const, icon: <Wallet className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); abrir(r); } }] : []),
+          ...(podeEstornar ? [{ label: "Estornar", tone: "danger" as const, icon: <RotateCcw className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); estornar(r); } }] : []),
+        ];
+        return (
+          <TituloDetalhesDialog
+            open={!!detalhe}
+            onOpenChange={(o) => !o && setDetalhe(null)}
+            numero={detalhe.numero}
+            status={detalhe.status}
+            campos={campos}
+            acoes={acoes}
+          />
+        );
+      })()}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>

@@ -17,7 +17,8 @@ import PagamentosInput, {
   novaLinhaPagamento, parseValorBR, contaPadraoParaForma, pagamentoContaInvalida,
 } from "@/components/pedidos-venda/PagamentosInput";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
-import { Plus, Trash2, Wallet, CalendarClock, Pencil } from "lucide-react";
+import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
+import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Linha do rateio gerencial por natureza no modal de baixa.
@@ -74,6 +75,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
     [contas, statusFiltro, contaFiltro],
   );
   const [selected, setSelected] = useState<ContaRow | null>(null);
+  const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
   const [dataPag, setDataPag] = useState(new Date().toISOString().split("T")[0]);
   const [linhas, setLinhas] = useState<LinhaPagamento[]>([novaLinhaPagamento()]);
   const [formas, setFormas] = useState<FormaOpt[]>([]);
@@ -115,6 +117,15 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
     );
   }
 
+  // Estorna o pagamento: o título volta para "em aberto" e o lançamento no
+  // caixa/banco é removido.
+  async function estornar(row: ContaRow) {
+    if (!confirm(`Reabrir o título ${row.numero}? O pagamento é estornado, ele volta para "em aberto" e o lançamento no caixa/banco é removido.`)) return;
+    const res = await fetch(`/api/contas-pagar/${row.id}/estorno`, { method: "POST" });
+    if (!res.ok) { alert((await res.json().catch(() => ({}))).error ?? "Não foi possível estornar."); return; }
+    router.refresh();
+  }
+
   // Ações da linha (Editar + Pagar destacado). Reusadas na tabela e na visão agrupada.
   function renderAcoes(c: ContaRow) {
     const podePagar = c.status !== "PAGA" && c.status !== "CANCELADA";
@@ -134,22 +145,35 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
     );
   }
 
-  // Agrupamento por data de vencimento (toggle). Grupos ordenados por data; sem
-  // vencimento vai por último. Cada grupo tem contagem e soma dos valores.
-  const [agrupado, setAgrupado] = useState(false);
+  // Agrupamento (toggle): por data de VENCIMENTO (grupos por data, sem vencimento
+  // por último) ou por FORNECEDOR (grupos por parceiro, em ordem alfabética). Cada
+  // grupo tem contagem e soma dos valores.
+  const [agrupamento, setAgrupamento] = useState<"none" | "vencimento" | "fornecedor">("none");
+  const agrupado = agrupamento !== "none";
   const grupos = useMemo(() => {
-    if (!agrupado) return [];
-    const m = new Map<string, { chave: string; label: string; ts: number; itens: ContaRow[] }>();
+    if (agrupamento === "none") return [];
+    const m = new Map<string, { chave: string; label: string; ordem: number | string; itens: ContaRow[] }>();
     for (const c of contasFiltradas) {
-      const d = c.dataVencimento ? new Date(c.dataVencimento) : null;
-      const chave = d && !isNaN(d.getTime()) ? formatDate(c.dataVencimento) : "Sem vencimento";
-      const ts = d && !isNaN(d.getTime()) ? d.getTime() : Number.MAX_SAFE_INTEGER;
-      const g = m.get(chave) ?? { chave, label: chave, ts, itens: [] };
-      g.itens.push(c);
-      m.set(chave, g);
+      if (agrupamento === "vencimento") {
+        const d = c.dataVencimento ? new Date(c.dataVencimento) : null;
+        const chave = d && !isNaN(d.getTime()) ? formatDate(c.dataVencimento) : "Sem vencimento";
+        const ordem = d && !isNaN(d.getTime()) ? d.getTime() : Number.MAX_SAFE_INTEGER;
+        const g = m.get(chave) ?? { chave, label: chave, ordem, itens: [] };
+        g.itens.push(c);
+        m.set(chave, g);
+      } else {
+        const nome = c.fornecedor?.razaoSocial ?? "Sem fornecedor";
+        const g = m.get(nome) ?? { chave: nome, label: nome, ordem: nome.toLowerCase(), itens: [] };
+        g.itens.push(c);
+        m.set(nome, g);
+      }
     }
-    return Array.from(m.values()).sort((a, b) => a.ts - b.ts);
-  }, [agrupado, contasFiltradas]);
+    return Array.from(m.values()).sort((a, b) =>
+      typeof a.ordem === "number" && typeof b.ordem === "number"
+        ? a.ordem - b.ordem
+        : String(a.ordem).localeCompare(String(b.ordem), "pt-BR"),
+    );
+  }, [agrupamento, contasFiltradas]);
 
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
     { accessorKey: "numero", header: "Número", cell: ({ row }) => <span className="font-mono text-xs font-semibold">{row.original.numero}</span> },
@@ -246,14 +270,25 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
         })}
         <button
           type="button"
-          onClick={() => setAgrupado((v) => !v)}
+          onClick={() => setAgrupamento((v) => (v === "vencimento" ? "none" : "vencimento"))}
           className={cn(
             "ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors",
-            agrupado ? "bg-blue-600 border-blue-600 text-white" : "bg-card border-border text-muted-foreground hover:bg-muted",
+            agrupamento === "vencimento" ? "bg-blue-600 border-blue-600 text-white" : "bg-card border-border text-muted-foreground hover:bg-muted",
           )}
           title="Agrupar por data de vencimento"
         >
-          <CalendarClock className="w-4 h-4" /> Agrupar por vencimento
+          <CalendarClock className="w-4 h-4" /> Vencimento
+        </button>
+        <button
+          type="button"
+          onClick={() => setAgrupamento((v) => (v === "fornecedor" ? "none" : "fornecedor"))}
+          className={cn(
+            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors",
+            agrupamento === "fornecedor" ? "bg-blue-600 border-blue-600 text-white" : "bg-card border-border text-muted-foreground hover:bg-muted",
+          )}
+          title="Agrupar por fornecedor"
+        >
+          <Building2 className="w-4 h-4" /> Fornecedor
         </button>
         {contasDisponiveis.length > 0 && (
           <div className="w-60">
@@ -276,8 +311,8 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
             const vencido = g.itens.some((c) => isVencida(c.dataVencimento, c.dataPagamento));
             return (
               <div key={g.chave}>
-                <div className={cn("flex items-center gap-2 px-5 py-2 bg-muted border-y border-border text-sm font-semibold", vencido ? "text-danger" : "text-foreground")}>
-                  <CalendarClock className="w-4 h-4" /> {g.label}
+                <div className={cn("flex items-center gap-2 px-5 py-2 bg-muted border-y border-border text-sm font-semibold", vencido && agrupamento === "vencimento" ? "text-danger" : "text-foreground")}>
+                  {agrupamento === "fornecedor" ? <Building2 className="w-4 h-4" /> : <CalendarClock className="w-4 h-4" />} {g.label}
                   <span className="text-xs font-normal text-muted-foreground">· {g.itens.length} título{g.itens.length !== 1 ? "s" : ""}</span>
                   <span className="ml-auto tabular-nums">{formatBRL(soma)}</span>
                 </div>
@@ -285,7 +320,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
                   {g.itens.map((c) => (
                     <div
                       key={c.id}
-                      onClick={() => { if (c.status !== "PAGA" && c.status !== "CANCELADA") abrir(c); }}
+                      onClick={() => setDetalhe(c)}
                       className="grid grid-cols-[7rem_1.4fr_1.6fr_6.5rem_5rem_auto] gap-3 items-center px-5 py-2.5 hover:bg-muted/40 cursor-pointer text-sm"
                     >
                       <span className="font-mono text-xs font-semibold text-info">{c.numero}</span>
@@ -308,11 +343,42 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
           searchPlaceholder="Buscar por número, fornecedor ou descrição..."
           focusId={focusId}
           getRowId={(c) => c.id}
-          onRowClick={(row) => {
-            if (row.status !== "PAGA" && row.status !== "CANCELADA") abrir(row);
-          }}
+          onRowClick={(row) => setDetalhe(row)}
         />
       )}
+      {detalhe && (() => {
+        const podePagar = detalhe.status !== "PAGA" && detalhe.status !== "CANCELADA";
+        const vo = decimalToNumber(detalhe.valorOriginal);
+        const vp = decimalToNumber(detalhe.valorPago);
+        const contas = detalhe.contasContrapartida ?? [];
+        const campos: TituloCampo[] = [
+          { label: "Fornecedor", valor: detalhe.fornecedor?.razaoSocial ?? "—", full: true },
+          { label: "Descrição", valor: detalhe.descricao || "—", full: true },
+          { label: "Categoria", valor: detalhe.categoria ?? "—" },
+          { label: "Vencimento", valor: <span className={isVencida(detalhe.dataVencimento, detalhe.dataPagamento) ? "text-danger font-medium" : undefined}>{formatDate(detalhe.dataVencimento)}</span> },
+          { label: "Valor", valor: formatBRL(vo) },
+          { label: "Pago", valor: formatBRL(vp) },
+          { label: "Saldo", valor: <span className="font-medium">{formatBRL(vo - vp)}</span> },
+          ...(detalhe.dataPagamento ? [{ label: "Pagamento", valor: formatDate(detalhe.dataPagamento) }] : []),
+          ...(contas.length ? [{ label: "Conta", valor: contas.map((c) => c.nome).join(" + "), full: true }] : []),
+        ];
+        const podeEstornar = detalhe.status === "PAGA" || detalhe.status === "PARCIAL";
+        const acoes: TituloAcao[] = [
+          ...(podePagar ? [{ label: "Pagar", tone: "primary" as const, icon: <Wallet className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); abrir(r); } }] : []),
+          ...(podeEstornar ? [{ label: "Reabrir", tone: "danger" as const, icon: <RotateCcw className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); estornar(r); } }] : []),
+          ...(isAdmin ? [{ label: "Editar", icon: <Pencil className="w-4 h-4" />, onClick: () => router.push(`/contas-pagar/${detalhe.id}/editar`) }] : []),
+        ];
+        return (
+          <TituloDetalhesDialog
+            open={!!detalhe}
+            onOpenChange={(o) => !o && setDetalhe(null)}
+            numero={detalhe.numero}
+            status={detalhe.status}
+            campos={campos}
+            acoes={acoes}
+          />
+        );
+      })()}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
