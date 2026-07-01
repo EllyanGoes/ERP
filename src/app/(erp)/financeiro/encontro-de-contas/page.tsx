@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import PageHeader from "@/components/shared/PageHeader";
+import { useTabTitle } from "@/lib/tabs-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
-import { ArrowLeftRight, Loader2, Scale, Check, Trash2, Undo2, RefreshCw, Plus, Search } from "lucide-react";
+import { ArrowLeftRight, Loader2, Scale, Check, Trash2, Undo2, RefreshCw, Plus, Search, Filter } from "lucide-react";
 import { formatBRL, cn } from "@/lib/utils";
 
 type Elegivel = {
@@ -28,6 +29,7 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 export default function EncontroDeContasPage() {
+  useTabTitle("Compensação Pagar/Receber");
   const [elegiveis, setElegiveis] = useState<Elegivel[]>([]);
   const [compensacoes, setCompensacoes] = useState<Compensacao[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +52,7 @@ export default function EncontroDeContasPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
-        title="Encontro de Contas"
+        title="Compensação Pagar/Receber"
         subtitle="Compense títulos a receber contra títulos a pagar, sem caixa. Podem ser de parceiros diferentes."
         actions={
           <div className="flex items-center gap-2">
@@ -147,6 +149,12 @@ function SelecaoDialog({ preParceiro, onClose, onCriado }: { preParceiro?: strin
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [ajustes, setAjustes] = useState<Record<string, Ajuste>>({});
   const [busca, setBusca] = useState("");
+  // Filtros por coluna (estilo grid TOTVS): combinam entre si e com a busca.
+  const [showFiltros, setShowFiltros] = useState(false);
+  const [colFiltros, setColFiltros] = useState({ carteira: "", numero: "", parceiro: "", vencimento: "" });
+  const filtrosAtivos = Object.values(colFiltros).filter((v) => v.trim() !== "").length;
+  const setCol = (k: keyof typeof colFiltros, v: string) => setColFiltros((p) => ({ ...p, [k]: v }));
+  const limparFiltros = () => setColFiltros({ carteira: "", numero: "", parceiro: "", vencimento: "" });
   const [modo, setModo] = useState<"PARCIAL" | "NOVA_PARCELA">("PARCIAL");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -173,10 +181,23 @@ function SelecaoDialog({ preParceiro, onClose, onCriado }: { preParceiro?: strin
 
   const filtradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    const arr = q ? linhas.filter((l) => `${l.numero} ${l.parceiro} ${l.descricao}`.toLowerCase().includes(q)) : linhas;
+    const fNum = colFiltros.numero.trim().toLowerCase();
+    const fPar = colFiltros.parceiro.trim().toLowerCase();
+    const fVen = colFiltros.vencimento.trim().toLowerCase();
+    const arr = linhas.filter((l) => {
+      if (q && !`${l.numero} ${l.parceiro} ${l.descricao}`.toLowerCase().includes(q)) return false;
+      if (colFiltros.carteira && l.carteira !== colFiltros.carteira) return false;
+      if (fNum && !String(l.numero).toLowerCase().includes(fNum)) return false;
+      if (fPar && !l.parceiro.toLowerCase().includes(fPar)) return false;
+      if (fVen) {
+        const v = l.dataVencimento ? new Date(l.dataVencimento).toLocaleDateString("pt-BR") : "";
+        if (!v.includes(fVen)) return false;
+      }
+      return true;
+    });
     // Selecionados primeiro; depois por parceiro.
     return [...arr].sort((a, b) => (sel.has(b.id) ? 1 : 0) - (sel.has(a.id) ? 1 : 0) || a.parceiro.localeCompare(b.parceiro, "pt-BR"));
-  }, [linhas, busca, sel]);
+  }, [linhas, busca, sel, colFiltros]);
 
   // Valor efetivo de uma linha selecionada (saldo ± ajustes).
   const efetivo = (l: LinhaGrid) => { const a = ajustes[l.id] ?? {}; return l.saldo + numBR(a.juros) + numBR(a.multa) + numBR(a.acrescimo) - numBR(a.desconto); };
@@ -234,15 +255,31 @@ function SelecaoDialog({ preParceiro, onClose, onCriado }: { preParceiro?: strin
           <div className="flex items-center gap-2 text-muted-foreground text-sm py-8 justify-center"><Loader2 className="h-4 w-4 animate-spin" />Carregando títulos…</div>
         ) : (
           <>
-            <div className="relative max-w-xs">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar parceiro, número…" className="h-8 pl-8 text-sm" />
+            <div className="flex items-center gap-2">
+              <div className="relative max-w-xs flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar parceiro, número…" className="h-8 pl-8 text-sm" />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFiltros((v) => !v)}
+                title="Filtros por coluna"
+                className={cn(
+                  "inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-sm transition-colors",
+                  showFiltros || filtrosAtivos > 0 ? "border-primary text-primary bg-primary/5" : "border-border text-muted-foreground hover:bg-muted",
+                )}
+              >
+                <Filter className="h-3.5 w-3.5" /> Filtros{filtrosAtivos > 0 ? ` (${filtrosAtivos})` : ""}
+              </button>
+              {filtrosAtivos > 0 && (
+                <button type="button" onClick={limparFiltros} className="text-xs text-muted-foreground hover:text-foreground">Limpar</button>
+              )}
             </div>
 
             <div className="rounded-lg border border-border overflow-auto max-h-[46vh]">
               <table className="w-full text-sm border-collapse">
-                <thead className="bg-muted/60 text-muted-foreground sticky top-0">
-                  <tr className="[&>th]:px-2 [&>th]:py-2 [&>th]:font-medium [&>th]:text-left [&>th]:whitespace-nowrap">
+                <thead className="text-muted-foreground sticky top-0 z-10">
+                  <tr className="[&>th]:bg-muted [&>th]:px-2 [&>th]:py-2 [&>th]:font-medium [&>th]:text-left [&>th]:whitespace-nowrap">
                     <th className="w-8"></th>
                     <th>Cart.</th>
                     <th>Número</th>
@@ -256,6 +293,26 @@ function SelecaoDialog({ preParceiro, onClose, onCriado }: { preParceiro?: strin
                     <th className="text-right">Acrésc.</th>
                     <th className="text-right">Efetivo</th>
                   </tr>
+                  {showFiltros && (
+                    <tr className="[&>th]:bg-muted [&>th]:px-2 [&>th]:pb-2 [&>th]:align-top [&>th]:font-normal">
+                      <th></th>
+                      <th>
+                        <select
+                          value={colFiltros.carteira}
+                          onChange={(e) => setCol("carteira", e.target.value)}
+                          className="w-full h-6 rounded border border-border bg-background px-1 text-xs"
+                        >
+                          <option value="">Todas</option>
+                          <option value="R">R</option>
+                          <option value="P">P</option>
+                        </select>
+                      </th>
+                      <th><input value={colFiltros.numero} onChange={(e) => setCol("numero", e.target.value)} placeholder="Filtrar…" className="w-full h-6 rounded border border-border bg-background px-1.5 text-xs" /></th>
+                      <th><input value={colFiltros.parceiro} onChange={(e) => setCol("parceiro", e.target.value)} placeholder="Filtrar…" className="w-full h-6 rounded border border-border bg-background px-1.5 text-xs" /></th>
+                      <th><input value={colFiltros.vencimento} onChange={(e) => setCol("vencimento", e.target.value)} placeholder="dd/mm/aaaa" className="w-full h-6 rounded border border-border bg-background px-1.5 text-xs" /></th>
+                      <th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+                    </tr>
+                  )}
                 </thead>
                 <tbody>
                   {filtradas.length === 0 && <tr><td colSpan={12} className="px-3 py-8 text-center text-muted-foreground">Nenhum título em aberto.</td></tr>}

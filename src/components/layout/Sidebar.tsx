@@ -265,7 +265,7 @@ const mainModules: Module[] = [
         items: [
           { href: "/contas-receber",       label: "Contas a Receber",  icon: TrendingUp },
           { href: "/contas-pagar",         label: "Contas a Pagar",    icon: TrendingDown },
-          { href: "/financeiro/encontro-de-contas", label: "Encontro de Contas", icon: ArrowLeftRight },
+          { href: "/financeiro/encontro-de-contas", label: "Compensação Pagar/Receber", icon: ArrowLeftRight },
           { href: "/financeiro/agenda",    label: "Agenda Financeira", icon: CalendarClock },
           { href: "/financeiro/recorrencias", label: "Recorrências",   icon: Repeat },
           { href: "/financeiro/conciliacao", label: "Conciliação (OFX)", icon: FileCheck2 },
