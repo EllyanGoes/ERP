@@ -84,7 +84,7 @@ export function pagamentoContaInvalida(linhas: LinhaPagamento[], formas: FormaOp
 }
 
 export default function PagamentosInput({
-  linhas, setLinhas, formas, contas, total, mostrarConta = true,
+  linhas, setLinhas, formas, contas, total, mostrarConta = true, menuMinWidth,
 }: {
   linhas: LinhaPagamento[];
   setLinhas: (fn: (prev: LinhaPagamento[]) => LinhaPagamento[]) => void;
@@ -92,6 +92,7 @@ export default function PagamentosInput({
   contas: ContaOpt[];
   total: number;
   mostrarConta?: boolean; // no pedido de venda não há conta (intenção) → esconde
+  menuMinWidth?: number; // largura mínima dos dropdowns de forma/conta
 }) {
   const pago = linhas.reduce((s, l) => s + parseValorBR(l.valor), 0);
   const temDinheiro = linhas.some((l) => parseValorBR(l.valor) > 0 && formaEhDinheiro(l.forma, formas));
@@ -143,6 +144,7 @@ export default function PagamentosInput({
               onChange={(v) => changeForma(l._key, v)}
               placeholder="— Forma —"
               noneLabel="Forma"
+              menuMinWidth={menuMinWidth}
               triggerClassName="h-9 rounded-lg w-full min-w-0"
               options={[
                 ...formas.filter((f) => f.ativo !== false).map((f) => ({ value: f.nome, label: f.nome })),
@@ -161,6 +163,7 @@ export default function PagamentosInput({
                 onChange={(v) => up(l._key, "contaBancariaId", v)}
                 allowNone={false}
                 placeholder="Conta de destino"
+                menuMinWidth={menuMinWidth}
                 triggerClassName={cn("h-9 rounded-lg", invalida && "border-red-400 bg-danger/10 text-danger")}
                 options={[
                   ...(!temCaixa ? [{ value: "caixa-geral", label: "Caixa Geral" }] : []),

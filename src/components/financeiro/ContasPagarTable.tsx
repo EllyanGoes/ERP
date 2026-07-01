@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session-context";
 import { formatBRL, formatDate, decimalToNumber, isVencida } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import PagamentosInput, {
   type FormaOpt, type ContaOpt, type LinhaPagamento,
   novaLinhaPagamento, parseValorBR, contaPadraoParaForma, pagamentoContaInvalida,
@@ -313,7 +314,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
         />
       )}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Registrar Pagamento</DialogTitle>
             {selected && <p className="text-sm text-muted-foreground">{selected.numero} — Saldo: {formatBRL(saldo)}</p>}
@@ -321,7 +322,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
           <div className="space-y-4 py-2">
             <div>
               <Label>Data do Pagamento</Label>
-              <Input type="date" value={dataPag} onChange={(e) => setDataPag(e.target.value)} className="mt-1" />
+              <DatePicker value={dataPag} onChange={(v) => setDataPag(v)} className="mt-1 w-full" />
             </div>
             <PagamentosInput
               linhas={linhas}
@@ -329,6 +330,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
               formas={formas}
               contas={contasBanco}
               total={saldo}
+              menuMinWidth={340}
             />
             {/* Rateio gerencial por natureza — classifica o título (igual ao Novo Lançamento). */}
             <div className="space-y-2">
