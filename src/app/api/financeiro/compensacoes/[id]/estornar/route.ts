@@ -21,7 +21,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     where: { id: params.id, empresaId },
     select: {
       id: true, status: true,
-      itens: { select: { id: true, tipo: true, contaReceberId: true, contaPagarId: true, valorAplicado: true, lancamentoFinanceiroId: true } },
+      itens: { select: { id: true, tipo: true, contaReceberId: true, contaPagarId: true, valorAplicado: true, lancamentoFinanceiroId: true, juros: true, multa: true } },
       residuosReceber: { select: { id: true, valorPago: true, status: true } },
       residuosPagar: { select: { id: true, valorPago: true, status: true } },
     },
@@ -47,21 +47,25 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   await prismaSemEscopo.$transaction(async (tx) => {
     for (const it of comp.itens) {
       const aplicado = decimalToNumber(it.valorAplicado);
+      const juros = decimalToNumber(it.juros);
+      const multa = decimalToNumber(it.multa);
       if (it.tipo === "RECEBER" && it.contaReceberId) {
-        const cr = await tx.contaReceber.findUnique({ where: { id: it.contaReceberId }, select: { valorOriginal: true, valorPago: true } });
+        const cr = await tx.contaReceber.findUnique({ where: { id: it.contaReceberId }, select: { valorOriginal: true, valorPago: true, valorJuros: true, valorMulta: true } });
         if (cr) {
           const vp = Math.max(0, r2(decimalToNumber(cr.valorPago) - aplicado));
-          await tx.contaReceber.update({ where: { id: it.contaReceberId }, data: { valorPago: vp, status: novoStatus(decimalToNumber(cr.valorOriginal), vp), dataPagamento: vp <= 0.005 ? null : undefined } });
+          await tx.contaReceber.update({ where: { id: it.contaReceberId }, data: { valorPago: vp, valorJuros: Math.max(0, r2(decimalToNumber(cr.valorJuros) - juros)), valorMulta: Math.max(0, r2(decimalToNumber(cr.valorMulta) - multa)), status: novoStatus(decimalToNumber(cr.valorOriginal), vp), dataPagamento: vp <= 0.005 ? null : undefined } });
         }
         afetadosR.add(it.contaReceberId);
       } else if (it.tipo === "PAGAR" && it.contaPagarId) {
-        const cp = await tx.contaPagar.findUnique({ where: { id: it.contaPagarId }, select: { valorOriginal: true, valorPago: true } });
+        const cp = await tx.contaPagar.findUnique({ where: { id: it.contaPagarId }, select: { valorOriginal: true, valorPago: true, valorJuros: true, valorMulta: true } });
         if (cp) {
           const vp = Math.max(0, r2(decimalToNumber(cp.valorPago) - aplicado));
-          await tx.contaPagar.update({ where: { id: it.contaPagarId }, data: { valorPago: vp, status: novoStatus(decimalToNumber(cp.valorOriginal), vp), dataPagamento: vp <= 0.005 ? null : undefined } });
+          await tx.contaPagar.update({ where: { id: it.contaPagarId }, data: { valorPago: vp, valorJuros: Math.max(0, r2(decimalToNumber(cp.valorJuros) - juros)), valorMulta: Math.max(0, r2(decimalToNumber(cp.valorMulta) - multa)), status: novoStatus(decimalToNumber(cp.valorOriginal), vp), dataPagamento: vp <= 0.005 ? null : undefined } });
         }
         afetadosP.add(it.contaPagarId);
       }
+      // Desfaz a contabilização do ajuste deste item (juros/multa/desconto).
+      await apagarLancamentosContabeis({ empresaId, origemTipo: "COMPENSACAO_AJUSTE", origemId: it.id }, tx);
       // Remove a baixa da transitória (limpa o FK do item antes de apagar o LF).
       if (it.lancamentoFinanceiroId) {
         await tx.compensacaoItem.update({ where: { id: it.id }, data: { lancamentoFinanceiroId: null } });

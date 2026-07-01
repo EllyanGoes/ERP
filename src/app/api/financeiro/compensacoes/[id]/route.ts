@@ -14,14 +14,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const c = await prismaSemEscopo.compensacao.findFirst({
     where: { id: params.id, empresaId },
     select: {
-      id: true, numero: true, cpfCnpj: true, data: true, valorCompensado: true, modoResiduo: true, status: true,
+      id: true, numero: true, data: true, valorCompensado: true, modoResiduo: true, status: true,
       observacoes: true, criadoPor: true, createdAt: true,
-      cliente: { select: { razaoSocial: true } }, fornecedor: { select: { razaoSocial: true } },
       itens: {
         select: {
-          id: true, tipo: true, valorAplicado: true,
-          contaReceber: { select: { numero: true, descricao: true } },
-          contaPagar: { select: { numero: true, descricao: true } },
+          id: true, tipo: true, valorAplicado: true, juros: true, multa: true, desconto: true, acrescimo: true,
+          contaReceber: { select: { numero: true, descricao: true, cliente: { select: { razaoSocial: true } } } },
+          contaPagar: { select: { numero: true, descricao: true, fornecedor: { select: { razaoSocial: true } } } },
         },
       },
       residuosReceber: { select: { numero: true, valorOriginal: true, status: true } },
@@ -34,16 +33,19 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     ...c.residuosReceber.map((r) => ({ tipo: "RECEBER" as const, numero: r.numero, valor: decimalToNumber(r.valorOriginal), status: r.status })),
     ...c.residuosPagar.map((r) => ({ tipo: "PAGAR" as const, numero: r.numero, valor: decimalToNumber(r.valorOriginal), status: r.status })),
   ];
+  const partes = Array.from(new Set(c.itens.map((i) => i.contaReceber?.cliente?.razaoSocial ?? i.contaPagar?.fornecedor?.razaoSocial).filter(Boolean) as string[]));
 
   return NextResponse.json({
     data: {
-      id: c.id, numero: c.numero, cpfCnpj: c.cpfCnpj, data: c.data, status: c.status, modoResiduo: c.modoResiduo,
+      id: c.id, numero: c.numero, data: c.data, status: c.status, modoResiduo: c.modoResiduo,
       valorCompensado: decimalToNumber(c.valorCompensado), observacoes: c.observacoes, criadoPor: c.criadoPor, createdAt: c.createdAt,
-      parceiro: c.cliente?.razaoSocial ?? c.fornecedor?.razaoSocial ?? c.cpfCnpj,
+      parceiro: partes.length === 0 ? "—" : partes.length === 1 ? partes[0] : `${partes[0]} +${partes.length - 1}`,
       itens: c.itens.map((i) => ({
         id: i.id, tipo: i.tipo, valorAplicado: decimalToNumber(i.valorAplicado),
+        juros: decimalToNumber(i.juros), multa: decimalToNumber(i.multa), desconto: decimalToNumber(i.desconto), acrescimo: decimalToNumber(i.acrescimo),
         numero: i.contaReceber?.numero ?? i.contaPagar?.numero ?? "",
         descricao: i.contaReceber?.descricao ?? i.contaPagar?.descricao ?? "",
+        parte: i.contaReceber?.cliente?.razaoSocial ?? i.contaPagar?.fornecedor?.razaoSocial ?? "—",
       })),
       residuos,
     },

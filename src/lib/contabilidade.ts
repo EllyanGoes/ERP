@@ -7,7 +7,7 @@ import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { rotearDestinoRequisicao, type DestinoConsumo } from "@/lib/pcp/rotear-requisicao";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -18,7 +18,7 @@ export type OrigemIn =
   | "ESTOQUE_ENTRADA" | "ESTOQUE_SAIDA"
   | "ESTOQUE_PRODUCAO" | "ESTOQUE_CONSUMO" | "ESTOQUE_AJUSTE" | "ESTOQUE_TRANSFERENCIA"
   | "DEPRECIACAO" | "ENCERRAMENTO" | "RECEITA_ENTREGA"
-  | "FOLHA_PAGAMENTO"
+  | "FOLHA_PAGAMENTO" | "COMPENSACAO_AJUSTE"
   | "MANUAL" | "ESTORNO";
 
 export type PartidaIn = {
@@ -123,6 +123,59 @@ export async function contaContabilCompensacao(empresaId: string) {
   const cb = await prismaSemEscopo.contaBancaria.findFirst({ where: { empresaId, compensacao: true }, select: { id: true } });
   if (!cb) return null;
   return contaDoBanco(empresaId, cb.id);
+}
+
+/**
+ * Contabiliza (idempotente) o AJUSTE (juros/multa/desconto/acréscimo) de um item de
+ * compensação (Encontro de Contas). O principal já passa pela transitória via a
+ * baixa normal; aqui só a parte de ajuste, também pela transitória, contra o
+ * resultado financeiro — assim a transitória fecha no valor EFETIVO do título:
+ *   A receber: juros/multa/acréscimo → D transitória / C Juros e Multas Ativos;
+ *              desconto              → D (-) Descontos Concedidos / C transitória.
+ *   A pagar:   juros/multa/acréscimo → D Juros e Multas Passivos / C transitória;
+ *              desconto              → D transitória / C Descontos Obtidos.
+ * Key de idempotência: origemTipo COMPENSACAO_AJUSTE + origemId = compensacaoItem.id.
+ */
+export async function contabilizarAjusteCompensacaoItem(itemId: string) {
+  const item = await prismaSemEscopo.compensacaoItem.findUnique({
+    where: { id: itemId },
+    select: { id: true, tipo: true, juros: true, multa: true, desconto: true, acrescimo: true, compensacao: { select: { empresaId: true, numero: true, data: true } } },
+  });
+  if (!item?.compensacao) return;
+  const empresaId = item.compensacao.empresaId;
+  const positivo = Math.round((decimalToNumber(item.juros) + decimalToNumber(item.multa) + decimalToNumber(item.acrescimo)) * 100) / 100;
+  const desconto = Math.round(decimalToNumber(item.desconto) * 100) / 100;
+  if (positivo <= 0.005 && desconto <= 0.005) return;
+
+  const contaComp = await contaContabilCompensacao(empresaId);
+  if (!contaComp) return;
+  const partidas: PartidaIn[] = [];
+
+  if (item.tipo === "RECEBER") {
+    if (positivo > 0.005) {
+      const conta = await garantirContaJurosMultasAtivos(empresaId);
+      if (conta) { partidas.push({ contaId: contaComp.id, tipo: "DEBITO", valor: positivo }); partidas.push({ contaId: conta.id, tipo: "CREDITO", valor: positivo }); }
+    }
+    if (desconto > 0.005) {
+      const conta = await garantirContaDescontoConcedido(empresaId);
+      if (conta) { partidas.push({ contaId: conta.id, tipo: "DEBITO", valor: desconto }); partidas.push({ contaId: contaComp.id, tipo: "CREDITO", valor: desconto }); }
+    }
+  } else {
+    if (positivo > 0.005) {
+      const conta = await garantirContaJurosMultasPassivos(empresaId);
+      if (conta) { partidas.push({ contaId: conta.id, tipo: "DEBITO", valor: positivo }); partidas.push({ contaId: contaComp.id, tipo: "CREDITO", valor: positivo }); }
+    }
+    if (desconto > 0.005) {
+      const conta = await garantirContaDescontosObtidos(empresaId);
+      if (conta) { partidas.push({ contaId: contaComp.id, tipo: "DEBITO", valor: desconto }); partidas.push({ contaId: conta.id, tipo: "CREDITO", valor: desconto }); }
+    }
+  }
+  if (partidas.length < 2) return;
+  await registrarLancamento({
+    empresaId, data: item.compensacao.data ?? new Date(),
+    historico: `Ajuste compensação ${item.compensacao.numero}`, origemTipo: "COMPENSACAO_AJUSTE", origemId: item.id,
+    partidas,
+  });
 }
 
 // detalheItens vive em @/lib/detalhe-itens (reusado nas descrições dos títulos).

@@ -480,6 +480,32 @@ export async function garantirContaDescontoConcedido(empresaId: string) {
     select: { id: true },
   });
 }
+
+// Cria (idempotente) uma conta analítica de resultado por código sob um pai
+// (3.1 Receitas / 3.3 Despesas). Usada pelos ajustes do Encontro de Contas.
+async function garantirResultadoSobPai(empresaId: string, codigo: string, nome: string, paiCodigo: string, natureza: "DEVEDORA" | "CREDORA") {
+  const ex = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo }, select: { id: true } });
+  if (ex) return ex;
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: paiCodigo } });
+  if (!pai) return null;
+  return prismaSemEscopo.contaContabil.create({
+    data: { empresaId, codigo, nome, grupo: "RESULTADO", natureza, tipo: "ANALITICA", nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id },
+    select: { id: true },
+  });
+}
+
+/** Receita: juros e multas ativos (recebidos), CREDORA sob 3.1. */
+export async function garantirContaJurosMultasAtivos(empresaId: string) {
+  return garantirResultadoSobPai(empresaId, "3.1.9004", "Juros e Multas Ativos", "3.1", "CREDORA");
+}
+/** Despesa: juros e multas passivos (pagos), DEVEDORA sob 3.3. */
+export async function garantirContaJurosMultasPassivos(empresaId: string) {
+  return garantirResultadoSobPai(empresaId, "3.3.9004", "Juros e Multas Passivos", "3.3", "DEVEDORA");
+}
+/** Receita: descontos obtidos (em contas a pagar), CREDORA sob 3.1. */
+export async function garantirContaDescontosObtidos(empresaId: string) {
+  return garantirResultadoSobPai(empresaId, "3.1.9005", "Descontos Obtidos", "3.1", "CREDORA");
+}
 /**
  * Sintética "Material a Entregar" (2.1.2) — receita diferida até a entrega.
  * Passou a ser conta-pai: o saldo fica nas analíticas por cliente (2.1.2.NNNN),

@@ -673,6 +673,12 @@ model CompensacaoItem {
   contaReceberId         String?
   contaPagarId           String?
   valorAplicado          Decimal  @db.Decimal(15, 2)
+  // Ajustes por título (padrão TOTVS): entram no valor EFETIVO compensado e viram
+  // resultado financeiro (juros/multa/acréscimo → receita/despesa; desconto → redução).
+  juros                  Decimal  @default(0) @db.Decimal(15, 2)
+  multa                  Decimal  @default(0) @db.Decimal(15, 2)
+  desconto               Decimal  @default(0) @db.Decimal(15, 2)
+  acrescimo              Decimal  @default(0) @db.Decimal(15, 2)
   // Baixa (LancamentoFinanceiro na transitória) gerada por este item — usado no
   // estorno para apagar exatamente a baixa desta compensação.
   lancamentoFinanceiroId String?
@@ -886,6 +892,7 @@ enum OrigemLancamento {
   ENCERRAMENTO // encerramento do exercício (zera Resultado contra o PL)
   RECEITA_ENTREGA // reconhecimento de receita na entrega (D Material a Entregar / C Receita)
   FOLHA_PAGAMENTO // apropriação da folha (D PEP-MOD/CIF/Despesa / C Salários, INSS, IRRF, FGTS)
+  COMPENSACAO_AJUSTE // ajuste (juros/multa/desconto) por título no Encontro de Contas
   MANUAL
   ESTORNO
 }
