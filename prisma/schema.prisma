@@ -106,6 +106,8 @@ model CentroCusto {
   contasReceber          ContaReceber[]
   contasPagar            ContaPagar[]
   recorrencias           Recorrencia[]
+  itensPedidoCompra      PedidoCompraItem[]
+  itensConferencia       ConferenciaCompraItem[]
 
   @@index([grupoCentroCustoId])
 }
@@ -347,6 +349,10 @@ model CondicaoPagamento {
   // "Faturado / a combinar": gera o título SEM data de vencimento prevista.
   semVencimento       Boolean             @default(false)
   descontoVista       Decimal?            @db.Decimal(5, 2)
+  // Pagamento antecipado (PA): quando true, o título a pagar nasce JÁ NO PEDIDO
+  // (adiantamento a fornecedor), não na entrada. Nas demais condições, o título
+  // segue nascendo após o Documento de Entrada (conferência).
+  pagamentoAntecipado Boolean             @default(false)
   ativo               Boolean             @default(true)
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
@@ -422,6 +428,11 @@ model ConferenciaCompraItem {
   codFiscal          String?
   tpOper             String?
   desconto           Decimal?              @db.Decimal(15, 4)
+  // Centro herdado do pedido (default editável). NÃO classifica destino de custo:
+  // a precedência do material (compoe_custo → capitaliza → centro) decide PEP_MD/
+  // IMOBILIZADO/CIF/DESPESA na entrada ou na RM, partindo deste centro herdado.
+  centroCustoId      String?
+  centroCusto        CentroCusto?          @relation(fields: [centroCustoId], references: [id])
   conferencia        ConferenciaCompra     @relation(fields: [conferenciaId], references: [id], onDelete: Cascade)
   item               Item                  @relation(fields: [itemId], references: [id])
   localEstoque       LocalEstoque?         @relation(fields: [localEstoqueId], references: [id])
@@ -429,6 +440,7 @@ model ConferenciaCompraItem {
   empresa            Empresa               @relation(fields: [empresaId], references: [id])
 
   @@index([empresaId])
+  @@index([centroCustoId])
 }
 
 model Configuracao {
@@ -491,6 +503,10 @@ model ContaPagar {
   // folha — a contabilização do título posta SÓ a liquidação (D passivo / C banco).
   semProvisao           Boolean                @default(false)
   folhaId               String?
+  // Pagamento antecipado (PA): título nascido no PEDIDO (adiantamento a fornecedor).
+  // Ao ser pago, debita "Adiantamento a Fornecedores" (ativo 1.1.7), nunca despesa/
+  // custo; a entrada depois liquida o adiantamento. Dirige a tag "PA" na tela.
+  antecipado            Boolean                @default(false)
   // Conta de passivo a debitar na liquidação (folha: INSS/IRRF/FGTS a Recolher).
   // Quando null, o passivo vem do colaborador/natureza (comportamento padrão).
   contaPassivoId        String?
@@ -1825,8 +1841,17 @@ model PedidoCompraItem {
   valorTotal    Decimal      @db.Decimal(15, 2)
   situacao      String?      @default("CONSIDERA")
   desconto      Decimal?     @db.Decimal(15, 4)
+  // Centro de custo é HERANÇA/ORÇAMENTO, não classificação de custo. Serve para o
+  // controle de compromisso orçamentário por centro na compra e para pré-preencher
+  // a entrada e a RM. NÃO decide CIF×Despesa×Imobilizado — isso continua na
+  // precedência do material (compoe_custo → capitaliza → centro) na entrada/RM.
+  // O pedido propõe; o destino de custo é decidido no material.
+  centroCustoId String?
+  centroCusto   CentroCusto? @relation(fields: [centroCustoId], references: [id])
   item          Item         @relation(fields: [itemId], references: [id])
   pedido        PedidoCompra @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  @@index([centroCustoId])
 }
 
 model PedidoVenda {

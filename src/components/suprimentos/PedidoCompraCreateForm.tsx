@@ -39,7 +39,11 @@ type ItemRow = {
   precoUnitario: string;
   situacao: "CONSIDERA" | "NAO_CONSIDERA";
   unidadeId?: string;   // unidade de compra ("" = base do item)
+  centroCustoId?: string; // herança/orçamento (default p/ entrada e RM); não classifica custo
 };
+
+type CentroCustoOpt = { id: string; codigo: string; nome: string };
+type CondicaoOpt = { id: string; nome: string; pagamentoAntecipado?: boolean };
 
 // Opções de unidade de um item (base + alternativas) com o fator de conversão.
 function unidadesDoItem(opt: ItemOption | undefined): { unidadeId: string; sigla: string; fator: number; base: boolean }[] {
@@ -62,6 +66,7 @@ type FormSnapshot = {
   despesas: string;
   seguro: string;
   condicoesPagamento: string;
+  condicaoPagamentoId: string;
   dataEntregaPrevista: string;
   itens: ItemRow[];
 };
@@ -135,7 +140,8 @@ export default function PedidoCompraCreateForm() {
   // Data
   const [fornecedores, setFornecedores]   = useState<Fornecedor[]>([]);
   const [itemOptions, setItemOptions]     = useState<ItemOption[]>([]);
-  const [condicoesList, setCondicoesList] = useState<{ id: string; nome: string }[]>([]);
+  const [condicoesList, setCondicoesList] = useState<CondicaoOpt[]>([]);
+  const [centrosList, setCentrosList]     = useState<CentroCustoOpt[]>([]);
 
   // Fornecedor section
   const [fornecedorId, setFornecedorIdState] = useState("");
@@ -150,6 +156,7 @@ export default function PedidoCompraCreateForm() {
   const [despesas, setDespesas]                   = useState("");
   const [seguro, setSeguro]                       = useState("");
   const [condicoesPagamento, setCondicoesPagamento] = useState("");
+  const [condicaoPagamentoId, setCondicaoPagamentoId] = useState("");
   const [dataEntregaPrevista, setDataEntregaPrevista] = useState("");
 
   // Items
@@ -275,8 +282,8 @@ export default function PedidoCompraCreateForm() {
 
   // Auto-save effect
   useEffect(() => {
-    saveForm({ fornecedorId, descricao, contato, email, frete, tipoFrete, desconto, despesas, seguro, condicoesPagamento, dataEntregaPrevista, itens });
-  }, [fornecedorId, descricao, contato, email, frete, tipoFrete, desconto, despesas, seguro, condicoesPagamento, dataEntregaPrevista, itens, saveForm]);
+    saveForm({ fornecedorId, descricao, contato, email, frete, tipoFrete, desconto, despesas, seguro, condicoesPagamento, condicaoPagamentoId, dataEntregaPrevista, itens });
+  }, [fornecedorId, descricao, contato, email, frete, tipoFrete, desconto, despesas, seguro, condicoesPagamento, condicaoPagamentoId, dataEntregaPrevista, itens, saveForm]);
 
   // Restore on mount
   const formRestoredRef = useRef(false);
@@ -295,6 +302,7 @@ export default function PedidoCompraCreateForm() {
       if (saved.despesas !== undefined) setDespesas(saved.despesas);
       if (saved.seguro !== undefined) setSeguro(saved.seguro);
       if (saved.condicoesPagamento !== undefined) setCondicoesPagamento(saved.condicoesPagamento);
+      if (saved.condicaoPagamentoId !== undefined) setCondicaoPagamentoId(saved.condicaoPagamentoId);
       if (saved.dataEntregaPrevista !== undefined) setDataEntregaPrevista(saved.dataEntregaPrevista);
       if (saved.itens !== undefined) setItens(saved.itens);
     }
@@ -311,7 +319,15 @@ export default function PedidoCompraCreateForm() {
       .then((r) => r.json())
       .then((list) => { if (Array.isArray(list)) setCondicoesList(list); })
       .catch(() => {});
+    fetch("/api/empresa/centros-custo?ativo=true")
+      .then((r) => r.json())
+      .then((j) => setCentrosList(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
   }, []);
+
+  // Condição selecionada é PA? (mostra o aviso de que o título nasce no pedido)
+  const condicaoSelecionada = condicoesList.find((c) => c.id === condicaoPagamentoId);
+  const condicaoEhPA = condicaoSelecionada?.pagamentoAntecipado === true;
 
   function setFornecedorId(id: string) {
     setFornecedorIdState(id);
@@ -384,7 +400,7 @@ export default function PedidoCompraCreateForm() {
     await doSubmit(validItens);
   }
 
-  async function doSubmit(validItens?: { itemId: string; quantidade: string; precoUnitario: string; situacao: string; unidadeId?: string }[]) {
+  async function doSubmit(validItens?: { itemId: string; quantidade: string; precoUnitario: string; situacao: string; unidadeId?: string; centroCustoId?: string }[]) {
     setVinculoPopup(null);
     if (!validItens) {
       validItens = itens.filter((row) => row.itemId && parseDecimal(row.quantidade) > 0);
@@ -409,10 +425,12 @@ export default function PedidoCompraCreateForm() {
           despesas:            despesasVal || null,
           seguro:              seguroVal   || null,
           condicoesPagamento:  condicoesPagamento || null,
+          condicaoPagamentoId: condicaoPagamentoId || null,
           confirmAvulso:       avulsoConfirmed,
           itens: validItens.map((row) => ({
             itemId:       row.itemId,
             unidadeId:    row.unidadeId || null,
+            centroCustoId: row.centroCustoId || null,
             quantidade:   parseDecimal(row.quantidade),
             precoUnitario: parseDecimal(row.precoUnitario) || 0,
           })),
@@ -688,8 +706,12 @@ export default function PedidoCompraCreateForm() {
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Condição pagamento</Label>
               <Select
-                value={condicoesPagamento || "__none__"}
-                onValueChange={(v) => setCondicoesPagamento(v === "__none__" ? "" : v)}
+                value={condicaoPagamentoId || "__none__"}
+                onValueChange={(v) => {
+                  const c = condicoesList.find((x) => x.id === v);
+                  setCondicaoPagamentoId(v === "__none__" ? "" : v);
+                  setCondicoesPagamento(c ? c.nome : "");
+                }}
               >
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue placeholder="Selecionar condição..." />
@@ -697,10 +719,16 @@ export default function PedidoCompraCreateForm() {
                 <SelectContent>
                   <SelectItem value="__none__">— Nenhuma —</SelectItem>
                   {condicoesList.map((c) => (
-                    <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>{c.nome}{c.pagamentoAntecipado ? " · PA" : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {condicaoEhPA && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  Pagamento antecipado: o título a pagar nasce já com este pedido (adiantamento a fornecedor).
+                </p>
+              )}
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Despesas</Label>
@@ -739,6 +767,7 @@ export default function PedidoCompraCreateForm() {
                 <tr>
                   <th className="text-left px-4 py-2 font-medium text-muted-foreground min-w-[320px]">Produto</th>
                   <th className="text-left px-4 py-2 font-medium text-muted-foreground">U.M.</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground w-44" title="Centro de custo herdado pela entrada e pela requisição (default editável). Não classifica destino de custo.">Centro de custo</th>
                   <th className="text-left px-4 py-2 font-medium text-muted-foreground w-36">Situação</th>
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground w-28">Quantidade</th>
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground w-36">Preço Unitário</th>
@@ -794,6 +823,15 @@ export default function PedidoCompraCreateForm() {
                         })()}
                       </td>
                       <td className="px-4 py-2">
+                        <ComboboxWithCreate
+                          options={centrosList.map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}` }))}
+                          value={row.centroCustoId ?? ""}
+                          onChange={(v) => updateRow(i, "centroCustoId", v)}
+                          placeholder="— Centro —"
+                          triggerClassName="h-8 text-xs"
+                        />
+                      </td>
+                      <td className="px-4 py-2">
                         <Select
                           value={row.situacao}
                           onValueChange={(v) => updateRow(i, "situacao", v as ItemRow["situacao"])}
@@ -845,7 +883,7 @@ export default function PedidoCompraCreateForm() {
               </tbody>
               <tfoot className="border-t-2 border-border bg-muted">
                 <tr>
-                  <td colSpan={4} className="px-4 py-2 text-right font-semibold text-foreground text-sm">
+                  <td colSpan={5} className="px-4 py-2 text-right font-semibold text-foreground text-sm">
                     Total da cotação
                   </td>
                   <td />

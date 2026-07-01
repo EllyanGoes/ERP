@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 type RateioLinha = { key: string; naturezaFinanceiraId: string; detalhamento: string; valor: string };
 
 type ContaRow = {
-  id: string; numero: string; descricao: string; categoria: string | null; status: string;
+  id: string; numero: string; descricao: string; categoria: string | null; status: string; antecipado?: boolean;
   dataVencimento: Date | string; dataPagamento: Date | string | null;
   valorOriginal: unknown; valorPago: unknown;
   fornecedor: { id: string; razaoSocial: string } | null;
@@ -177,7 +177,14 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
   }, [agrupamento, contasFiltradas]);
 
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
-    { accessorKey: "numero", header: "Número", cell: ({ row }) => <span className="font-mono text-xs font-semibold">{row.original.numero}</span> },
+    { accessorKey: "numero", header: "Número", cell: ({ row }) => (
+      <span className="inline-flex items-center gap-1.5">
+        <span className="font-mono text-xs font-semibold">{row.original.numero}</span>
+        {row.original.antecipado && (
+          <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400" title="Pagamento antecipado — adiantamento a fornecedor gerado no pedido">PA</span>
+        )}
+      </span>
+    ) },
     { id: "fornecedor", header: "Fornecedor", cell: ({ row }) => <span>{row.original.fornecedor?.razaoSocial ?? "—"}</span> },
     { accessorKey: "descricao", header: "Descrição" },
     { accessorKey: "categoria", header: "Categoria", cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.original.categoria ?? "—"}</span> },
@@ -324,7 +331,10 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
                       onClick={() => setDetalhe(c)}
                       className="grid grid-cols-[7rem_1.4fr_1.6fr_6.5rem_5rem_auto] gap-3 items-center px-5 py-2.5 hover:bg-muted/40 cursor-pointer text-sm"
                     >
-                      <span className="font-mono text-xs font-semibold text-info">{c.numero}</span>
+                      <span className="inline-flex items-center gap-1 min-w-0">
+                        <span className="font-mono text-xs font-semibold text-info">{c.numero}</span>
+                        {c.antecipado && <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 px-1 text-[9px] font-semibold text-amber-700 dark:text-amber-400" title="Pagamento antecipado">PA</span>}
+                      </span>
                       <span className="truncate">{c.fornecedor?.razaoSocial ?? "—"}</span>
                       <span className="truncate text-muted-foreground">{c.descricao}</span>
                       <span className="font-medium tabular-nums text-right">{formatBRL(decimalToNumber(c.valorOriginal))}</span>

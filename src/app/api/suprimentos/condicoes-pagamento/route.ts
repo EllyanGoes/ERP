@@ -14,6 +14,7 @@ const schema = z.object({
   percentuaisParcelas: z.string().optional().nullable(),
   semVencimento: z.boolean().default(false),
   descontoVista: z.coerce.number().min(0).max(100).optional().nullable(),
+  pagamentoAntecipado: z.boolean().default(false),
 });
 
 export async function GET() {

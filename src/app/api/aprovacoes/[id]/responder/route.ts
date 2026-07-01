@@ -5,6 +5,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { gerarPedidoDeCotacao, finalizarMensagemAprovacaoCotacao } from "@/lib/aprovacao-cotacao";
+import { gerarContasPagarAntecipadoDoPedido } from "@/lib/contas-pagar";
 import { sendWAMessage }                    from "@/lib/whatsapp";
 import { sendTelegramMessage, escMD }       from "@/lib/telegram";
 import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
@@ -86,6 +87,8 @@ export async function POST(
         } else {
           const out = await prisma.$transaction((tx) => gerarPedidoDeCotacao(tx, cotacaoId));
           novoPedidoNumero = out.pedidoCompra.numero;
+          // PA: título antecipado nasce já no pedido (best-effort, no-op se não for PA).
+          await gerarContasPagarAntecipadoDoPedido(out.pedidoCompra.id).catch(() => {});
         }
       } catch (e) {
         // Reverte a baixa da aprovação se a geração do pedido falhar.

@@ -70,6 +70,9 @@ export async function POST(req: NextRequest) {
               itemId: i.itemId,
               // Herda a unidade da compra do pedido (conversão p/ base na conclusão).
               unidadeId: i.unidadeId ?? null,
+              // Herda o centro de custo do pedido (default editável na entrada). Não
+              // classifica destino de custo — a precedência do material decide isso.
+              centroCustoId: i.centroCustoId ?? null,
               quantidadePedida: parseFloat(String(i.quantidade)),
               quantidadeRecebida: 0,
             })),

@@ -9,6 +9,7 @@ import { buildRelatorioNecessidades } from "@/lib/relatorio-necessidades";
 import { buildRelatorioSolicitacoes } from "@/lib/relatorio-solicitacoes";
 import { buildRelatorioConsumo } from "@/lib/relatorio-consumo";
 import { gerarPedidoDeCotacao, finalizarMensagemAprovacaoCotacao } from "@/lib/aprovacao-cotacao";
+import { gerarContasPagarAntecipadoDoPedido } from "@/lib/contas-pagar";
 import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
 
 // Telegram sends POST with callback_query when user clicks inline keyboard button
@@ -260,6 +261,8 @@ export async function POST(req: NextRequest) {
         } else {
           const out = await prisma.$transaction((tx) => gerarPedidoDeCotacao(tx, cotacaoId));
           novoPedidoNumero = out.pedidoCompra.numero;
+          // PA: título antecipado nasce já no pedido (best-effort, no-op se não for PA).
+          await gerarContasPagarAntecipadoDoPedido(out.pedidoCompra.id).catch(() => {});
         }
       } catch (e) {
         await prisma.aprovacaoSC.update({ where: { id: aprovacaoId }, data: { status: "PENDENTE", respondidoEm: null } });

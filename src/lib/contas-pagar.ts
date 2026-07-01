@@ -15,6 +15,8 @@ export async function gerarContasPagarDoDocumento(
   doc: {
     empresaId: string; fornecedorId: string | null; pedidoCompraId: string;
     numeroPedido: string; valorTotal: unknown; dataBase: Date | string; naturezaFinanceiraId?: string | null;
+    // PA: título nascido no PEDIDO (adiantamento a fornecedor), não na entrada.
+    antecipado?: boolean;
   },
   condicao: CondicaoParcelas,
 ): Promise<number> {
@@ -25,7 +27,8 @@ export async function gerarContasPagarDoDocumento(
     select: { quantidade: true, precoUnitario: true, item: { select: { descricao: true } } },
   });
   const det = detalheItens(itensPc);
-  const baseDesc = `Compra ${doc.numeroPedido}${det ? ` — ${det}` : ""}`;
+  const antecipado = doc.antecipado === true;
+  const baseDesc = `Compra ${doc.numeroPedido}${antecipado ? " (PA)" : ""}${det ? ` — ${det}` : ""}`;
 
   const parcelas = calcularParcelas(condicao, doc.valorTotal, doc.dataBase);
   for (const p of parcelas) {
@@ -36,6 +39,7 @@ export async function gerarContasPagarDoDocumento(
         numero,
         fornecedorId: doc.fornecedorId,
         pedidoCompraId: doc.pedidoCompraId,
+        antecipado,
         naturezaFinanceiraId: doc.naturezaFinanceiraId ?? null,
         descricao: p.parcelaTotal ? `${baseDesc} (${p.parcelaNumero}/${p.parcelaTotal})` : baseDesc,
         valorOriginal: p.valor,
@@ -46,4 +50,49 @@ export async function gerarContasPagarDoDocumento(
     });
   }
   return parcelas.length;
+}
+
+/**
+ * PA (pagamento antecipado): gera o(s) título(s) a pagar JÁ NO PEDIDO quando a
+ * condição de pagamento é marcada como `pagamentoAntecipado`. O título nasce
+ * ABERTA (adiantamento a fornecedor); ao ser pago, contabiliza D Adiantamento a
+ * Fornecedores / C Banco. Idempotente pelo guard `count(pedidoCompraId) === 0` —
+ * a conferência não duplica. Best-effort: chamado pós-commit na criação do pedido.
+ */
+export async function gerarContasPagarAntecipadoDoPedido(pedidoId: string): Promise<number> {
+  // prismaSemEscopo: chamado de webhooks/aprovações que podem agir sobre pedido de
+  // OUTRA empresa (compras em grupo) — o escopo estouraria P2025. empresaId é explícito.
+  const { prismaSemEscopo: prisma } = await import("@/lib/prisma");
+  const pedido = await prisma.pedidoCompra.findUnique({
+    where: { id: pedidoId },
+    select: {
+      id: true, empresaId: true, fornecedorId: true, numero: true, valorTotal: true,
+      intragrupo: true, createdAt: true, condicaoPagamentoId: true,
+      condicaoPagamentoRef: true,
+    },
+  });
+  if (!pedido || pedido.intragrupo) return 0;
+  const condicao = pedido.condicaoPagamentoRef;
+  if (!condicao?.pagamentoAntecipado) return 0;
+
+  const { recontabilizarTituloPagar } = await import("@/lib/contabilidade");
+  const criados = await prisma.$transaction(async (tx) => {
+    const jaTem = await tx.contaPagar.count({ where: { pedidoCompraId: pedido.id } });
+    if (jaTem > 0) return [] as string[];
+    const valorTotal = Number(pedido.valorTotal ?? 0);
+    if (valorTotal <= 0) return [] as string[];
+    await gerarContasPagarDoDocumento(tx, {
+      empresaId: pedido.empresaId,
+      fornecedorId: pedido.fornecedorId,
+      pedidoCompraId: pedido.id,
+      numeroPedido: pedido.numero,
+      valorTotal,
+      dataBase: pedido.createdAt,
+      antecipado: true,
+    }, condicao);
+    const cps = await tx.contaPagar.findMany({ where: { pedidoCompraId: pedido.id }, select: { id: true } });
+    return cps.map((c) => c.id);
+  });
+  for (const id of criados) await recontabilizarTituloPagar(id).catch(() => null);
+  return criados.length;
 }

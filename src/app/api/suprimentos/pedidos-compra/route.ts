@@ -7,6 +7,7 @@ import { generateSimpleDocNumber } from "@/lib/utils";
 import { findMatchingCotacoes } from "@/lib/cotacao-match";
 import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { getSession } from "@/lib/auth";
+import { gerarContasPagarAntecipadoDoPedido } from "@/lib/contas-pagar";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest) {
   const {
     fornecedorId, cotacaoId, necessidadeId, dataEntregaPrevista, observacoes, itens = [],
     frete, tipoFrete, desconto, despesas, seguro,
-    condicoesPagamento, contato, email, descricao, confirmAvulso,
+    condicoesPagamento, condicaoPagamentoId, contato, email, descricao, confirmAvulso,
   } = body;
 
   if (!fornecedorId) return NextResponse.json({ error: "Fornecedor obrigatório" }, { status: 400 });
@@ -147,10 +148,12 @@ export async function POST(req: NextRequest) {
   const pedido = await prisma.$transaction(async (tx) => {
     const numero = numeroPC;
 
-    const parsedItens = itens.map((i: { itemId: string; quantidade: number; precoUnitario: number; unidadeId?: string | null }) => ({
+    const parsedItens = itens.map((i: { itemId: string; quantidade: number; precoUnitario: number; unidadeId?: string | null; centroCustoId?: string | null }) => ({
       itemId:       i.itemId,
       // Unidade da compra (null = base). Conversão p/ base é feita na entrada.
       unidadeId:    i.unidadeId || null,
+      // Centro herdável/orçamentário (default p/ entrada e RM); não classifica custo.
+      centroCustoId: i.centroCustoId || null,
       quantidade:   parseFloat(String(i.quantidade)),
       precoUnitario: parseFloat(String(i.precoUnitario)),
       valorTotal:   parseFloat(String(i.quantidade)) * parseFloat(String(i.precoUnitario)),
@@ -181,6 +184,7 @@ export async function POST(req: NextRequest) {
         despesas:            despesas  != null ? parseFloat(String(despesas)) : null,
         seguro:              seguro    != null ? parseFloat(String(seguro))   : null,
         condicoesPagamento:  condicoesPagamento || null,
+        condicaoPagamentoId: condicaoPagamentoId || null,
         contato:             contato?.trim() || null,
         email:               email?.trim()   || null,
         descricao:           descricao?.trim() || null,
@@ -246,6 +250,11 @@ export async function POST(req: NextRequest) {
 
     return pedido;
   });
+
+  // PA: se a condição de pagamento do pedido gera pagamento antecipado, o título a
+  // pagar (adiantamento a fornecedor) nasce JÁ AQUI, antes da entrada. Best-effort,
+  // no-op quando a condição não é PA. Pós-commit.
+  await gerarContasPagarAntecipadoDoPedido(pedido.id).catch(() => {});
 
   return NextResponse.json({ data: pedido }, { status: 201 });
 }

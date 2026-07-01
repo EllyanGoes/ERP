@@ -7,7 +7,7 @@ import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { rotearDestinoRequisicao, type DestinoConsumo } from "@/lib/pcp/rotear-requisicao";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos, garantirContaAdiantamentoFornecedor } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -89,7 +89,14 @@ export async function contaDoCliente(empresaId: string, clienteId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, clienteId, codigo: { startsWith: "1.1.2." } }, select: { id: true } });
 }
 export async function contaDoFornecedor(empresaId: string, fornecedorId: string) {
-  return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, fornecedorId }, select: { id: true } });
+  // Só o PASSIVO do fornecedor (2.1.1.x). O mesmo fornecedorId também marca a
+  // analítica de "Adiantamento a Fornecedores" (ativo 1.1.7.x) — o prefixo "2."
+  // garante que a dívida a pagar nunca caia no adiantamento.
+  return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, fornecedorId, codigo: { startsWith: "2." } }, select: { id: true } });
+}
+/** Conta analítica de "Adiantamento a Fornecedores" (ativo 1.1.7.x) de um fornecedor. */
+export async function contaAdiantamentoDoFornecedor(empresaId: string, fornecedorId: string) {
+  return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, fornecedorId, codigo: { startsWith: "1.1.7." } }, select: { id: true } });
 }
 export async function contaDoLocal(empresaId: string, localEstoqueId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, localEstoqueId }, select: { id: true } });
@@ -456,7 +463,7 @@ export async function contabilizarTituloReceber(crId: string) {
 export async function contabilizarTituloPagar(cpId: string) {
   const cp = await prismaSemEscopo.contaPagar.findUnique({
     where: { id: cpId },
-    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } }, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, compensacaoOrigemId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true, semProvisao: true, contaPassivoId: true, empresa: { select: { industrializa: true } } },
+    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } }, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, antecipado: true, compensacaoOrigemId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true, semProvisao: true, contaPassivoId: true, empresa: { select: { industrializa: true } } },
   });
   if (!cp || cp.status === "CANCELADA") return;
 
@@ -657,19 +664,42 @@ export async function contabilizarTituloPagar(cpId: string) {
   if (pago > 0 && !cp.intragrupo) {
     const { partidas, total } = await pernasDeBanco(pago);
     if (total > 0 && partidas.length) {
-      // Com rateio: o débito do Fornecedor é dividido por natureza (dimensão), somando
-      // o total. Sem rateio: um débito único. O saldo do Fornecedor é o mesmo.
-      const fornSplit = dividirPorNatureza(total);
-      if (fornSplit.length > 0) {
-        for (const s of fornSplit) partidas.unshift({ contaId: contaForn.id, tipo: "DEBITO", valor: s.valor, fornecedorId: cp.fornecedorId, naturezaId: s.r.naturezaFinanceiraId });
+      if (ehCompraEstoque && cp.antecipado) {
+        // PAGAMENTO ANTECIPADO (PA): a mercadoria ainda não chegou nem foi aplicada;
+        // não há fato de consumo a classificar. O débito é um DIREITO — vai para
+        // "Adiantamento a Fornecedores" (ativo 1.1.7), NUNCA despesa/custo nem o
+        // passivo do fornecedor. D Adiantamento / C Banco. A entrada depois liquida.
+        const contaAdiant = await garantirContaAdiantamentoFornecedor(cp.empresaId, cp.fornecedorId);
+        if (contaAdiant) {
+          partidas.unshift({ contaId: contaAdiant.id, tipo: "DEBITO", valor: total, fornecedorId: cp.fornecedorId });
+          await registrarLancamento({
+            empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
+            historico: `Adiantamento a fornecedor — ${refCp}`, origemTipo: "PAGAMENTO", origemId: cp.id,
+            partidas,
+          });
+          // Se a entrada desse pedido já tiver sido contabilizada ANTES do pagamento
+          // do PA (creditou o fornecedor), re-sincroniza-a para baixar o adiantamento
+          // agora existente (registrarLancamento re-sincroniza o mesmo lançamento).
+          if (cp.pedidoCompraId) {
+            const conf = await prismaSemEscopo.conferenciaCompra.findUnique({ where: { pedidoId: cp.pedidoCompraId }, select: { id: true } });
+            if (conf) await contabilizarEntradaEstoque(conf.id).catch(() => null);
+          }
+        }
       } else {
-        partidas.unshift({ contaId: contaForn.id, tipo: "DEBITO", valor: total, fornecedorId: cp.fornecedorId });
+        // Com rateio: o débito do Fornecedor é dividido por natureza (dimensão), somando
+        // o total. Sem rateio: um débito único. O saldo do Fornecedor é o mesmo.
+        const fornSplit = dividirPorNatureza(total);
+        if (fornSplit.length > 0) {
+          for (const s of fornSplit) partidas.unshift({ contaId: contaForn.id, tipo: "DEBITO", valor: s.valor, fornecedorId: cp.fornecedorId, naturezaId: s.r.naturezaFinanceiraId });
+        } else {
+          partidas.unshift({ contaId: contaForn.id, tipo: "DEBITO", valor: total, fornecedorId: cp.fornecedorId });
+        }
+        await registrarLancamento({
+          empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
+          historico: `Pagamento — ${refCp}`, origemTipo: "PAGAMENTO", origemId: cp.id,
+          partidas,
+        });
       }
-      await registrarLancamento({
-        empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
-        historico: `Pagamento — ${refCp}`, origemTipo: "PAGAMENTO", origemId: cp.id,
-        partidas,
-      });
     }
   }
 }
@@ -882,7 +912,7 @@ export async function contabilizarPedidoCompra(pedidoCompraId: string) {
 export async function contabilizarEntradaEstoque(conferenciaId: string) {
   const conf = await prismaSemEscopo.conferenciaCompra.findUnique({
     where: { id: conferenciaId },
-    select: { id: true, empresaId: true, numero: true, fornecedorId: true, dtEmissao: true, createdAt: true, pedido: { select: { fornecedorId: true } } },
+    select: { id: true, empresaId: true, numero: true, fornecedorId: true, dtEmissao: true, createdAt: true, pedido: { select: { id: true, fornecedorId: true } } },
   });
   if (!conf) return;
   const fornecedorId = conf.fornecedorId ?? conf.pedido?.fornecedorId ?? null;
@@ -904,6 +934,24 @@ export async function contabilizarEntradaEstoque(conferenciaId: string) {
 
   const contaForn = await contaDoFornecedor(conf.empresaId, fornecedorId);
   if (!contaForn) return;
+
+  // Liquidação de adiantamento: se o pedido teve pagamento(s) antecipado(s) (PA)
+  // já pago(s), a entrada BAIXA o adiantamento (ativo 1.1.7) em vez de creditar o
+  // fornecedor, até o valor adiantado. Excedente → C Fornecedores (título normal);
+  // residual do adiantamento permanece no ativo até a próxima entrega.
+  const pedidoId = conf.pedido?.id ?? null;
+  let adiantPago = 0;
+  if (pedidoId) {
+    const pas = await prismaSemEscopo.contaPagar.aggregate({
+      where: { pedidoCompraId: pedidoId, antecipado: true },
+      _sum: { valorPago: true },
+    });
+    adiantPago = decimalToNumber(pas._sum.valorPago ?? 0);
+  }
+  const contaAdiant = adiantPago > 0.005 ? await contaAdiantamentoDoFornecedor(conf.empresaId, fornecedorId) : null;
+  const credAdiant = contaAdiant ? Math.min(total, adiantPago) : 0;
+  const credForn = total - credAdiant;
+
   const partidas: PartidaIn[] = [];
   for (const [localId, v] of Array.from(porLocal.entries())) {
     if (v <= 0) continue;
@@ -912,7 +960,8 @@ export async function contabilizarEntradaEstoque(conferenciaId: string) {
     partidas.push({ contaId: cl.id, tipo: "DEBITO", valor: v });
   }
   if (partidas.length === 0) return;
-  partidas.push({ contaId: contaForn.id, tipo: "CREDITO", valor: total, fornecedorId });
+  if (credAdiant > 0.005) partidas.push({ contaId: contaAdiant!.id, tipo: "CREDITO", valor: credAdiant, fornecedorId });
+  if (credForn > 0.005) partidas.push({ contaId: contaForn.id, tipo: "CREDITO", valor: credForn, fornecedorId });
 
   // Detalhe dos itens (qtd× produto × R$ unit) p/ identificar o que entrou.
   const detItens = agruparItensParaDetalhe(movs);

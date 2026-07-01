@@ -246,6 +246,47 @@ export async function garantirContaTerceiros(empresaId: string) {
   });
 }
 
+/** Garante (idempotente) a sintética "Adiantamento a Fornecedores" (1.1.7, ATIVO) —
+ *  DIREITO a realizar (mercadoria paga e ainda não recebida). Distinta de "Contas de
+ *  Terceiros" (1.1.6, pessoas) e da conta do fornecedor no passivo (2.1.1). */
+export async function garantirContaAdiantamentoFornecedores(empresaId: string) {
+  const ex = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.7" }, select: { id: true } });
+  if (ex) return ex;
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1" } });
+  if (!pai) return null;
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo: "1.1.7", nome: "Adiantamento a Fornecedores",
+      grupo: "ATIVO", natureza: "DEVEDORA", tipo: "SINTETICA",
+      nivel: pai.nivel + 1, aceitaLancamento: false, paiId: pai.id, ativo: true,
+    },
+    select: { id: true },
+  });
+}
+
+/** Garante (idempotente) a analítica de adiantamento de UM fornecedor (1.1.7.x),
+ *  keyed por (empresa, fornecedorId, prefixo 1.1.7.). O mesmo fornecedorId também
+ *  tem a analítica de passivo em 2.1.1.x — por isso a unicidade é pelo CÓDIGO do pai. */
+export async function garantirContaAdiantamentoFornecedor(empresaId: string, fornecedorId: string) {
+  const pai = await garantirContaAdiantamentoFornecedores(empresaId);
+  if (!pai) return null;
+  const paiFull = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.7" }, select: { id: true, nivel: true } });
+  if (!paiFull) return null;
+  const forn = await prismaSemEscopo.fornecedor.findUnique({ where: { id: fornecedorId }, select: { razaoSocial: true } });
+  const nome = forn?.razaoSocial ?? "Fornecedor";
+  return criarAnaliticaComRetry(
+    () => prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, fornecedorId, codigo: { startsWith: "1.1.7." } }, select: { id: true } }),
+    async () => {
+      const filhos = await prismaSemEscopo.contaContabil.findMany({ where: { empresaId, paiId: paiFull.id }, select: { codigo: true } });
+      return {
+        empresaId, codigo: montarProximo("1.1.7", filhos.map((f) => f.codigo)), nome,
+        grupo: "ATIVO", natureza: "DEVEDORA", tipo: "ANALITICA",
+        nivel: paiFull.nivel + 1, aceitaLancamento: true, paiId: paiFull.id, fornecedorId,
+      };
+    },
+  );
+}
+
 /**
  * Garante (idempotente) a conta de uma conta bancária: da EMPRESA vai sob
  * Disponibilidades (1.1.1); de TERCEIROS (ehTerceiro) vai sob "Contas de Terceiros"

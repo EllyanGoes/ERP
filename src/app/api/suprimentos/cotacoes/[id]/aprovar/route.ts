@@ -4,6 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { gerarPedidoDeCotacao, finalizarMensagemAprovacaoCotacao } from "@/lib/aprovacao-cotacao";
+import { gerarContasPagarAntecipadoDoPedido } from "@/lib/contas-pagar";
 import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
 
 // POST /api/suprimentos/cotacoes/[id]/aprovar
@@ -49,6 +50,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
       return out;
     });
+
+    // PA: se a condição do pedido gera pagamento antecipado, o título nasce já aqui
+    // (adiantamento a fornecedor), antes da entrada. Best-effort, no-op se não for PA.
+    if (result?.pedidoCompra?.id) await gerarContasPagarAntecipadoDoPedido(result.pedidoCompra.id).catch(() => {});
 
     // Atualiza a mensagem do aprovador (novo status, sem botões) — best-effort.
     if (pendencia) {

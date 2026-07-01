@@ -19,6 +19,7 @@ interface Condicao {
   diasParcelas: string | null;
   percentuaisParcelas: string | null;
   semVencimento: boolean;
+  pagamentoAntecipado: boolean;
   ativo: boolean;
 }
 
@@ -31,6 +32,7 @@ type FormState = {
   diasParcelas: string;
   percentuaisParcelas: string;
   semVencimento: boolean;
+  pagamentoAntecipado: boolean;
 };
 
 const empty = (): FormState => ({
@@ -42,6 +44,7 @@ const empty = (): FormState => ({
   diasParcelas: "",
   percentuaisParcelas: "",
   semVencimento: false,
+  pagamentoAntecipado: false,
 });
 
 function numsList(s?: string | null): number[] {
@@ -88,6 +91,7 @@ export default function CondicoesPagamentoPage() {
       diasParcelas: r.diasParcelas ?? "",
       percentuaisParcelas: r.percentuaisParcelas ?? "",
       semVencimento: r.semVencimento ?? false,
+      pagamentoAntecipado: r.pagamentoAntecipado ?? false,
     });
     setEditingId(r.id); setError(null);
   };
@@ -166,7 +170,12 @@ export default function CondicoesPagamentoPage() {
                 <>
                   <tr key={r.id} className={cn("border-b border-border last:border-0", !r.ativo && "opacity-50", editingId === r.id ? "bg-info/10" : "hover:bg-muted")}>
                     <td className="px-4 py-3 font-medium text-foreground">
-                      {r.nome}
+                      <span className="inline-flex items-center gap-1.5">
+                        {r.nome}
+                        {r.pagamentoAntecipado && (
+                          <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400" title="Gera pagamento antecipado — o título nasce no pedido">PA</span>
+                        )}
+                      </span>
                       <span className="block text-[11px] font-normal text-muted-foreground">{resumoCondicao(r)}</span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground text-xs max-w-[260px] truncate">{r.descricao || "—"}</td>
@@ -245,6 +254,17 @@ function CondicaoForm({ form, setForm, saving, error, onSave, onCancel, isNew }:
           <span className="text-sm">
             <span className="font-medium text-foreground">Sem data de vencimento prevista</span>
             <span className="block text-xs text-muted-foreground">Ex.: &quot;Faturado&quot; — o título a receber nasce em aberto, sem vencimento (a combinar com o cliente).</span>
+          </span>
+        </label>
+
+        {/* Gera pagamento antecipado (PA) — o título nasce já no pedido */}
+        <label className="flex items-start gap-2 rounded-lg border border-amber-300/50 bg-amber-50/50 dark:bg-amber-500/5 p-3 cursor-pointer">
+          <input type="checkbox" checked={form.pagamentoAntecipado}
+            onChange={(e) => setForm((f) => ({ ...f, pagamentoAntecipado: e.target.checked }))}
+            className="mt-0.5 w-4 h-4 rounded border-border" />
+          <span className="text-sm">
+            <span className="font-medium text-foreground">Gera pagamento antecipado (PA)</span>
+            <span className="block text-xs text-muted-foreground">O título a pagar nasce já no <b>pedido</b> (adiantamento a fornecedor), antes do documento de entrada. Sem essa marcação, o título é gerado só após a entrada.</span>
           </span>
         </label>
 
