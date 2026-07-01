@@ -195,6 +195,9 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const idCounterRef = useRef(0);
   const initializedRef = useRef(false);
+  // Href da aba ativa ANTES da navegação atual — para abrir a nova aba ao lado
+  // dela (à direita), como no navegador, em vez de jogar pro fim.
+  const prevActiveHrefRef = useRef<string | null>(null);
 
   // Restore tabs from localStorage on first mount (client only)
   useEffect(() => {
@@ -224,6 +227,7 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
   // Add or activate tab on route change
   useEffect(() => {
     if (!pathname) return;
+    const prevActiveHref = prevActiveHrefRef.current;
     setTabs((prev) => {
       const existing = prev.find((t) => t.href === pathname);
       if (existing) return prev; // already open, just switch
@@ -236,8 +240,13 @@ export function TabsProvider({ children }: { children: React.ReactNode }) {
         icon: routeEntry?.icon,
         section: routeEntry?.section,
       };
-      return [...prev, newTab];
+      // Insere a nova aba logo à direita da aba que estava ativa (padrão de
+      // navegador); se não houver referência, mantém no fim.
+      const at = prevActiveHref ? prev.findIndex((t) => t.href === prevActiveHref) : -1;
+      if (at === -1) return [...prev, newTab];
+      return [...prev.slice(0, at + 1), newTab, ...prev.slice(at + 1)];
     });
+    prevActiveHrefRef.current = pathname;
   }, [pathname]);
 
   const setTabTitle = useCallback((title: string) => {
