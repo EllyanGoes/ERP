@@ -60,7 +60,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
   const router = useRouter();
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
-  const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("TODOS");
+  const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("ABERTA");
   const [contaFiltro, setContaFiltro] = useState<string>("");
   // Contas de contrapartida distintas presentes na lista (para o filtro).
   const contasDisponiveis = useMemo(() => {

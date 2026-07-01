@@ -50,7 +50,7 @@ const FILTROS_RECEBER: { key: StatusFiltro; label: string }[] = [
 
 export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
   const router = useRouter();
-  const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("TODOS");
+  const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("ABERTA");
   const [contaFiltro, setContaFiltro] = useState<string>("");
   // Contas de contrapartida distintas presentes na lista (para o filtro).
   const contasDisponiveis = useMemo(() => {
