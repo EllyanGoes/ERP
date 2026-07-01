@@ -45,6 +45,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
             },
           },
           localEstoque: { select: { id: true, nome: true } },
+          centroCusto: { select: { id: true, codigo: true, nome: true } },
           movimentacoes: { select: { id: true, tipo: true, quantidade: true, createdAt: true } },
         },
       },
@@ -131,6 +132,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
               codFiscal: item.codFiscal || null,
               tpOper: item.tpOper || null,
               localEstoqueId: item.localEstoqueId || null,
+              // Centro herdado do pedido / escolhido na entrada (default editável).
+              centroCustoId: item.centroCustoId || null,
               desconto: itemDesconto ?? null,
             },
           });
@@ -161,6 +164,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             ...(item.codFiscal !== undefined ? { codFiscal: item.codFiscal || null } : {}),
             ...(item.tpOper !== undefined ? { tpOper: item.tpOper || null } : {}),
             ...(item.localEstoqueId !== undefined ? { localEstoqueId: item.localEstoqueId || null } : {}),
+            ...(item.centroCustoId !== undefined ? { centroCustoId: item.centroCustoId || null } : {}),
             ...(itemDesconto !== undefined ? { desconto: itemDesconto || null } : {}),
           },
         });
@@ -237,6 +241,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         include: {
           item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } },
           localEstoque: { select: { id: true, nome: true } },
+          centroCusto: { select: { id: true, codigo: true, nome: true } },
           movimentacoes: true,
         },
       },

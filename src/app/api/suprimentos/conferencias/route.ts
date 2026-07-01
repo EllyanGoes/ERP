@@ -226,6 +226,7 @@ export async function POST(req: NextRequest) {
             vlrIPI?: number | string | null;
             vlrICMS?: number | string | null;
             localEstoqueId?: string | null;
+            centroCustoId?: string | null;
             tipoEntrada?: string | null;
             codFiscal?: string | null;
           }) => {
@@ -248,6 +249,7 @@ export async function POST(req: NextRequest) {
               vlrIPI: it.vlrIPI != null ? parseFloat(String(it.vlrIPI)) : null,
               vlrICMS: it.vlrICMS != null ? parseFloat(String(it.vlrICMS)) : null,
               localEstoqueId: it.localEstoqueId || null,
+              centroCustoId: it.centroCustoId || null,
               tipoEntrada: it.tipoEntrada || null,
               codFiscal: it.codFiscal || null,
             };

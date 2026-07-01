@@ -48,6 +48,8 @@ type ConferenciaItem = {
   tpOper: string | null;
   localEstoqueId: string | null;
   localEstoque: LocalEstoque;
+  centroCustoId: string | null;
+  centroCusto: { id: string; codigo: string; nome: string } | null;
   desconto: unknown;
   unidadeId: string | null;
   item: {
@@ -117,6 +119,7 @@ type EditItem = {
   codFiscal: string;
   tpOper: string;
   localEstoqueId: string;
+  centroCustoId: string;      // herdado do pedido (default editável); não classifica custo
   desconto: string;
   unidadeId: string;          // unidade de compra escolhida ("" = base)
   unidades: UnidadeOpc[];     // opções (base + alternativas) do item
@@ -138,6 +141,7 @@ type NewItem = {
   vlrICMS: string;
   desconto: string;
   localEstoqueId: string;
+  centroCustoId: string;
 };
 
 function getItemStatus(pedida: number, recebida: number): { label: string; cls: string } {
@@ -205,6 +209,7 @@ export default function DocumentoEntradaDetailPage() {
 
   const [saving, setSaving] = useState(false);
   const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoqueOption[]>([]);
+  const [centrosCusto, setCentrosCusto] = useState<{ id: string; codigo: string; nome: string }[]>([]);
 
   // Add item inline
   const [produtos, setProdutos] = useState<ProdutoOption[]>([]);
@@ -268,6 +273,7 @@ export default function DocumentoEntradaDetailPage() {
             codFiscal: i.codFiscal ?? "",
             tpOper: i.tpOper ?? "",
             localEstoqueId: resolvedModo === "GLOBAL" ? globalLocalId : (i.localEstoqueId ?? ""),
+            centroCustoId: i.centroCustoId ?? "",
             desconto: decimalToNumber(i.desconto) > 0 ? String(decimalToNumber(i.desconto)) : "",
             unidadeId: i.unidadeId ?? "",
             unidades,
@@ -290,6 +296,9 @@ export default function DocumentoEntradaDetailPage() {
       .catch(() => {});
     fetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1").then((r) => r.json())
       .then((j) => setNaturezas(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+    fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json())
+      .then((j) => setCentrosCusto(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
 
@@ -365,6 +374,7 @@ export default function DocumentoEntradaDetailPage() {
         vlrICMS: "",
         desconto: "",
         localEstoqueId: localEstoqueGlobalId,
+        centroCustoId: "",
       },
     ]);
     setAddItemSearch("");
@@ -466,6 +476,7 @@ export default function DocumentoEntradaDetailPage() {
               codFiscal: i.codFiscal || null,
               tpOper: i.tpOper || null,
               localEstoqueId: i.localEstoqueId || null,
+              centroCustoId: i.centroCustoId || null,
               desconto: i.desconto ? parseFloat(i.desconto) : null,
             })),
             // new items (no id — will be created by API)
@@ -479,6 +490,7 @@ export default function DocumentoEntradaDetailPage() {
               vlrICMS: ni.vlrICMS ? parseFloat(ni.vlrICMS) : null,
               desconto: ni.desconto ? parseFloat(ni.desconto) : null,
               localEstoqueId: ni.localEstoqueId || null,
+              centroCustoId: ni.centroCustoId || null,
             })),
           ],
         }),
@@ -1240,6 +1252,7 @@ export default function DocumentoEntradaDetailPage() {
                     {modoLocalEstoque === "POR_ITEM" && (
                       <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">Local Estoque</th>
                     )}
+                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs" title="Centro herdado do pedido (default editável). Não classifica destino de custo.">Centro de custo</th>
                     <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">U.M.</th>
                     <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Qtd. Pedida</th>
                     <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Qtd. Recebida</th>
@@ -1285,6 +1298,21 @@ export default function DocumentoEntradaDetailPage() {
                             )}
                           </td>
                         )}
+
+                        {/* Centro de custo — herdado do pedido, editável; não classifica destino */}
+                        <td className="px-3 py-2">
+                          {canEdit && ei ? (
+                            <ComboboxWithCreate
+                              value={ei.centroCustoId}
+                              onChange={(v) => updateEditItem(item.id, "centroCustoId", v)}
+                              noneLabel="—"
+                              triggerClassName="h-7 rounded text-xs min-w-[9rem]"
+                              options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">{item.centroCusto ? `${item.centroCusto.codigo} - ${item.centroCusto.nome}` : "—"}</span>
+                          )}
+                        </td>
 
                         <td className="px-3 py-2 text-xs text-muted-foreground">{item.item.unidadeMedida}</td>
 
@@ -1477,6 +1505,16 @@ export default function DocumentoEntradaDetailPage() {
                           />
                         </td>
                       )}
+                      {/* Centro de custo */}
+                      <td className="px-3 py-2">
+                        <ComboboxWithCreate
+                          value={ni.centroCustoId}
+                          onChange={(v) => updateNewItem(ni._key, "centroCustoId", v)}
+                          noneLabel="—"
+                          triggerClassName="h-7 rounded text-xs min-w-[9rem]"
+                          options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
+                        />
+                      </td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">{ni.unidadeMedida}</td>
                       <td className="px-3 py-2 text-right text-xs text-muted-foreground">—</td>
                       <td className="px-3 py-2">
