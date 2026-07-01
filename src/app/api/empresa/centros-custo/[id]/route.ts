@@ -9,6 +9,7 @@ const schema = z.object({
   nome:               z.string().min(1).optional(),
   grupoCentroCustoId: z.string().nullable().optional(),
   ativo:              z.boolean().optional(),
+  fabril:             z.boolean().optional(),
 });
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {

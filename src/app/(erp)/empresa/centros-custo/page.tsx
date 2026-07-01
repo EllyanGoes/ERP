@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronRight,
   CornerDownRight,
+  Factory,
   Folder,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,7 @@ type Centro = {
   grupoCentroCustoId: string | null;
   grupoCentroCusto: { id: string; nome: string } | null;
   ativo: boolean;
+  fabril: boolean;
 };
 
 // ── SelectGrupo ───────────────────────────────────────────────────────────────
@@ -129,13 +131,13 @@ export default function CentrosCustoPage() {
 
   // Create modal
   const [showCreate, setShowCreate]   = useState(false);
-  const [createForm, setCreateForm]   = useState({ codigo: "", nome: "", grupoCentroCustoId: "" });
+  const [createForm, setCreateForm]   = useState({ codigo: "", nome: "", grupoCentroCustoId: "", fabril: false });
   const [createSaving, setCreateSaving] = useState(false);
   const [createError,  setCreateError]  = useState("");
 
   // Edit modal
   const [editItem,   setEditItem]   = useState<Centro | null>(null);
-  const [editForm,   setEditForm]   = useState({ codigo: "", nome: "", grupoCentroCustoId: "", ativo: true });
+  const [editForm,   setEditForm]   = useState({ codigo: "", nome: "", grupoCentroCustoId: "", ativo: true, fabril: false });
   const [editSaving, setEditSaving] = useState(false);
   const [editError,  setEditError]  = useState("");
 
@@ -209,7 +211,7 @@ export default function CentrosCustoPage() {
   // ── Create ──────────────────────────────────────────────────────────────────
 
   function openCreate() {
-    setCreateForm({ codigo: "", nome: "", grupoCentroCustoId: "" });
+    setCreateForm({ codigo: "", nome: "", grupoCentroCustoId: "", fabril: false });
     setCreateError("");
     setShowCreate(true);
   }
@@ -224,6 +226,7 @@ export default function CentrosCustoPage() {
         codigo:             createForm.codigo.trim(),
         nome:               createForm.nome.trim(),
         grupoCentroCustoId: createForm.grupoCentroCustoId || null,
+        fabril:             createForm.fabril,
       }),
     });
     if (!res.ok) {
@@ -245,6 +248,7 @@ export default function CentrosCustoPage() {
       nome:               item.nome,
       grupoCentroCustoId: item.grupoCentroCustoId ?? "",
       ativo:              item.ativo,
+      fabril:             item.fabril ?? false,
     });
     setEditError("");
   }
@@ -260,6 +264,7 @@ export default function CentrosCustoPage() {
         nome:               editForm.nome.trim(),
         grupoCentroCustoId: editForm.grupoCentroCustoId || null,
         ativo:              editForm.ativo,
+        fabril:             editForm.fabril,
       }),
     });
     if (!res.ok) {
@@ -439,6 +444,14 @@ export default function CentrosCustoPage() {
                             <CornerDownRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
                             <span className="font-mono text-xs font-semibold text-foreground bg-muted px-2 py-0.5 rounded shrink-0">{centro.codigo}</span>
                             <span className="truncate text-foreground">{centro.nome}</span>
+                            {centro.fabril && (
+                              <span
+                                title="Centro fabril — consumo indireto (item fabril) vira CIF"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400 shrink-0"
+                              >
+                                <Factory className="w-3 h-3" /> Fabril
+                              </span>
+                            )}
                             {!centro.ativo && <span className="text-xs text-muted-foreground shrink-0">(inativo)</span>}
                           </div>
                           <span className="w-24 text-center">
@@ -522,6 +535,19 @@ export default function CentrosCustoPage() {
                   />
                 </div>
               </div>
+              <div className="pt-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    id="fabril-create"
+                    type="checkbox"
+                    checked={createForm.fabril}
+                    onChange={(e) => setCreateForm((p) => ({ ...p, fabril: e.target.checked }))}
+                    className="rounded"
+                  />
+                  <Label htmlFor="fabril-create" className="cursor-pointer">Centro fabril</Label>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Forno/extrusora/secador… — consumo indireto (item fabril) neste centro vira CIF; senão, Despesa.</p>
+              </div>
             </div>
 
             {createError && (
@@ -597,6 +623,19 @@ export default function CentrosCustoPage() {
                   className="rounded"
                 />
                 <Label htmlFor="ativo-edit" className="cursor-pointer">Ativo</Label>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="fabril-edit"
+                    type="checkbox"
+                    checked={editForm.fabril}
+                    onChange={(e) => setEditForm((p) => ({ ...p, fabril: e.target.checked }))}
+                    className="rounded"
+                  />
+                  <Label htmlFor="fabril-edit" className="cursor-pointer">Centro fabril</Label>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Forno/extrusora/secador… — consumo indireto (item fabril) neste centro vira CIF; senão, Despesa.</p>
               </div>
             </div>
 

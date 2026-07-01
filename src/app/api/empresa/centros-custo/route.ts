@@ -9,6 +9,7 @@ const schema = z.object({
   nome: z.string().min(1),
   grupoCentroCustoId: z.string().nullable().optional(),
   ativo: z.boolean().optional(),
+  fabril: z.boolean().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
         nome:               body.data.nome.trim(),
         grupoCentroCustoId: body.data.grupoCentroCustoId ?? null,
         ativo:              body.data.ativo ?? true,
+        fabril:             body.data.fabril ?? false,
       },
       include: { grupoCentroCusto: { select: { id: true, nome: true } } },
     });
