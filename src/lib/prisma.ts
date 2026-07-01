@@ -54,7 +54,9 @@ const MODELOS_ESCOPADOS = new Set<string>([
   "ContaPagar", "ContaReceber", "ContaBancaria", "LancamentoFinanceiro", "Recorrencia", "ImportacaoOFX",
   "NaturezaFinanceira", "NaturezaSubgrupo", "ContaContabil", "LancamentoContabil", "PartidaContabil",
   "Imobilizado", "DepreciacaoLancamento", "FechamentoContabil", "DRESecao",
-  "Concorrente", "ConcorrentePreco",
+  // Marketing / Inteligência Comercial é COMPARTILHADO por todas as empresas do
+  // grupo (Concorrente/ConcorrentePreco NÃO escopam — a coluna empresaId fica só
+  // como tag de origem). Mesma base de concorrentes/preços/mapa em qualquer empresa.
   "DiariaFolha", "DiariaGrupo", "DiariaItem",
   "Sequencia", "Filial",
 ])
